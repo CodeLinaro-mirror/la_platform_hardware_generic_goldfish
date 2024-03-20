@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=46.1.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "extract-cc"
+authors = [{ name = "Erwin Jansen", email = "jansene@google.com" }]
+license = { file = "LICENSE.TXT" }
+readme = "README.md"
+version = "1.0"
+classifiers = ["Topic :: Software Development"]
+description = "A commandline tool to generate a compiler_commands.json file from bazel."
+dependencies = ["importlib-metadata; python_version<'3.8'", "tqdm"]
+
+
+[project.scripts]
+extract-cc = "extract:main"
