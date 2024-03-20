@@ -19,7 +19,6 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List
-import tempfile
 
 
 def check_output(cmd, cwd: Path = None) -> str:
@@ -41,9 +40,7 @@ def check_output(cmd, cwd: Path = None) -> str:
     # Convert command elements to strings and log the command for visibility.
     cmd = [str(x) for x in cmd]
     logging.debug("Run: %s", " ".join(cmd))
-    return subprocess.check_output(
-        cmd, encoding="utf-8", cwd=cwd, stderr=subprocess.DEVNULL, text=True
-    )
+    return subprocess.check_output(cmd, encoding="utf-8", cwd=cwd, text=True)
 
 
 def run(

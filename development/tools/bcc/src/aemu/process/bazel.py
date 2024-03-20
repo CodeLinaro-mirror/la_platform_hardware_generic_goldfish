@@ -16,10 +16,10 @@ import json
 import logging
 import platform
 import re
-import shlex
 import shutil
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Set
 
 from aemu.process.runner import check_output, run
@@ -28,11 +28,15 @@ from aemu.process.runner import check_output, run
 class Bazel:
     def __init__(self, cwd, aosp):
         self.cwd = cwd
-        self.exe = shutil.which("bazel")
-        if not self.exe:
+        self.exe = None
+        if aosp:
             self.exe = shutil.which(
-                "bazel", path=aosp / "prebuilts" / "bazel" / f"{self.host()}-x86_64"
+                "bazel",
+                path=Path(aosp) / "prebuilts" / "bazel" / f"{self.host()}-x86_64",
             )
+        else:
+            self.exe = shutil.which("bazel")
+            logging.info("Not using AOSP, bazel (%s)", self.exe)
 
         if not self.exe:
             raise FileNotFoundError("No bazel installation found!")
@@ -117,4 +121,10 @@ class Bazel:
 
     def closure(self, target) -> Set[str]:
         query = [self.exe, "query", f"kind('.*_library', deps({target}))"]
-        return set(check_output(query, cwd=self.cwd).splitlines())
+        try:
+            closure = set(check_output(query, cwd=self.cwd).splitlines())
+            closure.add(target)
+            return closure
+        except subprocess.CalledProcessError as cpe:
+            logging.warning("Unable to calculate closure of %s (%s)", target, cpe)
+        return set()

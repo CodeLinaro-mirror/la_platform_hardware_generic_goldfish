@@ -149,6 +149,7 @@ class NormalizeFile(Operation):
         self.bazel = bazel
         self.ws = Path(bazel.info["workspace"]).resolve()
         self.exe = Path(bazel.info["execution_root"]).resolve()
+        self.ext = self.exe.parent.parent / "external"
         self.out = self.ws / "bazel-out"
 
     def needs_params(self):
@@ -171,9 +172,17 @@ class NormalizeFile(Operation):
         Returns:
             The absolute file path if it exists, otherwise the original argument.
         """
+        if arg.startswith("-"):
+            return arg
+
+        # We might be an external thing
+        if arg.startswith(".."):
+            possible = (self.ext / "_unused" / arg).resolve()
+            if possible.exists():
+                return str(possible)
+
         potential_paths = [
             Path(arg),  # Check original argument first
-            # self.out / re.sub("^bazel-out", str(self.out), arg),
             self.ws / arg,
             self.exe / arg,
         ]
