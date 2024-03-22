@@ -15,24 +15,9 @@
 import argparse
 import json
 import logging
-import multiprocessing
 import os
+import time
 from pathlib import Path
-
-try:
-    from tqdm import tqdm
-except ImportError:
-
-    def tqdm(iterable, *args, **kwargs):
-        """Pass-through stub for tqdm if not available
-
-        We print a . as an indicator we are doing things.
-        """
-        for item in iterable:
-            print(".", end="", flush=True)
-            yield item
-        print()  # Print a newline at the end
-
 
 from aemu.converter.converter import Converter
 from aemu.log import configure_logging
@@ -48,31 +33,28 @@ def compile_commands(targets, args):
     compile_command_entries = []
     converter = Converter(args.cwd, args.aosp)
 
-    # Let's calculate the closure
-    closure = set()
-    logging.warning("Calculating closure")
+    # Let's calculate the closure, mainly to inform the user
+    # What's going on..
+    closure = set(targets)
     for target in targets:
         closure = closure.union(converter.bazel.closure(target))
 
-    # And map reduce the results..
-    logging.warning("Processing items with %s threads, this can take a while", multiprocessing.cpu_count())
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        entries = tqdm(pool.map(converter.convert_target, targets))
+    logging.debug("Closure: %s", "\n".join(closure))
+    logging.warning(
+        "Processing %d items, please be patient..",
+        len(closure),
+    )
 
-    # Flatten
-    compile_command_entries = [x for xs in entries for x in xs]
+    compile_command_entries = converter.convert_targets(set(targets))
 
     # And write out
-    if args.out:
-        dest = Path(args.out).absolute()
-        if dest.is_dir():
-            dest = dest / "compile_commands.json"
+    dest = Path(args.out).absolute()
+    if dest.is_dir():
+        dest = dest / "compile_commands.json"
 
-        logging.warning("Writing %s", dest)
-        with open(dest, "w") as fb:
-            json.dump(compile_command_entries, fb, indent=2)
-    else:
-        print(json.dumps(compile_command_entries, indent=2))
+    logging.warning("Writing %s", dest)
+    with open(dest, "w") as fb:
+        json.dump(compile_command_entries, fb, indent=2)
 
 
 def fix_bazel_args(args):
@@ -101,9 +83,7 @@ def main():
         """,
     )
 
-    parser.add_argument(
-        "--aosp", help="Optional aosp root."
-    )
+    parser.add_argument("--aosp", help="Optional aosp root.")
 
     parser.add_argument(
         "-C",
@@ -143,7 +123,9 @@ def main():
         fix_bazel_args(args)
 
     if args.targets:
+        start = time.time()
         compile_commands(args.targets, args)
+        logging.warning("Completed in %s seconds", time.time() - start)
     else:
         parser.print_help()
 

@@ -17,9 +17,6 @@ import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
-from functools import lru_cache
-
-from aemu.process.bazel import Bazel
 
 
 class Operation(ABC):
@@ -134,71 +131,10 @@ class DropSecondArgumentFilter(MultiArgumentFilter):
         super().__init__(pattern, 2, replace_fn)
 
 
-class NormalizeFile(Operation):
-    """
-    Operation that attempts to normalize a file path to an absolute path.
-    """
-
-    def __init__(self, bazel: Bazel):
-        """
-        Initializes the NormalizeFile operation.
-
-        Args:
-            bazel: An object containing Bazel build context information.
-        """
-        self.bazel = bazel
-        self.ws = Path(bazel.info["workspace"]).resolve()
-        self.exe = Path(bazel.info["execution_root"]).resolve()
-        self.ext = self.exe.parent.parent / "external"
-        self.out = self.ws / "bazel-out"
-
-    def needs_params(self):
-        """
-        Returns the number of parameters required for this operation (1).
-        """
-        return 1
-
-    @lru_cache
-    def apply(self, arg: str) -> str:
-        """
-        Attempts to convert a relative path to an absolute path.
-
-        Note: This operation is quite expensinve, so we cache this call.
-              We are often expanding the same paths anyways..
-
-        Args:
-            arg:  The relative file path to normalize.
-
-        Returns:
-            The absolute file path if it exists, otherwise the original argument.
-        """
-        if arg.startswith("-"):
-            return arg
-
-        # We might be an external thing
-        if arg.startswith(".."):
-            possible = (self.ext / "_unused" / arg).resolve()
-            if possible.exists():
-                return str(possible)
-
-        potential_paths = [
-            Path(arg),  # Check original argument first
-            self.ws / arg,
-            self.exe / arg,
-        ]
-
-        for path in potential_paths:
-            real = path.resolve()
-            if real.exists() and not real.is_relative_to(self.exe):
-                return str(real)
-
-        return arg
-
-
 class SysrootFilter(SingleArgumentFilter):
     def __init__(self, bazel):
         super().__init__(["^--sysroot="], self.fixup)
-        self.norm = NormalizeFile(bazel)
+        self.norm = bazel.normalizer
 
     def fixup(self, root):
         return "--sysroot=" + self.norm.apply(root[10:])

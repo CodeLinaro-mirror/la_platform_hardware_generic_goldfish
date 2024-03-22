@@ -15,9 +15,8 @@
 from aemu.converter.compiler_converter import CompilerConverter
 from aemu.filters.argument_filter import (
     AndroidClangFilter,
-    DropSecondArgumentFilter,
-    NormalizeFile,
     DropDeadIncludes,
+    DropSecondArgumentFilter,
     SingleArgumentFilter,
 )
 from aemu.process.bazel import Bazel
@@ -32,6 +31,6 @@ class ClangConverter(CompilerConverter):
                 "-MD|-fdebug-prefix-map.*|-fno-canonical-system-headers.*"
             ),
             AndroidClangFilter(),
-            NormalizeFile(self.bazel),
+            self.bazel.normalizer,
             DropDeadIncludes(bazel),
         ]

@@ -66,7 +66,7 @@ class CompilerConverter(ABC):
             "asm_pre": "-xassembler-with-cpp",
         }
 
-    def extract_src_file(self, arguments) -> str:
+    def source_file(self, arguments) -> str:
         """
         Extracts the source file from a list of compiler arguments.
 
@@ -87,7 +87,7 @@ class CompilerConverter(ABC):
         ]
         if not source_file_candidates:
             raise ValueError(f"No source files found in compile args: {arguments}.")
-        return source_file_candidates[0]
+        return self.bazel.normalizer.apply(source_file_candidates[0])
 
     def convert(self, bazel_cc_arguments):
         """Converts Bazel compiler arguments into a compile_commands.json entry.
@@ -109,8 +109,8 @@ class CompilerConverter(ABC):
         See Also:
             * compile_commands.json specification: https://clang.llvm.org/docs/JSONCompilationDatabase.html
         """
+        file = self.source_file(bazel_cc_arguments)
         arguments = apply_argument_filter(bazel_cc_arguments, self.filters)
-        file = self.extract_src_file(arguments)
         directory = self.bazel.info["workspace"]
         logging.debug("[%s] %s", file, " ".join(arguments))
 

@@ -15,17 +15,31 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
+from typing import Set
 
 from aemu.converter.apple_converter import AppleClangConverter
 from aemu.converter.clang_converter import ClangConverter
-from aemu.filters.argument_filter import NormalizeFile
 from aemu.process.bazel import Bazel
 from aemu.process.runner import run
+
+try:
+    from tqdm import tqdm
+except ImportError:
+
+    def tqdm(iterable, *args, **kwargs):
+        """Pass-through stub for tqdm if not available
+
+        We print a . as an indicator we are doing things.
+        """
+        for item in iterable:
+            print(".", end="", flush=True)
+            yield item
+        print()  # Print a newline at the end
 
 
 class Converter:
 
-    def __init__(self, working_dir: str, bazel_exe:str):
+    def __init__(self, working_dir: str, bazel_exe: str):
         self.bazel = Bazel(working_dir, bazel_exe)
 
     @lru_cache
@@ -42,21 +56,20 @@ class Converter:
 
         raise NotImplementedError(f"No support for compiler {out}")
 
-    def convert_target(self, target: str):
-        normalizer = NormalizeFile(self.bazel)
-        description = self.bazel.get_actions(target)
+    def convert_targets(self, targets: Set[str]) -> []:
+        description = self.bazel.get_actions(targets)
 
         # Nothing to do..
         if "actions" not in description:
             return []
 
         entries = []
-        for action in description["actions"]:
+        for action in tqdm(description["actions"]):
             # The first parameter is our compiler, we will select the normalizer
             # That is appropriate for our compiler.
             arguments = action["arguments"]
             try:
-                cc = normalizer.apply(arguments[0])
+                cc = self.bazel.normalizer.apply(arguments[0])
                 converter = self.get_converter(cc)
                 entry = converter.convert(arguments)
                 entries.append(entry)

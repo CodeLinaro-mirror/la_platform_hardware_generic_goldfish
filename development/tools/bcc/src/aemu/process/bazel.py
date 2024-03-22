@@ -20,8 +20,9 @@ import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Set, List
 
+from aemu.filters.normalizer import NormalizeFile
 from aemu.process.runner import check_output, run
 
 
@@ -43,6 +44,8 @@ class Bazel:
 
         self.info = self._load_bazel_info()
         self.version = self._get_bazel_version()
+        self.normalizer = NormalizeFile(self.info)
+
         logging.debug("Using bazel config: %s", self.info)
 
     def host(self) -> str:
@@ -82,14 +85,21 @@ class Bazel:
 
         return tuple(int(match.group(i)) for i in range(1, 4))
 
-    @lru_cache(maxsize=None)
-    def get_actions(self, target: str):
-        # See: https://docs.bazel.build/versions/master/aquery.html
+    def _deps(self, targets: Set[str]):
+        """Construct a deps(...) for bazel that handles multiple targets."""
+        if len(targets) > 1:
+            target = f"allpaths({','.join(targets)})"
+        else:
+            target = next(iter(targets))
+        return f"deps({target})"
 
+    def get_actions(self, targets: Set[str]):
+        # See: https://docs.bazel.build/versions/master/aquery.html
+        deps = self._deps(targets)
         aquery = [
             self.exe,
             "aquery",
-            f"mnemonic('(Objc|Cpp)Compile',deps({target}))",
+            f"mnemonic('(Objc|Cpp)Compile',{deps})",
             "--output=jsonproto",
             "--include_artifacts=false",
             "--ui_event_filters=-info",
@@ -101,8 +111,8 @@ class Bazel:
             result, _ = run(aquery, cwd=self.cwd)
             return json.loads(result)
         except subprocess.CalledProcessError as cpe:
-            logging.error("Failed to run %s do to: %s", aquery, cpe)
-            raise cpe
+            logging.error("Failed to run %s do to: %s, ignoring", aquery, cpe)
+        return []
 
     def _load_bazel_info(self) -> Dict[str, str]:
         """Retrieve the bazel configuration."""
@@ -120,11 +130,13 @@ class Bazel:
         return dict(line.strip().split(": ") for line in info)
 
     def closure(self, target) -> Set[str]:
-        query = [self.exe, "query", f"kind('.*_library', deps({target}))"]
+        query = [
+            self.exe,
+            "query",
+            f"kind('.*_library|cc_test|cc_binary', deps({target}))",
+        ]
         try:
-            closure = set(check_output(query, cwd=self.cwd).splitlines())
-            closure.add(target)
-            return closure
+            return set(check_output(query, cwd=self.cwd).splitlines())
         except subprocess.CalledProcessError as cpe:
             logging.warning("Unable to calculate closure of %s (%s)", target, cpe)
         return set()

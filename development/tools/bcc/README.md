@@ -20,8 +20,7 @@ This tool streamlines development workflows within the Android emulator environm
 From within a Bazel workspace:
 
   ```bash
-  bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- \
-   @glib//:glib-static //hardware/google/gfxstream/host:gfxstream_backend
+  bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/..
   ```
 
 If installed via pip
