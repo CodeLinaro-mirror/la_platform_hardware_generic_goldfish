@@ -1,0 +1,32 @@
+cc_library(
+    name = "backend",
+    srcs = [
+        "src/android/base/logging/Log.cpp",
+        "src/android/base/logging/LogConfiguration.cpp",
+        "src/android/base/logging/LogFormatter.cpp",
+    ],
+    hdrs = glob(["include/android/base/logging/*.h"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "backend_unittests",
+    srcs = glob(
+        [
+            "test/**/*unittest.cpp",
+            "test/**/*.h",
+        ],
+    ),
+    linkopts = ["-undefined error"],
+    deps = [
+        ":backend",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
