@@ -1,0 +1,25 @@
+cc_library(
+    name = "sparse",
+    srcs = [
+        "src/backed_block.c",
+        "src/output_file.c",
+        "src/sparse.c",
+        "src/sparse_crc32.c",
+        "src/sparse_err.c",
+        "src/sparse_read.c",
+    ] + glob([
+        "src/*.h",
+    ]),
+    hdrs = ["include/sparse/sparse.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "img2simg",
+    srcs = ["src/img2simg.c"],
+    deps = [":sparse"] + select({
+        "@platforms//os:windows": ["//hardware/generic/goldfish/third_party/windows/mman"],
+        "//conditions:default": [],
+    }),
+)

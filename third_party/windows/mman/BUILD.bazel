@@ -1,0 +1,10 @@
+# Windows only mmap implementation, nop otherwise..
+cc_library(
+    name = "mman",
+    srcs =
+        select({
+            "@platforms//os:windows": ["mman.c"],
+            "//conditions:default": [],
+        }),
+    hdrs = ["include/sys/mman.h"],
+)

@@ -1,0 +1,31 @@
+cc_library(
+    name = "selinux",
+    srcs =
+        [
+            "src/callbacks.c",
+            "src/check_context.c",
+            "src/freecon.c",
+            "src/init.c",
+            "src/label.c",
+            "src/label_android_property.c",
+            "src/label_file.c",
+        ] + glob([
+            "src/*.h",
+        ]),
+    hdrs = glob([
+        "include/selinux/*.h",
+    ]),
+    defines = select({
+        "@platforms//os:macos": ["DARWIN"],
+        "//conditions:default": ["HOST"],
+    }),
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/system",
+        "//hardware/generic/goldfish/third_party/sparse",
+    ],
+)

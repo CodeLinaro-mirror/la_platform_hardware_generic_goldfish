@@ -1,0 +1,34 @@
+cc_library(
+    name = "ext4_utils",
+    srcs = [
+        "src/allocate.c",
+        "src/contents.c",
+        "src/crc16.c",
+        "src/ext4_sb.c",
+        "src/ext4_utils.c",
+        "src/extent.c",
+        "src/fs_config.c",
+        "src/indirect.c",
+        "src/make_ext4fs.c",
+        "src/sha1.c",
+        "src/uuid.c",
+        "src/wipe.c",
+    ] + glob([
+        "src/private/*.h",
+        "src/*.h",
+    ]),
+    hdrs = [
+        "include/make_ext4fs.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/third_party/sparse",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["//hardware/generic/goldfish/third_party/libselinux:selinux"],
+    }),
+)

@@ -1,0 +1,24 @@
+cc_library(
+    name = "filesystems",
+    srcs = [
+    ] + glob([
+        "src/**/*.cpp",
+        "src/**/*.h",
+    ]),
+    hdrs = glob([
+        "include/android/filesystems/*.h",
+    ]),
+    includes = [
+        "include",
+        "src",
+    ],
+    # linkopts = ["-undefined error"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/android/files",
+        "//hardware/generic/goldfish/ext4_utils",
+        "//hardware/generic/goldfish/process",
+        "//hardware/generic/goldfish/system",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)

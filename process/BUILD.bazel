@@ -1,0 +1,51 @@
+cc_library(
+    name = "process",
+    srcs = [
+        "src/android/base/process/Command.cpp",
+    ] + select({
+        "@platforms//os:windows": [
+            "src/android/base/process/Command_Windows.cpp",
+        ],
+        "//conditions:default": [
+            "src/android/base/process/Command_Posix.cpp",
+        ],
+    }),
+    # linkopts = ["-undefined error"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "sleep_emu",
+    srcs = ["test/android/base/process/sleep.cpp"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+    ],
+)
+
+cc_test(
+    name = "process_unittests",
+    srcs = glob(
+        [
+            "test/**/*_unittest.cpp",
+            "test/include/**/*.h",
+        ],
+        exclude = ["test/**/Win32"],
+    ),
+    data = [":sleep_emu"],
+    linkopts = ["-undefined error"],
+    deps = [
+        ":process",
+        "//hardware/generic/goldfish/files",
+        "//hardware/generic/goldfish/logging:backend",
+        "//hardware/generic/goldfish/system:test-headers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
