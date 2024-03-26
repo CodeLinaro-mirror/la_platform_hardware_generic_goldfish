@@ -1,0 +1,10 @@
+Name: JSON for Modern C++
+URL: https://github.com/nlohmann
+Version: 3.11.3
+License: MIT
+License File: LICENSE.MIT
+Security Critical: yes
+Shipped: yes
+
+Description:
+This is used by the emulator to parse and manipulate json.
