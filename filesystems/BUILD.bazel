@@ -15,7 +15,7 @@ cc_library(
     # linkopts = ["-undefined error"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/android/files",
+        "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/ext4_utils",
         "//hardware/generic/goldfish/process",
         "//hardware/generic/goldfish/system",
