@@ -39,3 +39,20 @@ We considered using the Bazel Compile Commands Extractor (<https://github.com/he
 * *Package Structure*: Our reliance on the //external directory is not supported by the tool.
 * *Toolchain Customization*: Our custom clang toolchains require transformations beyond the tool's capabilities.
 * *Licensing Ambiguity*: The tool's licensing terms were custom, making us hesitant to adopt it for our project.
+
+### Known Issues for Linux in AOSP
+
+In AOSP, we use a custom clang toolchain. This toolchain might cause incompatibilities if you're using a `clangd` version that isn't part of our custom toolchain.
+
+`clangd` performs some analysis to resolve the compiler toolchain used, based on information in `compile_commands.json`. This process can sometimes prevent `clangd` from correctly deriving certain headers. The simplest workaround is to create a custom `clangd.sh` wrapper script that forces the use of the `clangd` bundled with our toolchain.
+
+The `linux_clangd.sh` script in this directory can help you launch a compatible `clangd` server based on the compiler versions declared in `$AOSP_ROOT/build/bazel/rules/toolchains.json`.
+
+**Example for VS Code with the clangd plugin:**
+
+If you're using VS Code with the [clangd plugin](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd), configure the plugin by setting this property:
+
+"clangd.path": "$AOSP_ROOT/hardware/generic/goldfish/development/tools/linux_clangd.sh"
+
+Where `$AOSP_ROOT` is the path to your repo. For example `~/src/emu-dev`
+

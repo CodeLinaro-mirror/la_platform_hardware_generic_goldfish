@@ -16,7 +16,7 @@ import logging
 import re
 from pathlib import Path
 
-from aemu.converter.clang_converter import ClangConverter
+from aemu.converter.clang_converter import ClangConverter, AndroidClangFilter
 from aemu.filters.argument_filter import SingleArgumentFilter
 from aemu.process.bazel import Bazel
 from aemu.process.runner import check_output
@@ -78,7 +78,11 @@ class AppleClangConverter(ClangConverter):
 
         logging.debug("OSX: Using Xcode: %s (%s)", version, build)
         logging.debug("OSX: XCode path: %s", self.osx_sdk_root)
+
+        # We are going to use the C++ headers from osx, so filter out the AOSP clang headers.
+        self.filters.append(AndroidClangFilter())
         self.filters.append(ApplySysrootFilter(self.osx_sdk_root))
+
 
     def parse_xcode_sdks(self):
         """
