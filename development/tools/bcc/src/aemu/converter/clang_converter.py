@@ -30,7 +30,6 @@ class ClangConverter(CompilerConverter):
             SingleArgumentFilter(
                 "-MD|-fdebug-prefix-map.*|-fno-canonical-system-headers.*"
             ),
-            AndroidClangFilter(),
             self.bazel.normalizer,
             DropDeadIncludes(bazel),
         ]
