@@ -13,6 +13,7 @@
 #include "android/utils/filelock.h"
 
 #include "aemu/base/EintrWrapper.h"
+#include "aemu/base/process/Command.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 #include "android/utils/lock.h"
@@ -25,6 +26,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <future>
 #include <sys/stat.h>
 #ifdef _WIN32
 #include "aemu/base/files/ScopedFileHandle.h"
@@ -389,7 +391,8 @@ static auto filelock_lock(FileLock *lock, int timeout) -> int {
         // If we waited until the process exited, the process
         // is not fresh anymore.
         auto proc = android::base::Process::fromPid(lockpid);
-        auto wait = proc->wait_for(std::chrono::milliseconds(sleep_duration_ms));
+        auto wait =
+            proc->wait_for(std::chrono::milliseconds(sleep_duration_ms));
         if (wait == std::future_status::ready) {
           freshness = FRESHNESS_STALE;
         }

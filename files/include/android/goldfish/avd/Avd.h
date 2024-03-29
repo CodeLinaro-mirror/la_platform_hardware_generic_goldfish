@@ -102,7 +102,8 @@ public:
   ~Avd() = default;
   // Move Constructor
   Avd(Avd &&other) noexcept
-      : mTarget(std::move(other.mTarget)), mConfig(std::move(other.mConfig)),
+      : mContentPath(std::move(other.mContentPath)),
+        mTarget(std::move(other.mTarget)), mConfig(std::move(other.mConfig)),
         mName(std::move(other.mName)) {}
 
   std::string details();

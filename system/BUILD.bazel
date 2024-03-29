@@ -25,7 +25,12 @@ cc_library(
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "//hardware/generic/goldfish/process",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(

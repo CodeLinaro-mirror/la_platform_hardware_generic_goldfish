@@ -279,7 +279,7 @@ discovery_dir discovery{"HOME", "Library/Caches/TemporaryItems"};
 static auto getAlternativeRoot() -> fs::path {
 #ifdef __linux__
   auto uid = getuid();
-  auto discovery = pj("/run/user/", std::to_string(uid));
+  auto discovery = fs::path("/run/user/") / std::to_string(uid);
   if (System::get()->pathExists(discovery)) {
     return discovery;
   }

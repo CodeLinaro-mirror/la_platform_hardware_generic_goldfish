@@ -149,27 +149,28 @@ absl::StatusOr<fs::path> Avd::getImagePath(AvdImageType imgType) {
       System::get()->pathCanRead(possible)) {
     return possible;
   }
-
+  dinfo("Did not find %s in %s, falling back to system path", possible, mContentPath);
   return getSystemImagePath(imgType);
 }
 
 absl::StatusOr<fs::path> Avd::getSystemImagePath(AvdImageType imgType) {
   auto sdk = ConfigDirs::getSdkRootDirectory();
+  fs::path path = "no-sysimg";
   for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
     std::string key = absl::StrFormat("%s%d", SEARCH_PREFIX, n);
     if (!mConfig->hasKey(key)) {
       continue;
     }
-    auto path = sdk / mConfig->getString(key, "unused") /
+    path = sdk / mConfig->getString(key, "unused") /
                 _imageFileNames[static_cast<uint8_t>(imgType)];
 
     if (System::get()->pathExists(path) && System::get()->pathCanRead(path)) {
       return path;
     }
   }
-  return absl::NotFoundError(absl::StrFormat("No system image path (%s) in %s",
-                                             SEARCH_PREFIX,
-                                             mConfig->getBackingFile()));
+  return absl::NotFoundError(
+      absl::StrFormat("Path %s does not exist (%s) in %s", path, SEARCH_PREFIX,
+                      mConfig->getBackingFile()));
 }
 
 std::string Avd::details() {
@@ -211,6 +212,10 @@ absl::StatusOr<Avd> Avd::parse(fs::path target, std::string name) {
   if (!config->read()) {
     return absl::InternalError("Unable to parse ini file: " + cfg_ini.string());
   }
+  for (auto it = config->begin(); it != config->end(); ++it) {
+    dinfo("  %s = %s", *it, config->getString(*it, "---"));
+  }
+  dinfo("Using content path: %s", content_path);
   return Avd(content_path, std::move(ini), std::move(config), name);
 }
 

@@ -14,7 +14,10 @@
 
 #include "android/base/system/System.h"
 
+#include <aemu/base/files/ScopedFd.h>
 #include <aemu/base/logging/Log.h>
+#include <aemu/base/process/Command.h>
+#include <future>
 #include <inttypes.h>
 
 #include <algorithm>
@@ -31,8 +34,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings//strip.h"
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/logging/CLog.h"
 #include "aemu/base/memory/NoDestructor.h"
@@ -552,51 +557,18 @@ public:
     return lastSuccessfulValue;
 
 #elif defined(__linux__)
-    using android::base::ScopedFd;
-    using android::base::trim;
-    const auto versionNumFile =
-        android::base::makeCustomScopedPtr(tempfile_create(), tempfile_close);
-
-    if (!versionNumFile) {
-      string errorStr =
-          "Error: Internal error: could not create a temporary file";
-      LOG(DEBUG) << errorStr;
-      return errorStr;
+    if (!lastSuccessfulValue.empty()) {
+      return lastSuccessfulValue;
     }
 
-    string tempPath = tempfile_path(versionNumFile.get());
+    auto proc =
+        Command::create({"lsb_release", "-d"}).withStdoutBuffer(4096).execute();
 
-    int exitCode = -1;
-    vector<string> command{"lsb_release", "-d"};
-    runCommand(command,
-               RunOptions::WaitForCompletion | RunOptions::TerminateOnTimeout |
-                   RunOptions::DumpOutputToFile,
-               1000, // timeout ms
-               &exitCode, nullptr, tempPath);
-
-    if (exitCode) {
-      string errorStr = "Could not get host OS product version.";
-      LOG(DEBUG) << errorStr;
-      return errorStr;
+    if (proc->wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
+      return "Unknown OS";
     }
-
-    ScopedFd tempfileFd(open(tempPath.c_str(), O_RDONLY));
-    if (!tempfileFd.valid()) {
-      LOG(DEBUG) << "Could not open" << tempPath << " : " << strerror(errno);
-      return "";
-    }
-
-    string contents;
-    android::readFileIntoString(tempfileFd.get(), &contents);
-    if (contents.empty()) {
-      string errorStr = StringFormat(
-          "Error: Internal error: could not read temporary file '%s'",
-          tempPath);
-      LOG(DEBUG) << errorStr;
-      return errorStr;
-    }
-    //"lsb_release -d" output is "Description:      [os-product-version]"
-    lastSuccessfulValue = trim(contents.substr(12, contents.size() - 12));
+    auto contents = proc->out()->asString();
+    lastSuccessfulValue = absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
     return lastSuccessfulValue;
 #else
 #error getOsName(): unsupported OS;
@@ -1426,7 +1398,7 @@ bool System::readSomeBytes(fs::path path, char *array, int pos, int size) {
 }
 
 #if defined(__linux__)
-static void get_all_ext4_mount_dirs(std::vector<std::string> &alldirs) {
+static void get_all_ext4_mount_dirs(std::vector<fs::path> &alldirs) {
   static const char *proc_mounts = "/proc/self/mounts";
   std::ifstream testFile(proc_mounts);
   std::string line;
@@ -1445,32 +1417,24 @@ static void get_all_ext4_mount_dirs(std::vector<std::string> &alldirs) {
   }
 }
 
-static bool dir_contains_path(const std::string &dir, const char *path) {
-  std::string dir1 = android::base::PathUtils::canonicalPath(dir);
-  std::string path1 = android::base::PathUtils::canonicalPath(path);
-  // on linux, use realpath to make sure the symbolic link is removed
-  //
-  char *dir2 = realpath(dir1.c_str(), NULL);
-  char *path2 = realpath(path1.c_str(), NULL);
+static bool dir_contains_path(const fs::path &path, const fs::path &dir) {
+  // Important: Both path and dir need to be absolute and canonicalized for
+  // accurate comparison.
+  fs::path absolute_path = fs::canonical(path);
+  fs::path absolute_dir = fs::canonical(dir);
 
-  std::string dir3(dir2);
-  std::string path3(path2);
-  free(dir2);
-  free(path2);
-  if (path3.find(dir3) == 0) {
-    return true;
-  }
-  return false;
+  return absolute_path.string().starts_with(absolute_dir.string());
 }
+
 #endif
 
 bool System::pathFileSystemIsExt4Internal(fs::path path) {
 #if defined(__linux__)
-  std::vector<std::string> mount_dirs;
+  std::vector<fs::path> mount_dirs;
   get_all_ext4_mount_dirs(mount_dirs);
 
-  for (std::string dir : mount_dirs) {
-    if (dir_contains_path(dir, path.data())) {
+  for (const auto &dir : mount_dirs) {
+    if (dir_contains_path(dir, path.c_str())) {
       return true;
     }
   }
@@ -1513,11 +1477,11 @@ bool System::pathIsQcow2Internal(fs::path path) {
 }
 
 // static
-int System::pathOpenInternal(const char *filename, int oflag, int perm) {
+int System::pathOpenInternal(const char *filename, int oflag, int pmode) {
 #ifdef _WIN32
   return _wopen(win32Path(filename).c_str(), oflag, perm);
 #else  // !_WIN32
-  return ::open(filename, oflag, perm);
+  return ::open(filename, oflag, pmode);
 #endif // !_WIN32
 }
 
@@ -1822,7 +1786,7 @@ static std::optional<DiskKind> diskKind(const PathStat &st) {
 
   // Now, having a device name, let's parse
   // /sys/block/%device%X/queue/rotational to get the result.
-  auto sysPath = StringFormat("/sys/block/%s/queue/rotational", devName);
+  auto sysPath = absl::StrFormat("/sys/block/%s/queue/rotational", devName);
   in.open(sysPath.c_str());
   if (!in) {
     return {};
@@ -1994,7 +1958,7 @@ System::FileSize System::getFilePageSizeForPath(fs::path path) {
 System::FileSize System::getAlignedFileSize(System::FileSize align,
                                             System::FileSize size) {
 #ifndef ROUND_UP
-#define ROUND_UP(n, d) (((n) + (d) - 1) & -(0 ? (n) : (d)))
+#define ROUND_UP(n, d) (((n) + (d)-1) & -(0 ? (n) : (d)))
 #endif
 
   return ROUND_UP(size, align);

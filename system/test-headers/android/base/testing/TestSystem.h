@@ -56,23 +56,21 @@ public:
   using System::getProgramDirectoryFromPlatform;
   using System::setEnvironmentVariable;
 
-  TestSystem(fs::path launcherDir, fs::path homeDir = "/home",
-             fs::path appDataDir = "")
+  explicit TestSystem(fs::path launcherDir, fs::path homeDir = "/home",
+                      fs::path appDataDir = "")
       : mProgramDir(launcherDir), mProgramSubdir(""), mLauncherDir(launcherDir),
         mHomeDir(homeDir), mAppDataDir(appDataDir), mCurrentDir(),
-        mIsRemoteSession(false), mRemoteSessionType(), mTempDir(NULL),
+        mIsRemoteSession(false), mRemoteSessionType(), mTempDir(nullptr),
         mTempRootPrefix(), mEnvPairs(),
-        mPrevSystem(System::setForTesting(this)), mTimes(), mShellOpaque(NULL),
-        mUnixTime() {}
+        mPrevSystem(System::setForTesting(this)), mTimes(),
+        mShellOpaque(nullptr), mUnixTime() {}
 
-  virtual ~TestSystem() {
+  ~TestSystem() override {
     System::setForTesting(mPrevSystem);
     delete mTempDir;
   }
 
-  virtual const fs::path getProgramDirectory() const override {
-    return mProgramDir;
-  }
+  const fs::path getProgramDirectory() const override { return mProgramDir; }
 
   // Set directory of currently executing binary.  This must be a subdirectory
   // of mLauncherDir and specified relative to mLauncherDir
@@ -85,7 +83,7 @@ public:
     }
   }
 
-  virtual const fs::path getLauncherDirectory() const override {
+  const fs::path getLauncherDirectory() const override {
     if (!mLauncherDir.empty()) {
       return mLauncherDir;
     } else {
@@ -93,42 +91,40 @@ public:
     }
   }
 
-  void setLauncherDirectory(std::string_view launcherDir) {
+  void setLauncherDirectory(const fs::path &launcherDir) {
     mLauncherDir = launcherDir;
     // Update directories that are suffixes of |mLauncherDir|.
     setProgramSubDir(mProgramSubdir);
   }
 
-  virtual const fs::path getHomeDirectory() const override { return mHomeDir; }
+  const fs::path getHomeDirectory() const override { return mHomeDir; }
 
-  void setHomeDirectory(std::string_view homeDir) { mHomeDir = homeDir; }
+  void setHomeDirectory(const fs::path &homeDir) { mHomeDir = homeDir; }
 
-  virtual const fs::path getAppDataDirectory() const override {
-    return mAppDataDir;
-  }
+  const fs::path getAppDataDirectory() const override { return mAppDataDir; }
 
   void setAppDataDirectory(std::string_view appDataDir) {
     mAppDataDir = appDataDir;
   }
 
-  virtual fs::path getCurrentDirectory() const override { return mCurrentDir; }
+  fs::path getCurrentDirectory() const override { return mCurrentDir; }
 
-  virtual bool setCurrentDirectory(fs::path path) override {
+  bool setCurrentDirectory(fs::path path) override {
     mCurrentDir = path;
     return true;
   }
 
-  virtual OsType getOsType() const override { return mOsType; }
+  OsType getOsType() const override { return mOsType; }
 
-  virtual std::string getOsName() override { return mOsName; }
+  std::string getOsName() override { return mOsName; }
 
-  virtual std::string getMajorOsVersion() const override { return "0.0"; }
+  std::string getMajorOsVersion() const override { return "0.0"; }
 
   int getCpuCoreCount() const override { return mCoreCount; }
 
   void setCpuCoreCount(int count) { mCoreCount = count; }
 
-  virtual MemUsage getMemUsage() const override {
+  MemUsage getMemUsage() const override {
     MemUsage res;
     res.resident = 4294967295ULL;
     res.resident_max = 4294967295ULL * 2;
@@ -141,7 +137,7 @@ public:
 
   void setOsType(OsType type) { mOsType = type; }
 
-  virtual std::string envGet(std::string_view varname) const override {
+  std::string envGet(std::string_view varname) const override {
     for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
       const fs::path name = mEnvPairs[n];
       if (name == varname) {
@@ -151,7 +147,7 @@ public:
     return std::string();
   }
 
-  virtual std::vector<std::string> envGetAll() const override {
+  std::vector<std::string> envGetAll() const override {
     std::vector<std::string> res;
     for (size_t i = 0; i < mEnvPairs.size(); i += 2) {
       const std::string name = mEnvPairs[i];
@@ -161,8 +157,8 @@ public:
     return res;
   }
 
-  virtual void envSet(const std::string &varname,
-                      const std::string &varvalue) override {
+  void envSet(const std::string &varname,
+              const std::string &varvalue) override {
     // First, find if the name is in the array.
     int index = -1;
     for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
@@ -189,7 +185,7 @@ public:
     }
   }
 
-  virtual bool envTest(std::string_view varname) const override {
+  bool envTest(std::string_view varname) const override {
     for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
       const fs::path name = mEnvPairs[n];
       if (name == varname) {
@@ -199,80 +195,75 @@ public:
     return false;
   }
 
-  virtual bool pathExists(fs::path path) const override {
+  bool pathExists(fs::path path) const override {
     return pathExistsInternal(toTempRoot(path));
   }
 
-  virtual bool pathIsFile(fs::path path) const override {
+  bool pathIsFile(fs::path path) const override {
     return pathIsFileInternal(toTempRoot(path));
   }
 
-  virtual bool pathIsDir(fs::path path) const override {
+  bool pathIsDir(fs::path path) const override {
     return pathIsDirInternal(toTempRoot(path));
   }
 
-  virtual bool pathIsLink(fs::path path) const override {
+  bool pathIsLink(fs::path path) const override {
     return pathIsLinkInternal(toTempRoot(path));
   }
 
-  virtual bool pathIsQcow2(fs::path path) const override {
+  bool pathIsQcow2(fs::path path) const override {
     return pathIsQcow2Internal(toTempRoot(path));
   }
 
-  virtual bool pathFileSystemIsExt4(fs::path path) const override {
+  bool pathFileSystemIsExt4(fs::path path) const override {
     return pathFileSystemIsExt4Internal(toTempRoot(path));
   }
 
-  virtual bool pathIsExt4(fs::path path) const override {
+  bool pathIsExt4(fs::path path) const override {
     return pathIsExt4Internal(toTempRoot(path));
   }
 
-  virtual bool pathCanRead(fs::path path) const override {
+  bool pathCanRead(fs::path path) const override {
     return pathCanReadInternal(toTempRoot(path));
   }
 
-  virtual bool pathCanWrite(fs::path path) const override {
+  bool pathCanWrite(fs::path path) const override {
     return pathCanWriteInternal(toTempRoot(path));
   }
 
-  virtual bool pathCanExec(fs::path path) const override {
+  bool pathCanExec(fs::path path) const override {
     return pathCanExecInternal(toTempRoot(path));
   }
 
-  virtual int pathOpen(const char *filename, int oflag,
-                       int pmode) const override {
+  int pathOpen(const char *filename, int oflag, int pmode) const override {
     return pathOpenInternal(filename, oflag, pmode);
   }
 
-  virtual bool deleteFile(fs::path path) const override {
+  bool deleteFile(fs::path path) const override {
     return deleteFileInternal(toTempRoot(path));
   }
 
-  virtual bool pathFileSize(fs::path path,
-                            FileSize *outFileSize) const override {
+  bool pathFileSize(fs::path path, FileSize *outFileSize) const override {
     return pathFileSizeInternal(toTempRoot(path), outFileSize);
   }
 
-  virtual FileSize recursiveSize(fs::path path) const override {
+  FileSize recursiveSize(fs::path path) const override {
     return recursiveSizeInternal(toTempRoot(path));
   }
 
-  virtual bool pathFreeSpace(fs::path path,
-                             FileSize *sizeInBytes) const override {
+  bool pathFreeSpace(fs::path path, FileSize *sizeInBytes) const override {
     return pathFreeSpaceInternal(toTempRoot(path), sizeInBytes);
   }
 
-  virtual bool fileSize(int fd, FileSize *outFileSize) const override {
+  bool fileSize(int fd, FileSize *outFileSize) const override {
     return fileSizeInternal(fd, outFileSize);
   }
 
-  virtual std::optional<Duration>
-  pathCreationTime(fs::path path) const override {
+  std::optional<Duration> pathCreationTime(fs::path path) const override {
     return pathCreationTimeInternal(toTempRoot(path));
   }
 
-  virtual std::optional<Duration>
-  pathModificationTime(fs::path path) const override {
+  std::optional<Duration> pathModificationTime(fs::path path) const override {
     return pathModificationTimeInternal(toTempRoot(path));
   }
 
@@ -297,7 +288,7 @@ public:
     return result;
   }
 
-  virtual TestTempDir *getTempRoot() const {
+  TestTempDir *getTempRoot() const {
     if (!mTempDir) {
       mTempDir = new TestTempDir("TestSystem");
       mTempRootPrefix = mTempDir->path();
@@ -305,7 +296,7 @@ public:
     return mTempDir;
   }
 
-  virtual bool isRemoteSession(std::string *sessionType) const override {
+  bool isRemoteSession(std::string *sessionType) const override {
     if (!mIsRemoteSession) {
       return false;
     }
@@ -313,7 +304,7 @@ public:
     return true;
   }
 
-  // Force the remote session type. If |sessionType| is NULL or empty,
+  // Force the remote session type. If |sessionType| is nullptr or empty,
   // this sets the session as local. Otherwise, |*sessionType| must be
   // a session type.
   void setRemoteSessionType(std::string_view sessionType) {
@@ -323,21 +314,19 @@ public:
     }
   }
 
-  virtual Times getProcessTimes() const override { return mTimes; }
+  Times getProcessTimes() const override { return mTimes; }
 
   void setProcessTimes(const Times &times) { mTimes = times; }
 
-  virtual fs::path getTempDir() const override { return "/tmp"; }
+  fs::path getTempDir() const override { return "/tmp"; }
 
   bool getEnableCrashReporting() const override { return true; }
 
-  virtual time_t getUnixTime() const override {
-    return getUnixTimeUs() / 1000000;
-  }
+  time_t getUnixTime() const override { return getUnixTimeUs() / 1000000; }
 
-  virtual Duration getUnixTimeUs() const override { return getHighResTimeUs(); }
+  Duration getUnixTimeUs() const override { return getHighResTimeUs(); }
 
-  virtual WallDuration getHighResTimeUs() const override {
+  WallDuration getHighResTimeUs() const override {
     if (mUnixTimeLive) {
       auto now = hostSystem()->getHighResTimeUs();
       mUnixTime += now - mUnixTimeLastQueried;
@@ -357,23 +346,23 @@ public:
     }
   }
 
-  virtual void sleepMs(unsigned n) const override {
+  void sleepMs(unsigned n) const override {
     // Don't sleep in tests, use the static functions from Thread class
     // if you need a delay (you don't!).
     Thread::yield(); // Add a small delay to mimic the intended behavior.
   }
 
-  virtual void sleepUs(unsigned n) const override { sleepMs(n / 1000); }
+  void sleepUs(unsigned n) const override { sleepMs(n / 1000); }
 
-  virtual void sleepToUs(WallDuration absTime) const override {
+  void sleepToUs(WallDuration absTime) const override {
     // Don't sleep in tests, use the static functions from Thread class
     // if you need a delay (you don't!).
     Thread::yield(); // Add a small delay to mimic the intended behavior.
   }
 
-  virtual void yield() const override { Thread::yield(); }
+  void yield() const override { Thread::yield(); }
 
-  virtual void configureHost() const override {}
+  void configureHost() const override {}
 
   System *host() { return hostSystem(); }
 
@@ -384,8 +373,9 @@ private:
       path = currdir / path;
     }
 
-    if (path.string().starts_with(mTempRootPrefix.string()))
+    if (path.string().starts_with(mTempRootPrefix.string())) {
       return path;
+    }
 
     fs::path combined = mTempRootPrefix;
     return mTempRootPrefix / path.relative_path();
@@ -409,7 +399,7 @@ private:
   mutable Duration mUnixTimeLastQueried = 0;
   bool mUnixTimeLive = false;
   OsType mOsType = OsType::Windows;
-  std::string mOsName = "";
+  std::string mOsName;
   bool mUnderWine = false;
   int mCoreCount = 4;
   std::optional<std::string> mWhich;

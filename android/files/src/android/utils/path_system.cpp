@@ -18,13 +18,13 @@
 #include "android/base/system/System.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 
+#include <android/utils/system.h>
 #include <string>
 #include <string_view>
 #include <vector>
 
 using android::base::PathUtils;
 using android::base::ScopedCPtr;
-using android::base::strDup;
 using android::base::System;
 
 ABool path_exists(const char* path) {
@@ -74,7 +74,8 @@ char* path_get_absolute(const char* path) {
     auto currentItems = PathUtils::decompose(currentDir);
     const auto pathItems = PathUtils::decompose(path);
     currentItems.insert(currentItems.end(), pathItems.begin(), pathItems.end());
-    return strDup(PathUtils::recompose(currentItems));
+    auto recomposed = PathUtils::recompose(currentItems);
+    return ASTRDUP(recomposed.c_str());
 }
 
 int path_split(const char* path, char** dirname, char** basename) {
@@ -83,10 +84,10 @@ int path_split(const char* path, char** dirname, char** basename) {
         return -1;
     }
     if (dirname) {
-        *dirname = strDup(dir);
+        *dirname = ASTRDUP(dir.c_str());
     }
     if (basename) {
-        *basename = strDup(file);
+        *basename = ASTRDUP(file.c_str());
     }
     return 0;
 }
@@ -96,7 +97,7 @@ char* path_dirname(const char* path) {
     if (!PathUtils::split(path, &dir, nullptr)) {
         return nullptr;
     }
-    return strDup(dir);
+    return ASTRDUP(dir.c_str());
 }
 
 char* path_basename(const char* path) {
@@ -104,7 +105,7 @@ char* path_basename(const char* path) {
     if (!PathUtils::split(path, nullptr, &file)) {
         return nullptr;
     }
-    return strDup(file);
+    return ASTRDUP(file.c_str());
 }
 
 #ifdef _WIN32
