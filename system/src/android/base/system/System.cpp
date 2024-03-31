@@ -17,6 +17,7 @@
 #include <aemu/base/files/ScopedFd.h>
 #include <aemu/base/logging/Log.h>
 #include <aemu/base/process/Command.h>
+#include <android/base/system/storage_capacity.h>
 #include <future>
 #include <inttypes.h>
 
@@ -34,10 +35,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include "absl/strings//strip.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings//strip.h"
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/logging/CLog.h"
 #include "aemu/base/memory/NoDestructor.h"
@@ -568,7 +569,8 @@ public:
       return "Unknown OS";
     }
     auto contents = proc->out()->asString();
-    lastSuccessfulValue = absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
+    lastSuccessfulValue =
+        absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
     return lastSuccessfulValue;
 #else
 #error getOsName(): unsupported OS;
@@ -1476,6 +1478,27 @@ bool System::pathIsQcow2Internal(fs::path path) {
   return matched4bytes;
 }
 
+fs::perms System::octalModeToPerms(int octalMode) {
+  fs::perms mode = fs::perms::none;
+
+  // Owner permissions
+  mode |= (octalMode & 0400) ? fs::perms::owner_read : fs::perms::none;
+  mode |= (octalMode & 0200) ? fs::perms::owner_write : fs::perms::none;
+  mode |= (octalMode & 0100) ? fs::perms::owner_exec : fs::perms::none;
+
+  // Group permissions
+  mode |= (octalMode & 0040) ? fs::perms::group_read : fs::perms::none;
+  mode |= (octalMode & 0020) ? fs::perms::group_write : fs::perms::none;
+  mode |= (octalMode & 0010) ? fs::perms::group_exec : fs::perms::none;
+
+  // Others permissions
+  mode |= (octalMode & 0004) ? fs::perms::others_read : fs::perms::none;
+  mode |= (octalMode & 0002) ? fs::perms::others_write : fs::perms::none;
+  mode |= (octalMode & 0001) ? fs::perms::others_exec : fs::perms::none;
+
+  return mode;
+}
+
 // static
 int System::pathOpenInternal(const char *filename, int oflag, int pmode) {
 #ifdef _WIN32
@@ -1530,7 +1553,7 @@ bool System::pathFreeSpaceInternal(fs::path path, FileSize *spaceInBytes) {
   if (result != 0) {
     return false;
   }
-  LOG(INFO) << "Got: " << fsStatus.f_frsize << ", " << fsStatus.f_bavail;
+  // LOG(INFO) << "Got: " << fsStatus.f_frsize << ", " << fsStatus.f_bavail;
   // Available space is (block size) * (# free blocks)
   *spaceInBytes = ((FileSize)fsStatus.f_frsize) * fsStatus.f_bavail;
   return true;
@@ -1873,32 +1896,49 @@ fs::path System::findBundledExecutable(std::string_view programName) {
   }
 #endif
 
-  return std::string();
+  // We might be running in a bazel dev environment.. Make that work for now
+  auto workspace = system->envGet("BUILD_WORKSPACE_DIRECTORY");
+  if (workspace.empty()) {
+    return "";
+  }
+
+  fs::path root = workspace;
+  std::vector<fs::path> bazel_search{
+      "external/qemu/build",
+      "bazel-bin/hardware/generic/goldfish/third_party/sparse"};
+
+  for (const auto &option : bazel_search) {
+    auto possible_exe = root / option / executableName;
+    if (system->pathIsFile(possible_exe)) {
+      return possible_exe;
+    }
+  }
+
+  return "";
 }
 
 // static
-int System::freeRamMb() {
+StorageCapacity System::freeRamMb() {
   auto usage = get()->getMemUsage();
-  uint64_t freePhysMb = usage.avail_phys_memory / (1024ULL * 1024ULL);
-  return freePhysMb;
+  return StorageCapacity(usage.avail_phys_memory, StorageCapacity::Unit::B);
 }
 
 // static
-bool System::isUnderMemoryPressure(int *freeRamMb_out) {
-  uint64_t currentFreeRam = freeRamMb();
+bool System::isUnderMemoryPressure(StorageCapacity *freeRamMb_out) {
+  StorageCapacity currentFreeRam = freeRamMb();
 
   if (freeRamMb_out) {
     *freeRamMb_out = currentFreeRam;
   }
 
-  return currentFreeRam < kMemoryPressureLimitMb;
+  return currentFreeRam < kMemoryPressureLimit;
 }
 
 // static
 bool System::isUnderDiskPressure(fs::path path, System::FileSize *freeDisk) {
   System::FileSize availableSpace;
   bool success = System::get()->pathFreeSpace(path, &availableSpace);
-  if (success && availableSpace < kDiskPressureLimitBytes) {
+  if (success && availableSpace < kDiskPressureLimit) {
     if (freeDisk) {
       *freeDisk = availableSpace;
     }
@@ -1952,16 +1992,6 @@ System::FileSize System::getFilePageSizeForPath(fs::path path) {
 #endif // !_WIN32
 
   return pageSize;
-}
-
-// static
-System::FileSize System::getAlignedFileSize(System::FileSize align,
-                                            System::FileSize size) {
-#ifndef ROUND_UP
-#define ROUND_UP(n, d) (((n) + (d)-1) & -(0 ? (n) : (d)))
-#endif
-
-  return ROUND_UP(size, align);
 }
 
 // static

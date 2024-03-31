@@ -31,6 +31,7 @@
 #include "aemu/base/EnumFlags.h"
 #include "aemu/base/logging/Log.h"
 #include "aemu/base/system/Memory.h"
+#include "android/base/system/storage_capacity.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -82,7 +83,7 @@ class System {
 public:
   typedef int64_t Duration;
   typedef uint64_t WallDuration;
-  using FileSize = uint64_t;
+  using FileSize = StorageCapacity;
 
   // Information about user, system and wall clock times for some process,
   // in milliseconds
@@ -122,21 +123,19 @@ public:
   virtual MemUsage getMemUsage() const = 0;
 
   // Returns just the free RAM on the system. Useful in many cases.
-  static int freeRamMb();
+  static StorageCapacity freeRamMb();
 
   // Measures whether or not the system is considered in a memory pressure
   // state, and returns true if so. std::optionally, a freeRamMb output pointer
   // can be given so the caller can see how much RAM is actually free.
-  static constexpr int kMemoryPressureLimitMb = 513;
-  static bool isUnderMemoryPressure(int *freeRamMb = nullptr);
+  static constexpr StorageCapacity kMemoryPressureLimit = 513_MiB;
+  static bool isUnderMemoryPressure(StorageCapacity *freeRamMb = nullptr);
 
-  static constexpr System::FileSize kDiskPressureLimitBytes = 2147483648ULL;
+  static constexpr StorageCapacity kDiskPressureLimit = 2_MiB;
   static bool isUnderDiskPressure(fs::path path,
                                   System::FileSize *freeDisk = nullptr);
 
   static System::FileSize getFilePageSizeForPath(fs::path path);
-  static System::FileSize getAlignedFileSize(System::FileSize align,
-                                             System::FileSize size);
 
   // Environment variable name corresponding to the library search
   // list for shared libraries.
@@ -377,6 +376,14 @@ public:
   static std::string getEnvironmentVariable(std::string_view varname);
   static std::string getProgramDirectoryFromPlatform();
   static WallDuration getSystemTimeUs();
+
+  /**
+   * @brief Converts a Unix-style octal file mode to std::filesystem::perms.
+   *
+   * @param octalMode The octal file mode (e.g., 0755).
+   * @return The corresponding std::filesystem::perms representation.
+   */
+  static fs::perms octalModeToPerms(int octalMode);
 
   // Windows driver file querying functions
   static bool queryFileVersionInfo(fs::path path, int *major, int *minor,

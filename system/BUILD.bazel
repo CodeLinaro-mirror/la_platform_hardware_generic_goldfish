@@ -17,13 +17,14 @@ cc_library(
         "include/android/base/system/System.h",
         "include/android/base/system/Win32UnicodeString.h",
         "include/android/base/system/Win32Utils.h",
+        "include/android/base/system/storage_capacity.h",
         "include/android/utils/compiler.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/google/aemu/base:aemu-base",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ] + select({
         "@platforms//os:linux": [

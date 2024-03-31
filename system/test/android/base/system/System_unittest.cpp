@@ -211,7 +211,7 @@ TEST(System, recursiveSize) {
   System::FileSize expectedTotalSize = 0;
   nItems = ARRAYLEN(kFiles);
   for (size_t idx = 0; idx < nItems; idx++) {
-    make_sized_file(myDir->path(), kFiles[idx], kFileSizes[idx]);
+    make_sized_file(myDir->path(), kFiles[idx], kFileSizes[idx].bytes());
     expectedTotalSize += kFileSizes[idx];
   }
 
