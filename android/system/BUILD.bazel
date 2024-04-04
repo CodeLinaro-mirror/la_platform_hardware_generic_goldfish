@@ -1,0 +1,63 @@
+cc_library(
+    name = "system",
+    srcs = [
+        "src/android/base/Version.cpp",
+        "src/android/base/system/System.cpp",
+        "src/android/base/system/file_io.cpp",
+        "src/android/base/system/storage_capacity.cpp",
+    ],
+    hdrs = [
+        "include/android/base/file/file_io.h",
+        "include/android/base/system/CStrWrapper.h",
+        "include/android/base/system/System.h",
+        "include/android/base/system/Win32UnicodeString.h",
+        "include/android/base/system/Win32Utils.h",
+        "include/android/base/system/storage_capacity.h",
+        "include/android/utils/compiler.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ] + select({
+        "@platforms//os:linux": [
+            "//hardware/generic/goldfish/android/process",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "test-headers",
+    hdrs = glob(["test-headers/**/*.h"]),
+    includes = ["test-headers"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":system",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "system-unittests",
+    srcs = glob(
+        [
+            "test/**/*_unittest.cpp",
+            "test/**/*.h",
+        ],
+        exclude = ["test/**/Win32*"],
+    ) + select({
+        "@platforms//os:windows": glob(["test/**/Win32*"]),
+        "//conditions:default": [],
+    }),
+    # copts = ["],
+    deps = [
+        ":system",
+        ":test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

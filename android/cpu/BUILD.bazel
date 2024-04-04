@@ -1,0 +1,44 @@
+cc_library(
+    name = "cpu",
+    srcs = glob([
+        "src/android/goldfish/cpu/*.cpp",
+        "src/android/goldfish/cpu/*.h",
+    ]),
+    hdrs = glob([
+        "include/android/goldfish/cpu/*.h",
+    ]),
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "cpu_unittests",
+    srcs = glob(
+        [
+            "test/**/*.cpp",
+            "test/**/*.h",
+        ],
+        exclude = ["test/**/Win32"],
+    ),
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":cpu",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

@@ -13,6 +13,7 @@ cc_library(
     hdrs = ["include/sparse/sparse.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = ["@zlib"],
 )
 
 cc_binary(

@@ -1,0 +1,33 @@
+cc_library(
+    name = "filesystems",
+    srcs = [
+        "src/android/filesystems/ext4_resize.cpp",
+        "src/android/filesystems/ext4_utils.cpp",
+        "src/android/filesystems/fstab_parser.cpp",
+        "src/android/filesystems/fstab_parser.h",
+        "src/android/filesystems/internal/PartitionConfigBackend.cpp",
+        "src/android/filesystems/internal/PartitionConfigBackend.h",
+        "src/android/filesystems/partition_config.cpp",
+        "src/android/filesystems/partition_config.h",
+        "src/android/filesystems/partition_types.cpp",
+        "src/android/filesystems/partition_types.h",
+        "src/android/filesystems/ramdisk_extractor.cpp",
+        "src/android/filesystems/ramdisk_extractor.h",
+    ],
+    hdrs = [
+        "include/android/filesystems/ext4_resize.h",
+        "include/android/filesystems/ext4_utils.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/ext4_utils",
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/process",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)

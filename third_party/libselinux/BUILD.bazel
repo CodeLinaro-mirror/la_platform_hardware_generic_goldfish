@@ -25,7 +25,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/system",
+        "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/third_party/sparse",
     ],
 )
