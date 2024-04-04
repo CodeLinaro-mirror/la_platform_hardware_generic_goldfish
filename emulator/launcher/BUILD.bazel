@@ -1,0 +1,98 @@
+cc_library(
+    name = "setup",
+    srcs = [
+        "src/android/goldfish/bootconfig.cpp",
+        "src/android/goldfish/bootconfig.h",
+        "src/android/goldfish/devices/audio_device.cpp",
+        "src/android/goldfish/devices/audio_device.h",
+        "src/android/goldfish/devices/cpu_device.cpp",
+        "src/android/goldfish/devices/cpu_device.h",
+        "src/android/goldfish/devices/device.h",
+        "src/android/goldfish/devices/drives/cache_drive.cpp",
+        "src/android/goldfish/devices/drives/cache_drive.h",
+        "src/android/goldfish/devices/drives/disk_drive.cpp",
+        "src/android/goldfish/devices/drives/disk_drive.h",
+        "src/android/goldfish/devices/drives/encryption_drive.cpp",
+        "src/android/goldfish/devices/drives/encryption_drive.h",
+        "src/android/goldfish/devices/drives/sdcard_drive.cpp",
+        "src/android/goldfish/devices/drives/sdcard_drive.h",
+        "src/android/goldfish/devices/drives/user_data_drive.cpp",
+        "src/android/goldfish/devices/drives/user_data_drive.h",
+        "src/android/goldfish/devices/gpu.cpp",
+        "src/android/goldfish/devices/gpu_device.h",
+        "src/android/goldfish/devices/initrd_device.cpp",
+        "src/android/goldfish/devices/initrd_device.h",
+        "src/android/goldfish/devices/kernel_device.cpp",
+        "src/android/goldfish/devices/kernel_device.h",
+        "src/android/goldfish/devices/machine.cpp",
+        "src/android/goldfish/devices/machine.h",
+        "src/android/goldfish/devices/memory_device.cpp",
+        "src/android/goldfish/devices/memory_device.h",
+        "src/android/goldfish/devices/parameter_list.cpp",
+        "src/android/goldfish/devices/parameter_list.h",
+        "src/android/goldfish/emulator.cpp",
+    ],
+    hdrs = ["include/android/goldfish/config/emulator.h"],
+    includes = [
+        "include",
+        "src",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/android/cpu",
+        "//hardware/generic/goldfish/android/filesystems",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "setup_unittests",
+    srcs = glob(
+        [
+            "test/**/*.cpp",
+            "test/include/**/*.h",
+        ],
+        exclude = ["test/**/Win32"],
+    ),
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":setup",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "goldfish",
+    srcs = ["src/android/goldfish/launcher.cpp"],
+    includes = [
+        "include",
+        "src",
+    ],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":setup",
+        "//hardware/generic/goldfish/android/cpu",
+        "//hardware/generic/goldfish/android/filesystems",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/third_party/json",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+    ],
+)

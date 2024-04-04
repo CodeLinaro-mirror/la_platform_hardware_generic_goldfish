@@ -7,4 +7,5 @@ cc_library(
             "//conditions:default": [],
         }),
     hdrs = ["include/sys/mman.h"],
+    visibility = ["//visibility:public"],
 )

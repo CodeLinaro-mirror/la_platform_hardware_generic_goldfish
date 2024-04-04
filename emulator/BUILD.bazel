@@ -23,10 +23,21 @@ aemu_naming(
 )
 
 pkg_files(
+    name = "launcher",
+    srcs = [
+        "//hardware/generic/goldfish/emulator/launcher:goldfish",
+    ],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
+pkg_files(
     name = "qemu-binaries",
     srcs = [
         "//external/qemu:qemu-img",
         "//external/qemu:qemu-system-x86_64",
+        "//hardware/generic/goldfish/third_party/sparse:img2simg",
     ] + select({
         "@platforms//os:windows": [
             # We do not yet support modules for this architecture b/338597919
@@ -38,7 +49,7 @@ pkg_files(
         ],
     }),
     attributes = pkg_attributes(
-        mode = "0700",
+        mode = "0755",
     ),
     # Where it should be in the final package
     prefix = "bin",
@@ -71,6 +82,7 @@ pkg_files(
 pkg_zip(
     name = "release",
     srcs = [
+        ":launcher",
         ":plugins",
         ":qemu-binaries",
         "//external/qemu:qemu-keymaps",

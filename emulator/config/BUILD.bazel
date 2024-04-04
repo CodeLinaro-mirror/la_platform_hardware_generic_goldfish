@@ -1,0 +1,58 @@
+py_binary(
+    name = "gen-hw-config",
+    srcs = ["src/android/goldfish/config/gen-hw-config.py"],
+)
+
+# TODO(jansene): Port to host-common.
+genrule(
+    name = "hw-config-gen",
+    srcs = ["data/hardware-properties.ini"],
+    outs = ["include/avd/hw-config-defs.h"],
+    cmd = "$(location :gen-hw-config)  $(location data/hardware-properties.ini) $(location include/avd/hw-config-defs.h)",
+    tools = [":gen-hw-config"],
+)
+
+cc_library(
+    name = "config",
+    srcs = [
+        "src/android/goldfish/config/avd.cpp",
+        "src/android/goldfish/config/config_dirs.cpp",
+        "src/android/goldfish/config/hardware_config.cpp",
+        "src/android/goldfish/config/keys.h",
+    ],
+    hdrs = [
+        "include/android/goldfish/config/avd.h",
+        "include/android/goldfish/config/config_dirs.h",
+        "include/android/goldfish/config/hardware_config.h",
+        "include/android/goldfish/config/image_list.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)
+
+cc_test(
+    name = "config_unittests",
+    size = "small",
+    srcs = glob(
+        ["test/**/*.cpp"],
+        ["src/**/*.h"],
+    ),
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":config",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

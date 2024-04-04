@@ -7,6 +7,7 @@ cc_library(
         "src/android/utils/assert.h",
         "src/android/utils/bufprint.c",
         "src/android/utils/bufprint.h",
+        "src/android/utils/bufprint_system.cpp",
         "src/android/utils/dirscanner.cpp",
         "src/android/utils/dirscanner.h",
         "src/android/utils/dll.c",

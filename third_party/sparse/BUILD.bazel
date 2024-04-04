@@ -19,6 +19,7 @@ cc_library(
 cc_binary(
     name = "img2simg",
     srcs = ["src/img2simg.c"],
+    visibility = ["//visibility:public"],
     deps = [":sparse"] + select({
         "@platforms//os:windows": ["//hardware/generic/goldfish/third_party/windows/mman"],
         "//conditions:default": [],
