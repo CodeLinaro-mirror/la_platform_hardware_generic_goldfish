@@ -1,0 +1,41 @@
+cc_library(
+    name = "registration",
+    srcs = [
+        "src/android/goldfish/qemu-plugin-registration.c",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libhwcore",
+    ],
+)
+
+cc_library(
+    name = "sample_device_impl",
+    srcs = [
+        "src/android/goldfish/sample-plugin.c",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libchardev",
+        "//external/qemu:libhwcore",
+        "//external/qemu:libmodule-common",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "sample",
+    shared_lib_name = select({
+        "@platforms//os:macos": "sample.dylib",
+        "@platforms//os:linux": "sample.so",
+        "//conditions:default": "",
+    }),
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [":sample_device_impl"],
+)
