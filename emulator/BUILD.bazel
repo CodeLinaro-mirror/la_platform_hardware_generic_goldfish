@@ -1,0 +1,69 @@
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load(":release_package_name.bzl", "aemu_naming", "build_id_from_command_line")
+
+# You can pass in the build id from the bazel command line flag
+# as follows:
+# --//hardware/generic/goldfish/emulator:bldid=P123
+build_id_from_command_line(
+    name = "build_id",
+    build_setting_default = "developer",
+)
+
+aemu_naming(
+    name = "zip_naming_variables",
+    build_id_dep = ":build_id",
+    platform = select({
+        "@platforms//os:windows": "windows",
+        "@platforms//os:macos": "darwin_aarch64",
+        "@platforms//os:linux": "linux",
+        "//conditions:default": "unknown",
+    }),
+    product_name = "emulator",
+)
+
+pkg_files(
+    name = "qemu-binaries",
+    srcs = [
+        "//external/qemu:qemu-img",
+        "//external/qemu:qemu-system-aarch64",
+        "//external/qemu:qemu-system-riscv64",
+        "//external/qemu:qemu-system-x86_64",
+    ],
+    attributes = pkg_attributes(
+        mode = "0700",
+    ),
+    # Where it should be in the final package
+    prefix = "bin",
+)
+
+pkg_files(
+    name = "plugins",
+    # Add the plugins you wish to distribute here:
+    srcs = [
+        "//hardware/generic/goldfish/emulator/plugin:sample",
+    ] + select({
+        "@platforms//os:windows": [
+        ],
+        "@platforms//os:macos": [
+        ],
+        "@platforms//os:linux": [
+            "//external/qemu:audio-pa",
+        ],
+        "//conditions:default": [],
+    }),
+    prefix = "lib/qemu/",
+)
+
+pkg_zip(
+    name = "release",
+    srcs = [
+        ":plugins",
+        ":qemu-binaries",
+        "//external/qemu:qemu-keymaps",
+        "//external/qemu:qemu-roms",
+    ],
+    package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
+    package_variables =
+        ":zip_naming_variables",
+)
