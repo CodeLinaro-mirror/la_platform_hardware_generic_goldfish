@@ -25,7 +25,8 @@ aemu_naming(
 pkg_files(
     name = "qemu-binaries",
     srcs = [
-        "//external/qemu:qemu-img",
+        # TODO(jansene): This will introduce missing symbols
+        # "//external/qemu:qemu-img",
         "//external/qemu:qemu-system-aarch64",
         "//external/qemu:qemu-system-riscv64",
         "//external/qemu:qemu-system-x86_64",
@@ -40,15 +41,25 @@ pkg_files(
 pkg_files(
     name = "plugins",
     # Add the plugins you wish to distribute here:
-    srcs = [
-        "//hardware/generic/goldfish/emulator/plugin:sample",
-    ] + select({
+    srcs = select({
         "@platforms//os:windows": [
+            # Windows has no support for plugins yet, so we don't include any
         ],
         "@platforms//os:macos": [
+            "//external/qemu:hw-display-virtio-gpu",
+            "//external/qemu:hw-display-virtio-gpu-pci",
+            "//external/qemu:hw-display-virtio-vga",
+            "//external/qemu:hw-display-virtio-vga-gl",
+            "//hardware/generic/goldfish/emulator/plugin:sample",
         ],
         "@platforms//os:linux": [
+            "//external/qemu:accel-tcg-x86_64",
             "//external/qemu:audio-pa",
+            "//external/qemu:hw-display-virtio-gpu",
+            "//external/qemu:hw-display-virtio-gpu-pci",
+            "//external/qemu:hw-display-virtio-vga",
+            "//external/qemu:hw-display-virtio-vga-gl",
+            "//hardware/generic/goldfish/emulator/plugin:sample",
         ],
         "//conditions:default": [],
     }),
