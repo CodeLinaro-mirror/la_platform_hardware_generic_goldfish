@@ -25,8 +25,7 @@ aemu_naming(
 pkg_files(
     name = "qemu-binaries",
     srcs = [
-        # TODO(jansene): This will introduce missing symbols
-        # "//external/qemu:qemu-img",
+        "//external/qemu:qemu-img",
         "//external/qemu:qemu-system-aarch64",
         "//external/qemu:qemu-system-riscv64",
         "//external/qemu:qemu-system-x86_64",
