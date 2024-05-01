@@ -25,6 +25,7 @@
 #include <string.h>
 #include <string>
 #include <sys/types.h>
+#include <system_error>
 #include <vector>
 
 #include "aemu/base/Log.h"
@@ -35,6 +36,7 @@
 #include "android/utils/path.h"
 
 namespace fs = std::filesystem;
+
 /* set >0 for very verbose debugging */
 #define DEBUG 0
 
@@ -103,8 +105,8 @@ bool calculate_public_key(std::string *out, RSA *private_key) {
   return true;
 }
 
-static std::shared_ptr<RSA> read_key_file(const std::string &file) {
-  std::unique_ptr<FILE, decltype(&fclose)> fp(android_fopen(file.c_str(), "r"),
+static std::shared_ptr<RSA> read_key_file(const fs::path &file) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(android_fopen(file.string().c_str(), "r"),
                                               fclose);
   if (!fp) {
     LOG(ERROR) << "Failed to open rsa file: " << file;
@@ -121,7 +123,7 @@ static std::shared_ptr<RSA> read_key_file(const std::string &file) {
   return std::shared_ptr<RSA>(key, RSA_free);
 }
 
-static bool generate_key(const std::string &file) {
+static bool generate_key(const fs::path &file) {
 
   mode_t old_mask;
   FILE *f = nullptr;
@@ -139,9 +141,9 @@ static bool generate_key(const std::string &file) {
   RSA_generate_key_ex(rsa, 2048, exponent, nullptr);
   EVP_PKEY_set1_RSA(pkey, rsa);
 
-  f = android_fopen(file.c_str(), "w");
+  f = android_fopen(file.string().c_str(), "w");
   if (!f) {
-    dwarning("Failed to open %s", file.c_str());
+    dwarning("Failed to open %s", file.string());
     goto out;
   }
 
@@ -152,7 +154,7 @@ static bool generate_key(const std::string &file) {
 
   fclose(f);
   f = nullptr;
-  android_chmod(file.c_str(), 0777);
+  android_chmod(file.string().c_str(), 0777);
 
   ret = true;
 
@@ -183,8 +185,8 @@ bool pubkey_from_privkey(const fs::path &path, std::string *out) {
 fs::path getAdbKeyPath(const fs::path &adbKeyFileName) {
   fs::path adbKeyPath =
       android::goldfish::ConfigDirs::getUserDirectory() / adbKeyFileName;
-  if (path_is_regular(adbKeyPath.c_str()) &&
-      path_can_read(adbKeyPath.c_str())) {
+  if (System::get()->pathIsFile(adbKeyPath) &&
+      System::get()->pathCanRead(adbKeyPath)) {
     return adbKeyPath;
   }
   D("cannot read adb key file: %s", adbKeyPath.c_str());
@@ -200,13 +202,15 @@ fs::path getAdbKeyPath(const fs::path &adbKeyFileName) {
   D("Looking in %s", home.c_str());
 
   auto guessedSrcAdbKeyPub = home / ".android" / adbKeyFileName;
-  path_copy_file(adbKeyPath.c_str(), guessedSrcAdbKeyPub.c_str());
+  std::error_code ec;
+  fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
 
-  if (path_is_regular(adbKeyPath.c_str()) &&
-      path_can_read(adbKeyPath.c_str())) {
+
+  if (System::get()->pathIsFile(adbKeyPath) &&
+      System::get()->pathCanRead(adbKeyPath.c_str())) {
     return adbKeyPath;
   }
-  D("cannot read adb key file (failed): %s", adbKeyPath.c_str());
+  D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());
   return "";
 }
 
@@ -335,7 +339,7 @@ static bool sign_token(RSA *key_rsa, const uint8_t *token, int token_size,
 
 bool sign_auth_token(const uint8_t *token, int token_size, uint8_t *sig,
                      int &siglen) {
-  const std::string key_path = getAdbKeyPath(kPrivateKeyFileName);
+  const auto key_path = getAdbKeyPath(kPrivateKeyFileName);
   if (key_path.empty()) {
     LOG(ERROR) << "No private key found, unable to sign token";
   }

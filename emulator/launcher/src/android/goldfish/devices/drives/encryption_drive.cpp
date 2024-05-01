@@ -41,7 +41,7 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
         "encryption drive after setting up the user data drive.");
   }
 
-  hw.disk_encryptionKeyPartition_path = userdata_dir / "encryptionkey.img";
+  hw.disk_encryptionKeyPartition_path = (userdata_dir / "encryptionkey.img").string();
   if (!fs::exists(hw.disk_systemPartition_initPath)) {
     return absl::NotFoundError(absl::StrFormat(
         "Init path '%s' not found", hw.disk_systemPartition_initPath));
@@ -56,7 +56,7 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
   auto init_encryptionkey_img_path = sysimage_dir / "encryptionkey.img";
   if (!fs::exists(init_encryptionkey_img_path)) {
     return absl::NotFoundError(absl::StrFormat(
-        "System encryption key image not found in: %s", sysimage_dir));
+        "System encryption key image not found in: %s", sysimage_dir.string()));
   }
 
   fs::copy_options options = fs::copy_options::overwrite_existing;
@@ -65,7 +65,7 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
 
   if (!fs::exists(hw.disk_encryptionKeyPartition_path)) {
     return absl::NotFoundError(absl::StrFormat(
-        "Failed to copy '%s' to '%s'", init_encryptionkey_img_path,
+        "Failed to copy '%s' to '%s'", init_encryptionkey_img_path.string(),
         hw.disk_encryptionKeyPartition_path));
   }
 

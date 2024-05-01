@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <Tlhelp32.h>
-#include <psapi.h>
 #include <windows.h>
+#include <psapi.h>
+#include <Tlhelp32.h>
 
 #include <cassert>
 #include <string_view>

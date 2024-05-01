@@ -19,10 +19,10 @@
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/bootconfig.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
 #include "android/goldfish/devices/drives/disk_drive.h"
-#include "android/goldfish/config/emulator.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -41,7 +41,7 @@ constexpr std::string_view kSysfsAndroidDtDirDtb =
 // using android::base::splitTokens;
 // using android::base::absl::StrFormat;
 
-static std::string getDeviceStateString(const HardwareConfig& hw) {
+static std::string getDeviceStateString(const HardwareConfig &hw) {
   // TODO(jansene): Foldable support.
   return "";
 }
@@ -51,7 +51,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     const int bootPropOpenglesVersion, const int apiLevel,
     std::string kernelSerialPrefix,
     const std::vector<std::string> &verifiedBootParameters,
-    const HardwareConfig& hw) {
+    const HardwareConfig &hw) {
   const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
   const bool hasShellConsole = false;
   std::string androidbootVerityMode = "androidboot.veritymode";
@@ -248,8 +248,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
   return params;
 }
 
-static std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
-  const Avd& avd = emulator.avd();
+static std::string getDynamicPartitionBootDevice(const Emulator &emulator) {
+  const Avd &avd = emulator.avd();
   auto arch = avd.detectArchitecture();
   auto drive = emulator.get<PciDevice>("system");
 
@@ -271,7 +271,8 @@ static std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
   return "";
 }
 
-static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
+static std::vector<std::string>
+getVerifiedBootparams(const Emulator &emulator) {
   // Get verified boot kernel parameters, if they exist.
   // If this is not a playstore image, then -writable_system will
   // disable verified boot
@@ -300,8 +301,8 @@ static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) 
   return verified_boot_params;
 }
 
-absl::Status Initrd::initialize(const Emulator& emulator) {
-  const Avd& avd = emulator.avd();
+absl::Status Initrd::initialize(const Emulator &emulator) {
+  const Avd &avd = emulator.avd();
   auto hw = avd.hw();
 
   auto init_rd = avd.getContentPath() / "initrd";
@@ -320,9 +321,11 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
       hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel,
       real_console_tty_prefix, verifiedBootParameters, hw);
   // Ok.. let's create it
-  dinfo("Creating initrd from %s -> %s", hw.disk_ramdisk_path, init_rd);
-  if (::goldfish::createRamdiskWithBootconfig(
-          hw.disk_ramdisk_path.c_str(), init_rd.c_str(), properties) != 0) {
+  dinfo("Creating initrd from %s -> %s", hw.disk_ramdisk_path,
+        init_rd.string());
+  if (::goldfish::createRamdiskWithBootconfig(hw.disk_ramdisk_path.c_str(),
+                                              init_rd.string().c_str(),
+                                              properties) != 0) {
     return absl::InternalError(
         "Failed to create initrd image with bootpropterties.");
   }
@@ -331,10 +334,9 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
-std::vector<std::string> Initrd::getQemuParameters(const Emulator& emulator) const {
-  const Avd& avd = emulator.avd();
-  return {"-initrd", avd.getContentPath() / "initrd"
-
-  };
+std::vector<std::string>
+Initrd::getQemuParameters(const Emulator &emulator) const {
+  const Avd &avd = emulator.avd();
+  return {"-initrd", (avd.getContentPath() / "initrd").string()};
 }
 } // namespace android::goldfish

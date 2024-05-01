@@ -139,7 +139,7 @@ DeviceType Avd::getDeviceType() const {
   if (!System::get()->pathExists(*buildprop) ||
       !System::get()->pathCanRead(*buildprop)) {
     dwarning("Unable to read build properties: %s, using unknown device type.",
-             *buildprop);
+             buildprop->string());
     return DeviceType::kUnknown;
   }
   IniFile buildIni(*buildprop);
@@ -172,8 +172,8 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
       System::get()->pathCanRead(possible)) {
     return possible;
   }
-  dprint("Did not find %s in %s, falling back to system path", possible,
-         mContentPath);
+  dprint("Did not find %s in %s, falling back to system path", possible.string(),
+         mContentPath.string());
   return getSystemImagePath(imgType);
 }
 
@@ -194,8 +194,8 @@ absl::StatusOr<fs::path> Avd::getSystemImagePath(Avd::ImageType imgType) const {
     }
   }
   return absl::NotFoundError(
-      absl::StrFormat("Path %s specified in %s does not exist (key=%s)", path,
-                      mConfig->getBackingFile(), key));
+      absl::StrFormat("Path %s specified in %s does not exist (key=%s)", path.string(),
+                      mConfig->getBackingFile().string(), key));
 }
 
 std::string Avd::details() const {

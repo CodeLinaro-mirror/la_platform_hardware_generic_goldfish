@@ -16,6 +16,12 @@ cc_library(
         "include/android/utils/compiler.h",
     ],
     includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Shell32.lib",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/google/aemu/base:aemu-base",
@@ -24,6 +30,9 @@ cc_library(
     ] + select({
         "@platforms//os:linux": [
             "//hardware/generic/goldfish/android/process",
+        ],
+        "@platforms//os:windows": [
+            "@glib//:dirent",
         ],
         "//conditions:default": [],
     }),

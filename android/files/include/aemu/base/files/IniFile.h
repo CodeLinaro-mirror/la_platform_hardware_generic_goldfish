@@ -62,7 +62,7 @@ public:
   // Set a new backing file. This does not read data from the file. Call
   // |read| to refresh data from the new backing file.
   void setBackingFile(std::filesystem::path filePath);
-  const std::string &getBackingFile() const { return mBackingFilePath; }
+  const std::filesystem::path &getBackingFile() const { return mBackingFilePath; }
 
   // Reads data into IniFile from the backing file, overwriting any
   // existing data.
@@ -165,7 +165,7 @@ private:
   MapType mData;
   ElementOrderList mOrderList;
   std::vector<std::pair<int, std::string>> mComments;
-  std::string mBackingFilePath;
+  std::filesystem::path mBackingFilePath;
   bool mDirty = true;
 };
 

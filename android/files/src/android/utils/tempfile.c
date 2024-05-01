@@ -22,7 +22,7 @@
 
 #ifdef _WIN32
 #ifdef _MSC_VER
-#include "msvc-posix.h"
+#include "aemu/base/msvc.h"
 #else
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

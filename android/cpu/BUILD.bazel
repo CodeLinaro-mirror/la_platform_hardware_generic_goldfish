@@ -3,10 +3,21 @@ cc_library(
     srcs = glob([
         "src/android/goldfish/cpu/*.cpp",
         "src/android/goldfish/cpu/*.h",
-    ]),
+    ]) + select({
+        "@platforms//os:windows": [
+            "src/android/windows_installer.cpp",
+            "src/android/windows_installer.h",
+        ],
+        "//conditions:default": [],
+    }),
     hdrs = glob([
         "include/android/goldfish/cpu/*.h",
     ]),
+    copts =
+        select({
+            "@platforms//os:windows": ["-Wno-microsoft-goto"],
+            "//conditions:default": [],
+        }),
     includes = [
         "include",
         "src",

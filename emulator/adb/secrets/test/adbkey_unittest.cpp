@@ -89,7 +89,7 @@ TEST_F(AdbKeyTest, find_keys_in_default_path) {
 }
 
 TEST_F(AdbKeyTest, generate_writes_a_key) {
-    std::string keyFile = mTestDir->path() / ".android" / tstKey;
+    auto keyFile = mTestDir->path() / ".android" / tstKey;
     EXPECT_EQ("", getAdbKeyPath(tstKey));
     EXPECT_TRUE(adb_auth_keygen(keyFile.c_str()));
     EXPECT_NE("", getAdbKeyPath(tstKey));
@@ -97,7 +97,7 @@ TEST_F(AdbKeyTest, generate_writes_a_key) {
 
 TEST_F(AdbKeyTest, can_create_pub_from_generated_priv) {
     std::string pubkey;
-    std::string keyFile = mTestDir->path() / ".android" / tstKey;
+    auto keyFile = mTestDir->path() / ".android" / tstKey;
     EXPECT_TRUE(adb_auth_keygen(keyFile.c_str()));
     EXPECT_TRUE(pubkey_from_privkey(keyFile, &pubkey));
     EXPECT_NE("", pubkey);
@@ -105,7 +105,7 @@ TEST_F(AdbKeyTest, can_create_pub_from_generated_priv) {
 
 TEST_F(AdbKeyTest, can_sign_token) {
     std::string pubkey;
-    std::string keyFile = mTestDir->path() / ".android" / kPrivateKeyFileName;
+    auto keyFile = mTestDir->path() / ".android" / kPrivateKeyFileName;
     std::ofstream out(keyFile);
     out << privkey << std::endl;
     out.close();

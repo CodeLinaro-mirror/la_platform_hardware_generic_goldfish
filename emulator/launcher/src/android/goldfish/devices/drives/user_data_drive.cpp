@@ -21,8 +21,8 @@
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/filesystems/ext4_resize.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/config/emulator.h"
 #include "android/utils/path.h"
 
 #include <android/base/system/storage_capacity.h>
@@ -40,8 +40,8 @@ static absl::Status writePublicKey(const fs::path &guestAdbKeyPath,
                                    const std::string &pubKey) {
   std::ofstream pubKeyFile(guestAdbKeyPath);
   if (!pubKeyFile.is_open()) {
-    return absl::UnknownError(
-        absl::StrFormat("Error opening public key file: %s", guestAdbKeyPath));
+    return absl::UnknownError(absl::StrFormat(
+        "Error opening public key file: %s", guestAdbKeyPath.string()));
   }
   pubKeyFile << pubKey << std::endl;
   return absl::OkStatus();
@@ -51,7 +51,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
   // The adb_keys file permission will also be set in guest system.
   // Referencing system/core/rootdir/init.usb.rc
   if (fs::exists(to)) {
-    dwarning("Erasing existing folder: %s", to);
+    dwarning("Erasing existing folder: %s", to.string());
     fs::remove_all(to);
   }
 
@@ -62,7 +62,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
     return absl::DataLossError(
         absl::StrFormat("Failed to copy from: %s to %s due to %s. There might "
                         "be lingering data in %s",
-                        from, to, ec.message(), to));
+                        from.string(), to.string(), ec.message(), to.string()));
   }
   fs::path adbKeyPubPath = getAdbKeyPath(kPublicKeyFileName);
   fs::path adbKeyPrivPath = getAdbKeyPath(kPrivateKeyFileName);
@@ -72,7 +72,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
     // try to generate the private key
     if (!adb_auth_keygen(path)) {
       return absl::InternalError(
-          absl::StrFormat("Failed to create a private key in %s", path));
+          absl::StrFormat("Failed to create a private key in %s", path.string()));
     }
     adbKeyPrivPath = getAdbKeyPath(kPrivateKeyFileName);
     if (adbKeyPrivPath == "") {
@@ -83,7 +83,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
   fs::path guestAdbKeyDir = to / "misc" / "adb";
   fs::path guestAdbKeyPath = guestAdbKeyDir / "adb_keys";
 
-  path_mkdir_if_needed(guestAdbKeyDir.c_str(), kAdbKeyDirFilePerm);
+  path_mkdir_if_needed(guestAdbKeyDir.string().c_str(), kAdbKeyDirFilePerm);
   if (adbKeyPubPath == "") {
     // generate from private key
     std::string pubKey;
@@ -92,10 +92,11 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
       if (!status.ok()) {
         return status;
       }
-      D("Using re-constructed public key from %s", adbKeyPrivPath);
+      D("Using re-constructed public key from %s", adbKeyPrivPath.string());
     }
   } else {
-    path_copy_file(guestAdbKeyPath.c_str(), adbKeyPubPath.c_str());
+    path_copy_file(guestAdbKeyPath.string().c_str(),
+                   adbKeyPubPath.string().c_str());
   }
 
   // Setting permissions to 0640
@@ -106,7 +107,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
   return absl::OkStatus();
 }
 
-absl::Status UserDataDrive::createImage(const HardwareConfig& hw,
+absl::Status UserDataDrive::createImage(const HardwareConfig &hw,
                                         const fs::path data_path) {
   dinfo("Creating image [%s] of size %s", hw.disk_dataPartition_path,
         hw.disk_dataPartition_size.string());
@@ -117,7 +118,7 @@ absl::Status UserDataDrive::createImage(const HardwareConfig& hw,
   absl::Status create_status;
   if (fs::exists(empty_data_path)) {
     create_status = createExt4Image(hw.disk_dataPartition_path,
-                                         hw.disk_dataPartition_size, "data");
+                                    hw.disk_dataPartition_size, "data");
   } else {
     create_status =
         createExt4ImageFromDirectory(data_path, hw.disk_dataPartition_path,
@@ -139,11 +140,11 @@ absl::Status UserDataDrive::createImage(const HardwareConfig& hw,
                       hw.disk_dataPartition_path, create_status.message()));
 }
 
-absl::Status UserDataDrive::createUserData(const Emulator& emulator,
+absl::Status UserDataDrive::createUserData(const Emulator &emulator,
                                            const fs::path data_path,
                                            bool asQcow2) {
   auto hw = emulator.avd().hw();
-  const Avd& avd = emulator.avd();
+  const Avd &avd = emulator.avd();
 
   auto initDir = avd.getImageFilePath(Avd::ImageType::INITZIP);
   if (!initDir.ok()) {
@@ -152,7 +153,7 @@ absl::Status UserDataDrive::createUserData(const Emulator& emulator,
 
   bool needCopyDataPartition = true;
   if (fs::exists(*initDir)) {
-    dinfo("Creating ext4 userdata partition: %s from %s", data_path, *initDir);
+    dinfo("Creating ext4 userdata partition: %s from %s", data_path.string(), initDir->string());
     auto status = prepareDataFolder(*initDir, data_path);
     if (!status.ok()) {
       derror("Failed to prepare data folder.");
@@ -168,20 +169,20 @@ absl::Status UserDataDrive::createUserData(const Emulator& emulator,
 
     status = createImage(hw, data_path);
     if (!status.ok()) {
-      derror("Failed to create user data image %s", data_path);
+      derror("Failed to create user data image %s", data_path.string());
       return status;
     }
 
     fs::remove_all(data_path);
 
     // if (asQcow2) {
-      auto startTime = std::chrono::steady_clock::now();
-      auto qemu_img = System::get()->findBundledExecutable("qemu-img");
-      std::string dataimageext4 = std::string(hw.disk_dataPartition_path);
-      status = convertImgToQcow2(dataimageext4);
-      if (!status.ok()) {
-        return status;
-      }
+    auto startTime = std::chrono::steady_clock::now();
+    auto qemu_img = System::get()->findBundledExecutable("qemu-img");
+    std::string dataimageext4 = std::string(hw.disk_dataPartition_path);
+    status = convertImgToQcow2(dataimageext4);
+    if (!status.ok()) {
+      return status;
+    }
     // };
   }
 
@@ -212,7 +213,8 @@ absl::Status UserDataDrive::createUserData(const Emulator& emulator,
   return absl::OkStatus();
 }
 
-absl::Status UserDataDrive::minimizeUserDataPartition(const Emulator& emulator) {
+absl::Status
+UserDataDrive::minimizeUserDataPartition(const Emulator &emulator) {
   auto hw = emulator.avd().hw();
   // Check if a resize is needed (current size < configured size)
   // b/196926
@@ -239,7 +241,7 @@ absl::Status UserDataDrive::minimizeUserDataPartition(const Emulator& emulator) 
   return absl::OkStatus();
 }
 
-absl::Status UserDataDrive::initialize(const Emulator& emulator) {
+absl::Status UserDataDrive::initialize(const Emulator &emulator) {
   using android::base::operator""_GiB;
   auto hw = emulator.avd().hw();
 

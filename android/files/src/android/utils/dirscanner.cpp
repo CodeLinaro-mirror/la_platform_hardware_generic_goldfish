@@ -16,29 +16,35 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
+
+#ifdef _WIN32
+#include "aemu/base/system/Win32UnicodeString.h"
+#endif
 
 using android::base::PathUtils;
+namespace fs = std::filesystem;
 
 struct DirScanner {
     std::vector<std::filesystem::path> entries;
-    std::string prefix;
-    std::string result;
+    fs::path prefix;
+    fs::path result;
     size_t pos;
 
-    explicit DirScanner(const char* dir) :
+    explicit DirScanner(fs::path dir) :
             entries(),
             prefix(dir),
             result(),
             pos(0u) {
         entries = android::base::System::get()->scanDirEntries(dir);
         // Append directory separator if needed.
-        prefix = PathUtils::addTrailingDirSeparator(prefix);
+        prefix += "/";
     }
 };
 
 const char* dirScanner_next(DirScanner* s) {
     if (s->pos < s->entries.size()) {
-        return s->entries[s->pos++].c_str();
+        return s->entries[s->pos++].string().c_str();
     }
     return NULL;
 }
@@ -47,7 +53,7 @@ const char* dirScanner_nextFull(DirScanner* s) {
     if (s->pos < s->entries.size()) {
         s->result = s->prefix;
         s->result += s->entries[s->pos++];
-        return s->result.c_str();
+        return s->result.string().c_str();
     }
     return NULL;
 }
@@ -57,7 +63,12 @@ size_t dirScanner_numEntries(DirScanner* s) {
 }
 
 DirScanner* dirScanner_new(const char* rootPath) {
+    #ifdef _WIN32
+    auto root = android::base::Win32UnicodeString(rootPath);
+    DirScanner* s = new DirScanner(root.toString());
+    #else
     DirScanner* s = new DirScanner(rootPath);
+    #endif
     return s;
 }
 

@@ -20,12 +20,12 @@
 
 #include <android/utils/system.h>
 #include <string>
-#include <string_view>
-#include <vector>
+#include <filesystem>
 
 using android::base::PathUtils;
 using android::base::ScopedCPtr;
 using android::base::System;
+namespace fs = std::filesystem;
 
 ABool path_exists(const char* path) {
     if (!path) return false;
@@ -70,12 +70,8 @@ char* path_get_absolute(const char* path) {
         return ASTRDUP(path);
     }
 
-    std::string currentDir = System::get()->getCurrentDirectory();
-    auto currentItems = PathUtils::decompose(currentDir);
-    const auto pathItems = PathUtils::decompose(path);
-    currentItems.insert(currentItems.end(), pathItems.begin(), pathItems.end());
-    auto recomposed = PathUtils::recompose(currentItems);
-    return ASTRDUP(recomposed.c_str());
+    fs::path absolute = fs::absolute(System::get()->getCurrentDirectory() / path);
+    return ASTRDUP(absolute.string().c_str());
 }
 
 int path_split(const char* path, char** dirname, char** basename) {
@@ -125,7 +121,7 @@ char* realpath_with_length(const char* path,
     if (resolved_path == nullptr) {
         // Passing in a null pointer is valid and should lead to allocation
         // without checking the length argument
-        return strDup(utf8Path);
+        return ASTRDUP(utf8Path.c_str());
     }
 
     if (utf8Path.size() + 1 >= max_length) {

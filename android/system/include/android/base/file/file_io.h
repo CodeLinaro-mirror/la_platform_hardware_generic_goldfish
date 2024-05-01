@@ -14,7 +14,7 @@
 #include "android/utils/compiler.h"
 
 #ifdef _MSC_VER
-#include "msvc-posix.h"
+#include "aemu/base/msvc.h"
 #endif
 
 #include <stdio.h>

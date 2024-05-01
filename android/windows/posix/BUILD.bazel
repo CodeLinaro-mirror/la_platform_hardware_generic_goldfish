@@ -1,0 +1,48 @@
+cc_library(
+    name = "compat",
+    srcs = [
+        "src/android/base/Win32UnicodeString.cpp",
+        "src/android/base/Win32Utils.cpp",
+        "src/android/base/win32_unicode.cpp",
+        "src/getopt.c",
+        "src/gettimeofday.c",
+        "src/msvc-posix.c",
+        "src/pread.cpp",
+    ],
+    hdrs = [
+        "include/msvc-files.h",
+        "include/msvc-getopt.h",
+        "include/msvc-posix.h",
+        "include/sys",
+        "include/sys/cdefs.h",
+        "include/sys/stat.h",
+        "include/unistd.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    linkopts = [
+        "-DEFAULTLIB:Advapi32.lib",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)
+
+cc_test(
+    name = "compat_unittests",
+    srcs = glob(
+        [
+            "test/**/*.cpp",
+            "test/**/*.h",
+        ],
+    ),
+    deps = [
+        ":compat",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

@@ -13,7 +13,13 @@ cc_library(
     hdrs = ["include/sparse/sparse.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["@zlib"],
+    deps = ["@zlib"] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//hardware/generic/goldfish/third_party/windows/mman",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_binary(
@@ -21,7 +27,10 @@ cc_binary(
     srcs = ["src/img2simg.c"],
     visibility = ["//visibility:public"],
     deps = [":sparse"] + select({
-        "@platforms//os:windows": ["//hardware/generic/goldfish/third_party/windows/mman"],
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//hardware/generic/goldfish/third_party/windows/mman",
+        ],
         "//conditions:default": [],
     }),
 )

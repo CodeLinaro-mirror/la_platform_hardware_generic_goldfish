@@ -15,6 +15,8 @@
 #pragma once
 
 #include "absl/status/statusor.h"
+#include "aemu/base/Log.h"
+
 #include <iostream>
 #include <string_view>
 
@@ -207,7 +209,7 @@ public:
   StorageCapacity &operator-=(const StorageCapacity &rhs) {
     // Handle potential underflow
     if (mBytes < rhs.bytes()) {
-      throw std::underflow_error("StorageCapacity cannot be negative");
+      dwarning("StorageCapacity cannot be negative");
     }
     mBytes -= rhs.bytes();
     return *this;
@@ -223,7 +225,7 @@ public:
   StorageCapacity operator-(const StorageCapacity &rhs) const {
     // Handle potential underflow
     if (mBytes < rhs.bytes()) {
-      throw std::underflow_error("StorageCapacity cannot be negative");
+      dwarning("StorageCapacity cannot be negative");
     }
     unsigned long long differenceBytes = mBytes - rhs.bytes();
     return StorageCapacity(differenceBytes);
@@ -233,8 +235,7 @@ public:
   explicit operator int() const {
     if (mBytes >
         static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-      throw std::overflow_error(
-          "StorageCapacity is too large to fit into an int");
+      dwarning("StorageCapacity is too large to fit into an int");
     }
     return static_cast<int>(mBytes);
   }
@@ -243,8 +244,7 @@ public:
   explicit operator long() const {
     if (mBytes >
         static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
-      throw std::overflow_error(
-          "StorageCapacity is too large to fit into a long");
+      dwarning("StorageCapacity is too large to fit into a long");
     }
     return static_cast<long>(mBytes);
   }
@@ -253,8 +253,7 @@ public:
   explicit operator unsigned long() const {
     if (mBytes > static_cast<unsigned long long>(
                      std::numeric_limits<unsigned long>::max())) {
-      throw std::overflow_error(
-          "StorageCapacity is too large to fit into an unsigned long");
+      dwarning("StorageCapacity is too large to fit into an unsigned long");
     }
     return static_cast<unsigned long>(mBytes);
   }
@@ -263,8 +262,7 @@ public:
   explicit operator long long() const {
     if (mBytes > static_cast<unsigned long long>(
                      std::numeric_limits<long long>::max())) {
-      throw std::overflow_error(
-          "StorageCapacity is too large to fit into a long long");
+      dwarning("StorageCapacity is too large to fit into a long long");
     }
     return static_cast<long long>(mBytes);
   }

@@ -278,7 +278,7 @@ public:
                                        bool fullPath = false) const override {
     getTempRoot(); // make sure we have a temp root;
 
-    std::string newPath = toTempRoot(dirPath);
+    auto newPath = toTempRoot(dirPath);
     auto result = scanDirInternal(newPath);
     if (fullPath) {
       for (size_t n = 0; n < result.size(); ++n) {
@@ -367,7 +367,7 @@ public:
   System *host() { return hostSystem(); }
 
 private:
-  std::string toTempRoot(fs::path path) const {
+  fs::path toTempRoot(fs::path path) const {
     if (!path.is_absolute()) {
       auto currdir = getCurrentDirectory();
       path = currdir / path;

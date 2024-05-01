@@ -12,8 +12,10 @@
 
 #include "android/utils/filelock.h"
 
+#include "aemu/base/Log.h"
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/process/Command.h"
+#include "aemu/base/process/Process.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 #include "android/utils/lock.h"
@@ -44,6 +46,7 @@ using android::base::ScopedFileHandle;
 #endif
 
 using android::base::System;
+using android::base::Process;
 
 // Set to 1 to enable debug traces here.
 #if 0
@@ -214,7 +217,11 @@ static int filelock_lock(FileLock *lock, int timeout) {
             // Try waiting for the specified timeout for
             // the locking process to exit. If that doesn't work,
             // bail.
-            System::get()->waitForProcessExit(lockingPid, sleep_duration_ms);
+
+            auto process = Process::fromPid(lockingPid);
+            if (process) {
+              process->wait_for(std::chrono::milliseconds(sleep_duration_ms));
+            }
             slept = true;
           }
         }

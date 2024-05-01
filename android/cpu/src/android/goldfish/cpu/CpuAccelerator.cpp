@@ -12,7 +12,7 @@
 #define CPU_ACCELERATOR_PRIVATE
 #include "android/goldfish/cpu/CpuAccelerator.h"
 
-#include "absl//strings/str_format.h"
+#include "absl/strings/str_format.h"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
@@ -66,8 +66,8 @@
 
 #elif defined(_WIN32)
 #define HAVE_WHPX 1
-#define HAVE_AEHD 1
-#define HAVE_HAX 1
+// AEHD is not in qemu 8, and crashes clang
+#define HAVE_AEHD 0
 
 #elif defined(__APPLE__)
 #define HAVE_HVF 1
@@ -81,6 +81,7 @@
 
 namespace android {
 
+using base::System;
 using base::Version;
 
 // For detecting that the cpu can run with fast virtualization
@@ -129,10 +130,15 @@ GlobalState gGlobals = {false,  false,  CPU_ACCELERATOR_NONE,
 #include <WinHvPlatform.h>
 #include <windows.h>
 
-#define WHPX_DBG(...) VERBOSE_PRINT(init, __VA_ARGS__)
+/* debugging */
+#define DEBUG 0
+#define WHPX_DBG(...) (void)0
+#if DEBUG >= 1
+#define WHPX_DBG(...) dprint(__VA_ARGS__)
+#endif
 
 static bool isOkToTryWHPX() {
-  return featurecontrol::isEnabled(featurecontrol::WindowsHypervisorPlatform);
+  return true; // featurecontrol::isEnabled(featurecontrol::WindowsHypervisorPlatform);
 }
 
 AndroidCpuAcceleration ProbeWHPX(std::string *status) {
@@ -161,7 +167,8 @@ AndroidCpuAcceleration ProbeWHPX(std::string *status) {
         WHPX_DBG("WHvGetCapability failed. hr=0x%08lx "
                  "whpx_cap.HypervisorPresent? %d\n",
                  hr, whpx_cap.HypervisorPresent);
-        absl::StrAppendFormat(status, "WHPX: No accelerator found, hr=%08lx.", hr);
+        absl::StrAppendFormat(status, "WHPX: No accelerator found, hr=%08lx.",
+                              hr);
         acc_available = false;
       }
     } else {
@@ -195,7 +202,8 @@ AndroidCpuAcceleration ProbeWHPX(std::string *status) {
            ver->dwMinorVersion, ver->dwBuildNumber);
 
   WHPX_DBG("WHPX (%s) is installed and usable.", version_str);
-  absl::StrAppendFormat(status, "WHPX (%s) is installed and usable.", version_str);
+  absl::StrAppendFormat(status, "WHPX (%s) is installed and usable.",
+                        version_str);
   GlobalState *g = &gGlobals;
   ::snprintf(g->version, sizeof(g->version), "%s", version_str);
   return ANDROID_CPU_ACCELERATION_READY;
@@ -213,10 +221,10 @@ AndroidCpuAcceleration ProbeWHPX(std::string *status) {
 
 #if HAVE_KVM
 
-#include <linux/kvm.h>
 #include "android/base/file/file_io.h"
+#include <linux/kvm.h>
 
-#define KVM_DEVICE_NAME_ENV  "ANDROID_EMULATOR_KVM_DEVICE"
+#define KVM_DEVICE_NAME_ENV "ANDROID_EMULATOR_KVM_DEVICE"
 
 // Return true iff KVM is installed and usable on this machine.
 // |*status| will be set to a small status string explaining the
@@ -236,9 +244,9 @@ AndroidCpuAcceleration ProbeKVM(std::string *status) {
       return ANDROID_CPU_ACCELERATION_NO_CPU_SUPPORT;
     }
     absl::StrAppendFormat(status,
-                       "%s is not found: VT disabled in BIOS or KVM kernel "
-                       "module not loaded",
-                       kvm_device);
+                          "%s is not found: VT disabled in BIOS or KVM kernel "
+                          "module not loaded",
+                          kvm_device);
     return ANDROID_CPU_ACCELERATION_DEV_NOT_FOUND;
   }
 
@@ -293,7 +301,7 @@ AndroidCpuAcceleration ProbeKVM(std::string *status) {
   base::ScopedFd fd(TEMP_FAILURE_RETRY(open(kvm_device, O_RDWR)));
   if (!fd.valid()) {
     absl::StrAppendFormat(status, "Could not open %s : %s", kvm_device,
-                       strerror(errno));
+                          strerror(errno));
     return ANDROID_CPU_ACCELERATION_DEV_OPEN_FAILED;
   }
 
@@ -310,238 +318,20 @@ AndroidCpuAcceleration ProbeKVM(std::string *status) {
 
   if (version < KVM_API_VERSION) {
     absl::StrAppendFormat(status,
-                       "KVM version too old: %d (expected at least %d)\n",
-                       version, KVM_API_VERSION);
+                          "KVM version too old: %d (expected at least %d)\n",
+                          version, KVM_API_VERSION);
     return ANDROID_CPU_ACCELERATION_DEV_OBSOLETE;
   }
 
   // Profit!
   absl::StrAppendFormat(status, "KVM (version %d) is installed and usable.",
-                     version);
+                        version);
   GlobalState *g = &gGlobals;
   ::snprintf(g->version, sizeof(g->version), "%d", version);
   return ANDROID_CPU_ACCELERATION_READY;
 }
 
 #endif // HAVE_KVM
-
-#if HAVE_HAX
-
-#define HAXM_INSTALLER_VERSION_MINIMUM 0x06000001
-#define HAXM_INSTALLER_VERSION_MINIMUM_APPLE 0x6020001
-#define HAXM_INSTALLER_VERSION_RECOMMENDED 0x7060005
-#define HAXM_INSTALLER_VERSION_INCOMPATIBLE 0x7080000
-
-std::string cpuAcceleratorFormatVersion(int32_t version) {
-  if (version < 0) {
-    return "<invalid>";
-  }
-  char buf[16]; // strlen("127.255.65535")+1 = 14
-  int32_t revision = version & 0xffff;
-  version >>= 16;
-  int32_t minor = version & 0xff;
-  version >>= 8;
-  int32_t major = version & 0x7f;
-  snprintf(buf, sizeof(buf), "%i.%i.%i", major, minor, revision);
-  return buf;
-}
-
-// Version numbers for the HAX kernel module.
-// |compat_version| is the minimum API version supported by the module.
-// |current_version| is its current API version.
-struct HaxModuleVersion {
-  uint32_t compat_version;
-  uint32_t current_version;
-};
-
-/*
- * ProbeHaxCpu: returns ANDROID_CPU_ACCELERATION_READY if the CPU supports
- * HAXM requirements.
- *
- * Otherwise returns some other AndroidCpuAcceleration status and sets
- * |status| to a user-understandable error string
- */
-AndroidCpuAcceleration ProbeHaxCpu(std::string *status) {
-  char vendor_id[16];
-  android_get_x86_cpuid_vendor_id(vendor_id, sizeof(vendor_id));
-
-  if (!android_get_x86_cpuid_vmx_support()) {
-    status->assign(
-        "Android Emulator requires an Intel processor with VT-x and NX "
-        "support.  "
-        "(VT-x is not supported)");
-    return ANDROID_CPU_ACCELERATION_NO_CPU_VTX_SUPPORT;
-  }
-
-  if (!android_get_x86_cpuid_nx_support()) {
-    status->assign(
-        "Android Emulator requires an Intel processor with VT-x and NX "
-        "support.  "
-        "(NX is not supported)");
-    return ANDROID_CPU_ACCELERATION_NO_CPU_NX_SUPPORT;
-  }
-
-  return ANDROID_CPU_ACCELERATION_READY;
-}
-
-/////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-/////
-/////  Windows HAX support.
-/////
-/////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-
-#include "android/base/system/System.h"
-
-using ::android::base::System;
-using base::ScopedFileHandle;
-using namespace android;
-
-// Windows IOCTL code to extract HAX kernel module version.
-#define HAX_DEVICE_TYPE 0x4000
-#define HAX_IOCTL_VERSION                                                      \
-  CTL_CODE(HAX_DEVICE_TYPE, 0x900, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define HAX_IOCTL_CAPABILITY                                                   \
-  CTL_CODE(HAX_DEVICE_TYPE, 0x910, METHOD_BUFFERED, FILE_ANY_ACCESS)
-
-// The minimum API version supported by the Android emulator.
-#define HAX_MIN_VERSION 3 // 6.0.0
-
-// IMPORTANT: Keep in sync with target-i386/hax-interface.h
-struct hax_capabilityinfo {
-  /* bit 0: 1 - HAXM is working
-   *        0 - HAXM is not working possibly because VT/NX is disabled
-                NX means Non-eXecution, aks. XD (eXecution Disable)
-   * bit 1: 1 - HAXM has hard limit on how many RAM can be used as guest RAM
-   *        0 - HAXM has no memory limitation
-   */
-#define HAX_CAP_STATUS_WORKING 0x1
-#define HAX_CAP_STATUS_NOTWORKING 0x0
-#define HAX_CAP_WORKSTATUS_MASK 0x1
-#define HAX_CAP_MEMQUOTA 0x2
-  uint16_t wstatus;
-  /*
-   * valid when HAXM is not working
-   * bit 0: HAXM is not working because VT is not enabeld
-   * bit 1: HAXM is not working because NX not enabled
-   */
-#define HAX_CAP_FAILREASON_VT 0x1
-#define HAX_CAP_FAILREASON_NX 0x2
-  uint16_t winfo;
-  uint32_t pad;
-  uint64_t mem_quota;
-};
-
-AndroidCpuAcceleration ProbeHAX(std::string *status) {
-  status->clear();
-
-  int32_t haxm_installer_version = 0;
-
-  AndroidCpuAcceleration cpu = ProbeHaxCpu(status);
-  if (cpu != ANDROID_CPU_ACCELERATION_READY)
-    return cpu;
-
-  std::string HaxInstallerCheck =
-      System::get()->envGet("HAXM_BYPASS_INSTALLER_CHECK");
-  if (HaxInstallerCheck.compare("1")) {
-    const char *productDisplayName =
-        u8"Intel® Hardware Accelerated Execution Manager";
-    haxm_installer_version = WindowsInstaller::getVersion(productDisplayName);
-    if (haxm_installer_version == 0) {
-      status->assign("HAXM is not installed on this machine");
-      return ANDROID_CPU_ACCELERATION_ACCEL_NOT_INSTALLED;
-    }
-
-    if (haxm_installer_version < HAXM_INSTALLER_VERSION_MINIMUM) {
-      absl::StrAppendFormat(
-          status, "HAXM must be updated (version %s < %s).",
-          cpuAcceleratorFormatVersion(haxm_installer_version),
-          cpuAcceleratorFormatVersion(HAXM_INSTALLER_VERSION_MINIMUM));
-      return ANDROID_CPU_ACCELERATION_ACCEL_OBSOLETE;
-    }
-
-    if (haxm_installer_version >= HAXM_INSTALLER_VERSION_INCOMPATIBLE) {
-      absl::StrAppendFormat(status,
-                         "HAXM (version %s) is not compatible with the "
-                         "android emulator. Version 7.6.5 is recommended.",
-                         cpuAcceleratorFormatVersion(haxm_installer_version));
-      return ANDROID_CPU_ACCELERATION_ACCEL_OBSOLETE;
-    }
-  }
-
-  // 1) Try to find the HAX kernel module.
-  ScopedFileHandle hax(CreateFile("\\\\.\\HAX", GENERIC_READ | GENERIC_WRITE, 0,
-                                  NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-                                  NULL));
-  if (!hax.valid()) {
-    DWORD err = GetLastError();
-    if (err == ERROR_FILE_NOT_FOUND) {
-      status->assign("Unable to open HAXM device: ERROR_FILE_NOT_FOUND");
-      return ANDROID_CPU_ACCELERATION_DEV_NOT_FOUND;
-    } else if (err == ERROR_ACCESS_DENIED) {
-      status->assign("Unable to open HAXM device: ERROR_ACCESS_DENIED");
-      return ANDROID_CPU_ACCELERATION_DEV_PERMISSION;
-    }
-    absl::StrAppendFormat(status, "Opening HAX kernel module failed: %u", err);
-    return ANDROID_CPU_ACCELERATION_DEV_OPEN_FAILED;
-  }
-
-  // 2) Extract the module's version.
-  HaxModuleVersion hax_version;
-
-  DWORD dSize = 0;
-  BOOL ret =
-      DeviceIoControl(hax.get(), HAX_IOCTL_VERSION, NULL, 0, &hax_version,
-                      sizeof(hax_version), &dSize, (LPOVERLAPPED)NULL);
-  if (!ret) {
-    DWORD err = GetLastError();
-    absl::StrAppendFormat(status, "Could not extract HAX module version: %u", err);
-    return ANDROID_CPU_ACCELERATION_DEV_IOCTL_FAILED;
-  }
-
-  // 3) Check that it is the right version.
-  if (hax_version.current_version < HAX_MIN_VERSION) {
-    absl::StrAppendFormat(status,
-                       "HAX version (%d) is too old (need at least %d).",
-                       hax_version.current_version, HAX_MIN_VERSION);
-    return ANDROID_CPU_ACCELERATION_DEV_OBSOLETE;
-  }
-
-  hax_capabilityinfo cap = {};
-  ret = DeviceIoControl(hax.get(), HAX_IOCTL_CAPABILITY, NULL, 0, &cap,
-                        sizeof(cap), &dSize, (LPOVERLAPPED)NULL);
-
-  if (!ret) {
-    DWORD err = GetLastError();
-    absl::StrAppendFormat(status, "Could not extract HAX capability: %u", err);
-    return ANDROID_CPU_ACCELERATION_DEV_IOCTL_FAILED;
-  }
-
-  if ((cap.wstatus & HAX_CAP_WORKSTATUS_MASK) == HAX_CAP_STATUS_NOTWORKING) {
-    if (cap.winfo & HAX_CAP_FAILREASON_VT) {
-      status->assign("VT feature disabled in BIOS/UEFI");
-      return ANDROID_CPU_ACCELERATION_VT_DISABLED;
-    } else if (cap.winfo & HAX_CAP_FAILREASON_NX) {
-      status->assign("NX feature disabled in BIOS/UEFI");
-      return ANDROID_CPU_ACCELERATION_NX_DISABLED;
-    }
-  }
-
-  // 4) Profit!
-  absl::StrAppendFormat(status, "HAXM version %s (%d) is installed and usable.",
-                     cpuAcceleratorFormatVersion(haxm_installer_version),
-                     hax_version.current_version);
-  if (haxm_installer_version > HAXM_INSTALLER_VERSION_RECOMMENDED)
-    absl::StrAppendFormat(status,
-                       " Warning: HAXM version greater than 7.6.5 is not "
-                       "recommended. Some AVDs may fail to boot.");
-  GlobalState *g = &gGlobals;
-  ::snprintf(g->version, sizeof(g->version), "%s",
-             cpuAcceleratorFormatVersion(haxm_installer_version).c_str());
-  return ANDROID_CPU_ACCELERATION_READY;
-}
-#endif // HAVE_HAX
 
 /////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
@@ -594,13 +384,9 @@ AndroidCpuAcceleration ProbeHVF(std::string *status) {
 }
 #endif // HAVE_HVF
 
-// Windows AEHD hypervisor support
+// Windows AEHD hypervisor support (Not in QEMU 8)
 
 #if HAVE_AEHD
-
-#include "android/base/system/System.h"
-
-using ::android::base::System;
 
 // Windows IOCTL code to extract AEHD version.
 #define FILE_DEVICE_AEHD 0xE3E3
@@ -640,14 +426,14 @@ AndroidCpuAcceleration ProbeAEHD(std::string *status) {
   if (cpu != ANDROID_CPU_ACCELERATION_READY)
     return cpu;
 
-  ScopedFileHandle aehd(CreateFile("\\\\.\\AEHD", GENERIC_READ | GENERIC_WRITE,
-                                   0, NULL, CREATE_ALWAYS,
-                                   FILE_ATTRIBUTE_NORMAL, NULL));
+  base::ScopedFileHandle aehd(
+      CreateFileA("\\\\.\\AEHD", GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
   if (aehd.valid())
     goto success;
-  ScopedFileHandle gvm(CreateFile("\\\\.\\gvm", GENERIC_READ | GENERIC_WRITE, 0,
-                                  NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-                                  NULL));
+  base::ScopedFileHandle gvm(
+      CreateFileA("\\\\.\\gvm", GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
   if (!aehd.valid() && !gvm.valid()) {
     DWORD err = GetLastError();
     if (err == ERROR_FILE_NOT_FOUND) {
@@ -659,9 +445,9 @@ AndroidCpuAcceleration ProbeAEHD(std::string *status) {
       return ANDROID_CPU_ACCELERATION_DEV_PERMISSION;
     }
     absl::StrAppendFormat(status,
-                       "Opening Android Emulator hypervisor driver"
-                       " failed: %u",
-                       err);
+                          "Opening Android Emulator hypervisor driver"
+                          " failed: %u",
+                          err);
     return ANDROID_CPU_ACCELERATION_DEV_OPEN_FAILED;
   }
 
@@ -680,7 +466,7 @@ success:
 
   // Profit!
   absl::StrAppendFormat(status, "AEHD (version %d.%d) is installed and usable.",
-                     version >> 16, version & 0xFFFF);
+                        version >> 16, version & 0xFFFF);
   GlobalState *g = &gGlobals;
   ::snprintf(g->version, sizeof(g->version), "%d", version);
   return ANDROID_CPU_ACCELERATION_READY;
@@ -706,11 +492,12 @@ CpuAccelerator GetCurrentCpuAccelerator() {
 #else
   if (!android::hasModernX86VirtualizationFeatures()) {
     // TODO: Support snapshots when UG is not supported.
-    fprintf(stderr, "Warning: Quick Boot / Snapshots not supported on this "
-                    "machine. "
-                    "A CPU with EPT + UG features is currently needed. "
-                    "We will address this in a future release.\n");
-    featurecontrol::setEnabledOverride(featurecontrol::FastSnapshotV1, false);
+    dwarning("Quick Boot / Snapshots not supported on this "
+             "machine. "
+             "A CPU with EPT + UG features is currently needed. "
+             "We will address this in a future release.");
+    // featurecontrol::setEnabledOverride(featurecontrol::FastSnapshotV1,
+    // false);
   }
 #endif
 #endif
@@ -721,7 +508,7 @@ CpuAccelerator GetCurrentCpuAccelerator() {
     g->accel = CPU_ACCELERATOR_KVM;
     g->supported_accelerators[CPU_ACCELERATOR_KVM] = true;
   }
-#elif HAVE_HAX || HAVE_HVF || HAVE_WHPX || HAVE_AEHD
+#elif HAVE_HVF || HAVE_WHPX || HAVE_AEHD
   auto hvStatus = GetHyperVStatus();
   if (hvStatus.first == ANDROID_HYPERV_RUNNING) {
     status = "Please disable Hyper-V before using the Android Emulator.  "
@@ -770,11 +557,12 @@ CpuAccelerator GetCurrentCpuAccelerator() {
     android_get_x86_cpuid_vendor_id(vendor_id, sizeof(vendor_id));
     vid_type = android_get_x86_cpuid_vendor_id_type(vendor_id);
     if (vid_type != VENDOR_ID_AMD && vid_type != VENDOR_ID_INTEL) {
-      absl::StrAppendFormat(&status,
-                         "Android Emulator requires an Intel or AMD processor "
-                         "with "
-                         "virtualization extension support.  Your CPU: '%s'",
-                         vendor_id);
+      absl::StrAppendFormat(
+          &status,
+          "Android Emulator requires an Intel or AMD processor "
+          "with "
+          "virtualization extension support.  Your CPU: '%s'",
+          vendor_id);
       status_code = ANDROID_CPU_ACCELERATION_NO_CPU_SUPPORT;
     } else {
 #if HAVE_AEHD
@@ -782,21 +570,6 @@ CpuAccelerator GetCurrentCpuAccelerator() {
       if (status_code == ANDROID_CPU_ACCELERATION_READY) {
         g->accel = CPU_ACCELERATOR_AEHD;
         g->supported_accelerators[CPU_ACCELERATOR_AEHD] = true;
-      }
-#endif
-#if HAVE_HAX
-      if (status_code != ANDROID_CPU_ACCELERATION_READY &&
-          vid_type == VENDOR_ID_INTEL) {
-        std::string statusHax;
-        AndroidCpuAcceleration status_code_HAX;
-
-        status_code_HAX = ProbeHAX(&statusHax);
-        if (status_code_HAX == ANDROID_CPU_ACCELERATION_READY) {
-          g->accel = CPU_ACCELERATOR_HAX;
-          g->supported_accelerators[CPU_ACCELERATOR_HAX] = true;
-          status = statusHax;
-          status_code = status_code_HAX;
-        }
       }
 #endif
     }
@@ -822,18 +595,9 @@ CpuAccelerator GetCurrentCpuAccelerator() {
     }
 #endif // HAVE_HVF
   }
-#else  // !HAVE_KVM && !(HAVE_HAX || HAVE_HVF || HAVE_AEHD || HAVE_WHPX)
+#else  // !HAVE_KVM && !(HAVE_HVF || HAVE_AEHD || HAVE_WHPX)
   status = "This system does not support CPU acceleration.";
-#endif // !HAVE_KVM && !(HAVE_HAX || HAVE_HVF || HAVE_AEHD || HAVE_WHPX)
-
-  // Print HAXM deprecation message
-  if (g->accel == CPU_ACCELERATOR_HAX) {
-    fprintf(stderr, "HAXM is deprecated and not supported by Intel "
-                    "any more. Please download and install Android "
-                    "Emulator Hypervisor Driver for AMD Processors, "
-                    "which also supports Intel Processors. Installing "
-                    "from SDK Manager is coming soon.\n");
-  }
+#endif // !HAVE_KVM && !(HAVE_HVF || HAVE_AEHD || HAVE_WHPX)
 
   // cache status
   g->probed = true;
@@ -972,7 +736,7 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
 #endif
   const std::string hyperVExe = PathUtils::join(sysPath, "vmms.exe");
 
-  if (path_is_regular(hyperVExe.c_str())) {
+  if (System::get()->pathIsFile(hyperVExe.c_str())) {
     // hyper-v is installed but not running
     return std::make_pair(ANDROID_HYPERV_INSTALLED, "Hyper-V is disabled");
   }
@@ -1085,4 +849,4 @@ Version parseMacOSVersionString(const std::string &str, std::string *status) {
   return ver;
 }
 
-} // namespace android::goldfish
+} // namespace android

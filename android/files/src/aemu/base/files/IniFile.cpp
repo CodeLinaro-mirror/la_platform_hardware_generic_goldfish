@@ -197,13 +197,7 @@ bool IniFile::read(bool keepComments) {
     return false;
   }
 
-#ifdef _MSC_VER
-  Win32UnicodeString wBackingFilePath(mBackingFilePath);
-  ifstream inFile(wBackingFilePath.c_str(), ios_base::in | ios_base::ate);
-#else
   ifstream inFile(mBackingFilePath, ios_base::in | ios_base::ate);
-#endif
-
   if (!inFile) {
     LOG(WARNING) << "Failed to process .ini file " << mBackingFilePath
                  << " for reading.";
@@ -255,7 +249,7 @@ bool IniFile::readFromMemory(std::string_view data) {
 
 bool IniFile::writeCommonImpl(bool discardEmpty, const std::string &filePath) {
 #ifdef _MSC_VER
-  Win32UnicodeString wFilePath(filePath);
+  base::Win32UnicodeString wFilePath(filePath);
   std::ofstream outFile(wFilePath.c_str(), ios_base::out | ios_base::trunc);
 #else
   std::ofstream outFile(filePath, std::ios_base::out | std::ios_base::trunc);
@@ -299,32 +293,32 @@ bool IniFile::writeCommon(const bool discardEmpty) {
     return false;
   }
 
-  const std::string iniFileNew = mBackingFilePath + ".new";
+  const std::string iniFileNew = mBackingFilePath.string() + ".new";
   if (!writeCommonImpl(discardEmpty, iniFileNew)) {
     return false;
   }
 
-  const std::string iniFileOld = mBackingFilePath + ".old";
+  const std::string iniFileOld = mBackingFilePath.string() + ".old";
   std::filesystem::remove(
       iniFileOld.c_str()); // just in case `myRemove` below failed
 
   const bool deleteOldConfig =
-      move(mBackingFilePath.c_str(), iniFileOld.c_str());
+      move(mBackingFilePath.string().c_str(), iniFileOld.c_str());
 
-  if (!move(iniFileNew.c_str(), mBackingFilePath.c_str())) {
+  if (!move(iniFileNew.c_str(), mBackingFilePath.string().c_str())) {
     if (deleteOldConfig) {
       // try to revert the first `rename`
-      if (!move(iniFileOld.c_str(), mBackingFilePath.c_str())) {
+      if (!move(iniFileOld.c_str(), mBackingFilePath.string().c_str())) {
         // mBackingFilePath is missing here
-        LOG(ERROR) << "Failed to update '" << mBackingFilePath
+        LOG(ERROR) << "Failed to update '" << mBackingFilePath.string()
                    << "', the file no longer exists";
       } else {
         // mBackingFilePath is reverted back
-        LOG(WARNING) << "Failed to update '" << mBackingFilePath << "'";
+        LOG(WARNING) << "Failed to update '" << mBackingFilePath.string() << "'";
       }
     } else {
       // mBackingFilePath could be read-only
-      LOG(WARNING) << "Failed to save '" << mBackingFilePath << "'";
+      LOG(WARNING) << "Failed to save '" << mBackingFilePath.string() << "'";
     }
 
     std::filesystem::remove(iniFileNew.c_str());

@@ -42,7 +42,12 @@ cc_library(
         "//hardware/generic/goldfish/android/process",
         "//hardware/generic/goldfish/android/system",
         "//hardware/google/aemu/base:aemu-base",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(
@@ -63,5 +68,10 @@ cc_test(
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_googletest//:gtest_main",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -39,7 +39,7 @@ absl::Status KernelDevice::initialize(const Emulator& emulator) {
   for (const auto &option : options) {
     mDiskImage = avd.getSystemImagePath(option);
     if (mDiskImage.ok()) {
-      hw.kernel_path = mDiskImage.value();
+      hw.kernel_path = mDiskImage->string();
       return absl::OkStatus();
     }
     dinfo("%s", mDiskImage.status().message());
@@ -53,7 +53,7 @@ std::vector<std::string>
 KernelDevice::getQemuParameters(const Emulator& emulator) const {
   return {
       "-kernel",
-      *mDiskImage,
+      mDiskImage->string(),
       "-append",
       // Note the parameters need to be within '
       "'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "

@@ -33,7 +33,6 @@
 #include <windows.h>
 
 #include "aemu/base/system/Win32Utils.h"
-#include "android/utils/win32_cmdline_quote.h"
 
 using android::base::Win32Utils;
 #else
@@ -72,7 +71,7 @@ void explainSystemErrors(const char* msg) {
 
 static auto runExt4Program(const std::string_view& program,
                            std::initializer_list<std::string> params) -> int {
-    std::string executable = System::get()->findBundledExecutable(program);
+    std::string executable = System::get()->findBundledExecutable(program).string();
     if (executable.empty()) {
         derror("couldn't get path to %s binary", c_str(program).get());
         return -1;

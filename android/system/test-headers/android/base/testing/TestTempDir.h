@@ -61,20 +61,20 @@ namespace base {
 class TestTempDir {
 public:
   // Create new instance. This also tries to create a new temporary
-  // directory. |debugPrefix| is an optional name prefix and can be NULL.
+  // directory. |debugPrefix| is an optional name prefix and can be empty.
   TestTempDir(std::string_view debugName) {
     mPath = getTempPath();
     if (!debugName.empty()) {
-      mPath = mPath / debugName;
+      mPath = fs::absolute(mPath / debugName);
     }
 
     if (fs::exists(mPath)) {
-      return;
+      DeleteRecursive(mPath);
     }
     // Attempt to create the temporary directory
     std::error_code ec;
     if (!fs::create_directories(mPath, ec)) {
-      dwarning("Failed to create %s due to: %s", mPath, ec.message());
+      dwarning("Failed to create %s due to: %s", mPath.string(), ec.message());
     }
   }
 
@@ -101,24 +101,25 @@ public:
 
   // Create an empty directory under the temporary directory.
   bool makeSubDir(fs::path subdir) {
-    fs::path path = makeSubPath(subdir);
-    if (android_mkdir(path.c_str(), 0755) < 0) {
-      derror("Can't create %s", path);
+    fs::path path = fs::absolute(makeSubPath(subdir));
+    if (android_mkdir(path.string().c_str(), 0755) < 0) {
+      derror("Can't create %s", path.string());
       return false;
     }
-    if (!pathExists(path.c_str())) {
-      dfatal("Created path does not exist");
+    if (!pathExists(path.string().c_str())) {
+      dwarning("Created path (%s/%s) does not exist", path.string(),
+             subdir.string());
     }
-    dinfo("Created %s", path);
+    dinfo("Created %s", path.string());
     return true;
   }
 
   // Create an empty file under the temporary directory.
   bool makeSubFile(std::string_view file) {
     fs::path path = makeSubPath(file);
-    int fd = ::android_open(path.c_str(), O_WRONLY | O_CREAT, 0744);
+    int fd = ::android_open(path.string().c_str(), O_WRONLY | O_CREAT, 0744);
     if (fd < 0) {
-      derror("Can't create %s", path);
+      derror("Can't create %s", path.string());
       return false;
     }
     ::close(fd);
@@ -128,47 +129,33 @@ public:
 private:
   DISALLOW_COPY_AND_ASSIGN(TestTempDir);
 
-  void DeleteRecursive(const std::string &path) {
-    // First remove any files in the dir
-    DIR *dir = opendir(path.c_str());
-    if (!dir) {
-      return;
+  void DeleteRecursive(const fs::path &path) {
+    if (!fs::exists(path)) {
+      return; // Path doesn't exist
     }
 
-    dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-      if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
-        continue;
-      }
-      std::string entry_path = absl::StrFormat("%s/%s", path, entry->d_name);
-#ifdef _WIN32
-      struct _stati64 stats;
-      android_lstat(entry_path.c_str(),
-                    reinterpret_cast<struct stat *>(&stats));
-#else
-      struct stat stats;
-      android_lstat(entry_path.c_str(), &stats);
-#endif
-
-      if (S_ISDIR(stats.st_mode)) {
-        DeleteRecursive(entry_path);
+    for (const auto &entry : fs::directory_iterator(path)) {
+      if (entry.is_directory()) {
+        DeleteRecursive(entry.path()); // Recursively delete subdirectories
       } else {
-        android_unlink(entry_path.c_str());
+        dinfo("Deleting %s", entry.path().string());
+        fs::remove(entry.path()); // Delete files directly
       }
     }
-    closedir(dir);
-    android_rmdir(path.c_str());
+
+    dinfo("Deleting %s", path.string());
+    fs::remove(path);
   }
 
 #ifdef _WIN32
   fs::path getTempPath() {
     std::string result;
-    DWORD len = GetTempPath(0, NULL);
+    DWORD len = GetTempPathA(0, NULL);
     if (!len) {
       LOG(FATAL) << "Can't find temporary path!";
     }
     result.resize(static_cast<size_t>(len));
-    GetTempPath(len, &result[0]);
+    GetTempPathA(len, &result[0]);
     // The length returned by GetTempPath() is sometimes too large.
     result.resize(::strlen(result.c_str()));
     for (size_t n = 0; n < result.size(); ++n) {

@@ -39,21 +39,22 @@ using android::base::System;
 using android::base::operator""_MiB;
 using android::base::operator""_TiB;
 
-absl::Status RawDrive::initialize(const Emulator& emulator) {
+absl::Status RawDrive::initialize(const Emulator &emulator) {
   return emulator.avd().getSystemImagePath(mImage).status();
 };
 
-std::vector<std::string> RawDrive::getQemuParameters(const Emulator& emulator) const {
-  const Avd& avd = emulator.avd();
-  auto diskImage = avd.getSystemImagePath(mImage).value();
-  auto diskId = diskImage.filename();
+std::vector<std::string>
+RawDrive::getQemuParameters(const Emulator &emulator) const {
+  const Avd &avd = emulator.avd();
+  auto diskImage = avd.getSystemImagePath(mImage);
+  auto diskId = diskImage->filename().string();
   return {"-device",
           absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr(),
                           diskId),
           "-blockdev",
           absl::StrFormat("driver=raw,node-name=%s,read-only=on,driver="
                           "file,filename=%s",
-                          diskId, diskImage)};
+                          diskId, diskImage->string())};
 }
 
 void MutableDiskDrive::clear() {
@@ -64,7 +65,7 @@ void MutableDiskDrive::clear() {
 }
 
 std::vector<std::string>
-MutableDiskDrive::getQemuParameters(const Emulator& emulator) const {
+MutableDiskDrive::getQemuParameters(const Emulator &emulator) const {
   // TODO(jansene): Optimize for performance.
   // For example run an individual iothread per drive
   //  "-object",  "iothread,id=disk-iothread" per drive..
@@ -75,7 +76,7 @@ MutableDiskDrive::getQemuParameters(const Emulator& emulator) const {
           "-blockdev",
           absl::StrFormat(
               "driver=qcow2,node-name=%s,file.driver=file,file.filename=%s",
-              mDiskId, mDiskImage)};
+              mDiskId, mDiskImage.string())};
 }
 
 absl::Status MutableDiskDrive::createExt4Image(fs::path destination,
@@ -88,7 +89,7 @@ absl::Status MutableDiskDrive::createExt4Image(fs::path destination,
 
   return absl::InternalError(absl::StrFormat(
       "Failed to create an empty Ext4 image in '%s' of size %d bytes",
-      destination, size.bytes()));
+      destination.string(), size.bytes()));
 }
 
 absl::Status MutableDiskDrive::resizePartition(fs::path partition,
@@ -109,7 +110,7 @@ absl::Status MutableDiskDrive::resizePartition(fs::path partition,
         partition.string(), maxSize.string(), size.string()));
   }
 
-  int resizeResult = resizeExt4Partition(partition.c_str(), size.bytes());
+  int resizeResult = resizeExt4Partition(partition.string().c_str(), size.bytes());
 
   // Interpret the error codes can propagate.
   if (resizeResult != 0) {
@@ -126,8 +127,9 @@ absl::Status MutableDiskDrive::resizePartition(fs::path partition,
           absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
       break;
     }
-    return absl::InternalError(absl::StrFormat(
-        "Could not resize partition %s. Error: %s", partition, resizeError));
+    return absl::InternalError(
+        absl::StrFormat("Could not resize partition %s. Error: %s",
+                        partition.string(), resizeError));
   }
 
   return absl::OkStatus();
@@ -138,7 +140,7 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
 
   if (!fs::exists(ext4_image)) {
     return absl::NotFoundError(
-        absl::StrFormat("The path: %s does not exist.", ext4_image));
+        absl::StrFormat("The path: %s does not exist.", ext4_image.string()));
   }
 
   auto startTime = std::chrono::steady_clock::now();
@@ -147,15 +149,15 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
     return absl::NotFoundError("The bundled executable qemu-img cannot be "
                                "found, please check you installation.");
   }
-  std::string qcow2 = ext4_image;
+  std::string qcow2 = ext4_image.string();
   qcow2 += ".qcow2";
-  auto img_proc = base::Command::create(
-                      {qemu_img, "convert", "-O", "qcow2", ext4_image, qcow2})
+  auto img_proc = base::Command::create({qemu_img.string(), "convert", "-O",
+                                         "qcow2", ext4_image.string(), qcow2})
                       .execute();
   if (img_proc->wait_for(kQemuImgTimeout) == std::future_status::timeout) {
     return absl::DeadlineExceededError(
-        absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image,
-                        qcow2, kQemuImgTimeout.count()));
+        absl::StrFormat("Failed to convert %s to %s in %d seconds.",
+                        ext4_image.string(), qcow2, kQemuImgTimeout.count()));
   }
   if (!System::get()->pathIsQcow2(qcow2)) {
     return absl::DataLossError(
@@ -165,8 +167,8 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - startTime);
   long long timeUsedMs = (long long)elapsed.count();
-  dprint("Converted ext4->qcow2 %s to %s in %lld milliseconds.", ext4_image,
-         qcow2, timeUsedMs);
+  dprint("Converted ext4->qcow2 %s to %s in %lld milliseconds.",
+         ext4_image.string(), qcow2, timeUsedMs);
   return absl::OkStatus();
 }
 
@@ -181,7 +183,7 @@ absl::Status MutableDiskDrive::createExt4ImageFromDirectory(
 
   return absl::InternalError(
       absl::StrFormat("Failed to create Ext4 image from directory '%s' to '%s'",
-                      source, destination));
+                      source.string(), destination.string()));
 }
 
 } // namespace android::goldfish

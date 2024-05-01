@@ -67,7 +67,7 @@ auto ConfigDirs::getAvdRootDirectory() -> fs::path {
   // The search order here should match that in AndroidLocation.java
   // in Android Studio. Otherwise, Studio and the Emulator may find
   // different AVDs. Or one may find an AVD when the other doesn't.
-  std::string avdRoot = System::get()->envGet("ANDROID_AVD_HOME");
+  fs::path avdRoot = System::get()->envGet("ANDROID_AVD_HOME");
   if (!avdRoot.empty() && system->pathIsDir(avdRoot)) {
     return avdRoot;
   }
@@ -154,25 +154,25 @@ auto ConfigDirs::getSdkRootDirectoryByPath(bool verbose) -> fs::path {
   for (int i = 0; i < 3; ++i) {
     sdkRoot = sdkRoot.parent_path();
     if (verbose) {
-      dinfo("guessed sdk root: %s", sdkRoot);
+      dinfo("guessed sdk root: %s", sdkRoot.string());
     }
     if (isValidSdkRoot(sdkRoot, verbose)) {
       return sdkRoot;
     }
     if (verbose) {
-      LOG(INFO) << "guessed sdk root " << sdkRoot
+      LOG(INFO) << "guessed sdk root " << sdkRoot.string()
                 << " does not seem to be valid";
     }
   }
   if (verbose) {
-    LOG(WARNING) << "invalid sdk root:" << sdkRoot;
+    LOG(WARNING) << "invalid sdk root:" << sdkRoot.string();
   }
   return {};
 }
 
 // static
 auto ConfigDirs::getSdkRootDirectory(bool verbose) -> fs::path {
-  std::string sdkRoot = getSdkRootDirectoryByEnv(verbose);
+  auto sdkRoot = getSdkRootDirectoryByEnv(verbose);
   if (!sdkRoot.empty()) {
     return sdkRoot;
   }
@@ -200,9 +200,9 @@ auto ConfigDirs::isValidSdkRoot(const fs::path &rootPath,
   if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
     if (verbose) {
       if (!system->pathIsDir(rootPath)) {
-        dwarning("%s is not a directory, and cannot be sdk root", rootPath);
+        dwarning("%s is not a directory, and cannot be sdk root", rootPath.string());
       } else if (!system->pathCanRead(rootPath)) {
-        dwarning("%s is not readable, and cannot be sdk root", rootPath);
+        dwarning("%s is not readable, and cannot be sdk root", rootPath.string());
       }
     }
     return false;
@@ -210,7 +210,7 @@ auto ConfigDirs::isValidSdkRoot(const fs::path &rootPath,
   fs::path platformsPath = fs::path(rootPath) / "platforms";
   if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
     if (verbose) {
-      LOG(WARNING) << "platforms subdirectory is missing under " << rootPath
+      LOG(WARNING) << "platforms subdirectory is missing under " << rootPath.string()
                    << ", please install it";
     }
     return false;

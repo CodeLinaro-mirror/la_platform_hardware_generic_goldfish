@@ -20,6 +20,7 @@
 
 #include "absl/strings/str_format.h"
 #include "aemu/base/files/FileShareOpenImpl.h"
+#include "aemu/base/Log.h"
 #include "android/base/file/file_io.h"
 
 void android::base::createFileForShare(const char *filename) {

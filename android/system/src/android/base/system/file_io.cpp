@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "aemu/base/Log.h"
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 #ifndef _MSC_VER

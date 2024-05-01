@@ -33,8 +33,8 @@
 #include <string.h>
 #ifndef _MSC_VER
 #include <libgen.h>
-#include <unistd.h>
 #endif
+#include <unistd.h>
 #include <sys/types.h>
 
 #include "android/base/file/file_io.h"
