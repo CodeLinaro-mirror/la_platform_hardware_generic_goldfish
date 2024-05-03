@@ -27,15 +27,17 @@ cc_library(
     alwayslink = True,
 )
 
-cc_shared_library(
+cc_binary(
     name = "sample",
-    shared_lib_name = select({
-        "@platforms//os:macos": "sample.dylib",
-        "@platforms//os:linux": "sample.so",
-        "//conditions:default": "",
-    }),
+    linkshared = True,
     visibility = [
         "//visibility:public",
     ],
-    deps = [":sample_device_impl"],
+    deps = [":sample_device_impl"] +
+           select({
+               "@platforms//os:windows": [
+                   "//external/qemu:qemu-system-x86_64.if",
+               ],
+               "//conditions:default": [],
+           }),
 )
