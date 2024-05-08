@@ -1,0 +1,57 @@
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = [
+        ":SPDX-license-identifier-Apache-2.0",
+        ":SPDX-license-identifier-MIT",
+    ],
+    license_text = "LICENSE-APACHE",
+    visibility = [":__subpackages__"],
+)
+
+license_kind(
+    name = "SPDX-license-identifier-Apache-2.0",
+    conditions = ["notice"],
+    url = "https://spdx.org/licenses/Apache-2.0.html",
+)
+
+license_kind(
+    name = "SPDX-license-identifier-MIT",
+    conditions = ["notice"],
+    url = "",
+)
+
+CRATE_FEATURES = [
+    "std",
+ ]
+
+rust_library(
+    name = "log",
+    srcs = [
+        "src/lib.rs",
+    ],
+    crate_features = CRATE_FEATURES,
+    edition = "2021",
+    deps = [
+        ":log_build_script",
+        "@cfg-if"
+    ],
+)
+
+cargo_build_script(
+    name = "log_build_script",
+    srcs = glob(["**/*.rs"]),
+    crate_features = CRATE_FEATURES,
+    crate_root = "build.rs",
+    edition = "2021",
+    visibility = ["//visibility:private"],
+)
