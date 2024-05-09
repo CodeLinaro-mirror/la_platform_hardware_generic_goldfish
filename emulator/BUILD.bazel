@@ -59,20 +59,18 @@ pkg_files(
     name = "plugins",
     # Add the plugins you wish to distribute here:
     srcs = [
-        "//external/qemu:hw-display-virtio-gpu",
-        "//external/qemu:hw-display-virtio-gpu-pci",
-        "//external/qemu:hw-display-virtio-vga",
-        "//external/qemu:hw-display-virtio-vga-gl",
         "//hardware/generic/goldfish/emulator/plugin:sample",
     ] + select({
         "@platforms//os:windows": [
             "//external/qemu:accel-tcg-x86_64",
         ],
         "@platforms//os:macos": [
+            "//external/qemu:hw-display-virtio-gpu-rutabaga",
         ],
         "@platforms//os:linux": [
             "//external/qemu:accel-tcg-x86_64",
             "//external/qemu:audio-pa",
+            "//external/qemu:hw-display-virtio-gpu-rutabaga",
         ],
         "//conditions:default": [],
     }),
