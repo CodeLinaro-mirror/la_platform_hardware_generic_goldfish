@@ -1,0 +1,38 @@
+
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = [
+        ":SPDX-license-identifier-MIT",
+    ],
+    license_text = "LICENSE",
+    visibility = [":__subpackages__"],
+)
+
+license_kind(
+    name = "SPDX-license-identifier-MIT",
+    conditions = ["notice"],
+    url = "",
+)
+
+CRATE_FEATURES = [
+     "default"
+]
+
+rust_library(
+    name = "memoffset",
+    srcs = glob(["src/*.rs"]),
+    edition = "2018",
+)
+
+

@@ -38,6 +38,8 @@ rust_library(
     name = "log",
     srcs = [
         "src/lib.rs",
+        "src/serde.rs",
+        "src/macros.rs",
     ],
     crate_features = CRATE_FEATURES,
     edition = "2021",

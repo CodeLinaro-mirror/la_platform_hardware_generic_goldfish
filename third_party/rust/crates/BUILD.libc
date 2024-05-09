@@ -34,6 +34,7 @@ CRATE_FEATURES = [
     "default",
     "extra_traits",
     "std",
+    "const-extern-fn",
 ]
 
 rust_library(
@@ -41,6 +42,24 @@ rust_library(
     srcs = glob(["src/**/*.rs"]),
     edition = "2015",
     deps = [":libc_build_script"],
+    crate_features=CRATE_FEATURES,
+     rustc_flags = [
+        "--cap-lints=allow",
+        "--cfg=freebsd11",
+        "--cfg=libc_align",
+        "--cfg=libc_cfg_target_vendor",
+        "--cfg=libc_const_extern_fn",
+        "--cfg=libc_const_size_of",
+        "--cfg=libc_core_cvoid",
+        "--cfg=libc_int128",
+        "--cfg=libc_long_array",
+        "--cfg=libc_non_exhaustive",
+        "--cfg=libc_packedN",
+        "--cfg=libc_priv_mod_use",
+        "--cfg=libc_ptr_addr_of",
+        "--cfg=libc_underscore_const_names",
+        "--cfg=libc_union",
+    ],
 )
 
 cargo_build_script(
