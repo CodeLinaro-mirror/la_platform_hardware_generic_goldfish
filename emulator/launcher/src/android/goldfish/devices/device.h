@@ -82,7 +82,7 @@ public:
    * @param id Unique ID of the device.
    * @param addr PCI slot and optional function number (e.g., "06.0")
    */
-  explicit PciDevice(std::string id, std::string_view addr = "")
+  explicit PciDevice(std::string id, std::string addr = "")
       : Device(id), mAddr(addr) {}
 
   /**
@@ -92,7 +92,7 @@ public:
   std::string_view addr() const { return mAddr; }
 
 private:
-  std::string_view mAddr;
+  std::string mAddr;
 };
 
 } // namespace android::goldfish
