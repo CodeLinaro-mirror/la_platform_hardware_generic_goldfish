@@ -15,6 +15,7 @@
 // limitations under the License.
 #pragma once
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "android/goldfish/devices/drives/disk_drive.h"
 #include <android/goldfish/config/hardware_config.h>
 

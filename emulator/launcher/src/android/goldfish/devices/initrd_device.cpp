@@ -14,6 +14,7 @@
 #include "android/goldfish/devices/initrd_device.h"
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "aemu/base/logging/Log.h"
 #include "android/emulation/control/adb/adbkey.h"

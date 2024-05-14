@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "aemu/base/process/Command.h"
 
 #include <android/base/system/System.h>

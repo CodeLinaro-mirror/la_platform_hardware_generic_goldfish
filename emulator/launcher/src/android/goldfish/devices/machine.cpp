@@ -14,6 +14,7 @@
 #include "android/goldfish/devices/machine.h"
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "aemu/base/Log.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
