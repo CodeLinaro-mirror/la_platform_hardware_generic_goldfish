@@ -80,6 +80,31 @@ cc_test(
 cc_binary(
     name = "goldfish",
     srcs = ["src/android/goldfish/launcher.cpp"],
+    data = [
+        "//external/qemu:hw-display-virtio-gpu",
+        "//external/qemu:hw-display-virtio-gpu-pci",
+        "//external/qemu:hw-display-virtio-vga",
+        "//external/qemu:hw-display-virtio-vga-gl",
+        "//external/qemu:qemu-keymaps",
+        "//external/qemu:qemu-roms",
+        "//external/qemu:qemu-system-aarch64",
+        "//external/qemu:qemu-system-riscv64",
+        "//external/qemu:qemu-system-x86_64",
+        "//hardware/generic/goldfish/emulator/plugin:sample",
+    ] + select({
+        "@platforms//os:windows": [
+            "//external/qemu:accel-tcg-x86_64",
+        ],
+        "@platforms//os:macos": [
+            "//external/qemu:hw-display-virtio-gpu-rutabaga",
+        ],
+        "@platforms//os:linux": [
+            "//external/qemu:accel-tcg-x86_64",
+            "//external/qemu:audio-pa",
+            "//external/qemu:hw-display-virtio-gpu-rutabaga",
+        ],
+        "//conditions:default": [],
+    }),
     includes = [
         "include",
         "src",

@@ -45,6 +45,7 @@
 namespace android::goldfish {
 
 using android::base::operator""_KiB;
+using android::base::System;
 
 Emulator::Emulator(Avd avd) : mAvd(std::move(avd)) {
 
@@ -116,7 +117,11 @@ absl::Status Emulator::launch() {
 
   auto args = getCmdline();
 
-  // TODO(jansene): Setup dll load paths.
+  // Setup the library search dirs.
+  auto libdir = System::get()->getProgramDirectory() / "lib" / "qemu";
+  System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", libdir.string());
+  System::get()->addLibrarySearchDir(libdir);
+
 
   dinfo("Launch: %s", absl::StrJoin(args, " "));
   auto proc = android::base::Command::create(getCmdline())
