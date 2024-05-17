@@ -15,7 +15,9 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
+from shutil import which
 from typing import Set
+
 
 from aemu.converter.apple_converter import AppleClangConverter
 from aemu.converter.clang_converter import ClangConverter
@@ -44,10 +46,11 @@ class Converter:
 
     @lru_cache
     def get_converter(self, compiler: Path):
-        out, _ = run([str(compiler), "--version"])
+        clang = str(self.bazel.clang())
+        out, _ = run([str(compiler), "--version"], env={"WRAPPER_WRAP_BINARY": clang})
         logging.debug("Compiler version: %s", out)
         if "apple" in out:
-            return AppleClangConverter(self.bazel)
+            return AppleClangConverter(self.bazel, compiler)
         if "clang" in out:
             return ClangConverter(self.bazel)
         if "gcc" in out:

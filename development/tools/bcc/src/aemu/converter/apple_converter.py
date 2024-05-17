@@ -16,7 +16,7 @@ import logging
 import re
 from pathlib import Path
 
-from aemu.converter.clang_converter import ClangConverter, AndroidClangFilter
+from aemu.converter.clang_converter import ClangConverter
 from aemu.filters.argument_filter import SingleArgumentFilter
 from aemu.process.bazel import Bazel
 from aemu.process.runner import check_output
@@ -29,6 +29,15 @@ class ApplySysrootFilter(SingleArgumentFilter):
 
     def fixup(self, root):
         return ["-isysroot", self.sysroot]
+
+
+class AppleWrapperReplacement(SingleArgumentFilter):
+    def __init__(self, wrapper, bazel):
+        super().__init__(wrapper, self.fixup)
+        self.clang = str(bazel.clang())
+
+    def fixup(self, root):
+        return [self.clang]
 
 
 def compare_versions(v1: str, v2: str) -> int:
@@ -60,7 +69,7 @@ class AppleClangConverter(ClangConverter):
     MIN_VERSION = "11"
     OSX_DEPLOYMENT_TARGET = "11.0"
 
-    def __init__(self, bazel: Bazel):
+    def __init__(self, bazel: Bazel, compiler: str):
         super().__init__(bazel)
 
         verinfo = check_output(["xcodebuild", "-version"]).splitlines()
@@ -78,11 +87,11 @@ class AppleClangConverter(ClangConverter):
 
         logging.debug("OSX: Using Xcode: %s (%s)", version, build)
         logging.debug("OSX: XCode path: %s", self.osx_sdk_root)
-
-        # We are going to use the C++ headers from osx, so filter out the AOSP clang headers.
-        self.filters.append(AndroidClangFilter())
         self.filters.append(ApplySysrootFilter(self.osx_sdk_root))
 
+        # Special case the wrapper we use for apple.
+        if "wrapper" in compiler:
+            self.filters.append(AppleWrapperReplacement(compiler, bazel))
 
     def parse_xcode_sdks(self):
         """

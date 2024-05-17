@@ -31,12 +31,14 @@ class Bazel:
         self.cwd = cwd
         self.exe = None
         if aosp:
+            self.aosp = Path(aosp)
             self.exe = shutil.which(
                 "bazel",
                 path=Path(aosp) / "prebuilts" / "bazel" / f"{self.host()}-x86_64",
             )
         else:
             self.exe = shutil.which("bazel")
+            self.aosp = None
             logging.info("Not using AOSP, bazel (%s)", self.exe)
 
         if not self.exe:
@@ -50,6 +52,35 @@ class Bazel:
 
     def host(self) -> str:
         return platform.system().lower()
+
+    @lru_cache(maxsize=None)
+    def clang(self) -> Path:
+        root = self.aosp if self.aosp else Path(self.info["workspace"])
+        toolchain_json = root / "build" / "bazel" / "rules" / "toolchains.json"
+
+        if not toolchain_json.exists():
+            # We assume you have clang, or at least gcc..
+            return shutil.which("clang") or "gcc"
+
+        with open(
+            toolchain_json,
+            encoding="utf-8",
+        ) as f:
+            versions = json.load(f)
+
+        # You must be using clang from AOSP..
+        return shutil.which(
+            "clang",
+            path=(
+                root
+                / "prebuilts"
+                / "clang"
+                / "host"
+                / f"{self.host()}-x86"
+                / versions.get("clang", "clang-stable")
+                / "bin"
+            ),
+        )
 
     def build_target(self, bazel_target: str) -> str:
         """Builds the specified Bazel target.
@@ -105,13 +136,14 @@ class Bazel:
             "--ui_event_filters=-info",
             "--noshow_progress",
             "--features=-compiler_param_file",
+            "--keep_going",
         ]
 
         try:
             result, _ = run(aquery, cwd=self.cwd)
             return json.loads(result)
         except subprocess.CalledProcessError as cpe:
-            logging.error("Failed to run %s do to: %s, ignoring", aquery, cpe)
+            logging.error("Failed to run %s do to: %s, ignoring", " ".join(aquery), cpe)
         return []
 
     def _load_bazel_info(self) -> Dict[str, str]:
@@ -134,6 +166,7 @@ class Bazel:
             self.exe,
             "query",
             f"kind('.*_library|cc_test|cc_binary', deps({target}))",
+            "--keep_going",
         ]
         try:
             return set(check_output(query, cwd=self.cwd).splitlines())
