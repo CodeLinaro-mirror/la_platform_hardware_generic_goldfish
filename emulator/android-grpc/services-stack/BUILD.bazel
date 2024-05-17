@@ -1,0 +1,24 @@
+package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
+
+cc_library(
+    name = "services-stack",
+    srcs = [
+        "src/android/emulation/control/GrpcServices.cpp",
+        "src/android/emulation/control/utils/GrpcAndroidLogAdapter.cpp",
+        "src/android/emulation/control/utils/GrpcAndroidLogAdapter.h",
+    ],
+    hdrs = ["include/android/emulation/control/GrpcServices.h"],
+    includes = [
+        "include",
+        "src",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/android-grpc/client/proto:grpc_endpoint_description_cc_proto",
+        "//hardware/generic/goldfish/emulator/android-grpc/interceptors",
+        "//hardware/generic/goldfish/emulator/android-grpc/security",
+        "//hardware/generic/goldfish/emulator/android-grpc/services/adb/server:adb-service",
+        "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/server:emulator-service",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)

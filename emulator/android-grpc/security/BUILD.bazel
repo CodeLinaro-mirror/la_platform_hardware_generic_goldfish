@@ -1,0 +1,50 @@
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
+
+pkg_files(
+    name = "emulator-access",
+    srcs = [
+        "src/android/emulation/control/secure/emulator_access.json",
+    ],
+    prefix = "lib",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "security",
+    srcs = glob(["src/android/emulation/control/secure/*.cpp"]),
+    hdrs = glob(["include/android/emulation/control/secure/*.h"]),
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/android-grpc/async",
+        "//hardware/generic/goldfish/third_party/json",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_googlesource_code_re2//:re2",
+        "@tink_cc//tink:tink_cc",
+        "@tink_cc//tink/jwt:jwk_set_converter",
+        "@tink_cc//tink/jwt:jwt_public_key_verify",
+        "@tink_cc//tink/jwt:jwt_signature_config",
+    ],
+)
+
+cc_test(
+    name = "security-test",
+    size = "small",
+    timeout = "short",
+    srcs = glob(["test/**/*.cpp"]),
+    copts = ["-Wno-deprecated-declarations"],
+    data = ["src/android/emulation/control/secure/emulator_access.json"],
+    linkopts = ["-undefined,dynamic_lookup"],
+    deps = [
+        ":security",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+        "@tink_cc//tink/jwt:jwt_key_templates",
+    ],
+)

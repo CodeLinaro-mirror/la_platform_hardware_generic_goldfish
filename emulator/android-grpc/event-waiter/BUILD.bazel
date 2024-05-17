@@ -1,0 +1,20 @@
+package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
+
+cc_library(
+    name = "event-waiter",
+    srcs = ["src/android/emulation/control/utils/EventWaiter.cpp"],
+    hdrs = glob(["include/android/emulation/control/utils/*.h"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["//hardware/generic/goldfish/emulator/android-grpc/async"],
+)
+
+cc_test(
+    name = "event-waiter-test",
+    srcs = ["test/android/emulation/control/utils/EventWaiter_unittest.cpp"],
+    deps = [
+        ":event-waiter",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

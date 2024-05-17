@@ -3,6 +3,7 @@ cc_library(
     name = "files",
     srcs = [
         "src/aemu/base/files/FileShareOpen.cpp",
+        "src/aemu/base/files/FileSystemWatcher.cpp",
         "src/aemu/base/files/IniFile.cpp",
         "src/android/utils/assert.h",
         "src/android/utils/bufprint.c",
@@ -20,7 +21,11 @@ cc_library(
         "src/android/utils/path_system.cpp",
         "src/android/utils/system.c",
         "src/android/utils/tempfile.c",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["src/aemu/base/files/FileSystemWatcherWindows.cpp"],
+        "@platforms//os:macos": ["src/aemu/base/files/FileSystemWatcherDarwin.cpp"],
+        "@platforms//os:linux": ["src/aemu/base/files/FileSystemWatcherPosix.cpp"],
+    }),
     hdrs = [
         "include/aemu/base/files/IniFile.h",
         "include/android/utils/dll.h",

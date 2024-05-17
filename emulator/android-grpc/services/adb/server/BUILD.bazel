@@ -1,0 +1,14 @@
+package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
+
+cc_library(
+    name = "adb-service",
+    srcs = ["src/android/emulation/control/adb/AdbService.cpp"],
+    hdrs = glob(["include/android/emulation/control/adb/*.h"]),
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/android-grpc/async",
+        "//hardware/generic/goldfish/emulator/android-grpc/services/adb/proto:adb_service_cc_grpc",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)
