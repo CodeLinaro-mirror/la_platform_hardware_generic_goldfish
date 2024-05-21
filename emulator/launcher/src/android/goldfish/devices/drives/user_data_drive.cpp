@@ -16,8 +16,10 @@
 #include "android/goldfish/devices/drives/user_data_drive.h"
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "aemu/base/Log.h"
 #include "android/base/system/System.h"
+#include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/filesystems/ext4_resize.h"
 #include "android/goldfish/config/avd.h"
@@ -25,7 +27,6 @@
 #include "android/goldfish/config/emulator.h"
 #include "android/utils/path.h"
 
-#include <android/base/system/storage_capacity.h>
 #include <filesystem>
 #include <fstream>
 
@@ -71,8 +72,8 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
     fs::path path = ConfigDirs::getUserDirectory() / kPrivateKeyFileName;
     // try to generate the private key
     if (!adb_auth_keygen(path)) {
-      return absl::InternalError(
-          absl::StrFormat("Failed to create a private key in %s", path.string()));
+      return absl::InternalError(absl::StrFormat(
+          "Failed to create a private key in %s", path.string()));
     }
     adbKeyPrivPath = getAdbKeyPath(kPrivateKeyFileName);
     if (adbKeyPrivPath == "") {
@@ -153,7 +154,8 @@ absl::Status UserDataDrive::createUserData(const Emulator &emulator,
 
   bool needCopyDataPartition = true;
   if (fs::exists(*initDir)) {
-    dinfo("Creating ext4 userdata partition: %s from %s", data_path.string(), initDir->string());
+    dinfo("Creating ext4 userdata partition: %s from %s", data_path.string(),
+          initDir->string());
     auto status = prepareDataFolder(*initDir, data_path);
     if (!status.ok()) {
       derror("Failed to prepare data folder.");
@@ -281,9 +283,8 @@ absl::Status UserDataDrive::initialize(const Emulator &emulator) {
                           needed.string()));
     }
   }
-
-  if (hw.hw_device_name.starts_with("pixel_fold") ||
-      hw.hw_device_name.starts_with("resizable")) {
+  if (absl::StartsWith(hw.hw_device_name, "pixel_fold") ||
+      absl::StartsWith(hw.hw_device_name, "resizable")) {
     // TODO(jansene): if (!feature_is_enabled(kFeature_SupportPixelFold))
     return absl::AbortedError(
         absl::StrFormat("Device %s requires the foldable feature, but "

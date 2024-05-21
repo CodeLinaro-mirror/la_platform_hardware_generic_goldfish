@@ -132,10 +132,10 @@ extern "C" char **environ;
 
 #ifdef _WIN32
 #if !defined(S_ISDIR)
-#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#define S_ISDIR(mode) (((mode)&S_IFMT) == S_IFDIR)
 #endif
 #if !defined(S_ISREG)
-#define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
+#define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 #endif
 
@@ -1361,12 +1361,22 @@ static void get_all_ext4_mount_dirs(std::vector<fs::path> &alldirs) {
 }
 
 static bool dir_contains_path(const fs::path &path, const fs::path &dir) {
-  // Important: Both path and dir need to be absolute and canonicalized for
-  // accurate comparison.
-  fs::path absolute_path = fs::canonical(path);
-  fs::path absolute_dir = fs::canonical(dir);
+  fs::path absolute_path = fs::absolute(path); // Get absolute path
+  fs::path absolute_dir = fs::absolute(dir);   // Get absolute dir
 
-  return absolute_path.string().starts_with(absolute_dir.string());
+  if (absolute_path.root_name() !=
+      absolute_dir.root_name()) { // Check if on same drive
+    return false;
+  }
+
+  // Iterate over directory components
+  for (auto p = absolute_dir.begin(), q = absolute_path.begin();
+       p != absolute_dir.end(); ++p, ++q) {
+    if (q == absolute_path.end() || *p != *q) {
+      return false; // Reached end of path or components differ
+    }
+  }
+  return true; // All components of dir are present in path
 }
 
 #endif

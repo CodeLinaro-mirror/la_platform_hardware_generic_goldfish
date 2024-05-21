@@ -156,14 +156,25 @@ public:
    */
   static absl::StatusOr<StorageCapacity> parse(std::string_view str);
 
-  // Spaceship operator for comparison
-  auto operator<=>(const StorageCapacity &rhs) const {
-    return bytes() <=> rhs.bytes();
-  };
-
   // Equality operators
   bool operator==(const StorageCapacity &rhs) const {
     return bytes() == rhs.bytes();
+  }
+
+  bool operator!=(const StorageCapacity &rhs) const {
+    return bytes() != rhs.bytes();
+  }
+  bool operator<(const StorageCapacity &rhs) const {
+    return bytes() < rhs.bytes();
+  }
+  bool operator<=(const StorageCapacity &rhs) const {
+    return bytes() <= rhs.bytes();
+  }
+  bool operator>(const StorageCapacity &rhs) const {
+    return bytes() > rhs.bytes();
+  }
+  bool operator>=(const StorageCapacity &rhs) const {
+    return bytes() >= rhs.bytes();
   }
 
   /**
