@@ -448,7 +448,7 @@ test_suite(
         # "@com_github_grpc_grpc//test/cpp/naming:cancel_ares_query_test",
         # "@com_github_grpc_grpc//test/cpp/server:authorization_policy_provider_test",
 
-        # These tests are failing due to build issues.
+        # These tests are failing due to build issues related to sibling repository.
         # Related to not being able to compile protobuf
         # "@com_github_grpc_grpc//test/core/bad_client:head_of_line_blocking_bad_client_test",
         # "@com_github_grpc_grpc//test/core/bad_ssl:bad_ssl_cert_test",
@@ -499,5 +499,6 @@ test_suite(
         ":protobuf_unit_tests",
         "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
+        "@pffft//:pffft_test",
     ],
 )
