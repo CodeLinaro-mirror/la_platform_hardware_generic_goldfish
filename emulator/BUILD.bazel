@@ -497,5 +497,6 @@ test_suite(
     tests = [
         # ":grpc_unit_tests",
         ":protobuf_unit_tests",
+        "@libjpeg_turbo//:tjunittest",
     ],
 )
