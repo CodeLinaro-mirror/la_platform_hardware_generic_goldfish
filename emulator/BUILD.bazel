@@ -498,5 +498,6 @@ test_suite(
         # ":grpc_unit_tests",
         ":protobuf_unit_tests",
         "@libjpeg_turbo//:tjunittest",
+        "@libyuv//:libyuv_unittest",
     ],
 )
