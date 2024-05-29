@@ -495,8 +495,8 @@ test_suite(
 test_suite(
     name = "emulator_unit_tests",
     tests = [
-        # ":grpc_unit_tests",
         ":protobuf_unit_tests",
+        "//hardware/generic/goldfish/android:emulator_android_tests",
         "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
     ],

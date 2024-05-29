@@ -42,7 +42,7 @@ ADynamicLibrary* adynamicLibrary_open(const char* libraryName, char** pError) {
 
     /* Now do our magic */
     *pError = NULL;
-    result = (ADynamicLibrary*)LoadLibrary(libName);
+    result = (ADynamicLibrary*)LoadLibraryA(libName);
     if (result == NULL) {
         *pError = strdup("Could not load DLL!");
     }

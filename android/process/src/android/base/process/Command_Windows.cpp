@@ -17,9 +17,9 @@
 #include <Tlhelp32.h>
 
 #include <cassert>
-#include <string_view>
 
 #include "aemu/base/files/ScopedFileHandle.h"
+#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/streams/RingStreambuf.h"
 
@@ -416,7 +416,7 @@ private:
 class WinProcess : public ObservableProcess {
 public:
   ~WinProcess() {
-    if (!mDeamon)
+    if (!mDeamon && mOwner)
       WinProcess::terminate();
 
     if (mProcess != 0 && mProcess != INVALID_HANDLE_VALUE) {
@@ -432,16 +432,21 @@ public:
   WinProcess(HANDLE hProcess) { setHandle(hProcess); }
 
   void setHandle(HANDLE hProcess) {
-    mPid = GetProcessId(hProcess);
+  mPid = GetProcessId(hProcess);
     mProcess = hProcess;
   }
 
   std::future_status wait_for_kernel(
       const std::chrono::milliseconds timeout_duration) const override {
-    if (mProcess == INVALID_HANDLE_VALUE)
+    if (mProcess == INVALID_HANDLE_VALUE) {
+      dwarning("Invalid process handle, assuming it is not running.");
       return std::future_status::ready;
+    }
 
     auto state = WaitForSingleObject(mProcess, timeout_duration.count());
+    if (state == WAIT_FAILED) {
+      derror("Failed to wait for process due to %d", GetLastError());
+    }
     return state == WAIT_TIMEOUT ? std::future_status::timeout
                                  : std::future_status::ready;
   }
@@ -589,6 +594,7 @@ public:
     std::unique_ptr<ProcessOverseer> overseer;
 
     setHandle(mProcInfo.hProcess);
+    mOwner = true;
     return mPid;
   }
 
@@ -620,6 +626,7 @@ protected:
 private:
   HANDLE mProcess;
   PROCESS_INFORMATION mProcInfo = {0};
+  bool mOwner{false};
   std::vector<std::unique_ptr<WindwsPipe>> mPipes;
 };
 
@@ -630,7 +637,7 @@ Command::ProcessFactory Command::sProcessFactory =
 
 std::unique_ptr<Process> Process::fromPid(Pid pid) {
   ScopedFileHandle hProc(
-      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
+      OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
   if (hProc.valid()) {
     return std::make_unique<WinProcess>(hProc.release());
   }

@@ -13,18 +13,24 @@
 #include "android/utils/bufprint.h"
 
 #include "android/base/system/System.h"
+#include "aemu/base/Log.h"
 #include <filesystem>
+#include <string>
 
 using android::base::System;
 
 // Implementation of bufprintf_xxx() functions that rely on
 // android::base::System to make them mockable during unit-testing.
 
+inline static std::string tmpdir() {
+  return System::pathAsString(System::get()->getTempDir());
+}
+
 char *bufprint_temp_dir(char *buff, char *end) {
-  return bufprint(buff, end, "%s", System::get()->getTempDir().c_str());
+  return bufprint(buff, end, "%s", tmpdir().c_str());
 }
 
 char *bufprint_temp_file(char *buff, char *end, const char *suffix) {
-  return bufprint(buff, end, "%s%c%s", System::get()->getTempDir().c_str(),
+  return bufprint(buff, end, "%s%c%s", tmpdir().c_str(),
                   std::filesystem::path::preferred_separator, suffix);
 }

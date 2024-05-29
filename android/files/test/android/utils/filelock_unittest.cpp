@@ -13,14 +13,17 @@
 #include "aemu/base/ArraySize.h"
 #include "aemu/base/EintrWrapper.h"
 #include "android/base/system/System.h"
+#include "aemu/base/process/Process.h"
 #include "android/base/testing/TestTempDir.h"
+#include "android/utils/filelock_test.h"
 #include "android/utils/path.h"
+#include <chrono>
 #include <gtest/gtest.h>
 #include <memory>
+#include <thread>
 
 #ifdef _WIN32
 #include <windows.h>
-using android::emulation::WindowsFlags;
 #else
 #ifndef _MSC_VER
 #include <unistd.h>
@@ -28,6 +31,7 @@ using android::emulation::WindowsFlags;
 #endif
 
 namespace {
+
 class FileLockTestInterface : public ::testing::Test {
 public:
   static const char *getTestCaseName() {
@@ -83,11 +87,33 @@ protected:
 
 class FileLockTest : public FileLockTestInterface {
 public:
+  void ReadFromPipe(HANDLE hPipe, DWORD stdHandle) {
+    char chBuf[4096];
+    DWORD dwRead;
+    std::string prefix = "CHLD> ";
+    bool newLine = true;
+    std::string line = prefix;
+
+    while (ReadFile(hPipe, chBuf, sizeof(chBuf) - 1, &dwRead, NULL) &&
+           dwRead != 0) {
+      for (DWORD i = 0; i < dwRead; ++i) {
+        line += chBuf[i];
+        if (chBuf[i] == '\n') {
+          WriteFile(GetStdHandle(stdHandle), line.c_str(), line.size(), NULL, NULL);
+          line = prefix;
+        }
+      }
+    }
+  }
+
   void SetUp() override {
     const char *kFileLockName = "filelock.txt";
+    mStderrThread = nullptr;
+    mStdoutThread = nullptr;
     if (WindowsFlags::sIsParentProcess) {
       mTempDir.reset(new android::base::TestTempDir("FileLockTest"));
-      mFileLockPath = mTempDir->makeSubPath(kFileLockName);
+      mFileLockPath = android::base::System::pathAsString(
+          mTempDir->makeSubPath(kFileLockName));
       ASSERT_TRUE(mTempDir->makeSubFile(kFileLockName));
       SECURITY_ATTRIBUTES sa;
       sa.nLength = sizeof(sa);
@@ -97,9 +123,19 @@ public:
       ASSERT_TRUE(CreatePipe(&mChildRead, &mParentWrite, &sa, 0));
       ASSERT_TRUE(CreatePipe(&mParentRead, &mChildWrite, &sa, 0));
 
+      HANDLE hChildStd_OUT_Wr, hChildStd_OUT_Rd; // Pipes for stdout
+      HANDLE hChildStd_ERR_Wr, hChildStd_ERR_Rd; // Pipes for stderr
+
+      ASSERT_TRUE(CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &sa, 0));
+      ASSERT_TRUE(CreatePipe(&hChildStd_ERR_Rd, &hChildStd_ERR_Wr, &sa, 0));
+
+      // Ensure the read handles are not inherited
+      SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0);
+      SetHandleInformation(hChildStd_ERR_Rd, HANDLE_FLAG_INHERIT, 0);
+
       // Get the name of executable
       char exePath[MAX_PATH];
-      ASSERT_NE(GetModuleFileName(NULL, exePath, MAX_PATH), MAX_PATH);
+      ASSERT_NE(GetModuleFileNameA(NULL, exePath, MAX_PATH), MAX_PATH);
       char cmdBuffer[MAX_PATH * 2 + 100];
       ASSERT_GT(sizeof(cmdBuffer),
                 snprintf(cmdBuffer, ARRAY_SIZE(cmdBuffer),
@@ -108,15 +144,26 @@ public:
                          "--file-lock-path=\"%s\"",
                          exePath, getTestCaseName(), getTestName(), mChildRead,
                          mChildWrite, mFileLockPath.c_str()));
-      STARTUPINFO si;
+      STARTUPINFOA si;
       memset(&si, 0, sizeof(si));
       memset(&mPi, 0, sizeof(mPi));
       si.cb = sizeof(si);
-      si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-      si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+      si.hStdError = hChildStd_ERR_Wr;
+      si.hStdOutput = hChildStd_OUT_Wr;
       si.dwFlags |= STARTF_USESTDHANDLES;
-      ASSERT_TRUE(CreateProcess(nullptr, cmdBuffer, nullptr, nullptr, true, 0,
-                                nullptr, nullptr, &si, &mPi));
+
+      std::cout << "Launch kid: " << cmdBuffer << std::endl;
+      ASSERT_TRUE(CreateProcessA(nullptr, cmdBuffer, nullptr, nullptr, true, 0,
+                                 nullptr, nullptr, &si, &mPi));
+
+      // Close the child process's write ends of the pipes in the parent process
+      CloseHandle(hChildStd_OUT_Wr);
+      CloseHandle(hChildStd_ERR_Wr);
+
+      mStdoutThread = std::make_unique<std::thread>(
+          [&]() { ReadFromPipe(hChildStd_OUT_Rd, STD_OUTPUT_HANDLE); });
+      mStderrThread = std::make_unique<std::thread>(
+          [&]() { ReadFromPipe(hChildStd_ERR_Rd, STD_ERROR_HANDLE); });
     } else {
       mFileLockPath = WindowsFlags::sFileLockPath;
       mChildRead = WindowsFlags::sChildRead;
@@ -135,6 +182,12 @@ public:
       if (mPi.hThread) {
         CloseHandle(mPi.hThread);
       }
+    }
+    if (mStderrThread) {
+      mStderrThread->join();
+    }
+    if (mStdoutThread) {
+      mStdoutThread->join();
     }
     if (!isParentProcess()) {
       exit(0);
@@ -167,6 +220,10 @@ protected:
     }
     memset(&mPi, 0, sizeof(mPi));
   }
+
+  std::unique_ptr<std::thread> mStdoutThread;
+  std::unique_ptr<std::thread> mStderrThread;
+
   HANDLE mChildRead;
   HANDLE mChildWrite;
   HANDLE mParentRead;
@@ -316,16 +373,17 @@ TEST_F(FileLockTest, childSuicideStaleLock) {
     assertChildSuccess();
     expectLockFail(500);
     writeToOther(&ready, sizeof(uint8_t));
-    expectLockSuccessAndRelease(1000);
+    expectLockSuccessAndRelease(2000);
   } else {
+
     // Child process
     uint8_t succeed = 1;
     FileLock *lock = filelock_create(mFileLockPath.c_str());
-    EXPECT_NE(lock, nullptr);
+    EXPECT_NE(lock, nullptr) << "The child should have written the lock";
     succeed &= lock != nullptr;
     writeToOther(&succeed, sizeof(uint8_t));
     expectReady();
-    android::base::System::get()->sleepMs(500);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     exit(0);
   }
 }

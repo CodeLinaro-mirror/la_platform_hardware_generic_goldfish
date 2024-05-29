@@ -102,7 +102,7 @@ protected:
   }
 
   unique_ptr<TestTempDir> mTempDir;
-  string mIniFilePath;
+  fs::path mIniFilePath;
   unique_ptr<IniFile> mIni;
 };
 
@@ -566,7 +566,7 @@ key3=false
 
   IniFile ini;
   ASSERT_TRUE(ini.readFromMemory(data));
-  EXPECT_STREQ("", ini.getBackingFile().c_str());
+  EXPECT_STREQ("", System::pathAsString(ini.getBackingFile()).c_str());
 
   ASSERT_EQ(3, ini.size());
   EXPECT_STREQ("val1", ini.getString("key1", "").c_str());

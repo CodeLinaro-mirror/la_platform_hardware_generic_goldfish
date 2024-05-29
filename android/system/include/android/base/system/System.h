@@ -38,6 +38,7 @@
 #define WIN32_LEAN_AND_MEAN 1
 #endif
 #include <windows.h>
+#include "aemu/base/system/Win32UnicodeString.h"
 #undef ERROR // necessary to compile LOG(ERROR) statements
 #else        // !_WIN32
 #ifndef _MSC_VER
@@ -136,6 +137,17 @@ public:
                                   System::FileSize *freeDisk = nullptr);
 
   static System::FileSize getFilePageSizeForPath(fs::path path);
+
+
+
+  inline static std::string pathAsString(const std::filesystem::path& path) {
+  #ifdef _WIN32
+        return Win32UnicodeString(path.string().data(), path.string().size()).toString();
+  #else
+        return path.string();
+  #endif
+  }
+
 
   // Environment variable name corresponding to the library search
   // list for shared libraries.

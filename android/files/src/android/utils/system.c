@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _WIN32
-#  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>  /* for Sleep */
 #else
 #  include <unistd.h>  /* for usleep */

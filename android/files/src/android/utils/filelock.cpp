@@ -135,11 +135,18 @@ static bool retry(Func func, int tries = 4, int timeoutMs = 100) {
 }
 
 static bool delete_file(const android::base::Win32UnicodeString &name) {
+  dinfo("Attempt deleting %s", name.toString());
+
   return retry([&name]() {
     // Make sure the file isn't marked readonly, or deletion may fail.
+    dinfo("Deleting %s", name.toString());
     SetFileAttributesW(name.c_str(), FILE_ATTRIBUTE_NORMAL);
-    return ::DeleteFileW(name.c_str()) != 0 ||
+    auto deleted =  ::DeleteFileW(name.c_str()) != 0 ||
            ::GetLastError() == ERROR_FILE_NOT_FOUND;
+    if (!deleted) {
+      dwarning("Failed to delete %s", name.toString().c_str());
+    }
+    return deleted;
   });
 }
 
@@ -218,9 +225,15 @@ static int filelock_lock(FileLock *lock, int timeout) {
             // the locking process to exit. If that doesn't work,
             // bail.
 
+            dinfo("Waiting %d ms for process with pid: %d to exit.", sleep_duration_ms, lockingPid);
             auto process = Process::fromPid(lockingPid);
+            if (!process) {
+              dwarning("Process does not exist!");
+            }
             if (process) {
-              process->wait_for(std::chrono::milliseconds(sleep_duration_ms));
+              dinfo("Hi there.. going to wait for a bit..");
+              auto status = process->wait_for(std::chrono::milliseconds(sleep_duration_ms));
+              dinfo("Status: %s", status == std::future_status::ready ? "ready" : "timeout");
             }
             slept = true;
           }
@@ -271,11 +284,12 @@ static int filelock_lock(FileLock *lock, int timeout) {
   if (!::WriteFile(lockHandle, pidBuf, static_cast<DWORD>(len), &bytesWritten,
                    nullptr) ||
       bytesWritten != static_cast<DWORD>(len)) {
-    D("Failed to write the current PID into the lock file");
+    dwarning("Failed to write the current PID into the lock file");
     return -1;
   }
   lock->locked = 1;
   lock->lock_handle = fileDeleter.release();
+  dinfo("Lock created.");
   return 0; // we're all good
 }
 #else
@@ -468,6 +482,7 @@ void filelock_release(FileLock *lock) {
 }
 
 static void filelock_atexit() {
+  dinfo("====> Release locks at exit");
   android_lock_acquire(all_filelocks_tl);
   if (!is_exiting) {
     for (FileLock *lock = all_filelocks; lock != nullptr;) {
@@ -485,14 +500,18 @@ static void filelock_atexit() {
 }
 
 auto filelock_create(const char *file) -> FileLock * {
+  std::cout << "fileloack_create (0)" <<  file << "\n";
   return filelock_create_timeout(file, 0);
 }
 
 /* create a file lock */
 auto filelock_create_timeout(const char *file, int timeout) -> FileLock * {
   if (file == nullptr) {
+    dwarning("It is not possible to use a nullptr as a file lock.");
     return nullptr;
   }
+
+  std::cout << "filelock_create_timeout(" <<  file << " t:" << timeout << "\n";
 
   int file_len = strlen(file);
   uint64_t lock_len = file_len + sizeof(LOCK_NAME);

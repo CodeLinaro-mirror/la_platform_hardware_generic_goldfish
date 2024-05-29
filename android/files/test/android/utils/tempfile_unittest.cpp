@@ -19,13 +19,17 @@
 
 #include <string_view>
 
-static bool fileExists(std::string_view filename) {
+
+
+
+static bool fileExists(const std::string& filename) {
   return android::base::System::get()->pathExists(filename);
 }
 
 TEST(tempfile, createTemp) {
   TempFile *tempFile = tempfile_create();
   const char *filePath = tempfile_path(tempFile);
+  EXPECT_NE(filePath, nullptr);
   EXPECT_TRUE(fileExists(filePath));
   tempfile_close(tempFile);
   EXPECT_FALSE(fileExists(filePath));
@@ -35,7 +39,8 @@ TEST(tempfile, createTempWithExt) {
   const char *ext = ".ext";
   TempFile *tempFile = tempfile_create_with_ext(ext);
   const char *filePath = tempfile_path(tempFile);
-  EXPECT_TRUE(fileExists(filePath));
+  EXPECT_NE(filePath, nullptr);
+  EXPECT_TRUE(fileExists(filePath)) << filePath << " should exist";
   int pos = strlen(filePath) - strlen(ext);
   EXPECT_GT(pos, 0);
   EXPECT_EQ(0, strcmp(filePath + pos, ext));
@@ -55,10 +60,14 @@ TEST(tempfile, createAndDoubleClose) {
 }
 
 TEST(tempfile, badClose) {
-  std::string gtestTmpDir = android::base::System::get()->getTempDir();
+  auto gtestTmpDir = android::base::System::get()->getTempDir();
   const char *filename = "tempfile";
-  const std::string filePath =
-      android::base::PathUtils::join(gtestTmpDir, filename);
+
+#ifdef _WIN32
+  std::string filePath = android::base::Win32UnicodeString(std::wstring(gtestTmpDir / filename).c_str()).toString();
+#else
+  auto filePath = gtestTmpDir / filename;
+#endif
   FILE *fd = android_fopen(filePath.c_str(), "w");
   fclose(fd);
   EXPECT_TRUE(fileExists(filePath));

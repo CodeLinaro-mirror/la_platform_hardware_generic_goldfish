@@ -46,6 +46,9 @@ public:
   // Initialize a new instance from an existing string instance |str|.
   explicit Win32UnicodeString(const char *str);
   explicit Win32UnicodeString(const std::string &str);
+  explicit Win32UnicodeString(const std::wstring& str) :
+     Win32UnicodeString(str.c_str()) {};
+
 
   // Initialize by reserving enough room for a string of |size| UTF-16
   // codepoints.
@@ -143,8 +146,8 @@ public:
                              int len = -1);
 
 private:
-  wchar_t *mStr;
-  size_t mSize;
+  wchar_t *mStr{nullptr};
+  size_t mSize{0};
 };
 
 } // namespace base

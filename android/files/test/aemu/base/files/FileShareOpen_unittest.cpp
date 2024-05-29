@@ -28,7 +28,7 @@ public:
     // Test non-ascii path
     mTempDir =
         absl::make_unique<android::base::TestTempDir>("fileShareTest中文");
-    mFilePath = mTempDir->makeSubPath(kFileName);
+    mFilePath = android::base::System::pathAsString(mTempDir->makeSubPath(kFileName));
     EXPECT_TRUE(mTempDir->makeSubFile(kFileName));
   }
   void TearDown() override { mTempDir.reset(); }

@@ -23,6 +23,7 @@
 #include "aemu/base/Compiler.h"
 #include "aemu/base/Log.h"
 #include "android/base/file/file_io.h"
+#include "android/base/system/System.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -73,8 +74,9 @@ public:
     }
     // Attempt to create the temporary directory
     std::error_code ec;
-    if (!fs::create_directories(mPath, ec)) {
-      dwarning("Failed to create %s due to: %s", mPath.string(), ec.message());
+    if (!android_mkdir(System::pathAsString(mPath).c_str(), 0755)) {
+      dwarning("Failed to create %s due to: %s",
+               System::pathAsString(mPath).c_str(), ec.message().c_str());
     }
   }
 
@@ -84,7 +86,7 @@ public:
 
   // Return the path as a string. It will be empty if the directory could
   // not be created for some reason.
-  const std::string pathString() const { return mPath.string(); }
+  const std::string pathString() const { return System::pathAsString(mPath); }
 
   // Destroy instance, and removes the temporary directory and all files
   // inside it.
@@ -103,23 +105,25 @@ public:
   bool makeSubDir(fs::path subdir) {
     fs::path path = fs::absolute(makeSubPath(subdir));
     if (android_mkdir(path.string().c_str(), 0755) < 0) {
-      derror("Can't create %s", path.string());
+      derror("Can't create %s", System::pathAsString(path).c_str());
       return false;
     }
     if (!pathExists(path.string().c_str())) {
-      dwarning("Created path (%s/%s) does not exist", path.string(),
-             subdir.string());
+      dwarning("Created path (%s/%s) does not exist",
+               System::pathAsString(path).c_str(),
+               System::pathAsString(subdir).c_str());
     }
-    dinfo("Created %s", path.string());
+    dinfo("Created %s", System::pathAsString(path).c_str());
     return true;
   }
 
   // Create an empty file under the temporary directory.
   bool makeSubFile(std::string_view file) {
     fs::path path = makeSubPath(file);
-    int fd = ::android_open(path.string().c_str(), O_WRONLY | O_CREAT, 0744);
+    int fd = ::android_open(System::pathAsString(path).c_str(),
+                            O_WRONLY | O_CREAT, 0744);
     if (fd < 0) {
-      derror("Can't create %s", path.string());
+      derror("Can't create %s", System::pathAsString(path).c_str());
       return false;
     }
     ::close(fd);
@@ -138,13 +142,13 @@ private:
       if (entry.is_directory()) {
         DeleteRecursive(entry.path()); // Recursively delete subdirectories
       } else {
-        dinfo("Deleting %s", entry.path().string());
-        fs::remove(entry.path()); // Delete files directly
+        dinfo("Deleting %s", System::pathAsString(entry.path()).c_str());
+        android_unlink(System::pathAsString(entry.path()).c_str());
       }
     }
 
-    dinfo("Deleting %s", path.string());
-    fs::remove(path);
+    dinfo("Remove %s", System::pathAsString(path).c_str());
+    android_rmdir(System::pathAsString(path).c_str());
   }
 
 #ifdef _WIN32

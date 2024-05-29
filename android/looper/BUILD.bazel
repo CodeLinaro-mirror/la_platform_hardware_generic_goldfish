@@ -1,0 +1,56 @@
+cc_library(
+    name = "looper",
+    srcs = [
+        "src/android/base/async/DefaultLooper.cpp",
+        "src/android/base/async/Looper.cpp",
+        "src/android/base/async/ThreadLooper.cpp",
+        "src/android/utils/assert.h",
+        "src/android/utils/looper.cpp",
+    ],
+    hdrs = [
+        "include/android/utils/looper.h",
+    ],
+    copts =
+        select({
+            "@platforms//os:windows": ["-Wno-microsoft-goto"],
+            "//conditions:default": [],
+        }),
+    defines = ["__STDC_LIMIT_MACROS"],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "looper_unittests",
+    srcs = glob(
+        [
+            "test/**/*.cpp",
+            "test/**/*.h",
+        ],
+        exclude = ["test/**/Win32"],
+    ),
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":looper",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/memory",
+        "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/android/threads",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

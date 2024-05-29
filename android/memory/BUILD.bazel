@@ -1,0 +1,60 @@
+cc_library(
+    name = "memory",
+    srcs = [
+        "src/android/base/memory/ContiguousRangeMapper.cpp",
+        "src/android/base/memory/LazyInstance.cpp",
+        "src/android/base/memory/MemoryHints.cpp",
+        "src/android/base/memory/MemoryTracker.cpp",
+    ] + select({
+        "@platforms//os:windows": [
+            "src/android/base/memory/SharedMemory_win32.cpp",
+        ],
+        "//conditions:default": ["src/android/base/memory/SharedMemory_posix.cpp"],
+    }),
+    hdrs = glob([
+        "include/android/**/*.h",
+    ]),
+    copts = ["-DAEMU_TCMALLOC_ENABLED=0"] +
+            select({
+                "@platforms//os:windows": ["-Wno-microsoft-goto"],
+                "//conditions:default": [],
+            }),
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)
+
+cc_test(
+    name = "memory_unittests",
+    srcs = glob(
+        [
+            "test/**/*.cpp",
+            "test/**/*.h",
+        ],
+        exclude = ["test/**/Win32"],
+    ),
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":memory",
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/looper",
+        "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/android/threads",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
