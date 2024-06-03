@@ -16,19 +16,17 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
+#include "aemu/base/files/FileShareOpen.h"
+#include "aemu/base/files/FileShareOpenImpl.h"
 #include "aemu/base/process/Command.h"
-
+#include "aemu/base/system/System.h"
+#include "tools/cpp/runfiles/runfiles.h"
 #include <android/base/system/System.h>
-
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <thread>
-
-#include "aemu/base/files/FileShareOpen.h"
-#include "aemu/base/files/FileShareOpenImpl.h"
-#include "aemu/base/system/System.h"
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -59,11 +57,30 @@ public:
 #define EXE ""
 #endif
 
+using ::bazel::tools::cpp::runfiles::Runfiles;
+
+std::string RunfilesPath(absl::string_view path) {
+  std::string error;
+  std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
+  if (runfiles == nullptr) {
+    std::clog << "Unable to determine runfile path: " << error;
+    exit(1);
+  }
+
+  const char *workspace_dir = getenv("TEST_WORKSPACE");
+  if (workspace_dir == nullptr || workspace_dir[0] == '\0') {
+    std::clog << "Unable to determine workspace name." << std::endl;
+    exit(1);
+  }
+
+  return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
+}
+
 std::string sleep_exe() {
   char cwd_buf[4096];
   fs::path root = android::base::System::getEnvironmentVariable("TEST_SRCDIR");
-  return root / "_main" / "hardware" / "generic" / "goldfish" / "android" /
-         "process" / absl::StrCat("sleep_emu", EXE);
+  return System::pathAsString(root / "_main" / "hardware" / "generic" / "goldfish" / "android" /
+         "process" / absl::StrCat("sleep_emu", EXE));
 }
 
 // You can always make your own fake commands..

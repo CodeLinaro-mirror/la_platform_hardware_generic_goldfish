@@ -34,6 +34,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef _WIN32
+#define chmod  _wchmod
+#endif
+
 #define ARRAYLEN(x) (sizeof(x) / sizeof((x)[0]))
 
 namespace android {
@@ -41,14 +45,15 @@ namespace base {
 
 static void make_subfile(fs::path dir, fs::path file) {
   fs::path path = dir / file.relative_path();
-  int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, 0755);
+  int fd = ::open(System::pathAsString(path).c_str(), O_WRONLY | O_CREAT, 0755);
   EXPECT_GE(fd, 0) << "Path: " << path.c_str();
+  dinfo("Created: %s", path.c_str());
   ::close(fd);
 }
 
 static void make_sized_file(fs::path dir, std::string file, size_t nBytes) {
   fs::path path = dir / file;
-  int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, 0755);
+  int fd = ::open(System::pathAsString(path).c_str(), O_WRONLY | O_CREAT, 0755);
   EXPECT_GE(fd, 0) << "Path: " << path.c_str();
   setFileSize(fd, nBytes);
   ::close(fd);
@@ -63,19 +68,19 @@ TEST(System, get) {
 }
 
 TEST(System, getProgramDirectory) {
-  std::string dir = System::get()->getProgramDirectory();
+  std::string dir = System::pathAsString(System::get()->getProgramDirectory());
   EXPECT_FALSE(dir.empty());
   LOG(INFO) << "Program directory: [" << dir.c_str() << "]";
 }
 
 TEST(System, getHomeDirectory) {
-  std::string dir = System::get()->getHomeDirectory();
+  std::string dir = System::pathAsString(System::get()->getHomeDirectory());
   EXPECT_FALSE(dir.empty());
   LOG(INFO) << "Home directory: [" << dir.c_str() << "]";
 }
 
 TEST(System, getAppDataDirectory) {
-  std::string dir = System::get()->getAppDataDirectory();
+  std::string dir = System::pathAsString(System::get()->getAppDataDirectory());
 #if defined(__linux__)
   EXPECT_TRUE(dir.empty());
 #else
@@ -86,7 +91,7 @@ TEST(System, getAppDataDirectory) {
 }
 
 TEST(System, getCurrentDirectory) {
-  std::string dir = System::get()->getCurrentDirectory();
+  std::string dir = System::pathAsString(System::get()->getCurrentDirectory());
   EXPECT_FALSE(dir.empty());
   LOG(INFO) << "Current directory: [" << dir.c_str() << "]";
 }
@@ -102,13 +107,13 @@ TEST(TestSystem, getDirectory) {
   const char kAppDataDir[] = "/lala/kaka";
 #endif // __linux__
   TestSystem testSys(kLauncherDir, kHomeDir, kAppDataDir);
-  std::string ldir = System::get()->getLauncherDirectory();
+  std::string ldir = System::pathAsString(System::get()->getLauncherDirectory());
   EXPECT_STREQ(kLauncherDir, ldir.c_str());
-  std::string pdir = System::get()->getProgramDirectory();
+  std::string pdir = System::pathAsString(System::get()->getProgramDirectory());
   EXPECT_STREQ(kLauncherDir, pdir.c_str());
-  std::string hdir = System::get()->getHomeDirectory();
+  std::string hdir = System::pathAsString(System::get()->getHomeDirectory());
   EXPECT_STREQ(kHomeDir, hdir.c_str());
-  std::string adir = System::get()->getAppDataDirectory();
+  std::string adir = System::pathAsString(System::get()->getAppDataDirectory());
 #if defined(__linux__)
   EXPECT_TRUE(adir.empty());
 #else
@@ -125,9 +130,9 @@ TEST(TestSystem, getDirectoryProgramDir) {
   TestSystem testSys(kLauncherDir, "/home", "/app");
   testSys.setProgramSubDir(kProgramDir);
 
-  std::string ldir = System::get()->getLauncherDirectory();
+  std::string ldir = System::pathAsString(System::get()->getLauncherDirectory());
   EXPECT_STREQ(kLauncherDir, ldir.c_str());
-  std::string pdir = System::get()->getProgramDirectory();
+  std::string pdir = System::pathAsString(System::get()->getProgramDirectory());
 #ifdef _WIN32
   EXPECT_STREQ("/foo/bar\\qemu/os-arch", pdir.c_str());
 #else
@@ -182,7 +187,7 @@ TEST(System, scandDirEntries) {
 
   EXPECT_EQ(kCount, entries.size());
   for (size_t n = 0; n < kCount; ++n) {
-    EXPECT_STREQ(kExpected[n], entries[n].c_str()) << "#" << n;
+    EXPECT_STREQ(kExpected[n], System::pathAsString(entries[n]).c_str()) << "#" << n;
   }
 }
 
@@ -218,8 +223,7 @@ TEST(System, recursiveSize) {
   EXPECT_EQ(expectedTotalSize, System::get()->recursiveSize(myDir->path()));
 
   // Test an individual file
-  EXPECT_EQ(kFileSizes[0], System::get()->recursiveSize(
-                               PathUtils::join(myDir->path(), kFiles[0])));
+  EXPECT_EQ(kFileSizes[0], System::get()->recursiveSize(myDir->path() / kFiles[0]));
 }
 
 TEST(System, envGetAndSet) {
@@ -262,8 +266,7 @@ TEST(System, pathOperations) {
 #endif
   System *sys = System::get();
   TestTempDir tempDir("path_opts");
-  std::string fooPath = tempDir.path();
-  fooPath += "/foo";
+  auto fooPath = tempDir.path() / "foo";
   System::FileSize fileSize;
 
   EXPECT_FALSE(sys->pathExists(fooPath));
@@ -345,14 +348,14 @@ TEST(System, pathOperations) {
 
   EXPECT_FALSE(sys->pathFileSize(fooPath, nullptr));
   EXPECT_TRUE(sys->pathFileSize(fooPath, &fileSize));
-  EXPECT_EQ(0U, fileSize);
+  EXPECT_EQ(0U, fileSize.bytes());
 
   std::ofstream fooFile(fooPath);
   ASSERT_TRUE(bool(fooFile));
   fooFile << "Some non-zero data";
   fooFile.close();
   EXPECT_TRUE(sys->pathFileSize(fooPath, &fileSize));
-  EXPECT_LT(0U, fileSize);
+  EXPECT_LT(0U, fileSize.bytes());
 
   // Test creation time getter.
   auto createTime = sys->pathCreationTime(fooPath);
@@ -388,10 +391,10 @@ TEST(System, scanDirEntriesWithFullPaths) {
 
   EXPECT_EQ(kCount, entries.size());
   for (size_t n = 0; n < kCount; ++n) {
-    std::string expected(myDir.path());
+    std::string expected(System::pathAsString(myDir.path()));
     expected = PathUtils::addTrailingDirSeparator(expected);
     expected += kExpected[n];
-    EXPECT_STREQ(expected.c_str(), entries[n].c_str()) << "#" << n;
+    EXPECT_STREQ(expected.c_str(), System::pathAsString(entries[n]).c_str()) << "#" << n;
   }
 }
 
@@ -429,6 +432,8 @@ TEST(System, findBundledExecutable) {
 
   auto programPath = path / kProgramFile;
   make_subfile(testDir->path(), programPath);
+  ASSERT_TRUE(testSys.pathIsFile(programPath));
+  dinfo("Using launch dir: %s", testSys.getLauncherDirectory());
 
   path = testSys.findBundledExecutable("myprogram");
   EXPECT_EQ(programPath, path);

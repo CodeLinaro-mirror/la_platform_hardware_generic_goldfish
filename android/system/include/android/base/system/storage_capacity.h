@@ -44,7 +44,7 @@ public:
    * @brief Constructor taking bytes as input.
    * @param bytes The storage capacity in bytes.
    */
-  constexpr StorageCapacity(unsigned long long bytes) { mBytes = bytes; }
+  constexpr StorageCapacity(unsigned long long bytes): mBytes(bytes) { }
 
   /**
    * @brief Constructor taking a raw value and unit for storage capacity.

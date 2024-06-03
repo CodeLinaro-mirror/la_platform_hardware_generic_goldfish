@@ -19,7 +19,6 @@ cc_library(
         "src/android/utils/path.h",
         "src/android/utils/path_system.cpp",
         "src/android/utils/system.c",
-        "src/android/utils/system.h",
         "src/android/utils/tempfile.c",
     ],
     hdrs = [
@@ -27,6 +26,7 @@ cc_library(
         "include/android/utils/dll.h",
         "include/android/utils/file_data.h",
         "include/android/utils/filelock.h",
+        "include/android/utils/system.h",
         "include/android/utils/tempfile.h",
     ],
     defines = [
@@ -54,9 +54,13 @@ cc_test(
     name = "files_unittests",
     size = "small",
     srcs = glob(
-        ["test/**/*.cpp"],
-        ["src/**/*.h"],
+        [
+            "test/**/*.cpp",
+            "test/**/*.h",
+            "src/**/*.h",
+        ],
     ),
+    includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
@@ -67,7 +71,7 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/google/aemu/base:aemu-base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",

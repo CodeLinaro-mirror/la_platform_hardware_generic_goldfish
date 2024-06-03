@@ -47,6 +47,7 @@ cc_test(
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_googletest//:gtest_main",

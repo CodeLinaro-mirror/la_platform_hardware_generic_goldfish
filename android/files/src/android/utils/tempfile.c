@@ -24,15 +24,14 @@
 #ifdef _MSC_VER
 #include "aemu/base/msvc.h"
 #else
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 #else
 #include <unistd.h>
 #endif
 
-#define D(...) ((void)0)
-
+// #define D(...) ((void)0)
+#define D(...) dinfo(__VA_ARGS__)
 /** TEMP FILE SUPPORT
  **
  ** simple interface to create an empty temporary file on the system.
@@ -80,7 +79,7 @@ TempFile *tempfile_create_with_ext(const char *ext) {
     return NULL;
   }
 
-  retval = GetTempFileName(temp_dir, "TMP", 0, temp_namebuff);
+  retval = GetTempFileNameA(temp_dir, "TMP", 0, temp_namebuff);
   if (retval == 0) {
     D("can't create temporary file in '%s'", temp_dir);
     return NULL;
@@ -90,7 +89,13 @@ TempFile *tempfile_create_with_ext(const char *ext) {
 
     strcpy(temp_oldnamebuff, temp_namebuff);
     strncat(temp_namebuff, ext, strlen(ext));
-    MoveFileEx(temp_oldnamebuff, temp_namebuff, MOVEFILE_REPLACE_EXISTING);
+    D("Moving %s -> %s",temp_oldnamebuff, temp_namebuff);
+    // if (!PathFileExistsA(temp_oldnamebuff)) {
+    //   derror("%s does not exist.", temp_oldnamebuff);
+    // }
+    if (!MoveFileExA(temp_oldnamebuff, temp_namebuff, MOVEFILE_REPLACE_EXISTING)) {
+      derror("Failed to move file, err: %d", GetLastError());
+    }
   }
 
   tempname = temp_namebuff;
@@ -140,7 +145,7 @@ const char *tempfile_path(TempFile *temp) { return temp ? temp->name : NULL; }
 
 void tempfile_close(TempFile *tempfile) {
 #ifdef _WIN32
-  DeleteFile(tempfile->name);
+  DeleteFileA(tempfile->name);
 #else
   android_unlink(tempfile->name);
 #endif

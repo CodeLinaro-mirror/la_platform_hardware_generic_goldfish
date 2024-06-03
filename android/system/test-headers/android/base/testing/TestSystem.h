@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <string_view>
 
+#include "absl/strings/match.h"
 #include "aemu/base/Log.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/threads/Thread.h"
@@ -373,7 +374,7 @@ private:
       path = currdir / path;
     }
 
-    if (path.string().starts_with(mTempRootPrefix.string())) {
+    if (absl::StartsWith(path.string(), mTempRootPrefix.string())) {
       return path;
     }
 

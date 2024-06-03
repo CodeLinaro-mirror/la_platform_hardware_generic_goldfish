@@ -14,18 +14,28 @@
 
 #include "android/base/system/System.h"
 
-#include <aemu/base/files/ScopedFd.h>
-#include <aemu/base/logging/Log.h>
-#include <aemu/base/process/Command.h>
-#include <android/base/system/storage_capacity.h>
-#include <future>
-#include <inttypes.h>
+#include "absl/strings//strip.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
+#include "aemu/base/EintrWrapper.h"
+#include "aemu/base/files/ScopedFd.h"
+#include "aemu/base/logging/CLog.h"
+#include "aemu/base/logging/Log.h"
+#include "aemu/base/memory/NoDestructor.h"
+#include "aemu/base/memory/ScopedPtr.h"
+#include "aemu/base/process/Command.h"
+#include "aemu/base/system/System.h"
+#include "android/base/system/CStrWrapper.h"
+#include "android/base/system/storage_capacity.h"
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <inttypes.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,25 +45,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "absl/strings//strip.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
-#include "aemu/base/EintrWrapper.h"
-#include "aemu/base/logging/CLog.h"
-#include "aemu/base/memory/NoDestructor.h"
-#include "aemu/base/memory/ScopedPtr.h"
-#include "aemu/base/system/System.h"
-#include "android/base/system/CStrWrapper.h"
-
 #ifdef _WIN32
 #include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/files/ScopedRegKey.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 #include "aemu/base/system/Win32Utils.h"
-#endif
-
-#ifdef _WIN32
 #include <ntddscsi.h>
 #include <psapi.h>
 #include <shlobj.h>
@@ -93,6 +89,7 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/wait.h>
 #include <time.h>
 #endif
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -132,10 +129,10 @@ extern "C" char **environ;
 
 #ifdef _WIN32
 #if !defined(S_ISDIR)
-#define S_ISDIR(mode) (((mode)&S_IFMT) == S_IFDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 #if !defined(S_ISREG)
-#define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
+#define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
 #endif
 #endif
 
@@ -902,10 +899,13 @@ public:
   }
 
   WallDuration getHighResTimeUs() const override { return kTickCount.getUs(); }
+  void sleepMs(unsigned n) const override {
+    std::this_thread::sleep_for(std::chrono::milliseconds(n));
+  }
 
-  void sleepMs(unsigned n) const override { android::base::sleepMs(n); }
-
-  void sleepUs(unsigned n) const override { android::base::sleepUs(n); }
+  void sleepUs(unsigned n) const override {
+    std::this_thread::sleep_for(std::chrono::microseconds(n));
+  }
 
   void sleepToUs(WallDuration absTimeUs) const override {
     // Approach will vary based on platform.
@@ -1160,7 +1160,7 @@ static int GetWin32Mode(int mode) {
 
 int pathAccess(fs::path path, int mode) {
 #ifdef _WIN32
-  return _waccess(win32Path(path).c_str(), GetWin32Mode(mode));
+  return _waccess(path.c_str(), GetWin32Mode(mode));
 #else  // !_WIN32
   return HANDLE_EINTR(access(path.c_str(), mode));
 #endif // !_WIN32
@@ -1815,7 +1815,7 @@ void System::addLibrarySearchDir(fs::path path) {
   system->envSet(varName, libSearchPath.string());
 }
 
-#ifndef _win32
+#ifndef _WIN32
 const std::string kExe;
 #else
 const std::string kExe = ".exe";
