@@ -154,6 +154,28 @@ public:
   }
   const_iterator end() const { return const_iterator(std::end(mOrderList)); }
 
+template<class T>
+T get(std::string property, T def) {
+  if constexpr (std::is_same_v<T, std::string>) {
+    return getString(property, def);
+  } else if constexpr (std::is_same_v<T, int>) {
+    return getInt(property, def);
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    return getInt64(property, def);
+  } else if constexpr (std::is_same_v<T, double>) {
+    return getDouble(property, def);
+  } else if constexpr (std::is_same_v<T, bool>) {
+    return getBool(property, def);
+  } else if constexpr (std::is_same_v<T, DiskSize>) {
+    return getDiskSize(property, def);
+  } else {
+    static_assert(
+        "Unsupported type for Avd::get. Supported types are: "
+        "std::string, int, int64_t, double, bool, DiskSize.",
+        "");
+    return def;
+  }
+}
 protected:
   void parseStream(std::istream *inFile, bool keepComments);
   void updateData(const std::string &key, std::string &&value);

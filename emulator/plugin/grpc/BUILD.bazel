@@ -1,0 +1,41 @@
+cc_library(
+    name = "grpc_device_impl",
+    srcs = [
+        "src/android/goldfish/EmulatorAdvertisement.cpp",
+        "src/android/goldfish/EmulatorAdvertisement.h",
+        "src/android/goldfish/grpc-service-device.c",
+        "src/android/goldfish/grpc-service-impl.cpp",
+    ],
+    hdrs = [
+        "include/android/goldfish/grpc-service-device.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libhw-display-virtio-gpu",
+        "//external/qemu:libhwcore",
+        "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
+        "@com_google_absl//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "grpc",
+    linkshared = True,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [":grpc_device_impl"] +
+           select({
+               "@platforms//os:windows": [
+                   "//external/qemu:qemu-system-x86_64.if",
+               ],
+               "//conditions:default": [],
+           }),
+)

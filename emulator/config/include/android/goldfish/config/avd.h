@@ -186,6 +186,25 @@ public:
    */
   static absl::StatusOr<Avd> fromName(std::string name);
 
+   /**
+   * @brief Retrieves the value of the specified property from the AVD's
+   * configuration file (`config.ini`).
+   *
+   * This method attempts to read the value of the given property from the
+   * AVD's configuration file. If the property is not found, the default value
+   * is returned.
+   *
+   * @param property The name of the property to retrieve.
+   * @param def The default value to return if the property is not found.
+   * @return The value of the property, or the default value if the property
+   *         is not found.
+   */
+  template<class T>
+  T get(std::string property, T def = T()) {
+    return mConfig->get<T>(property, def);
+  };
+
+
 private:
   Avd(fs::path content_path, std::unique_ptr<IniFile> target,
       std::unique_ptr<IniFile> config, std::string name);

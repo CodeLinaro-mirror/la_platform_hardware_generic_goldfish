@@ -25,7 +25,7 @@ license_kind(
 
 # You can pass in the build id from the bazel command line flag
 # as follows:
-# --//hardware/generic/goldfish/emulator:bldid=P123
+# --//hardware/generic/goldfish/emulator:build_id=P123
 build_id_from_command_line(
     name = "build_id",
     build_setting_default = "developer",
@@ -93,6 +93,7 @@ pkg_files(
             "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
+            "//hardware/generic/goldfish/emulator/plugin/grpc",
         ],
         "@platforms//os:linux": [
             "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
@@ -100,6 +101,7 @@ pkg_files(
             "//external/qemu:audio-pa",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
+            "//hardware/generic/goldfish/emulator/plugin/grpc",
         ],
         "//conditions:default": [],
     }),

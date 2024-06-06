@@ -65,6 +65,7 @@ rust_library(
     ],
     rustc_flags = [
         "--cap-lints=allow",
+
     ],
     deps = [
         ":thiserror_build_script",
