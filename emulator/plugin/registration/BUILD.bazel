@@ -1,0 +1,12 @@
+cc_library(
+    name = "registration",
+    srcs = [
+        "src/android/goldfish/qemu-plugin-registration.c",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libhwcore",
+    ],
+)
