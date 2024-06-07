@@ -19,6 +19,7 @@ cc_library(
     deps = [
         "//external/qemu:libhw-display-virtio-gpu",
         "//external/qemu:libhwcore",
+        "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
         "@com_google_absl//absl/strings",
     ],
