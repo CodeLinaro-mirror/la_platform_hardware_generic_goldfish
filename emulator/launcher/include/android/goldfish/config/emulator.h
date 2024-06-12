@@ -29,8 +29,17 @@ class Device;
 // on an avd.
 class Emulator {
 public:
-  // An emulator that will use the given avd to configure the command line
-  explicit Emulator(Avd avd);
+  /**
+   * @brief Constructs an emulator with the given avd and optional additional
+   * parameters.
+   *
+   * @param avd The AVD configuration to use for the emulator.
+   * @param additionalParams Additional parameters to pass to the QEMU command
+   * line. These parameters will be appended to the default command line
+   * generated from the AVD configuration.
+   */
+  explicit Emulator(Avd avd,
+                    const std::vector<std::string> &additionalParams = {});
 
   /**
    * @brief Retrieves a device driver of a specified type.
@@ -39,7 +48,7 @@ public:
    * @return Pointer to the requested device (as type T), or nullptr if not
    * found.
    */
-  template <typename T> T *get(const std::string& id) const {
+  template <typename T> T *get(const std::string &id) const {
     static_assert(std::is_base_of_v<Device, T>,
                   "T must be a subclass of Device");
     auto res = mDeviceMap.find(id);
@@ -50,7 +59,7 @@ public:
   }
 
   // The avd description used to configure this emulator
-  const Avd& avd() const { return mAvd; }
+  const Avd &avd() const { return mAvd; }
 
   /**
    * @brief Clears the device's persistent state and prepares it for
@@ -85,6 +94,6 @@ private:
 
   const Avd mAvd;
   std::vector<std::unique_ptr<Device>> mDevices;
-  std::unordered_map<std::string, Device*> mDeviceMap;
+  std::unordered_map<std::string, Device *> mDeviceMap;
 };
 } // namespace android::goldfish

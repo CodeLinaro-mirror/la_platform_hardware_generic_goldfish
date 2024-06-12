@@ -1,3 +1,5 @@
+load("plugins.bzl", "collect_plugins")
+
 cc_library(
     name = "setup",
     srcs = [
@@ -77,34 +79,46 @@ cc_test(
     ],
 )
 
-cc_binary(
-    name = "goldfish",
-    srcs = ["src/android/goldfish/launcher.cpp"],
-    data = [
+collect_plugins(
+    name = "plugins",
+    output_dir = "plugins",
+    plugins = [
         "//external/qemu:hw-display-virtio-gpu",
         "//external/qemu:hw-display-virtio-gpu-pci",
         "//external/qemu:hw-display-virtio-vga",
         "//external/qemu:hw-display-virtio-vga-gl",
-        "//external/qemu:qemu-keymaps",
-        "//external/qemu:qemu-roms",
-        "//external/qemu:qemu-system-aarch64",
-        "//external/qemu:qemu-system-riscv64",
-        "//external/qemu:qemu-system-x86_64",
         "//hardware/generic/goldfish/emulator/plugin/sample",
     ] + select({
         "@platforms//os:windows": [
             "//external/qemu:accel-tcg-x86_64",
         ],
         "@platforms//os:macos": [
+            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
+            "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
         ],
         "@platforms//os:linux": [
+            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
             "//external/qemu:accel-tcg-x86_64",
             "//external/qemu:audio-pa",
+            "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
         ],
         "//conditions:default": [],
     }),
+)
+
+cc_binary(
+    name = "goldfish",
+    srcs = ["src/android/goldfish/launcher.cpp"],
+    data = [
+        ":plugins",
+        "//external/qemu:qemu-keymaps",
+        "//external/qemu:qemu-roms",
+        "//external/qemu:qemu-system-aarch64",
+        "//external/qemu:qemu-system-riscv64",
+        "//external/qemu:qemu-system-x86_64",
+    ],
     includes = [
         "include",
         "src",

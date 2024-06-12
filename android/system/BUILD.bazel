@@ -2,11 +2,13 @@ cc_library(
     name = "system",
     srcs = [
         "src/android/base/Version.cpp",
+        "src/android/base/bazel/bazel_info.cpp",
         "src/android/base/system/System.cpp",
         "src/android/base/system/file_io.cpp",
         "src/android/base/system/storage_capacity.cpp",
     ],
     hdrs = [
+        "include/android/base/bazel/bazel_info.h",
         "include/android/base/file/file_io.h",
         "include/android/base/system/CStrWrapper.h",
         "include/android/base/system/System.h",
@@ -26,6 +28,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/google/aemu/base:aemu-base",
+        "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ] + select({
@@ -66,7 +69,7 @@ cc_test(
         "@platforms//os:windows": glob(["test/**/Win32*"]),
         "//conditions:default": [],
     }),
-    # copts = ["],
+    data = ["test/android/base/bazel/info.txt"],
     deps = [
         ":system",
         ":test-headers",

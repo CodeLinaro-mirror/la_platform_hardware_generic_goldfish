@@ -20,6 +20,7 @@
 #include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
+#include "android/base/bazel/bazel_info.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/audio_device.h"
@@ -41,13 +42,16 @@
 #include <memory>
 #include <stdio.h>
 #include <string_view>
+#include <vector>
 
 namespace android::goldfish {
 
 using android::base::operator""_KiB;
+using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd) : mAvd(std::move(avd)) {
+Emulator::Emulator(Avd avd, const std::vector<std::string>& additionalParams)
+    : mAvd(std::move(avd)) {
 
   mDevices.emplace_back(std::make_unique<Machine>());
   mDevices.emplace_back(std::make_unique<CpuDevice>());
@@ -64,16 +68,28 @@ Emulator::Emulator(Avd avd) : mAvd(std::move(avd)) {
   mDevices.emplace_back(std::make_unique<CacheDrive>(avd.hw()));
   mDevices.emplace_back(std::make_unique<SDCardDrive>(avd.hw()));
   mDevices.emplace_back(std::make_unique<AudioDevice>("09.0"));
-  mDevices.emplace_back(
-      std::make_unique<ParameterList>(std::vector<std::string>{
-          "-serial", "stdio", "-nodefaults", "-no-reboot",
-          //     // Debug monitor
-          "-monitor", "telnet::45454,server,nowait", "-device",
-          "virtio-keyboard-pci",
-          //     // Series of simple devices that don't need configuring
-          "-device", "virtio-serial,ioeventfd=off", "-device",
-          "virtio-rng-pci"}));
 
+  auto simple_parameters = std::vector<std::string>{
+      "-serial", "stdio", "-nodefaults", "-no-reboot",
+      //     // Debug monitor
+      "-monitor", "telnet::45454,server,nowait", "-device",
+      "virtio-keyboard-pci",
+      //     // Series of simple devices that don't need configuring
+      "-device", "virtio-serial,ioeventfd=off", "-device", "virtio-rng-pci"};
+
+  if (Bazel::inBazel()) {
+    // We are running in the bazel environment, add the bios to the search path.
+    fs::path bios_path =
+        fs::path(Bazel::runfilesPath("_main/external/qemu/pc-bios"));
+    assert(fs::exists(bios_path));
+
+    simple_parameters.push_back("-L");
+    simple_parameters.push_back(System::pathAsString(bios_path));
+  }
+  simple_parameters.insert(simple_parameters.end(), additionalParams.begin(),
+                           additionalParams.end());
+
+  mDevices.emplace_back(std::make_unique<ParameterList>(simple_parameters));
   for (auto &device : mDevices) {
     mDeviceMap[device->id()] = device.get();
   }
@@ -118,11 +134,21 @@ absl::Status Emulator::launch() {
   auto args = getCmdline();
 
   // Setup the library search dirs.
-  auto libdir = System::get()->getProgramDirectory() / "lib" / "qemu";
-  System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", libdir.string());
-  System::get()->addLibrarySearchDir(libdir);
+  fs::path qemu_module_dir;
+  if (Bazel::inBazel()) {
+    // We are running in the bazel environment, make sure the plugins can be
+    // found.
+    qemu_module_dir = fs::path(Bazel::runfilesPath(
+        "_main/hardware/generic/goldfish/emulator/launcher/plugins"));
+    assert(fs::exists(qemu_module_dir));
+  } else {
+    qemu_module_dir = System::get()->getProgramDirectory() / "lib" / "qemu";
+  }
 
-
+  System::get()->setEnvironmentVariable("QEMU_MODULE_DIR",
+                                        System::pathAsString(qemu_module_dir));
+  System::get()->addLibrarySearchDir(qemu_module_dir);
+  dinfo("Using module dir: %s", qemu_module_dir);
   dinfo("Launch: %s", absl::StrJoin(args, " "));
   auto proc = android::base::Command::create(getCmdline())
                   .withStdoutBuffer((size_t)128_KiB)

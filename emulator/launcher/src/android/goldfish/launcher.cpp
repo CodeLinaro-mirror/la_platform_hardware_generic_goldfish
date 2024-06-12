@@ -16,25 +16,30 @@
 #include <android/goldfish/devices/device.h>
 #include <chrono>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/internal/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/strings/str_cat.h"
 #include "aemu/base/Log.h"
+#include "android/base/bazel/bazel_info.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
 
-ABSL_FLAG(std::string, avd, "34", "The avd to launch.");
+ABSL_FLAG(std::string, avd, "V", "The avd to launch.");
 ABSL_FLAG(bool, list_avds, false, "List available avds");
 ABSL_FLAG(bool, wipe_data, false, "Wipe data and create partitions etc.");
 ABSL_FLAG(bool, verbose, false, "Verbose");
-ABSL_FLAG(std::string, qemu, "qemu-system-x86_64", "Qemu executable to use.");
-ABSL_FLAG(std::string, json, "x64_flags.jsonc", "Launch flag configuration.");
+ABSL_FLAG(std::string, vnc, "",
+          "vnc configuration to use, if any. These will be passed to QEMU as "
+          "-display vnc=<...>");
 
+using android::base::Bazel;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
@@ -42,6 +47,7 @@ int main(int argc, char **argv) {
   absl::SetProgramUsageMessage(
       "Welcome to goldfish \U0001F420, the android emulator launcher");
   absl::ParseCommandLine(argc, argv);
+  Bazel::storeCommandLineArgs(argc, argv);
   std::cout
       << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
@@ -64,10 +70,15 @@ int main(int argc, char **argv) {
     dfatal("Failed to load %s due to %s", name, status.status().message());
   }
   dinfo("Creating emulator");
-  Emulator emulator{std::move(status.value())};
+  std::vector<std::string> additionalParams;
+  if (!absl::GetFlag(FLAGS_vnc).empty()) {
+    additionalParams.push_back("-display");
+    additionalParams.push_back(absl::StrCat("vnc=", absl::GetFlag(FLAGS_vnc)));
+  }
+
+  Emulator emulator{std::move(status.value()), std::move(additionalParams)};
 
   if (absl::GetFlag(FLAGS_wipe_data)) {
-    // wipe_data(avd);
     emulator.clear();
   }
 
