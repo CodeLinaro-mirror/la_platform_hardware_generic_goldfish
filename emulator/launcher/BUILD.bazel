@@ -22,6 +22,8 @@ cc_library(
         "src/android/goldfish/devices/drives/user_data_drive.h",
         "src/android/goldfish/devices/gpu.cpp",
         "src/android/goldfish/devices/gpu_device.h",
+        "src/android/goldfish/devices/grpc_device.cpp",
+        "src/android/goldfish/devices/grpc_device.h",
         "src/android/goldfish/devices/initrd_device.cpp",
         "src/android/goldfish/devices/initrd_device.h",
         "src/android/goldfish/devices/kernel_device.cpp",
@@ -88,6 +90,7 @@ collect_plugins(
         "//external/qemu:hw-display-virtio-vga",
         "//external/qemu:hw-display-virtio-vga-gl",
         "//hardware/generic/goldfish/emulator/plugin/sample",
+        "//hardware/generic/goldfish/emulator/plugin/grpc",
     ] + select({
         "@platforms//os:windows": [
             "//external/qemu:accel-tcg-x86_64",
@@ -118,6 +121,7 @@ cc_binary(
         "//external/qemu:qemu-system-aarch64",
         "//external/qemu:qemu-system-riscv64",
         "//external/qemu:qemu-system-x86_64",
+        "//hardware/generic/goldfish/emulator/android-grpc/security:unsecure-emulator-access",
     ],
     includes = [
         "include",

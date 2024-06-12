@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "grpc++/grpc++.h"
+#include "android/emulation/control/display/DisplayChangeListener.h"
+#include "host-common/vm_operations.h"
+#include <grpc++/grpc++.h>
 
 namespace android {
 namespace emulation {
 namespace control {
 
-grpc::Service* getEmulatorController();
+grpc::Service *
+getEmulatorController(const QAndroidVmOperations *vm,
+                      DisplayChangeListener *displayChangeListener);
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+} // namespace control
+} // namespace emulation
+} // namespace android

@@ -11,6 +11,16 @@ pkg_files(
     visibility = ["//visibility:public"],
 )
 
+filegroup(
+    name = "unsecure-emulator-access",
+    data = [
+        "test/android/emulation/control/secure/test_allow_list.json",
+    ],
+    output_group = "",
+    tags = [""],
+    visibility = ["//visibility:public"],
+)
+
 cc_library(
     name = "security",
     srcs = glob(["src/android/emulation/control/secure/*.cpp"]),

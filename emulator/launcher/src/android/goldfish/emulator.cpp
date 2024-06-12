@@ -31,6 +31,7 @@
 #include "android/goldfish/devices/drives/sdcard_drive.h"
 #include "android/goldfish/devices/drives/user_data_drive.h"
 #include "android/goldfish/devices/gpu_device.h"
+#include "android/goldfish/devices/grpc_device.h"
 #include "android/goldfish/devices/initrd_device.h"
 #include "android/goldfish/devices/kernel_device.h"
 #include "android/goldfish/devices/machine.h"
@@ -68,6 +69,7 @@ Emulator::Emulator(Avd avd, const std::vector<std::string> &additionalParams)
   mDevices.emplace_back(std::make_unique<CacheDrive>(avd.hw()));
   mDevices.emplace_back(std::make_unique<SDCardDrive>(avd.hw()));
   mDevices.emplace_back(std::make_unique<AudioDevice>("09.0"));
+  mDevices.emplace_back(std::make_unique<GrpcDevice>());
 
   auto simple_parameters = std::vector<std::string>{
       "-serial",
@@ -130,7 +132,8 @@ absl::Status Emulator::initialize() {
 }
 
 std::vector<std::string> Emulator::getCmdline() {
-  std::vector<std::string> params{get<Machine>("machine")->qemu_binary().string()};
+  std::vector<std::string> params{
+      get<Machine>("machine")->qemu_binary().string()};
   for (auto &device : mDevices) {
     auto component = device->getQemuParameters(*this);
     params.insert(params.end(), component.begin(), component.end());

@@ -9,6 +9,8 @@ cc_library(
     deps = [
         "//external/qemu:libchardev",
         "//external/qemu:libhwcore",
+        # Every plugin should link against libmodule-common, as this will provide
+        # the DSO_STAMP_FUN_STR symbol, which the qemu loader will check against!
         "//external/qemu:libmodule-common",
     ],
     alwayslink = True,

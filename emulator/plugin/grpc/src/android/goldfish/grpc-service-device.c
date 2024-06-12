@@ -22,6 +22,7 @@
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "ui/console.h"
+#include <qemu/typedefs.h>
 
 // IWYU pragma: end_keep
 // clang-format on
@@ -87,13 +88,11 @@ static void grpc_set_addr(Object *obj, const char *value, Error **errp) {
   strcpy(grpc_device->config.addr, value);
 }
 
-
 static void grpc_set_avd(Object *obj, const char *value, Error **errp) {
   GrpcDev *grpc_device = GRPC_DEV(obj);
   grpc_device->config.avd = malloc(strlen(value) + 1);
   strcpy(grpc_device->config.avd, value);
 }
-
 
 static void grpc_set_port(Object *obj, Visitor *v, const char *name,
                           void *opaque, Error **errp) {
@@ -178,13 +177,11 @@ static void grpc_class_init(ObjectClass *oc, void *data) {
   dc->unrealize = grpc_unrealize;
 }
 
-static const TypeInfo char_grpc_type_info = {
+static const TypeInfo grpc_type_info[] = {{
     .name = TYPE_GRPC,
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(GrpcDev),
     .class_init = grpc_class_init,
-};
+}};
 
-static void register_types(void) { type_register_static(&char_grpc_type_info); }
-
-type_init(register_types);
+DEFINE_TYPES(grpc_type_info)

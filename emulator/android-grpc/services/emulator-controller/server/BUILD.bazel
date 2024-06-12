@@ -3,10 +3,15 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc
 cc_library(
     name = "emulator-service",
     srcs = ["src/android/emulation/control/EmulatorService.cpp"],
-    hdrs = glob(["include/android/emulation/control/*.h"]),
+    hdrs = [
+        "include/android/emulation/control/EmulatorService.h",
+        "include/android/emulation/control/display/DisplayChangeListener.h",
+    ],
     includes = ["include"],
     deps = [
+        "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
+        "//hardware/generic/goldfish/emulator/android-grpc/event-waiter",
         "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
         "//hardware/google/aemu/base:aemu-base",
     ],

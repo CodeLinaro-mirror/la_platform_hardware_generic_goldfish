@@ -1252,7 +1252,7 @@ int socket_set_oobinline(int  fd)
     return socket_setoption(fd, SOL_SOCKET, SO_OOBINLINE, 1);
 }
 
-int socket_set_cork(int fd, int v)
+int android_socket_set_cork(int fd, int v)
 {
 #if defined(SOL_TCP) && defined(TCP_CORK)
     return socket_setoption(fd, SOL_TCP, TCP_CORK, v);
@@ -1261,7 +1261,7 @@ int socket_set_cork(int fd, int v)
 #endif
 }
 
-int  socket_set_nodelay(int  fd)
+int  android_socket_set_nodelay(int  fd)
 {
     return socket_setoption(fd, IPPROTO_TCP, TCP_NODELAY, 1);
 }

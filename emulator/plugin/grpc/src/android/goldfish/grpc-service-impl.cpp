@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <pixman.h>
 extern "C" {
 #include "android/goldfish/grpc-service-device.h"
+
+// clang-format off
+// IWYU pragma: begin_keep
+#include "qemu/osdep.h"
+#include "ui/surface.h"
+// IWYU pragma: end_keep
+// clang-format on
 }
 
 #include "absl/random/random.h"
@@ -27,6 +35,7 @@ extern "C" {
 #include "android/goldfish/EmulatorAdvertisement.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/display/QemuDisplayTransformer.h"
 
 #include <chrono>
 #include <cstdint>
@@ -41,6 +50,9 @@ using android::emulation::control::EmulatorControllerService;
 using android::goldfish::Avd;
 using android::goldfish::EmulatorAdvertisement;
 using android::goldfish::EmulatorProperties;
+using android::goldfish::QemuDisplayTransformer;
+
+extern "C" const QAndroidVmOperations *const gQAndroidVmOperations;
 
 // Generates a secure base64 encoded token of
 // |cnt| bytes.
@@ -59,6 +71,8 @@ static std::string generateToken(int cnt) {
 
 static std::unique_ptr<EmulatorAdvertisement> advertiser;
 static std::unique_ptr<EmulatorControllerService> grpcService;
+static QemuDisplayTransformer gDisplayTransformer{};
+static pixman_image_t *g_image;
 
 bool initialize(GrpcDeviceConfiguration *device) {
   if (!device->avd) {
@@ -81,7 +95,8 @@ bool initialize(GrpcDeviceConfiguration *device) {
       {"avd.id", avd->get("avd.ini.displayname", avd->name())},
       {"avd.dir", System ::pathAsString(avd->getContentPath())},
       {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
-  auto emulator = android::emulation::control::getEmulatorController();
+  auto emulator = android::emulation::control::getEmulatorController(
+      gQAndroidVmOperations, &gDisplayTransformer);
   auto builder =
       EmulatorControllerService::Builder()
           .withLogging(true)
@@ -140,6 +155,7 @@ bool initialize(GrpcDeviceConfiguration *device) {
 }
 
 void finalize(GrpcDeviceConfiguration *device) {
+  LOG(INFO) << "Finalizing gRPC endpoint";
   if (grpcService) {
     // Explicitly cleanup resources. We do not want to do this at
     // program exit as we may be holding on to loopers, which threads
@@ -151,11 +167,30 @@ void finalize(GrpcDeviceConfiguration *device) {
   if (advertiser) {
     advertiser->remove();
   }
+
+  if (g_image) {
+    pixman_image_unref(g_image);
+    g_image = nullptr;
+  }
 }
 
 // TODO(jansene): Hook up the actual display rendering.
 void grpc_dpy_gfx_update(struct DisplayChangeListener *dcl, int x, int y, int w,
-                         int h) {}
-void grpc_dpy_gfx_refresh(struct DisplayChangeListener *dcl) {}
+                         int h) {
+  LOG(INFO) << "grpc_dpy_gfx_update x: " << x << " y: " << y << " w: " << w
+            << " h: " << h << " g_image: " << g_image;
+  gDisplayTransformer.fireEvent(g_image);
+}
+
+void grpc_dpy_gfx_refresh(struct DisplayChangeListener *dcl) {
+  // LOG(INFO) << "grpc_dpy_gfx_refresh";
+}
 void grpc_dpy_gfx_switch(struct DisplayChangeListener *dcl,
-                         struct DisplaySurface *new_surface) {}
+                         struct DisplaySurface *new_surface) {
+  if (g_image) {
+    pixman_image_unref(g_image);
+  }
+  g_image = new_surface->image;
+  LOG(INFO) << "grpc_dpy_gfx_switch: " << new_surface->image;
+  pixman_image_ref(g_image);
+}

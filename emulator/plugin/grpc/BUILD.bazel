@@ -3,25 +3,37 @@ cc_library(
     srcs = [
         "src/android/goldfish/EmulatorAdvertisement.cpp",
         "src/android/goldfish/EmulatorAdvertisement.h",
+        "src/android/goldfish/agents/qemu-vm-operations-impl.c",
+        "src/android/goldfish/display/QemuDisplayTransformer.cpp",
+        "src/android/goldfish/display/SharedMemoryLibrary.cpp",
         "src/android/goldfish/grpc-service-device.c",
         "src/android/goldfish/grpc-service-impl.cpp",
     ],
     hdrs = [
+        "include/android/goldfish/display/QemuDisplayTransformer.h",
+        "include/android/goldfish/display/SharedMemoryLibrary.h",
         "include/android/goldfish/grpc-service-device.h",
     ],
+    defines = ["BUILD_DSO"],
     includes = [
         "include",
         "src",
     ],
+    linkstatic = False,
     visibility = [
         "//visibility:public",
     ],
     deps = [
-        "//external/qemu:libhw-display-virtio-gpu",
+        "//external/crosvm/rutabaga_gfx",
         "//external/qemu:libhwcore",
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
+        "//hardware/generic/goldfish/emulator/android-grpc/event-waiter",
         "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
         "@com_google_absl//absl/strings",
+        "@pixman//:pixman-1",
+        "@pixman//:pixman_simd",
     ],
     alwayslink = True,
 )
