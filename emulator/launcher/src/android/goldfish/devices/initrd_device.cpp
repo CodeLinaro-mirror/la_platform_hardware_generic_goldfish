@@ -89,9 +89,9 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
   std::string emulatorCircularProp = "androidboot.emulator.circular";
   std::string autoRotateProp = "androidboot.qemu.autorotate";
   std::string qemuExternalDisplays = "androidboot.qemu.external.displays";
-
   std::vector<std::pair<std::string, std::string>> params;
 
+  params.push_back({"qemu.logcat_filter", "*:V"});
   params.push_back({"androidboot.qemu", "1"});
   params.push_back({"androidboot.hardware", "ranchu"});
   if (!serialno.empty()) {

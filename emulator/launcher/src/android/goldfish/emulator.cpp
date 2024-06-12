@@ -50,7 +50,7 @@ using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd, const std::vector<std::string>& additionalParams)
+Emulator::Emulator(Avd avd, const std::vector<std::string> &additionalParams)
     : mAvd(std::move(avd)) {
 
   mDevices.emplace_back(std::make_unique<Machine>());
@@ -70,12 +70,28 @@ Emulator::Emulator(Avd avd, const std::vector<std::string>& additionalParams)
   mDevices.emplace_back(std::make_unique<AudioDevice>("09.0"));
 
   auto simple_parameters = std::vector<std::string>{
-      "-serial", "stdio", "-nodefaults", "-no-reboot",
-      //     // Debug monitor
-      "-monitor", "telnet::45454,server,nowait", "-device",
+      "-serial",
+      "stdio",
+      "-nodefaults",
+      "-no-reboot",
+      // Debug monitor
+      "-monitor",
+      "telnet::45454,server,nowait",
+      "-device",
       "virtio-keyboard-pci",
-      //     // Series of simple devices that don't need configuring
-      "-device", "virtio-serial,ioeventfd=off", "-device", "virtio-rng-pci"};
+      // Series of simple devices that don't need configuring
+      "-device",
+      "virtio-serial-pci,ioeventfd=off",
+      "-device",
+      "virtio-rng-pci",
+      // virtio logcat consoles, note that order matters here!
+      "-device",
+      "virtconsole,chardev=forhvc0",
+      "-device",
+      "virtconsole,chardev=forhvc1",
+      "-chardev",
+      "null,id=forhvc0"
+  };
 
   if (Bazel::inBazel()) {
     // We are running in the bazel environment, add the bios to the search path.

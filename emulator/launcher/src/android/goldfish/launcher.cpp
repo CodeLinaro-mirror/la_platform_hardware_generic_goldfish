@@ -38,6 +38,7 @@ ABSL_FLAG(bool, verbose, false, "Verbose");
 ABSL_FLAG(std::string, vnc, "",
           "vnc configuration to use, if any. These will be passed to QEMU as "
           "-display vnc=<...>");
+ABSL_FLAG(std::string, logcat, "/dev/stdout", "Location to write logcat to");
 
 using android::base::Bazel;
 using android::goldfish::Avd;
@@ -74,6 +75,12 @@ int main(int argc, char **argv) {
   if (!absl::GetFlag(FLAGS_vnc).empty()) {
     additionalParams.push_back("-display");
     additionalParams.push_back(absl::StrCat("vnc=", absl::GetFlag(FLAGS_vnc)));
+  }
+
+  if (!absl::GetFlag(FLAGS_logcat).empty()) {
+    additionalParams.push_back("-chardev");
+    additionalParams.push_back(
+        absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
   }
 
   Emulator emulator{std::move(status.value()), std::move(additionalParams)};
