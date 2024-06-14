@@ -94,6 +94,15 @@ const QemuModinfo qemu_modinfo[] = {
         .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
                                   LIB_PREFIX "avd", NULL}),
     },
+    {
+        .name = LIB_PREFIX "virtio-vsock-goldfish-" ARCH_SUFFIX,
+        .objs = ((const char *[]){
+            "virtio-goldfish-vsock",
+            "virtio-goldfish-vsock-pci",
+            NULL
+        }),
+        .opts = ((const char *[]){"device", NULL}),
+    },
 #ifdef __linux__
     {
         /* audio-pa.modinfo */

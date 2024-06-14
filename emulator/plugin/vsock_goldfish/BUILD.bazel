@@ -1,0 +1,59 @@
+cc_library(
+    name = "goldfish_vsock_hdrs",
+    hdrs = [
+        "include/goldfish/vsock/Channel.h",
+        "include/goldfish/vsock/connect.h",
+        "include/goldfish/vsock/listen.h",
+        "include/goldfish/vsock/snapshot.h",
+    ],
+    includes = ["include"],
+)
+
+[cc_library(
+    name = "virtio-vsock-goldfish-impl-" + arch,
+    srcs = [
+        "vsock.cpp",
+        "vsock_low_level.c",
+    ],
+    hdrs = [
+        "vsock_low_level.h",
+    ],
+    defines = [
+        "NEED_CPU_H",
+        'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
+        'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":goldfish_vsock_hdrs",
+        "//external/qemu:libhwcore",
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+    ],
+    alwayslink = True,
+) for arch in [
+    "riscv64",
+    "aarch64",
+    "x86_64",
+]]
+
+[cc_binary(
+    name = "virtio-vsock-goldfish-" + arch,
+    linkshared = True,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [":virtio-vsock-goldfish-impl-" + arch] +
+           select({
+               "@platforms//os:windows": [
+                   "//external/qemu:qemu-system-" + arch + ".if",
+               ],
+               "//conditions:default": [],
+           }),
+) for arch in [
+    "riscv64",
+    "aarch64",
+    "x86_64",
+]]

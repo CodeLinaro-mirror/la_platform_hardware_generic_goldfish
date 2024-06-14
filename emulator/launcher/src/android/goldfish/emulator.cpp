@@ -85,6 +85,8 @@ Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
       "-serial", "stdio", "-nodefaults", "-no-reboot",
       // Debug monitor
       "-monitor", "telnet::45454,server,nowait",
+      // our virtio-vsock
+      "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
       // Keyboard
       "-device", "virtio-keyboard-pci",
       // Series of simple devices that don't need configuring
