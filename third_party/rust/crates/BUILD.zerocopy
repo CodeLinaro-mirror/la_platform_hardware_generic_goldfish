@@ -35,7 +35,7 @@ rust_library(
     crate_features = [
         "byteorder",
         "derive",
-	"simd",
+	    "simd",
         "zerocopy-derive",
     ],
     edition = "2021",
