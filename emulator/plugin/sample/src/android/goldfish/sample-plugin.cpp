@@ -11,40 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/goldfish/sample-devices.h"
 
-// clang-format off
-// IWYU pragma: begin_keep
-#include "qemu/osdep.h"
-#include "hw/qdev-core.h"
+extern "C" {
 #include "qom/object.h"
-#include "qapi/error.h"
-#include <stdlib.h>
-#include <string.h>
-// IWYU pragma: end_keep
-// clang-format on
-
-typedef struct SampleDev {
-  DeviceClass parent_class;
-  char *amessage;
-} SampleDev;
+}
 
 #define TYPE_SAMPLE "sample"
-#define SAMPLE_DEV(obj)                                                    \
-  OBJECT_CHECK(SampleDev, (obj), TYPE_SAMPLE)
+#define SAMPLE_DEV(obj) OBJECT_CHECK(SampleDev, (obj), TYPE_SAMPLE)
 #define SAMPLE_DEVICE_GET_CLASS(obj)                                           \
   OBJECT_GET_CLASS(SampleDev, obj, TYPE_SAMPLE)
 
-static void sample_realize(DeviceState *dev, Error **errp)
-{
+static void sample_realize(DeviceState *dev, Error **errp) {
   SampleDev *sample = SAMPLE_DEV(dev);
-  printf("sample_realize: with %s\n", sample->amessage);
+  printf("sample_realize: with %s\n", sample->amessage.c_str());
 }
 
 static void sample_set_message(Object *obj, const char *value, Error **errp) {
   SampleDev *sample = SAMPLE_DEV(obj);
-  sample->amessage = malloc(strlen(value) + 1);
-  strcpy(sample->amessage, value);
-  printf("You set the property message to: %s\n", sample->amessage);
+  sample->amessage = value;
+  printf("You set the property message to: %s\n", sample->amessage.c_str());
 }
 
 static void sample_class_init(ObjectClass *oc, void *data) {
@@ -56,7 +42,7 @@ static void sample_class_init(ObjectClass *oc, void *data) {
 
 static const TypeInfo char_sample_type_info = {
     .name = TYPE_SAMPLE,
-    .parent = TYPE_DEVICE,
+    .parent = "sample-base",
     .instance_size = sizeof(SampleDev),
     .class_init = sample_class_init,
 };

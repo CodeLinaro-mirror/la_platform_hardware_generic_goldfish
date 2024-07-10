@@ -69,6 +69,10 @@ const QemuModinfo qemu_modinfo[] = {
                                    "-ops"),
                                   NULL}),
     },
+    {
+        .name = LIB_PREFIX "sample-base",
+        .objs = ((const char *[]){"sample-base", NULL}),
+    },
     // This will make the module "sample" available inside qemu
     // In our case the sample driver is just very simple and doesn't really
     // do anything.
@@ -78,6 +82,7 @@ const QemuModinfo qemu_modinfo[] = {
         .name = LIB_PREFIX "sample",
         .opts = ((const char *[]){"device", NULL}),
         .objs = ((const char *[]){"sample", NULL}),
+        .deps = ((const char *[]){LIB_PREFIX "sample-base", NULL}),
     },
     {
         .name = LIB_PREFIX "grpc",
@@ -85,8 +90,8 @@ const QemuModinfo qemu_modinfo[] = {
         .objs = ((const char *[]){"grpc", NULL}),
         // The gRPC module contains gpu forwarding logic, and links against the
         // vga lib
-        // .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
-        //                           NULL}),
+        .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
+                                  NULL}),
     },
     {
         /* end of list */

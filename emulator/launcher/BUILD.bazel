@@ -90,6 +90,7 @@ collect_plugins(
         "//external/qemu:hw-display-virtio-vga",
         "//external/qemu:hw-display-virtio-vga-gl",
         "//hardware/generic/goldfish/emulator/plugin/sample",
+        "//hardware/generic/goldfish/emulator/plugin/sample:sample-base",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ] + select({
         "@platforms//os:windows": [
