@@ -22,6 +22,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "aemu/base/files/IniFile.h"
 #include "android/base/system/System.h"
@@ -107,14 +108,13 @@ Avd::Avd(Avd &&other) noexcept
       mTarget(std::move(other.mTarget)), mConfig(std::move(other.mConfig)),
       mName(std::move(other.mName)), mHwCfg(std::move(other.mHwCfg)) {}
 
-
 bool Avd::hasEncryptionKey() const {
   return getSystemImagePath(Avd::ImageType::ENCRYPTIONKEY).ok();
 }
 
 absl::StatusOr<Avd> Avd::fromName(std::string name) {
   auto directory_path = ConfigDirs::getAvdRootDirectory();
-  return Avd::parse(directory_path / (name + ".ini"), name);
+  return Avd::parse(directory_path / (name + ".ini"));
 }
 
 DeviceType Avd::getDeviceType() const {
@@ -172,8 +172,8 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
       System::get()->pathCanRead(possible)) {
     return possible;
   }
-  dprint("Did not find %s in %s, falling back to system path", possible.string(),
-         mContentPath.string());
+  dprint("Did not find %s in %s, falling back to system path",
+         possible.string(), mContentPath.string());
   return getSystemImagePath(imgType);
 }
 
@@ -194,8 +194,8 @@ absl::StatusOr<fs::path> Avd::getSystemImagePath(Avd::ImageType imgType) const {
     }
   }
   return absl::NotFoundError(
-      absl::StrFormat("Path %s specified in %s does not exist (key=%s)", path.string(),
-                      mConfig->getBackingFile().string(), key));
+      absl::StrFormat("Path %s specified in %s does not exist (key=%s)",
+                      path.string(), mConfig->getBackingFile().string(), key));
 }
 
 std::string Avd::details() const {
@@ -211,22 +211,29 @@ Avd::Avd(fs::path content_path, std::unique_ptr<IniFile> target,
   mHwCfg.load(this, mConfig.get());
 }
 
-absl::StatusOr<Avd> Avd::parse(fs::path target, std::string name) {
+absl::StatusOr<Avd> Avd::parse(fs::path ini_file) {
   auto sys = System::get();
-  if (!sys->pathExists(target) || !sys->pathCanRead(target)) {
-    return absl::NotFoundError("Unable to parse " + name +
-                               ", no access to: " + target.string());
+  if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
+    return absl::NotFoundError(
+        absl::StrCat("No access to: ", System::pathAsString(ini_file)));
   }
 
-  auto avd_ini = target;
-  auto ini = std::make_unique<IniFile>(avd_ini);
+  auto ini = std::make_unique<IniFile>(ini_file);
   if (!ini->read()) {
-    return absl::InternalError("Unable to parse ini file: " + avd_ini.string());
+    return absl::InternalError(absl::StrCat("Unable to parse ini file: ",
+                                            System::pathAsString(ini_file)));
   }
 
-  auto rel_path = ini->getString("path.rel", "avd/" + name + ".avd");
-  auto content_path = ConfigDirs::getUserDirectory() / rel_path;
-  auto cfg_ini = content_path / "config.ini";
+  // Extract the avd name from the .ini file.
+  std::string name = System::pathAsString(ini_file.stem());
+
+  fs::path content_path = fs::path(ini->get<std::string>("path", ""));
+  if (!sys->pathExists(content_path) || !sys->pathCanRead(content_path)) {
+    auto rel_path = ini->get<std::string>("path.rel", "");
+    content_path = ConfigDirs::getUserDirectory() / rel_path;
+  }
+  fs::path cfg_ini = content_path / "config.ini";
+
   if (!sys->pathExists(cfg_ini) || !sys->pathCanRead(cfg_ini)) {
     return absl::NotFoundError(absl::StrFormat(
         "Unable to parse %s, no access to config: %s", name, cfg_ini.string()));

@@ -81,13 +81,18 @@ const QemuModinfo qemu_modinfo[] = {
         .deps = ((const char *[]){LIB_PREFIX "sample-base", NULL}),
     },
     {
+        .name = LIB_PREFIX "avd",
+        .opts = ((const char *[]){"device", NULL}),
+        .objs = ((const char *[]){"avdinfo", NULL}),
+    },
+    {
         .name = LIB_PREFIX "grpc",
         .opts = ((const char *[]){"device", NULL}),
         .objs = ((const char *[]){"grpc", NULL}),
         // The gRPC module contains gpu forwarding logic, and links against the
         // vga lib
         .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
-                                  NULL}),
+                                  LIB_PREFIX "avd", NULL}),
     },
 #ifdef __linux__
     {

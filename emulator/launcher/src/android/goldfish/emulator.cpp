@@ -37,8 +37,9 @@
 #include "android/goldfish/devices/machine.h"
 #include "android/goldfish/devices/memory_device.h"
 #include "android/goldfish/devices/parameter_list.h"
-
 #include <android/base/system/System.h>
+
+#include <initializer_list>
 #include <istream>
 #include <memory>
 #include <stdio.h>
@@ -54,8 +55,17 @@ using android::base::System;
 Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
     : mAvd(std::move(avd)) {
 
+  // Device are initialized in order of appearance
+  // So if device B depends on device A, you should register them as:
+  // -device A -device B ...
+
   mDevices.emplace_back(std::make_unique<Machine>());
   mDevices.emplace_back(std::make_unique<CpuDevice>());
+
+  auto ini_path = System::pathAsString(mAvd.getIniFile());
+  mDevices.emplace_back(
+      std::make_unique<ParameterList>(std::initializer_list<std::string>{
+          "-device", absl::StrCat("avdinfo,ini_path=", ini_path)}));
   mDevices.emplace_back(std::make_unique<MemoryDevice>());
   mDevices.emplace_back(std::make_unique<KernelDevice>());
   mDevices.emplace_back(std::make_unique<Initrd>());
@@ -72,28 +82,21 @@ Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
   mDevices.emplace_back(std::make_unique<GrpcDevice>());
 
   auto simple_parameters = std::vector<std::string>{
-      "-serial",
-      "stdio",
-      "-nodefaults",
-      "-no-reboot",
+      "-serial", "stdio", "-nodefaults", "-no-reboot",
       // Debug monitor
-      "-monitor",
-      "telnet::45454,server,nowait",
-      "-device",
-      "virtio-keyboard-pci",
+      "-monitor", "telnet::45454,server,nowait",
+      // Keyboard
+      "-device", "virtio-keyboard-pci",
       // Series of simple devices that don't need configuring
-      "-device",
-      "virtio-serial-pci,ioeventfd=off",
-      "-device",
-      "virtio-rng-pci",
+      "-device", "virtio-serial-pci,ioeventfd=off",
+      // Hardware RNG device
+      "-device", "virtio-rng-pci",
       // virtio logcat consoles, note that order matters here!
-      "-device",
-      "virtconsole,chardev=forhvc0",
-      "-device",
-      "virtconsole,chardev=forhvc1",
-      "-chardev",
-      "null,id=forhvc0"
-  };
+      "-device", "virtconsole,chardev=forhvc0",
+      //
+      "-device", "virtconsole,chardev=forhvc1",
+      //
+      "-chardev", "null,id=forhvc0"};
 
   if (Bazel::inBazel()) {
     // We are running in the bazel environment, add the bios to the search path.
@@ -108,7 +111,8 @@ Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
                            std::make_move_iterator(additionalParams.begin()),
                            std::make_move_iterator(additionalParams.end()));
 
-  mDevices.emplace_back(std::make_unique<ParameterList>(std::move(simple_parameters)));
+  mDevices.emplace_back(
+      std::make_unique<ParameterList>(std::move(simple_parameters)));
   for (auto &device : mDevices) {
     mDeviceMap[device->id()] = device.get();
   }

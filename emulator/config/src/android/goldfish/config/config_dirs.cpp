@@ -300,17 +300,16 @@ auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
   } else {
     root = root / discovery.subdir;
   }
+  std::error_code ec;
 
   auto desired_directory = root / "avd" / "running";
-  auto recomposed = fs::canonical(desired_directory);
-  if (!fs::exists(recomposed)) {
-    std::error_code ec;
-    if (!fs::create_directories(recomposed, ec)) {
-      LOG(WARNING) << "Unable to create directories: " << recomposed
+  if (!fs::exists(desired_directory)) {
+    if (!fs::create_directories(desired_directory, ec)) {
+      LOG(WARNING) << "Unable to create directories: " << desired_directory
                    << " due to " << ec.message();
     }
-    fs::permissions(recomposed, fs::perms::owner_all, fs::perm_options::remove);
+    fs::permissions(desired_directory, fs::perms::owner_all, fs::perm_options::remove);
   }
-  return recomposed;
+  return desired_directory;
 }
 } // namespace android::goldfish

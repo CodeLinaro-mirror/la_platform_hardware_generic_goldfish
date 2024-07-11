@@ -117,17 +117,13 @@ bool initialize(GrpcDeviceConfiguration *device) {
                 std::to_string(android::base::Process::me()->pid()) / "jwks" /
                 generateToken(16);
 
-  auto jwkLoadedFile = jwkDir / "active.jwk";
-
-  if (fs::exists(jwkLoadedFile)) {
-    jwkLoadedFile = jwkDir / "active.jwk";
-  }
   std::error_code ec;
-  if (!fs::exists(jwkDir) && !fs::create_directories(jwkDir, ec)) {
+  if (!System::get()->pathExists(jwkDir) && !fs::create_directories(jwkDir, ec)) {
     LOG(ERROR) << "Failed to create jwk directory " << jwkDir
                << " error: " << ec.message();
   }
 
+  auto jwkLoadedFile = jwkDir / "active.jwk";
   props["grpc.jwks"] = jwkDir;
   props["grpc.jwk_active"] = jwkLoadedFile;
   builder.withJwtAuthDiscoveryDir(jwkDir, jwkLoadedFile);

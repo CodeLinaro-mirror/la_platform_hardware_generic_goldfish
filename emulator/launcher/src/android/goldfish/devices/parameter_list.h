@@ -16,6 +16,7 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/device.h"
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -28,11 +29,16 @@ namespace android::goldfish {
 // etc.
 class ParameterList : public Device {
 public:
+  explicit ParameterList(std::initializer_list<std::string> params)
+      : Device("params_" + std::to_string(++gIdCounter)),
+        mParams(params.begin(), params.end()) {}
+
   explicit ParameterList(std::vector<std::string> params);
   ~ParameterList() override = default;
 
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
-  absl::Status initialize(const Emulator& emulator) override;
+  std::vector<std::string>
+  getQemuParameters(const Emulator &emulator) const override;
+  absl::Status initialize(const Emulator &emulator) override;
 
 private:
   std::vector<std::string> mParams;

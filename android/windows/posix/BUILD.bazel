@@ -5,8 +5,6 @@ cc_library(
         "src/android/base/Win32Utils.cpp",
         "src/android/base/win32_unicode.cpp",
         "src/getopt.c",
-        "src/gettimeofday.c",
-        "src/msvc-posix.c",
         "src/pread.cpp",
     ],
     hdrs = [

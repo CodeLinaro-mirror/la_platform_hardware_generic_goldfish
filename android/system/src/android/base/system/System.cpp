@@ -129,10 +129,10 @@ extern "C" char **environ;
 
 #ifdef _WIN32
 #if !defined(S_ISDIR)
-#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#define S_ISDIR(mode) (((mode)&S_IFMT) == S_IFDIR)
 #endif
 #if !defined(S_ISREG)
-#define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
+#define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 #endif
 
@@ -145,6 +145,14 @@ namespace fs = std::filesystem;
 std::optional<DiskKind> nativeDiskKind(int st_dev);
 #endif
 
+
+// The character used to separator directories in path-related
+// environment variables.
+#ifdef _WIN32
+    constexpr char kPathSeparator = ';';
+#else
+    constexpr char kPathSeparator = ':';
+#endif
 namespace {
 
 struct TickCountImpl {
@@ -1795,13 +1803,15 @@ void System::addLibrarySearchDir(fs::path path) {
   System *system = System::get();
   const char *varName = kLibrarySearchListEnvVarName;
 
-  auto libSearchPath = fs::path(system->envGet(varName));
-  if (!libSearchPath.empty()) {
-    libSearchPath = path / libSearchPath;
+  std::string libSearchPath = system->envGet(varName);
+  if (libSearchPath.size()) {
+    libSearchPath = absl::StrFormat("%s%c%s", pathAsString(path),
+                                    kPathSeparator, libSearchPath);
   } else {
-    libSearchPath = path;
+    libSearchPath = pathAsString(path);
   }
-  system->envSet(varName, libSearchPath.string());
+  LOG(INFO) << "Setting " << varName << " to " << libSearchPath;
+  system->envSet(varName, pathAsString(libSearchPath));
 }
 
 #ifndef _WIN32

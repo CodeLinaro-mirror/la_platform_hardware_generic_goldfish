@@ -147,7 +147,7 @@ public:
    *
    * @return True if the encryption key image is found, false otherwise.
    */
-  bool hasEncryptionKey() const ;
+  bool hasEncryptionKey() const;
 
   /**
    * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
@@ -177,6 +177,17 @@ public:
    */
   static std::vector<std::string> list();
 
+
+  /**
+   * @brief Returns the path to the AVD's configuration file.
+   *
+   * This method returns the path to the AVD's configuration file, which is
+   * typically located in ~/.android/avd/
+   *
+   * @return Path to the avd configuration file
+   */
+  fs::path getIniFile() const { return mTarget->getBackingFile(); }
+
   /**
    * @brief Constructs an AVD object from its name.
    *
@@ -186,7 +197,7 @@ public:
    */
   static absl::StatusOr<Avd> fromName(std::string name);
 
-   /**
+  /**
    * @brief Retrieves the value of the specified property from the AVD's
    * configuration file (`config.ini`).
    *
@@ -199,17 +210,15 @@ public:
    * @return The value of the property, or the default value if the property
    *         is not found.
    */
-  template<class T>
-  T get(std::string property, T def = T()) {
+  template <class T> T get(std::string property, T def = T()) {
     return mConfig->get<T>(property, def);
   };
 
+  static absl::StatusOr<Avd> parse(fs::path ini_file);
 
 private:
   Avd(fs::path content_path, std::unique_ptr<IniFile> target,
       std::unique_ptr<IniFile> config, std::string name);
-
-  static absl::StatusOr<Avd> parse(fs::path target, std::string name);
 
   std::string mName;
   fs::path mContentPath; // Usually ~/.android/avd/<name>.avd/

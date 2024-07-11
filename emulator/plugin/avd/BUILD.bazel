@@ -1,0 +1,38 @@
+cc_library(
+    name = "avd_impl",
+    srcs = [
+        "src/android/goldfish/avd-info.cpp",
+    ],
+    hdrs = [
+        "include/android/goldfish/avd-info.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libhwcore",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/emulator/config",
+        # Every plugin should link against libmodule-common, as this will provide
+        # the DSO_STAMP_FUN_STR symbol, which the qemu loader will check against!
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+    ],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "avd",
+    linkshared = True,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [":avd_impl"] +
+           select({
+               "@platforms//os:windows": [
+                   "//external/qemu:qemu-system-x86_64.if",
+               ],
+               "//conditions:default": [],
+           }),
+)

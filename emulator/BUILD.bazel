@@ -84,6 +84,7 @@ pkg_files(
         "//external/qemu:hw-display-virtio-gpu-pci",
         "//external/qemu:hw-display-virtio-vga",
         "//external/qemu:hw-display-virtio-vga-gl",
+        "//hardware/generic/goldfish/emulator/plugin/avd",
         "//hardware/generic/goldfish/emulator/plugin/sample",
         "//hardware/generic/goldfish/emulator/plugin/sample:sample-base",
     ] + select({
