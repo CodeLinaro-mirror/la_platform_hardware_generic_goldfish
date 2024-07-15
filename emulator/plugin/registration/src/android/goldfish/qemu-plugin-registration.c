@@ -12,6 +12,17 @@
 #define LIB_PREFIX "lib"
 #endif
 
+#ifdef TARGET_X86_64
+#define ARCH_SUFFIX "x86_64"
+#elif defined TARGET_AARCH64
+#define ARCH_SUFFIX "aarch64"
+#elif defined TARGET_RISCV64
+#define ARCH_SUFFIX "riscv64"
+#else
+#error Unsupported CPU architecture
+#endif
+
+
 const QemuModinfo qemu_modinfo[] = {
     {
         /* hw-display-virtio-gpu.modinfo */
@@ -55,21 +66,6 @@ const QemuModinfo qemu_modinfo[] = {
         .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-vga", NULL}),
     },
     {
-        /* audio-pa.modinfo */
-        .name = LIB_PREFIX "audio-pa",
-        .objs = ((const char *[]){"audio-pa", NULL}),
-    },
-    {
-        /* accel-tcg-x86_64.modinfo */
-        .name = LIB_PREFIX "accel-tcg-x86_64",
-        .arch = "x86_64",
-        .objs = ((const char *[]){("tcg"
-                                   "-"
-                                   "accel"
-                                   "-ops"),
-                                  NULL}),
-    },
-    {
         .name = LIB_PREFIX "sample-base",
         .objs = ((const char *[]){"sample-base", NULL}),
     },
@@ -93,6 +89,21 @@ const QemuModinfo qemu_modinfo[] = {
         .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
                                   NULL}),
     },
+#ifdef __linux__
+    {
+        /* audio-pa.modinfo */
+        .name = LIB_PREFIX "audio-pa",
+        .objs = ((const char *[]){"audio-pa", NULL}),
+    },
+#endif
+#ifdef TARGET_X86_64
+    {
+        /* accel-tcg-x86_64.modinfo */
+        .name = LIB_PREFIX "accel-tcg-" ARCH_SUFFIX,
+        .arch = ARCH_SUFFIX,
+        .objs = ((const char *[]){("tcg-accel-ops"), NULL}),
+    },
+#endif
     {
         /* end of list */
     }};

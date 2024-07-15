@@ -1,12 +1,24 @@
-cc_library(
-    name = "registration",
+# Create implementations for each target.
+[cc_library(
+    name = arch,
     srcs = [
         "src/android/goldfish/qemu-plugin-registration.c",
     ],
+    defines = [
+        "NEED_CPU_H",
+        'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
+        'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
+    ],
+    includes = ["src"],
     visibility = [
         "//visibility:public",
     ],
     deps = [
         "//external/qemu:libhwcore",
+        "//external/qemu:qemu-headers",
     ],
-)
+) for arch in [
+    "riscv64",
+    "aarch64",
+    "x86_64",
+]]
