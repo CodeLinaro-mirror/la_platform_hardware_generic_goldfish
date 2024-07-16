@@ -38,8 +38,7 @@ public:
    * line. These parameters will be appended to the default command line
    * generated from the AVD configuration.
    */
-  explicit Emulator(Avd avd,
-                    const std::vector<std::string> &additionalParams = {});
+  explicit Emulator(Avd avd, std::vector<std::string> additionalParams = {});
 
   /**
    * @brief Retrieves a device driver of a specified type.

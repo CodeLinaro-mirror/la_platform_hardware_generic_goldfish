@@ -51,7 +51,7 @@ using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd, const std::vector<std::string> &additionalParams)
+Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
     : mAvd(std::move(avd)) {
 
   mDevices.emplace_back(std::make_unique<Machine>());
@@ -104,10 +104,11 @@ Emulator::Emulator(Avd avd, const std::vector<std::string> &additionalParams)
     simple_parameters.push_back("-L");
     simple_parameters.push_back(System::pathAsString(bios_path));
   }
-  simple_parameters.insert(simple_parameters.end(), additionalParams.begin(),
-                           additionalParams.end());
+  simple_parameters.insert(simple_parameters.end(),
+                           std::make_move_iterator(additionalParams.begin()),
+                           std::make_move_iterator(additionalParams.end()));
 
-  mDevices.emplace_back(std::make_unique<ParameterList>(simple_parameters));
+  mDevices.emplace_back(std::make_unique<ParameterList>(std::move(simple_parameters)));
   for (auto &device : mDevices) {
     mDeviceMap[device->id()] = device.get();
   }
