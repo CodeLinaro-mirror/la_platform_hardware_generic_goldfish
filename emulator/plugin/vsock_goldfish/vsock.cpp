@@ -184,7 +184,7 @@ struct GoldfishVirtioVsockDevice {
         stream.hostPort = hostPort;
         stream.sendOp(VIRTIO_VSOCK_OP_REQUEST);
 
-        (*mDevApi->haveHostToGuestPackets)(mDev);
+        (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
 
         return StreamHandle(this, streamKey);
     }
@@ -236,7 +236,7 @@ struct GoldfishVirtioVsockDevice {
             Stream& stream = streamI->second;
             if (stream.isConnected) {
                 stream.hostToGuestBuf.append(data, size);
-                (*mDevApi->haveHostToGuestPackets)(mDev);
+                (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
                 return true;
             } else {
                 return false;
@@ -269,7 +269,7 @@ struct GoldfishVirtioVsockDevice {
                             VIRTIO_VSOCK_OP_SHUTDOWN);
         mStreams.erase(streamI);
 
-        (*mDevApi->haveHostToGuestPackets)(mDev);
+        (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
     }
 
     void recycleStreamLocked(Stream &stream, const bool callOnClose,
@@ -411,8 +411,8 @@ struct GoldfishVirtioVsockDevice {
         DEBUG_MSG("this=%p, dev=%p, devApi=%p", this, dev, devApi);
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
-        mDev = dev;
-        mDevApi = devApi;
+        mQemuDev = dev;
+        mQemuDevApi = devApi;
     }
 
     void unrealize() {
@@ -520,10 +520,10 @@ struct GoldfishVirtioVsockDevice {
         VirtIOVSockSendResult sendResult;
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
-        const auto sendPacketHostToGuest = mDevApi->sendPacketHostToGuest;
+        const auto sendPacketHostToGuest = mQemuDevApi->sendPacketHostToGuest;
 
         while (!mOrphanPackets.empty()) {
-            sendResult = (*sendPacketHostToGuest)(mDev, &mOrphanPackets.front(), nullptr);
+            sendResult = (*sendPacketHostToGuest)(mQemuDev, &mOrphanPackets.front(), nullptr);
             if (VirtIOVSockSendNeedNotify(sendResult)) {
                 needNotify = true;
             }
@@ -554,7 +554,7 @@ struct GoldfishVirtioVsockDevice {
                 for (const auto op : ops) {
                     if (sendOpMask & (1U << op)) {
                         auto hdr = preparePacketHeaderLocked(stream, op, 0);
-                        sendResult = (*sendPacketHostToGuest)(mDev, &hdr, nullptr);
+                        sendResult = (*sendPacketHostToGuest)(mQemuDev, &hdr, nullptr);
                         if (VirtIOVSockSendNeedNotify(sendResult)) {
                             needNotify = true;
                         }
@@ -580,7 +580,7 @@ struct GoldfishVirtioVsockDevice {
                 auto hdr = preparePacketHeaderLocked(stream,
                                                      VIRTIO_VSOCK_OP_RW,
                                                      sendSize);
-                sendResult = (*sendPacketHostToGuest)(mDev, &hdr, data);
+                sendResult = (*sendPacketHostToGuest)(mQemuDev, &hdr, data);
                 stream.hostToGuestBuf.consume(sendSize);
                 stream.hostSentCnt += sendSize;
                 guestAvailSize -= sendSize;
@@ -732,7 +732,7 @@ struct GoldfishVirtioVsockDevice {
         }
 
         if (need_notify) {
-            (*mDevApi->haveHostToGuestPackets)(mDev);
+            (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
         }
 
         return 0;
@@ -750,8 +750,8 @@ struct GoldfishVirtioVsockDevice {
 
     mutable std::mutex mStateMutex;
 
-    void *mDev = nullptr;
-    const GoldfishVirtIOVSockDevAPI *mDevApi = nullptr;
+    void *mQemuDev = nullptr;
+    const GoldfishVirtIOVSockDevAPI *mQemuDevApi = nullptr;
     void *mParentStateArg = nullptr;
     int (*mParentStateSave)(const void *, QEMUFile *) = nullptr;
     int (*mParentStateLoad)(void *, QEMUFile *) = nullptr;
