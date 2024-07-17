@@ -7,6 +7,9 @@ cc_library(
         "include/goldfish/vsock/snapshot.h",
     ],
     includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
 )
 
 [cc_library(
