@@ -22,11 +22,11 @@
 #include "goldfish/vsock/snapshot.h"
 #include "vsock_low_level.h"
 
+#include "goldfish/QEMUFile.h"
+
 extern "C" {
 #include "qemu/compiler.h"
-#define coroutine_mixed_fn  // "qemu/osdep.h" breaks the Windows build
 #include "standard-headers/linux/virtio_vsock.h"
-#include "migration/qemu-file-types.h"
 }
 
 #define DEBUG_MSG(FMT, ...) \

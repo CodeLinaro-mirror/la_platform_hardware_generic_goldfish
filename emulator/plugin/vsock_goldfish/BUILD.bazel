@@ -34,6 +34,7 @@ cc_library(
         "//external/qemu:libhwcore",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/emulator/QEMUFile_h",
     ],
     alwayslink = True,
 ) for arch in [

@@ -1,0 +1,13 @@
+cc_library(
+    name = "QEMUFile_h",
+    hdrs = [
+        "include/goldfish/QEMUFile.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:qemu-headers",
+    ],
+)
