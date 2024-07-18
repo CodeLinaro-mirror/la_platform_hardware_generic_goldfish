@@ -1,8 +1,5 @@
 cc_library(
     name = "broadcasting",
-    srcs = [
-        "broadcasting.cpp",
-    ],
     hdrs = [
         "include/goldfish/broadcasting.h",
     ],
