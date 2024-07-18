@@ -12,13 +12,11 @@
 
 #pragma once
 #include <functional>
-#include <variant>
-#include "goldfish/vsock/Channel.h"
+#include "goldfish/devices/cable/cable.h"
 
 namespace vsock {
-using HostPortListenerResult = std::variant<ChannelPtr, StreamHandle>;
 using HostPortListener =
-    std::function<HostPortListenerResult(StreamHandle)>;
+    std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 
 bool listen(uint32_t hostPort, HostPortListener);
 }  // namespace vsock

@@ -1,7 +1,6 @@
 cc_library(
     name = "goldfish_vsock_hdrs",
     hdrs = [
-        "include/goldfish/vsock/Channel.h",
         "include/goldfish/vsock/connect.h",
         "include/goldfish/vsock/listen.h",
         "include/goldfish/vsock/snapshot.h",
@@ -35,6 +34,7 @@ cc_library(
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/QEMUFile_h",
+        "//hardware/generic/goldfish/emulator/devices:cable",
     ],
     alwayslink = True,
 ) for arch in [

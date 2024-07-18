@@ -11,8 +11,8 @@
 */
 
 #pragma once
-#include "goldfish/vsock/Channel.h"
+#include "goldfish/devices/cable/cable.h"
 
 namespace vsock {
-StreamHandle connect(uint32_t guestPort, ChannelPtr);
+devices::cable::SocketPtr connect(uint32_t guestPort, devices::cable::PlugPtr);
 }  // namespace vsock
