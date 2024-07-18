@@ -16,8 +16,9 @@
 #include "goldfish/vsock/Channel.h"
 
 namespace vsock {
+using HostPortListenerResult = std::variant<ChannelPtr, StreamHandle>;
 using HostPortListener =
-    std::function<std::variant<ChannelPtr, StreamHandle>(StreamHandle)>;
+    std::function<HostPortListenerResult(StreamHandle)>;
 
 bool listen(uint32_t hostPort, HostPortListener);
 }  // namespace vsock
