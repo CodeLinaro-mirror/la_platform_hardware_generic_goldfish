@@ -13,8 +13,12 @@
 #pragma once
 struct QEMUFile;
 
+namespace goldfish {
 namespace vsock {
+
 void setParentStateSnapshotHandlers(void *parent,
                                     int(*save)(const void *, QEMUFile *),
                                     int(*load)(void *, QEMUFile *));
+
 }  // namespace vsock
+}  // namespace goldfish

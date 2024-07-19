@@ -17,6 +17,7 @@
  * to save-load their internal implementations of `ISocket`.
  */
 
+namespace goldfish {
 namespace devices {
 namespace cable {
 
@@ -33,3 +34,4 @@ PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, QEMUFile *file);
 
 }  // namespace cable
 }  // namespace devices
+}  // namespace goldfish

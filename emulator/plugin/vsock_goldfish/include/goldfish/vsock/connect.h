@@ -13,6 +13,10 @@
 #pragma once
 #include "goldfish/devices/cable/cable.h"
 
+namespace goldfish {
 namespace vsock {
+
 devices::cable::SocketPtr connect(uint32_t guestPort, devices::cable::PlugPtr);
+
 }  // namespace vsock
+}  // namespace goldfish

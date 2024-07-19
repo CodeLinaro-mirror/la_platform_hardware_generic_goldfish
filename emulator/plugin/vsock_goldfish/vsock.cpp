@@ -42,11 +42,11 @@ extern "C" {
     } while (false); true; })
 
 namespace {
-using devices::cable::IPlug;
-using devices::cable::PlugOrSocket;
-using devices::cable::PlugPtr;
-using devices::cable::SocketPtr;
-using vsock::HostPortListener;
+using goldfish::devices::cable::IPlug;
+using goldfish::devices::cable::PlugOrSocket;
+using goldfish::devices::cable::PlugPtr;
+using goldfish::devices::cable::SocketPtr;
+using goldfish::vsock::HostPortListener;
 
 constexpr uint32_t kDynamicPortsStart = 1U << 31;
 
@@ -151,7 +151,7 @@ struct SocketBuffer {
 
 struct GoldfishVirtioVsockDevice;
 
-struct VsockStream : public devices::cable::ISocket {
+struct VsockStream : public goldfish::devices::cable::ISocket {
     VsockStream(GoldfishVirtioVsockDevice &dev,
                 const uint32_t guest, const uint32_t host)
         : vsockDev(dev), guestPort(guest), hostPort(host) {}
@@ -610,7 +610,7 @@ struct GoldfishVirtioVsockDevice {
                 qemu_put_be32(file, stream.hostSentCnt);
                 qemu_put_byte(file, (stream.isConnected ? 1U : 0U) | stream.sendOpMask);
                 stream.hostToGuestBuf.saveToSnapshot(file);
-                if (!devices::cable::savePlugToSnapshot(plug, file)) {
+                if (!savePlugToSnapshot(plug, file)) {
                     return 1;
                 }
             }
@@ -673,7 +673,6 @@ struct GoldfishVirtioVsockDevice {
                 }
                 stream.hostToGuestBuf.loadFromSnapshot(file);
 
-                using devices::cable::loadPlugFromSnapshot;
                 if (std::visit(PlugOrSocketVisitor(stream),
                                loadPlugFromSnapshot(SocketPtr(&stream), file))) {
                     return true;
@@ -761,6 +760,7 @@ PlugPtr VsockStream::unplugImpl() {
 }
 }  // namespace
 
+namespace goldfish {
 namespace vsock {
 using devices::cable::IPlug;
 using devices::cable::SocketPtr;
@@ -782,6 +782,7 @@ void setParentStateSnapshotHandlers(void *parent,
     return instance.setParentStateSnapshotHandlers(parent, save, load);
 }
 }  // namespace vsock
+}  // namespace goldfish
 
 ///////////////////////////////////////////////////////////////////////////////////////
 void* goldfish_virtio_vsock_impl_realize(void *dev,

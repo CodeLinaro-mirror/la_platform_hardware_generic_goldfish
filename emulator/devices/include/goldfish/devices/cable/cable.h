@@ -19,6 +19,7 @@
 
 struct QEMUFile;
 
+namespace goldfish {
 namespace devices {
 namespace cable {
 
@@ -136,3 +137,4 @@ bool registerPlugLoader(IPlug::TypeId, PlugLoader);
 
 }  // namespace cable
 }  // namespace devices
+}  // namespace goldfish

@@ -14,9 +14,13 @@
 #include <functional>
 #include "goldfish/devices/cable/cable.h"
 
+namespace goldfish {
 namespace vsock {
+
 using HostPortListener =
     std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 
 bool listen(uint32_t hostPort, HostPortListener);
+
 }  // namespace vsock
+}  // namespace goldfish

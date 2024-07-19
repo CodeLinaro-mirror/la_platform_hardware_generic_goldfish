@@ -15,6 +15,7 @@
 #include "goldfish/devices/cable/saveload.h"
 #include "goldfish/QEMUFile.h"
 
+namespace goldfish {
 namespace devices {
 namespace cable {
 namespace {
@@ -72,3 +73,4 @@ PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, QEMUFile *const file) {
 
 }  // namespace cable
 }  // namespace devices
+}  // namespace goldfish
