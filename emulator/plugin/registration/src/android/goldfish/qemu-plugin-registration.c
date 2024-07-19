@@ -22,7 +22,6 @@
 #error Unsupported CPU architecture
 #endif
 
-
 const QemuModinfo qemu_modinfo[] = {
     {
         /* hw-display-virtio-gpu.modinfo */
@@ -34,7 +33,8 @@ const QemuModinfo qemu_modinfo[] = {
         /* hw-display-virtio-gpu-rutabaga.modinfo */
         .name = LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
         .objs = ((const char *[]){"virtio-gpu-rutabaga-device", NULL}),
-        .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-gpu", NULL}),
+        .deps = ((const char *[]){LIB_PREFIX "rutabaga_ffi",
+                                  LIB_PREFIX "hw-display-virtio-gpu", NULL}),
     },
     {
         /* hw-display-virtio-gpu-pci.modinfo */
@@ -63,12 +63,14 @@ const QemuModinfo qemu_modinfo[] = {
         /* hw-display-virtio-vga-rutabaga.modinfo */
         .name = LIB_PREFIX "hw-display-virtio-vga-rutabaga",
         .objs = ((const char *[]){"virtio-vga-rutabaga", NULL}),
-        .deps = ((const char *[]){LIB_PREFIX "hw-display-virtio-vga", NULL}),
+        .deps = ((const char *[]){LIB_PREFIX "rutabaga_ffi",
+                                  LIB_PREFIX "hw-display-virtio-vga", NULL}),
     },
     {
         .name = LIB_PREFIX "sample-base",
         .objs = ((const char *[]){"sample-base", NULL}),
     },
+    {.name = LIB_PREFIX "rutabaga_ffi"},
     // This will make the module "sample" available inside qemu
     // In our case the sample driver is just very simple and doesn't really
     // do anything.
@@ -96,11 +98,8 @@ const QemuModinfo qemu_modinfo[] = {
     },
     {
         .name = LIB_PREFIX "virtio-vsock-goldfish-" ARCH_SUFFIX,
-        .objs = ((const char *[]){
-            "virtio-goldfish-vsock",
-            "virtio-goldfish-vsock-pci",
-            NULL
-        }),
+        .objs = ((const char *[]){"virtio-goldfish-vsock",
+                                  "virtio-goldfish-vsock-pci", NULL}),
         .opts = ((const char *[]){"device", NULL}),
     },
 #ifdef __linux__
