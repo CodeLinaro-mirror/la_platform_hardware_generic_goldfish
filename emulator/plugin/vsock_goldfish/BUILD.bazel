@@ -33,8 +33,8 @@ cc_library(
         "//external/qemu:libhwcore",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
-        "//hardware/generic/goldfish/emulator/QEMUFile_h",
         "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/libs/QEMUFile_h",
     ],
     alwayslink = True,
 ) for arch in [
