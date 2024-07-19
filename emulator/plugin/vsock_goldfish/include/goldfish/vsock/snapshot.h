@@ -11,16 +11,9 @@
 */
 
 #pragma once
-#include <functional>
-#include "goldfish/vsock/Channel.h"
-
 struct QEMUFile;
 
 namespace vsock {
-using ChannelLoader = std::function<ChannelPtr(QEMUFile *)>;
-
-bool registerChannelLoader(IChannel::TypeId, ChannelLoader);
-
 void setParentStateSnapshotHandlers(void *parent,
                                     int(*save)(const void *, QEMUFile *),
                                     int(*load)(void *, QEMUFile *));
