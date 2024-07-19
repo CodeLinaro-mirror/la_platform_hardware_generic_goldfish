@@ -12,14 +12,19 @@
 
 #pragma once
 #include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+
+struct QEMUFile;
 
 namespace goldfish {
-namespace vsock {
+namespace archive {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+struct QEMUFileReader : public IReader {
+    explicit QEMUFileReader(QEMUFile *file) : mFile(file) {}
 
-}  // namespace vsock
+    virtual size_t read(void *dst, size_t size) override;
+
+    QEMUFile *mFile;
+};
+
+}  // namespace archive
 }  // namespace goldfish

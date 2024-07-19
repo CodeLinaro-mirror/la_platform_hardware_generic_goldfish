@@ -1,0 +1,87 @@
+cc_library(
+    name = "zigzag",
+    hdrs = [
+        "include/goldfish/archive/zigzag.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+cc_test(
+    name = "zigzag_unittests",
+    size = "small",
+    srcs = [
+        "zigzag_unittests.cpp",
+    ],
+    deps = [
+        ":zigzag",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "archive",
+    hdrs = [
+        "include/goldfish/archive/Reader.h",
+        "include/goldfish/archive/Writer.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":zigzag",
+    ],
+)
+
+cc_library(
+    name = "DequeArchive",
+    srcs = [
+        "DequeArchive.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/archive/DequeArchive.h",
+        "include/goldfish/archive/DequeReader.h",
+        "include/goldfish/archive/DequeWriter.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":archive",
+    ],
+)
+
+cc_test(
+    name = "archive_unittests",
+    size = "small",
+    srcs = [
+        "archive_unittests.cpp",
+    ],
+    deps = [
+        ":DequeArchive",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "QEMUFileArchive",
+    srcs = [
+        "QEMUFileArchive.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/archive/QEMUFileReader.h",
+        "include/goldfish/archive/QEMUFileWriter.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":archive",
+        "//hardware/generic/goldfish/emulator/libs/QEMUFile_h",
+    ],
+)

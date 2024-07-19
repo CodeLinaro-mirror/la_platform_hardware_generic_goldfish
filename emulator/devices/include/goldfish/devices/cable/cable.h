@@ -17,7 +17,8 @@
 #include <string>
 #include <variant>
 
-struct QEMUFile;
+#include "goldfish/archive/Reader.h"
+#include "goldfish/archive/Writer.h"
 
 namespace goldfish {
 namespace devices {
@@ -122,7 +123,7 @@ struct IPlug {
      */
     virtual bool supportsLoadingFromSnapshot() const { return false; }
     virtual TypeId getSnapshotTypeId() const { return {}; }
-    virtual bool saveStateToSnapshot(QEMUFile *) const { return false; };
+    virtual bool saveStateToSnapshot(archive::IWriter &) const { return false; };
 };
 
 using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
@@ -131,7 +132,7 @@ using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
  * from `QEMUFile` (a snapshot). If it cannot load a plug,
  * it must return the `SocketPtr` back.
  */
-using PlugLoader = std::function<PlugOrSocket(SocketPtr, QEMUFile *)>;
+using PlugLoader = std::function<PlugOrSocket(SocketPtr, archive::IReader &)>;
 
 bool registerPlugLoader(IPlug::TypeId, PlugLoader);
 

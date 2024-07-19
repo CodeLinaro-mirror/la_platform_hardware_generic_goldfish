@@ -11,15 +11,23 @@
 */
 
 #pragma once
-#include "goldfish/archive/Reader.h"
+#include <cstdint>
+#include <deque>
 #include "goldfish/archive/Writer.h"
 
 namespace goldfish {
-namespace vsock {
+namespace archive {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+/* This is mostly for tests, see archive_unittests.cpp */
+struct DequeWriter : public IWriter {
+    using Storage = std::deque<uint8_t>;
 
-}  // namespace vsock
+    explicit DequeWriter(Storage *storage) : mStorage(storage) {}
+
+    virtual void write(const void *src, size_t size) override;
+
+    Storage *mStorage;
+};
+
+}  // namespace archive
 }  // namespace goldfish

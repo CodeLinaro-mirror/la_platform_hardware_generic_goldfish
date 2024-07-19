@@ -24,7 +24,8 @@
 #include "goldfish/vsock/snapshot.h"
 #include "vsock_low_level.h"
 
-#include "goldfish/QEMUFile.h"
+#include "goldfish/archive/QEMUFileReader.h"
+#include "goldfish/archive/QEMUFileWriter.h"
 
 extern "C" {
 #include "qemu/compiler.h"
@@ -42,6 +43,8 @@ extern "C" {
     } while (false); true; })
 
 namespace {
+using goldfish::archive::IReader;
+using goldfish::archive::IWriter;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugOrSocket;
 using goldfish::devices::cable::PlugPtr;
@@ -87,19 +90,18 @@ struct UniqueIdAllocator {
         mReturnedIds.clear();
     }
 
-    void saveToSnapshot(QEMUFile *file) const {
-        qemu_put_be32(file, mLastId);
-        qemu_put_be32(file, mReturnedIds.size());
+    void saveToSnapshot(IWriter &writer) const {
+        writer << mLastId << mReturnedIds.size();
         for (const uint32_t id : mReturnedIds) {
-            qemu_put_be32(file, id);
+            writer << id;
         }
     }
 
-    int loadFromSnapshot(QEMUFile *file) {
-        mLastId = qemu_get_be32(file);
+    int loadFromSnapshot(IReader &reader) {
+        mLastId = getUnsigned(reader);
         mReturnedIds.clear();
-        for (size_t n = qemu_get_be32(file); n > 0; --n) {
-            mReturnedIds.insert(qemu_get_be32(file));
+        for (size_t n = getUnsigned(reader); n > 0; --n) {
+            mReturnedIds.insert(getUnsigned(reader));
         }
 
         return 0;
@@ -128,21 +130,17 @@ struct SocketBuffer {
         mConsumed += size;
     }
 
-    void saveToSnapshot(QEMUFile *file) const {
+    void saveToSnapshot(IWriter &writer) const {
         const auto x = peek();
-        qemu_put_be32(file, x.second);
-        qemu_put_buffer(file,
-                        reinterpret_cast<const uint8_t *>(x.first),
-                        x.second);
+        writer << x.second;
+        writer.write(x.first, x.second);
     }
 
-    int loadFromSnapshot(QEMUFile *file) {
+    int loadFromSnapshot(IReader &reader) {
         mConsumed = 0;
-        const uint32_t size = qemu_get_be32(file);
+        const uint32_t size = getUnsigned(reader);
         mBuf.resize(size);
-        return (qemu_get_buffer(file,
-                                reinterpret_cast<uint8_t *>(mBuf.data()),
-                                size) == size) ? 0 : 1;
+        return (reader.read(mBuf.data(), size) == size) ? 0 : 1;
     }
 
     std::vector<uint8_t> mBuf;
@@ -236,8 +234,8 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void setParentStateSnapshotHandlers(void *parent,
-                                        int(*save)(const void *, QEMUFile *),
-                                        int(*load)(void *, QEMUFile *)) {
+                                        int(*save)(const void *, IWriter &),
+                                        int(*load)(void *, IReader &)) {
         mParentStateArg = parent;
         mParentStateSave = save;
         mParentStateLoad = load;
@@ -575,42 +573,43 @@ struct GoldfishVirtioVsockDevice {
         return needNotify;
     }
 
-    int saveToSnapshot(QEMUFile *const file) const {
+    int saveToSnapshot(IWriter &writer) const {
         DEBUG_MSG("this=%p", this);
         int r;
         if (mParentStateSave) {
-            r = (*mParentStateSave)(mParentStateArg, file);
+            r = (*mParentStateSave)(mParentStateArg, writer);
             if (r) {
                 return r;
             }
         }
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
-        mSrcPortAllocator.saveToSnapshot(file);
+        mSrcPortAllocator.saveToSnapshot(writer);
 
-        qemu_put_be32(file, mOrphanPackets.size());
-        for (const auto &packet : mStreams) {
-            qemu_put_buffer(file, reinterpret_cast<const uint8_t *>(&packet),
-                                  sizeof(packet));
+        writer << mOrphanPackets.size();
+        for (const auto &packet : mOrphanPackets) {
+            writer << packet.src_port << packet.dst_port
+                   << packet.op << packet.flags
+                   << packet.buf_alloc << packet.fwd_cnt;
         }
 
-        qemu_put_be32(file, mStreams.size());
+        writer << mStreams.size();
         for (const VsockStream &stream : mStreams) {
-            qemu_put_be32(file, stream.guestPort);
-            qemu_put_be32(file, stream.hostPort);
-            qemu_put_be32(file, stream.hostFwdCnt);
+            writer << stream.guestPort << stream.hostPort << stream.hostFwdCnt;
 
             ASSERT(stream.plug);
             const IPlug &plug = *stream.plug;
             const bool supportsLoading = plug.supportsLoadingFromSnapshot();
-            qemu_put_byte(file, supportsLoading);
+            writer << supportsLoading;
             if (supportsLoading) {
-                qemu_put_be32(file, stream.guestBufAlloc);
-                qemu_put_be32(file, stream.guestFwdCnt);
-                qemu_put_be32(file, stream.hostSentCnt);
-                qemu_put_byte(file, (stream.isConnected ? 1U : 0U) | stream.sendOpMask);
-                stream.hostToGuestBuf.saveToSnapshot(file);
-                if (!savePlugToSnapshot(plug, file)) {
+                const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
+
+                writer << stream.guestBufAlloc << stream.guestFwdCnt
+                       << stream.hostSentCnt << flags;
+
+                stream.hostToGuestBuf.saveToSnapshot(writer);
+
+                if (!savePlugToSnapshot(plug, writer)) {
                     return 1;
                 }
             }
@@ -619,40 +618,44 @@ struct GoldfishVirtioVsockDevice {
         return 0;
     }
 
-    int loadFromSnapshot(QEMUFile *const file) {
+    int loadFromSnapshot(IReader &reader) {
         DEBUG_MSG("this=%p", this);
         int r;
         if (mParentStateLoad) {
-            r = (*mParentStateLoad)(mParentStateArg, file);
+            r = (*mParentStateLoad)(mParentStateArg, reader);
             if (r) {
                 return r;
             }
         }
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
-        r = mSrcPortAllocator.loadFromSnapshot(file);
+        r = mSrcPortAllocator.loadFromSnapshot(reader);
         if (r) {
             return r;
         }
 
         mOrphanPackets.clear();
-        for (uint32_t n = qemu_get_be32(file); n > 0; --n) {
+        for (size_t n = getUnsigned(reader); n > 0; --n) {
             decltype(mOrphanPackets)::value_type packet;
-            if (qemu_get_buffer(file,
-                                reinterpret_cast<uint8_t *>(&packet),
-                                sizeof(packet)) != sizeof(packet)) {
-                return 1;
-            }
+
+            packet.src_port = getUnsigned(reader);
+            packet.dst_port = getUnsigned(reader);
+            packet.op = getUnsigned(reader);
+            packet.flags = getUnsigned(reader);
+            packet.buf_alloc = getUnsigned(reader);
+            packet.fwd_cnt = getUnsigned(reader);
+            packet.len = 0;  // orphan packets don't carry data
+            packet.type = VIRTIO_VSOCK_TYPE_STREAM;
             mOrphanPackets.push_back(packet);
         }
 
         bool need_notify = false;
         mStreams.clear();
-        for (uint32_t n = qemu_get_be32(file); n > 0; --n) {
-            const uint32_t guestPort = qemu_get_be32(file);
-            const uint32_t hostPort = qemu_get_be32(file);
-            const uint32_t hostFwdCnt = qemu_get_be32(file);
-            const bool supportsLoading = qemu_get_byte(file);
+        for (size_t n = getUnsigned(reader); n > 0; --n) {
+            const uint32_t guestPort = getUnsigned(reader);
+            const uint32_t hostPort = getUnsigned(reader);
+            const uint32_t hostFwdCnt = getUnsigned(reader);
+            const bool supportsLoading = (getUnsigned(reader) != 0);
             if (supportsLoading) {
                 const auto [streamI, inserted] =
                     mStreams.emplace(*this, guestPort, hostPort);
@@ -663,18 +666,18 @@ struct GoldfishVirtioVsockDevice {
                 VsockStream &stream = const_cast<VsockStream &>(*streamI);
 
                 stream.hostFwdCnt = hostFwdCnt;
-                stream.guestBufAlloc = qemu_get_be32(file);
-                stream.guestFwdCnt = qemu_get_be32(file);
-                stream.hostSentCnt = qemu_get_be32(file);
+                stream.guestBufAlloc = getUnsigned(reader);
+                stream.guestFwdCnt = getUnsigned(reader);
+                stream.hostSentCnt = getUnsigned(reader);
                 {
-                    const uint8_t flags = qemu_get_byte(file);
+                    const uint8_t flags = getUnsigned(reader);
                     stream.isConnected = (flags & 1U) != 0;
                     stream.sendOpMask = flags & ~1U;
                 }
-                stream.hostToGuestBuf.loadFromSnapshot(file);
+                stream.hostToGuestBuf.loadFromSnapshot(reader);
 
                 if (std::visit(PlugOrSocketVisitor(stream),
-                               loadPlugFromSnapshot(SocketPtr(&stream), file))) {
+                               loadPlugFromSnapshot(SocketPtr(&stream), reader))) {
                     return true;
                 } else {
                     mStreams.erase(streamI);
@@ -735,8 +738,8 @@ struct GoldfishVirtioVsockDevice {
     void *mQemuDev = nullptr;
     const GoldfishVirtIOVSockDevAPI *mQemuDevApi = nullptr;
     void *mParentStateArg = nullptr;
-    int (*mParentStateSave)(const void *, QEMUFile *) = nullptr;
-    int (*mParentStateLoad)(void *, QEMUFile *) = nullptr;
+    int (*mParentStateSave)(const void *, IWriter &) = nullptr;
+    int (*mParentStateLoad)(void *, IReader &) = nullptr;
     std::unordered_map<uint32_t, HostPortListener> mHostPortListeners;
 
     // Everything below is snapshotted
@@ -776,8 +779,8 @@ bool listen(const uint32_t hostPort, HostPortListener listener) {
 }
 
 void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, QEMUFile *),
-                                    int(*load)(void *, QEMUFile *)) {
+                                    int(*save)(const void *, archive::IWriter &),
+                                    int(*load)(void *, archive::IReader &)) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
     return instance.setParentStateSnapshotHandlers(parent, save, load);
 }
@@ -815,9 +818,11 @@ int goldfish_virtio_vsock_handle_event_to_guest(void *impl) {
 }
 
 int goldfish_virtio_vsock_impl_save(const void *impl, QEMUFile *f) {
-    return GoldfishVirtioVsockDevice::from(impl).saveToSnapshot(f);
+    goldfish::archive::QEMUFileWriter writer(f);
+    return GoldfishVirtioVsockDevice::from(impl).saveToSnapshot(writer);
 }
 
 int goldfish_virtio_vsock_impl_load(void *impl, QEMUFile *f) {
-    return GoldfishVirtioVsockDevice::from(impl).loadFromSnapshot(f);
+    goldfish::archive::QEMUFileReader reader(f);
+    return GoldfishVirtioVsockDevice::from(impl).loadFromSnapshot(reader);
 }

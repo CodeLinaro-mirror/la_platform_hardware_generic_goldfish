@@ -12,6 +12,8 @@
 
 #pragma once
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/archive/Reader.h"
+#include "goldfish/archive/Writer.h"
 
 /* These functions should be used inside socket managers
  * to save-load their internal implementations of `ISocket`.
@@ -24,13 +26,13 @@ namespace cable {
 /* fully (both `IPlug::TypeId` and its state) saves
  *`IPlug` to a snapshot.
  */
-bool savePlugToSnapshot(const IPlug &plug, QEMUFile *file);
+bool savePlugToSnapshot(const IPlug &plug, archive::IWriter &);
 
 /* reads `IPlug::TypeId`, finds its loader (see `registerPlugLoader`
  * in cable.h) and loads an `IPlug` from a snapshot. If any of these
  * operation fails, it returns the given `socket` back.
  */
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, QEMUFile *file);
+PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, archive::IReader &);
 
 }  // namespace cable
 }  // namespace devices

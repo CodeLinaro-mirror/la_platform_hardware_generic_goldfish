@@ -11,15 +11,27 @@
 */
 
 #pragma once
-#include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+#include <climits>
+#include <cstdint>
 
 namespace goldfish {
-namespace vsock {
+namespace archive {
+namespace zigzag {
+namespace {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+using unsigned_t = uint64_t;
+using signed_t = int64_t;
+static_assert(sizeof(unsigned_t) == sizeof(signed_t));
 
-}  // namespace vsock
+unsigned_t encode(const signed_t x) {
+    return (x >> (sizeof(x) * CHAR_BIT - 1)) ^ (x << 1);
+}
+
+signed_t decode(const unsigned_t x) {
+    return (x >> 1) ^ -signed_t(x & 1);
+}
+
+}  // namespace
+}  // namespace zigzag
+}  // namespace archive
 }  // namespace goldfish

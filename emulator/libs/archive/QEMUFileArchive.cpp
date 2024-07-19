@@ -10,16 +10,20 @@
  * GNU General Public License for more details.
 */
 
-#pragma once
-#include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+#include "goldfish/archive/QEMUFileReader.h"
+#include "goldfish/archive/QEMUFileWriter.h"
+#include "goldfish/QEMUFile.h"
 
 namespace goldfish {
-namespace vsock {
+namespace archive {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+size_t QEMUFileReader::read(void *dst, const size_t size) {
+    return qemu_get_buffer(mFile, static_cast<uint8_t *>(dst), size);
+}
 
-}  // namespace vsock
+void QEMUFileWriter::write(const void *src, const size_t size) {
+    qemu_put_buffer(mFile, static_cast<const uint8_t *>(src), size);
+}
+
+}  // namespace archive
 }  // namespace goldfish

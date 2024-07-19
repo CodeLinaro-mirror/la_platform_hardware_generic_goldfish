@@ -13,7 +13,6 @@
 #include <unordered_map>
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/cable/saveload.h"
-#include "goldfish/QEMUFile.h"
 
 namespace goldfish {
 namespace devices {
@@ -35,30 +34,27 @@ bool registerPlugLoader(IPlug::TypeId typeId, PlugLoader loader) {
                                 std::move(loader)}).second;
 }
 
-bool savePlugToSnapshot(const IPlug &plug, QEMUFile *const file) {
+using archive::IWriter;
+
+bool savePlugToSnapshot(const IPlug &plug, IWriter &writer) {
     if (!plug.supportsLoadingFromSnapshot()) {
         return false;
     }
 
     const std::string id = plug.getSnapshotTypeId();
-    const size_t idSize = id.size();
-    if ((idSize == 0) || (idSize > UINT8_MAX)) {
+    if (id.empty()) {
         return false;
     }
 
-    qemu_put_byte(file, idSize);
-    qemu_put_buffer(file, reinterpret_cast<const uint8_t *>(id.data()), idSize);
-    return plug.saveStateToSnapshot(file);
+    writer << id;
+    return plug.saveStateToSnapshot(writer);
 }
 
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, QEMUFile *const file) {
-    const size_t idSize = qemu_get_byte(file);
-    if (idSize == 0) {
-        return socket;
-    }
+using archive::IReader;
 
-    std::string id(idSize, '?');
-    if (qemu_get_buffer(file, reinterpret_cast<uint8_t *>(id.data()), idSize) != idSize) {
+PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader &reader) {
+    const std::string id = getString(reader);
+    if (id.empty()) {
         return socket;
     }
 
@@ -68,7 +64,7 @@ PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, QEMUFile *const file) {
         return socket;
     }
 
-    return (i->second)(std::move(socket), file);
+    return (i->second)(std::move(socket), reader);
 }
 
 }  // namespace cable

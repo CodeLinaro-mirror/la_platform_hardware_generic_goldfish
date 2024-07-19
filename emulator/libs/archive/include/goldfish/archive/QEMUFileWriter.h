@@ -11,15 +11,20 @@
 */
 
 #pragma once
-#include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
 
+struct QEMUFile;
+
 namespace goldfish {
-namespace vsock {
+namespace archive {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+struct QEMUFileWriter : public IWriter {
+    explicit QEMUFileWriter(QEMUFile *file) : mFile(file) {}
 
-}  // namespace vsock
+    virtual void write(const void *src, size_t size) override;
+
+    QEMUFile *mFile;
+};
+
+}  // namespace archive
 }  // namespace goldfish
