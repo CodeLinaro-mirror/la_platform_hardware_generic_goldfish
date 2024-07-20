@@ -1,0 +1,25 @@
+cc_library(
+    name = "broadcasting",
+    srcs = [
+        "broadcasting.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/broadcasting.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+cc_test(
+    name = "broadcasting_unittests",
+    size = "small",
+    srcs = [
+        "broadcasting_unittests.cpp",
+    ],
+    deps = [
+        ":broadcasting",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
