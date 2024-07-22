@@ -17,67 +17,110 @@
 namespace {
 using goldfish::broadcasting::Ticket;
 using IntegerTopic = goldfish::broadcasting::Topic<int>;
+using VoidTopic = goldfish::broadcasting::Topic<void>;
 
 struct MySubscriber {
-    bool notify(const int x) {
+    std::optional<Ticket> notify(const int x) {
         value = x;
-        return wantMoreBroadcasts;
+
+        if (wantMoreBroadcasts) {
+            return std::nullopt;
+        } else {
+            return std::move(ticket);
+        }
     }
 
     Ticket ticket;
     int value = 0;
     bool wantMoreBroadcasts = true;
 };
-
-using MySubscriberPtr = std::shared_ptr<MySubscriber>;
 }  // namespace
 
 TEST(broadcasting, example) {
     IntegerTopic integerTopic;
-    std::vector<MySubscriberPtr> subscribers(5);
-    for (MySubscriberPtr &s : subscribers) {
-        s = std::make_shared<MySubscriber>();
+    std::vector<MySubscriber> subscribers(5);
+
+    integerTopic.broadcast(42);
+    for (MySubscriber &s : subscribers) {
+        EXPECT_EQ(s.value, 0);  // not subscribed yet
+        s.ticket = std::move(integerTopic.subscribe(s, &MySubscriber::notify));
+        EXPECT_TRUE(s.ticket.isSubscribed());  // now subscribed
     }
 
     integerTopic.broadcast(42);
-    for (MySubscriberPtr &s : subscribers) {
-        EXPECT_EQ(s->value, 0);  // not subscribed yet
-        s->ticket = integerTopic.subscribe(s, &MySubscriber::notify);
-        EXPECT_FALSE(s->ticket.empty());  // now subscribed
-    }
-
-    integerTopic.broadcast(42);
-    for (const MySubscriberPtr &s : subscribers) {
-        EXPECT_EQ(s->value, 42);
+    for (const MySubscriber &s : subscribers) {
+        EXPECT_EQ(s.value, 42);
     }
 
     // unsubscribe two
-    integerTopic.unsubscribe(&subscribers[0]->ticket);
-    EXPECT_TRUE(subscribers[0]->ticket.empty());
-    integerTopic.unsubscribe(&subscribers[2]->ticket);
-    EXPECT_TRUE(subscribers[2]->ticket.empty());
+    subscribers[0].ticket.unsubscribe();
+    EXPECT_FALSE(subscribers[0].ticket.isSubscribed());
+    subscribers[2].ticket.unsubscribe();
+    EXPECT_FALSE(subscribers[2].ticket.isSubscribed());
 
     integerTopic.broadcast(77);
-    EXPECT_EQ(subscribers[0]->value, 42);  // unsubscribed above
-    EXPECT_EQ(subscribers[1]->value, 77);
-    EXPECT_EQ(subscribers[2]->value, 42);  // unsubscribed above
-    EXPECT_EQ(subscribers[3]->value, 77);
-    EXPECT_EQ(subscribers[4]->value, 77);
+    EXPECT_EQ(subscribers[0].value, 42);  // unsubscribed above
+    EXPECT_EQ(subscribers[1].value, 77);
+    EXPECT_EQ(subscribers[2].value, 42);  // unsubscribed above
+    EXPECT_EQ(subscribers[3].value, 77);
+    EXPECT_EQ(subscribers[4].value, 77);
 
-    subscribers[3]->wantMoreBroadcasts = false;
-    subscribers[4]->wantMoreBroadcasts = false;
+    subscribers[3].wantMoreBroadcasts = false;
+    subscribers[4].wantMoreBroadcasts = false;
 
     integerTopic.broadcast(15);
-    EXPECT_EQ(subscribers[0]->value, 42);
-    EXPECT_EQ(subscribers[1]->value, 15);
-    EXPECT_EQ(subscribers[2]->value, 42);
-    EXPECT_EQ(subscribers[3]->value, 15);  // this broadcast is still received
-    EXPECT_EQ(subscribers[4]->value, 15);  // this broadcast is still received
+    EXPECT_EQ(subscribers[0].value, 42);
+    EXPECT_EQ(subscribers[1].value, 15);
+    EXPECT_EQ(subscribers[2].value, 42);
+    EXPECT_EQ(subscribers[3].value, 15);  // this broadcast is still received
+    EXPECT_EQ(subscribers[4].value, 15);  // this broadcast is still received
 
     integerTopic.broadcast(99);
-    EXPECT_EQ(subscribers[0]->value, 42);
-    EXPECT_EQ(subscribers[1]->value, 99);
-    EXPECT_EQ(subscribers[2]->value, 42);
-    EXPECT_EQ(subscribers[3]->value, 15);  // unsubscribed, see `wantMoreBroadcasts` above
-    EXPECT_EQ(subscribers[4]->value, 15);  // unsubscribed, see `wantMoreBroadcasts` above
+    EXPECT_EQ(subscribers[0].value, 42);
+    EXPECT_EQ(subscribers[1].value, 99);
+    EXPECT_EQ(subscribers[2].value, 42);
+    EXPECT_EQ(subscribers[3].value, 15);  // unsubscribed, see `wantMoreBroadcasts` above
+    EXPECT_EQ(subscribers[4].value, 15);  // unsubscribed, see `wantMoreBroadcasts` above
+
+    subscribers[1].ticket.unsubscribe();  // all MUST explicitly unsubscribe
+
+    for (const MySubscriber &s : subscribers) {
+        EXPECT_FALSE(s.ticket.isSubscribed());
+    }
+}
+
+TEST(broadcasting, build_test_TakesArgsReturnsVoid) {
+    struct TakesArgsReturnsVoid {
+        void notify(const int x) {}
+    };
+
+    IntegerTopic integerTopic;
+    TakesArgsReturnsVoid subscriber;
+    Ticket ticket = integerTopic.subscribe(subscriber,
+                                           &TakesArgsReturnsVoid::notify);
+    ticket.unsubscribe();
+}
+
+TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
+    struct NoArgsReturnsMaybeTicket {
+        std::optional<Ticket> notify() { return std::nullopt; }
+    };
+
+    VoidTopic voidTopic;
+    NoArgsReturnsMaybeTicket subscriber;
+    Ticket ticket = voidTopic.subscribe(subscriber,
+                                        &NoArgsReturnsMaybeTicket::notify);
+    ticket.unsubscribe();
+}
+
+TEST(broadcasting, build_test_NoArgsReturnsVoid) {
+    struct NoArgsReturnsVoid {
+        void notify() {}
+    };
+
+    VoidTopic voidTopic;
+    NoArgsReturnsVoid subscriber;
+    Ticket ticket = voidTopic.subscribe(subscriber,
+                                        &NoArgsReturnsVoid::notify);
+    ticket.unsubscribe();
 }

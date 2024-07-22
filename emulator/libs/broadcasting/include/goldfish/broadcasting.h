@@ -11,8 +11,10 @@
 */
 
 #pragma once
+#include <cassert>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -24,66 +26,104 @@ namespace broadcasting {
  * `Topic<Args...>` a class to send broadcasts that take arguments
  * `Args...` to subscribers. Please note that `Args...` can be
  * `void` (see `Topic<void>` below) which means "no arguments".
-
+ *
+ * `Ticket` - represent a subscription handle. All subscriptions
+ * MUST be explicily unsubscribed via `Ticket::unsubscribe()`,
+ * see `~Ticket()`. Please note you CANNOT unsubscribe in your
+ * class destructor (because a broadcast can arrive up to the
+ * `Ticket::unsubscribe()` call).
+ *
  * Callback:
- * 1. std::function<bool(Args...)>, it is taken by value and stored
- *    inside the `Topic` instance until you unsubscribe by calling
- *    `Topic::unsubscribe` explicitly or by returning `false` from
- *    the callback. It is up to you how to manage the lifetimes of
- *    objects which you function depends on.
+ * 1. std::function<std::optional<Ticket>(Args...)>, it is taken
+ *    by value and stored inside the `Topic` instance until you
+ *    unsubscribe by calling`Ticket::unsubscribe()` explicitly
+ *    or by returning `Ticket` from the callback. It is up to you
+ *    how to manage the lifetimes of objects which your function
+ *    depends on.
  * 2. The `Topic` class provides the `subscribe` call
- *    (see `Topic::subscribe`) to build the function above from
- *    `const std::shared_ptr<T> &` and a pointer to T's method.
- *    The callback stores a weak pointer to `T` and calling
- *    `Topic::unsubscribe` is optional in this case: the callback
- *     will return `false` once `T` is destroyed.
+ *    (see `Topic::subscribe`) to build the callback above from
+ *    `T &` and a pointer to T's method. The same lifetime rules
+ *    apply.
  *
  * Subscribing:
  * 1. Gives you a ticket to unsubscribe.
  * 2. Subscribing multiple times with the same arguments will create
  *    multiple subscriptions with different tickets.
- *
- * Explicit unsubsribing (`Topic::unsubscribe`):
- * 1. Passing an empty (see `bool Ticket::empty() const`) ticket has
- *    no effect.
- * 2. optional, if your callback handles lifetimes of its dependencies.
- * 3. calling `Topic::unsubscribe` with the same `Ticket` multiple
- *    times is undefined behavior:`Ticket` values could be reused,
- *    which means you would be unsubscribing someone else), see
- *   `Topic::unsubscribe(Ticket *ticket)` to clear the ticket value.
  */
 
+struct TopicBase;
+template <class Callback> struct TopicBaseTpl;
+template <class... Args> struct Topic;
+
 struct Ticket {
+    ~Ticket() { assert(!isSubscribed()); }
+
+    Ticket() = default;
+
+    Ticket(Ticket &&rhs)
+        : Ticket(std::exchange(rhs.mTopic, nullptr), rhs.mValue) {}
+
+    Ticket& operator=(Ticket &&rhs) {
+        if (this != &rhs) {
+            swap(*this, rhs);
+        }
+        return *this;
+    }
+
+    bool isSubscribed() const { return mTopic != nullptr; }
+    void unsubscribe();
+
+    static void swap(Ticket &lhs, Ticket &rhs) {
+        using std::swap;
+        swap(lhs.mTopic, rhs.mTopic);
+        swap(lhs.mValue, rhs.mValue);
+    }
+
+    Ticket(const Ticket &) = delete;
+    Ticket& operator=(const Ticket &) = delete;
+
+private:
+    friend TopicBase;
+    template <class Callback> friend struct TopicBaseTpl;
+    template <class... Args> friend struct Topic;
+
     using value_t = unsigned;
-    static constexpr value_t kEmpty = 0;
-    value_t value = kEmpty;
-    bool empty() const { return value == kEmpty; }
+
+    Ticket(TopicBase *const topic, const value_t value)
+        : mTopic(topic), mValue(value) {}
+
+    void release() { mTopic = nullptr; }
+
+    TopicBase *mTopic = nullptr;
+    value_t mValue = 0;
 };
 
-template <class Callback> struct TopicBaseTpl {
+struct TopicBase {
+    virtual ~TopicBase() {}
+
+private:
+    friend Ticket;
+    virtual void unsubscribeImpl(Ticket::value_t) = 0;
+};
+
+inline void Ticket::unsubscribe() {
+    if (mTopic) {
+        mTopic->unsubscribeImpl(mValue);
+        mTopic = nullptr;
+    }
+}
+
+template <class Callback> struct TopicBaseTpl : public TopicBase {
     Ticket subscribe(Callback callback) {
         std::lock_guard<std::mutex> guard(mMutex);
         while (true) {
-            const Ticket::value_t ticket = generateTicket();
+            const Ticket::value_t ticket = ++mLastTicket;
             const auto result = mSubscriptions.insert({ticket, {}});
             if (result.second) {
                 result.first->second = std::move(callback);
-                return { .value = ticket };
+                return Ticket(this, ticket);
             }
         }
-    }
-
-    void unsubscribe(const Ticket ticket) {
-        const auto value = ticket.value;
-        if (value) {
-            std::lock_guard<std::mutex> guard(mMutex);
-            mSubscriptions.erase(value);
-        }
-    }
-
-    void unsubscribe(Ticket *const ticket) {
-        unsubscribe(*ticket);
-        ticket->value = Ticket::kEmpty;
     }
 
     TopicBaseTpl(const TopicBaseTpl &) = delete;
@@ -94,34 +134,34 @@ template <class Callback> struct TopicBaseTpl {
 protected:
     TopicBaseTpl() = default;
 
-    Ticket::value_t generateTicket() {
-        const Ticket::value_t ticket = ++mLastTicket;
-        if (ticket != Ticket::kEmpty) {
-            return ticket;
-        } else {
-            return ++mLastTicket;
-        }
-    }
-
     std::unordered_map<Ticket::value_t, Callback> mSubscriptions;
-    Ticket::value_t mLastTicket = Ticket::kEmpty;
+    Ticket::value_t mLastTicket = {};
     std::mutex mMutex;
+
+private:
+    void unsubscribeImpl(const Ticket::value_t ticket) override {
+        std::lock_guard<std::mutex> guard(mMutex);
+        mSubscriptions.erase(ticket);
+    }
 };
 
-template <class... Args> struct Topic : public TopicBaseTpl<std::function<bool(Args...)>> {
-    using Callback = std::function<bool(Args...)>;
-    using TopicBase = TopicBaseTpl<Callback>;
-    using TopicBase::subscribe;
-    using TopicBase::mSubscriptions;
-    using TopicBase::mMutex;
+template <class... Args> struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
+    using Callback = std::function<std::optional<Ticket>(Args...)>;
+    using TopicT = TopicBaseTpl<Callback>;
+    using TopicT::subscribe;
+    using TopicT::mSubscriptions;
+    using TopicT::mMutex;
 
-    template <class T> Ticket subscribe(const std::shared_ptr<T> &object,
-                                        bool (T::*const method)(Args...)) {
-        auto weakObject = std::weak_ptr<T>(object);
+    template <class T> Ticket subscribe(T &object, std::optional<Ticket>(T::*const method)(Args...)) {
+        return subscribe([&object, method](Args... args){
+            return (object.*method)(std::forward<Args>(args)...);
+        });
+    }
 
-        return subscribe([method, weakObject = std::move(weakObject)](Args... args){
-            const auto object = weakObject.lock();
-            return object && (*object.*method)(std::forward<Args>(args)...);
+    template <class T> Ticket subscribe(T &object, void(T::*const method)(Args...)) {
+        return subscribe([&object, method](Args... args) {
+            (object.*method)(std::forward<Args>(args)...);
+            return std::nullopt;
         });
     }
 
@@ -129,29 +169,36 @@ template <class... Args> struct Topic : public TopicBaseTpl<std::function<bool(A
         std::lock_guard<std::mutex> guard(mMutex);
         auto i = mSubscriptions.begin();
         while (i != mSubscriptions.end()) {
-            if ((i->second)(std::forward<Args>(args)...)) {
-                ++i;
-            } else {
+            std::optional<Ticket> result = (i->second)(std::forward<Args>(args)...);
+            if (result.has_value()) {
+                assert(result->mTopic == this);
+                assert(result->mValue == i->first);
+                result->release();
                 i = mSubscriptions.erase(i);
+            } else {
+                ++i;
             }
         }
     }
 };
 
-template <> struct Topic<void> : public TopicBaseTpl<std::function<bool()>> {
-    using Callback = std::function<bool()>;
-    using TopicBase = TopicBaseTpl<Callback>;
-    using TopicBase::subscribe;
-    using TopicBase::mSubscriptions;
-    using TopicBase::mMutex;
+template <> struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>> {
+    using Callback = std::function<std::optional<Ticket>(void)>;
+    using TopicT = TopicBaseTpl<Callback>;
+    using TopicT::subscribe;
+    using TopicT::mSubscriptions;
+    using TopicT::mMutex;
 
-    template <class T> Ticket subscribe(const std::shared_ptr<T> &object,
-                                        bool (T::*const method)()) {
-        auto weakObject = std::weak_ptr<T>(object);
+    template <class T> Ticket subscribe(T &object, std::optional<Ticket>(T::*const method)()) {
+        return subscribe([&object, method](){
+            return (object.*method)();
+        });
+    }
 
-        return subscribe([method, weakObject = std::move(weakObject)](){
-            const auto object = weakObject.lock();
-            return object && (*object.*method)();
+    template <class T> Ticket subscribe(T &object, void(T::*const method)()) {
+        return subscribe([&object, method]() {
+            (object.*method)();
+            return std::nullopt;
         });
     }
 
@@ -159,10 +206,14 @@ template <> struct Topic<void> : public TopicBaseTpl<std::function<bool()>> {
         std::lock_guard<std::mutex> guard(mMutex);
         auto i = mSubscriptions.begin();
         while (i != mSubscriptions.end()) {
-            if ((i->second)()) {
-                ++i;
-            } else {
+            std::optional<Ticket> result = (i->second)();
+            if (result.has_value()) {
+                assert(result->mTopic == this);
+                assert(result->mValue == i->first);
+                result->release();
                 i = mSubscriptions.erase(i);
+            } else {
+                ++i;
             }
         }
     }
