@@ -92,9 +92,11 @@ struct IPlug {
     virtual ~IPlug() {}
 
     /* `onConnect` is called when the connection is ready to use,
-     * see `ISocket::sendAsync` above.
+     * see `ISocket::sendAsync` above. It is called only once, so
+     * if you replace plugs (with `ISocket::switchPlug`),
+     * `onConnect` will not be called for the new plug.
      */
-    virtual void onConnect() = 0;
+    virtual void onConnect() {}
 
     /* `onReceive` is called when there is data to process.
      * There is no way to process data partially (you will
