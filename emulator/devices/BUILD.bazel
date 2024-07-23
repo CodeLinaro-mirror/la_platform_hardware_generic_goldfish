@@ -16,3 +16,52 @@ cc_library(
     ],
     alwayslink = True,
 )
+
+cc_library(
+    name = "PingTopic",
+    hdrs = [
+        "include/goldfish/devices/PingTopic.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/broadcasting",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "devices",
+    srcs = [
+        "Connector.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/devices/Connector.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":PingTopic",
+        ":cable",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "devices_unittests",
+    size = "small",
+    srcs = glob(
+        [
+            "test/*.cpp",
+        ],
+    ),
+    deps = [
+        ":devices",
+        "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

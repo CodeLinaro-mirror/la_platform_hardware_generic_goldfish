@@ -1,0 +1,157 @@
+/* Copyright (C) 2024 The Android Open Source Project
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+*/
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+
+#include "goldfish/devices/Connector.h"
+
+namespace goldfish {
+namespace devices {
+using cable::PlugPtr;
+using cable::SocketPtr;
+
+namespace {
+struct ErrorPlug : public cable::IPlug {
+    ErrorPlug(cable::SocketPtr socket) : mSocket(std::move(socket)) {}
+
+    cable::SocketPtr onUnplug() override { return std::move(mSocket); }
+
+    bool onReceive(const void *, size_t) override { return false; }
+
+    cable::SocketPtr mSocket;
+};
+
+bool qnameEquals(const char q, const std::string_view name, const char *qname) {
+    return (q == *qname) && (0 == strncmp(name.data(), qname + 1, name.size()))
+        && (0 == qname[name.size() + 1]);
+}
+
+bool startsWith(const std::string_view text, const std::string_view prefix) {
+    return (text.size() >= prefix.size()) && (0 == text.compare(0, prefix.size(), prefix));
+}
+}  // namespace
+
+Connector::Connector(SocketPtr socket, PingTopic &pingTopic,
+                     const DeviceEntry *devicesEntries,
+                     const size_t devicesEntriesSize)
+        : mSocket(std::move(socket)), mPingTopic(pingTopic)
+        , mDevicesEntries(devicesEntries)
+        , mDevicesEntriesSize(devicesEntriesSize) {}
+
+SocketPtr Connector::onUnplug() { return std::move(mSocket); }
+
+bool Connector::onReceive(const void *data, const size_t size) {
+    // TODO: consider to be zero-copy (avoid `insert`ing into `mBuffer`)
+    const char *const data8 = static_cast<const char *>(data);
+    const char *const end8 = data8 + size;
+    // Append data to the internal buffer (up to null terminator or full data).
+    // Please note that requests are allowed to arrive in parts.
+    mBuffer.insert(mBuffer.end(), data8, end8);
+
+    // Find null terminator (end of request) in the incoming data
+    const auto zero8 = std::find(data8, end8, 0);
+    if (zero8 != end8) {
+        const size_t requestSize = mBuffer.size() - (end8 - zero8);
+        const bool result = processRequest(std::move(mBuffer), requestSize);
+        if (!result) {
+            auto &socket = *mSocket;
+            socket.switchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
+            // ~Connector is called here
+        }
+        return result;
+    }
+
+    return true;
+}
+
+bool Connector::processRequest(Buffer buffer, const size_t requestSize) {
+    using namespace std::literals;
+    assert(requestSize < buffer.size());
+    assert(buffer[requestSize] == 0);
+
+    std::string_view request(buffer.data(), requestSize);
+
+    constexpr auto kPipePrefix = "pipe:"sv;
+    if (startsWith(request, kPipePrefix)) {
+        request.remove_prefix(kPipePrefix.size());
+    } else {
+        return false;
+    }
+
+    constexpr auto kQemudPrefix = "qemud:"sv;
+    bool isQemud;
+    if (startsWith(request, kQemudPrefix)) {
+        request.remove_prefix(kQemudPrefix.size());
+        isQemud = true;
+    } else {
+        isQemud = false;
+    }
+
+    std::string_view device;
+    std::string_view args;
+
+    const size_t colon = request.find(':');
+    if (colon != std::string_view::npos) {
+        device = request.substr(0, colon);
+        args = request.substr(colon + 1, request.size() - colon - 1);
+    } else {
+        device = request;
+    }
+
+    if (device.empty()) {
+        return false;
+    } else {
+        return switchTo(isQemud, device, args, &buffer[requestSize + 1],
+                        buffer.size() - requestSize - 1);
+    }
+}
+
+bool Connector::switchTo(const bool isQemud, const std::string_view device,
+                         const std::string_view args,
+                         const void *const unconsumed, const size_t unconsumedSize) {
+    PlugPtr self;  // to keep `this` alive until exit from this function
+
+    const char q = isQemud ? 'q' : '-';
+    size_t n = mDevicesEntriesSize;
+    for (const DeviceEntry *de = mDevicesEntries; n > 0; ++de, --n) {
+        if (qnameEquals(q, device, de->qname)) {
+            auto &socket = *mSocket;
+            PlugPtr newPlug = de->factory(std::move(mSocket), mPingTopic, args);
+            auto &newPlugRef = *newPlug;
+            self = socket.switchPlug(std::move(newPlug));
+            newPlugRef.onReceive(unconsumed, unconsumedSize);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Connector::supportsLoadingFromSnapshot() const {
+    return true;
+}
+
+cable::IPlug::TypeId Connector::getSnapshotTypeId() const {
+    using namespace std::string_literals;
+    return "Connector"s;
+}
+
+bool Connector::saveStateToSnapshot(archive::IWriter &writer) const {
+    writer << mBuffer.size();
+    writer.write(mBuffer.data(), mBuffer.size());
+    return true;
+}
+
+}  // namespace devices
+}  // namespace goldfish
