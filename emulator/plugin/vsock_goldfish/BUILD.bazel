@@ -16,8 +16,6 @@ cc_library(
     srcs = [
         "vsock.cpp",
         "vsock_low_level.c",
-    ],
-    hdrs = [
         "vsock_low_level.h",
     ],
     defines = [
