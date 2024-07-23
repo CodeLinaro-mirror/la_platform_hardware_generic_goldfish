@@ -231,6 +231,7 @@ test_suite(
         ":protobuf_unit_tests",
         "//hardware/generic/goldfish/android:emulator_android_tests",
         "//hardware/generic/goldfish/emulator/android-grpc:android-grpc-unit-tests",
+        "//hardware/generic/goldfish/emulator/libs:libs_unittests",
         "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",

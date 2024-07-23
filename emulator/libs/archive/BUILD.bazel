@@ -56,10 +56,10 @@ cc_library(
 )
 
 cc_test(
-    name = "archive_unittests",
+    name = "reader_writer_unittests",
     size = "small",
     srcs = [
-        "archive_unittests.cpp",
+        "reader_writer_unittests.cpp",
     ],
     deps = [
         ":DequeArchive",
@@ -83,5 +83,13 @@ cc_library(
     deps = [
         ":archive",
         "//hardware/generic/goldfish/emulator/libs/QEMUFile_h",
+    ],
+)
+
+test_suite(
+    name = "archive_unittests",
+    tests = [
+        ":reader_writer_unittests",
+        ":zigzag_unittests",
     ],
 )

@@ -1,0 +1,7 @@
+test_suite(
+    name = "libs_unittests",
+    tests = [
+        "//hardware/generic/goldfish/emulator/libs/archive:archive_unittests",
+        "//hardware/generic/goldfish/emulator/libs/broadcasting:broadcasting_unittests",
+    ],
+)
