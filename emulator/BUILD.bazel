@@ -9,6 +9,16 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "dbg",
+    values = {"compilation_mode": "dbg"},
+)
+
+config_setting(
+    name = "opt",
+    values = {"compilation_mode": "opt"},
+)
+
 license(
     name = "license",
     license_kinds = [
@@ -40,7 +50,11 @@ aemu_naming(
         "@platforms//os:linux": "linux",
         "//conditions:default": "unknown",
     }),
-    product_name = "emulator",
+    product_name = select({
+        "//conditions:default": "",
+        ":dbg": "emulator-debug",
+        ":opt": "emulator",
+    }),
 )
 
 pkg_files(
