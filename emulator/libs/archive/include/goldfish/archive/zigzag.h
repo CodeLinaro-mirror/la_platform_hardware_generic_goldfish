@@ -19,9 +19,10 @@ namespace archive {
 namespace zigzag {
 namespace {
 
-using unsigned_t = uint64_t;
-using signed_t = int64_t;
+using unsigned_t = unsigned long long;
+using signed_t = signed long long;
 static_assert(sizeof(unsigned_t) == sizeof(signed_t));
+static_assert(sizeof(unsigned_t) == 8);
 
 unsigned_t encode(const signed_t x) {
     return (x >> (sizeof(x) * CHAR_BIT - 1)) ^ (x << 1);

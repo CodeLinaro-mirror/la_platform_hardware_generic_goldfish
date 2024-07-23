@@ -51,31 +51,43 @@ inline IWriter &operator<<(IWriter &w, const zigzag::signed_t x) {
     return (w << zigzag::encode(x));
 }
 
+inline IWriter &operator<<(IWriter &w, const unsigned char x) {
+    return (w << zigzag::unsigned_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const unsigned short x) {
+    return (w << zigzag::unsigned_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const unsigned int x) {
+    return (w << zigzag::unsigned_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const unsigned long x) {
+    return (w << zigzag::unsigned_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const signed char x) {
+    return (w << zigzag::signed_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const signed short x) {
+    return (w << zigzag::signed_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const signed int x) {
+    return (w << zigzag::signed_t(x));
+}
+
+inline IWriter &operator<<(IWriter &w, const signed long x) {
+    return (w << zigzag::signed_t(x));
+}
+
 inline IWriter &operator<<(IWriter &w, const bool x) {
     return (w << zigzag::unsigned_t(x));
 }
 
-inline IWriter &operator<<(IWriter &w, const uint8_t x) {
-    return (w << zigzag::unsigned_t(x));
-}
-
-inline IWriter &operator<<(IWriter &w, const uint16_t x) {
-    return (w << zigzag::unsigned_t(x));
-}
-
-inline IWriter &operator<<(IWriter &w, const uint32_t x) {
-    return (w << zigzag::unsigned_t(x));
-}
-
-inline IWriter &operator<<(IWriter &w, const int8_t x) {
-    return (w << zigzag::signed_t(x));
-}
-
-inline IWriter &operator<<(IWriter &w, const int16_t x) {
-    return (w << zigzag::signed_t(x));
-}
-
-inline IWriter &operator<<(IWriter &w, const int32_t x) {
+inline IWriter &operator<<(IWriter &w, const char x) {
     return (w << zigzag::signed_t(x));
 }
 
