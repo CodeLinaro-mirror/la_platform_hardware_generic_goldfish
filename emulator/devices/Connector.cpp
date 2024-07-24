@@ -52,35 +52,45 @@ Connector::Connector(SocketPtr socket, PingTopic &pingTopic,
 SocketPtr Connector::onUnplug() { return std::move(mSocket); }
 
 bool Connector::onReceive(const void *data, const size_t size) {
-    // TODO: consider to be zero-copy (avoid `insert`ing into `mBuffer`)
     const char *const data8 = static_cast<const char *>(data);
     const char *const end8 = data8 + size;
-    // Append data to the internal buffer (up to null terminator or full data).
-    // Please note that requests are allowed to arrive in parts.
-    mBuffer.insert(mBuffer.end(), data8, end8);
 
     // Find null terminator (end of request) in the incoming data
     const auto zero8 = std::find(data8, end8, 0);
     if (zero8 != end8) {
-        const size_t requestSize = mBuffer.size() - (end8 - zero8);
-        const bool result = processRequest(std::move(mBuffer), requestSize);
+        bool result;
+        if (mBuffer.empty()) {
+            std::string_view request(data8, zero8 - data8);
+            result = processRequest(request, zero8 + 1, end8 - (zero8 + 1), {});
+        } else {
+            mBuffer.insert(mBuffer.end(), data8, end8);
+            const size_t requestSize = mBuffer.size() - (end8 - zero8);
+
+            std::string_view request(mBuffer.data(), requestSize);
+            result = processRequest(request, &mBuffer[requestSize + 1],
+                                    mBuffer.size() - (requestSize + 1),
+                                    std::move(mBuffer));
+        }
+
         if (!result) {
             auto &socket = *mSocket;
             socket.switchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
             // ~Connector is called here
         }
         return result;
+    } else {
+        // Append data to the internal buffer (up to null terminator or full data).
+        // Please note that requests are allowed to arrive in parts.
+        mBuffer.insert(mBuffer.end(), data8, end8);
+        return true;
     }
-
-    return true;
 }
 
-bool Connector::processRequest(Buffer buffer, const size_t requestSize) {
+bool Connector::processRequest(std::string_view request,
+                               const void *const unconsumed,
+                               const size_t unconsumedSize,
+                               const Buffer bufferPassedHereForLifetimePurposes) {
     using namespace std::literals;
-    assert(requestSize < buffer.size());
-    assert(buffer[requestSize] == 0);
-
-    std::string_view request(buffer.data(), requestSize);
 
     constexpr auto kPipePrefix = "pipe:"sv;
     if (startsWith(request, kPipePrefix)) {
@@ -112,8 +122,7 @@ bool Connector::processRequest(Buffer buffer, const size_t requestSize) {
     if (device.empty()) {
         return false;
     } else {
-        return switchTo(isQemud, device, args, &buffer[requestSize + 1],
-                        buffer.size() - requestSize - 1);
+        return switchTo(isQemud, device, args, unconsumed, unconsumedSize);
     }
 }
 
