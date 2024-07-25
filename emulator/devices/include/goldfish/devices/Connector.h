@@ -77,10 +77,12 @@ struct Connector : public cable::IPlug {
 private:
     using Buffer = std::vector<char>;
 
-    bool processRequest(std::string_view request, const void *unconsumed,
-                        size_t unconsumedSize, Buffer buffer);
-    bool switchTo(bool isQemud, std::string_view device, std::string_view args,
-                  const void *unconsumed, size_t unconsumedSize);
+    std::pair<bool, cable::PlugPtr>
+        processRequest(std::string_view request, const void *unconsumed,
+                       size_t unconsumedSize, Buffer buffer);
+    std::pair<bool, cable::PlugPtr>
+        switchTo(bool isQemud, std::string_view device, std::string_view args,
+                 const void *unconsumed, size_t unconsumedSize);
 
     cable::SocketPtr mSocket;
     PingTopic &mPingTopic;

@@ -52,6 +52,8 @@ Connector::Connector(SocketPtr socket, PingTopic &pingTopic,
 SocketPtr Connector::onUnplug() { return std::move(mSocket); }
 
 bool Connector::onReceive(const void *data, const size_t size) {
+    PlugPtr self;  // to keep `this` alive until exit from this function
+
     const char *const data8 = static_cast<const char *>(data);
     const char *const end8 = data8 + size;
 
@@ -61,20 +63,22 @@ bool Connector::onReceive(const void *data, const size_t size) {
         bool result;
         if (mBuffer.empty()) {
             std::string_view request(data8, zero8 - data8);
-            result = processRequest(request, zero8 + 1, end8 - (zero8 + 1), {});
+            std::tie(result, self) =
+                processRequest(request, zero8 + 1, end8 - (zero8 + 1), {});
         } else {
             mBuffer.insert(mBuffer.end(), data8, end8);
             const size_t requestSize = mBuffer.size() - (end8 - zero8);
 
             std::string_view request(mBuffer.data(), requestSize);
-            result = processRequest(request, &mBuffer[requestSize + 1],
-                                    mBuffer.size() - (requestSize + 1),
-                                    std::move(mBuffer));
+            std::tie(result, self) =
+                processRequest(request, &mBuffer[requestSize + 1],
+                               mBuffer.size() - (requestSize + 1),
+                               std::move(mBuffer));
         }
 
         if (!result) {
             auto &socket = *mSocket;
-            socket.switchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
+            self = socket.switchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
             // ~Connector is called here
         }
         return result;
@@ -86,17 +90,18 @@ bool Connector::onReceive(const void *data, const size_t size) {
     }
 }
 
-bool Connector::processRequest(std::string_view request,
-                               const void *const unconsumed,
-                               const size_t unconsumedSize,
-                               const Buffer bufferPassedHereForLifetimePurposes) {
+std::pair<bool, PlugPtr>
+Connector::processRequest(std::string_view request,
+                          const void *const unconsumed,
+                          const size_t unconsumedSize,
+                          const Buffer bufferPassedHereForLifetimePurposes) {
     using namespace std::literals;
 
     constexpr auto kPipePrefix = "pipe:"sv;
     if (startsWith(request, kPipePrefix)) {
         request.remove_prefix(kPipePrefix.size());
     } else {
-        return false;
+        return {false, {}};
     }
 
     constexpr auto kQemudPrefix = "qemud:"sv;
@@ -120,17 +125,16 @@ bool Connector::processRequest(std::string_view request,
     }
 
     if (device.empty()) {
-        return false;
+        return {false, {}};
     } else {
         return switchTo(isQemud, device, args, unconsumed, unconsumedSize);
     }
 }
 
-bool Connector::switchTo(const bool isQemud, const std::string_view device,
-                         const std::string_view args,
-                         const void *const unconsumed, const size_t unconsumedSize) {
-    PlugPtr self;  // to keep `this` alive until exit from this function
-
+std::pair<bool, PlugPtr>
+Connector::switchTo(const bool isQemud, const std::string_view device,
+                    const std::string_view args,
+                    const void *const unconsumed, const size_t unconsumedSize) {
     const char q = isQemud ? 'q' : '-';
     size_t n = mDevicesEntriesSize;
     for (const DeviceEntry *de = mDevicesEntries; n > 0; ++de, --n) {
@@ -138,13 +142,13 @@ bool Connector::switchTo(const bool isQemud, const std::string_view device,
             auto &socket = *mSocket;
             PlugPtr newPlug = de->factory(std::move(mSocket), mPingTopic, args);
             auto &newPlugRef = *newPlug;
-            self = socket.switchPlug(std::move(newPlug));
+            PlugPtr self = socket.switchPlug(std::move(newPlug));
             newPlugRef.onReceive(unconsumed, unconsumedSize);
-            return true;
+            return {true, std::move(self)};
         }
     }
 
-    return false;
+    return {false, {}};
 }
 
 bool Connector::supportsLoadingFromSnapshot() const {
