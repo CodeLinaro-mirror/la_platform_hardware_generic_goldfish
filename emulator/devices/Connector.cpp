@@ -36,10 +36,6 @@ bool qnameEquals(const char q, const std::string_view name, const char *qname) {
     return (q == *qname) && (0 == strncmp(name.data(), qname + 1, name.size()))
         && (0 == qname[name.size() + 1]);
 }
-
-bool startsWith(const std::string_view text, const std::string_view prefix) {
-    return (text.size() >= prefix.size()) && (0 == text.compare(0, prefix.size(), prefix));
-}
 }  // namespace
 
 Connector::Connector(SocketPtr socket, PingTopic &pingTopic,
@@ -98,7 +94,7 @@ Connector::processRequest(std::string_view request,
     using namespace std::literals;
 
     constexpr auto kPipePrefix = "pipe:"sv;
-    if (startsWith(request, kPipePrefix)) {
+    if (request.starts_with(kPipePrefix)) {
         request.remove_prefix(kPipePrefix.size());
     } else {
         return {false, {}};
@@ -106,7 +102,7 @@ Connector::processRequest(std::string_view request,
 
     constexpr auto kQemudPrefix = "qemud:"sv;
     bool isQemud;
-    if (startsWith(request, kQemudPrefix)) {
+    if (request.starts_with(kQemudPrefix)) {
         request.remove_prefix(kQemudPrefix.size());
         isQemud = true;
     } else {
