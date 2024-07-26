@@ -35,13 +35,6 @@ extern "C" {
 #define DEBUG_MSG(FMT, ...) \
     fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
 
-#define ASSERT(C) ({ do { \
-        if (!(C)) { \
-            DEBUG_MSG("'%s' is not true", #C); \
-            ::abort(); \
-        } \
-    } while (false); true; })
-
 namespace {
 using goldfish::archive::IReader;
 using goldfish::archive::IWriter;
@@ -80,7 +73,7 @@ struct UniqueIdAllocator {
                 }
             }
         } else {
-            ASSERT(id < mLastId);
+            assert(id < mLastId);
             mReturnedIds.insert(id);
         }
     }
@@ -175,8 +168,8 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     }
 
     void sendOp(enum virtio_vsock_op op) {
-        ASSERT(op > VIRTIO_VSOCK_OP_INVALID);
-        ASSERT(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
+        assert(op > VIRTIO_VSOCK_OP_INVALID);
+        assert(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
         sendOpMask |= (1U << op);
     }
 };
@@ -193,7 +186,7 @@ struct PlugOrSocketVisitor {
     PlugOrSocketVisitor(VsockStream &s) : stream(s) {}
 
     bool operator()(PlugPtr plug) const {
-        ASSERT(plug);
+        assert(plug);
         stream.plug = std::move(plug);
         return true;
     }
@@ -208,14 +201,14 @@ struct PlugOrSocketVisitor {
 
 struct GoldfishVirtioVsockDevice {
     SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
-        ASSERT(plug);
+        assert(plug);
         DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
         const uint32_t hostPort = mSrcPortAllocator.get() + kDynamicPortsStart;
 
         const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
-        ASSERT(inserted);
+        assert(inserted);
 
         VsockStream &stream = const_cast<VsockStream &>(*streamI);
         stream.plug = std::move(plug);
@@ -278,7 +271,7 @@ struct GoldfishVirtioVsockDevice {
                   this, &stream, callOnUnplug, sendOp);
 
         if (callOnUnplug) {
-            ASSERT(stream.plug);
+            assert(stream.plug);
             stream.plug->onUnplug().release();
         }
 
@@ -393,14 +386,14 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void setStatus(const uint8_t status) {
-        ASSERT(!(status & VIRTIO_CONFIG_S_FAILED));
+        assert(!(status & VIRTIO_CONFIG_S_FAILED));
 
         if (status & VIRTIO_CONFIG_S_NEEDS_RESET) {
             DEBUG_MSG("this=%p, status=S_NEEDS_RESET", this);
             const std::lock_guard<std::mutex> lock(mStateMutex);
 
             for (const VsockStream &stream : mStreams) {
-                ASSERT(stream.plug);
+                assert(stream.plug);
                 stream.plug->onUnplug().release();
             }
 
@@ -448,7 +441,7 @@ struct GoldfishVirtioVsockDevice {
 
                 case VIRTIO_VSOCK_OP_RW:
                     if (stream.isConnected &&
-                            ASSERT(stream.plug) &&
+                            (assert(stream.plug), true) &&
                             stream.plug->onReceive(data, hdr.len)) {
                         stream.hostFwdCnt += hdr.len;
                         stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
@@ -597,7 +590,7 @@ struct GoldfishVirtioVsockDevice {
         for (const VsockStream &stream : mStreams) {
             writer << stream.guestPort << stream.hostPort << stream.hostFwdCnt;
 
-            ASSERT(stream.plug);
+            assert(stream.plug);
             const IPlug &plug = *stream.plug;
             const bool supportsLoading = plug.supportsLoadingFromSnapshot();
             writer << supportsLoading;
