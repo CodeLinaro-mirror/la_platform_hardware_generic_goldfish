@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "goldfish/debug.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/cable/saveload.h"
 #include "goldfish/vsock/connect.h"
@@ -111,15 +112,17 @@ struct SocketBuffer {
             mConsumed = 0;
         }
 
-        const uint8_t *data8 = static_cast<const uint8_t *>(data);
+        const uint8_t *data8 = static_cast<const uint8_t *>(NOT_NULL(data));
         mBuf.insert(mBuf.end(), data8, data8 + size);
     }
 
     std::pair<const void*, size_t> peek() const {
+        assert(mConsumed <= mBuf.size());
         return {mBuf.data() + mConsumed, mBuf.size() - mConsumed};
     }
 
-    void consume(size_t size) {
+    void consume(const size_t size) {
+        assert((mConsumed + size) <= mBuf.size());
         mConsumed += size;
     }
 
@@ -186,8 +189,7 @@ struct PlugOrSocketVisitor {
     PlugOrSocketVisitor(VsockStream &s) : stream(s) {}
 
     bool operator()(PlugPtr plug) const {
-        assert(plug);
-        stream.plug = std::move(plug);
+        stream.plug = std::move(NOT_NULL(plug));
         return true;
     }
 
@@ -201,7 +203,6 @@ struct PlugOrSocketVisitor {
 
 struct GoldfishVirtioVsockDevice {
     SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
-        assert(plug);
         DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
@@ -211,7 +212,7 @@ struct GoldfishVirtioVsockDevice {
         assert(inserted);
 
         VsockStream &stream = const_cast<VsockStream &>(*streamI);
-        stream.plug = std::move(plug);
+        stream.plug = std::move(NOT_NULL(plug));
         stream.sendOp(VIRTIO_VSOCK_OP_REQUEST);
 
         (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
@@ -271,8 +272,7 @@ struct GoldfishVirtioVsockDevice {
                   this, &stream, callOnUnplug, sendOp);
 
         if (callOnUnplug) {
-            assert(stream.plug);
-            stream.plug->onUnplug().release();
+            NOT_NULL(stream.plug)->onUnplug().release();
         }
 
         if (sendOp != VIRTIO_VSOCK_OP_INVALID) {
@@ -300,7 +300,7 @@ struct GoldfishVirtioVsockDevice {
                     stream.guestFwdCnt = hdr.fwd_cnt;
                     stream.isConnected = true;
                     stream.sendOp(VIRTIO_VSOCK_OP_RESPONSE);
-                    stream.plug->onConnect();
+                    NOT_NULL(stream.plug)->onConnect();
                     return true;
                 } else {
                     mStreams.erase(streamI);
@@ -374,8 +374,8 @@ struct GoldfishVirtioVsockDevice {
         DEBUG_MSG("this=%p, dev=%p, devApi=%p", this, dev, devApi);
 
         const std::lock_guard<std::mutex> lock(mStateMutex);
-        mQemuDev = dev;
-        mQemuDevApi = devApi;
+        mQemuDev = NOT_NULL(dev);
+        mQemuDevApi = NOT_NULL(devApi);
     }
 
     void unrealize() {
@@ -393,8 +393,7 @@ struct GoldfishVirtioVsockDevice {
             const std::lock_guard<std::mutex> lock(mStateMutex);
 
             for (const VsockStream &stream : mStreams) {
-                assert(stream.plug);
-                stream.plug->onUnplug().release();
+                NOT_NULL(stream.plug)->onUnplug().release();
             }
 
             mHostEvents.clear();
@@ -426,7 +425,7 @@ struct GoldfishVirtioVsockDevice {
                 switch (hdr.op) {
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     stream.isConnected = true;
-                    stream.plug->onConnect();
+                    NOT_NULL(stream.plug)->onConnect();
                     break;
 
                 case VIRTIO_VSOCK_OP_RST:
@@ -441,8 +440,7 @@ struct GoldfishVirtioVsockDevice {
 
                 case VIRTIO_VSOCK_OP_RW:
                     if (stream.isConnected &&
-                            (assert(stream.plug), true) &&
-                            stream.plug->onReceive(data, hdr.len)) {
+                            NOT_NULL(stream.plug)->onReceive(data, hdr.len)) {
                         stream.hostFwdCnt += hdr.len;
                         stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
                     } else {
@@ -483,7 +481,8 @@ struct GoldfishVirtioVsockDevice {
         const auto sendPacketHostToGuest = mQemuDevApi->sendPacketHostToGuest;
 
         while (!mOrphanPackets.empty()) {
-            sendResult = (*sendPacketHostToGuest)(mQemuDev, &mOrphanPackets.front(), nullptr);
+            sendResult = (*NOT_NULL(sendPacketHostToGuest))
+                (NOT_NULL(mQemuDev), &mOrphanPackets.front(), nullptr);
             if (VirtIOVSockSendNeedNotify(sendResult)) {
                 needNotify = true;
             }
@@ -514,7 +513,8 @@ struct GoldfishVirtioVsockDevice {
                 for (const auto op : ops) {
                     if (sendOpMask & (1U << op)) {
                         auto hdr = preparePacketHeaderLocked(stream, op, 0);
-                        sendResult = (*sendPacketHostToGuest)(mQemuDev, &hdr, nullptr);
+                        sendResult = (*NOT_NULL(sendPacketHostToGuest))
+                            (NOT_NULL(mQemuDev), &hdr, nullptr);
                         if (VirtIOVSockSendNeedNotify(sendResult)) {
                             needNotify = true;
                         }
@@ -540,7 +540,8 @@ struct GoldfishVirtioVsockDevice {
                 auto hdr = preparePacketHeaderLocked(stream,
                                                      VIRTIO_VSOCK_OP_RW,
                                                      sendSize);
-                sendResult = (*sendPacketHostToGuest)(mQemuDev, &hdr, data);
+                sendResult = (*NOT_NULL(sendPacketHostToGuest))
+                    (NOT_NULL(mQemuDev), &hdr, data);
                 stream.hostToGuestBuf.consume(sendSize);
                 stream.hostSentCnt += sendSize;
                 guestAvailSize -= sendSize;
@@ -591,7 +592,7 @@ struct GoldfishVirtioVsockDevice {
             writer << stream.guestPort << stream.hostPort << stream.hostFwdCnt;
 
             assert(stream.plug);
-            const IPlug &plug = *stream.plug;
+            const IPlug &plug = *NOT_NULL(stream.plug);
             const bool supportsLoading = plug.supportsLoadingFromSnapshot();
             writer << supportsLoading;
             if (supportsLoading) {
@@ -686,7 +687,7 @@ struct GoldfishVirtioVsockDevice {
         }
 
         if (need_notify) {
-            (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+            (*NOT_NULL(mQemuDevApi)->haveHostToGuestPackets)(NOT_NULL(mQemuDev));
         }
 
         return 0;
@@ -750,7 +751,7 @@ void VsockStream::sendAsync(const void *data, size_t size) {
 
 PlugPtr VsockStream::unplugImpl() {
     DEBUG_MSG("this=%p vsockDev=%p", this, &vsockDev);
-    PlugPtr p = std::move(plug);
+    PlugPtr p = std::move(NOT_NULL(plug));
     vsockDev.unplugFromDevice(*this);  // calls ~VsockStream
     return p;
 }
@@ -763,7 +764,7 @@ using devices::cable::SocketPtr;
 
 SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
-    return instance.connect(guestPort, std::move(plug));
+    return instance.connect(guestPort, std::move(NOT_NULL(plug)));
 }
 
 bool listen(const uint32_t hostPort, HostPortListener listener) {
@@ -784,38 +785,38 @@ void setParentStateSnapshotHandlers(void *parent,
 void* goldfish_virtio_vsock_impl_realize(void *dev,
                                          const GoldfishVirtIOVSockDevAPI *devApi) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
-    instance.realize(dev, devApi);
+    instance.realize(NOT_NULL(dev), NOT_NULL(devApi));
     return &instance;
 }
 
 void goldfish_virtio_vsock_impl_unrealize(void *impl) {
-    GoldfishVirtioVsockDevice::from(impl).unrealize();
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).unrealize();
 }
 
 void goldfish_virtio_vsock_set_status(void *impl, uint8_t status) {
-    GoldfishVirtioVsockDevice::from(impl).setStatus(status);
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).setStatus(status);
 }
 
 void goldfish_virtio_vsock_accept_guest_to_host(void *impl,
                                                 const struct virtio_vsock_hdr* hdr,
                                                 const void *data) {
-    GoldfishVirtioVsockDevice::from(impl).onPacketReceive(*hdr, data);
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceive(*hdr, data);
 }
 
 int goldfish_virtio_vsock_handle_host_to_guest(void *impl) {
-    return GoldfishVirtioVsockDevice::from(impl).onPacketsSend();
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketsSend();
 }
 
 int goldfish_virtio_vsock_handle_event_to_guest(void *impl) {
-    return GoldfishVirtioVsockDevice::from(impl).onEventsSend();
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onEventsSend();
 }
 
 int goldfish_virtio_vsock_impl_save(const void *impl, QEMUFile *f) {
-    goldfish::archive::QEMUFileWriter writer(f);
-    return GoldfishVirtioVsockDevice::from(impl).saveToSnapshot(writer);
+    goldfish::archive::QEMUFileWriter writer(NOT_NULL(f));
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).saveToSnapshot(writer);
 }
 
 int goldfish_virtio_vsock_impl_load(void *impl, QEMUFile *f) {
-    goldfish::archive::QEMUFileReader reader(f);
-    return GoldfishVirtioVsockDevice::from(impl).loadFromSnapshot(reader);
+    goldfish::archive::QEMUFileReader reader(NOT_NULL(f));
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).loadFromSnapshot(reader);
 }

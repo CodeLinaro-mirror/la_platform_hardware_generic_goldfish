@@ -52,6 +52,7 @@ cc_library(
     ],
     deps = [
         ":archive",
+        "//hardware/generic/goldfish/emulator/libs/debug",
     ],
 )
 

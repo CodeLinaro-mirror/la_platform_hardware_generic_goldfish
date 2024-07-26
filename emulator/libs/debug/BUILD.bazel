@@ -1,0 +1,10 @@
+cc_library(
+    name = "debug",
+    hdrs = [
+        "include/goldfish/debug.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+)
