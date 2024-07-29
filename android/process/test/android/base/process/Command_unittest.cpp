@@ -77,10 +77,9 @@ std::string RunfilesPath(absl::string_view path) {
 }
 
 std::string sleep_exe() {
-  char cwd_buf[4096];
-  fs::path root = android::base::System::getEnvironmentVariable("TEST_SRCDIR");
-  return System::pathAsString(root / "_main" / "hardware" / "generic" / "goldfish" / "android" /
-         "process" / absl::StrCat("sleep_emu", EXE));
+  return RunfilesPath(System::pathAsString(fs::path("hardware") / "generic" /
+                                           "goldfish" / "android" / "process" /
+                                           absl::StrCat("sleep_emu", EXE)));
 }
 
 // You can always make your own fake commands..
