@@ -106,8 +106,7 @@ virtio_vsock_send_packet_host_to_guest(void *const s_raw,
         bytes_sent += data8_chunk_size;
     } while (data8_size);
 
-    hdr->len = bytes_sent;
-    return MakeVirtIOVSockSendResult(is_vq_full, need_notify);
+    return MakeVirtIOVSockSendResult(is_vq_full, need_notify, bytes_sent);
 }
 
 static void virtio_vsock_handle_host_to_guest(VirtIODevice *const dev,
@@ -293,7 +292,7 @@ virtio_vsock_send_event_host_to_guest(void *const s_raw,
         break;
     }
 
-    return MakeVirtIOVSockSendResult(is_vq_full, need_notify);
+    return MakeVirtIOVSockSendResult(is_vq_full, need_notify, 1U);
 }
 
 static void virtio_vsock_handle_event_to_guest(VirtIODevice *const dev,

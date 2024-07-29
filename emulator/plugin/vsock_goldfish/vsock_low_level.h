@@ -20,24 +20,23 @@ typedef unsigned VirtIOVSockSendResult;
 
 #define VirtIOVSockSend_NeedNotify_SHIFT 0
 #define VirtIOVSockSend_VqFull_SHIFT 1
+#define VirtIOVSockSend_SIZE_SHIFT 2
 #define VirtIOVSockSend_NeedNotify_BIT (1U << VirtIOVSockSend_NeedNotify_SHIFT)
 #define VirtIOVSockSend_VqFull_BIT (1U << VirtIOVSockSend_VqFull_SHIFT)
 
 #define VirtIOVSockSendNeedNotify(R) ((R) & VirtIOVSockSend_NeedNotify_BIT)
 #define VirtIOVSockSendIsVqFull(R) ((R) & VirtIOVSockSend_VqFull_BIT)
+#define VirtIOVSockSentSize(R) ((R) >> VirtIOVSockSend_SIZE_SHIFT)
 
-#define MakeVirtIOVSockSendResult(VQ_FULL, NEED_NOTIFY_VQ) ( \
+#define MakeVirtIOVSockSendResult(VQ_FULL, NEED_NOTIFY_VQ, SIZE) ( \
         (!!(NEED_NOTIFY_VQ) << VirtIOVSockSend_NeedNotify_SHIFT) | \
-        (!!(VQ_FULL) << VirtIOVSockSend_VqFull_SHIFT) \
+        (!!(VQ_FULL) << VirtIOVSockSend_VqFull_SHIFT) | \
+        ((SIZE) << VirtIOVSockSend_SIZE_SHIFT) \
     )
 
 typedef struct GoldfishVirtIOVSockDevAPI_tag {
     void (*haveHostToGuestPackets)(void *dev);
 
-    /* virtio_vsock_hdr::len (for RW frames) when
-     *  - called: data size to send
-     *  - returned: data size sent
-     */
     VirtIOVSockSendResult (*sendPacketHostToGuest)(
         void *dev,
         struct virtio_vsock_hdr* hdr,
