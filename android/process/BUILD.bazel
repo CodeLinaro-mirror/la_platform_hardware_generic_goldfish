@@ -2,6 +2,8 @@ cc_library(
     name = "process",
     srcs = [
         "src/android/base/process/Command.cpp",
+        "src/android/base/process/exec.cpp",
+        "src/android/base/process/exec.h",
     ] + select({
         "@platforms//os:windows": [
             "src/android/base/process/Command_Windows.cpp",
@@ -10,13 +12,25 @@ cc_library(
             "src/android/base/process/Command_Posix.cpp",
         ],
     }),
+    copts = select({
+        "@platforms//os:windows": [
+            "-Wno-vla-cxx-extension",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = ["src"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/streams",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_binary(

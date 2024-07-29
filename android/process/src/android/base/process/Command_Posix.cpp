@@ -31,9 +31,9 @@
 #include <vector>
 
 #include "aemu/base/logging/Log.h"
-
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/process/Command.h"
+#include "android/base/process/exec.h"
 
 #define DEBUG 0
 
@@ -255,7 +255,17 @@ public:
   };
 
   std::optional<Pid> createProcess(const CommandArguments &cmdline,
-                                   bool captureOutput) override {
+                                   bool captureOutput, bool replace) override {
+
+    // Setup the arguments..
+    std::vector<char *> args = toCharArray(cmdline);
+
+    if (replace) {
+      // The exec() functions only return if an error has occurred.
+      safe_execv(args[0], args.data());
+      return std::nullopt;
+    }
+
     DD("%s to inheriting handles..", mInherit ? "yes" : "no");
     if (!mInherit) {
       mAttr = new posix_spawnattr_t;
@@ -279,9 +289,6 @@ public:
       DD("Marked %d as close on exec -- done", fdlimit);
 #endif
     }
-
-    // Setup the arguments..
-    std::vector<char *> args = toCharArray(cmdline);
 
     mActions = new posix_spawn_file_actions_t;
     auto action = mActions;
