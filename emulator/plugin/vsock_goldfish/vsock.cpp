@@ -542,9 +542,11 @@ struct GoldfishVirtioVsockDevice {
                                                      sendSize);
                 sendResult = (*NOT_NULL(sendPacketHostToGuest))
                     (NOT_NULL(mQemuDev), &hdr, data);
-                stream.hostToGuestBuf.consume(sendSize);
-                stream.hostSentCnt += sendSize;
-                guestAvailSize -= sendSize;
+
+                const size_t sentSize = VirtIOVSockSentSize(sendResult);
+                stream.hostToGuestBuf.consume(sentSize);
+                stream.hostSentCnt += sentSize;
+                guestAvailSize -= sentSize;
 
                 if (VirtIOVSockSendNeedNotify(sendResult)) {
                     needNotify = true;
