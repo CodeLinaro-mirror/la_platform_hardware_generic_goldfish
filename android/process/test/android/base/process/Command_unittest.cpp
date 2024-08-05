@@ -23,6 +23,7 @@
 #include "aemu/base/system/System.h"
 #include "tools/cpp/runfiles/runfiles.h"
 #include <android/base/system/System.h>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -119,8 +120,21 @@ TEST(Process, discovered_proc_same_as_launched) {
 }
 
 TEST(Process, can_discover_launched_proc) {
+  using namespace std::chrono_literals;
   auto proc = Command::create({sleep_exe(), "--sleep", "1s"}).execute();
   auto pids = Process::fromName("sleep_emu");
+
+  auto now = std::chrono::system_clock::now();
+  // On linux we scan /proc/... which is not instantenous on our gce machines.
+  // Note that the scan itself can take +/- 20ms.
+  while (pids.size() == 0 && std::chrono::system_clock::now() < now + 200ms) {
+    pids = Process::fromName("sleep_emu");
+  }
+  LOG(INFO) << "It took "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::system_clock::now() - now)
+                   .count()
+            << " ms. to find the process";
   EXPECT_GT(pids.size(), 0);
 
   bool found = false;
