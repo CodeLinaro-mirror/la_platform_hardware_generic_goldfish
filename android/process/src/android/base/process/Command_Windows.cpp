@@ -22,6 +22,8 @@
 #include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/streams/RingStreambuf.h"
+#include "aemu/base/system/Win32UnicodeString.h"
+#include "android/base/process/exec.h"
 
 #define DEBUG 0
 
@@ -37,6 +39,16 @@ namespace android {
 namespace base {
 
 using namespace std::chrono_literals;
+
+std::vector<char *> toCharArray(const std::vector<std::string> &params) {
+  std::vector<char *> args;
+  args.reserve(params.size());
+  for (const auto &param : params) {
+    args.push_back(const_cast<char *>(param.c_str()));
+  }
+  args.push_back(nullptr);
+  return args;
+}
 
 // Converts a std::string (utf-8) -> utf-16
 static std::wstring toWide(std::string str) {
@@ -157,7 +169,7 @@ std::string formatLastErr() {
   if (error) {
     constexpr size_t max_str_len = 512;
     char lpMsgBuf[max_str_len];
-    DWORD bufLen = FormatMessage(
+    DWORD bufLen = FormatMessageA(
         FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
         error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), lpMsgBuf, max_str_len,
         nullptr);
@@ -490,9 +502,15 @@ public:
   }
 
   virtual std::optional<Pid> createProcess(const CommandArguments &args,
-                                           bool captureOutput) override {
-    STARTUPINFOW siStartInfo = {.cb = sizeof(STARTUPINFOW)};
+                                           bool captureOutput, bool replace) override {
+    if (replace) {
+      auto cmdline = toCharArray(args);
+      // The exec() functions only return if an error has occurred.
+      safe_execv(cmdline[0], cmdline.data());
+      return std::nullopt;
+    }
 
+    STARTUPINFOW siStartInfo = {.cb = sizeof(STARTUPINFOW)};
     if (captureOutput) {
       DD("Installing mPipes for stdout & stderr");
       // Setup named mPipes to stderr/stdout..
@@ -598,7 +616,7 @@ public:
     return mPid;
   }
 
-  virtual std::unique_ptr<ProcessOverseer> createOverseer() {
+  virtual std::unique_ptr<ProcessOverseer> createOverseer() override {
     return std::make_unique<WindowsOverseer>(mProcInfo.hProcess,
                                              std::move(mPipes));
   }
@@ -655,7 +673,7 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
     return processes;
   }
   do {
-    if (std::string(process.szExeFile).find(name) != std::string::npos) {
+    if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
       processes.push_back(fromPid(process.th32ProcessID));
     }
   } while (Process32Next(snapshot, &process));

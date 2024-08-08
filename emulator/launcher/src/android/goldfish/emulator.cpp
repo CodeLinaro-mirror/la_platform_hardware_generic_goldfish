@@ -177,18 +177,10 @@ absl::Status Emulator::launch() {
   dinfo("Using module dir: %s", qemu_module_dir);
   dinfo("Launch: %s", absl::StrJoin(args, " "));
   auto proc = android::base::Command::create(getCmdline())
-                  .withStdoutBuffer((size_t)128_KiB)
-                  .withStderrBuffer((size_t)128_KiB)
+                  .replace()
                   .execute();
-  dinfo("Launched qemu as pid: %d", proc->pid());
-  std::istream &stream = proc->out()->asStream();
-  while (stream.good()) {
-    printf("%c", stream.get());
-  }
-
-  // Errors usually end up here
-  dinfo("%s", proc->err()->asString());
-  dinfo("Finished: %d", proc->exitCode());
-  return absl::OkStatus();
+  // We only get here if we failed to launch the application
+  return absl::InternalError(absl::StrFormat(
+        "Failed to launch emulator, error code: %d", errno));
 }
 } // namespace android::goldfish
