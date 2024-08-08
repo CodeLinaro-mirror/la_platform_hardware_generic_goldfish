@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "aemu/base/threads/Thread.h"
-
-#include "aemu/base/Log.h"
-#include "aemu/base/threads/ThreadStore.h"
-
 #include <assert.h>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/threads/Thread.h"
+#include "aemu/base/threads/ThreadStore.h"
 
 namespace android {
 namespace base {

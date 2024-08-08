@@ -122,14 +122,14 @@ Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams)
 
 void Emulator::clear() {
   for (auto &device : mDevices) {
-    dinfo("Reset: %s", device->id());
+    LOG(INFO) << "Reset: " << device->id();
     device->clear();
   }
 }
 
 absl::Status Emulator::initialize() {
   for (auto &device : mDevices) {
-    dinfo("Preparing: %s", device->id());
+    LOG(INFO) << "Preparing: " << device->id();
     auto status = device->initialize(*this);
     if (!status.ok()) {
       return status;
@@ -150,10 +150,10 @@ std::vector<std::string> Emulator::getCmdline() {
 }
 
 absl::Status Emulator::launch() {
-  dinfo("Preparing %s", mAvd.details());
+  LOG(INFO) << "Preparing " << mAvd.details();
   auto status = initialize();
   if (!status.ok()) {
-    dinfo("Failed to prepare emulator: %s", status.message());
+    LOG(INFO) << "Failed to prepare emulator: " << status.message();
     return status;
   }
 
@@ -174,8 +174,8 @@ absl::Status Emulator::launch() {
   System::get()->setEnvironmentVariable("QEMU_MODULE_DIR",
                                         System::pathAsString(qemu_module_dir));
   System::get()->addLibrarySearchDir(qemu_module_dir);
-  dinfo("Using module dir: %s", qemu_module_dir);
-  dinfo("Launch: %s", absl::StrJoin(args, " "));
+  LOG(INFO) << "Using module dir: " << qemu_module_dir;
+  LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
   auto proc = android::base::Command::create(getCmdline())
                   .replace()
                   .execute();

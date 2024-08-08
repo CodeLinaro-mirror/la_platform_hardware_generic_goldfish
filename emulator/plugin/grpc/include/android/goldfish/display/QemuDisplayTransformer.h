@@ -11,15 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "aemu/base/Log.h"
-#include "android/emulation/control/display/DisplayChangeListener.h"
-#include "android/goldfish/display/SharedMemoryLibrary.h"
-#include "google/protobuf/util/message_differencer.h"
+#include <pixman.h>
+
 #include <memory>
 #include <mutex>
-#include <pixman.h>
 #include <unordered_map>
 #include <unordered_set>
+
+#include "absl/log/log.h"
+#include "google/protobuf/util/message_differencer.h"
+
+#include "android/emulation/control/display/DisplayChangeListener.h"
+#include "android/goldfish/display/SharedMemoryLibrary.h"
 
 namespace android {
 namespace goldfish {

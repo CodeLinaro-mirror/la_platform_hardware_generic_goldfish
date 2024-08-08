@@ -15,8 +15,10 @@
 #include <cstring>
 #include <memory>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/files/ScopedStdioFile.h"
+
 #include "make_ext4fs.h"
 
 #define DEBUG_EXT4 0
@@ -77,10 +79,10 @@ auto android_createEmptyExt4Image(const char* filePath, uint64_t size,
 
 auto android_createExt4ImageFromDir(const char* dstFilePath, const char* srcDirectory,
                                     uint64_t size, const char* mountpoint) -> int {
-    int ret = ::make_ext4fs_from_dir(dstFilePath, srcDirectory, size, mountpoint, nullptr,
-                                     verbose_check_any() ? 1 : -1);
-    if (ret < 0) {
-        EXT4_ERROR << "Failed to create ext4 image at: " << dstFilePath;
-    }
+  int ret = ::make_ext4fs_from_dir(dstFilePath, srcDirectory, size, mountpoint,
+                                   nullptr, -1);
+  if (ret < 0) {
+    EXT4_ERROR << "Failed to create ext4 image at: " << dstFilePath;
+  }
     return ret;
 }

@@ -120,14 +120,14 @@ void IniFile::parseStream(std::istream *in, bool keepComments) {
 
     // Handle empty lines, comments.
     if (citer == cend) {
-      LOG(DEBUG) << "Line " << lineno << ": Skipped empty line.";
+      VLOG(1) << "Line " << lineno << ": Skipped empty line.";
       if (keepComments) {
         mComments.emplace_back(outputLineno, std::move(line));
       }
       continue;
     }
     if (*citer == '#' || *citer == ';') {
-      LOG(DEBUG) << "Line " << lineno << ": Skipped comment line.";
+      VLOG(1) << "Line " << lineno << ": Skipped comment line.";
       if (keepComments) {
         mComments.emplace_back(outputLineno, std::move(line));
       }
@@ -137,9 +137,9 @@ void IniFile::parseStream(std::istream *in, bool keepComments) {
     // Extract and validate key.
     const auto keyStartIter = citer;
     if (!isKeyStartChar(*citer)) {
-      LOG(DEBUG) << "Line " << lineno
-                 << ": Key does not start with a valid character."
-                 << " Skipped line.";
+      VLOG(1) << "Line " << lineno
+              << ": Key does not start with a valid character."
+              << " Skipped line.";
       --outputLineno;
       continue;
     }
@@ -150,9 +150,9 @@ void IniFile::parseStream(std::istream *in, bool keepComments) {
     // Gobble the = sign.
     citer = eat(citer, cend, isSpaceChar);
     if (citer == cend || *citer != '=') {
-      LOG(DEBUG) << "Line " << lineno
-                 << ": Missing expected assignment operator (=)."
-                 << " Skipped line.";
+      VLOG(1) << "Line " << lineno
+              << ": Missing expected assignment operator (=)."
+              << " Skipped line.";
       --outputLineno;
       continue;
     }
@@ -170,9 +170,9 @@ void IniFile::parseStream(std::istream *in, bool keepComments) {
     // Ensure there's no invalid remainder.
     citer = eat(citer, cend, isSpaceChar);
     if (citer != cend) {
-      LOG(DEBUG) << "Line " << lineno
-                 << ": Contains invalid character in the value."
-                 << " Skipped line.";
+      VLOG(1) << "Line " << lineno
+              << ": Contains invalid character in the value."
+              << " Skipped line.";
       --outputLineno;
       continue;
     }
@@ -448,7 +448,7 @@ int IniFile::getInt(const string &key, int defaultValue) const {
   errno = 0;
   const int result = strtol(value.c_str(), &end, 10);
   if (errno || *end != 0) {
-    LOG(DEBUG) << "Malformed int value " << value << " for key " << key;
+    VLOG(1) << "Malformed int value " << value << " for key " << key;
     return defaultValue;
   }
   return result;
@@ -464,7 +464,7 @@ int64_t IniFile::getInt64(const string &key, int64_t defaultValue) const {
   errno = 0;
   const int64_t result = strtoll(value.c_str(), &end, 10);
   if (errno || *end != 0) {
-    LOG(DEBUG) << "Malformed int64 value " << value << " for key " << key;
+    VLOG(1) << "Malformed int64 value " << value << " for key " << key;
     return defaultValue;
   }
   return result;
@@ -480,7 +480,7 @@ double IniFile::getDouble(const string &key, double defaultValue) const {
   errno = 0;
   const double result = strtod(value.c_str(), &end);
   if (errno || *end != 0) {
-    LOG(DEBUG) << "Malformed double value " << value << " for key " << key;
+    VLOG(1) << "Malformed double value " << value << " for key " << key;
     return defaultValue;
   }
   return result;
@@ -514,7 +514,7 @@ bool IniFile::getBool(const string &key, bool defaultValue) const {
   } else if (isBoolFalse(value)) {
     return false;
   } else {
-    LOG(DEBUG) << "Malformed bool value " << value << " for key " << key;
+    VLOG(1) << "Malformed bool value " << value << " for key " << key;
     return defaultValue;
   }
 }
@@ -575,8 +575,8 @@ IniFile::DiskSize IniFile::getDiskSize(const string &key,
   auto value = getString(key, "");
   IniFile::DiskSize result = parseDiskSize(value, defaultValue, &malformed);
 
-  LOG_IF(VERBOSE, malformed)
-      << "Malformed DiskSize value " << value << " for key " << key;
+  LOG_IF(INFO, malformed) << "Malformed DiskSize value " << value << " for key "
+                          << key;
   return result;
 }
 

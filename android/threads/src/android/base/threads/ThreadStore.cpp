@@ -21,15 +21,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "aemu/base/logging/Log.h"
 
 // Set to 1 to print debug messages.
-#define DEBUG_THREAD_STORE  0
+#define DEBUG_THREAD_STORE 0
 
 #if DEBUG_THREAD_STORE
-#  define D(...)   do { dprint(__VA_ARGS__); fflush(stdout); } while (0)
+#define D(...)           \
+  do {                   \
+    dprint(__VA_ARGS__); \
+    fflush(stdout);      \
+  } while (0)
 #else
-#  define D(...)   ((void)0)
+#define D(...) ((void)0)
 #endif
 
 namespace android {
@@ -50,9 +55,7 @@ namespace {
 // But this forces us to track thread-specific values ourselves.
 
 // Maximum amount of thread-specific slots supported by this implementation.
-enum {
-    kMaxTlsSlots = 64
-};
+enum { kMaxTlsSlots = 64 };
 
 // TlsSlotArray is a thread-specific array of values. Instances will
 // be stored in a Win32 TLS value controlled by a single master TLS
@@ -63,130 +66,129 @@ typedef void* TlsSlotArray[kMaxTlsSlots];
 // Global state shared by all threads
 class GlobalState {
 public:
-    GlobalState() {
-        D("Entering\n");
-        mMasterTls = TlsAlloc();
-        D("Master TLS = %d\n", (int)mMasterTls);
-        InitializeCriticalSection(&mSection);
-        mLastIndex = 0;
-        ::memset(mDestructors, 0, sizeof(mDestructors));
-        D("Exiting\n");
-    }
+ GlobalState() {
+   D("Entering\n");
+   mMasterTls = TlsAlloc();
+   D("Master TLS = %d\n", (int)mMasterTls);
+   InitializeCriticalSection(&mSection);
+   mLastIndex = 0;
+   ::memset(mDestructors, 0, sizeof(mDestructors));
+   D("Exiting\n");
+ }
 
-    // Register a new TLS key, or return -1 on error (too many keys).
-    // |destroy| is the destructor function for the key.
-    int registerKey(ThreadStoreBase::Destructor* destroy) {
-        D("Entering destroy=%p\n", destroy);
-        int ret = -1;
-        EnterCriticalSection(&mSection);
-        if (mLastIndex < kMaxTlsSlots) {
-            ret = mLastIndex++;
-            mDestructors[ret] = destroy;
-        }
-        LeaveCriticalSection(&mSection);
-        D("Exiting newKey=%d\n", ret);
-        return ret;
-    }
+ // Register a new TLS key, or return -1 on error (too many keys).
+ // |destroy| is the destructor function for the key.
+ int registerKey(ThreadStoreBase::Destructor* destroy) {
+   D("Entering destroy=%p\n", destroy);
+   int ret = -1;
+   EnterCriticalSection(&mSection);
+   if (mLastIndex < kMaxTlsSlots) {
+     ret = mLastIndex++;
+     mDestructors[ret] = destroy;
+   }
+   LeaveCriticalSection(&mSection);
+   D("Exiting newKey=%d\n", ret);
+   return ret;
+ }
 
-    void unregisterKey(int key) {
-        D("key=%d\n", key);
-        if (key < 0 || key >= kMaxTlsSlots) {
-            D("Invalid key\n");
-            return;
-        }
+ void unregisterKey(int key) {
+   D("key=%d\n", key);
+   if (key < 0 || key >= kMaxTlsSlots) {
+     D("Invalid key\n");
+     return;
+   }
 
-        // Note: keys are not reusable, but remove the destructor to avoid
-        // crashes in leaveCurrentThread() when it points to a function that
-        // is going to be unloaded from the process' address space.
-        EnterCriticalSection(&mSection);
-        mDestructors[key] = NULL;
-        LeaveCriticalSection(&mSection);
-        D("Exiting\n");
-    }
+   // Note: keys are not reusable, but remove the destructor to avoid
+   // crashes in leaveCurrentThread() when it points to a function that
+   // is going to be unloaded from the process' address space.
+   EnterCriticalSection(&mSection);
+   mDestructors[key] = NULL;
+   LeaveCriticalSection(&mSection);
+   D("Exiting\n");
+ }
 
-    // Get the current thread-local value for a given |key|.
-    void* getValue(int key) const {
-        D("Entering key=%d\n", key);
-        if (key < 0 || key >= kMaxTlsSlots) {
-            D("Invalid key, result=NULL\n");
-            return NULL;
-        }
+ // Get the current thread-local value for a given |key|.
+ void* getValue(int key) const {
+   D("Entering key=%d\n", key);
+   if (key < 0 || key >= kMaxTlsSlots) {
+     D("Invalid key, result=NULL\n");
+     return NULL;
+   }
 
-        TlsSlotArray* array = getArray();
-        void* ret = (*array)[key];
-        D("Exiting keyValue=%p\n", ret);
-        return ret;
-    }
+   TlsSlotArray* array = getArray();
+   void* ret = (*array)[key];
+   D("Exiting keyValue=%p\n", ret);
+   return ret;
+ }
 
-    // Set the current thread-local |value| for a given |key|.
-    void setValue(int key, void* value) {
-        D("Entering key=%d\n",key);
-        if (key < 0 || key >= kMaxTlsSlots) {
-            D("Invalid key, returning\n");
-            return;
-        }
+ // Set the current thread-local |value| for a given |key|.
+ void setValue(int key, void* value) {
+   D("Entering key=%d\n", key);
+   if (key < 0 || key >= kMaxTlsSlots) {
+     D("Invalid key, returning\n");
+     return;
+   }
 
-        TlsSlotArray* array = getArray();
-        (*array)[key] = value;
-        D("Exiting\n");
-    }
+   TlsSlotArray* array = getArray();
+   (*array)[key] = value;
+   D("Exiting\n");
+ }
 
-    // Call this when a thread exits to destroy all its thread-local values.
-    void leaveCurrentThread() {
-        D("Entering\n");
-        TlsSlotArray* array =
-                reinterpret_cast<TlsSlotArray*>(TlsGetValue(mMasterTls));
-        if (!array) {
-            D("Exiting, no thread-local data in this thread\n");
-            return;
-        }
+ // Call this when a thread exits to destroy all its thread-local values.
+ void leaveCurrentThread() {
+   D("Entering\n");
+   TlsSlotArray* array =
+       reinterpret_cast<TlsSlotArray*>(TlsGetValue(mMasterTls));
+   if (!array) {
+     D("Exiting, no thread-local data in this thread\n");
+     return;
+   }
 
-        for (size_t n = 0; n < kMaxTlsSlots; ++n) {
-            void* value = (*array)[n];
-            if (!value) {
-                continue;
-            }
-            (*array)[n] = NULL;
+   for (size_t n = 0; n < kMaxTlsSlots; ++n) {
+     void* value = (*array)[n];
+     if (!value) {
+       continue;
+     }
+     (*array)[n] = NULL;
 
-            // NOTE: In theory, a destructor could reset the slot to
-            // a new value, and we would have to loop in this function
-            // in interesting ways. In practice, ignore the issue.
-            EnterCriticalSection(&mSection);
-            ThreadStoreBase::Destructor* destroy = mDestructors[n];
-            LeaveCriticalSection(&mSection);
-            if (destroy) {
-                D("Calling destructor %p for key=%d, with value=%p\n",
-                    destroy, (int)n, value);
-                (*destroy)(value);
-            }
-        }
-        TlsSetValue(mMasterTls, NULL);
-        ::free(array);
-        D("Exiting\n");
-    }
+     // NOTE: In theory, a destructor could reset the slot to
+     // a new value, and we would have to loop in this function
+     // in interesting ways. In practice, ignore the issue.
+     EnterCriticalSection(&mSection);
+     ThreadStoreBase::Destructor* destroy = mDestructors[n];
+     LeaveCriticalSection(&mSection);
+     if (destroy) {
+       D("Calling destructor %p for key=%d, with value=%p\n", destroy, (int)n,
+         value);
+       (*destroy)(value);
+     }
+   }
+   TlsSetValue(mMasterTls, NULL);
+   ::free(array);
+   D("Exiting\n");
+ }
 
 private:
-    // Return the thread-local array of TLS slots for the current thread.
-    // Cannot return NULL.
-    TlsSlotArray* getArray() const {
-        D("Entering\n");
-        TlsSlotArray* array =
-                reinterpret_cast<TlsSlotArray*>(TlsGetValue(mMasterTls));
-        if (!array) {
-            array = reinterpret_cast<TlsSlotArray*>(
-                    ::calloc(sizeof(*array), 1));
-            TlsSetValue(mMasterTls, array);
-            D("Allocated new array at %p\n", array);
-        } else {
-            D("Retrieved array at %p\n", array);
-        }
-        return array;
-    }
+ // Return the thread-local array of TLS slots for the current thread.
+ // Cannot return NULL.
+ TlsSlotArray* getArray() const {
+   D("Entering\n");
+   TlsSlotArray* array =
+       reinterpret_cast<TlsSlotArray*>(TlsGetValue(mMasterTls));
+   if (!array) {
+     array = reinterpret_cast<TlsSlotArray*>(::calloc(sizeof(*array), 1));
+     TlsSetValue(mMasterTls, array);
+     D("Allocated new array at %p\n", array);
+   } else {
+     D("Retrieved array at %p\n", array);
+   }
+   return array;
+ }
 
-    DWORD mMasterTls;
-    CRITICAL_SECTION mSection;
-    int mLastIndex;
-    ThreadStoreBase::Destructor* mDestructors[kMaxTlsSlots];
+ DWORD mMasterTls;
+ CRITICAL_SECTION mSection;
+ int mLastIndex;
+ ThreadStoreBase::Destructor* mDestructors[kMaxTlsSlots];
 };
 
 LazyInstance<GlobalState> gGlobalState = LAZY_INSTANCE_INIT;
@@ -194,51 +196,44 @@ LazyInstance<GlobalState> gGlobalState = LAZY_INSTANCE_INIT;
 }  // namespace
 
 ThreadStoreBase::ThreadStoreBase(Destructor* destroy) {
-    D("Entering this=%p destroy=%p\n", this, destroy);
-    mKey = gGlobalState->registerKey(destroy);
-    D("Exiting this=%p key=%d\n", this, mKey);
+  D("Entering this=%p destroy=%p\n", this, destroy);
+  mKey = gGlobalState->registerKey(destroy);
+  D("Exiting this=%p key=%d\n", this, mKey);
 }
 
 ThreadStoreBase::~ThreadStoreBase() {
-    D("Entering this=%p\n", this);
-    GlobalState* state = gGlobalState.ptr();
-    state->unregisterKey(mKey);
-    D("Exiting this=%p\n", this);
+  D("Entering this=%p\n", this);
+  GlobalState* state = gGlobalState.ptr();
+  state->unregisterKey(mKey);
+  D("Exiting this=%p\n", this);
 }
 
 void* ThreadStoreBase::get() const {
-    D("Entering this=%p\n", this);
-    void* ret = gGlobalState->getValue(mKey);
-    D("Exiting this=%p value=%p\n", this, ret);
-    return ret;
+  D("Entering this=%p\n", this);
+  void* ret = gGlobalState->getValue(mKey);
+  D("Exiting this=%p value=%p\n", this, ret);
+  return ret;
 }
 
 void ThreadStoreBase::set(void* value) {
-    D("Entering this=%p value=%p\n", this, value);
-    gGlobalState->setValue(mKey, value);
-    D("Exiting this=%p\n", this);
+  D("Entering this=%p value=%p\n", this, value);
+  gGlobalState->setValue(mKey, value);
+  D("Exiting this=%p\n", this);
 }
 
 // static
-void ThreadStoreBase::OnThreadExit() {
-    gGlobalState->leaveCurrentThread();
-}
+void ThreadStoreBase::OnThreadExit() { gGlobalState->leaveCurrentThread(); }
 
 #else  // !_WIN32
 
 ThreadStoreBase::ThreadStoreBase(Destructor* destroy) {
-    int ret = pthread_key_create(&mKey, destroy);
-    if (ret != 0) {
-        dfatal(
-                "Could not create thread store key: %s",
-                strerror(ret));
-        exit(1);
-    }
+  int ret = pthread_key_create(&mKey, destroy);
+  if (ret != 0) {
+    PLOG(FATAL) << "Could not create thread store key: " << strerror(ret);
+  }
 }
 
-ThreadStoreBase::~ThreadStoreBase() {
-    pthread_key_delete(mKey);
-}
+ThreadStoreBase::~ThreadStoreBase() { pthread_key_delete(mKey); }
 
 #endif  // !_WIN32
 

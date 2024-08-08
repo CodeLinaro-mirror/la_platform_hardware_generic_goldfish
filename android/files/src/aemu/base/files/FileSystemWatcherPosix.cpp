@@ -8,23 +8,26 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include <atomic>
 #include <errno.h>
 #include <fcntl.h>
-#include <functional>
 #include <limits.h>
-#include <memory>
 #include <stdint.h>
 #include <sys/inotify.h>
 #include <sys/select.h>
-#include <thread>
 #include <unistd.h>
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <thread>
 #include <utility>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/synchronization/Event.h"
+
 #include "android/base/system/System.h"
 #include "android/utils/system.h"
 
@@ -87,7 +90,7 @@ private:
     }
 
     if (pipe(mPipe) != 0 || (fcntl(mPipe[0], F_SETFL, O_NONBLOCK) < 0)) {
-      derror("Unable to open pipe: %s", strerror(errno));
+      PLOG(ERROR) << "Unable to open pipe.";
       mPipe[0] = -1;
       mPipe[1] = -1;
       mStarted.signal();

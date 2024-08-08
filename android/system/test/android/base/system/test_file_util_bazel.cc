@@ -13,14 +13,15 @@
 // limitations under the License.
 //
 ///////////////////////////////////////////////////////////////////////////////
-#include "aemu/base/Log.h"
-#include "android/base/system/System.h"
-#include "android/base/testing/test_file_util.h"
 #include <iostream>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+
+#include "android/base/system/System.h"
+#include "android/base/testing/test_file_util.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 namespace android {
@@ -34,12 +35,12 @@ fs::path runfilesPath(fs::path path) {
   std::string error;
   std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
   if (runfiles == nullptr) {
-    dfatal("Unable to determine runfile path: %s", error);
+    LOG(FATAL) << "Unable to determine runfile path: " << error;
   }
 
   auto workspace_dir = System::get()->getEnvironmentVariable("TEST_WORKSPACE");
   if (workspace_dir.empty()) {
-    dfatal("Unable to determine workspace name.");
+    LOG(FATAL) << "Unable to determine workspace name.";
   }
 
   return fs::path(

@@ -53,9 +53,9 @@ JwkDirectoryObserver::JwkDirectoryObserver(Path jwksDir,
 
   if (startImmediately) {
     if (!start()) {
-      dfatal("Unable to start observing %s, jwks will not be updated. "
-             "%d were keysets loaded.",
-             jwksDir.c_str(), mLoadedKeys.size());
+      LOG(WARNING) << "Unable to start observing " << jwksDir
+                   << ", jwks will not be updated. " << mLoadedKeys.size()
+                   << " were keysets loaded.";
     }
   }
 }
@@ -75,13 +75,14 @@ bool JwkDirectoryObserver::start() {
 
 void JwkDirectoryObserver::scanJwkPath() {
   mLoadedKeys.clear();
-  dinfo("Scanning %s for jwk keys.", mJwkPath);
+  LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
   for (auto strPath : System::get()->scanDirEntries(mJwkPath.c_str(), true)) {
     auto status = mLoadedKeys.add(strPath);
     if (!status.ok()) {
-      dwarning("Failed add jwk key: %s, due to: %s, access will be "
-               "denied to this provider and the file deleted.",
-               strPath.c_str(), status.message().data());
+      LOG(WARNING) << "Failed add jwk key: " << strPath
+                   << ", due to: " << status
+                   << ", access will be "
+                      "denied to this provider and the file deleted.";
       System::get()->deleteFile(strPath);
     }
   };
@@ -115,14 +116,15 @@ void JwkDirectoryObserver::fileChangeHandler(
     auto status = mLoadedKeys.addWithRetryForEmpty(
         path, 8, std::chrono::milliseconds(125));
     if (!status.ok()) {
-      dwarning("Failed add jwk key: %s, due to: %s, access will be "
-               "denied to this provider and the file deleted.",
-               path, status.message());
+      LOG(WARNING) << "Failed to add jwk key: " << path
+                   << ", due to: " << status.message()
+                   << ", access will be "
+                      "denied to this provider and the file deleted.";
       System::get()->deleteFile(path);
       return;
     }
-    dinfo("Added JSON Web Key Sets from %s, %d keys loaded", path,
-          mLoadedKeys.size());
+    LOG(INFO) << "Added JSON Web Key Sets from " << path << ", "
+              << mLoadedKeys.size() << " keys loaded";
     break;
   }
   case FileSystemWatcher::WatcherChangeType::Deleted:
@@ -130,12 +132,12 @@ void JwkDirectoryObserver::fileChangeHandler(
     auto status = mLoadedKeys.remove(path);
     if (!status.ok()) {
       // This usually means it is already deleted.
-      derror("Failed to remove jwk key: %s, due to: %s", path,
-             status.message());
+      LOG(ERROR) << "Failed to remove jwk key: " << path
+                 << ", due to: " << status.message();
       return;
     }
-    dinfo("Removed JSON Web Key Sets from %s, %d keys loaded", path,
-          mLoadedKeys.size());
+    LOG(INFO) << "Removed JSON Web Key Sets from " << path << ", "
+              << mLoadedKeys.size() << " keys loaded";
   };
 
   notifyKeysetUpdated();
@@ -163,8 +165,8 @@ void JwkDirectoryObserver::notifyKeysetUpdated() {
   // Notification failed, lets see if we can rescan and update
   // our keyset..
   if (!notified.ok()) {
-    derror("Failed construct jwk keyset due to: %s, rescanning.",
-           notified.message().data());
+    LOG(ERROR) << "Failed construct jwk keyset due to: " << notified.message()
+               << ", rescanning.";
     scanJwkPath();
     notify(mCallback, mLoadedKeys).IgnoreError();
   }

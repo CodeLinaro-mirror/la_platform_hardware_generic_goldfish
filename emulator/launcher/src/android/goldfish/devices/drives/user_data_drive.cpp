@@ -15,9 +15,13 @@
 // limitations under the License.
 #include "android/goldfish/devices/drives/user_data_drive.h"
 
+#include <filesystem>
+#include <fstream>
+
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
@@ -26,9 +30,6 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/utils/path.h"
-
-#include <filesystem>
-#include <fstream>
 
 #define D(...) (void)(0)
 namespace android::goldfish {
@@ -52,7 +53,7 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
   // The adb_keys file permission will also be set in guest system.
   // Referencing system/core/rootdir/init.usb.rc
   if (fs::exists(to)) {
-    dwarning("Erasing existing folder: %s", to.string());
+    LOG(WARNING) << "Erasing existing folder: " << to.string();
     fs::remove_all(to);
   }
 
@@ -110,8 +111,8 @@ absl::Status prepareDataFolder(const fs::path &from, const fs::path &to) {
 
 absl::Status UserDataDrive::createImage(const HardwareConfig &hw,
                                         const fs::path data_path) {
-  dinfo("Creating image [%s] of size %s", hw.disk_dataPartition_path,
-        hw.disk_dataPartition_size.string());
+  LOG(INFO) << "Creating image [" << hw.disk_dataPartition_path << "] of size "
+            << hw.disk_dataPartition_size.string();
   fs::path empty_data_path = data_path / "empty_data_disk";
   bool shouldUseEmptyDataImg = fs::exists(empty_data_path);
   // &&!(android_foldable_is_pixel_fold());
@@ -154,11 +155,12 @@ absl::Status UserDataDrive::createUserData(const Emulator &emulator,
 
   bool needCopyDataPartition = true;
   if (fs::exists(*initDir)) {
-    dinfo("Creating ext4 userdata partition: %s from %s", data_path.string(),
-          initDir->string());
+    LOG(INFO) << "Creating ext4 userdata partition: " << data_path << " from "
+              << initDir;
+
     auto status = prepareDataFolder(*initDir, data_path);
     if (!status.ok()) {
-      derror("Failed to prepare data folder.");
+      LOG(ERROR) << "Failed to prepare data folder.";
       return status;
     }
 
@@ -171,7 +173,7 @@ absl::Status UserDataDrive::createUserData(const Emulator &emulator,
 
     status = createImage(hw, data_path);
     if (!status.ok()) {
-      derror("Failed to create user data image %s", data_path.string());
+      LOG(ERROR) << "Failed to create user data image " << data_path;
       return status;
     }
 
@@ -204,9 +206,9 @@ absl::Status UserDataDrive::createUserData(const Emulator &emulator,
         auto status = resizePartition(hw.disk_dataPartition_path,
                                       hw.disk_dataPartition_size);
         if (!status.ok()) {
-          dwarning("Failed to resize partition. Ignoring resize operation. "
-                   "Reason: %s",
-                   status.message());
+          LOG(WARNING) << "Failed to resize partition. Ignoring resize "
+                          "operation. Reason: "
+                       << status.message();
         }
       }
     }
@@ -227,15 +229,17 @@ UserDataDrive::minimizeUserDataPartition(const Emulator &emulator) {
     auto partition_size = hw.disk_dataPartition_size;
     if (hw.disk_dataPartition_size > 0 && current_data_size < partition_size) {
       // Log resize intent
-      dwarning("Resizing userdata partition %s from %s to %s",
-               hw.disk_dataPartition_path, current_data_size.string(),
-               hw.disk_dataPartition_size.string());
+      LOG(WARNING) << "Resizing userdata partition "
+                   << hw.disk_dataPartition_path << " from "
+                   << current_data_size.string() << " to "
+                   << hw.disk_dataPartition_size.string();
       auto status = resizePartition(hw.disk_dataPartition_path,
                                     hw.disk_dataPartition_size);
       if (!status.ok()) {
         auto qcow2 = absl::StrCat(hw.disk_dataPartition_path, ".qcow2");
-        dwarning("Partition resize failed. Deleting associated QCOW2 image: %s",
-                 qcow2);
+        LOG(WARNING)
+            << "Partition resize failed. Deleting associated QCOW2 image: "
+            << qcow2;
         System::get()->deleteFile(qcow2);
       };
     }

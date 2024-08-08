@@ -14,12 +14,13 @@
 
 #include "aemu/base/threads/Async.h"
 
-#include "aemu/base/async/ThreadLooper.h"
-#include "aemu/base/threads/FunctorThread.h"
-#include "android/base/system/System.h"
-#include "aemu/base/logging/Log.h"
-
 #include <memory>
+
+#include "aemu/base/async/ThreadLooper.h"
+#include "aemu/base/logging/Log.h"
+#include "aemu/base/threads/FunctorThread.h"
+
+#include "android/base/system/System.h"
 
 namespace android {
 namespace base {
@@ -28,83 +29,76 @@ namespace {
 
 class SelfDeletingThread final : public FunctorThread {
 public:
-    using FunctorThread::FunctorThread;
+ using FunctorThread::FunctorThread;
 
-    explicit SelfDeletingThread(const FunctorThread::Functor& func,
-                                ThreadFlags flags = ThreadFlags::MaskSignals)
-        : FunctorThread(func, flags | ThreadFlags::Detach) {}
+ explicit SelfDeletingThread(const FunctorThread::Functor& func,
+                             ThreadFlags flags = ThreadFlags::MaskSignals)
+     : FunctorThread(func, flags | ThreadFlags::Detach) {}
 
-    virtual void onExit() override {
-        delete this;
-    }
+ virtual void onExit() override { delete this; }
 
-    bool wait(intptr_t* exitStatus) override {
-        dfatal("tried to wait on a self deleting thread (for Async)");
-        abort();
-    }
+ bool wait(intptr_t* exitStatus) override {
+   LOG(FATAL) << "tried to wait on a self deleting thread (for Async)";
+ }
 };
 
-}
+}  // namespace
 
 bool async(const ThreadFunctor& func, ThreadFlags flags) {
-    auto thread =
-            std::unique_ptr<SelfDeletingThread>(
-                new SelfDeletingThread(func, flags));
-    if (thread->start()) {
-        thread.release();
-        return true;
-    }
+  auto thread =
+      std::unique_ptr<SelfDeletingThread>(new SelfDeletingThread(func, flags));
+  if (thread->start()) {
+    thread.release();
+    return true;
+  }
 
-    return false;
+  return false;
 }
 
 class AsyncThreadWithLooper::Impl {
 public:
-    Impl() : mLooper(Looper::create()),
-             mThread([this] { threadFunc(); }) {
-        mThread.start();
-    }
+ Impl() : mLooper(Looper::create()), mThread([this] { threadFunc(); }) {
+   mThread.start();
+ }
 
-    ~Impl() {
-        auto forceQuitTimer =
-            mLooper->createTimer(
-               [](void* opaque, Looper::Timer* timer) {
-                   auto looper = static_cast<Looper*>(opaque);
-                   looper->forceQuit();
-               }, mLooper);
+ ~Impl() {
+   auto forceQuitTimer = mLooper->createTimer(
+       [](void* opaque, Looper::Timer* timer) {
+         auto looper = static_cast<Looper*>(opaque);
+         looper->forceQuit();
+       },
+       mLooper);
 
-        forceQuitTimer->startAbsolute(0);
+   forceQuitTimer->startAbsolute(0);
 
-        mQuitting = true;
+   mQuitting = true;
 
-        mThread.wait();
-    }
+   mThread.wait();
+ }
 
-    Looper* getLooper() { return mLooper; }
+ Looper* getLooper() { return mLooper; }
 
 private:
-    void threadFunc() {
-        ThreadLooper::setLooper(mLooper, true /* own */);
-        while (!mQuitting) {
-            mLooper->run();
-            System::get()->sleepMs(500);
-        }
-    }
+ void threadFunc() {
+   ThreadLooper::setLooper(mLooper, true /* own */);
+   while (!mQuitting) {
+     mLooper->run();
+     System::get()->sleepMs(500);
+   }
+ }
 
-    bool mLooperObtained = false;
-    FunctorThread mThread;
-    Looper* mLooper = nullptr;
-    bool mQuitting = false;
+ bool mLooperObtained = false;
+ FunctorThread mThread;
+ Looper* mLooper = nullptr;
+ bool mQuitting = false;
 };
 
-AsyncThreadWithLooper::AsyncThreadWithLooper() :
-    mImpl(new AsyncThreadWithLooper::Impl) { }
+AsyncThreadWithLooper::AsyncThreadWithLooper()
+    : mImpl(new AsyncThreadWithLooper::Impl) {}
 
 AsyncThreadWithLooper::~AsyncThreadWithLooper() = default;
 
-Looper* AsyncThreadWithLooper::getLooper() {
-    return mImpl->getLooper();
-}
+Looper* AsyncThreadWithLooper::getLooper() { return mImpl->getLooper(); }
 
 }  // namespace base
 }  // namespace android

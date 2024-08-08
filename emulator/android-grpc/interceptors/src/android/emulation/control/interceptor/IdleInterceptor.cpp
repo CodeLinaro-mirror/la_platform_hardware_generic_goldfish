@@ -17,9 +17,11 @@
 #include <functional>
 #include <ratio>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/async/ThreadLooper.h"
 #include "aemu/base/process/Process.h"
+
 #include "android/base/system/System.h"
 
 namespace android {

@@ -11,25 +11,28 @@
 
 #include "android/emulation/control/adb/adbkey.h"
 
+#include <string.h>
+#include <sys/types.h>
+
+#include <cstdio>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <system_error>
+#include <vector>
+
 #include <openssl/base.h>
-#include <openssl/base64.h> // for EVP_EncodeBlock, EVP_Encod...
+#include <openssl/base64.h>  // for EVP_EncodeBlock, EVP_Encod...
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/nid.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 
-#include <cstdio>
-#include <filesystem>
-#include <memory>
-#include <string.h>
-#include <string>
-#include <sys/types.h>
-#include <system_error>
-#include <vector>
+#include "absl/log/log.h"
 
-#include "aemu/base/Log.h"
 #include "aemu/base/files/PathUtils.h"
+
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
@@ -106,8 +109,8 @@ bool calculate_public_key(std::string *out, RSA *private_key) {
 }
 
 static std::shared_ptr<RSA> read_key_file(const fs::path &file) {
-  std::unique_ptr<FILE, decltype(&fclose)> fp(android_fopen(file.string().c_str(), "r"),
-                                              fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> fp(
+      android_fopen(file.string().c_str(), "r"), fclose);
   if (!fp) {
     LOG(ERROR) << "Failed to open rsa file: " << file;
     return nullptr;
@@ -133,7 +136,7 @@ static bool generate_key(const fs::path &file) {
   BIGNUM *exponent = BN_new();
   RSA *rsa = RSA_new();
   if (!pkey || !exponent || !rsa) {
-    dwarning("Failed to allocate key");
+    LOG(WARNING) << "Failed to allocate key";
     goto out;
   }
 
@@ -143,12 +146,12 @@ static bool generate_key(const fs::path &file) {
 
   f = android_fopen(file.string().c_str(), "w");
   if (!f) {
-    dwarning("Failed to open %s", file.string());
+    LOG(WARNING) << "Failed to open " << file.string();
     goto out;
   }
 
   if (!PEM_write_PrivateKey(f, pkey, nullptr, nullptr, 0, nullptr, nullptr)) {
-    dwarning("Failed to write key");
+    LOG(WARNING) << "Failed to write key";
     goto out;
   }
 
@@ -205,12 +208,12 @@ fs::path getAdbKeyPath(const fs::path &adbKeyFileName) {
   std::error_code ec;
   fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
 
-
   if (System::get()->pathIsFile(adbKeyPath) &&
       System::get()->pathCanRead(adbKeyPath.c_str())) {
     return adbKeyPath;
   }
-  D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());
+  D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(),
+    ec.message());
   return "";
 }
 

@@ -13,17 +13,19 @@
 // limitations under the License.
 #include "android/goldfish/devices/machine.h"
 
+#include <initializer_list>
+#include <string_view>
+
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-#include <initializer_list>
-#include <string_view>
 
 namespace android::goldfish {
 

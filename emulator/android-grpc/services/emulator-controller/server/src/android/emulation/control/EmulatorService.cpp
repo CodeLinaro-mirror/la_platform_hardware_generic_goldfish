@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/emulation/control/EmulatorService.h"
-#include "aemu/base/Log.h"
-#include "aemu/base/process/Process.h"
-#include "android/emulation/control/display/DisplayChangeListener.h"
-#include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
-#include "host-common/vm_operations.h"
-#include <chrono>
+
 #include <grpc++/grpc++.h>
 #include <grpcpp/support/status.h>
+
+#include <chrono>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/process/Process.h"
+#include "host-common/vm_operations.h"
+
+#include "android/emulation/control/display/DisplayChangeListener.h"
+#include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {

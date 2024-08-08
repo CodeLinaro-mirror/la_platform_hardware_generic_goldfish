@@ -13,8 +13,9 @@
 // limitations under the License.
 #include "android/emulation/control/AndroidAgentFactory.h"
 
-#include "aemu/base/Log.h"
 #include <stdio.h>
+
+#include "absl/log/log.h"
 
 struct QAndroidAutomationAgent;
 

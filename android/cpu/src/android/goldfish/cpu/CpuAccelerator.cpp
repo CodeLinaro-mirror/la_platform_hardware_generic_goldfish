@@ -30,17 +30,19 @@
 
 #include <cstdio>
 
+#include "absl/log/log.h"
+
 #include "aemu/base/Compiler.h"
-#include "aemu/base/Log.h"
 #include "aemu/base/StringFormat.h"
 #include "aemu/base/files/ScopedFd.h"
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/misc/FileUtils.h"
 #include "aemu/base/misc/StringUtils.h"
+#include "host-common/FeatureControl.h"
+
 #include "android/base/system/System.h"
 #include "android/goldfish/cpu/cpu_accelerator.h"
 #include "android/goldfish/cpu/x86_cpuid.h"
-#include "host-common/FeatureControl.h"
 
 #ifdef _WIN32
 #include "aemu/base/files/PathUtils.h"
@@ -492,10 +494,10 @@ CpuAccelerator GetCurrentCpuAccelerator() {
 #else
   if (!android::hasModernX86VirtualizationFeatures()) {
     // TODO: Support snapshots when UG is not supported.
-    dwarning("Quick Boot / Snapshots not supported on this "
-             "machine. "
-             "A CPU with EPT + UG features is currently needed. "
-             "We will address this in a future release.");
+    LOG(WARNING) << "Quick Boot / Snapshots not supported on this "
+                    "machine. "
+                    "A CPU with EPT + UG features is currently needed. "
+                    "We will address this in a future release.";
     // featurecontrol::setEnabledOverride(featurecontrol::FastSnapshotV1,
     // false);
   }

@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/goldfish/avd-info.h"
-#include "absl/status/statusor.h"
-#include "aemu/base/Log.h"
-#include "android/goldfish/config/avd.h"
+
 #include <aemu/base/logging/LogSeverity.h>
-#include <memory>
 #include <qapi/error.h>
+
+#include <memory>
+
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+
+#include "android/goldfish/config/avd.h"
 
 using android::goldfish::Avd;
 

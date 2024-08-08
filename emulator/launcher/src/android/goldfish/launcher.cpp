@@ -11,22 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/config/emulator.h"
 #include <aemu/base/process/Command.h>
 #include <android/goldfish/devices/device.h>
-#include <chrono>
+
 #include <string>
-#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/internal/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/internal/globals.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/bazel/bazel_info.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
@@ -45,6 +48,8 @@ using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
 int main(int argc, char **argv) {
+  absl::InitializeLog();
+  absl::log_internal::EnableSymbolizeLogStackTrace(true);
   absl::SetProgramUsageMessage(
       "Welcome to goldfish \U0001F420, the android emulator launcher");
   absl::ParseCommandLine(argc, argv);
@@ -68,9 +73,10 @@ int main(int argc, char **argv) {
   auto name = absl::GetFlag(FLAGS_avd);
   auto status = Avd::fromName(name);
   if (!status.ok()) {
-    dfatal("Failed to load %s due to %s", name, status.status().message());
+    LOG(FATAL) << "Failed to load " << name << " due to "
+               << status.status().message();
   }
-  dinfo("Creating emulator");
+  LOG(INFO) << "Creating emulator";
   std::vector<std::string> additionalParams;
   if (!absl::GetFlag(FLAGS_vnc).empty()) {
     additionalParams.push_back("-display");

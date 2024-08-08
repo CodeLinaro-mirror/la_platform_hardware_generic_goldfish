@@ -141,7 +141,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
   if (!privkey.empty() && pubkey_from_privkey(privkey, &key)) {
     params.push_back({adbKeyProp, key});
   } else {
-    dwarning("No adb private key exists");
+    LOG(WARNING) << "No adb private key exists";
   }
 
   // if (opts->bootchart) {
@@ -205,7 +205,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
   std::string deviceState = getDeviceStateString(hw);
   if (!deviceState.empty()) {
-    dinfo(" sending device_state_config:%s", deviceState);
+    LOG(INFO) << " sending device_state_config:" << deviceState;
     params.push_back({deviceStateProp, deviceState});
   }
 
@@ -322,8 +322,8 @@ absl::Status Initrd::initialize(const Emulator &emulator) {
       hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel,
       real_console_tty_prefix, verifiedBootParameters, hw);
   // Ok.. let's create it
-  dinfo("Creating initrd from %s -> %s", hw.disk_ramdisk_path,
-        init_rd.string());
+  LOG(INFO) << "Creating initrd from " << hw.disk_ramdisk_path << " -> "
+            << init_rd;
   if (::goldfish::createRamdiskWithBootconfig(hw.disk_ramdisk_path.c_str(),
                                               init_rd.string().c_str(),
                                               properties) != 0) {

@@ -30,9 +30,10 @@
 #include <utility>
 #include <vector>
 
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/EintrWrapper.h"
+#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
+
 #include "android/base/process/exec.h"
 
 #define DEBUG 0
@@ -296,8 +297,7 @@ public:
 
     if (captureOutput) {
       if (pipe(mStdOutPipe) || pipe(mStdErrPipe)) {
-        dwarning("Unable to create pipes to connect to process: %s",
-                 strerror(errno));
+        PLOG(WARNING) << "Unable to create pipes to connect to process:";
         return std::nullopt;
       }
 
@@ -319,8 +319,8 @@ public:
     auto error_code = posix_spawnp(&pid, cmdline[0].c_str(), action, mAttr,
                                    args.data(), environ);
     if (error_code) {
-      derror("Unable to spawn process %s due to:, %s", cmdline[0],
-             strerror(error_code));
+      PLOG(ERROR) << "Unable to spawn process " << cmdline[0]
+                  << " due to: " << strerror(error_code);
       return std::nullopt;
     }
 

@@ -11,14 +11,16 @@
 
 #include "aemu/base/async/Looper.h"
 
-#include "aemu/base/Log.h"
-#include "aemu/base/sockets/SocketUtils.h"
-#include "aemu/base/sockets/ScopedSocket.h"
-#include <gtest/gtest.h>
+#include <errno.h>
 
 #include <memory>
 
-#include <errno.h>
+#include <gtest/gtest.h>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/sockets/ScopedSocket.h"
+#include "aemu/base/sockets/SocketUtils.h"
 
 #ifdef _MSC_VER
 #ifdef ERROR

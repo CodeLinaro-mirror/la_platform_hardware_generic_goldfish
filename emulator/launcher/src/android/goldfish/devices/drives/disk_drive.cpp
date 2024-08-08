@@ -14,12 +14,21 @@
 // limitations under the License.
 #include "android/goldfish/devices/drives/disk_drive.h"
 
+#include <chrono>
+#include <filesystem>
+#include <future>
+#include <memory>
+#include <string_view>
+
+#include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+
 #include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
+
 #include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/filesystems/ext4_resize.h"
@@ -27,12 +36,6 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-
-#include <chrono>
-#include <filesystem>
-#include <future>
-#include <memory>
-#include <string_view>
 
 namespace android::goldfish {
 using android::base::System;
@@ -110,7 +113,8 @@ absl::Status MutableDiskDrive::resizePartition(fs::path partition,
         partition.string(), maxSize.string(), size.string()));
   }
 
-  int resizeResult = resizeExt4Partition(partition.string().c_str(), size.bytes());
+  int resizeResult =
+      resizeExt4Partition(partition.string().c_str(), size.bytes());
 
   // Interpret the error codes can propagate.
   if (resizeResult != 0) {
@@ -167,8 +171,8 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - startTime);
   long long timeUsedMs = (long long)elapsed.count();
-  dprint("Converted ext4->qcow2 %s to %s in %lld milliseconds.",
-         ext4_image.string(), qcow2, timeUsedMs);
+  ABSL_VLOG(1) << "Converted ext4->qcow2 " << ext4_image << " to " << qcow2
+               << " in " << timeUsedMs << " milliseconds.";
   return absl::OkStatus();
 }
 

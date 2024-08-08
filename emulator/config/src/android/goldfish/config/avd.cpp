@@ -14,21 +14,25 @@
 #include "android/goldfish/config/avd.h"
 
 #include <android/goldfish/config/hardware_config.h>
+
 #include <filesystem>
 #include <memory>
 #include <regex>
 #include <unordered_map>
 #include <vector>
 
+#include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+
 #include "aemu/base/files/IniFile.h"
+#include "host-common/hw-config.h"
+
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/keys.h"
-#include "host-common/hw-config.h"
 
 /* technical note on how all of this is supposed to work:
  *
@@ -130,16 +134,16 @@ DeviceType Avd::getDeviceType() const {
 
   auto buildprop = getSystemImagePath(Avd::ImageType::BUILDPROP);
   if (!buildprop.ok()) {
-    dwarning(
-        "Unable to retrieve image path: %s, using unknown avd device type.",
-        buildprop.status().message());
+    ABSL_LOG(WARNING) << "Unable to retrieve image path: "
+                      << buildprop.status().message()
+                      << ", using unknown avd device type.";
     return DeviceType::kUnknown;
   }
 
   if (!System::get()->pathExists(*buildprop) ||
       !System::get()->pathCanRead(*buildprop)) {
-    dwarning("Unable to read build properties: %s, using unknown device type.",
-             buildprop->string());
+    ABSL_LOG(WARNING) << "Unable to read build properties: "
+                      << buildprop->string() << ", using unknown device type.";
     return DeviceType::kUnknown;
   }
   IniFile buildIni(*buildprop);
@@ -172,8 +176,8 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
       System::get()->pathCanRead(possible)) {
     return possible;
   }
-  dprint("Did not find %s in %s, falling back to system path",
-         possible.string(), mContentPath.string());
+  ABSL_VLOG(1) << "Did not find " << possible << " in " << mContentPath
+               << " falling back to system path";
   return getSystemImagePath(imgType);
 }
 

@@ -26,11 +26,13 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
+
 #include "aemu/base/Compiler.h"
 #include "aemu/base/CpuTime.h"
 #include "aemu/base/EnumFlags.h"
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/system/Memory.h"
+
 #include "android/base/system/storage_capacity.h"
 
 #ifdef _WIN32
@@ -38,13 +40,14 @@
 #define WIN32_LEAN_AND_MEAN 1
 #endif
 #include <windows.h>
+
 #include "aemu/base/system/Win32UnicodeString.h"
-#undef ERROR // necessary to compile LOG(ERROR) statements
-#else        // !_WIN32
+#undef ERROR  // necessary to compile LOG(ERROR) statements
+#else         // !_WIN32
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
-#endif // !_WIN32
+#endif  // !_WIN32
 
 namespace android {
 namespace base {
@@ -76,12 +79,12 @@ enum class RunOptions {
   ShowOutput = 4,
   DumpOutputToFile = 8,
 
-  Default = 0, // don't wait, hide all output
+  Default = 0,  // don't wait, hide all output
 };
 
 // Interface class to the underlying operating system.
 class System {
-public:
+ public:
   typedef int64_t Duration;
   typedef uint64_t WallDuration;
   using FileSize = StorageCapacity;
@@ -94,9 +97,9 @@ public:
     WallDuration wallClockMs;
   };
 
-public:
+ public:
   // Call this function to get the instance
-  static System *get();
+  static System* get();
 
   // Default constructor doesn't do anything.
   System() = default;
@@ -130,41 +133,39 @@ public:
   // state, and returns true if so. std::optionally, a freeRamMb output pointer
   // can be given so the caller can see how much RAM is actually free.
   static constexpr StorageCapacity kMemoryPressureLimit = 513_MiB;
-  static bool isUnderMemoryPressure(StorageCapacity *freeRamMb = nullptr);
+  static bool isUnderMemoryPressure(StorageCapacity* freeRamMb = nullptr);
 
   static constexpr StorageCapacity kDiskPressureLimit = 2_MiB;
   static bool isUnderDiskPressure(fs::path path,
-                                  System::FileSize *freeDisk = nullptr);
+                                  System::FileSize* freeDisk = nullptr);
 
   static System::FileSize getFilePageSizeForPath(fs::path path);
 
-
-
   inline static std::string pathAsString(const std::filesystem::path& path) {
-  #ifdef _WIN32
-        return Win32UnicodeString(path.string().data(), path.string().size()).toString();
-  #else
-        return path.string();
-  #endif
+#ifdef _WIN32
+    return Win32UnicodeString(path.string().data(), path.string().size())
+        .toString();
+#else
+    return path.string();
+#endif
   }
-
 
   // Environment variable name corresponding to the library search
   // list for shared libraries.
-  static const char *kLibrarySearchListEnvVarName;
+  static const char* kLibrarySearchListEnvVarName;
 
   // Return the name of the sub-directory containing libraries
   // for the current platform, i.e. "lib" or "lib64" depending
   // on the value of kProgramBitness.
-  static const char *kLibSubDir;
+  static const char* kLibSubDir;
 
   // Return the name of the sub-directory containing executables
   // for the current platform, i.e. "bin" or "bin64" depending
   // on the value of kProgramBitness.
-  static const char *kBinSubDir;
+  static const char* kBinSubDir;
 
   // Name of the 32-bit binaries subdirectory
-  static const char *kBin32SubDir;
+  static const char* kBin32SubDir;
 
   // Return program's bitness, either 32 or 64.
   static int getProgramBitness() { return 64; }
@@ -183,10 +184,10 @@ public:
   // Set the value of a given environment variable.
   // If |varvalue| is NULL or empty, this unsets the variable.
   // Equivalent to setenv().
-  virtual void envSet(const std::string &varname,
-                      const std::string &varvalue) = 0;
+  virtual void envSet(const std::string& varname,
+                      const std::string& varvalue) = 0;
 
-  virtual void envSet(const char *varname, const char *varvalue) final {
+  virtual void envSet(const char* varname, const char* varvalue) final {
     if (!varname) {
       return;
     }
@@ -243,7 +244,7 @@ public:
 
   // A wrapper for int open(filename, oflag, pmode) to support unicode paths
   // on Windows.
-  virtual int pathOpen(const char *filename, int oflag, int pmode) const = 0;
+  virtual int pathOpen(const char* filename, int oflag, int pmode) const = 0;
 
   // Function for deleting files. Return true iff
   // (|path| is a file and we have successfully deleted it)
@@ -251,8 +252,8 @@ public:
 
   // Get the size of file at |path|.
   // Fails if path is not a file or not readable, and in case of other errors.
-  virtual bool pathFileSize(fs::path path, FileSize *outFileSize) const = 0;
-  virtual bool fileSize(int fd, FileSize *outFileSize) const = 0;
+  virtual bool pathFileSize(fs::path path, FileSize* outFileSize) const = 0;
+  virtual bool fileSize(int fd, FileSize* outFileSize) const = 0;
   std::optional<FileSize> pathFileSize(fs::path path) {
     FileSize res;
     return pathFileSize(path, &res) ? std::make_optional(res) : std::nullopt;
@@ -269,7 +270,7 @@ public:
 
   // Get the amount of free disk space, in bytes, at |path|.
   // Returns 'false' on error.
-  virtual bool pathFreeSpace(fs::path path, FileSize *spaceInBytes) const = 0;
+  virtual bool pathFreeSpace(fs::path path, FileSize* spaceInBytes) const = 0;
 
   // Gets the file creation timestamp as a Unix epoch time with microsecond
   // resolution. Returns an empty std::optional for systems that don't support
@@ -340,7 +341,7 @@ public:
   // like Nomachine's NX, Chrome Remote Desktop or Windows Terminal Services.
   // On success, return true and sets |*sessionType| to the detected
   // session type. Otherwise, just return false.
-  virtual bool isRemoteSession(std::string *sessionType) const = 0;
+  virtual bool isRemoteSession(std::string* sessionType) const = 0;
 
   // Returns Times structure for the current process
   virtual Times getProcessTimes() const = 0;
@@ -398,21 +399,21 @@ public:
   static fs::perms octalModeToPerms(int octalMode);
 
   // Windows driver file querying functions
-  static bool queryFileVersionInfo(fs::path path, int *major, int *minor,
-                                   int *build_1, int *build_2);
+  static bool queryFileVersionInfo(fs::path path, int* major, int* minor,
+                                   int* build_1, int* build_2);
 
-protected:
+ protected:
   size_t mMemorySize = 0;
 
-  static System *setForTesting(System *system);
-  static System *hostSystem();
+  static System* setForTesting(System* system);
+  static System* hostSystem();
 
   // Internal implementation of scanDirEntries() that can be used by
   // mock implementation using a fake file system rooted into a temporary
   // directory or something like that. Always returns short paths.
   static std::vector<fs::path> scanDirInternal(fs::path dirPath);
 
-  static bool readSomeBytes(fs::path path, char *array, int pos, int size);
+  static bool readSomeBytes(fs::path path, char* array, int pos, int size);
 
   static bool pathExistsInternal(fs::path path);
   static bool pathIsFileInternal(fs::path path);
@@ -424,20 +425,20 @@ protected:
   static bool pathIsQcow2Internal(fs::path path);
   static bool pathFileSystemIsExt4Internal(fs::path path);
   static bool pathIsExt4Internal(fs::path path);
-  static int pathOpenInternal(const char *filename, int oflag, int pmode);
+  static int pathOpenInternal(const char* filename, int oflag, int pmode);
   static bool deleteFileInternal(fs::path path);
-  static bool pathFileSizeInternal(fs::path path, FileSize *outFileSize);
-  static bool fileSizeInternal(int fd, FileSize *outFileSize);
-  static bool pathFreeSpaceInternal(fs::path path, FileSize *spaceInBytes);
+  static bool pathFileSizeInternal(fs::path path, FileSize* outFileSize);
+  static bool fileSizeInternal(int fd, FileSize* outFileSize);
+  static bool pathFreeSpaceInternal(fs::path path, FileSize* spaceInBytes);
   static FileSize recursiveSizeInternal(fs::path path);
   static std::optional<Duration> pathCreationTimeInternal(fs::path path);
   static std::optional<Duration> pathModificationTimeInternal(fs::path path);
   static std::optional<DiskKind> diskKindInternal(fs::path path);
   static std::optional<DiskKind> diskKindInternal(int fd);
 
-private:
+ private:
   DISALLOW_COPY_AND_ASSIGN(System);
 };
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

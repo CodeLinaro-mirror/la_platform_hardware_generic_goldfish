@@ -18,9 +18,11 @@
 #include <cstdio>
 #include <thread>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+
 #include "aemu/base/files/FileShareOpenImpl.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/file/file_io.h"
 
 void android::base::createFileForShare(const char *filename) {
@@ -79,7 +81,7 @@ FILE *android::base::fsopen(const char *filename, const char *mode,
 bool android::base::updateFileShare(FILE *file, FileShare fileshare) {
   // TODO: have windows support
   // BUG: 112265408
-  derror("Error: updateFileShare not supported on windows");
+  LOG(ERROR) << "Error: updateFileShare not supported on windows";
   return false;
 }
 

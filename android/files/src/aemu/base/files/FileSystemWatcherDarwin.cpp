@@ -8,31 +8,34 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include <atomic>
-#include <chrono>
+#include <CoreServices/CoreServices.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <filesystem>
-#include <functional>
 #include <inttypes.h>
 #include <limits.h>
-#include <memory>
 #include <stdio.h>
 #include <string.h>
-#include <string>
 #include <sys/event.h>
 #include <sys/stat.h>
-#include <thread>
 #include <unistd.h>
+
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <functional>
+#include <memory>
+#include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/synchronization/Event.h"
+
 #include "android/base/system/System.h"
-#include <CoreServices/CoreServices.h>
 
 #define DEBUG 0
 
@@ -148,13 +151,13 @@ private:
     unsigned int vnode_events;
 
     if ((kq = kqueue()) < 0) {
-      derror("Unable to watch for changes, kqueue error: %s.", strerror(errno));
+      PLOG(ERROR) << "Unable to watch for changes.";
       mStarted.signal();
       return false;
     }
 
     if (pipe(mPipe) != 0 || (fcntl(mPipe[0], F_SETFL, O_NONBLOCK) < 0)) {
-      derror("Unable to open pipe: %s", strerror(errno));
+      PLOG(ERROR) << "Unable to open pipe.";
       mPipe[1] = -1;
       mStarted.signal();
       return false;
@@ -164,9 +167,9 @@ private:
 
     event_fd = open(mPath.c_str(), O_EVTONLY);
     if (event_fd <= 0) {
-      derror("The file %s could not be opened for monitoring.  Error "
-             "was %s.",
-             mPath.c_str(), strerror(errno));
+      LOG(ERROR) << "The file " << mPath
+                 << " could not be opened for monitoring. Error was "
+                 << strerror(errno);
       close(mPipe[0]);
       close(mPipe[1]);
       mPipe[1] = -1;
@@ -192,10 +195,8 @@ private:
       if (mRunning) {
         if ((event_count < 0) || (event_data[0].flags == EV_ERROR)) {
           /* An error occurred. */
-          derror("An error occurred (event count %d).  The error "
-                 "was "
-                 "%s.",
-                 event_count, strerror(errno));
+          LOG(ERROR) << "An error occurred (event count " << event_count
+                     << "). The error was " << strerror(errno) << ".";
           break;
         }
         if (event_count) {

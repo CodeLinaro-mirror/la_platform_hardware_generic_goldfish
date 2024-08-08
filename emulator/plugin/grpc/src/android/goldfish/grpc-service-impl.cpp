@@ -24,11 +24,20 @@ extern "C" {
 // clang-format on
 }
 
+#include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <iostream>
+#include <random>
+#include <system_error>
+
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_format.h"
-#include "aemu/base/Log.h"
+
 #include "aemu/base/process/Process.h"
+
 #include "android/base/system/System.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/GrpcServices.h"
@@ -36,13 +45,6 @@ extern "C" {
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/display/QemuDisplayTransformer.h"
-
-#include <chrono>
-#include <cstdint>
-#include <filesystem>
-#include <iostream>
-#include <random>
-#include <system_error>
 
 namespace fs = std::filesystem;
 using android::base::System;

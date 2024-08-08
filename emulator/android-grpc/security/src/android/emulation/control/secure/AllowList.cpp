@@ -21,7 +21,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "nlohmann/json.hpp"
 #include "re2/re2.h"
 
@@ -106,7 +107,7 @@ private:
 
     std::string sub = std::string(subView.data(), subView.length());
     if (!mSecurityMap[color].count(sub)) {
-      dwarning("Unknown subject %s is requesting access.", sub.c_str());
+      LOG(WARNING) << "Unknown subject " << sub << " is requesting access.";
       return false;
     }
 
@@ -159,8 +160,8 @@ AccessList parseAccessList(json regexList) {
     auto expr = entry.get<std::string>();
     auto re = std::make_unique<regex>(expr);
     if (!re->ok()) {
-      dwarning("Ignoring invalid regex: %s, error: %s", expr.c_str(),
-               re->error().c_str());
+      LOG(WARNING) << "Ignoring invalid regex: " << expr
+                   << " error: " << re->error();
     } else {
       DD("   %s", re->pattern());
       access.push_back(std::move(re));
@@ -171,7 +172,7 @@ AccessList parseAccessList(json regexList) {
 
 std::unique_ptr<AllowList> parseJsonObject(const json &jsonObject) {
   if (jsonObject.is_discarded()) {
-    derror("The json is invalid, access disabled!");
+    LOG(ERROR) << "The json is invalid, access disabled!";
     return std::make_unique<DisableAccess>();
   }
 
@@ -186,27 +187,25 @@ std::unique_ptr<AllowList> parseJsonObject(const json &jsonObject) {
   if (jsonObject.count("allowlist")) {
     for (const auto &entry : jsonObject["allowlist"]) {
       if (!entry.count("iss")) {
-        dwarning("Invalid allow list. Missing \"iss\" claim, "
-                 "skipping "
-                 "entry: %s",
-                 entry.dump(2).c_str());
+        LOG(WARNING) << "Invalid allow list. Missing \"iss\" claim, "
+                        "skipping entry: "
+                     << entry.dump(2);
         continue;
       }
 
       if (!entry.count("allowed") && !entry.count("protected")) {
-        dwarning("Invalid allow list. Missing \"allowed\" and \"protected\" "
-                 "list, "
-                 "skipping "
-                 "entry: %s",
-                 entry.dump(2).c_str());
+        LOG(WARNING)
+            << "Invalid allow list. Missing \"allowed\" and \"protected\" "
+               "list, skipping entry: "
+            << entry.dump(2).c_str();
         continue;
       }
 
       auto iss = entry["iss"].get<std::string>();
 
       if (iss == CachingAllowList::UNPROTECTED) {
-        dwarning("Skipping %s, this is a reserved issuer.",
-                 CachingAllowList::UNPROTECTED);
+        LOG(WARNING) << "Skipping " << CachingAllowList::UNPROTECTED
+                     << ", this is a reserved issuer.";
         continue;
       }
 
@@ -233,7 +232,7 @@ AllowList::fromJson(std::string_view jsonWithComments) {
 std::unique_ptr<AllowList>
 AllowList::fromStream(std::istream &jsonWithComments) {
   if (!jsonWithComments.good()) {
-    dwarning("Unable to access file!");
+    LOG(WARNING) << "Unable to access file!";
   }
   return parseJsonObject(json::parse(jsonWithComments, nullptr, false, true));
 }

@@ -116,7 +116,8 @@ JwkKeyLoader::addWithRetryForEmpty(Path toAdd, int retries,
   do {
     status = add(toAdd);
     if (status.code() == absl::StatusCode::kUnavailable) {
-      dinfo("Token not yet available, waiting %d ms.", wait_for.count());
+      LOG(INFO) << "Token not yet available, waiting " << wait_for.count()
+                << " ms.";
       std::this_thread::sleep_for(wait_for);
     }
     retries--;
@@ -141,7 +142,7 @@ absl::Status JwkKeyLoader::add(Path toAdd) {
 absl::Status JwkKeyLoader::add(Path toAdd, std::string jsonString) {
   auto handle = crypto::tink::JwkSetToPublicKeysetHandle(jsonString);
   if (!handle.ok()) {
-    dinfo("%s contains %s, which is invalid.", toAdd, jsonString);
+    LOG(INFO) << toAdd << " contains " << jsonString << ", which is invalid.";
     return absl::InternalError(
         absl::StrFormat("%s does not contain a valid jwk", toAdd));
   }
@@ -163,7 +164,7 @@ absl::Status JwkKeyLoader::add(Path toAdd, std::string jsonString) {
   auto keys = object["keys"];
   auto kid = keys.front().find("kid");
   if (kid == keys.front().end()) {
-    dwarning("No KeyID found in JWK %s", toAdd.c_str());
+    LOG(WARNING) << "No KeyID found in JWK " << toAdd;
   } else {
     DD("KeyID %s, path: %s", kid->get<std::string>().c_str(), toAdd.c_str());
   }

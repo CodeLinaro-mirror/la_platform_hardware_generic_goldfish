@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/emulation/control/secure/BasicTokenAuth.h"
-#include "absl/strings/str_format.h"
-#include "aemu/base/Log.h"
-#include "android/emulation/control/secure/AuthErrorFactory.h"
-#include "grpc++/grpc++.h"
+
 #include <algorithm>
 #include <map>
 #include <numeric>
 #include <string>
 #include <utility>
+
+#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
+
+#include "android/emulation/control/secure/AuthErrorFactory.h"
+#include "grpc++/grpc++.h"
 
 namespace android {
 namespace emulation {
@@ -94,7 +97,8 @@ StaticTokenAuth::StaticTokenAuth(std::string token, std::string iss,
                                  AllowList *list)
     : BasicTokenAuth(DEFAULT_HEADER, list),
       mStaticToken(DEFAULT_BEARER + token), mIssuer(iss) {
-  dwarning("*** Basic token auth should only be used by android-studio ***");
+  LOG(WARNING)
+      << "*** Basic token auth should only be used by android-studio ***";
 };
 
 bool StaticTokenAuth::canHandleToken(std::string_view token) {
@@ -174,7 +178,7 @@ absl::Status AnyTokenAuth::isTokenValid(std::string_view path,
                       "%s`, `path: %s`, `token: %s`",
                       validators, path, token);
 
-  derror("Internal error! %s", fatalError);
+  LOG(ERROR) << "Internal error! " << fatalError;
 
   // Should not happen, at least one validator should have been able
   // to handle the token.

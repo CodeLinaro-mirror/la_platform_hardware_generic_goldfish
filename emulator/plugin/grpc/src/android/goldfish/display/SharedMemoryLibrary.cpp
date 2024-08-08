@@ -17,7 +17,7 @@
 #include <string_view>
 #include <utility>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
 
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/memory/SharedMemory.h"

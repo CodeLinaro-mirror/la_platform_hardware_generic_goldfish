@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/goldfish/display/QemuDisplayTransformer.h"
-#include "absl/status/status.h"
-#include "aemu/base/Log.h"
-#include "host-common/opengles.h"
-#include "render-utils/Renderer.h"
+
+#include <qemu/typedefs.h>
+
 #include <cmath>
 #include <cstddef>
 #include <memory>
-#include <qemu/typedefs.h>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+
+#include "host-common/opengles.h"
+
+#include "render-utils/Renderer.h"
 
 extern "C" {
 // clang-format off
@@ -97,8 +102,8 @@ static absl::Status copy_buffer_to_pixman_image(pixman_image_t *src_img,
 
   // Make sure the image field has a string that is large enough.
   if (image.image().size() != cPixels) {
-    LOG(DEBUG) << "Allocation of string object. " << image.image().size()
-               << " < " << cPixels;
+    VLOG(1) << "Allocation of string object. " << image.image().size() << " < "
+            << cPixels;
     auto buffer = new std::string(cPixels, 0);
     // The protobuf message takes ownership of the pointer.
     image.set_allocated_image(buffer);
@@ -138,8 +143,8 @@ Image QemuDisplayTransformer::getScreenshot(ImageFormat fmt) {
 
     LOG(INFO) << "Need: " << cPixels << " bytes";
     if (image.image().size() != cPixels) {
-      LOG(DEBUG) << "Allocation of string object. " << image.image().size()
-                 << " < " << cPixels;
+      VLOG(1) << "Allocation of string object. " << image.image().size()
+              << " < " << cPixels;
       auto buffer = new std::string(cPixels, 0);
       // The protobuf message takes ownership of the pointer.
       image.set_allocated_image(buffer);
