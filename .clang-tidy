@@ -1,9 +1,6 @@
 ---
 # Note on checks are disabled on purpose
 #
-# - abseil-cleanup-ctad
-#   Requires C++17 and higher.
-#
 # - abseil-no-namespace
 #   https://bugs.llvm.org/show_bug.cgi?id=47947
 #
@@ -61,7 +58,6 @@
 #
 Checks: '-*,
   abseil-*,
-  -abseil-cleanup-ctad,
   -abseil-no-namespace,
   bugprone-*,
   -bugprone-assignment-in-if-condition,
