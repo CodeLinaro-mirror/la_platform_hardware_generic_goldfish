@@ -16,32 +16,48 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "aemu/base/Log.h"
+#include "android/base/bazel/bazel_info.h"
+#include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-
-#include <android/base/system/System.h>
 #include <initializer_list>
 #include <string_view>
 
 namespace android::goldfish {
 
-static std::string_view qemu_exe(const Avd& avd) {
+using android::base::Bazel;
+
+static std::string qemu_exe(const Avd &avd) {
+  const bool inBazel = Bazel::inBazel();
+  std::string baseName;
+
+#ifdef __APPLE__
+  constexpr std::string_view bazelPostfix = "_signed";
+#else
+  constexpr std::string_view bazelPostfix = "";
+#endif
+
   switch (avd.detectArchitecture()) {
   case Avd::CpuArchitecture::kArm:
-    return "qemu-system-aarch64";
+    baseName = "qemu-system-aarch64";
+    break;
   case Avd::CpuArchitecture::kX86:
-    return "qemu-system-x86_64";
+    baseName = "qemu-system-x86_64";
+    break;
   case Avd::CpuArchitecture::kRiscV:
-    return "qemu-system-riscv64";
+    baseName = "qemu-system-riscv64";
+    break;
   default:
     return "unknown";
   }
+
+  return inBazel ? absl::StrCat(baseName, bazelPostfix) : baseName;
 }
 
-absl::Status Machine::initialize(const Emulator& emulator) {
-  const Avd& avd = emulator.avd();
+absl::Status Machine::initialize(const Emulator &emulator) {
+  const Avd &avd = emulator.avd();
   auto qemu = qemu_exe(avd);
   mBinary = base::System::findBundledExecutable(qemu);
 
@@ -53,7 +69,8 @@ absl::Status Machine::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string> Machine::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string>
+Machine::getQemuParameters(const Emulator &emulator) const {
   return {
       "-machine",
       "goldfish,vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/"
