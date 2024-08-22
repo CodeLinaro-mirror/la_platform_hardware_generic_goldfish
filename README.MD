@@ -83,6 +83,37 @@ bazel build --copt=-funsafe-math-optimizations //hardware/generic/goldfish/emula
 
 Would globablly allow unsafe floating-point optimizations.
 
+### Creating a JSON Compilation Database with Bazel
+
+A JSON Compilation Database is a special file that captures the exact commands used to compile your C++ project. It stores information about include paths, compiler flags, and the location of source files. This data acts as a roadmap, guiding code analysis tools and editors like VSCode and Vim to understand your project's structure, enabling advanced features like:
+
+* **Accurate Code Navigation:**  Jump to definitions, find all references, and navigate complex codebases with confidence.
+* **Intelligent Code Completion:** Receive context-aware suggestions for variables, functions, and classes as you type.
+* **On-the-Fly Diagnostics:** Catch errors and potential issues early, even before you compile your code.
+* **Refactoring Support:** Rename symbols, extract methods, and perform other refactorings safely and efficiently.
+
+Various editors and IDE's can consume this file to provide you with an improved developer experience:
+
+* **VSCode:** The `clangd` extension seamlessly integrates with a JSON Compilation Database, enhancing the built-in C++ support.
+* **Vim:** Plugins like `YouCompleteMe` or `coc.nvim` can leverage `clangd`'s capabilities for powerful code completion and navigation.
+* **Other Editors:** Many modern code editors offer similar integration possibilities, making JSON Compilation Databases a universal tool for C++ development.
+
+In your Bazel workspace, you can generate a JSON Compilation Database using the following command:
+
+```sh
+
+bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/generic/goldfish/...
+
+```
+
+This command runs the extract-cc tool located in the specified Bazel package. The `-- //hardware/generic/goldfish/...` part tells Bazel to generate compilation commands for all C/C++ targets under the `//hardware/generic/goldfish` directory, including their transitive dependencies. The generated `compile_commands.json` file will be placed at the root of your Bazel workspace.
+
+**Important Considerations**
+
+* **Generated Source Files:** Source files generated during the build process, such as protobuf files, gRPC service definitions, and QEMU trace headers, will not be indexed.
+* **Build File Modifications:** Any changes to `BUILD` or `BUILD.bazel` files require re-running the tool to update the database.
+* **Editor/IDE Configuration:** Some editors or IDEs might require additional configuration to utilize the generated `compile_commands.json` file. Consult your editor's documentation for specific instructions.
+
 ## Adding Additional Functionality
 
 The following targets might be of interrest if you wish to add new functionality:

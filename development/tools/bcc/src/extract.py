@@ -83,7 +83,7 @@ def main():
         """,
     )
 
-    parser.add_argument("--aosp", help="Optional aosp root.")
+    # parser.add_argument("--aosp", help="Optional aosp root.")
 
     parser.add_argument(
         "-C",
@@ -91,7 +91,7 @@ def main():
         default=os.environ.get("BUILD_WORKSPACE_DIRECTORY", os.getcwd()),
         help=(
             "Set the working directory, should be inside your bazel "
-            "workspace. Do not use this when running from `bazel run`",
+            "workspace. Do not use this when running from `bazel run`"
         ),
     )
 
@@ -99,7 +99,7 @@ def main():
         "-o",
         "--out",
         dest="out",
-        default=Path(os.environ.get("BUILD_WORKING_DIRECTORY", ""))
+        default=Path(os.environ.get("BUILD_WORKSPACE_DIRECTORY", os.getcwd()))
         / "compile_commands.json",
         help="Set the output file or directory",
     )
