@@ -26,7 +26,7 @@
 AOSP_ROOT=$(CDPATH= cd -- "$(dirname $0)/../../../../../.." && pwd)
 
 # Extract Clang version from JSON (assumes the 'clang' field is always present)
-CLANG_VER=$(jq -r '.clang' "$AOSP_ROOT/build/bazel/rules/toolchains.json")
+CLANG_VER=$(jq -r '.clang' "$AOSP_ROOT/build/bazel/toolchains/tool_versions.json")
 CLANG_VER="${CLANG_VER%\"}"  # Remove trailing quotation mark
 CLANG_VER="${CLANG_VER#\"}"  # Remove leading quotation mark
 

@@ -46,7 +46,7 @@ In AOSP, we use a custom clang toolchain. This toolchain might cause incompatibi
 
 `clangd` performs some analysis to resolve the compiler toolchain used, based on information in `compile_commands.json`. This process can sometimes prevent `clangd` from correctly deriving certain headers. The simplest workaround is to create a custom `clangd.sh` wrapper script that forces the use of the `clangd` bundled with our toolchain.
 
-The `linux_clangd.sh` script in this directory can help you launch a compatible `clangd` server based on the compiler versions declared in `$AOSP_ROOT/build/bazel/rules/toolchains.json`.
+The `linux_clangd.sh` script in this directory can help you launch a compatible `clangd` server based on the compiler versions declared in `$AOSP_ROOT/build/bazel/toolchains/tool_versions.json`.
 
 **Example for VS Code with the clangd plugin:**
 
