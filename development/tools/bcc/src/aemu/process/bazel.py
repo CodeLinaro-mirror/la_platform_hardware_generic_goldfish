@@ -140,10 +140,10 @@ class Bazel:
         ]
 
         try:
-            result, _ = run(aquery, cwd=self.cwd)
+            result, _ = run(aquery, cwd=self.cwd, check=False)
             return json.loads(result)
-        except subprocess.CalledProcessError as cpe:
-            logging.error("Failed to run %s do to: %s, ignoring", " ".join(aquery), cpe)
+        except json.decoder.JSONDecodeError as jde:
+            logging.error("Failed to run %s do to: %s, ignoring", " ".join(aquery), jde)
         return []
 
     def _load_bazel_info(self) -> Dict[str, str]:
@@ -169,7 +169,12 @@ class Bazel:
             "--keep_going",
         ]
         try:
-            return set(check_output(query, cwd=self.cwd).splitlines())
+            result, _ = run(
+                query,
+                cwd=self.cwd,
+                check=False,
+            )
+            return set(result.splitlines())
         except subprocess.CalledProcessError as cpe:
             logging.warning("Unable to calculate closure of %s (%s)", target, cpe)
         return set()

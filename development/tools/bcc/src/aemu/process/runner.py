@@ -47,6 +47,7 @@ def run(
     cmd: List[str],
     env: Dict[str, str] = None,
     cwd: Path = None,
+    check: bool = True,
 ) -> (str, str):
     """Runs the given command, adding the 'toolchain' to the path
 
@@ -99,7 +100,7 @@ def run(
     # Log the final output and return code.
     logging.debug("Command completed with exit code: %s", return_code)
 
-    if return_code != 0:
+    if check and return_code != 0:
         raise subprocess.CalledProcessError(
             return_code, cmd, process.stdout.read(), process.stderr.read()
         )
