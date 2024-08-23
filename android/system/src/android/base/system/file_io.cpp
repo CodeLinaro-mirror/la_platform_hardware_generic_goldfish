@@ -17,7 +17,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 #ifndef _MSC_VER
@@ -69,7 +70,7 @@ FILE *android_fopen(const char *path, const char *mode) {
   FILE *res = NULL;
   int err = _wfopen_s(&res, wide_path, wide_mode);
   if (err != 0) {
-    dprint("%s: Failed to open %s, err: %d", __func__, path, err);
+    VLOG(1) << "Failed to open " << path << " due to " << err;
   }
   return res;
 #else

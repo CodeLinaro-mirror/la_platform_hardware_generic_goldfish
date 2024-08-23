@@ -16,7 +16,6 @@
 #include <grpcpp/grpcpp.h>  // for CreateCustomChannel
 #include <stdio.h>          // for size_t
 #include <sys/types.h>      // for mode_t
-#include <zlib.h>           // for crc32
 
 #include <cstdint>  // for uint8_t, uint64_t
 #include <memory>   // for unique_ptr, shar...
@@ -24,18 +23,21 @@
 #include <string>   // for string, operator+
 #include <vector>   // for vector
 
-#include "aemu/base/Log.h"                        // for LogStreamVoidify
+#include <zlib.h>  // for crc32
 
-#include "aemu/base/files/PathUtils.h"            // for PathUtils
-#include "aemu/base/memory/LazyInstance.h"        // for LazyInstance
-#include "aemu/base/memory/SharedMemory.h"        // for SharedMemory
-#include "aemu/base/sockets/ScopedSocket.h"       // for ScopedSocket
-#include "aemu/base/sockets/SocketUtils.h"        // for socketRecvAll
+#include "absl/log/log.h"              // for LogStreamVoidify
+#include "benchmark/benchmark.h"       // for State, Benchmark
+#include "google/protobuf/empty.pb.h"  // for Empty
+
+#include "aemu/base/files/PathUtils.h"       // for PathUtils
+#include "aemu/base/memory/LazyInstance.h"   // for LazyInstance
+#include "aemu/base/memory/SharedMemory.h"   // for SharedMemory
+#include "aemu/base/sockets/ScopedSocket.h"  // for ScopedSocket
+#include "aemu/base/sockets/SocketUtils.h"   // for socketRecvAll
+
 #include "android/base/system/System.h"              // for System, RunOptions
 #include "android/base/testing/TestTempDir.h"        // for TestTempDir
 #include "android/emulation/control/GrpcServices.h"  // for control
-#include "benchmark/benchmark.h"                     // for State, Benchmark
-#include "google/protobuf/empty.pb.h"                // for Empty
 #include "grpcpp/impl/grpc_library.h"  // Hack Attack! Needed for static initializer
 #include "grpcpp/security/credentials.h"       // for InsecureChannelC...
 #include "grpcpp/support/channel_arguments.h"  // for ChannelArguments

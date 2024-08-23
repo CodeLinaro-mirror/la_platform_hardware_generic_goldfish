@@ -20,7 +20,7 @@
 #include <future>
 #include <iterator>
 
-#include "aemu/base/logging/Log.h"
+#include "absl/log/log.h"
 
 #define DEBUG 0
 
@@ -64,7 +64,7 @@ private:
 void ObservableProcess::runOverseer() {
   {
     std::unique_lock<std::mutex> lk(mOverseerMutex);
-    dprint("Starting overseer to retrieve stderr/stdout of %s", exe());
+    VLOG(1) << "Starting overseer to retrieve stderr/stdout of " << exe();
     auto out = reinterpret_cast<ProcessOutputImpl *>(mStdOut.get())->getBuf();
     auto err = reinterpret_cast<ProcessOutputImpl *>(mStdErr.get())->getBuf();
     mOverseer->start(out, err);
@@ -77,7 +77,7 @@ void ObservableProcess::runOverseer() {
 
     // Stop the overseer (likely a nop)
     mOverseer->stop();
-    dprint("Stopped overseer");
+    VLOG(1) << "Stopped overseer";
     mOverseerActive = false;
   }
   mOverseerCv.notify_all();

@@ -11,11 +11,12 @@
 
 #include "android/filesystems/partition_types.h"
 
-#include "android/filesystems/ext4_utils.h"
-#include "aemu/base/Log.h"
-#include "android/utils/path.h"
-
 #include <cerrno>
+
+#include "absl/log/log.h"
+
+#include "android/filesystems/ext4_utils.h"
+#include "android/utils/path.h"
 
 namespace {
 
@@ -40,7 +41,7 @@ auto androidPartitionType_toString(AndroidPartitionType part_type) -> const
             return n.name;
         }
     }
-    derror("Invalid partition type value %d", part_type);
+    LOG(ERROR) << "Invalid partition type value " << part_type;
     return "unknown";
 }
 

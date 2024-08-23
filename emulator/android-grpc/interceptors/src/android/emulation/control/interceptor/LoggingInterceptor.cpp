@@ -13,14 +13,17 @@
 // limitations under the License.
 #include "android/emulation/control/interceptor/LoggingInterceptor.h"
 
-#include "android/base/system/System.h"
+#include <assert.h>
+#include <inttypes.h>
+
+#include <algorithm>
+#include <utility>
+
+#include "absl/log/log.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
-#include <algorithm>
-#include <assert.h>
-#include <inttypes.h>
-#include <utility>
+#include "android/base/system/System.h"
 
 // #define DEBUG 0
 /* set  for very verbose debugging */
@@ -69,15 +72,15 @@ static uint64_t getTimeDiffUs(InvocationRecord loginfo,
 static void printLog(const InvocationRecord &loginfo) {
   auto status_msg =
       kStatus[std::min<int>(static_cast<int>(loginfo.status.error_code()), 16)];
-  dinfo("from: %s, start: %" PRIu64 ", rcvTime: %" PRIu64 ", sndTime: %" PRIu64
-        ", rcv: %" PRIu64 ", snd: %" PRIu64 ", rcv_cnt: %" PRIu64
-        ", snd_cnt: %" PRIu64 ", %s %s, %s(%s) -> [%s]",
-        loginfo.peer.c_str(),
-        loginfo.mTimestamps[InvocationRecord::kStartTimeIdx], loginfo.rcvTime,
-        loginfo.sndTime, loginfo.rcvBytes, loginfo.sndBytes,
-        loginfo.rcvMessages, loginfo.sndMessages, status_msg.c_str(),
-        loginfo.status.error_message().c_str(), loginfo.method.c_str(),
-        loginfo.incoming.c_str(), loginfo.response.c_str());
+  LOG(INFO) << "from: " << loginfo.peer << ", start: "
+            << loginfo.mTimestamps[InvocationRecord::kStartTimeIdx]
+            << ", rcvTime: " << loginfo.rcvTime
+            << ", sndTime: " << loginfo.sndTime << ", rcv: " << loginfo.rcvBytes
+            << ", snd: " << loginfo.sndBytes
+            << ", rcv_cnt: " << loginfo.rcvMessages
+            << ", snd_cnt: " << loginfo.sndMessages << ", " << status_msg << " "
+            << loginfo.status.error_message() << ", " << loginfo.method << "("
+            << loginfo.incoming << ") -> [" << loginfo.response << "]";
 };
 
 LoggingInterceptor::LoggingInterceptor(ServerRpcInfo *info,

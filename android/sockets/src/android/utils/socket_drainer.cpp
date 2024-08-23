@@ -11,11 +11,12 @@
 
 #include "android/utils/socket_drainer.h"
 
-#include "aemu/base/Log.h"
+#include <stddef.h>
+
+#include "absl/log/log.h"
+
 #include "aemu/base/sockets/SocketDrainer.h"
 #include "aemu/base/sockets/SocketUtils.h"
-
-#include <stddef.h>
 
 using namespace android::base;
 

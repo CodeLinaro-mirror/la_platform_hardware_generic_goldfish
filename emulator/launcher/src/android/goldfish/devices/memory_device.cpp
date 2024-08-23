@@ -13,20 +13,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/goldfish/devices/memory_device.h"
-#include "absl/status/status.h"
-#include "aemu/base/Log.h"
-#include "aemu/base/process/Command.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
-#include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 #include <android/base/system/System.h>
 #include <android/base/system/storage_capacity.h>
+
 #include <chrono>
 #include <filesystem>
 #include <initializer_list>
 #include <string_view>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+
+#include "aemu/base/process/Command.h"
+
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/config/hardware_config.h"
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 using base::StorageCapacity;

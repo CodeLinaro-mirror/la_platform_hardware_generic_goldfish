@@ -114,20 +114,16 @@ auto ConfigDirs::getAvdRootDirectory() -> fs::path {
 
 // static
 auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
-  if (verbose) {
-    LOG(INFO) << "checking ANDROID_HOME for valid sdk root.";
-  }
+  LOG_IF(INFO, verbose) << "checking ANDROID_HOME for valid sdk root.";
   std::string sdkRoot = System::get()->envGet("ANDROID_HOME");
-  if (verbose) {
-    dinfo("ANDROID_HOME: %s", sdkRoot);
-  }
+  LOG_IF(INFO, verbose) << "ANDROID_HOME: " << sdkRoot;
+
   if (!sdkRoot.empty() && isValidSdkRoot(sdkRoot, verbose)) {
     return sdkRoot;
   }
 
-  if (verbose) {
-    LOG(INFO) << "checking ANDROID_SDK_ROOT for valid sdk root.";
-  }
+  LOG_IF(INFO, verbose) << "checking ANDROID_SDK_ROOT for valid sdk root.";
+
   // ANDROID_HOME is not good. Try ANDROID_SDK_ROOT.
   sdkRoot = System::get()->envGet("ANDROID_SDK_ROOT");
   if (static_cast<unsigned int>(!sdkRoot.empty()) != 0U) {
@@ -140,10 +136,9 @@ auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     if (isValidSdkRoot(sdkRoot, verbose)) {
       return sdkRoot;
     }
-  } else if (verbose) {
-    dwarning("ANDROID_SDK_ROOT is missing.");
   }
 
+  LOG_IF(WARNING, verbose) << "ANDROID_SDK_ROOT is missing.";
   return {};
 }
 
@@ -153,20 +148,14 @@ auto ConfigDirs::getSdkRootDirectoryByPath(bool verbose) -> fs::path {
   fs::path sdkRoot = fs::path(parts);
   for (int i = 0; i < 3; ++i) {
     sdkRoot = sdkRoot.parent_path();
-    if (verbose) {
-      dinfo("guessed sdk root: %s", sdkRoot.string());
-    }
+    LOG_IF(INFO, verbose) << "guessed sdk root: " << sdkRoot.string();
     if (isValidSdkRoot(sdkRoot, verbose)) {
       return sdkRoot;
     }
-    if (verbose) {
-      LOG(INFO) << "guessed sdk root " << sdkRoot.string()
-                << " does not seem to be valid";
-    }
+    LOG_IF(INFO, verbose) << "guessed sdk root " << sdkRoot.string()
+                          << " does not seem to be valid";
   }
-  if (verbose) {
-    LOG(WARNING) << "invalid sdk root:" << sdkRoot.string();
-  }
+  LOG_IF(WARNING, verbose) << "invalid sdk root:" << sdkRoot.string();
   return {};
 }
 
@@ -177,11 +166,9 @@ auto ConfigDirs::getSdkRootDirectory(bool verbose) -> fs::path {
     return sdkRoot;
   }
 
-  if (verbose) {
-    dwarning("Cannot find valid sdk root from environment "
-             "variable ANDROID_HOME nor ANDROID_SDK_ROOT,"
-             "Try to infer from emulator's path");
-  }
+  LOG_IF(WARNING, verbose) << "Cannot find valid sdk root from environment "
+                              "variable ANDROID_HOME nor ANDROID_SDK_ROOT,"
+                              "Try to infer from emulator's path";
   // Otherwise, infer from the path of the emulator's binary.
   return getSdkRootDirectoryByPath(verbose);
 }
@@ -190,9 +177,7 @@ auto ConfigDirs::getSdkRootDirectory(bool verbose) -> fs::path {
 auto ConfigDirs::isValidSdkRoot(const fs::path &rootPath,
                                 bool verbose) -> bool {
   if (rootPath.empty()) {
-    if (verbose) {
-      dwarning("empty sdk root");
-    }
+    LOG_IF(WARNING, verbose) << "empty sdk root";
     return false;
   }
 
@@ -200,27 +185,24 @@ auto ConfigDirs::isValidSdkRoot(const fs::path &rootPath,
   if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
     if (verbose) {
       if (!system->pathIsDir(rootPath)) {
-        dwarning("%s is not a directory, and cannot be sdk root", rootPath.string());
+        LOG(WARNING) << rootPath
+                     << " is not a directory, and cannot be sdk root";
       } else if (!system->pathCanRead(rootPath)) {
-        dwarning("%s is not readable, and cannot be sdk root", rootPath.string());
+        LOG(WARNING) << rootPath << " is not readable, and cannot be sdk root";
       }
     }
     return false;
   }
   fs::path platformsPath = fs::path(rootPath) / "platforms";
   if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
-    if (verbose) {
-      LOG(WARNING) << "platforms subdirectory is missing under " << rootPath.string()
-                   << ", please install it";
-    }
+    LOG_IF(WARNING, verbose) << "platforms subdirectory is missing under "
+                             << rootPath << ", please install it";
     return false;
   }
   fs::path platformToolsPath = fs::path(rootPath) / "platform-tools";
   if (!system->pathIsDir(platformToolsPath)) {
-    if (verbose) {
-      LOG(WARNING) << "platform-tools subdirectory is missing under "
-                   << rootPath << ", please install it";
-    }
+    LOG_IF(WARNING, verbose) << "platform-tools subdirectory is missing under "
+                             << rootPath << ", please install it";
     return false;
   }
 
@@ -308,7 +290,8 @@ auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
       LOG(WARNING) << "Unable to create directories: " << desired_directory
                    << " due to " << ec.message();
     }
-    fs::permissions(desired_directory, fs::perms::owner_all, fs::perm_options::remove);
+    fs::permissions(desired_directory, fs::perms::owner_all,
+                    fs::perm_options::remove);
   }
   return desired_directory;
 }

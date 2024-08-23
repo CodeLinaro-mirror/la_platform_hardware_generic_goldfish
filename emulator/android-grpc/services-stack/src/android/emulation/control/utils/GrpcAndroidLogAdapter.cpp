@@ -13,34 +13,26 @@
 // limitations under the License.
 #include "android/emulation/control/utils/GrpcAndroidLogAdapter.h"
 
-#include "aemu/base/Log.h"
-
-using android::base::LogMessage;
+#include "absl/log/log.h"
 
 namespace android {
 namespace emulation {
 namespace control {
-
 void gpr_log_to_android_log(gpr_log_func_args* args) {
-    if (!args)
-        return;
-
-    LogSeverity severity = EMULATOR_LOG_DEBUG;
-    switch (args->severity) {
-        case GPR_LOG_SEVERITY_DEBUG:
-            break;
-        case GPR_LOG_SEVERITY_INFO:
-            severity = EMULATOR_LOG_INFO;
-            break;
-        case GPR_LOG_SEVERITY_ERROR:
-            severity = EMULATOR_LOG_ERROR;
-            break;
-    };
-    LogMessage(args->file, args->line, severity).stream() << args->message;
+  if (!args) return;
+  switch (args->severity) {
+    case GPR_LOG_SEVERITY_DEBUG:
+      VLOG(2).AtLocation(args->file, args->line) << args->message;
+      break;
+    case GPR_LOG_SEVERITY_INFO:
+      LOG(INFO).AtLocation(args->file, args->line) << args->message;
+      break;
+    case GPR_LOG_SEVERITY_ERROR:
+      LOG(ERROR).AtLocation(args->file, args->line) << args->message;
+      break;
+  }
 }
-
 void gpr_null_logger(gpr_log_func_args* args) {}
-
 }  // namespace control
 }  // namespace emulation
 }  // namespace android

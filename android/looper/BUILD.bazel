@@ -25,6 +25,8 @@ cc_library(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
         "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

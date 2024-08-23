@@ -17,9 +17,10 @@
 #include <memory>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/system/System.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
@@ -38,7 +39,7 @@ std::string Bazel::runfilesPath(const std::string &path) {
     std::unique_ptr<Runfiles> runfiles(
         Runfiles::Create(arg0, BAZEL_CURRENT_REPOSITORY, &error));
     if (!runfiles) {
-      dfatal("Unable to create runfiles: %s", error.c_str());
+      LOG(FATAL) << "Unable to create runfiles: " << error;
     }
     return runfiles->Rlocation(path);
   } else {

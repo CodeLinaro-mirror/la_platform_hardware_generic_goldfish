@@ -14,20 +14,7 @@
 
 #include "android/base/system/System.h"
 
-#include "absl/strings//strip.h"
-#include "absl/strings/ascii.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
-#include "aemu/base/EintrWrapper.h"
-#include "aemu/base/files/ScopedFd.h"
-#include "aemu/base/logging/CLog.h"
-#include "aemu/base/logging/Log.h"
-#include "aemu/base/memory/NoDestructor.h"
-#include "aemu/base/memory/ScopedPtr.h"
-#include "aemu/base/process/Command.h"
-#include "aemu/base/system/System.h"
-#include "android/base/system/CStrWrapper.h"
-#include "android/base/system/storage_capacity.h"
+#include <inttypes.h>
 
 #include <algorithm>
 #include <array>
@@ -35,7 +22,6 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <inttypes.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -45,17 +31,35 @@
 #include <unordered_set>
 #include <vector>
 
+#include "absl/log/log.h"
+#include "absl/strings//strip.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
+
+#include "aemu/base/EintrWrapper.h"
+#include "aemu/base/files/ScopedFd.h"
+#include "aemu/base/memory/NoDestructor.h"
+#include "aemu/base/memory/ScopedPtr.h"
+#include "aemu/base/process/Command.h"
+#include "aemu/base/system/System.h"
+
+#include "android/base/system/CStrWrapper.h"
+#include "android/base/system/storage_capacity.h"
+
 #ifdef _WIN32
-#include "aemu/base/files/ScopedFileHandle.h"
-#include "aemu/base/files/ScopedRegKey.h"
-#include "aemu/base/system/Win32UnicodeString.h"
-#include "aemu/base/system/Win32Utils.h"
 #include <ntddscsi.h>
 #include <psapi.h>
 #include <shlobj.h>
 #include <tlhelp32.h>
 #include <windows.h>
 #include <winioctl.h>
+
+#include "aemu/base/files/ScopedFileHandle.h"
+#include "aemu/base/files/ScopedRegKey.h"
+#include "aemu/base/system/Win32UnicodeString.h"
+#include "aemu/base/system/Win32Utils.h"
+
 #endif
 
 #ifdef __APPLE__
@@ -76,8 +80,8 @@ CF_EXPORT CFDictionaryRef _CFCopySystemVersionDictionary(void);
 CF_EXPORT CFDictionaryRef _CFCopyServerVersionDictionary(void);
 CF_EXPORT const CFStringRef _kCFSystemVersionProductNameKey;
 CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
-} // extern "C"
-#endif // __APPLE__
+}  // extern "C"
+#endif  // __APPLE__
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -97,7 +101,9 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/stat.h>
 #ifdef _MSC_VER
 #include "aemu/base/msvc.h"
+
 #include "dirent.h"
+
 #else
 #include <sys/time.h>
 #include <unistd.h>
@@ -124,15 +130,15 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/utsname.h>
 #endif
 #ifdef __linux__
-extern "C" char **environ;
+extern "C" char** environ;
 #endif
 
 #ifdef _WIN32
 #if !defined(S_ISDIR)
-#define S_ISDIR(mode) (((mode)&S_IFMT) == S_IFDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 #if !defined(S_ISREG)
-#define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
+#define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
 #endif
 #endif
 
@@ -145,26 +151,25 @@ namespace fs = std::filesystem;
 std::optional<DiskKind> nativeDiskKind(int st_dev);
 #endif
 
-
 // The character used to separator directories in path-related
 // environment variables.
 #ifdef _WIN32
-    constexpr char kPathSeparator = ';';
+constexpr char kPathSeparator = ';';
 #else
-    constexpr char kPathSeparator = ':';
+constexpr char kPathSeparator = ':';
 #endif
 namespace {
 
 struct TickCountImpl {
-private:
+ private:
   System::WallDuration mStartTimeUs;
 #ifdef _WIN32
-  long long mFreqPerSec = 0; // 0 means 'high perf counter isn't available'
+  long long mFreqPerSec = 0;  // 0 means 'high perf counter isn't available'
 #elif defined(__APPLE__)
   clock_serv_t mClockServ;
 #endif
 
-public:
+ public:
   TickCountImpl() {
 #ifdef _WIN32
     LARGE_INTEGER freq;
@@ -195,7 +200,7 @@ public:
     timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000000ll + ts.tv_nsec / 1000;
-#else // APPLE
+#else  // APPLE
     mach_timespec_t mts;
     clock_get_time(mClockServ, &mts);
     return mts.tv_sec * 1000000ll + mts.tv_nsec / 1000;
@@ -208,11 +213,11 @@ public:
 // soon as possible after the application launch.
 const TickCountImpl kTickCount;
 
-} // namespace
+}  // namespace
 
 namespace {
 
-bool parseBooleanValue(const char *value, bool def) {
+bool parseBooleanValue(const char* value, bool def) {
   if (0 == strcmp(value, "1")) {
     return true;
   }
@@ -249,7 +254,7 @@ bool parseBooleanValue(const char *value, bool def) {
 }
 
 class HostSystem : public System {
-public:
+ public:
   HostSystem() : mProgramDir(), mHomeDir(), mAppDataDir() {
     ::atexit(HostSystem::atexit_HostSystem);
     configureHost();
@@ -272,8 +277,8 @@ public:
       // fishy here, return an empty string.
       return std::string();
     }
-    wchar_t *currentDir =
-        static_cast<wchar_t *>(calloc(currentLen + 1, sizeof(wchar_t)));
+    wchar_t* currentDir =
+        static_cast<wchar_t*>(calloc(currentLen + 1, sizeof(wchar_t)));
     if (!GetCurrentDirectoryW(currentLen + 1, currentDir)) {
       // Again, some unexpected problem. Can't do much here.
       // Make the string empty.
@@ -283,13 +288,13 @@ public:
     std::string result = Win32UnicodeString::convertToUtf8(currentDir);
     ::free(currentDir);
     return result;
-#else  // !_WIN32
+#else   // !_WIN32
     char currentDir[PATH_MAX];
     if (!getcwd(currentDir, sizeof(currentDir))) {
       return std::string();
     }
     return std::string(currentDir);
-#endif // !_WIN32
+#endif  // !_WIN32
   }
 
   bool setCurrentDirectory(fs::path directory) override {
@@ -332,13 +337,13 @@ public:
       }
 #elif defined(__linux__) || (__APPLE__)
       // Try getting HOME from env first
-      const char *home = getenv("HOME");
+      const char* home = getenv("HOME");
       if (home != nullptr) {
         mHomeDir.assign(home);
       } else {
         // If env HOME appears empty for some reason,
         // try getting HOME by querying system password database
-        const struct passwd *pw = getpwuid(getuid());
+        const struct passwd* pw = getpwuid(getuid());
         if (pw != nullptr && pw->pw_dir != nullptr) {
           mHomeDir.assign(pw->pw_dir);
         }
@@ -358,7 +363,7 @@ public:
       if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, path))) {
         mAppDataDir = Win32UnicodeString::convertToUtf8(path);
       } else {
-        const wchar_t *appdata = _wgetenv(L"APPDATA");
+        const wchar_t* appdata = _wgetenv(L"APPDATA");
         if (appdata != NULL) {
           mAppDataDir = Win32UnicodeString::convertToUtf8(appdata);
         }
@@ -376,7 +381,7 @@ public:
       mAppDataDir.append("/Library/Preferences");
     }
 #elif defined(__linux__)
-    ; // not applicable
+    ;  // not applicable
 #else
 #error "Unsupported platform!"
 #endif
@@ -410,7 +415,7 @@ public:
       std::string errorStr =
           absl::StrFormat("Error: RegOpenKeyExA failed %ld %s", result,
                           Win32Utils::getErrorString(result));
-      LOG(DEBUG) << errorStr;
+      VLOG(1) << errorStr;
       return errorStr;
     }
     ScopedRegKey hOsVersionKey(hkey);
@@ -423,7 +428,7 @@ public:
       std::string errorStr =
           absl::StrFormat("Error: RegGetValueW failed %ld %s", result,
                           Win32Utils::getErrorString(result));
-      LOG(DEBUG) << errorStr;
+      VLOG(1) << errorStr;
       return errorStr;
     }
 
@@ -435,7 +440,7 @@ public:
       std::string errorStr =
           absl::StrFormat("Error: RegGetValueW failed %ld %s", result,
                           Win32Utils::getErrorString(result));
-      LOG(DEBUG) << errorStr;
+      VLOG(1) << errorStr;
       return errorStr;
     }
     lastSuccessfulValue = osName.toString();
@@ -477,7 +482,7 @@ public:
       dict = _CFCopySystemVersionDictionary();
     }
     if (!dict) {
-      LOG(DEBUG) << "Failed to get a version dictionary";
+      VLOG(1) << "Failed to get a version dictionary";
       return "<Unknown>";
     }
 
@@ -487,14 +492,14 @@ public:
         CFDictionaryGetValue(dict, _kCFSystemVersionProductVersionKey));
     if (!str) {
       CFRelease(dict);
-      LOG(DEBUG) << "Failed to get a version string from a dictionary";
+      VLOG(1) << "Failed to get a version string from a dictionary";
       return "<Unknown>";
     }
     int length = CFStringGetLength(str);
     if (!length) {
       CFRelease(str);
       CFRelease(dict);
-      LOG(DEBUG) << "Failed to get a version string length";
+      VLOG(1) << "Failed to get a version string length";
       return "<Unknown>";
     }
     std::string version(length, '\0');
@@ -502,7 +507,7 @@ public:
                             CFStringGetSystemEncoding())) {
       CFRelease(str);
       CFRelease(dict);
-      LOG(DEBUG) << "Failed to get a version string as C string";
+      VLOG(1) << "Failed to get a version string as C string";
       return "<Unknown>";
     }
     CFRelease(str);
@@ -535,7 +540,7 @@ public:
 #ifdef _WIN32
     OSVERSIONINFOEXW ver;
     ver.dwOSVersionInfoSize = sizeof(ver);
-    GetVersionExW((OSVERSIONINFOW *)&ver);
+    GetVersionExW((OSVERSIONINFOW*)&ver);
     majorVersion = ver.dwMajorVersion;
     minorVersion = ver.dwMinorVersion;
 #else
@@ -567,7 +572,7 @@ public:
 
     if (::GetProcessMemoryInfo(
             ::GetCurrentProcess(),
-            reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&memCounters),
+            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memCounters),
             sizeof(memCounters))) {
       uint64_t pageFileUsageCommit = memCounters.PagefileUsage
                                          ? memCounters.PagefileUsage
@@ -640,9 +645,9 @@ public:
     res.resident = info.resident_size;
     res.resident_max = info.resident_size_max;
     res.virt = info.virtual_size;
-    res.virt_max = 0;                   // Max virtual NYI for macOS
-    res.total_phys_memory = total_phys; // Max virtual NYI for macOS
-    res.total_page_file = 0;            // Total page file NYI for macOS
+    res.virt_max = 0;                    // Max virtual NYI for macOS
+    res.total_phys_memory = total_phys;  // Max virtual NYI for macOS
+    res.total_page_file = 0;             // Total page file NYI for macOS
 
     // Available memory detection: taken from the vm_stat utility sources.
     vm_size_t pageSize = 4096;
@@ -682,18 +687,18 @@ public:
     return getEnvironmentVariable(varname);
   }
 
-  void envSet(const std::string &varname,
-              const std::string &varvalue) override {
+  void envSet(const std::string& varname,
+              const std::string& varvalue) override {
     setEnvironmentVariable(varname, varvalue);
   }
 
   bool envTest(std::string_view varname) const override {
 #ifdef _WIN32
     Win32UnicodeString varname_unicode(varname.data());
-    const wchar_t *value = _wgetenv(varname_unicode.c_str());
+    const wchar_t* value = _wgetenv(varname_unicode.c_str());
     return value && value[0] != L'\0';
 #else
-    const char *value = getenv(c_str(varname));
+    const char* value = getenv(c_str(varname));
     return value && value[0] != '\0';
 #endif
   }
@@ -706,7 +711,7 @@ public:
     return res;
   }
 
-  bool isRemoteSession(std::string *sessionType) const final {
+  bool isRemoteSession(std::string* sessionType) const final {
     if (envTest("NX_TEMP")) {
       if (sessionType) {
         *sessionType = "NX";
@@ -741,7 +746,7 @@ public:
     // (RDP). In this case, GetSystemMetrics(SM_REMOTESESSION) will identify the
     // remote session as a local session."
 
-#define TERMINAL_SERVER_KEY                                                    \
+#define TERMINAL_SERVER_KEY \
   "SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\"
 #define GLASS_SESSION_ID "GlassSessionId"
 
@@ -754,7 +759,7 @@ public:
       LONG lResult;
 
       lResult = RegOpenKeyExA(HKEY_LOCAL_MACHINE, TERMINAL_SERVER_KEY,
-                              0, // ulOptions
+                              0,  // ulOptions
                               KEY_READ, &hRegKey);
 
       if (lResult == ERROR_SUCCESS) {
@@ -763,8 +768,8 @@ public:
         DWORD dwType;
 
         lResult = RegQueryValueExA(hRegKey, GLASS_SESSION_ID,
-                                   NULL, // lpReserved
-                                   &dwType, (BYTE *)&dwGlassSessionId,
+                                   NULL,  // lpReserved
+                                   &dwType, (BYTE*)&dwGlassSessionId,
                                    &cbGlassSessionId);
 
         if (lResult == ERROR_SUCCESS) {
@@ -789,7 +794,7 @@ public:
       return true;
     }
 
-#endif // _WIN32
+#endif  // _WIN32
     return false;
   }
 
@@ -833,7 +838,7 @@ public:
     return pathIsExt4Internal(path);
   }
 
-  int pathOpen(const char *filename, int oflag, int pmode) const override {
+  int pathOpen(const char* filename, int oflag, int pmode) const override {
     return pathOpenInternal(filename, oflag, pmode);
   }
 
@@ -841,7 +846,7 @@ public:
     return deleteFileInternal(path);
   }
 
-  bool pathFileSize(fs::path path, FileSize *outFileSize) const override {
+  bool pathFileSize(fs::path path, FileSize* outFileSize) const override {
     return pathFileSizeInternal(path, outFileSize);
   }
 
@@ -849,11 +854,11 @@ public:
     return recursiveSizeInternal(path);
   }
 
-  bool pathFreeSpace(fs::path path, FileSize *spaceInBytes) const override {
+  bool pathFreeSpace(fs::path path, FileSize* spaceInBytes) const override {
     return pathFreeSpaceInternal(path, spaceInBytes);
   }
 
-  bool fileSize(int fd, FileSize *outFileSize) const override {
+  bool fileSize(int fd, FileSize* outFileSize) const override {
     return fileSizeInternal(fd, outFileSize);
   }
   std::optional<Duration> pathCreationTime(fs::path path) const override {
@@ -950,7 +955,7 @@ public:
     do {
       ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr);
     } while (ret == -1 && errno == EINTR);
-#else // _WIN32
+#else  // _WIN32
 
     // Create a persistent thread local timer object
     struct ThreadLocalTimerState {
@@ -978,8 +983,7 @@ public:
 
     WallDuration current = getHighResTimeUs();
     // Already passed deadline, return.
-    if (absTimeUs < current)
-      return;
+    if (absTimeUs < current) return;
     WallDuration diff = absTimeUs - current;
 
     // Waitable Timer appraoch
@@ -991,7 +995,7 @@ public:
     }
 
     LARGE_INTEGER dueTime;
-    dueTime.QuadPart = -1LL * diff * 10LL; // 1 us = 1x 100ns
+    dueTime.QuadPart = -1LL * diff * 10LL;  // 1 us = 1x 100ns
     SetWaitableTimer(tl_timerInfo.timerHandle, &dueTime, 0 /* one shot timer */,
                      0 /* no callback on finish */,
                      NULL /* no arg to completion routine */,
@@ -1003,9 +1007,9 @@ public:
   void yield() const override { std::this_thread::yield(); }
 
 #ifdef _MSC_VER
-  static void msvcInvalidParameterHandler(const wchar_t *expression,
-                                          const wchar_t *function,
-                                          const wchar_t *file,
+  static void msvcInvalidParameterHandler(const wchar_t* expression,
+                                          const wchar_t* function,
+                                          const wchar_t* file,
                                           unsigned int line,
                                           uintptr_t pReserved) {
     // Don't expect too much from actually getting these parameters..
@@ -1038,11 +1042,11 @@ public:
     path.append(L"\\AndroidEmulator");
     ::_wmkdir(path.c_str());
     return path.toString();
-#else  // !_WIN32
+#else   // !_WIN32
     std::string result;
-    const char *tmppath = getenv("ANDROID_TMP");
+    const char* tmppath = getenv("ANDROID_TMP");
     if (!tmppath) {
-      const char *user = getenv("USER");
+      const char* user = getenv("USER");
       if (user == nullptr || user[0] == '\0') {
         user = "unknown";
       }
@@ -1061,10 +1065,10 @@ public:
     }
 
     if (!fs::exists(tmp)) {
-      dwarning("Failed to create: %s", tmp);
+      LOG(WARNING) << "Failed to create: " << tmp;
     }
     return result;
-#endif // !_WIN32
+#endif  // !_WIN32
   }
 
   bool getEnableCrashReporting() const override {
@@ -1076,14 +1080,15 @@ public:
     if (enableCrashReporting.empty()) {
       return defaultValue;
     } else {
-      dinfo("Using crash reporting configuration from environment variable: "
-            "ANDROID_EMU_ENABLE_CRASH_REPORTING=%s",
-            enableCrashReporting);
+      LOG(INFO)
+          << "Using crash reporting configuration from environment variable: "
+             "ANDROID_EMU_ENABLE_CRASH_REPORTING="
+          << enableCrashReporting;
       return parseBooleanValue(enableCrashReporting.c_str(), defaultValue);
     }
   }
 
-private:
+ private:
   static void atexit_HostSystem();
 
   mutable fs::path mProgramDir;
@@ -1093,7 +1098,7 @@ private:
 };
 
 // HostSystem sHostSystem;
-System *sSystemForTesting = nullptr;
+System* sSystemForTesting = nullptr;
 
 // static
 void HostSystem::atexit_HostSystem() {
@@ -1117,26 +1122,26 @@ Win32UnicodeString win32Path(fs::path path) {
 
 using PathStat = struct _stat64;
 
-#else // _WIN32
+#else  // _WIN32
 
 using PathStat = struct stat;
 
-#endif // _WIN32
+#endif  // _WIN32
 
-int pathStat(fs::path path, PathStat *st) {
+int pathStat(fs::path path, PathStat* st) {
 #ifdef _WIN32
   return _wstat64(win32Path(path).c_str(), st);
-#else  // !_WIN32
+#else   // !_WIN32
   return HANDLE_EINTR(stat(path.c_str(), st));
-#endif // !_WIN32
+#endif  // !_WIN32
 }
 
-int fdStat(int fd, PathStat *st) {
+int fdStat(int fd, PathStat* st) {
 #ifdef _WIN32
   return _fstat64(fd, st);
-#else  // !_WIN32
+#else   // !_WIN32
   return HANDLE_EINTR(fstat(fd, st));
-#endif // !_WIN32
+#endif  // !_WIN32
 }
 
 #ifdef _WIN32
@@ -1158,16 +1163,16 @@ static int GetWin32Mode(int mode) {
 int pathAccess(fs::path path, int mode) {
 #ifdef _WIN32
   return _waccess(path.c_str(), GetWin32Mode(mode));
-#else  // !_WIN32
+#else   // !_WIN32
   return HANDLE_EINTR(access(path.c_str(), mode));
-#endif // !_WIN32
+#endif  // !_WIN32
 }
 
-} // namespace
+}  // namespace
 
 // static
-System *System::get() {
-  System *result = sSystemForTesting;
+System* System::get() {
+  System* result = sSystemForTesting;
   if (!result) {
     result = hostSystem();
   }
@@ -1175,28 +1180,28 @@ System *System::get() {
 }
 
 // static
-const char *System::kLibSubDir = "lib64";
+const char* System::kLibSubDir = "lib64";
 // static
-const char *System::kBinSubDir = "bin";
+const char* System::kBinSubDir = "bin";
 
 #ifdef _WIN32
 // static
-const char *System::kLibrarySearchListEnvVarName = "PATH";
+const char* System::kLibrarySearchListEnvVarName = "PATH";
 #elif defined(__APPLE__)
-const char *System::kLibrarySearchListEnvVarName = "DYLD_LIBRARY_PATH";
+const char* System::kLibrarySearchListEnvVarName = "DYLD_LIBRARY_PATH";
 #else
 // static
-const char *System::kLibrarySearchListEnvVarName = "LD_LIBRARY_PATH";
+const char* System::kLibrarySearchListEnvVarName = "LD_LIBRARY_PATH";
 #endif
 
 // static
-System *System::setForTesting(System *system) {
-  System *result = sSystemForTesting;
+System* System::setForTesting(System* system) {
+  System* result = sSystemForTesting;
   sSystemForTesting = system;
   return result;
 }
 
-System *System::hostSystem() {
+System* System::hostSystem() {
   static android::base::NoDestructor<HostSystem> sHostSystem;
   return sHostSystem.get();
 }
@@ -1206,7 +1211,7 @@ std::vector<fs::path> System::scanDirInternal(fs::path dirPath) {
   std::vector<fs::path> result;
 
   if (dirPath.empty()) {
-    dwarning("Empty path!");
+    LOG(WARNING) << "Empty path!";
     return result;
   }
 
@@ -1217,29 +1222,29 @@ std::vector<fs::path> System::scanDirInternal(fs::path dirPath) {
   intptr_t findIndex = _wfindfirst(rootUnicode.c_str(), &findData);
   if (findIndex >= 0) {
     do {
-      const wchar_t *name = findData.name;
+      const wchar_t* name = findData.name;
       if (wcscmp(name, L".") != 0 && wcscmp(name, L"..") != 0) {
         result.push_back(Win32UnicodeString::convertToUtf8(name));
       }
     } while (_wfindnext(findIndex, &findData) >= 0);
     _findclose(findIndex);
   }
-#else  // !_WIN32
-  DIR *dir = ::opendir(dirPath.c_str());
+#else   // !_WIN32
+  DIR* dir = ::opendir(dirPath.c_str());
   if (dir) {
     for (;;) {
-      struct dirent *entry = ::readdir(dir);
+      struct dirent* entry = ::readdir(dir);
       if (!entry) {
         break;
       }
-      const char *name = entry->d_name;
+      const char* name = entry->d_name;
       if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0) {
         result.push_back(std::string(name));
       }
     }
     ::closedir(dir);
   }
-#endif // !_WIN32
+#endif  // !_WIN32
   std::sort(result.begin(), result.end());
   return result;
 }
@@ -1319,7 +1324,7 @@ bool System::pathCanExecInternal(fs::path path) {
   return pathAccess(path, X_OK) == 0;
 }
 
-bool System::readSomeBytes(fs::path path, char *array, int pos, int size) {
+bool System::readSomeBytes(fs::path path, char* array, int pos, int size) {
   if (size <= 0 || !pathCanReadInternal(path)) {
     return false;
   }
@@ -1338,8 +1343,8 @@ bool System::readSomeBytes(fs::path path, char *array, int pos, int size) {
 }
 
 #if defined(__linux__)
-static void get_all_ext4_mount_dirs(std::vector<fs::path> &alldirs) {
-  static const char *proc_mounts = "/proc/self/mounts";
+static void get_all_ext4_mount_dirs(std::vector<fs::path>& alldirs) {
+  static const char* proc_mounts = "/proc/self/mounts";
   std::ifstream testFile(proc_mounts);
   std::string line;
 
@@ -1357,12 +1362,12 @@ static void get_all_ext4_mount_dirs(std::vector<fs::path> &alldirs) {
   }
 }
 
-static bool dir_contains_path(const fs::path &path, const fs::path &dir) {
-  fs::path absolute_path = fs::absolute(path); // Get absolute path
-  fs::path absolute_dir = fs::absolute(dir);   // Get absolute dir
+static bool dir_contains_path(const fs::path& path, const fs::path& dir) {
+  fs::path absolute_path = fs::absolute(path);  // Get absolute path
+  fs::path absolute_dir = fs::absolute(dir);    // Get absolute dir
 
   if (absolute_path.root_name() !=
-      absolute_dir.root_name()) { // Check if on same drive
+      absolute_dir.root_name()) {  // Check if on same drive
     return false;
   }
 
@@ -1370,10 +1375,10 @@ static bool dir_contains_path(const fs::path &path, const fs::path &dir) {
   for (auto p = absolute_dir.begin(), q = absolute_path.begin();
        p != absolute_dir.end(); ++p, ++q) {
     if (q == absolute_path.end() || *p != *q) {
-      return false; // Reached end of path or components differ
+      return false;  // Reached end of path or components differ
     }
   }
-  return true; // All components of dir are present in path
+  return true;  // All components of dir are present in path
 }
 
 #endif
@@ -1383,7 +1388,7 @@ bool System::pathFileSystemIsExt4Internal(fs::path path) {
   std::vector<fs::path> mount_dirs;
   get_all_ext4_mount_dirs(mount_dirs);
 
-  for (const auto &dir : mount_dirs) {
+  for (const auto& dir : mount_dirs) {
     if (dir_contains_path(dir, path.c_str())) {
       return true;
     }
@@ -1397,7 +1402,7 @@ bool System::pathIsExt4Internal(fs::path path) {
   // read 2 bytes
   uint8_t magic[2] = {'\0'};
 
-  if (!readSomeBytes(path, reinterpret_cast<char *>(magic), 1080,
+  if (!readSomeBytes(path, reinterpret_cast<char*>(magic), 1080,
                      sizeof(magic))) {
     return false;
   }
@@ -1413,7 +1418,7 @@ bool System::pathIsExt4Internal(fs::path path) {
 bool System::pathIsQcow2Internal(fs::path path) {
   // read 4 bytes
   uint8_t magic[4] = {'\0'};
-  if (!readSomeBytes(path, reinterpret_cast<char *>(magic), 0, sizeof(magic))) {
+  if (!readSomeBytes(path, reinterpret_cast<char*>(magic), 0, sizeof(magic))) {
     return false;
   }
 
@@ -1448,12 +1453,12 @@ fs::perms System::octalModeToPerms(int octalMode) {
 }
 
 // static
-int System::pathOpenInternal(const char *filename, int oflag, int pmode) {
+int System::pathOpenInternal(const char* filename, int oflag, int pmode) {
 #ifdef _WIN32
   return _wopen(win32Path(filename).c_str(), oflag, pmode);
-#else  // !_WIN32
+#else   // !_WIN32
   return ::open(filename, oflag, pmode);
-#endif // !_WIN32
+#endif  // !_WIN32
 }
 
 bool System::deleteFileInternal(fs::path path) {
@@ -1479,13 +1484,13 @@ bool System::deleteFileInternal(fs::path path) {
 #endif
 
   if (remove_res != 0) {
-    dprint("Failed to delete file [%s]", path.string());
+    VLOG(1) << "Failed to delete file [" << path << "]";
   }
 
   return remove_res == 0;
 }
 
-bool System::pathFreeSpaceInternal(fs::path path, FileSize *spaceInBytes) {
+bool System::pathFreeSpaceInternal(fs::path path, FileSize* spaceInBytes) {
 #ifdef _WIN32
   ULARGE_INTEGER freeBytesAvailableToUser;
   bool result =
@@ -1509,7 +1514,7 @@ bool System::pathFreeSpaceInternal(fs::path path, FileSize *spaceInBytes) {
 }
 
 // static
-bool System::pathFileSizeInternal(fs::path path, FileSize *outFileSize) {
+bool System::pathFileSizeInternal(fs::path path, FileSize* outFileSize) {
   if (path.empty() || !outFileSize) {
     return false;
   }
@@ -1543,7 +1548,7 @@ System::FileSize System::recursiveSizeInternal(fs::path path) {
     } else if (pathIsDirInternal(currentPath)) {
       // Directory. Add its contents to the list.
       std::vector<fs::path> includedFiles = scanDirInternal(currentPath);
-      for (const auto &file : includedFiles) {
+      for (const auto& file : includedFiles) {
         fileList.push_back(currentPath / file);
       }
     }
@@ -1551,7 +1556,7 @@ System::FileSize System::recursiveSizeInternal(fs::path path) {
   return totalSize;
 }
 
-bool System::fileSizeInternal(int fd, System::FileSize *outFileSize) {
+bool System::fileSizeInternal(int fd, System::FileSize* outFileSize) {
   if (fd < 0) {
     return false;
   }
@@ -1568,9 +1573,9 @@ bool System::fileSizeInternal(int fd, System::FileSize *outFileSize) {
 }
 
 // static
-std::optional<System::Duration>
-System::pathCreationTimeInternal(fs::path path) {
-#if defined(__linux__) ||                                                      \
+std::optional<System::Duration> System::pathCreationTimeInternal(
+    fs::path path) {
+#if defined(__linux__) || \
     (defined(__APPLE__) && !defined(_DARWIN_FEATURE_64_BIT_INODE))
   // TODO(zyy@): read the creation time directly from the ext4 attribute
   // on Linux.
@@ -1582,16 +1587,16 @@ System::pathCreationTimeInternal(fs::path path) {
   }
 #ifdef _WIN32
   return st.st_ctime * 1000000ll;
-#else  // APPLE
+#else   // APPLE
   return st.st_birthtimespec.tv_sec * 1000000ll +
          st.st_birthtimespec.tv_nsec / 1000;
-#endif // WIN32 && APPLE
-#endif // Linux
+#endif  // WIN32 && APPLE
+#endif  // Linux
 }
 
 // static
-std::optional<System::Duration>
-System::pathModificationTimeInternal(fs::path path) {
+std::optional<System::Duration> System::pathModificationTimeInternal(
+    fs::path path) {
   PathStat st;
   if (pathStat(path, &st)) {
     return {};
@@ -1601,12 +1606,12 @@ System::pathModificationTimeInternal(fs::path path) {
   return st.st_mtime * 1000000ll;
 #elif defined(__linux__)
   return st.st_mtim.tv_sec * 1000000ll + st.st_mtim.tv_nsec / 1000;
-#else // Darwin
+#else  // Darwin
   return st.st_mtimespec.tv_sec * 1000000ll + st.st_mtimespec.tv_nsec / 1000;
 #endif
 }
 
-static std::optional<DiskKind> diskKind(const PathStat &st) {
+static std::optional<DiskKind> diskKind(const PathStat& st) {
 #ifdef _WIN32
 
   auto volumeName = absl::StrFormat(R"(\\?\%c:)", 'A' + st.st_dev);
@@ -1800,8 +1805,8 @@ std::optional<DiskKind> System::diskKindInternal(int fd) {
 
 // static
 void System::addLibrarySearchDir(fs::path path) {
-  System *system = System::get();
-  const char *varName = kLibrarySearchListEnvVarName;
+  System* system = System::get();
+  const char* varName = kLibrarySearchListEnvVarName;
 
   std::string libSearchPath = system->envGet(varName);
   if (libSearchPath.size()) {
@@ -1821,7 +1826,7 @@ const std::string kExe = ".exe";
 #endif
 // static
 fs::path System::findBundledExecutable(std::string_view programName) {
-  System *const system = System::get();
+  System* const system = System::get();
   const std::string executableName = std::string(programName) + kExe;
   fs::path executablePath = system->getLauncherDirectory() / executableName;
 
@@ -1845,7 +1850,7 @@ fs::path System::findBundledExecutable(std::string_view programName) {
       "bazel-bin/external/qemu",
       "bazel-bin/hardware/generic/goldfish/third_party/sparse"};
 
-  for (const auto &option : bazel_search) {
+  for (const auto& option : bazel_search) {
     auto possible_exe = root / option / executableName;
     if (system->pathIsFile(possible_exe)) {
       return possible_exe;
@@ -1862,7 +1867,7 @@ StorageCapacity System::freeRamMb() {
 }
 
 // static
-bool System::isUnderMemoryPressure(StorageCapacity *freeRamMb_out) {
+bool System::isUnderMemoryPressure(StorageCapacity* freeRamMb_out) {
   StorageCapacity currentFreeRam = freeRamMb();
 
   if (freeRamMb_out) {
@@ -1873,7 +1878,7 @@ bool System::isUnderMemoryPressure(StorageCapacity *freeRamMb_out) {
 }
 
 // static
-bool System::isUnderDiskPressure(fs::path path, System::FileSize *freeDisk) {
+bool System::isUnderDiskPressure(fs::path path, System::FileSize* freeDisk) {
   System::FileSize availableSpace;
   bool success = System::get()->pathFreeSpace(path, &availableSpace);
   if (success && availableSpace < kDiskPressureLimit) {
@@ -1897,7 +1902,7 @@ System::FileSize System::getFilePageSizeForPath(fs::path path) {
   // as that is what we need to align
   // the pointer to (64k on most systems)
   pageSize = (System::FileSize)sysinfo.dwAllocationGranularity;
-#else // _WIN32
+#else  // _WIN32
 
 #ifdef __linux__
 
@@ -1911,23 +1916,22 @@ System::FileSize System::getFilePageSizeForPath(fs::path path) {
   } while (ret != 0 && errno == EINTR);
 
   if (ret != 0) {
-    LOG(DEBUG) << "statvfs('" << path << "') failed: " << strerror(errno)
-               << "\n";
+    VLOG(1) << "statvfs('" << path << "') failed: " << strerror(errno);
     pageSize = (System::FileSize)getpagesize();
   } else {
     if (fsStatus.f_type == HUGETLBFS_MAGIC) {
-      dinfo("hugepage detected. size: %lu", fsStatus.f_bsize);
+      LOG(INFO) << "hugepage detected. size:" << fsStatus.f_bsize;
       /* It's hugepage, return the huge page size */
       pageSize = (System::FileSize)fsStatus.f_bsize;
     } else {
       pageSize = (System::FileSize)getpagesize();
     }
   }
-#else  // __linux
+#else   // __linux
   pageSize = (System::FileSize)getpagesize();
-#endif // !__linux__
+#endif  // !__linux__
 
-#endif // !_WIN32
+#endif  // !_WIN32
 
   return pageSize;
 }
@@ -1953,14 +1957,14 @@ void System::setEnvironmentVariable(std::string_view varname,
 std::string System::getEnvironmentVariable(std::string_view varname) {
 #ifdef _WIN32
   Win32UnicodeString varname_unicode(varname.data());
-  const wchar_t *value = _wgetenv(varname_unicode.c_str());
+  const wchar_t* value = _wgetenv(varname_unicode.c_str());
   if (!value) {
     return std::string();
   } else {
     return Win32UnicodeString::convertToUtf8(value);
   }
 #else
-  const char *value = getenv(c_str(varname));
+  const char* value = getenv(c_str(varname));
   if (!value) {
     value = "";
   }
@@ -1973,10 +1977,10 @@ std::string System::getProgramDirectoryFromPlatform() {
   std::string res;
 #if defined(__linux__)
   char path[1024];
-  memset(path, 0, sizeof(path)); // happy valgrind!
+  memset(path, 0, sizeof(path));  // happy valgrind!
   int len = readlink("/proc/self/exe", path, sizeof(path));
   if (len > 0 && len < (int)sizeof(path)) {
-    char *x = ::strrchr(path, '/');
+    char* x = ::strrchr(path, '/');
     if (x) {
       *x = '\0';
       res.assign(path);
@@ -1986,7 +1990,7 @@ std::string System::getProgramDirectoryFromPlatform() {
   char s[PATH_MAX];
   auto pid = getpid();
   proc_pidpath(pid, s, sizeof(s));
-  char *x = ::strrchr(s, '/');
+  char* x = ::strrchr(s, '/');
   if (x) {
     // skip all slashes - there might be more than one
     while (x > s && x[-1] == '/') {
@@ -2007,7 +2011,7 @@ std::string System::getProgramDirectoryFromPlatform() {
       GetModuleFileNameW(0, appDir.data(), appDir.size());
     }
     std::string dir = appDir.toString();
-    char *sep = ::strrchr(&dir[0], '\\');
+    char* sep = ::strrchr(&dir[0], '\\');
     if (sep) {
       *sep = '\0';
       res.assign(dir.c_str());
@@ -2024,14 +2028,14 @@ System::WallDuration System::getSystemTimeUs() { return kTickCount.getUs(); }
 
 std::string toString(OsType osType) {
   switch (osType) {
-  case OsType::Windows:
-    return "Windows";
-  case OsType::Linux:
-    return "Linux";
-  case OsType::Mac:
-    return "Mac";
-  default:
-    return "Unknown";
+    case OsType::Windows:
+      return "Windows";
+    case OsType::Linux:
+      return "Linux";
+    case OsType::Mac:
+      return "Mac";
+    default:
+      return "Unknown";
   }
 }
 
@@ -2040,7 +2044,7 @@ std::string toString(OsType osType) {
 // http://mirror.informatimago.com/next/developer.apple.com/qa/qa2001/qa1123.html
 typedef struct kinfo_proc kinfo_proc;
 
-static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
+static int GetBSDProcessList(kinfo_proc** procList, size_t* procCount)
 // Returns a list of all BSD processes on the system.  This routine
 // allocates the list and puts it in *procList and a count of the
 // number of entries in *procCount.  You are responsible for freeing
@@ -2049,7 +2053,7 @@ static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
 // On error, the function returns a BSD errno value.
 {
   int err;
-  kinfo_proc *result;
+  kinfo_proc* result;
   bool done;
   static const int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
   // Declaring name as const requires us to cast it when passing it to
@@ -2080,7 +2084,7 @@ static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
     // Call sysctl with a NULL buffer.
 
     length = 0;
-    err = sysctl((int *)name, (sizeof(name) / sizeof(*name)) - 1, nullptr,
+    err = sysctl((int*)name, (sizeof(name) / sizeof(*name)) - 1, nullptr,
                  &length, nullptr, 0);
     if (err == -1) {
       err = errno;
@@ -2090,7 +2094,7 @@ static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
     // from the previous call.
 
     if (err == 0) {
-      result = (kinfo_proc *)malloc(length);
+      result = (kinfo_proc*)malloc(length);
       if (result == nullptr) {
         err = ENOMEM;
       }
@@ -2100,7 +2104,7 @@ static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
     // error, toss away our buffer and start again.
 
     if (err == 0) {
-      err = sysctl((int *)name, (sizeof(name) / sizeof(*name)) - 1, result,
+      err = sysctl((int*)name, (sizeof(name) / sizeof(*name)) - 1, result,
                    &length, nullptr, 0);
       if (err == -1) {
         err = errno;
@@ -2137,7 +2141,7 @@ static int GetBSDProcessList(kinfo_proc **procList, size_t *procCount)
 std::optional<std::string> getPathOfProcessByPid(pid_t pid) {
   int ret;
   std::string result(PROC_PIDPATHINFO_MAXSIZE + 1, 0);
-  ret = proc_pidpath(pid, (void *)result.data(), PROC_PIDPATHINFO_MAXSIZE);
+  ret = proc_pidpath(pid, (void*)result.data(), PROC_PIDPATHINFO_MAXSIZE);
 
   if (ret <= 0) {
     return {};
@@ -2149,7 +2153,7 @@ std::optional<std::string> getPathOfProcessByPid(pid_t pid) {
 #endif
 
 static bool sMultiStringMatch(std::string_view haystack,
-                              const std::vector<std::string_view> &needles,
+                              const std::vector<std::string_view>& needles,
                               bool approxMatch) {
   bool found = false;
 
@@ -2163,7 +2167,7 @@ static bool sMultiStringMatch(std::string_view haystack,
 
 #ifdef __APPLE__
 void disableAppNap_macImpl(void);
-void cpuUsageCurrentThread_macImpl(uint64_t *user, uint64_t *sys);
+void cpuUsageCurrentThread_macImpl(uint64_t* user, uint64_t* sys);
 #endif
 
 // static
@@ -2190,7 +2194,7 @@ CpuTime System::cpuTime() {
       usage.ru_utime.tv_sec * 1000000ULL + usage.ru_utime.tv_usec;
   res.system_time_us =
       usage.ru_stime.tv_sec * 1000000ULL + usage.ru_stime.tv_usec;
-#else // Windows
+#else  // Windows
   FILETIME creation_time_struct;
   FILETIME exit_time_struct;
   FILETIME kernel_time_struct;
@@ -2214,11 +2218,11 @@ CpuTime System::cpuTime() {
 
 #ifndef _WIN32
 
-bool System::queryFileVersionInfo(fs::path, int *, int *, int *, int *) {
+bool System::queryFileVersionInfo(fs::path, int*, int*, int*, int*) {
   return false;
 }
 
-#endif // _WIN32
+#endif  // _WIN32
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

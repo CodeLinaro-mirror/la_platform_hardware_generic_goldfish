@@ -1,7 +1,7 @@
 
 // Copyright (C) 2024 The Android Open Source Project
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the "License";
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -14,11 +14,11 @@
 // limitations under the License.
 #pragma once
 
-#include "absl/status/statusor.h"
-#include "aemu/base/Log.h"
-
 #include <iostream>
 #include <string_view>
+
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
 
 namespace android::base {
 
@@ -27,6 +27,11 @@ namespace android::base {
  */
 class StorageCapacity {
 public:
+ template <typename Sink>
+ friend void AbslStringify(Sink& sink, const StorageCapacity& sc) {
+   absl::Format(&sink, "%s", sc.string());
+ }
+
   /**
    * @brief Enum for representing storage capacity units.
    */
@@ -44,7 +49,7 @@ public:
    * @brief Constructor taking bytes as input.
    * @param bytes The storage capacity in bytes.
    */
-  constexpr StorageCapacity(unsigned long long bytes): mBytes(bytes) { }
+  constexpr StorageCapacity(unsigned long long bytes) : mBytes(bytes) {}
 
   /**
    * @brief Constructor taking a raw value and unit for storage capacity.
@@ -220,7 +225,7 @@ public:
   StorageCapacity &operator-=(const StorageCapacity &rhs) {
     // Handle potential underflow
     if (mBytes < rhs.bytes()) {
-      dwarning("StorageCapacity cannot be negative");
+      LOG(WARNING) << "StorageCapacity cannot be negative";
     }
     mBytes -= rhs.bytes();
     return *this;
@@ -236,7 +241,7 @@ public:
   StorageCapacity operator-(const StorageCapacity &rhs) const {
     // Handle potential underflow
     if (mBytes < rhs.bytes()) {
-      dwarning("StorageCapacity cannot be negative");
+      LOG(WARNING) << "StorageCapacity cannot be negative";
     }
     unsigned long long differenceBytes = mBytes - rhs.bytes();
     return StorageCapacity(differenceBytes);
@@ -246,7 +251,7 @@ public:
   explicit operator int() const {
     if (mBytes >
         static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-      dwarning("StorageCapacity is too large to fit into an int");
+      LOG(WARNING) << "StorageCapacity is too large to fit into an int";
     }
     return static_cast<int>(mBytes);
   }
@@ -255,7 +260,7 @@ public:
   explicit operator long() const {
     if (mBytes >
         static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
-      dwarning("StorageCapacity is too large to fit into a long");
+      LOG(WARNING) << "StorageCapacity is too large to fit into a long";
     }
     return static_cast<long>(mBytes);
   }
@@ -264,7 +269,8 @@ public:
   explicit operator unsigned long() const {
     if (mBytes > static_cast<unsigned long long>(
                      std::numeric_limits<unsigned long>::max())) {
-      dwarning("StorageCapacity is too large to fit into an unsigned long");
+      LOG(WARNING)
+          << "StorageCapacity is too large to fit into an unsigned long";
     }
     return static_cast<unsigned long>(mBytes);
   }
@@ -273,7 +279,7 @@ public:
   explicit operator long long() const {
     if (mBytes > static_cast<unsigned long long>(
                      std::numeric_limits<long long>::max())) {
-      dwarning("StorageCapacity is too large to fit into a long long");
+      LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
     }
     return static_cast<long long>(mBytes);
   }

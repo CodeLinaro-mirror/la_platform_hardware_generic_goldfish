@@ -35,6 +35,8 @@ cc_library(
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/system",
         "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:absl_log",
     ],
 )
 

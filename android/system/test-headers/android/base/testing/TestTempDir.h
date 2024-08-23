@@ -19,9 +19,11 @@
 #include <filesystem>
 #include <string_view>
 
+#include "absl/log/absl_log.h"
 #include "absl/strings/str_format.h"
+
 #include "aemu/base/Compiler.h"
-#include "aemu/base/Log.h"
+
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 
@@ -74,9 +76,8 @@ public:
     }
     // Attempt to create the temporary directory
     std::error_code ec;
-    if (!android_mkdir(System::pathAsString(mPath).c_str(), 0755)) {
-      dwarning("Failed to create %s due to: %s",
-               System::pathAsString(mPath).c_str(), ec.message().c_str());
+    if (!fs::create_directories(mPath, ec)) {
+      PLOG(WARNING) << "Failed to create " << mPath << " due to: " << ec;
     }
   }
 
@@ -105,15 +106,14 @@ public:
   bool makeSubDir(fs::path subdir) {
     fs::path path = fs::absolute(makeSubPath(subdir));
     if (android_mkdir(path.string().c_str(), 0755) < 0) {
-      derror("Can't create %s", System::pathAsString(path).c_str());
+      LOG(ERROR) << "Can't create " << path;
       return false;
     }
     if (!pathExists(path.string().c_str())) {
-      dwarning("Created path (%s/%s) does not exist",
-               System::pathAsString(path).c_str(),
-               System::pathAsString(subdir).c_str());
+      LOG(WARNING) << "Created path (" << path << "/" << subdir
+                   << ") does not exist";
     }
-    dinfo("Created %s", System::pathAsString(path).c_str());
+    ABSL_VLOG(1) << "Created " << path;
     return true;
   }
 
@@ -123,7 +123,7 @@ public:
     int fd = ::android_open(System::pathAsString(path).c_str(),
                             O_WRONLY | O_CREAT, 0744);
     if (fd < 0) {
-      derror("Can't create %s", System::pathAsString(path).c_str());
+      LOG(ERROR) << "Can't create" << path;
       return false;
     }
     ::close(fd);
@@ -142,12 +142,12 @@ private:
       if (entry.is_directory()) {
         DeleteRecursive(entry.path()); // Recursively delete subdirectories
       } else {
-        dinfo("Deleting %s", System::pathAsString(entry.path()).c_str());
+        LOG(INFO) << "Deleting " << path;
         android_unlink(System::pathAsString(entry.path()).c_str());
       }
     }
 
-    dinfo("Remove %s", System::pathAsString(path).c_str());
+    ABSL_VLOG(1) << "Rmdir " << path;
     android_rmdir(System::pathAsString(path).c_str());
   }
 

@@ -14,12 +14,13 @@
 
 #include "aemu/base/threads/Thread.h"
 
-#include "aemu/base/Log.h"
-#include "aemu/base/threads/ThreadStore.h"
-
 #include <assert.h>
 #include <signal.h>
 #include <stdio.h>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/threads/ThreadStore.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
@@ -140,7 +141,7 @@ void* Thread::thread_main(void* arg) {
         if ((self->mFlags & ThreadFlags::Detach) != ThreadFlags::NoFlags) {
             if (pthread_detach(pthread_self())) {
                 // This only means a slow memory leak, so use VERBOSE.
-                LOG(DEBUG) << "Failed to set thread to detach mode";
+                VLOG(1) << "Failed to set thread to detach mode";
             }
         }
 

@@ -12,24 +12,27 @@
 
 #include "android/utils/filelock.h"
 
-#include "aemu/base/Log.h"
-#include "aemu/base/EintrWrapper.h"
-#include "aemu/base/process/Command.h"
-#include "aemu/base/process/Process.h"
-#include "android/base/file/file_io.h"
-#include "android/base/system/System.h"
-#include "android/utils/lock.h"
-#include "android/utils/path.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #include <cassert>
 #include <cerrno>
 #include <chrono>
-#include <fcntl.h>
-
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <future>
-#include <sys/stat.h>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/EintrWrapper.h"
+#include "aemu/base/process/Command.h"
+#include "aemu/base/process/Process.h"
+
+#include "android/base/file/file_io.h"
+#include "android/base/system/System.h"
+#include "android/utils/lock.h"
+#include "android/utils/path.h"
 #ifdef _WIN32
 #include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/memory/ScopedPtr.h"
@@ -45,8 +48,8 @@ using android::base::ScopedFileHandle;
 #include <unistd.h>
 #endif
 
-using android::base::System;
 using android::base::Process;
+using android::base::System;
 
 // Set to 1 to enable debug traces here.
 #if 0
@@ -135,16 +138,15 @@ static bool retry(Func func, int tries = 4, int timeoutMs = 100) {
 }
 
 static bool delete_file(const android::base::Win32UnicodeString &name) {
-  dinfo("Attempt deleting %s", name.toString());
+  LOG(INFO) << "Attempt deleting " << name.toString();
 
   return retry([&name]() {
     // Make sure the file isn't marked readonly, or deletion may fail.
-    dinfo("Deleting %s", name.toString());
     SetFileAttributesW(name.c_str(), FILE_ATTRIBUTE_NORMAL);
-    auto deleted =  ::DeleteFileW(name.c_str()) != 0 ||
-           ::GetLastError() == ERROR_FILE_NOT_FOUND;
+    auto deleted = ::DeleteFileW(name.c_str()) != 0 ||
+                   ::GetLastError() == ERROR_FILE_NOT_FOUND;
     if (!deleted) {
-      dwarning("Failed to delete %s", name.toString().c_str());
+      LOG(WARNING) << "Failed to delete " << name.toString();
     }
     return deleted;
   });
@@ -171,8 +173,8 @@ static int filelock_lock(FileLock *lock, int timeout) {
     bool slept = false;
     if (!::CreateDirectoryW(unicodeDir.c_str(), nullptr) &&
         ::GetLastError() != ERROR_ALREADY_EXISTS) {
-      derror("Unexpected error while creating: %s (error: %d)",
-             unicodeDir.toString(), ::GetLastError());
+      LOG(ERROR) << "Unexpected error while creating: " << unicodeDir.toString() << "error: "
+             << ::GetLastError();
       continue;
     }
 
@@ -225,15 +227,16 @@ static int filelock_lock(FileLock *lock, int timeout) {
             // the locking process to exit. If that doesn't work,
             // bail.
 
-            dinfo("Waiting %d ms for process with pid: %d to exit.", sleep_duration_ms, lockingPid);
+            LOG(INFO) << "Waiting " << sleep_duration_ms
+                      << " ms for process with pid: " << lockingPid
+                      << " to exit.";
             auto process = Process::fromPid(lockingPid);
             if (!process) {
-              dwarning("Process does not exist!");
+              LOG(WARNING) << "Process " << lockingPid << " does not exist!";
             }
             if (process) {
-              dinfo("Hi there.. going to wait for a bit..");
-              auto status = process->wait_for(std::chrono::milliseconds(sleep_duration_ms));
-              dinfo("Status: %s", status == std::future_status::ready ? "ready" : "timeout");
+              auto status = process->wait_for(
+                  std::chrono::milliseconds(sleep_duration_ms));
             }
             slept = true;
           }
@@ -284,12 +287,12 @@ static int filelock_lock(FileLock *lock, int timeout) {
   if (!::WriteFile(lockHandle, pidBuf, static_cast<DWORD>(len), &bytesWritten,
                    nullptr) ||
       bytesWritten != static_cast<DWORD>(len)) {
-    dwarning("Failed to write the current PID into the lock file");
+    LOG(WARNING) << "Failed to write the current PID (" << pid
+                 << ") into the lock file";
     return -1;
   }
   lock->locked = 1;
   lock->lock_handle = fileDeleter.release();
-  dinfo("Lock created.");
   return 0; // we're all good
 }
 #else
@@ -349,7 +352,7 @@ static auto filelock_lock(FileLock *lock, int timeout) -> int {
       // The .lock file is a directory. This can only happen
       // when the AVD was previously used by a Win32 emulator
       // instance running under Wine on the same machine.
-      dwarning("Stale Win32 lock file detected: %s", lock->lock);
+      LOG(WARNING) << "Stale Win32 lock file detected: " << lock->lock;
 
       /* Try deleting the pid file dropped in windows.
        * Ignore error -- try blowing away the directory anyway.
@@ -482,7 +485,6 @@ void filelock_release(FileLock *lock) {
 }
 
 static void filelock_atexit() {
-  dinfo("====> Release locks at exit");
   android_lock_acquire(all_filelocks_tl);
   if (!is_exiting) {
     for (FileLock *lock = all_filelocks; lock != nullptr;) {
@@ -500,18 +502,16 @@ static void filelock_atexit() {
 }
 
 auto filelock_create(const char *file) -> FileLock * {
-  std::cout << "fileloack_create (0)" <<  file << "\n";
+  std::cout << "fileloack_create (0)" << file << "\n";
   return filelock_create_timeout(file, 0);
 }
 
 /* create a file lock */
 auto filelock_create_timeout(const char *file, int timeout) -> FileLock * {
   if (file == nullptr) {
-    dwarning("It is not possible to use a nullptr as a file lock.");
+    LOG(WARNING) << "It is not possible to use a nullptr as a file lock.";
     return nullptr;
   }
-
-  std::cout << "filelock_create_timeout(" <<  file << " t:" << timeout << "\n";
 
   int file_len = strlen(file);
   uint64_t lock_len = file_len + sizeof(LOCK_NAME);

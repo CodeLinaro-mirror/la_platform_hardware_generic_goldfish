@@ -46,7 +46,8 @@ GrpcDevice::getQemuParameters(const Emulator &emulator) const {
         "_main/hardware/generic/goldfish/emulator/android-grpc/security/test/"
         "android/emulation/control/secure/test_allow_list.json"));
     assert(fs::exists(allowlist));
-    dwarning("** Using development allow list, do not use in production **");
+    LOG(WARNING)
+        << "** Using development allow list, do not use in production **";
   }
 
   std::string grpc_device =

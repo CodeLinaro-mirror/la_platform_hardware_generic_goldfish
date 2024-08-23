@@ -13,16 +13,18 @@
 // limitations under the License.
 #include "android/goldfish/EmulatorAdvertisement.h"
 
-#include <chrono>
-#include <fstream>
-#include <initializer_list>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
+
+#include <chrono>
+#include <fstream>
+#include <initializer_list>
 #include <utility>
 #include <vector>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/StringFormat.h"
 #include "aemu/base/files/IniFile.h"
 #include "aemu/base/files/PathUtils.h"
@@ -30,6 +32,7 @@
 #include "aemu/base/process/Process.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
+
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/utils/path.h"

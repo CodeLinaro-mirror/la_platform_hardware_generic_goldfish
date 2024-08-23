@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "android/goldfish/devices/cpu_device.h"
-#include "absl/status/status.h"
-#include "aemu/base/Log.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/cpu/CpuAccelerator.h"
-#include "android/goldfish/devices/device.h"
-#include "android/goldfish/config/emulator.h"
 
 #include <initializer_list>
 #include <string_view>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/config/hardware_config.h"
+#include "android/goldfish/cpu/CpuAccelerator.h"
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 absl::Status CpuDevice::initialize(const Emulator& emulator) {
@@ -49,7 +51,7 @@ CpuDevice::getQemuParameters(const Emulator& emulator) const {
     accel = CpuAcceleratorToString(supported);
     cpu = "cortex-a57";
   } else {
-    dwarning("Using TCG, which is not going to be fast!");
+    LOG(WARNING) << "Using TCG, which is not going to be fast!";
     cpu = "Snowridge";
   }
 #else
@@ -57,7 +59,7 @@ CpuDevice::getQemuParameters(const Emulator& emulator) const {
     accel = CpuAcceleratorToString(supported);
     cpu = "Snowridge";
   } else {
-    dwarning("Using TCG, which is not going to be fast!");
+    LOG(WARNING) << "Using TCG, which is not going to be fast!";
     cpu = "cortex-a57";
   }
 #endif

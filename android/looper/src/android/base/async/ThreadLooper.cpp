@@ -11,14 +11,17 @@
 
 #include "aemu/base/async/ThreadLooper.h"
 
-#include "aemu/base/Log.h"
+#include <memory>
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/memory/LazyInstance.h"
 #include "aemu/base/synchronization/Event.h"
 #include "aemu/base/synchronization/MessageChannel.h"
 #include "aemu/base/threads/ThreadStore.h"
-#include "android/utils/looper.h"
 
-#include <memory>
+#include "android/utils/looper.h"
 
 namespace android {
 namespace base {
@@ -116,9 +119,9 @@ static LazyInstance<MainLoopClosureRunner> sMainRunner = LAZY_INSTANCE_INIT;
 // static
 void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
     if (!android_getMainLooper()) {
-        derror("ERROR: trying to run on main looper "
-               "without a main looper!");
-        return;
+      LOG(ERROR) << "trying to run on main looper "
+                    "without a main looper!";
+      return;
     }
 
     sMainRunner->appendAndWake(std::move(func));
@@ -127,9 +130,9 @@ void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
 // static
 void ThreadLooper::runOnMainLooperAndWaitForCompletion(ThreadLooper::Closure&& func) {
     if (!android_getMainLooper()) {
-        derror("ERROR: trying to run on main looper "
-               "without a main looper!");
-        return;
+      LOG(ERROR) << "trying to run on main looper "
+                    "without a main looper!";
+      return;
     }
 
     if (looper_getForThread() ==

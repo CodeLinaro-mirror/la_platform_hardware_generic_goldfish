@@ -13,14 +13,15 @@
 // limitations under the License.
 #include "android/goldfish/devices/kernel_device.h"
 
-#include "aemu/base/Log.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
-#include "android/goldfish/config/emulator.h"
-
 #include <initializer_list>
 #include <string_view>
+
+#include "absl/log/log.h"
+
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/config/hardware_config.h"
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 absl::Status KernelDevice::initialize(const Emulator& emulator) {
@@ -42,7 +43,7 @@ absl::Status KernelDevice::initialize(const Emulator& emulator) {
       hw.kernel_path = mDiskImage->string();
       return absl::OkStatus();
     }
-    dinfo("%s", mDiskImage.status().message());
+    LOG(INFO) << mDiskImage.status().message();
   }
 
   return absl::NotFoundError("No kernel image found.");

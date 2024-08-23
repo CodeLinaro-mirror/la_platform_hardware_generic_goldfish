@@ -13,17 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "absl/status/status.h"
-#include "aemu/base/Log.h"
-#include "android/base/system/storage_capacity.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
-
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+
+#include "android/base/system/storage_capacity.h"
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 

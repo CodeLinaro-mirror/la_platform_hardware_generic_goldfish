@@ -76,6 +76,7 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest",
     ] + select({
         "@platforms//os:windows": [

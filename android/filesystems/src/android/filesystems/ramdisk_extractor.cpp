@@ -11,15 +11,17 @@
 
 #include "android/filesystems/ramdisk_extractor.h"
 
-#include "aemu/base/Compiler.h"
-#include "aemu/base/Log.h"
-
 #include <cinttypes>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
 #include <zlib.h>
+
+#include "absl/log/log.h"
+
+#include "aemu/base/Compiler.h"
 
 #define DEBUG 0
 

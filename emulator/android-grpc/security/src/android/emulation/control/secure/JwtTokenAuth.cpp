@@ -18,11 +18,13 @@
 #include <functional>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
-#include "aemu/base/Log.h"
+
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/misc/StringUtils.h"
+
 #include "android/emulation/control/secure/AuthErrorFactory.h"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"
@@ -56,13 +58,13 @@ JwtTokenAuth::JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList *list)
   }
 
   if (!mJwksLoadedPath.empty()) {
-    dinfo("The active JSON Web Key Sets can be found here: %s",
-          mJwksLoadedPath.c_str());
+    LOG(INFO) << "The active JSON Web Key Sets can be found here: "
+              << mJwksLoadedPath;
   }
 
   if (!mTinkInitialized.ok()) {
-    dfatal("Unable to initialize tink library. %s",
-           mTinkInitialized.ToString().c_str());
+    LOG(FATAL) << "Unable to initialize tink library. "
+               << mTinkInitialized.ToString();
   }
   mDirectoryObserver = std::make_unique<JwkDirectoryObserver>(
       jwksPath, [&](auto handle) { updateKeysetHandle(std::move(handle)); },

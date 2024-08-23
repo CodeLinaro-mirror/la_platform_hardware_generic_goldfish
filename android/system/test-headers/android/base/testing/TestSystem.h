@@ -17,10 +17,12 @@
 #include <filesystem>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
-#include "aemu/base/Log.h"
+
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/threads/Thread.h"
+
 #include "android/base/system/System.h"
 #include "android/base/testing/TestTempDir.h"
 

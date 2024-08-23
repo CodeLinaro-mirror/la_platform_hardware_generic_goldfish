@@ -29,7 +29,7 @@ absl::Status CacheDrive::initialize(const Emulator& emulator) {
     return absl::OkStatus();
   }
 
-  dinfo("Preparing empty cache drive");
+  LOG(INFO) << "Preparing empty cache drive";
   auto hw = emulator.avd().hw();
   auto status = createExt4Image(hw.disk_cachePartition_path,
                                      hw.disk_cachePartition_size, "cache");

@@ -8,8 +8,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "aemu/base/files/FileSystemWatcher.h"
-
 #include <algorithm>
 #include <atomic>
 #include <functional>
@@ -19,12 +17,14 @@
 #include <utility>
 #include <vector>
 
-#include "aemu/base/Log.h"
-#include "aemu/base/system/Win32UnicodeString.h"
-#include "android/base/system/System.h"
+#include "absl/log/log.h"
 
+#include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/synchronization/Event.h"
+#include "aemu/base/system/Win32UnicodeString.h"
+
+#include "android/base/system/System.h"
 
 #define DEBUG 0
 #if DEBUG >= 1

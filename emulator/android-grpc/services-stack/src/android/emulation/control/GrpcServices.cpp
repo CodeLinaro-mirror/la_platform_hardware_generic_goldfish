@@ -251,8 +251,8 @@ Builder &Builder::withAllowList(const char *path) {
   return *this;
 }
 //  Human readable logging.
-template <typename tstream>
-tstream &operator<<(tstream &out, const Builder::Security value) {
+template <typename Sink>
+void AbslStringify(Sink& sink, const Builder::Security value) {
   const char *s = 0;
 #define STATE(p)                                                               \
   case (Builder::Security::p):                                                 \
@@ -264,7 +264,7 @@ tstream &operator<<(tstream &out, const Builder::Security value) {
     STATE(Local)
   }
 #undef STATE
-  return out << s;
+  absl::Format(&sink, "%s", s);
 }
 
 std::unique_ptr<AllowList> loadAllowlist(std::string path) {
@@ -272,11 +272,12 @@ std::unique_ptr<AllowList> loadAllowlist(std::string path) {
       std::ifstream(PathUtils::asUnicodePath(path.c_str()).c_str());
 
   if (!emulator_access.good()) {
-    dwarning("Cannot find access file %s, blocking all access.", path.c_str());
+    LOG(WARNING) << "Cannot find access file " << path
+                 << ", blocking all access.";
     return std::make_unique<DisableAccess>();
   }
 
-  dinfo("Using security allow list from: %s", path);
+  LOG(INFO) << "Using security allow list from: " << path;
   auto list = AllowList::fromStream(emulator_access);
   list->setSource(path);
 
@@ -337,9 +338,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     mCredentials->SetAuthMetadataProcessor(
         std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
   } else {
-    dwarning("*** No gRPC protection active, consider launching with "
-             "the "
-             "-grpc-use-jwt flag.***");
+    LOG(WARNING) << "*** No gRPC protection active ***";
   }
   // Translate loopback Ipv4/Ipv6 preference ourselves. gRPC resolver can
   // do it slightly differently than us, leading to unexpected results.
