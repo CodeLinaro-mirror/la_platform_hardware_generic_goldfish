@@ -31,14 +31,14 @@ namespace android::goldfish {
 
 using android::base::Bazel;
 
-static std::string qemu_exe(const Avd &avd) {
+static std::string qemu_exe(const Avd& avd) {
   const bool inBazel = Bazel::inBazel();
   std::string baseName;
 
 #ifdef __APPLE__
   constexpr std::string_view bazelPostfix = "_signed";
 #else
-  constexpr std::string_view bazelPostfix = "";
+  constexpr std::string_view bazelPostfix = "_std";
 #endif
 
   switch (avd.detectArchitecture()) {
@@ -58,8 +58,8 @@ static std::string qemu_exe(const Avd &avd) {
   return inBazel ? absl::StrCat(baseName, bazelPostfix) : baseName;
 }
 
-absl::Status Machine::initialize(const Emulator &emulator) {
-  const Avd &avd = emulator.avd();
+absl::Status Machine::initialize(const Emulator& emulator) {
+  const Avd& avd = emulator.avd();
   auto qemu = qemu_exe(avd);
   mBinary = base::System::findBundledExecutable(qemu);
 
@@ -71,12 +71,12 @@ absl::Status Machine::initialize(const Emulator &emulator) {
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string>
-Machine::getQemuParameters(const Emulator &emulator) const {
+std::vector<std::string> Machine::getQemuParameters(
+    const Emulator& emulator) const {
   return {
       "-machine",
       "goldfish,vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/"
       "vendor,system=/dev/block/pci/pci0000:00/0000:00:03.0/by-name/system"};
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish
