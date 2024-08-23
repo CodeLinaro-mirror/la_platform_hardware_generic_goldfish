@@ -56,7 +56,7 @@ class Bazel:
     @lru_cache(maxsize=None)
     def clang(self) -> Path:
         root = self.aosp if self.aosp else Path(self.info["workspace"])
-        toolchain_json = root / "build" / "bazel" / "rules" / "toolchains.json"
+        toolchain_json = root / "build" / "bazel" / "toolchains" / "tool_versions.json"
 
         if not toolchain_json.exists():
             # We assume you have clang, or at least gcc..
