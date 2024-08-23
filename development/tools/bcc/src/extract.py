@@ -83,7 +83,7 @@ def main():
         """,
     )
 
-    # parser.add_argument("--aosp", help="Optional aosp root.")
+    parser.add_argument("--aosp", help="Optional aosp root.")
 
     parser.add_argument(
         "-C",
