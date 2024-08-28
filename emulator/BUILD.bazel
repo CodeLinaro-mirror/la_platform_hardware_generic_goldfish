@@ -89,12 +89,14 @@ pkg_files(
     # Where it should be in the final package
     prefix = "bin",
     renames = select({
-        "@platforms//os:macos": {
+        "@platforms//os:windows": {
+            "//external/qemu:qemu-system-x86_64_std": "qemu-system-x86_64.exe",
+        },
+        "//conditions:default": {
             "//external/qemu:qemu-system-x86_64": "qemu-system-x86_64",
             "//external/qemu:qemu-system-aarch64": "qemu-system-aarch64",
             "//external/qemu:qemu-system-riscv64": "qemu-system-riscv64",
         },
-        "//conditions:default": {},
     }),
 )
 

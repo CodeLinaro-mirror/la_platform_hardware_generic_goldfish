@@ -30,9 +30,11 @@ def main():
         print("No Bazel files found, ignoring test")
         return 0
 
-    s = subprocess.check_call(["buildifier", "-mode=fix"] + files)
-    print(" ".join(["buildifier", "-mode=fix"] + files))
-    sys.exit(1)
+    try:
+        subprocess.check_call(["buildifier", "-mode=check"] + files)
+    except subprocess.CalledProcessError as cpe:
+        subprocess.check_call(["buildifier", "-mode=fix"] + files)
+        sys.exit(1)
 
 
 def is_bazel_file(file_path):
