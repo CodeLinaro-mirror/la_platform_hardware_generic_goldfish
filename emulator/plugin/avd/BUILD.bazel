@@ -22,7 +22,6 @@ cc_library(
     ],
     deps = [
         ":avd_hdrs",
-        "//external/qemu:libhwcore",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/looper",
