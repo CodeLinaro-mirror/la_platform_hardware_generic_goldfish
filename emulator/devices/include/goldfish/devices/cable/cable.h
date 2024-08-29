@@ -49,7 +49,7 @@ struct ISocket {
     virtual void sendAsync(const void *data, size_t size) = 0;
 
     /* `switchPlug` is used to switch plugs connected to a
-     * socket, e.g. if you need to swicth the wire protocol.
+     * socket, e.g. if you need to switch the wire protocol.
      */
     virtual PlugPtr switchPlug(PlugPtr newPlug) = 0;
 
