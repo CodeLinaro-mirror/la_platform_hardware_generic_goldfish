@@ -18,13 +18,29 @@
 
 #include <memory>
 
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 
 #include "android/goldfish/config/avd.h"
 
-using android::goldfish::Avd;
+// clang-format off
+// IWYU pragma: begin_keep
+extern "C" {
+#include "qemu/osdep.h"
+#include "hw/qdev-core.h"
+#include "qapi/visitor.h"
+}
+// IWYU pragma: end_keep
+// clang-format on
 
+using android::goldfish::Avd;
 static std::unique_ptr<Avd> gAvd;
 
 android::goldfish::Avd* get_avd() {
@@ -34,32 +50,88 @@ android::goldfish::Avd* get_avd() {
     return nullptr;
 }
 
+static void UpdateVModule(const std::string& vmodule) {
+    std::vector<std::pair<std::string_view, int>> glob_levels;
+    for (absl::string_view glob_level : absl::StrSplit(vmodule, '|')) {
+        const size_t eq = glob_level.rfind('=');
+        if (eq == glob_level.npos) continue;
+        const absl::string_view glob = glob_level.substr(0, eq);
+        int level;
+        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
+        glob_levels.emplace_back(glob, level);
+    }
+    for (const auto& it : glob_levels) {
+        const absl::string_view glob = it.first;
+        const int level = it.second;
+        absl::SetVLogLevel(glob, level);
+    }
+}
+
 static void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
+
+    // Configure logging.
+    absl::InitializeLog();
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
+    UpdateVModule(avd_info->vmodule);
+
     auto status = Avd::parse(avd_info->ini_path);
     if (!status.ok()) {
         LOG(FATAL) << "Unable to load: " << avd_info->ini_path
                    << " due to: " << status.status().message();
         return;
     }
+
+    VLOG(1) << "Device configuration, avd_info: " << *avd_info;
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::make_unique<Avd>(std::move(status.value()));
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    LOG(INFO) << "set_ini_path";
-    // Construct the std::string member in the pre-allocated memory using
-    // placement new
-    // new (&avd_info->ini_path)
     avd_info->ini_path = value;
-    LOG(INFO) << "set_ini_path: " << avd_info->ini_path;
+}
+
+static void avd_info_set_vmodule(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->vmodule = value;
+}
+
+static void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque,
+                                   Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    uint32_t value;
+
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+
+    // Check for invalid input or overflow
+    if (value < 0 || value > 4) {
+        error_setg(errp,
+                   "Logging log_level should be in the range [0, 3] (info, warning, error, fatal), "
+                   "not: %d",
+                   value);
+        return;
+    }
+
+    avd_info->log_level = value;
 }
 
 static void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
     object_class_property_set_description(oc, "ini_path",
                                           "the path to the AVD's configuration (.ini) file.");
+
+    object_class_property_add(oc, "log_level", "int", NULL, avd_info_set_log_level, NULL, NULL);
+    object_class_property_set_description(oc, "log_level", "The absl logging level to use.");
+
+    object_class_property_add_str(oc, "vmodule", NULL, avd_info_set_vmodule);
+    object_class_property_set_description(
+            oc, "vmodule",
+            "Sets logging levels for specific files or groups of files using | separated "
+            "key-value pairs (e.g., filename_pattern=level|pattern2=level)");
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

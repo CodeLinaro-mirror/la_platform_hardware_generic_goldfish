@@ -10,12 +10,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <memory>
+#include <string>
 
-#include "qemu/atomic.hpp"
+#include "android/goldfish/config/avd.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
+#include "qemu/atomic.hpp"
+
 extern "C" {
 #include "qemu/osdep.h"
 #include "hw/qdev-core.h"
@@ -27,18 +29,23 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-#include <memory>
-#include <string>
-
-#include "android/goldfish/config/avd.h"
-
-typedef struct AvdInfoDev {
+struct AvdInfoDev {
     DeviceClass parent_class;
     std::string ini_path;
-} AvdInfoDev;
-
+    int log_level{2};     // Log only errors
+    std::string vmodule;  // Vlog filter
+};
 #define TYPE_AVD "avdinfo"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
 android::goldfish::Avd* get_avd();
+
+template <typename Sink>
+void AbslStringify(Sink& sink, AvdInfoDev dev) {
+    absl::Format(&sink,
+                 "AvdInfoDev: ini_path={%s}, log_level={%d}, vmodule={%s}, "
+                 "parent_class.fw_name={%s}, parent_class.desc={%s}, ",
+                 dev.ini_path, dev.log_level, dev.vmodule, dev.parent_class.fw_name,
+                 dev.parent_class.desc);
+}

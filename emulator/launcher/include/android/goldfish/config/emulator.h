@@ -14,6 +14,7 @@
 // limitations under the License.
 #pragma once
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,11 +37,14 @@ class Emulator {
      * parameters.
      *
      * @param avd The AVD configuration to use for the emulator.
+     * @param logLevel The minimum logging level to use, should be between 0 to 4.
+     * @param vmodules Per-module log verbosity levels.
      * @param additionalParams Additional parameters to pass to the QEMU command
      * line. These parameters will be appended to the default command line
      * generated from the AVD configuration.
      */
-    explicit Emulator(Avd avd, std::vector<std::string> additionalParams = {});
+    explicit Emulator(Avd avd, int logLevel, std::string vmodules,
+                      std::vector<std::string> additionalParams = {});
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -92,6 +96,7 @@ class Emulator {
   private:
     // Constructs the qemu command line.
     std::vector<std::string> getCmdline();
+    std::string mVmodule;
 
     const Avd mAvd;
     std::vector<std::unique_ptr<Device>> mDevices;

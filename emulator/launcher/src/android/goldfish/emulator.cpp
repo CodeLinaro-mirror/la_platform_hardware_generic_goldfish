@@ -14,9 +14,9 @@
 // limitations under the License.
 #include "android/goldfish/config/emulator.h"
 
-#include <android/base/system/System.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <istream>
 #include <memory>
@@ -31,6 +31,7 @@
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "android/base/bazel/bazel_info.h"
+#include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/audio_device.h"
@@ -54,17 +55,23 @@ using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd, std::vector<std::string> additionalParams) : mAvd(std::move(avd)) {
+Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
+                   std::vector<std::string> additionalParams)
+    : mAvd(std::move(avd)) {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
+
+    // Marshall parameters.
+    std::replace(vmodules.begin(), vmodules.end(), ',', '|');
 
     mDevices.emplace_back(std::make_unique<Machine>());
     mDevices.emplace_back(std::make_unique<CpuDevice>());
 
     auto ini_path = System::pathAsString(mAvd.getIniFile());
     mDevices.emplace_back(std::make_unique<ParameterList>(std::initializer_list<std::string>{
-            "-device", absl::StrCat("avdinfo,ini_path=", ini_path)}));
+            "-device", absl::StrFormat("avdinfo,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
+                                       vmodules, logLevel)}));
     mDevices.emplace_back(std::make_unique<MemoryDevice>());
     mDevices.emplace_back(std::make_unique<KernelDevice>());
     mDevices.emplace_back(std::make_unique<Initrd>());

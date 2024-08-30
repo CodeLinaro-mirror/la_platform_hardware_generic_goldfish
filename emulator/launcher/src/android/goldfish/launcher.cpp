@@ -42,6 +42,17 @@ ABSL_FLAG(std::string, vnc, "",
           "vnc configuration to use, if any. These will be passed to QEMU as "
           "-display vnc=<...>");
 ABSL_FLAG(std::string, logcat, "/dev/stdout", "Location to write logcat to");
+ABSL_FLAG(std::string, vmodule, "",
+          "per-module log verbosity level."
+          " Argument is a comma-separated list of <module name>=<log level>."
+          " <module name> is a glob pattern, matched against the filename base"
+          " (that is, name ignoring .cc/.h./-inl.h)."
+          " A pattern without slashes matches just the file name portion, otherwise"
+          " the whole file path below the workspace root"
+          " (still without .cc/.h./-inl.h) is matched."
+          " ? and * in the glob pattern match any single or sequence of characters"
+          " respectively including slashes."
+          " <log level> desired log level for the matching modules.");
 
 using android::base::Bazel;
 using android::goldfish::Avd;
@@ -52,6 +63,12 @@ int main(int argc, char** argv) {
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
     absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
     absl::ParseCommandLine(argc, argv);
+
+    absl::LogSeverityAtLeast logLevel = absl::GetFlag(FLAGS_verbose)
+                                                ? absl::LogSeverityAtLeast::kInfo
+                                                : absl::LogSeverityAtLeast::kWarning;
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::SetMinLogLevel(logLevel);
     Bazel::storeCommandLineArgs(argc, argv);
     std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
@@ -73,6 +90,7 @@ int main(int argc, char** argv) {
     if (!status.ok()) {
         LOG(FATAL) << "Failed to load " << name << " due to " << status.status().message();
     }
+
     LOG(INFO) << "Creating emulator";
     std::vector<std::string> additionalParams;
     if (!absl::GetFlag(FLAGS_vnc).empty()) {
@@ -86,13 +104,13 @@ int main(int argc, char** argv) {
                 absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
     }
 
-    Emulator emulator{std::move(status.value()), std::move(additionalParams)};
+    Emulator emulator{std::move(status.value()), static_cast<int>(logLevel),
+                      std::move(absl::GetFlag(FLAGS_vmodule)), std::move(additionalParams)};
 
     if (absl::GetFlag(FLAGS_wipe_data)) {
         emulator.clear();
     }
 
     (void)emulator.launch();
-
     return 0;
 }
