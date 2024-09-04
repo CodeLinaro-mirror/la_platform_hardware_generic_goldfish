@@ -17,7 +17,8 @@
 #include <cstdlib>
 #include <string_view>
 
-#include "absl/strings/str_format.h"
+#include "absl/log/absl_log.h"
+
 #include "aemu/base/logging/LogFormatter.h"
 #ifdef _MSC_VER
 #include "msvc-posix.h"
@@ -32,49 +33,56 @@ using android::base::SimpleLogFormatter;
 using android::base::testing::LogOutput;
 
 // The current log output.
-LogOutput *gLogOutput = nullptr;
+LogOutput* gLogOutput = nullptr;
 
 bool gDcheckLevel = false;
 LogSeverity gMinLogLevel = EMULATOR_LOG_INFO;
 
-android::base::GoogleLogFormatter defaultFormatter;
-LogFormatter *gFormatter = &defaultFormatter;
+SimpleLogFormatter defaultFormatter;
+LogFormatter* gFormatter = &defaultFormatter;
 
-void write_log_line(LogSeverity prio, const std::string &msg) {
-  FILE *fp = prio >= LOG_SEVERITY_FROM(WARNING) ? stderr : stdout;
-  if (!msg.empty()) {
-    fwrite(msg.c_str(), 1, msg.size(), fp);
-    if (msg.back() != '\n') {
-      constexpr char newline = '\n';
-      fwrite(&newline, sizeof(newline), 1, fp);
-    }
-  }
+// using AbslMessage = absl::log_internal::LogMessage;
 
-  if (prio >= LOG_SEVERITY_FROM(FATAL)) {
-    fflush(stderr);
-    std::abort();
-  }
+void write_log_line(LogSeverity prio, const char* file, int line,
+                    const std::string& msg) {
+  int priority = (int)prio;
+  switch (priority) {
+    case 0:  // INFO
+      ABSL_LOG(INFO).AtLocation(file, line) << msg;
+      break;
+    case 1:  // WARNING
+      ABSL_LOG(WARNING).AtLocation(file, line) << msg;
+      break;
+    case 2:  // ERROR
+      ABSL_LOG(ERROR).AtLocation(file, line) << msg;
+      break;
+    case 3:  // FATAL
+      ABSL_LOG(FATAL).AtLocation(file, line) << msg;
+      break;
+    default:
+      ABSL_LOG(INFO).AtLocation(file, line).WithVerbosity(abs(priority)) << msg;
+      break;
+  };
 }
 
-void __emu_log_print_str(LogSeverity prio, const char *file, int line,
-                         const std::string &msg) {
-  write_log_line(prio, gFormatter->format({file, line, prio}, msg));
+void __emu_log_print_str(LogSeverity prio, const char* file, int line,
+                         const std::string& msg) {
+  write_log_line(prio, file, line, msg);
 }
 
-LOGGING_API extern "C" void __emu_log_print(LogSeverity prio, const char *file,
-                                            int line, const char *fmt, ...) {
-  const int bufferSize = 2048; // 2KB buffer size
+LOGGING_API extern "C" void __emu_log_print(LogSeverity prio, const char* file,
+                                            int line, const char* fmt, ...) {
+  const int bufferSize = 2048;  // 2KB buffer size
   char buffer[bufferSize];
   va_list args;
   va_start(args, fmt);
   int size = vsnprintf(buffer, bufferSize, fmt, args);
   va_end(args);
-  auto logline = std::string(buffer, size);
-
-  write_log_line(prio, gFormatter->format({file, line, prio}, logline));
+  auto msg = std::string(buffer, size);
+  write_log_line(prio, file, line, msg);
 }
 
-void logMessage(const LogParams &params, const char *message,
+void logMessage(const LogParams& params, const char* message,
                 size_t messageLen) {
   if (gLogOutput) {
     gLogOutput->logMessage(params, message, messageLen);
@@ -87,7 +95,7 @@ void logMessage(const LogParams &params, const char *message,
 namespace android {
 namespace base {
 
-namespace {} // namespace
+namespace {}  // namespace
 
 // DCHECK level.
 
@@ -105,13 +113,11 @@ extern "C" LogSeverity getMinLogLevel() { return gMinLogLevel; }
 
 extern "C" void setMinLogLevel(LogSeverity level) { gMinLogLevel = level; }
 
-LogSeverity minLogLevel() { return gMinLogLevel; }
-
-void setLogFormatter(LogFormatter *fmt) { gFormatter = fmt; }
+void setLogFormatter(LogFormatter* fmt) { gFormatter = fmt; }
 
 // LogString
 
-LogString::LogString(const char *fmt, ...) {
+LogString::LogString(const char* fmt, ...) {
   size_t capacity = 100;
   for (;;) {
     mString.resize(capacity);
@@ -128,17 +134,17 @@ LogString::LogString(const char *fmt, ...) {
 
 // LogStream
 
-LogStream::LogStream(const char *file, int lineno, LogSeverity severity,
+LogStream::LogStream(const char* file, int lineno, LogSeverity severity,
                      bool quiet)
     : mParams(file, lineno, severity, quiet), mStream(&mStreamBuf) {}
 
-std::ostream &operator<<(std::ostream &stream,
-                         const android::base::LogString &str) {
+std::ostream& operator<<(std::ostream& stream,
+                         const android::base::LogString& str) {
   stream << str.string();
   return stream;
 }
 
-std::ostream &operator<<(std::ostream &stream, const std::string_view &str) {
+std::ostream& operator<<(std::ostream& stream, const std::string_view& str) {
   if (!str.empty()) {
     stream.write(str.data(), str.size());
   }
@@ -179,11 +185,11 @@ int LogstreamBuf::overflow(int c) {
   return c;
 }
 
-char *LogstreamBuf::str() { return this->pbase(); }
+char* LogstreamBuf::str() { return this->pbase(); }
 
 // LogMessage
 
-LogMessage::LogMessage(const char *file, int line, LogSeverity severity,
+LogMessage::LogMessage(const char* file, int line, LogSeverity severity,
                        bool quiet)
     : mStream(new LogStream(file, line, severity, quiet)) {}
 
@@ -194,7 +200,7 @@ LogMessage::~LogMessage() {
 
 // ErrnoLogMessage
 
-ErrnoLogMessage::ErrnoLogMessage(const char *file, int line,
+ErrnoLogMessage::ErrnoLogMessage(const char* file, int line,
                                  LogSeverity severity, int errnoCode)
     : mStream(nullptr), mErrno(errnoCode) {
   mStream = new LogStream(file, line, severity, false);
@@ -213,13 +219,13 @@ ErrnoLogMessage::~ErrnoLogMessage() {
 namespace testing {
 
 // static
-LogOutput *LogOutput::setNewOutput(LogOutput *newOutput) {
-  LogOutput *ret = gLogOutput;
+LogOutput* LogOutput::setNewOutput(LogOutput* newOutput) {
+  LogOutput* ret = gLogOutput;
   gLogOutput = newOutput;
   return ret;
 }
 
-} // namespace testing
+}  // namespace testing
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

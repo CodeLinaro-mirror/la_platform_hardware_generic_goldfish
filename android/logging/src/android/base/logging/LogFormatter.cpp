@@ -44,10 +44,10 @@
 namespace android {
 namespace base {
 
-inline static std::string_view translate_sev(LogSeverity value) {
-#define SEV(p, str)                                                            \
-  case (LogSeverity::p):                                                       \
-    return str;                                                                \
+inline static const std::string_view translate_sev(LogSeverity value) {
+#define SEV(p, str)      \
+  case (LogSeverity::p): \
+    return str;          \
     break;
 
   switch (value) {
@@ -57,16 +57,16 @@ inline static std::string_view translate_sev(LogSeverity value) {
     SEV(EMULATOR_LOG_WARNING, "WARNING")
     SEV(EMULATOR_LOG_ERROR, "ERROR  ")
     SEV(EMULATOR_LOG_FATAL, "FATAL  ")
-  default:
-    return "UNKWOWN";
+    default:
+      return "UNKWOWN";
   }
 #undef SEV
 }
 
-inline static const char *translate_color(LogSeverity value) {
-#define SEV(p, col)                                                            \
-  case (LogSeverity::p):                                                       \
-    return col "\x1b[0m";                                                      \
+inline static const char* translate_color(LogSeverity value) {
+#define SEV(p, col)       \
+  case (LogSeverity::p):  \
+    return col "\x1b[0m"; \
     break;
 
   switch (value) {
@@ -76,23 +76,23 @@ inline static const char *translate_color(LogSeverity value) {
     SEV(EMULATOR_LOG_WARNING, "\x1b[33mWARNING")
     SEV(EMULATOR_LOG_ERROR, "\x1b[31mERROR  ")
     SEV(EMULATOR_LOG_FATAL, "\x1b[35mFATAL  ")
-  default:
-    return "\x1b[94mUNKNOWN";
+    default:
+      return "\x1b[94mUNKNOWN";
   }
 #undef SEV
 }
 
-std::string SimpleLogFormatter::format(const LogParams &params,
-                                       const std::string &line) {
+std::string SimpleLogFormatter::format(const LogParams& params,
+                                       const std::string& line) {
   return absl::StrFormat("%s | %s", translate_sev(params.severity), line);
 };
 
-std::string SimpleLogWithTimeFormatter::format(const LogParams &params,
-                                               const std::string &line) {
+std::string SimpleLogWithTimeFormatter::format(const LogParams& params,
+                                               const std::string& line) {
   struct timeval tv;
   gettimeofday(&tv, nullptr);
   time_t now = tv.tv_sec;
-  struct tm *time = localtime(&now);
+  struct tm* time = localtime(&now);
   return absl::StrFormat("%02d:%02d:%02d.%06ld %s | %s", time->tm_hour,
                          time->tm_min, time->tm_sec, tv.tv_usec,
                          translate_sev(params.severity), line);
@@ -105,7 +105,7 @@ constexpr char PATH_SEP = '\\';
 #endif
 
 constexpr int kMaxThreadIdLength =
-    7; // 7 digits for the thread id is what Google uses everywhere.
+    7;  // 7 digits for the thread id is what Google uses everywhere.
 
 // Returns the current thread id as a string of at most kMaxThreadIdLength
 // characters. We try to avoid using std::this_thread::get_id() because on Linux
@@ -131,13 +131,13 @@ static std::string getStrThreadID() {
 // Caches the thread id in thread local storage to increase performance
 // Inspired by:
 // https://github.com/abseil/abseil-cpp/blob/52d41a9ec23e39db7e2cbce5c9449506cf2d3a5c/absl/base/internal/sysinfo.cc#L494-L504
-const char *getCachedThreadID() {
+const char* getCachedThreadID() {
   static thread_local std::string thread_id = getStrThreadID();
   return thread_id.c_str();
 }
 
-std::string GoogleLogFormatter::format(const LogParams &params,
-                                       const std::string &line) {
+std::string GoogleLogFormatter::format(const LogParams& params,
+                                       const std::string& line) {
   auto timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(
                           std::chrono::system_clock::now().time_since_epoch())
                           .count();
@@ -170,12 +170,12 @@ std::string GoogleLogFormatter::format(const LogParams &params,
       getCachedThreadID(), filename, params.lineno, line);
 }
 
-std::string VerboseLogFormatter::format(const LogParams &params,
-                                        const std::string &line) {
+std::string VerboseLogFormatter::format(const LogParams& params,
+                                        const std::string& line) {
   struct timeval tv;
   gettimeofday(&tv, nullptr);
   time_t now = tv.tv_sec;
-  struct tm *time = localtime(&now);
+  struct tm* time = localtime(&now);
 
   // Get the basename of the file.
   std::string_view path = params.file;
@@ -195,8 +195,8 @@ NoDuplicateLinesFormatter::NoDuplicateLinesFormatter(
     std::shared_ptr<LogFormatter> logger)
     : mInner(logger) {}
 
-std::string NoDuplicateLinesFormatter::format(const LogParams &params,
-                                              const std::string &line) {
+std::string NoDuplicateLinesFormatter::format(const LogParams& params,
+                                              const std::string& line) {
   // We really care about order here, so we have to lock..
   // otherwise we can get really bizarre things happen when multiple
   // threads are active.
@@ -215,27 +215,27 @@ std::string NoDuplicateLinesFormatter::format(const LogParams &params,
   std::string result;
 
   switch (duplicates) {
-  case 0:
-    // Not a duplicate, let the inner formatter decorate the message
-    // properly.
-    result = mInner->format(params, line);
-    break;
-  case 1:
-    // No need to include a counter, just log the double line
-    static const auto sgl_format_string =
-        absl::ParsedFormat<'s', 's'>("%s\n%s");
-    result = absl::StrFormat(sgl_format_string,
-                             mInner->format(mPrevParams, mPrevLogLine),
-                             mInner->format(params, line));
-    break;
-  default:
-    static const auto dbl_format_string =
-        absl::ParsedFormat<'s', 'd', 's'>("%s (%dx)\n%s");
-    // include a counter, we have double logged at least 2 lines.
-    result = absl::StrFormat(dbl_format_string,
-                             mInner->format(mPrevParams, mPrevLogLine),
-                             duplicates, mInner->format(params, line));
-    break;
+    case 0:
+      // Not a duplicate, let the inner formatter decorate the message
+      // properly.
+      result = mInner->format(params, line);
+      break;
+    case 1:
+      // No need to include a counter, just log the double line
+      static const auto sgl_format_string =
+          absl::ParsedFormat<'s', 's'>("%s\n%s");
+      result = absl::StrFormat(sgl_format_string,
+                               mInner->format(mPrevParams, mPrevLogLine),
+                               mInner->format(params, line));
+      break;
+    default:
+      static const auto dbl_format_string =
+          absl::ParsedFormat<'s', 'd', 's'>("%s (%dx)\n%s");
+      // include a counter, we have double logged at least 2 lines.
+      result = absl::StrFormat(dbl_format_string,
+                               mInner->format(mPrevParams, mPrevLogLine),
+                               duplicates, mInner->format(params, line));
+      break;
   }
 
   // Handle the case where we have matching logparams, but a mismatch in
@@ -248,5 +248,5 @@ std::string NoDuplicateLinesFormatter::format(const LogParams &params,
   return result;
 };
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android
