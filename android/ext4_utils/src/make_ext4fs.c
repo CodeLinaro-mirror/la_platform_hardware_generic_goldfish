@@ -70,7 +70,7 @@
 
 
 #ifdef _MSC_VER
-#define path_open win32_path_open
+#define path_open android_open_with_mode
 #else
 #define path_open open
 #endif
