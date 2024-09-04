@@ -26,11 +26,8 @@ ANDROID_BEGIN_HEADER
 // |path| is the file path for the partition image.
 // |format| is the partition's type.
 // |readonly| is true to indicate that the image is read-only.
-typedef void (*AndroidPartitionSetupFunction)(void* opaque,
-                                              const char* name,
-                                              uint64_t size,
-                                              const char* path,
-                                              AndroidPartitionType format,
+typedef void (*AndroidPartitionSetupFunction)(void* opaque, const char* name, uint64_t size,
+                                              const char* path, AndroidPartitionType format,
                                               bool readonly);
 
 // A structure used to model the information related to a given partition
@@ -83,10 +80,8 @@ typedef struct {
 // On success, return true. On failure, return false and sets |*error_message|
 // to a human-friendly user message explaining the error. free() must be called
 // by the user to release it.
-bool android_partition_configuration_setup(
-        const AndroidPartitionConfiguration* config,
-        AndroidPartitionSetupFunction setup_func,
-        void* setup_opaque,
-        char** error_message);
+bool android_partition_configuration_setup(const AndroidPartitionConfiguration* config,
+                                           AndroidPartitionSetupFunction setup_func,
+                                           void* setup_opaque, char** error_message);
 
 ANDROID_END_HEADER

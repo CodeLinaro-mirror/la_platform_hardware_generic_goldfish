@@ -53,7 +53,7 @@ using RemoveCallback = void (*)(void* opaque);
 // you can use the default constructor. Call the "newEvent" method to
 // notify listeners of a newEvent.
 class EventWaiter {
-public:
+  public:
     EventWaiter() = default;
     EventWaiter(RegisterCallback add, RemoveCallback remove);
     ~EventWaiter();
@@ -81,7 +81,8 @@ public:
 
     // Call this when a new event has arrived.
     void newEvent();
-private:
+
+  private:
     static void callbackForwarder(void* opaque);
 
     std::mutex mStreamLock;

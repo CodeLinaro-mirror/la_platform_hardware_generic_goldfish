@@ -27,6 +27,7 @@
 #include <errno.h>          // for errno
 #include <grpcpp/grpcpp.h>  // for Status
 #include <stdlib.h>         // for atoi
+#include <zlib.h>           // for crc32
 
 #include <cstdint>     // for uint8_t
 #include <ctime>       // for clock
@@ -37,15 +38,12 @@
 #include <thread>      // for thread
 #include <vector>      // for vector
 
-#include <zlib.h>  // for crc32
-
 #include "absl/log/log.h"  // for LogStrea...
 
-#include "aemu/base/async/AsyncSocketServer.h"  // for AsyncSoc...
-#include "aemu/base/memory/SharedMemory.h"      // for SharedMe...
-#include "aemu/base/sockets/ScopedSocket.h"     // for ScopedSo...
-#include "aemu/base/sockets/SocketUtils.h"      // for socketSe...
-
+#include "aemu/base/async/AsyncSocketServer.h"               // for AsyncSoc...
+#include "aemu/base/memory/SharedMemory.h"                   // for SharedMe...
+#include "aemu/base/sockets/ScopedSocket.h"                  // for ScopedSo...
+#include "aemu/base/sockets/SocketUtils.h"                   // for socketSe...
 #include "android/base/system/System.h"                      // for System
 #include "android/base/testing/TestLooper.h"                 // for TestLooper
 #include "android/emulation/control/GrpcServices.h"          // for Emulator...
@@ -67,7 +65,7 @@ using grpc::Status;
 // A socket server that will just write all the data to the socket
 // that connects to it.
 class SimpleReplySocket {
-public:
+  public:
     SimpleReplySocket(std::vector<uint8_t> data) : mData(data) {
         mRunner = std::make_unique<std::thread>([this]() { loop(); });
     }
@@ -78,8 +76,7 @@ public:
     }
 
     bool startServer() {
-        auto callback = std::bind(&SimpleReplySocket::onConnection, this,
-                                  std::placeholders::_1);
+        auto callback = std::bind(&SimpleReplySocket::onConnection, this, std::placeholders::_1);
         mServer = AsyncSocketServer::createTcpLoopbackServer(
                 0, callback, AsyncSocketServer::LoopbackMode::kIPv4, &mLooper);
         if (!mServer.get()) {
@@ -97,14 +94,13 @@ public:
         ScopedSocket scopedSocket(socket);
         // Surprise! We stop listening on socket accept..
         mServer->startListening();
-        while (socketSendAll(scopedSocket.get(), mData.data(), mData.size()))
-            ;
+        while (socketSendAll(scopedSocket.get(), mData.data(), mData.size()));
         return true;
     }
 
     int port() { return mPort; }
 
-private:
+  private:
     void loop() {
         while (!mDone) {
             mLooper.runWithDeadlineMs(mLooper.nowMs() + 100);
@@ -120,10 +116,8 @@ private:
 };
 
 class TestRunnerImpl final : public TestRunner::Service {
-public:
-    Status runTest(ServerContext* context,
-                   const Test* request,
-                   Test* response) override {
+  public:
+    Status runTest(ServerContext* context, const Test* request, Test* response) override {
         // VERBOSE_ENABLE(grpc);  Very noisy!
         // Note: Might not be perfect way of measuring cpu time.
         std::clock_t c_start = std::clock();
@@ -135,8 +129,7 @@ public:
                 response->set_chksum(request->chksum());
                 break;
             case Test::SharedMemory:
-                response->set_chksum(
-                        prepare_shared_mem(request->handle(), request->size()));
+                response->set_chksum(prepare_shared_mem(request->handle(), request->size()));
                 break;
             case Test::Grpc:
                 response->set_chksum(prepare_grpc(request->size()));
@@ -162,16 +155,14 @@ public:
         return Status::OK;
     }
 
-private:
+  private:
     std::unique_ptr<SimpleReplySocket> mSrs;
     std::unique_ptr<SharedMemory> mWriter;
     std::unique_ptr<EmulatorControllerService> mService;
 
     // Calculate a simple hash of the memory region.
     // This forces a memory read on the region.
-    uint64_t read_region(const uint8_t* src, size_t size) {
-        return crc32(0, src, size);
-    }
+    uint64_t read_region(const uint8_t* src, size_t size) { return crc32(0, src, size); }
 
     uint64_t fill_region(uint8_t* dest, size_t size) {
         for (int i = 0; i < size; i++) {
@@ -211,29 +202,20 @@ private:
         echoService->moveData(wri);
 
         EmulatorControllerService::Builder builder;
-        mService = builder.withService(echoService)
-                           .withPortRange(0, 1)
-                           .withLogging(false)
-                           .build();
+        mService = builder.withService(echoService).withPortRange(0, 1).withLogging(false).build();
         return chk;
     }
 
     void prepare_sync_heartbeat() {
         EmulatorControllerService::Builder builder;
         HeartbeatService* heartBeat = new HeartbeatService();
-        mService = builder.withService(heartBeat)
-                           .withPortRange(0, 1)
-                           .withLogging(false)
-                           .build();
+        mService = builder.withService(heartBeat).withPortRange(0, 1).withLogging(false).build();
     }
 
     void prepare_async_heartbeat() {
         EmulatorControllerService::Builder builder;
         AsyncHeartbeatService* heartBeat = new AsyncHeartbeatService();
-        mService = builder.withService(heartBeat)
-                           .withPortRange(0, 1)
-                           .withLogging(false)
-                           .build();
+        mService = builder.withService(heartBeat).withPortRange(0, 1).withLogging(false).build();
     }
 };
 }  // namespace control
@@ -242,14 +224,12 @@ private:
 
 static int port = -1;
 
-static struct option long_options[] = {{"port", required_argument, 0, 'p'},
-                                       {0, 0, 0, 0}};
+static struct option long_options[] = {{"port", required_argument, 0, 'p'}, {0, 0, 0, 0}};
 
 static void parseArgs(int argc, char** argv) {
     int long_index = 0;
     int opt = 0;
-    while ((opt = getopt_long(argc, argv, "", long_options, &long_index)) !=
-           -1) {
+    while ((opt = getopt_long(argc, argv, "", long_options, &long_index)) != -1) {
         switch (opt) {
             case 'p':
                 port = atoi(optarg);

@@ -8,15 +8,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <functional>
 #include <string_view>
 #include <vector>
 
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/PingTopic.h"
+#include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace devices {
@@ -57,36 +57,35 @@ namespace devices {
 
 struct Connector : public cable::IPlug {
     using DeviceFactory = std::function<cable::PlugPtr(
-        cable::SocketPtr socket, PingTopic &pingTopic, std::string_view args)>;
+            cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args)>;
 
     struct DeviceEntry {
-        const char *qname;  // prefixed with 'q' for qemud, use '-' otherwise
+        const char* qname;  // prefixed with 'q' for qemud, use '-' otherwise
         DeviceFactory factory;
     };
 
-    Connector(cable::SocketPtr socket, PingTopic &pingTopic,
-              const DeviceEntry *devicesEntries, size_t devicesEntriesSize);
+    Connector(cable::SocketPtr socket, PingTopic& pingTopic, const DeviceEntry* devicesEntries,
+              size_t devicesEntriesSize);
 
     cable::SocketPtr onUnplug() override;
-    bool onReceive(const void *data, size_t size) override;
+    bool onReceive(const void* data, size_t size) override;
 
     bool supportsLoadingFromSnapshot() const override;
     TypeId getSnapshotTypeId() const override;
-    bool saveStateToSnapshot(archive::IWriter &) const override;
+    bool saveStateToSnapshot(archive::IWriter&) const override;
 
-private:
+  private:
     using Buffer = std::vector<char>;
 
-    std::pair<bool, cable::PlugPtr>
-        processRequest(std::string_view request, const void *unconsumed,
-                       size_t unconsumedSize, Buffer buffer);
-    std::pair<bool, cable::PlugPtr>
-        switchTo(bool isQemud, std::string_view device, std::string_view args,
-                 const void *unconsumed, size_t unconsumedSize);
+    std::pair<bool, cable::PlugPtr> processRequest(std::string_view request, const void* unconsumed,
+                                                   size_t unconsumedSize, Buffer buffer);
+    std::pair<bool, cable::PlugPtr> switchTo(bool isQemud, std::string_view device,
+                                             std::string_view args, const void* unconsumed,
+                                             size_t unconsumedSize);
 
     cable::SocketPtr mSocket;
-    PingTopic &mPingTopic;
-    const DeviceEntry *const mDevicesEntries;
+    PingTopic& mPingTopic;
+    const DeviceEntry* const mDevicesEntries;
     const size_t mDevicesEntriesSize;
     Buffer mBuffer;
 };

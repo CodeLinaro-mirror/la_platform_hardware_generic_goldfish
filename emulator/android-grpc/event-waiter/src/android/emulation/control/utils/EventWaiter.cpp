@@ -17,8 +17,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-EventWaiter::EventWaiter(RegisterCallback add, RemoveCallback remove)
-    : mRemove(remove) {
+EventWaiter::EventWaiter(RegisterCallback add, RemoveCallback remove) : mRemove(remove) {
     add(&EventWaiter::callbackForwarder, this);
 }
 
@@ -38,12 +37,10 @@ uint64_t EventWaiter::current() const {
     return mEventCounter;
 }
 
-uint64_t EventWaiter::next(uint64_t afterEvent,
-                           std::chrono::milliseconds timeout_ms) {
+uint64_t EventWaiter::next(uint64_t afterEvent, std::chrono::milliseconds timeout_ms) {
     std::unique_lock<std::mutex> lock(mStreamLock);
     auto future = std::chrono::system_clock::now() + timeout_ms;
-    bool timedOut = !mCv.wait_until(
-            lock, future, [=]() { return mEventCounter > afterEvent; });
+    bool timedOut = !mCv.wait_until(lock, future, [=]() { return mEventCounter > afterEvent; });
     (void)timedOut;
 
     return afterEvent > mEventCounter ? 0 : mEventCounter - afterEvent;

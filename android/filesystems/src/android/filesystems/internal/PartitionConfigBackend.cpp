@@ -11,6 +11,9 @@
 
 #include "android/filesystems/internal/PartitionConfigBackend.h"
 
+#include <cerrno>
+#include <cstdlib>
+
 #include "android/filesystems/ext4_resize.h"
 #include "android/filesystems/fstab_parser.h"
 #include "android/filesystems/ramdisk_extractor.h"
@@ -18,20 +21,13 @@
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
 
-#include <cerrno>
-#include <cstdlib>
-
 namespace android::internal {
 
 class DefaultPartitionConfigBackend : public PartitionConfigBackend {
-public:
-    auto pathExists(const char* path) -> bool override {
-        return path_exists(path) != 0;
-    }
+  public:
+    auto pathExists(const char* path) -> bool override { return path_exists(path) != 0; }
 
-    auto pathEmptyFile(const char* path) -> bool override {
-        return path_empty_file(path) == 0;
-    }
+    auto pathEmptyFile(const char* path) -> bool override { return path_empty_file(path) == 0; }
 
     auto pathCopyFile(const char* dst, const char* src) -> bool override {
         return path_copy_file(dst, src) == 0;
@@ -50,18 +46,15 @@ public:
         return true;
     }
 
-    auto probePartitionFileType(const char* path)
-            -> AndroidPartitionType override {
+    auto probePartitionFileType(const char* path) -> AndroidPartitionType override {
         return androidPartitionType_probeFile(path);
     }
 
-    auto extractRamdiskFile(const char* ramdisk_path,
-                            const char* file_path,
+    auto extractRamdiskFile(const char* ramdisk_path, const char* file_path,
                             std::string* out) -> bool override {
         char* out_data = nullptr;
         size_t out_size = 0U;
-        if (!android_extractRamdiskFile(ramdisk_path, file_path, &out_data,
-                                        &out_size)) {
+        if (!android_extractRamdiskFile(ramdisk_path, file_path, &out_data, &out_size)) {
             return false;
         }
         out->assign(out_data, out_size);
@@ -69,12 +62,11 @@ public:
         return true;
     }
 
-    auto parsePartitionFormat(const std::string& fstab,
-                              const char* mountPath,
+    auto parsePartitionFormat(const std::string& fstab, const char* mountPath,
                               std::string* partitionFormat) -> bool override {
         char* out_format = nullptr;
-        if (!android_parseFstabPartitionFormat(fstab.c_str(), fstab.size(),
-                                               mountPath, &out_format)) {
+        if (!android_parseFstabPartitionFormat(fstab.c_str(), fstab.size(), mountPath,
+                                               &out_format)) {
             return false;
         }
         partitionFormat->assign(out_format);
@@ -82,11 +74,9 @@ public:
         return true;
     }
 
-    auto makeEmptyPartition(AndroidPartitionType partitionType,
-                            uint64_t partitionSize,
+    auto makeEmptyPartition(AndroidPartitionType partitionType, uint64_t partitionSize,
                             const char* partitionFile) -> bool override {
-        int ret = androidPartitionType_makeEmptyFile(
-                partitionType, partitionSize, partitionFile);
+        int ret = androidPartitionType_makeEmptyFile(partitionType, partitionSize, partitionFile);
         if (ret < 0) {
             errno = -ret;
             return false;
@@ -94,10 +84,8 @@ public:
         return true;
     }
 
-    void resizeExt4Partition(const char* partitionPath,
-                             uint64_t partitionSize) override {
-        (void)::resizeExt4Partition(partitionPath,
-                                    static_cast<int64_t>(partitionSize));
+    void resizeExt4Partition(const char* partitionPath, uint64_t partitionSize) override {
+        (void)::resizeExt4Partition(partitionPath, static_cast<int64_t>(partitionSize));
     }
 };
 

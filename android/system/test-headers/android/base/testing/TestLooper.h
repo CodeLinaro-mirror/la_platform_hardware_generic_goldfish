@@ -20,7 +20,7 @@ namespace base {
 // internals.
 //
 class TestLooper : public DefaultLooper {
-public:
+  public:
     using DefaultLooper::DefaultLooper;
 
     // Override nowMs/nowNs to allow overriding virtual time.
@@ -41,7 +41,7 @@ public:
 
     using DefaultLooper::runOneIterationWithDeadlineMs;
 
-private:
+  private:
     DurationNs mVirtualTimeNs = 0;
 };
 

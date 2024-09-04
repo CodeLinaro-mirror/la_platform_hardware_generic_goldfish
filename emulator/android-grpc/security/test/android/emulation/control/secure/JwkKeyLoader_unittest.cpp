@@ -15,14 +15,16 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <chrono>
 #include <fstream>
 #include <memory>
 #include <string>
-#include <utility>
 #include <thread>
-#include <chrono>
+#include <utility>
 
 #include "absl/strings/string_view.h"
+
 #include "aemu/base/files/PathUtils.h"
 #include "android/base/testing/TestTempDir.h"
 #include "nlohmann/json.hpp"
@@ -52,7 +54,7 @@ using json = nlohmann::json;
 using Path = std::string;
 
 class JwkKeyLoaderTest : public ::testing::Test {
-public:
+  public:
     void SetUp() override {
         auto status = tink::TinkConfig::Register();
         EXPECT_TRUE(status.ok());
@@ -86,18 +88,16 @@ public:
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
-        auto private_handle =
-                tink::KeysetHandle::GenerateNew(tink::JwtEs512Template());
+        auto private_handle = tink::KeysetHandle::GenerateNew(tink::JwtEs512Template());
         EXPECT_TRUE(private_handle.ok());
         auto sign = (*private_handle)->GetPrimitive<tink::JwtPublicKeySign>();
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
-        auto jsonSnippet =
-                tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
         write(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
 
-protected:
+  protected:
     std::unique_ptr<TestTempDir> mTempDir;
     absl::StatusOr<tink::RawJwt> mSampleJwt;
     absl::StatusOr<tink::JwtValidator> mSampleValidator;
@@ -117,16 +117,14 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     JwkKeyLoader loader;
     write("foo", std::string(0, 'x'));
     auto start = std::chrono::system_clock::now();
-    auto status =
-            loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 8, 10ms);
+    auto status = loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     EXPECT_FALSE(status.ok());
     ASSERT_EQ(status.code(), absl::StatusCode::kUnavailable);
-    EXPECT_GE(waited, 79ms)
-            << "We should have waited around 80ms, not: " << waited.count()
-            << " ms.";
+    EXPECT_GE(waited, 79ms) << "We should have waited around 80ms, not: " << waited.count()
+                            << " ms.";
 }
 
 TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
@@ -159,15 +157,14 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
     });
 
     auto start = std::chrono::system_clock::now();
-    auto status =
-            loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 100, 10ms);
+    auto status = loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 100, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-
     EXPECT_TRUE(status.ok()) << "Failure: " << status.message();
-    EXPECT_GT(waited, 10ms) << "We had a write delay of at least 15ms, so we should have hit at least one wait.";
+    EXPECT_GT(waited, 10ms) << "We had a write delay of at least 15ms, so we "
+                               "should have hit at least one wait.";
 
     t.join();
 }
@@ -301,8 +298,7 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_json) {
 
     auto status = loader.add("test", borked);
     EXPECT_FALSE(status.ok());
-    EXPECT_THAT(status.message(),
-                ContainsSubstr("test does not contain a valid jwk"))
+    EXPECT_THAT(status.message(), ContainsSubstr("test does not contain a valid jwk"))
             << status.message();
     EXPECT_TRUE(loader.empty());
 }
@@ -338,9 +334,7 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_missing_file) {
     auto status = loader.add("this_path_does_not_exist");
 
     EXPECT_FALSE(status.ok());
-    EXPECT_THAT(
-            status.message(),
-            ContainsSubstr("this_path_does_not_exist does not exist."));
+    EXPECT_THAT(status.message(), ContainsSubstr("this_path_does_not_exist does not exist."));
     EXPECT_TRUE(loader.empty());
 }
 

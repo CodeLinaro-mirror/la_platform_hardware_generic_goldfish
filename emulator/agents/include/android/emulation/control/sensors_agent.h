@@ -12,11 +12,10 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
+#include <stddef.h>
 
 #include "android/physics/physical_state_agent.h"
-
-#include <stddef.h>
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -30,9 +29,7 @@ typedef struct QAndroidSensorsAgent {
     //                              i.e.
     //                              PHYSICAL_INTERPOLATION_SMOOTH,
     //                              PHYSICAL_INTERPOLATION_STEP
-    int (*setPhysicalParameterTarget)(int parameterId,
-                                      const float* val,
-                                      const size_t count,
+    int (*setPhysicalParameterTarget)(int parameterId, const float* val, const size_t count,
                                       int interpolationMethod);
 
     // Gets the target values of a given physical parameter.
@@ -42,9 +39,7 @@ typedef struct QAndroidSensorsAgent {
     //                         value, i.e.
     //                         PARAMETER_VALUE_TYPE_TARGET,
     //                         PARAMETER_VALUE_TYPE_CURRENT
-    int (*getPhysicalParameter)(int parameterId,
-                                float* const* out,
-                                const size_t count,
+    int (*getPhysicalParameter)(int parameterId, float* const* out, const size_t count,
                                 int parameterValueType);
 
     // Gets the number of elements of a given physical parameter vector.
@@ -63,9 +58,7 @@ typedef struct QAndroidSensorsAgent {
     //                   ANDROID_SENSOR_ACCELERATION,
     //                   ANDROID_SENSOR_GYROSCOPE,
     //                   etc.
-    int (*setSensorOverride)(int sensorId,
-                             const float* val,
-                             const size_t count);
+    int (*setSensorOverride)(int sensorId, const float* val, const size_t count);
 
     // Reads the values from a given sensor.
     // Input: |sensorId| determines which sensor's values to retrieve, i.e.

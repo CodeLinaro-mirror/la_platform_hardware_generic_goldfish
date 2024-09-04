@@ -10,41 +10,41 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include <gtest/gtest.h>
-
 #include "android/base/bazel/bazel_info.h"
-#include "android/base/system/System.h"
+
+#include <gtest/gtest.h>
 
 #include <fstream>
 #include <iostream>
 #include <vector>
 
+#include "android/base/system/System.h"
+
 namespace android {
 namespace base {
 
-TEST(bazel_info, inBazel) { EXPECT_TRUE(Bazel::inBazel()); }
+TEST(bazel_info, inBazel) {
+    EXPECT_TRUE(Bazel::inBazel());
+}
 
 TEST(bazel_info, can_get_data_file) {
-  EXPECT_FALSE(
-      Bazel::runfilesPath("hardware/generic/goldfish/android/system/test/"
-                          "android/base/bazel/info.txt")
-          .empty());
+    EXPECT_FALSE(Bazel::runfilesPath("hardware/generic/goldfish/android/system/test/"
+                                     "android/base/bazel/info.txt")
+                         .empty());
 }
 
 TEST(bazel_info, can_read_data_file) {
-  std::string path =
-      Bazel::runfilesPath("hardware/generic/goldfish/android/system/"
-                          "test/android/base/bazel/info.txt");
-  std::ifstream file(path);
-  std::string content((std::istreambuf_iterator<char>(file)),
-                      std::istreambuf_iterator<char>());
-  EXPECT_EQ(content, "Hello World!");
+    std::string path = Bazel::runfilesPath(
+            "hardware/generic/goldfish/android/system/"
+            "test/android/base/bazel/info.txt");
+    std::ifstream file(path);
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(content, "Hello World!");
 }
 
 TEST(bazel_info, can_get_non_existent_file) {
-  EXPECT_FALSE(
-      System::get()->pathExists(Bazel::runfilesPath("non/existent/file.txt")));
+    EXPECT_FALSE(System::get()->pathExists(Bazel::runfilesPath("non/existent/file.txt")));
 }
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

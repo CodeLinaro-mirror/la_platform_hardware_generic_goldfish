@@ -16,15 +16,15 @@ namespace android {
 namespace base {
 
 class Bazel {
-public:
-  // Returns the path of the specified file in the runfiles directory.
-  static std::string runfilesPath(const std::string &path);
+  public:
+    // Returns the path of the specified file in the runfiles directory.
+    static std::string runfilesPath(const std::string& path);
 
-  // Store the command line arguments, this is needed to get the runfiles path.
-  static void storeCommandLineArgs(int argc, char **argv);
+    // Store the command line arguments, this is needed to get the runfiles path.
+    static void storeCommandLineArgs(int argc, char** argv);
 
-  // Returns true if this executable is running in a bazel environment
-  static bool inBazel();
+    // Returns true if this executable is running in a bazel environment
+    static bool inBazel();
 };
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

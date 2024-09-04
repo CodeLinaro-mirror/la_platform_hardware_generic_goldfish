@@ -11,8 +11,9 @@
 
 #include "aemu/base/async/DefaultLooper.h"
 
-#include <errno.h>    // for ETIMEDOUT, EWOULDBLOCK
-#include <stdint.h>   // for INT64_MAX, uint64_t
+#include <errno.h>   // for ETIMEDOUT, EWOULDBLOCK
+#include <stdint.h>  // for INT64_MAX, uint64_t
+
 #include <algorithm>  // for find_if
 #include <iterator>   // for prev
 #include <utility>    // for move, pair
@@ -21,7 +22,7 @@
 #include "aemu/base/logging/Log.h"           // for DCHECK, LogMessage
 #include "aemu/base/logging/LogSeverity.h"   // for EMULATOR_LOG_FATAL
 #include "aemu/base/sockets/SocketWaiter.h"  // for SocketWaiter
-#include "android/base/system/System.h"         // for System
+#include "android/base/system/System.h"      // for System
 
 namespace android {
 namespace base {
@@ -44,9 +45,7 @@ Looper::Duration DefaultLooper::nowMs(Looper::ClockType clockType) {
     DCHECK(clockType == ClockType::kHost);
 
     const DurationNs nsTime = nowNs(clockType);
-    return nsTime == static_cast<DurationNs>(-1)
-                   ? -1
-                   : static_cast<Duration>(nsTime / 1000000);
+    return nsTime == static_cast<DurationNs>(-1) ? -1 : static_cast<Duration>(nsTime / 1000000);
 }
 
 Looper::DurationNs DefaultLooper::nowNs(Looper::ClockType clockType) {
@@ -80,10 +79,8 @@ void DefaultLooper::updateFdWatch(int fd, unsigned wantedEvents) {
     mWaiter->update(fd, wantedEvents);
 }
 
-Looper::FdWatch* DefaultLooper::createFdWatch(
-        int fd,
-        Looper::FdWatch::Callback callback,
-        void* opaque) {
+Looper::FdWatch* DefaultLooper::createFdWatch(int fd, Looper::FdWatch::Callback callback,
+                                              void* opaque) {
     return new FdWatch(this, fd, callback, opaque);
 }
 
@@ -98,9 +95,8 @@ void DefaultLooper::delTimer(DefaultLooper::Timer* timer) {
 void DefaultLooper::enableTimer(DefaultLooper::Timer* timer) {
     // Find the first timer that expires after this one.
     const auto deadline = timer->deadline();
-    const auto it = std::find_if(
-            mActiveTimers.begin(), mActiveTimers.end(),
-            [deadline](const Timer* t) { return t->deadline() > deadline; });
+    const auto it = std::find_if(mActiveTimers.begin(), mActiveTimers.end(),
+                                 [deadline](const Timer* t) { return t->deadline() > deadline; });
     mTimers[timer] = mActiveTimers.insert(it, timer);
 }
 
@@ -118,8 +114,7 @@ void DefaultLooper::delPendingTimer(DefaultLooper::Timer* timer) {
     mPendingTimers.erase(mTimers[timer]);
 }
 
-Looper::Timer* DefaultLooper::createTimer(Looper::Timer::Callback callback,
-                                          void* opaque,
+Looper::Timer* DefaultLooper::createTimer(Looper::Timer::Callback callback, void* opaque,
                                           Looper::ClockType clock) {
     return new DefaultLooper::Timer(this, callback, opaque, clock);
 }
@@ -190,8 +185,7 @@ bool DefaultLooper::runOneIterationWithDeadlineMs(Looper::Duration deadlineMs) {
     Duration timeOut = INT64_MAX;
     if (nextDeadline < kDurationInfinite) {
         timeOut = nextDeadline - nowMs();
-        if (timeOut < 0)
-            timeOut = 0;
+        if (timeOut < 0) timeOut = 0;
     }
 
     TaskSet tasks;
@@ -236,11 +230,10 @@ bool DefaultLooper::runOneIterationWithDeadlineMs(Looper::Duration deadlineMs) {
 
                 // Find the FdWatch for this file descriptor.
                 // TODO(digit): Improve efficiency with a map?
-                const auto fdIt =
-                        std::find_if(mFdWatches.begin(), mFdWatches.end(),
-                                     [fd](const FdWatchSet::value_type& pair) {
-                                         return pair.first->fd() == fd;
-                                     });
+                const auto fdIt = std::find_if(mFdWatches.begin(), mFdWatches.end(),
+                                               [fd](const FdWatchSet::value_type& pair) {
+                                                   return pair.first->fd() == fd;
+                                               });
                 if (fdIt != mFdWatches.end()) {
                     fdIt->first->setPending(events);
                 }
@@ -278,9 +271,7 @@ bool DefaultLooper::runOneIterationWithDeadlineMs(Looper::Duration deadlineMs) {
     return true;
 }
 
-DefaultLooper::FdWatch::FdWatch(DefaultLooper* looper,
-                                int fd,
-                                Looper::FdWatch::Callback callback,
+DefaultLooper::FdWatch::FdWatch(DefaultLooper* looper, int fd, Looper::FdWatch::Callback callback,
                                 void* opaque)
     : Looper::FdWatch(looper, fd, callback, opaque),
       mWantedEvents(0U),
@@ -351,9 +342,7 @@ void DefaultLooper::FdWatch::fire() {
     mCallback(mOpaque, mFd, events);
 }
 
-DefaultLooper::Timer::Timer(DefaultLooper* looper,
-                            Looper::Timer::Callback callback,
-                            void* opaque,
+DefaultLooper::Timer::Timer(DefaultLooper* looper, Looper::Timer::Callback callback, void* opaque,
                             Looper::ClockType clock)
     : Looper::Timer(looper, callback, opaque, clock),
       mDeadline(kDurationInfinite),
@@ -431,9 +420,7 @@ void DefaultLooper::Timer::load(Stream* stream) {
     startAbsolute(deadline);
 }
 
-DefaultLooper::Task::Task(Looper* looper,
-                          Looper::Task::Callback&& callback,
-                          bool selfDeleting)
+DefaultLooper::Task::Task(Looper* looper, Looper::Task::Callback&& callback, bool selfDeleting)
     : Looper::Task(looper, std::move(callback)), mSelfDeleting(selfDeleting) {}
 
 DefaultLooper::Task::~Task() {

@@ -14,19 +14,19 @@
 
 #include "aemu/base/threads/ParallelTask.h"
 
-#include "android/base/testing/TestLooper.h"
-#include "android/base/system/System.h"
-
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <functional>
 #include <memory>
 
+#include "android/base/system/System.h"
+#include "android/base/testing/TestLooper.h"
+
 namespace {
 
-using android::base::TestLooper;
 using android::base::ParallelTask;
+using android::base::TestLooper;
 using std::unique_ptr;
 
 struct Result {
@@ -35,17 +35,13 @@ struct Result {
 };
 
 class ParallelTaskTest : public testing::Test {
-public:
+  public:
     // set mCheckTimeoutMs to 10 to speed things up.
     ParallelTaskTest()
-        : mParallelTask(&mLooper,
-                        std::bind(&ParallelTaskTest::taskFunction,
-                                  this,
-                                  std::placeholders::_1),
-                        std::bind(&ParallelTaskTest::taskDoneFunction,
-                                  this,
-                                  std::placeholders::_1),
-                        10) {}
+        : mParallelTask(
+                  &mLooper, std::bind(&ParallelTaskTest::taskFunction, this, std::placeholders::_1),
+                  std::bind(&ParallelTaskTest::taskDoneFunction, this, std::placeholders::_1), 10) {
+    }
 
     void taskFunction(Result* outResult) {
         while (!mShouldRun) {
@@ -61,7 +57,7 @@ public:
 
     void unblock() { mShouldRun = true; }
 
-protected:
+  protected:
     TestLooper mLooper;
     ParallelTask<Result> mParallelTask;
     Result mResult;

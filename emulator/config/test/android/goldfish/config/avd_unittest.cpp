@@ -8,9 +8,9 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include <gtest/gtest.h>
-
 #include "android/goldfish/config/avd.h"
+
+#include <gtest/gtest.h>
 
 #include <fstream>
 #include <iostream>
@@ -28,36 +28,36 @@ using android::base::TestSystem;
 using android::base::TestTempDir;
 
 namespace android::goldfish::avd {
-static fs::path pj(fs::path a, fs::path b) { return a / b; }
+static fs::path pj(fs::path a, fs::path b) {
+    return a / b;
+}
 
 void writeToFile(fs::path path, std::string text) {
-  std::ofstream iniFile(path, std::ios::trunc);
-  iniFile << text;
-  iniFile.close();
+    std::ofstream iniFile(path, std::ios::trunc);
+    iniFile << text;
+    iniFile.close();
 }
 
 TEST(AvdUtil, path_getAvdSystemPath) {
-  TestSystem sys("/home", "/");
-  TestTempDir *tmp = sys.getTempRoot();
-  tmp->makeSubDir("android_home");
-  tmp->makeSubDir(pj("android_home", "sysimg"));
-  tmp->makeSubDir(pj("android_home", "avd"));
-  tmp->makeSubDir("nothome");
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    tmp->makeSubDir("android_home");
+    tmp->makeSubDir(pj("android_home", "sysimg"));
+    tmp->makeSubDir(pj("android_home", "avd"));
+    tmp->makeSubDir("nothome");
 
-  std::string sdkRoot = pj(tmp->pathString(), "android_home");
-  std::string avdConfig = pj(pj(sdkRoot, "avd"), "config.ini");
-  sys.envSet("ANDROID_AVD_HOME", sdkRoot);
-  EXPECT_EQ(ConfigDirs::getAvdRootDirectory().string(),
-            tmp->path() / "android_home");
+    std::string sdkRoot = pj(tmp->pathString(), "android_home");
+    std::string avdConfig = pj(pj(sdkRoot, "avd"), "config.ini");
+    sys.envSet("ANDROID_AVD_HOME", sdkRoot);
+    EXPECT_EQ(ConfigDirs::getAvdRootDirectory().string(), tmp->path() / "android_home");
 
-  // Create an in file for the @q avd.
-  writeToFile(pj(sdkRoot, "q.ini"),
-              std::string("path=") + pj(sdkRoot, "avd").string());
+    // Create an in file for the @q avd.
+    writeToFile(pj(sdkRoot, "q.ini"), std::string("path=") + pj(sdkRoot, "avd").string());
 
-  // A relative path should be resolved from ANRDOID_AVD_HOME
-  writeToFile(avdConfig, "image.sysdir.1=sysimg");
+    // A relative path should be resolved from ANRDOID_AVD_HOME
+    writeToFile(avdConfig, "image.sysdir.1=sysimg");
 
-  auto inis = Avd::list();
-  EXPECT_EQ(1, inis.size());
+    auto inis = Avd::list();
+    EXPECT_EQ(1, inis.size());
 }
-} // namespace android::goldfish
+}  // namespace android::goldfish::avd

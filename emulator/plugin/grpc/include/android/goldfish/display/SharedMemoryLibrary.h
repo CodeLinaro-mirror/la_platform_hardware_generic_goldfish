@@ -47,24 +47,23 @@ using android::base::SharedMemory;
 // ... do things with mem2 (points to same memory region)
 // }
 class SharedMemoryLibrary {
-public:
-  using deleter = std::function<void(SharedMemory *)>;
-  using LibraryEntry =
-      std::unique_ptr<SharedMemory, android::base::FuncDelete<deleter>>;
+  public:
+    using deleter = std::function<void(SharedMemory*)>;
+    using LibraryEntry = std::unique_ptr<SharedMemory, android::base::FuncDelete<deleter>>;
 
-  // Borrow the given shared memory region, opening it if it has not been
-  // opened yet. The LibraryEntry will automatically return the shared memory
-  // handle when it goes out of scope.
-  LibraryEntry borrow(std::string handle, size_t size);
+    // Borrow the given shared memory region, opening it if it has not been
+    // opened yet. The LibraryEntry will automatically return the shared memory
+    // handle when it goes out of scope.
+    LibraryEntry borrow(std::string handle, size_t size);
 
-private:
-  // Returns the given handle, releasing it completely if the refcount is 0.
-  void release(std::string handle);
+  private:
+    // Returns the given handle, releasing it completely if the refcount is 0.
+    void release(std::string handle);
 
-  std::mutex mAccess;
-  std::unordered_map<std::string, int> mHandlesCnt;
-  std::unordered_map<std::string, std::unique_ptr<SharedMemory>> mMemMap;
+    std::mutex mAccess;
+    std::unordered_map<std::string, int> mHandlesCnt;
+    std::unordered_map<std::string, std::unique_ptr<SharedMemory>> mMemMap;
 };
 
-} // namespace goldfish
-} // namespace android
+}  // namespace goldfish
+}  // namespace android

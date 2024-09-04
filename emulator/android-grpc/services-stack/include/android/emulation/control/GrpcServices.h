@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+#include <grpcpp/grpcpp.h>
+
 #include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <grpcpp/grpcpp.h>
 #include "grpcpp/impl/codegen/service_type.h"
 #include "grpcpp/security/server_credentials.h"
-#include "hardware/generic/goldfish/emulator/android-grpc/client/proto/grpc_endpoint_description.pb.h"
 
+#include "hardware/generic/goldfish/emulator/android-grpc/client/proto/grpc_endpoint_description.pb.h"
 
 #ifdef _MSC_VER
 #include "msvc-posix.h"
@@ -36,7 +37,7 @@ using grpc::ServerCompletionQueue;
 // Controller class for the gRPC endpoint, can be used to stop the service or
 // inspect some of its properties.
 class EmulatorControllerService {
-public:
+  public:
     class Builder;
 
     virtual ~EmulatorControllerService() = default;
@@ -60,7 +61,7 @@ public:
 // A Factory class that is capable of constructing a proper gRPC service that
 // can be used to control the emulator
 class EmulatorControllerService::Builder {
-public:
+  public:
     enum class Security { Insecure = 0, Tls, Local };
     enum class Authorization { None = 0, StaticToken = 1, JwtToken = 2 };
     enum class IpMode { Ipv4, Ipv6 };
@@ -70,8 +71,7 @@ public:
     // The certificate chain and private key that should be used. Setting a
     // certificate chain and private key will enable TLS, not calling this will
     // start the service in an unsecure fashion.
-    Builder& withCertAndKey(const char* certfile,
-                            const char* privateKeyFile,
+    Builder& withCertAndKey(const char* certfile, const char* privateKeyFile,
                             const char* certAuthority);
 
     // Reject any request with the status UNAUTHORIZED if the following header
@@ -133,7 +133,8 @@ public:
     Builder& withLogging(bool logging);
 
     std::string allowlist() { return mEmulatorAccessPath; }
-private:
+
+  private:
     std::string readSecrets(const char* fname);
 
     int port();

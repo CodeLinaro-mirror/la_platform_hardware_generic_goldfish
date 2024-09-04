@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stddef.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -21,9 +21,7 @@ ANDROID_BEGIN_HEADER
 // and extract the format of the partition named |partitionName|.
 // On success, return true and sets |*outFormat| to a heap-allocated
 // string that must be freed by the caller. On failure, return false.
-bool android_parseFstabPartitionFormat(const char* fstabData,
-                                       size_t fstabDize,
-                                       const char* partitionName,
-                                       char** outFormat);
+bool android_parseFstabPartitionFormat(const char* fstabData, size_t fstabDize,
+                                       const char* partitionName, char** outFormat);
 
 ANDROID_END_HEADER

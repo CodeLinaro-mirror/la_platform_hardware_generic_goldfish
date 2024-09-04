@@ -12,81 +12,61 @@
 
 #include "android/utils/misc.h"
 
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "aemu/base/logging/CLog.h"
 #include "android/utils/stralloc.h"
 
-#include <errno.h>
-#include <limits.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#define E(...) derror(__VA_ARGS__)
 
-#define  E(...)    derror(__VA_ARGS__)
-
-extern void
-print_tabular( const char** strings, int  count,
-               const char*  prefix,  int  width )
-{
-    int  nrows, ncols, r, c, n, maxw = 0;
+extern void print_tabular(const char** strings, int count, const char* prefix, int width) {
+    int nrows, ncols, r, c, n, maxw = 0;
 
     for (n = 0; n < count; n++) {
-        int  len = strlen(strings[n]);
-        if (len > maxw)
-            maxw = len;
+        int len = strlen(strings[n]);
+        if (len > maxw) maxw = len;
     }
     maxw += 2;
-    ncols = width/maxw;
-    nrows = (count + ncols-1)/ncols;
+    ncols = width / maxw;
+    nrows = (count + ncols - 1) / ncols;
 
     for (r = 0; r < nrows; r++) {
-        printf( "%s", prefix );
+        printf("%s", prefix);
         for (c = 0; c < ncols; c++) {
-            int  index = c*nrows + r;
+            int index = c * nrows + r;
             if (index >= count) {
                 break;
             }
-            printf( "%-*s", maxw, strings[index] );
+            printf("%-*s", maxw, strings[index]);
         }
-        printf( "\n" );
+        printf("\n");
     }
 }
 
-extern void
-string_translate_char( char*  str, char from, char to )
-{
-    char*  p = str;
-    while (p != NULL && (p = strchr(p, from)) != NULL)
-        *p++ = to;
+extern void string_translate_char(char* str, char from, char to) {
+    char* p = str;
+    while (p != NULL && (p = strchr(p, from)) != NULL) *p++ = to;
 }
 
-extern void
-buffer_translate_char( char*        buff,
-                       unsigned     buffLen,
-                       const char*  src,
-                       char         fromChar,
-                       char         toChar )
-{
+extern void buffer_translate_char(char* buff, unsigned buffLen, const char* src, char fromChar,
+                                  char toChar) {
     int len = strlen(src);
     buffer_translate_char_with_len(buff, buffLen, src, len, fromChar, toChar);
 }
 
-extern void
-buffer_translate_char_with_len(char*        buff,
-                               unsigned     buffLen,
-                               const char*  src,
-                               unsigned     srcLen,
-                               char         fromChar,
-                               char         toChar)
-{
-    if (srcLen >= buffLen)
-        srcLen = buffLen-1;
+extern void buffer_translate_char_with_len(char* buff, unsigned buffLen, const char* src,
+                                           unsigned srcLen, char fromChar, char toChar) {
+    if (srcLen >= buffLen) srcLen = buffLen - 1;
 
     memcpy(buff, src, srcLen);
     buff[srcLen] = 0;
 
-    string_translate_char( buff, fromChar, toChar );
+    string_translate_char(buff, fromChar, toChar);
 }
-
 
 /** TEMP CHAR STRINGS
  **
@@ -94,43 +74,37 @@ buffer_translate_char_with_len(char*        buff,
  **/
 
 typedef struct Temptring {
-    struct TempString*  next;
-    char*               buffer;
-    int                 size;
+    struct TempString* next;
+    char* buffer;
+    int size;
 } TempString;
 
-#define  MAX_TEMP_STRINGS   16
+#define MAX_TEMP_STRINGS 16
 
-static TempString  _temp_strings[ MAX_TEMP_STRINGS ];
-static int         _temp_string_n;
+static TempString _temp_strings[MAX_TEMP_STRINGS];
+static int _temp_string_n;
 
-extern char*
-tempstr_get( int  size )
-{
-    TempString*  t = &_temp_strings[_temp_string_n];
+extern char* tempstr_get(int size) {
+    TempString* t = &_temp_strings[_temp_string_n];
 
-    if ( ++_temp_string_n >= MAX_TEMP_STRINGS )
-        _temp_string_n = 0;
+    if (++_temp_string_n >= MAX_TEMP_STRINGS) _temp_string_n = 0;
 
-    size += 1;  /* reserve 1 char for terminating zero */
+    size += 1; /* reserve 1 char for terminating zero */
 
     if (t->size < size) {
-        t->buffer = realloc( t->buffer, size );
+        t->buffer = realloc(t->buffer, size);
         if (t->buffer == NULL) {
-            derror( "%s: could not allocate %d bytes",
-                    __FUNCTION__, size );
+            derror("%s: could not allocate %d bytes", __FUNCTION__, size);
             exit(1);
         }
-        t->size   = size;
+        t->size = size;
     }
-    return  t->buffer;
+    return t->buffer;
 }
 
-extern char*
-tempstr_format( const char*  fmt, ... )
-{
-    va_list  args;
-    char*    result;
+extern char* tempstr_format(const char* fmt, ...) {
+    va_list args;
+    char* result;
     STRALLOC_DEFINE(s);
     va_start(args, fmt);
     stralloc_formatv(s, fmt, args);
@@ -146,74 +120,60 @@ tempstr_format( const char*  fmt, ... )
  ** newlines with \n, etc...
  **/
 
-extern const char*
-quote_bytes( const char*  str, int  len )
-{
+extern const char* quote_bytes(const char* str, int len) {
     STRALLOC_DEFINE(s);
-    char*  q;
+    char* q;
 
-    stralloc_add_quote_bytes( s, str, len );
-    q = stralloc_to_tempstr( s );
+    stralloc_add_quote_bytes(s, str, len);
+    q = stralloc_to_tempstr(s);
     stralloc_reset(s);
     return q;
 }
 
-extern const char*
-quote_str( const char*  str )
-{
-    int  len = strlen(str);
-    return quote_bytes( str, len );
+extern const char* quote_str(const char* str) {
+    int len = strlen(str);
+    return quote_bytes(str, len);
 }
 
 /** HEXADECIMAL CHARACTER SEQUENCES
  **/
 
-static int
-hexdigit( int  c )
-{
-    unsigned  d;
+static int hexdigit(int c) {
+    unsigned d;
 
     d = (unsigned)(c - '0');
     if (d < 10) return d;
 
     d = (unsigned)(c - 'a');
-    if (d < 6) return d+10;
+    if (d < 6) return d + 10;
 
     d = (unsigned)(c - 'A');
-    if (d < 6) return d+10;
+    if (d < 6) return d + 10;
 
     return -1;
 }
 
-int
-hex2int( const uint8_t*  hex, int  len )
-{
-    int  result = 0;
+int hex2int(const uint8_t* hex, int len) {
+    int result = 0;
     while (len > 0) {
-        int  c = hexdigit(*hex++);
-        if (c < 0)
-            return -1;
+        int c = hexdigit(*hex++);
+        if (c < 0) return -1;
 
         result = (result << 4) | c;
-        len --;
+        len--;
     }
     return result;
 }
 
-void
-int2hex( uint8_t*  hex, int  len, int  val )
-{
-    static const uint8_t  hexchars[16] = "0123456789abcdef";
-    while ( --len >= 0 )
-        *hex++ = hexchars[(val >> (len*4)) & 15];
+void int2hex(uint8_t* hex, int len, int val) {
+    static const uint8_t hexchars[16] = "0123456789abcdef";
+    while (--len >= 0) *hex++ = hexchars[(val >> (len * 4)) & 15];
 }
 
 /** STRING PARAMETER PARSING
  **/
 
-int
-strtoi(const char *nptr, char **endptr, int base)
-{
+int strtoi(const char* nptr, char** endptr, int base) {
     long val;
 
     errno = 0;
@@ -230,9 +190,7 @@ strtoi(const char *nptr, char **endptr, int base)
     }
 }
 
-int
-get_token_value(const char* params, const char* name, char* value, int val_size)
-{
+int get_token_value(const char* params, const char* name, char* value, int val_size) {
     const char* val_end;
     int len = strlen(name);
     const char* par_end = params + strlen(params);
@@ -247,8 +205,7 @@ get_token_value(const char* params, const char* name, char* value, int val_size)
         }
         /* Make sure that par_start starts at the beginning of <name>, and only
          * then check for '=' value separator. */
-        if ((par_start == params || (*(par_start - 1) == ' ')) &&
-                par_start[len] == '=') {
+        if ((par_start == params || (*(par_start - 1) == ' ')) && par_start[len] == '=') {
             break;
         }
         /* False positive. Move on... */
@@ -276,9 +233,7 @@ get_token_value(const char* params, const char* name, char* value, int val_size)
     }
 }
 
-int
-get_token_value_alloc(const char* params, const char* name, char** value)
-{
+int get_token_value_alloc(const char* params, const char* name, char** value) {
     char tmp;
     int res;
 
@@ -292,8 +247,7 @@ get_token_value_alloc(const char* params, const char* name, char** value)
     /* Allocate string buffer, and retrieve the value. */
     *value = (char*)malloc(val_size);
     if (*value == NULL) {
-        E("%s: Unable to allocated %d bytes for string buffer.",
-          __FUNCTION__, val_size);
+        E("%s: Unable to allocated %d bytes for string buffer.", __FUNCTION__, val_size);
         return -2;
     }
     res = get_token_value(params, name, *value, val_size);
@@ -306,16 +260,14 @@ get_token_value_alloc(const char* params, const char* name, char** value)
     return res;
 }
 
-int
-get_token_value_int(const char* params, const char* name, int* value)
-{
-    char val_str[64];   // Should be enough for all numeric values.
+int get_token_value_int(const char* params, const char* name, int* value) {
+    char val_str[64];  // Should be enough for all numeric values.
     if (!get_token_value(params, name, val_str, sizeof(val_str))) {
         errno = 0;
         *value = strtoi(val_str, (char**)NULL, 10);
         if (errno) {
-            E("%s: Value '%s' of the parameter '%s' in '%s' is not a decimal number.",
-              __FUNCTION__, val_str, name, params);
+            E("%s: Value '%s' of the parameter '%s' in '%s' is not a decimal number.", __FUNCTION__,
+              val_str, name, params);
             return -2;
         } else {
             return 0;

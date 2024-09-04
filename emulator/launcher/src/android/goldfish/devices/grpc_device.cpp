@@ -13,48 +13,47 @@
 // limitations under the License.
 #include "android/goldfish/devices/grpc_device.h"
 
+#include <filesystem>
+#include <initializer_list>
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-#include <filesystem>
-#include <initializer_list>
-#include <string_view>
 
 using android::base::Bazel;
 using android::base::System;
 namespace fs = std::filesystem;
 
 namespace android::goldfish {
-absl::Status GrpcDevice::initialize(const Emulator &emulator) {
-  return absl::OkStatus();
+absl::Status GrpcDevice::initialize(const Emulator& emulator) {
+    return absl::OkStatus();
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string>
-GrpcDevice::getQemuParameters(const Emulator &emulator) const {
-  fs::path allowlist =
-      System::get()->getLauncherDirectory() / "lib" / "emulator_access.json";
+std::vector<std::string> GrpcDevice::getQemuParameters(const Emulator& emulator) const {
+    fs::path allowlist = System::get()->getLauncherDirectory() / "lib" / "emulator_access.json";
 
-  if (Bazel::inBazel()) {
-    // Development environment, allow access to the emulator.
-    allowlist = fs::path(Bazel::runfilesPath(
-        "_main/hardware/generic/goldfish/emulator/android-grpc/security/test/"
-        "android/emulation/control/secure/test_allow_list.json"));
-    assert(fs::exists(allowlist));
-    LOG(WARNING)
-        << "** Using development allow list, do not use in production **";
-  }
+    if (Bazel::inBazel()) {
+        // Development environment, allow access to the emulator.
+        allowlist = fs::path(Bazel::runfilesPath(
+                "_main/hardware/generic/goldfish/emulator/android-grpc/security/test/"
+                "android/emulation/control/secure/test_allow_list.json"));
+        assert(fs::exists(allowlist));
+        LOG(WARNING) << "** Using development allow list, do not use in production **";
+    }
 
-  std::string grpc_device =
-      absl::StrFormat("grpc,port=%d,token=true,avd=%s,allowlist=%s", 8556,
-                      emulator.avd().name(), System::pathAsString(allowlist));
+    std::string grpc_device =
+            absl::StrFormat("grpc,port=%d,token=true,avd=%s,allowlist=%s", 8556,
+                            emulator.avd().name(), System::pathAsString(allowlist));
 
-  return {"-device", grpc_device, "-trace", "module_*"};
+    return {"-device", grpc_device, "-trace", "module_*"};
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

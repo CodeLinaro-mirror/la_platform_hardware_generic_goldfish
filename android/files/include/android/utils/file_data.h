@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -34,7 +34,8 @@ typedef struct {
 
 // Initializer value for a FileData instance.
 // Its important that this is all zeroes.
-#define FILE_DATA_INIT  { NULL, 0, 0 }
+#define FILE_DATA_INIT \
+    { NULL, 0, 0 }
 
 // Return true iff a |fileData| is empty.
 static inline bool fileData_isEmpty(const FileData* fileData) {
@@ -58,9 +59,7 @@ int fileData_initFromFile(FileData* fileData, const char* filePath);
 // into the FileData.
 // |bufferLen| is the buffer length in bytes.
 // Return 0 on success, -errno code on failure.
-int fileData_initFromMemory(FileData* fileData,
-                            const void* buffer,
-                            size_t bufferLen);
+int fileData_initFromMemory(FileData* fileData, const void* buffer, size_t bufferLen);
 
 // Copy a FileData value into another one. This copies the contents in
 // the heap. On success return 0, on failure -errno code.

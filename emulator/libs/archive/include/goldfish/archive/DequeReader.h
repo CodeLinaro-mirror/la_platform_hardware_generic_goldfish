@@ -8,11 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstdint>
 #include <deque>
+
 #include "goldfish/archive/Reader.h"
 
 namespace goldfish {
@@ -22,11 +23,11 @@ namespace archive {
 struct DequeReader : public IReader {
     using Storage = std::deque<uint8_t>;
 
-    explicit DequeReader(Storage *storage) : mStorage(storage) {}
+    explicit DequeReader(Storage* storage) : mStorage(storage) {}
 
-    virtual size_t read(void *dst, size_t size) override;
+    virtual size_t read(void* dst, size_t size) override;
 
-    Storage *mStorage;
+    Storage* mStorage;
 };
 
 }  // namespace archive

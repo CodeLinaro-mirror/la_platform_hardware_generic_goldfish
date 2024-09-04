@@ -13,9 +13,9 @@
 // limitations under the License.
 #pragma once
 
-#include <string>
 #include <iosfwd>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -26,7 +26,7 @@ namespace control {
 // An AllowList can be used to configure access to gRPC uris.
 
 class AllowList {
-public:
+  public:
     using MethodList = std::vector<std::string_view>;
     virtual ~AllowList() = default;
 
@@ -49,36 +49,28 @@ public:
 
     // Creates an allow list from the given json, note that bad json will
     // result in an allow list that denies everything to everyone.
-    static std::unique_ptr<AllowList> fromJson(
-            std::string_view jsonWithComments);
+    static std::unique_ptr<AllowList> fromJson(std::string_view jsonWithComments);
 
     // Creates an allow list from the given stream, note that bad json will
     // result in an allow list that denies everything to everyone.
-    static std::unique_ptr<AllowList> fromStream(
-            std::istream& jsonWithComments);
+    static std::unique_ptr<AllowList> fromStream(std::istream& jsonWithComments);
 
     std::string getSource() { return mSource; }
 
     void setSource(std::string src) { mSource = src; }
 
-private:
+  private:
     std::string mSource;
 };
 
 // Nobody can do anything. Reject everyone.
 class DisableAccess : public AllowList {
-public:
-    bool requiresAuthentication(std::string_view path) override {
-        return true;
-    };
+  public:
+    bool requiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 }  // namespace control

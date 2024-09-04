@@ -29,43 +29,42 @@ namespace goldfish {
 
 using android::base::SharedMemory;
 
-SharedMemoryLibrary::LibraryEntry
-SharedMemoryLibrary::borrow(std::string handle, size_t size) {
-  const std::lock_guard<std::mutex> lock(mAccess);
+SharedMemoryLibrary::LibraryEntry SharedMemoryLibrary::borrow(std::string handle, size_t size) {
+    const std::lock_guard<std::mutex> lock(mAccess);
 
-  if (mHandlesCnt.count(handle) == 0) {
-    // Shared memory handle needs to be opened and created.
-    mHandlesCnt[handle] = 1;
-    auto shm = std::make_unique<SharedMemory>(handle, size);
-    shm->open(SharedMemory::AccessMode::READ_WRITE);
-    mMemMap.emplace(handle, std::move(shm));
-  } else {
-    // Increase the refcount.
-    mHandlesCnt[handle]++;
-  }
+    if (mHandlesCnt.count(handle) == 0) {
+        // Shared memory handle needs to be opened and created.
+        mHandlesCnt[handle] = 1;
+        auto shm = std::make_unique<SharedMemory>(handle, size);
+        shm->open(SharedMemory::AccessMode::READ_WRITE);
+        mMemMap.emplace(handle, std::move(shm));
+    } else {
+        // Increase the refcount.
+        mHandlesCnt[handle]++;
+    }
 
-  // Invariant: mHandlesCnt.count(handle) == mMemMap.count(handle)
-  // And mHandlesCnt.count(handle) > 0
-  SharedMemory *shm = mMemMap[handle].get();
-  assert(shm->size() >= size);
+    // Invariant: mHandlesCnt.count(handle) == mMemMap.count(handle)
+    // And mHandlesCnt.count(handle) > 0
+    SharedMemory* shm = mMemMap[handle].get();
+    assert(shm->size() >= size);
 
-  return android::base::makeCustomScopedPtr(
-      shm, [this, handle](SharedMemory *shm) { release(handle); });
+    return android::base::makeCustomScopedPtr(
+            shm, [this, handle](SharedMemory* shm) { release(handle); });
 }
 
 void SharedMemoryLibrary::release(std::string handle) {
-  const std::lock_guard<std::mutex> lock(mAccess);
-  if (mHandlesCnt.count(handle) == 0) {
-    // What? We are releasing a released handle?
-    assert(false);
-    return;
-  }
-  mHandlesCnt[handle]--;
-  if (mHandlesCnt[handle] == 0) {
-    mHandlesCnt.erase(handle);
-    mMemMap.erase(handle);
-  }
+    const std::lock_guard<std::mutex> lock(mAccess);
+    if (mHandlesCnt.count(handle) == 0) {
+        // What? We are releasing a released handle?
+        assert(false);
+        return;
+    }
+    mHandlesCnt[handle]--;
+    if (mHandlesCnt[handle] == 0) {
+        mHandlesCnt.erase(handle);
+        mMemMap.erase(handle);
+    }
 }
 
-} // namespace goldfish
-} // namespace android
+}  // namespace goldfish
+}  // namespace android

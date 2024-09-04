@@ -11,8 +11,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <cassert>
 
+#include <cassert>
 
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/memory/SharedMemory.h"

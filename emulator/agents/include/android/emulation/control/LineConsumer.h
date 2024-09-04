@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/emulation/control/callbacks.h"
-
-#include "android/console_exports.h"
-#include "aemu/base/Compiler.h"
-
 #include <string>
 #include <vector>
+
+#include "aemu/base/Compiler.h"
+#include "android/console_exports.h"
+#include "android/emulation/control/callbacks.h"
 
 namespace android {
 namespace emulation {
@@ -36,7 +35,7 @@ namespace emulation {
 //     }
 //
 class CONSOLE_API LineConsumer {
-public:
+  public:
     LineConsumer() = default;
     // Get an object to be passed as the |opaque| argument for the
     // LineConsumerCallback.
@@ -48,11 +47,11 @@ public:
     // Access the lines consumed by this object.
     const std::vector<std::string>& lines() const { return mLines; }
 
-private:
+  private:
     std::vector<std::string> mLines;
 
     DISALLOW_COPY_AND_ASSIGN(LineConsumer);
 };
 
-}  // emulation
-}  // android
+}  // namespace emulation
+}  // namespace android

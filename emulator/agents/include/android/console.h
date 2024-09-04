@@ -26,25 +26,25 @@ extern int min_config_qemu_mode;
 #include "android/emulation/control/battery_agent.h"
 #include "android/emulation/control/car_data_agent.h"
 #include "android/emulation/control/clipboard_agent.h"
-#include "host-common/display_agent.h"
 #include "android/emulation/control/finger_agent.h"
 #include "android/emulation/control/globals_agent.h"
 #include "android/emulation/control/grpc_agent.h"
 #include "android/emulation/control/http_proxy_agent.h"
 #include "android/emulation/control/hw_control_agent.h"
 #include "android/emulation/control/location_agent.h"
-#include "host-common/multi_display_agent.h"
 #include "android/emulation/control/net_agent.h"
-#include "host-common/record_screen_agent.h"
 #include "android/emulation/control/rootcanal_hci_agent.h"
 #include "android/emulation/control/sensors_agent.h"
 #include "android/emulation/control/telephony_agent.h"
 #include "android/emulation/control/user_event_agent.h"
 #include "android/emulation/control/virtual_scene_agent.h"
-#include "host-common/vm_operations.h"
-#include "host-common/window_agent.h"
 #include "android/utils/compiler.h"
 #include "emulation/control/cellular_agent.h"
+#include "host-common/display_agent.h"
+#include "host-common/multi_display_agent.h"
+#include "host-common/record_screen_agent.h"
+#include "host-common/vm_operations.h"
+#include "host-common/window_agent.h"
 ANDROID_BEGIN_HEADER
 
 typedef struct QAndroidAutomationAgent QAndroidAutomationAgent;
@@ -80,7 +80,7 @@ typedef struct QAndroidAutomationAgent QAndroidAutomationAgent;
 
 // A structure used to group pointers to all agent interfaces used by the
 // Android console.
-#define ANDROID_CONSOLE_DEFINE_POINTER(type, name)  const type* name;
+#define ANDROID_CONSOLE_DEFINE_POINTER(type, name) const type* name;
 typedef struct AndroidConsoleAgents {
     ANDROID_CONSOLE_AGENTS_LIST(ANDROID_CONSOLE_DEFINE_POINTER)
 } AndroidConsoleAgents;

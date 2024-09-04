@@ -110,16 +110,22 @@
 #define AID_DNS_TETHER 1052      /* DNS resolution daemon (tether: dnsmasq) */
 #define AID_WEBVIEW_ZYGOTE 1053  /* WebView zygote process */
 #define AID_VEHICLE_NETWORK 1054 /* Vehicle network service */
-#define AID_MEDIA_AUDIO 1055     /* GID for audio files on internal media storage */
-#define AID_MEDIA_VIDEO 1056     /* GID for video files on internal media storage */
-#define AID_MEDIA_IMAGE 1057     /* GID for image files on internal media storage */
-#define AID_TOMBSTONED 1058      /* tombstoned user */
-#define AID_MEDIA_OBB 1059       /* GID for OBB files on internal media storage */
-#define AID_ESE 1060             /* embedded secure element (eSE) subsystem */
-#define AID_OTA_UPDATE 1061      /* resource tracking UID for OTA updates */
-#define AID_AUTOMOTIVE_EVS 1062  /* Automotive rear and surround view system */
-#define AID_LOWPAN 1063          /* LoWPAN subsystem */
-#define AID_HSM 1064             /* hardware security module subsystem */
+#define AID_MEDIA_AUDIO                                   \
+    1055 /* GID for audio files on internal media storage \
+          */
+#define AID_MEDIA_VIDEO                                   \
+    1056 /* GID for video files on internal media storage \
+          */
+#define AID_MEDIA_IMAGE                                                          \
+    1057                        /* GID for image files on internal media storage \
+                                 */
+#define AID_TOMBSTONED 1058     /* tombstoned user */
+#define AID_MEDIA_OBB 1059      /* GID for OBB files on internal media storage */
+#define AID_ESE 1060            /* embedded secure element (eSE) subsystem */
+#define AID_OTA_UPDATE 1061     /* resource tracking UID for OTA updates */
+#define AID_AUTOMOTIVE_EVS 1062 /* Automotive rear and surround view system */
+#define AID_LOWPAN 1063         /* LoWPAN subsystem */
+#define AID_HSM 1064            /* hardware security module subsystem */
 /* Changes to this file must be made in AOSP, *not* in internal branches. */
 
 #define AID_SHELL 2000 /* adb and debug shell user */

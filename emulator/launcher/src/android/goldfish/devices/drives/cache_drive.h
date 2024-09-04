@@ -16,17 +16,17 @@
 #pragma once
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+
 #include "android/goldfish/devices/drives/disk_drive.h"
 
 namespace android::goldfish {
 
 class CacheDrive : public MutableDiskDrive {
-public:
-  explicit CacheDrive(const HardwareConfig& hw)
-      : MutableDiskDrive("cache", "04.0") {
-    mDiskId = "cache";
-    mDiskImage =  mDiskImage = fs::path(absl::StrCat(hw.disk_cachePartition_path, ".qcow2"));
-  }
-  absl::Status initialize(const Emulator& emulator) override;
+  public:
+    explicit CacheDrive(const HardwareConfig& hw) : MutableDiskDrive("cache", "04.0") {
+        mDiskId = "cache";
+        mDiskImage = mDiskImage = fs::path(absl::StrCat(hw.disk_cachePartition_path, ".qcow2"));
+    }
+    absl::Status initialize(const Emulator& emulator) override;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

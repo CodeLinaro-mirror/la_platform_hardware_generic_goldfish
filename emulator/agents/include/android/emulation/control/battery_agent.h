@@ -12,10 +12,10 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 #include "android/emulation/control/callbacks.h"
 #include "android/utils/compiler.h"
-
-#include <stdbool.h>
 
 ANDROID_BEGIN_HEADER
 

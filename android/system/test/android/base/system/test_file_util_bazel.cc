@@ -32,21 +32,20 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 namespace fs = std::filesystem;
 
 fs::path runfilesPath(fs::path path) {
-  std::string error;
-  std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
-  if (runfiles == nullptr) {
-    LOG(FATAL) << "Unable to determine runfile path: " << error;
-  }
+    std::string error;
+    std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
+    if (runfiles == nullptr) {
+        LOG(FATAL) << "Unable to determine runfile path: " << error;
+    }
 
-  auto workspace_dir = System::get()->getEnvironmentVariable("TEST_WORKSPACE");
-  if (workspace_dir.empty()) {
-    LOG(FATAL) << "Unable to determine workspace name.";
-  }
+    auto workspace_dir = System::get()->getEnvironmentVariable("TEST_WORKSPACE");
+    if (workspace_dir.empty()) {
+        LOG(FATAL) << "Unable to determine workspace name.";
+    }
 
-  return fs::path(
-      runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path.string())));
+    return fs::path(runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path.string())));
 }
 
-} // namespace internal
-} // namespace base
-} // namespace android
+}  // namespace internal
+}  // namespace base
+}  // namespace android

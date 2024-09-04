@@ -49,10 +49,9 @@ using crypto::tink::KeysetHandle;
 // - Only files with the extension .jwk will be taken in consideration.
 // - KID (Key IDentifiers) should be unique across all files.
 class JwkDirectoryObserver {
-public:
+  public:
     using json = nlohmann::json;
-    using KeysetUpdatedCallback =
-            std::function<void(std::unique_ptr<KeysetHandle>)>;
+    using KeysetUpdatedCallback = std::function<void(std::unique_ptr<KeysetHandle>)>;
 
     using PathFilterPredicate = std::function<bool(Path)>;
 
@@ -68,11 +67,9 @@ public:
     //
     // Note: setting startImmediately to true means you will not detect failures
     // in the watcher.
-    JwkDirectoryObserver(
-            Path jwksDir,
-            KeysetUpdatedCallback callback,
-            PathFilterPredicate filter = JwkDirectoryObserver::acceptJwkExtOnly,
-            bool startImmediately = true);
+    JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
+                         PathFilterPredicate filter = JwkDirectoryObserver::acceptJwkExtOnly,
+                         bool startImmediately = true);
     ~JwkDirectoryObserver();
 
     // Start observing the directory structure.
@@ -87,10 +84,10 @@ public:
 
     // The path that is being observed.
     Path observes() { return mJwkPath; }
-private:
+
+  private:
     static bool acceptJwkExtOnly(Path path);
-    void fileChangeHandler(FileSystemWatcher::WatcherChangeType change,
-                           Path path);
+    void fileChangeHandler(FileSystemWatcher::WatcherChangeType change, Path path);
 
     void notifyKeysetUpdated();
     void scanJwkPath();

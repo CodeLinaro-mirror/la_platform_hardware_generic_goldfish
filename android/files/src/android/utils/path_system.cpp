@@ -10,17 +10,17 @@
 ** GNU General Public License for more details.
 */
 
-#include "android/utils/path.h"
+#include <android/utils/system.h>
+
+#include <filesystem>
+#include <string>
 
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/misc/StringUtils.h"
-#include "android/base/system/System.h"
 #include "aemu/base/system/Win32UnicodeString.h"
-
-#include <android/utils/system.h>
-#include <string>
-#include <filesystem>
+#include "android/base/system/System.h"
+#include "android/utils/path.h"
 
 using android::base::PathUtils;
 using android::base::ScopedCPtr;
@@ -37,17 +37,17 @@ ABool path_is_regular(const char* path) {
     return System::get()->pathIsFile(path);
 }
 
-ABool path_is_dir(const char*  path) {
+ABool path_is_dir(const char* path) {
     if (!path) return false;
     return System::get()->pathIsDir(path);
 }
 
-ABool path_can_read(const char*  path) {
+ABool path_can_read(const char* path) {
     if (!path) return false;
     return System::get()->pathCanRead(path);
 }
 
-ABool path_can_write(const char*  path) {
+ABool path_can_write(const char* path) {
     if (!path) return false;
     return System::get()->pathCanWrite(path);
 }
@@ -57,7 +57,7 @@ ABool path_can_exec(const char* path) {
     return System::get()->pathCanExec(path);
 }
 
-int path_open(const char *filename, int oflag, int pmode) {
+int path_open(const char* filename, int oflag, int pmode) {
     return System::get()->pathOpen(filename, oflag, pmode);
 }
 
@@ -107,10 +107,7 @@ char* path_basename(const char* path) {
 #ifdef _WIN32
 using android::base::Win32UnicodeString;
 
-extern "C"
-char* realpath_with_length(const char* path,
-                           char* resolved_path,
-                           size_t max_length) {
+extern "C" char* realpath_with_length(const char* path, char* resolved_path, size_t max_length) {
     Win32UnicodeString widePath(path);
     // Let the call allocate memory for us, then we can check against max_length
     ScopedCPtr<wchar_t> result(_wfullpath(nullptr, widePath.c_str(), 0));
@@ -134,4 +131,3 @@ char* realpath_with_length(const char* path,
     return resolved_path;
 }
 #endif  // _WIN32
-

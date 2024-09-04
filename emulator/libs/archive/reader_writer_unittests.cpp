@@ -9,10 +9,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include <gtest/gtest.h>
+
 #include <cstdint>
 #include <string>
-
-#include <gtest/gtest.h>
 
 #include "goldfish/archive/DequeArchive.h"
 #include "goldfish/archive/DequeReader.h"
@@ -44,8 +44,7 @@ TEST(archive, positive) {
     constexpr uint32_t kUnsignedNumber = 3000000000U;
     constexpr int32_t kSignedNumber = 2000000000;
 
-    archive << kUnsignedNumber << string1 << kSignedNumber
-            << string2 << -kSignedNumber;
+    archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
     EXPECT_FALSE(archive.empty());
     EXPECT_EQ(getUnsigned(archive), kUnsignedNumber);
     EXPECT_EQ(getString(archive), string1);

@@ -21,9 +21,10 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "grpc_endpoint_description.pb.h"
+
 #include "aemu/base/logging/Log.h"
 #include "android/emulation/control/utils/Library.h"
-#include "grpc_endpoint_description.pb.h"
 
 namespace android {
 namespace emulation {
@@ -41,69 +42,68 @@ using InterceptorFactories = std::vector<InterceptorFactory>;
 // The Client is initialized by giving it the proper emulator discovery file, or
 // by providing it a set of SSL credentials if you wish to use tls.
 class EmulatorGrpcClient {
-public:
- class Builder;
- friend class Builder;
+  public:
+    class Builder;
+    friend class Builder;
 
- virtual ~EmulatorGrpcClient() = default;
+    virtual ~EmulatorGrpcClient() = default;
 
- template <class T>
- auto stub() {
-   if (!hasOpenChannel()) {
-     LOG(WARNING) << "A gRPC channel to " << address()
-                  << " is not (yet?) open.";
-   }
+    template <class T>
+    auto stub() {
+        if (!hasOpenChannel()) {
+            LOG(WARNING) << "A gRPC channel to " << address() << " is not (yet?) open.";
+        }
 
-   return T::NewStub(mChannel);
- }
+        return T::NewStub(mChannel);
+    }
 
- // A client context will be tracked, so it is possible to cancel
- // all active connections made from this client.
- std::shared_ptr<grpc::ClientContext> newContext();
+    // A client context will be tracked, so it is possible to cancel
+    // all active connections made from this client.
+    std::shared_ptr<grpc::ClientContext> newContext();
 
- // This will call TryCancel on all activeContexts.
- void cancelAll(std::chrono::milliseconds maxWait = std::chrono::seconds(1));
- virtual bool hasOpenChannel(bool tryConnect = true);
- std::string address() const { return mEndpoint.target(); }
+    // This will call TryCancel on all activeContexts.
+    void cancelAll(std::chrono::milliseconds maxWait = std::chrono::seconds(1));
+    virtual bool hasOpenChannel(bool tryConnect = true);
+    std::string address() const { return mEndpoint.target(); }
 
- static absl::StatusOr<std::unique_ptr<EmulatorGrpcClient>> loadFromProto(
-     std::string_view patToEndpointProto, InterceptorFactories factory = {});
+    static absl::StatusOr<std::unique_ptr<EmulatorGrpcClient>> loadFromProto(
+            std::string_view patToEndpointProto, InterceptorFactories factory = {});
 
- // Returns a connection to the current emulator
- static std::shared_ptr<EmulatorGrpcClient> me();
+    // Returns a connection to the current emulator
+    static std::shared_ptr<EmulatorGrpcClient> me();
 
- // Configure the "me" singleton based upon the endpoint definition
- static void configureMe(std::unique_ptr<EmulatorGrpcClient> me);
+    // Configure the "me" singleton based upon the endpoint definition
+    static void configureMe(std::unique_ptr<EmulatorGrpcClient> me);
 
-protected:
- EmulatorGrpcClient() = default;
- EmulatorGrpcClient(Endpoint dest, InterceptorFactories factories);
+  protected:
+    EmulatorGrpcClient() = default;
+    EmulatorGrpcClient(Endpoint dest, InterceptorFactories factories);
 
-private:
- Endpoint mEndpoint;
- Library<::grpc::ClientContext> mActiveContexts;
- std::shared_ptr<::grpc::Channel> mChannel;
- std::shared_ptr<grpc::CallCredentials> mCredentials;
+  private:
+    Endpoint mEndpoint;
+    Library<::grpc::ClientContext> mActiveContexts;
+    std::shared_ptr<::grpc::Channel> mChannel;
+    std::shared_ptr<grpc::CallCredentials> mCredentials;
 };
 
 class EmulatorTestClient : public EmulatorGrpcClient {
-public:
- EmulatorTestClient() {}
- bool hasOpenChannel(bool tryConnect = true) override { return true; }
+  public:
+    EmulatorTestClient() {}
+    bool hasOpenChannel(bool tryConnect = true) override { return true; }
 };
 
 class EmulatorGrpcClient::Builder {
-public:
- Builder& withInterceptor(ClientInterceptorFactoryInterface* factory);
- Builder& withInterceptors(InterceptorFactories factories);
- Builder& withDiscoveryFile(std::string discovery_file);
- Builder& withEndpoint(const Endpoint& destination);
- absl::StatusOr<std::unique_ptr<EmulatorGrpcClient>> build();
+  public:
+    Builder& withInterceptor(ClientInterceptorFactoryInterface* factory);
+    Builder& withInterceptors(InterceptorFactories factories);
+    Builder& withDiscoveryFile(std::string discovery_file);
+    Builder& withEndpoint(const Endpoint& destination);
+    absl::StatusOr<std::unique_ptr<EmulatorGrpcClient>> build();
 
-private:
- absl::Status mStatus{absl::OkStatus()};
- InterceptorFactories mFactories;
- Endpoint mDestination;
+  private:
+    absl::Status mStatus{absl::OkStatus()};
+    InterceptorFactories mFactories;
+    Endpoint mDestination;
 };
 
 }  // namespace control

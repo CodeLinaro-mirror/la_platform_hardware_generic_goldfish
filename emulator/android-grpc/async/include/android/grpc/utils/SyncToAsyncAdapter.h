@@ -14,6 +14,7 @@
 // limitations under the License.
 #pragma once
 #include <grpcpp/grpcpp.h>
+
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -26,8 +27,7 @@
 
 template <typename R, typename W>
 class SyncToAsyncBidiAdapter {
-public:
-
+  public:
     using read_type = R;
     using write_type = W;
 
@@ -41,7 +41,7 @@ public:
 
     virtual void Read(const R* msg) = 0;
     virtual void OnDone() = 0;
-    virtual void OnCancel() {  Finish(::grpc::Status::CANCELLED); }
+    virtual void OnCancel() { Finish(::grpc::Status::CANCELLED); }
 
     void Write(const W& msg) {
         std::unique_lock<std::mutex> lock(mQueueMutex);
@@ -62,8 +62,7 @@ public:
             W msg;
             {
                 std::unique_lock<std::mutex> lock(mQueueMutex);
-                mQueueCv.wait(lock,
-                              [&] { return !mOpen || !mWriteQueue.empty(); });
+                mQueueCv.wait(lock, [&] { return !mOpen || !mWriteQueue.empty(); });
                 if (!mOpen) {
                     return;
                 }
@@ -88,7 +87,7 @@ public:
         mReader.join();
     }
 
-private:
+  private:
     grpc::ServerContext* mContext;
     grpc::ServerReaderWriter<R, W>* mStream;
 
@@ -107,14 +106,12 @@ private:
     bool mOpen{true};
 };
 
-
-
 template <class T>
 class BidiRunner {
-public:
+  public:
     using R = typename T::read_type;
     using W = typename T::write_type;
-    using is_adapter = std::is_base_of<SyncToAsyncBidiAdapter<R,W>, T>;
+    using is_adapter = std::is_base_of<SyncToAsyncBidiAdapter<R, W>, T>;
 
     BidiRunner(::grpc::ServerReaderWriter<R, W>* stream, T* t) {
         static_assert(is_adapter::value);
@@ -131,9 +128,9 @@ public:
 
     ~BidiRunner() { handler->OnDone(); }
 
-private:
+  private:
     T* handler;
 };
 
-template<typename R, typename W>
+template <typename R, typename W>
 using SimpleServerBidiStream = SyncToAsyncBidiAdapter<R, W>;

@@ -20,7 +20,7 @@ namespace control {
 
 // A class that produces errors that are sensible to end users.
 class AuthErrorFactory {
-public:
+  public:
     /**
      * Produces a UnauthenticatedError when there are no active keysets
      *
@@ -28,7 +28,6 @@ public:
      * @return An absl::Status indicating failure of the operation.
      */
     static absl::Status authErrorNoKeySet(std::string_view jwk_path);
-
 
     /**
      * Produces a UnauthenticatedError when we presented a bad header
@@ -81,8 +80,7 @@ public:
      * @param path The path that the user tried to access.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingAud(std::string_view iss,
-                                            std::string_view path);
+    static absl::Status authErrorMissingAud(std::string_view iss, std::string_view path);
 
     /**
      * Produces a PermissionDeniedError when a user tries to access a path
@@ -92,8 +90,7 @@ public:
      * @param path The path that the user tried to access.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingClaim(std::string_view iss,
-                                              std::string_view path);
+    static absl::Status authErrorMissingClaim(std::string_view iss, std::string_view path);
 
     /**
      * Produces a PermissionDeniedError when a user tries to access a path
@@ -104,10 +101,8 @@ public:
      * @param allowListOrigin The location of the allowlist.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorNotOnAllowList(
-            std::string_view iss,
-            std::string_view path,
-            std::string_view allowListOrigin);
+    static absl::Status authErrorNotOnAllowList(std::string_view iss, std::string_view path,
+                                                std::string_view allowListOrigin);
 };
 
 }  // namespace control

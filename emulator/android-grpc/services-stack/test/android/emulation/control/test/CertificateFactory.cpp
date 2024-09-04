@@ -14,26 +14,26 @@
 
 #include "android/emulation/control/test/CertificateFactory.h"
 
-#include <openssl/evp.h>                   // for EVP_PKEY_assign_RSA, EVP_P...
-#include <openssl/pem.h>                   // for PEM_write_X509, PEM_write_...
-#include <openssl/rsa.h>                   // for RSA_free, RSA_generate_key_ex
-#include <stdio.h>                         // for NULL, fclose, FILE
-#include <chrono>                          // for seconds
-#include <utility>                         // for __unwrap_reference<>::type
+#include <openssl/evp.h>  // for EVP_PKEY_assign_RSA, EVP_P...
+#include <openssl/pem.h>  // for PEM_write_X509, PEM_write_...
+#include <openssl/rsa.h>  // for RSA_free, RSA_generate_key_ex
+#include <stdio.h>        // for NULL, fclose, FILE
+
+#include <chrono>   // for seconds
+#include <utility>  // for __unwrap_reference<>::type
+
+#include "openssl/asn1.h"    // for ASN1_INTEGER_set, MBSTRING...
+#include "openssl/base.h"    // for EVP_PKEY, BIO, BIGNUM, RSA
+#include "openssl/bio.h"     // for BIO_free_all, BIO_new_file
+#include "openssl/bn.h"      // for BN_free, BN_new, BN_set_word
+#include "openssl/digest.h"  // for EVP_sha1
+#include "openssl/x509.h"    // for X509_NAME_add_entry_by_txt
 
 #include "aemu/base/files/PathUtils.h"  // for pj, PathUtils (ptr only)
 #include "aemu/base/logging/Log.h"
-#include "android/utils/file_io.h"         // for android_fopen
-#include "openssl/asn1.h"                  // for ASN1_INTEGER_set, MBSTRING...
-#include "openssl/base.h"                  // for EVP_PKEY, BIO, BIGNUM, RSA
-#include "openssl/bio.h"                   // for BIO_free_all, BIO_new_file
-#include "openssl/bn.h"                    // for BN_free, BN_new, BN_set_word
-#include "openssl/digest.h"                // for EVP_sha1
-#include "openssl/x509.h"                  // for X509_NAME_add_entry_by_txt
+#include "android/utils/file_io.h"  // for android_fopen
 
-static bool generate_rsa_key(int bits,
-                             const char* public_pem,
-                             const char* private_pem,
+static bool generate_rsa_key(int bits, const char* public_pem, const char* private_pem,
                              EVP_PKEY** ppKey) {
     int success = 0;
     EVP_PKEY* pkey = EVP_PKEY_new();
@@ -59,8 +59,7 @@ static bool generate_rsa_key(int bits,
     }
 
     bp_private = BIO_new_file(private_pem, "w+");
-    success = PEM_write_bio_RSAPrivateKey(bp_private, r, NULL, NULL, 0, NULL,
-                                          NULL);
+    success = PEM_write_bio_RSAPrivateKey(bp_private, r, NULL, NULL, 0, NULL, NULL);
 
     if (!success) {
         goto exit;
@@ -79,9 +78,7 @@ exit:
     return (success == 1);
 }
 
-static bool mkcert(EVP_PKEY* pk,
-                   std::chrono::seconds validFor,
-                   const char* pemFile) {
+static bool mkcert(EVP_PKEY* pk, std::chrono::seconds validFor, const char* pemFile) {
     bool success = false;
     X509* x = X509_new();
     X509_NAME* name = nullptr;
@@ -95,23 +92,20 @@ static bool mkcert(EVP_PKEY* pk,
 
     name = X509_get_subject_name(x);
 
-    X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char*)"CA",
-                               -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               (unsigned char*)"localhost", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char*)"CA", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)"localhost", -1, -1, 0);
 
     // Self signed so set the issuer name to be the same as the
     // subject.
     X509_set_issuer_name(x, name);
-    if (!X509_sign(x, pk, EVP_sha1()))
-        goto exit;
+    if (!X509_sign(x, pk, EVP_sha1())) goto exit;
 
     f = android_fopen(pemFile, "wb");
     if (!f) {
         goto exit;
     }
 
-    if (!PEM_write_X509(f,x)) {
+    if (!PEM_write_X509(f, x)) {
         goto exit;
     }
 
@@ -128,9 +122,8 @@ exit:
 using android::base::PathUtils;
 using android::emulation::control::CertificateFactory;
 
-std::tuple<std::string, std::string> CertificateFactory::generateCertKeyPair(
-        std::string dir,
-        std::string prefix) {
+std::tuple<std::string, std::string> CertificateFactory::generateCertKeyPair(std::string dir,
+                                                                             std::string prefix) {
     std::string pub = prefix + "_public.key";
     std::string pem = prefix + "_public.pem";
     std::string key = prefix + "_private.key";

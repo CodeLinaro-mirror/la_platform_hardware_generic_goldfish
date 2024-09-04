@@ -14,12 +14,12 @@
 
 #include "aemu/base/threads/Thread.h"
 
-#include "aemu/base/synchronization/Lock.h"
-#include "android/base/system/System.h"
-
 #include <gtest/gtest.h>
 
 #include <memory>
+
+#include "aemu/base/synchronization/Lock.h"
+#include "android/base/system/System.h"
 
 namespace android {
 namespace base {
@@ -30,32 +30,30 @@ using ::android::base::Thread;
 
 // A simple thread instance that does nothing at all and exits immediately.
 class EmptyThread : public Thread {
-public:
+  public:
     intptr_t main() { return 42; }
 };
 
 // A thread that checks if onExit is called
 class OnExitThread : public ::android::base::Thread {
-public:
+  public:
     static bool onExitCalled;
 
     OnExitThread() { onExitCalled = false; }
 
-    ~OnExitThread() { }
+    ~OnExitThread() {}
 
     virtual intptr_t main() { return 42; }
 
-    virtual void onExit() {
-        onExitCalled = true;
-    }
+    virtual void onExit() { onExitCalled = true; }
 };
 
 bool OnExitThread::onExitCalled = false;
 
 class CountingThread : public Thread {
-public:
+  public:
     class State {
-    public:
+      public:
         State() : mLock(), mCount(0) {}
         ~State() {}
 
@@ -73,7 +71,7 @@ public:
             return ret;
         }
 
-    private:
+      private:
         mutable Lock mLock;
         int mCount;
     };
@@ -85,13 +83,13 @@ public:
         return 0;
     }
 
-private:
+  private:
     State* mState;
 };
 
 // A thread that blocks till it's instructed to continue.
 class BlockingThread : public Thread {
- public:
+  public:
     BlockingThread() : Thread(), mLock(), mSharedContinueFlag(new bool) {
         *mSharedContinueFlag = false;
     }
@@ -113,7 +111,7 @@ class BlockingThread : public Thread {
         return 42;
     }
 
- private:
+  private:
     mutable Lock mLock;
     std::unique_ptr<bool> mSharedContinueFlag;
 };
@@ -190,7 +188,7 @@ TEST(ThreadTest, tryWait) {
     static const unsigned kMaxNumChecks = kMaxWaitTimeMs / kSleepTimeMs;
     unsigned numIters = 0;
     result = 0;
-    while(numIters < kMaxNumChecks && !thread.tryWait(&result)) {
+    while (numIters < kMaxNumChecks && !thread.tryWait(&result)) {
         System::get()->sleepMs(kSleepTimeMs);
     }
     EXPECT_LT(numIters, kMaxNumChecks);
@@ -198,7 +196,7 @@ TEST(ThreadTest, tryWait) {
 }
 
 class TidSetterThread : public Thread {
-public:
+  public:
     intptr_t main() {
         mTid = getCurrentThreadId();
         return 0;

@@ -13,12 +13,12 @@
 // limitations under the License.
 #pragma once
 
-#include <memory>        // for make_unique, unique_ptr
-#include <string>        // for string, hash, operator==
-#include <unordered_map> // for unordered_map
-#include <vector>        // for vector
+#include <memory>         // for make_unique, unique_ptr
+#include <string>         // for string, hash, operator==
+#include <unordered_map>  // for unordered_map
+#include <vector>         // for vector
 
-#include "aemu/base/Compiler.h" // for DISALLOW_COPY_AND_ASSIGN
+#include "aemu/base/Compiler.h"  // for DISALLOW_COPY_AND_ASSIGN
 #include "aemu/base/process/Process.h"
 #include "android/base/system/System.h"
 
@@ -35,9 +35,9 @@ using EmulatorProperties = std::unordered_map<std::string, std::string>;
 //
 // Mainly here so you can write proper unit tests.
 class EmulatorLivenessStrategy {
-public:
-  virtual ~EmulatorLivenessStrategy() {};
-  virtual bool isAlive(std::string myFile, std::string discoveryFile) const = 0;
+  public:
+    virtual ~EmulatorLivenessStrategy() {};
+    virtual bool isAlive(std::string myFile, std::string discoveryFile) const = 0;
 };
 
 // Liveness checker that tries to load the discovery file
@@ -45,16 +45,16 @@ public:
 //
 /// NOTE: this can be very slow, so best not to use it.
 class OpenPortChecker : public EmulatorLivenessStrategy {
-public:
-  bool isAlive(std::string myFile, std::string discoveryFile) const override;
+  public:
+    bool isAlive(std::string myFile, std::string discoveryFile) const override;
 };
 
 // Liveness checker that tries to load the discovery file
 // and tries to see that the pid exists and has the proper name
 // (i.e. contains: "emulator", or "qemu-system-")
 class PidChecker : public EmulatorLivenessStrategy {
-public:
-  bool isAlive(std::string myFile, std::string discoveryFile) const override;
+  public:
+    bool isAlive(std::string myFile, std::string discoveryFile) const override;
 };
 
 // External services might need to know where to find information about
@@ -73,49 +73,47 @@ public:
 // The file will be named "pid_%d_info.ini" where %d is
 // the process id of the emulator.
 class EmulatorAdvertisement {
-public:
-  explicit EmulatorAdvertisement(
-      EmulatorProperties &&config,
-      std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
-          std::make_unique<PidChecker>());
-  EmulatorAdvertisement(EmulatorProperties &&config,
-                        std::string sharedDirectory,
-                        std::unique_ptr<EmulatorLivenessStrategy>
-                            livenessChecker = std::make_unique<PidChecker>());
-  ~EmulatorAdvertisement();
+  public:
+    explicit EmulatorAdvertisement(EmulatorProperties&& config,
+                                   std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
+                                           std::make_unique<PidChecker>());
+    EmulatorAdvertisement(EmulatorProperties&& config, std::string sharedDirectory,
+                          std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
+                                  std::make_unique<PidChecker>());
+    ~EmulatorAdvertisement();
 
-  // The location where the .ini file will be written to.
-  std::string location() const;
+    // The location where the .ini file will be written to.
+    std::string location() const;
 
-  // Writes the ini file to the location.
-  bool write() const;
+    // Writes the ini file to the location.
+    bool write() const;
 
-  // Removes the file from the file system.
-  void remove() const;
+    // Removes the file from the file system.
+    void remove() const;
 
-  // True if a advertisement exists for the given pid.
-  static bool exists(base::Pid pid);
+    // True if a advertisement exists for the given pid.
+    static bool exists(base::Pid pid);
 
-  // Deletes all ini files in <user-specific_tmp_directory>/avd/running and
-  // directories <user-specific_tmp_directory>/avd/running/<pid> for
-  // which no corresponding process exists. returns the number of files
-  // deleted.
-  int garbageCollect() const;
+    // Deletes all ini files in <user-specific_tmp_directory>/avd/running and
+    // directories <user-specific_tmp_directory>/avd/running/<pid> for
+    // which no corresponding process exists. returns the number of files
+    // deleted.
+    int garbageCollect() const;
 
-  // Discovers all the advertisement files of active emulators, excluding us.
-  std::vector<std::string> discoverRunningEmulators();
+    // Discovers all the advertisement files of active emulators, excluding us.
+    std::vector<std::string> discoverRunningEmulators();
 
-  // Discovers the first advertisment file of active emulators that
-  // has the set of props available.
-  std::string discoverEmulatorWithProperties(EmulatorProperties props);
+    // Discovers the first advertisment file of active emulators that
+    // has the set of props available.
+    std::string discoverEmulatorWithProperties(EmulatorProperties props);
 
-private:
-  DISALLOW_COPY_AND_ASSIGN(EmulatorAdvertisement);
+  private:
+    DISALLOW_COPY_AND_ASSIGN(EmulatorAdvertisement);
 
-  EmulatorProperties mStudioConfig;
-  std::string mSharedDirectory;
-  std::unique_ptr<EmulatorLivenessStrategy> mLivenessChecker;
+    EmulatorProperties mStudioConfig;
+    std::string mSharedDirectory;
+    std::unique_ptr<EmulatorLivenessStrategy> mLivenessChecker;
 };
 
-} // namespace goldfish
-} // namespace android
+}  // namespace goldfish
+}  // namespace android

@@ -11,11 +11,11 @@
 
 #include "android/utils/bufprint.h"
 
+#include <gtest/gtest.h>
+
 #include "android/base/system/System.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
-
-#include <gtest/gtest.h>
 
 using namespace android::base;
 

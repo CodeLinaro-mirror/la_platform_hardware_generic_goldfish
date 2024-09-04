@@ -11,8 +11,9 @@
 
 #pragma once
 
-#include <stdint.h>                               // for uint64_t
-#include <string>                                 // for string
+#include <stdint.h>  // for uint64_t
+
+#include <string>  // for string
 
 #include "android/filesystems/partition_types.h"  // for AndroidPartitionType
 
@@ -29,7 +30,7 @@ namespace internal {
 // android_partition_configuration_set_backend_for_testing()
 // to inject it.
 class PartitionConfigBackend {
-public:
+  public:
     // Constructor.
     PartitionConfigBackend() {}
 
@@ -41,8 +42,7 @@ public:
 
     // Change process-wide instance to new one during unit-testing.
     // Return previous instance value, to be restored when the test completes.
-    static PartitionConfigBackend* setForTesting(
-            PartitionConfigBackend* newBackend);
+    static PartitionConfigBackend* setForTesting(PartitionConfigBackend* newBackend);
 
     // Return true iff host |path| exists.
     virtual bool pathExists(const char* path) = 0;
@@ -72,8 +72,7 @@ public:
     // |ramdisk_path| is the image's host file path.
     // |file_path| is the file's path within the ramdisk image.
     // On success, return true and sets |*out| to the file's content.
-    virtual bool extractRamdiskFile(const char* ramdisk_path,
-                                    const char* file_path,
+    virtual bool extractRamdiskFile(const char* ramdisk_path, const char* file_path,
                                     std::string* out) = 0;
 
     // Parse an 'fstab' file and extract the type of a given partition.
@@ -81,8 +80,7 @@ public:
     // is the partition's mount point as it appears in the fstab. On success,
     // return true and sets |*partitionFormat| to the corresponding partition
     // format (e.g. 'ext4'). On failure, return false.
-    virtual bool parsePartitionFormat(const std::string& fstab,
-                                      const char* mountPath,
+    virtual bool parsePartitionFormat(const std::string& fstab, const char* mountPath,
                                       std::string* partitionFormat) = 0;
 
     // Create an empty partition file on the host.
@@ -90,16 +88,14 @@ public:
     // size of the virtual partition (the actual file can be smaller),
     // and |partitionPath| is the host path of the partition file.
     // Return true on success, false/errno on failure.
-    virtual bool makeEmptyPartition(AndroidPartitionType partitionType,
-                                    uint64_t partitionSize,
+    virtual bool makeEmptyPartition(AndroidPartitionType partitionType, uint64_t partitionSize,
                                     const char* partitionPath) = 0;
 
     // Resize an existing ext4 partition at |partitionPath| to a new
     // size in bytes given by |partitionSize|.
-    virtual void resizeExt4Partition(const char* partitionPath,
-                                     uint64_t partitionSize) = 0;
+    virtual void resizeExt4Partition(const char* partitionPath, uint64_t partitionSize) = 0;
 
-private:
+  private:
     static PartitionConfigBackend* sInstance;
 };
 

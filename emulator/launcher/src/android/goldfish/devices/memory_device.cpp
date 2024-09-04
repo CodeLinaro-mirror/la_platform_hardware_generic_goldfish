@@ -26,7 +26,6 @@
 #include "absl/status/status.h"
 
 #include "aemu/base/process/Command.h"
-
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -38,78 +37,74 @@ using base::System;
 using base::operator""_KiB;
 
 absl::Status MemoryDevice::initialize(const Emulator& emulator) {
-  const Avd& avd = emulator.avd();
-  auto hw = avd.hw();
+    const Avd& avd = emulator.avd();
+    auto hw = avd.hw();
 
-  auto ram = StorageCapacity(hw.hw_ramSize, StorageCapacity::Unit::MiB);
+    auto ram = StorageCapacity(hw.hw_ramSize, StorageCapacity::Unit::MiB);
 
-  auto path = avd.getContentPath() / "default_boot";
-  if (!fs::exists(path)) {
-    // Lets create it
-    if (!std::filesystem::create_directories(path)) {
-      return absl::DataLossError("Failed to create directory: " +
-                                 path.string());
-    }
+    auto path = avd.getContentPath() / "default_boot";
+    if (!fs::exists(path)) {
+        // Lets create it
+        if (!std::filesystem::create_directories(path)) {
+            return absl::DataLossError("Failed to create directory: " + path.string());
+        }
 
 #ifdef __linux__
-    base::Command::create({"chattr", "+C", path}).execute();
+        base::Command::create({"chattr", "+C", path}).execute();
 #endif
-  }
+    }
 
-  auto ram_file = path / "ram.bin";
-  StorageCapacity filePageSize =
-      System::getFilePageSizeForPath(ram_file.c_str());
+    auto ram_file = path / "ram.bin";
+    StorageCapacity filePageSize = System::getFilePageSizeForPath(ram_file.c_str());
 
 #ifdef _WIN32
-  auto ramSizeBytesWithAlign = ram.align(filePageSize) + filePageSize;
+    auto ramSizeBytesWithAlign = ram.align(filePageSize) + filePageSize;
 #else
-  StorageCapacity ramSizeBytesWithAlign = ram.align(filePageSize);
+    StorageCapacity ramSizeBytesWithAlign = ram.align(filePageSize);
 #endif
 
-  StorageCapacity existingSize;
-  //
-  // Address the case where there was a previous ram.img there
-  // and RAM size was reconfigured.
-  System::get()->pathFileSize(ram_file, &existingSize);
+    StorageCapacity existingSize;
+    //
+    // Address the case where there was a previous ram.img there
+    // and RAM size was reconfigured.
+    System::get()->pathFileSize(ram_file, &existingSize);
 
-  if (existingSize != ramSizeBytesWithAlign) {
-    LOG(INFO) << "Insufficient space in existing memory mapped file '"
-              << ram_file << "'. Required size: " << ramSizeBytesWithAlign
-              << " bytes. Existing size: " << existingSize
-              << " bytes. Deleting existing file.";
-    fs::remove(ram_file);
-    existingSize = 0_KiB;
-  }
-  System::FileSize availableSpace;
-  if (!System::get()->pathFreeSpace(path, &availableSpace)) {
-    return absl::InternalError(
-        "Unable to determine free space for directory: " + path.string());
-  }
+    if (existingSize != ramSizeBytesWithAlign) {
+        LOG(INFO) << "Insufficient space in existing memory mapped file '" << ram_file
+                  << "'. Required size: " << ramSizeBytesWithAlign
+                  << " bytes. Existing size: " << existingSize << " bytes. Deleting existing file.";
+        fs::remove(ram_file);
+        existingSize = 0_KiB;
+    }
+    System::FileSize availableSpace;
+    if (!System::get()->pathFreeSpace(path, &availableSpace)) {
+        return absl::InternalError("Unable to determine free space for directory: " +
+                                   path.string());
+    }
 
-  constexpr System::FileSize kSafetyFactor = System::kDiskPressureLimit;
-  auto requiredFreeSpace = ramSizeBytesWithAlign - existingSize;
+    constexpr System::FileSize kSafetyFactor = System::kDiskPressureLimit;
+    auto requiredFreeSpace = ramSizeBytesWithAlign - existingSize;
 
-  if (availableSpace < requiredFreeSpace + kSafetyFactor) {
-    return absl::ResourceExhaustedError(
-        absl::StrFormat("Insufficient space available. Need: %s, available: %s",
-                        requiredFreeSpace.string(), availableSpace.string()));
-  }
+    if (availableSpace < requiredFreeSpace + kSafetyFactor) {
+        return absl::ResourceExhaustedError(
+                absl::StrFormat("Insufficient space available. Need: %s, available: %s",
+                                requiredFreeSpace.string(), availableSpace.string()));
+    }
 
-  return absl::OkStatus();
+    return absl::OkStatus();
 }
 
-std::vector<std::string>
-MemoryDevice::getQemuParameters(const Emulator& emulator) const {
-  auto hw = emulator.avd().hw();
-  return {
-      "-m", std::to_string(hw.hw_ramSize)
-      //  ,"-object",
-      // absl::StrFormat("memory-backend-file,id=android.ram,size=%dM,mem-path=%s,"
-      //                 "prealloc=on,share=on",
-      //                 hw.hw_ramSize,
-      //                 avd->getMemoryMappedDirectory() / "ram.bin"
-      //)
-  };
+std::vector<std::string> MemoryDevice::getQemuParameters(const Emulator& emulator) const {
+    auto hw = emulator.avd().hw();
+    return {
+            "-m", std::to_string(hw.hw_ramSize)
+            //  ,"-object",
+            // absl::StrFormat("memory-backend-file,id=android.ram,size=%dM,mem-path=%s,"
+            //                 "prealloc=on,share=on",
+            //                 hw.hw_ramSize,
+            //                 avd->getMemoryMappedDirectory() / "ram.bin"
+            //)
+    };
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

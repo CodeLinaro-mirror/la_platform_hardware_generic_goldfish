@@ -17,7 +17,7 @@
 ANDROID_BEGIN_HEADER
 
 typedef struct AModemRec_* AModem;
-typedef void (ModemCallback)(void* user_data, int numActiveCalls);
+typedef void(ModemCallback)(void* user_data, int numActiveCalls);
 
 typedef enum {
     Tel_Op_Init_Call,
@@ -39,7 +39,7 @@ typedef enum {
 } TelephonyResponse;
 
 typedef struct QAndroidTelephonyAgent {
-    TelephonyResponse (*telephonyCmd)(TelephonyOperation op, const char *phoneNumber);
+    TelephonyResponse (*telephonyCmd)(TelephonyOperation op, const char* phoneNumber);
     void (*initModem)(int basePort);
     AModem (*getModem)(void);
     void (*setNotifyCallback)(ModemCallback callbackFunc, void* userData);

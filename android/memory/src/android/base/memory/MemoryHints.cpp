@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>    // for memset
+#include "aemu/base/memory/MemoryHints.h"
+
+#include <string.h>  // for memset
+
 #include <algorithm>   // for min
 #include <cstdint>     // for uint8_t
 #include <functional>  // for __base
@@ -20,7 +23,6 @@
 
 #include "aemu/base/memory/ContiguousRangeMapper.h"  // for ContiguousRan...
 #include "aemu/base/memory/LazyInstance.h"           // for LazyInstance
-#include "aemu/base/memory/MemoryHints.h"
 
 #ifndef _WIN32
 #include <sys/mman.h>  // for mprotect, mad...
@@ -51,12 +53,12 @@ static constexpr size_t kPageSize = 4096;
 #endif
 
 class MemoryTouchBuffer {
-public:
+  public:
     MemoryTouchBuffer() { mBuffer.resize(1); }
 
     uint8_t* ptr() { return mBuffer.data(); }
 
-private:
+  private:
     std::vector<uint8_t> mBuffer;
 };
 
@@ -82,8 +84,7 @@ static void rewriteMemory(void* toRewrite, uint64_t length) {
     uint8_t* start = static_cast<uint8_t*>(toRewrite);
 
     for (uint64_t i = 0; i < length; i += kPageSize) {
-        rewriter.add((uintptr_t)start + i,
-                     std::min(length - i, static_cast<uint64_t>(kPageSize)));
+        rewriter.add((uintptr_t)start + i, std::min(length - i, static_cast<uint64_t>(kPageSize)));
     }
 }
 

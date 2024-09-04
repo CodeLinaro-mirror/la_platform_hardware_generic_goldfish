@@ -14,7 +14,8 @@
 #pragma once
 #include <grpcpp/grpcpp.h>  // for InterceptionHookPoints, InterceptionHookP...
 // #include <grpcpp/support/client_interceptor.h>
-#include <stdint.h>    // for uint64_t
+#include <stdint.h>  // for uint64_t
+
 #include <array>       // for array
 #include <functional>  // for function
 #include <string>      // for string
@@ -33,31 +34,32 @@ using namespace grpc::experimental;
 
 enum class CallType { UNARY, CLIENT_STREAMING, SERVER_STREAMING, BIDI_STREAMING, UNKNOWN };
 
-enum class Direction { INCOMING /* server receives */, OUTGOING /* Client calls */};
+enum class Direction {
+    INCOMING /* server receives */,
+    OUTGOING /* Client calls */
+};
 typedef struct InvocationRecord {
     std::string method = "unknown";          // Invoked method.
     std::string incoming = "...";            // Shortened receive parameters.
     std::string response = "...";            // Shortened response string.
     grpc::Status status = grpc::Status::OK;  // Status
 
-    uint64_t rcvMessages = 0; // Number of messages received
-    uint64_t rcvBytes = 0;  // Size of all received protobuf messages.
-    uint64_t rcvTime = 0;   // Time spend receiving bytes out over the wire.
+    uint64_t rcvMessages = 0;  // Number of messages received
+    uint64_t rcvBytes = 0;     // Size of all received protobuf messages.
+    uint64_t rcvTime = 0;      // Time spend receiving bytes out over the wire.
 
-    uint64_t sndMessages = 0; // Number of messages send
-    uint64_t sndBytes = 0;  // Size of all send protobuf messages.
-    uint64_t sndTime = 0;   // Time spend sending bytes out over the wire.
+    uint64_t sndMessages = 0;  // Number of messages send
+    uint64_t sndBytes = 0;     // Size of all send protobuf messages.
+    uint64_t sndTime = 0;      // Time spend sending bytes out over the wire.
 
-    uint64_t duration = 0;  // Total lifetime of the request.
-    Direction direction = Direction::INCOMING; // Incoming (server) or outgoing (client)
+    uint64_t duration = 0;                      // Total lifetime of the request.
+    Direction direction = Direction::INCOMING;  // Incoming (server) or outgoing (client)
     CallType type = CallType::UNARY;
-    std::string peer; // The peer (the other side of this request)
+    std::string peer;  // The peer (the other side of this request)
 
     // Timestamps of the various stages. We will use NUM_INTERCEPTION_HOOKS to
     // store the creation time
-    uint64_t mTimestamps
-            [static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS) +
-             1] = {};
+    uint64_t mTimestamps[static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS) + 1] = {};
 
     static const std::array<std::string, 4> kTypes;
     static const int kStartTimeIdx =
@@ -82,14 +84,14 @@ using ReportingFunction = std::function<void(const InvocationRecord&)>;
 //    builder.experimental().SetInterceptorCreators(std::move(creators));
 //
 class LoggingInterceptor : public grpc::experimental::Interceptor {
-public:
+  public:
     LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter);
     LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter);
     ~LoggingInterceptor();
 
     virtual void Intercept(InterceptorBatchMethods* methods) override;
 
-private:
+  private:
     std::string chopStr(std::string);
     std::string formatProtobufMessage(const ::google::protobuf::Message* msg);
 
@@ -109,22 +111,21 @@ private:
 };
 
 // The factory class that needs to be registered with the gRPC server/client.
-class LoggingInterceptorFactory
-    : public grpc::experimental::ServerInterceptorFactoryInterface,
-      public grpc::experimental::ClientInterceptorFactoryInterface {
-public:
+class LoggingInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface,
+                                  public grpc::experimental::ClientInterceptorFactoryInterface {
+  public:
     LoggingInterceptorFactory(ReportingFunction reporter);
     virtual ~LoggingInterceptorFactory() = default;
     virtual Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
     virtual Interceptor* CreateClientInterceptor(ClientRpcInfo* info) override;
 
-private:
+  private:
     ReportingFunction mReporter;
 };
 
 // A logging interceptor that logs all the requests to stdout using LOG(INFO)
 class StdOutLoggingInterceptorFactory : public LoggingInterceptorFactory {
-public:
+  public:
     StdOutLoggingInterceptorFactory();
 };
 

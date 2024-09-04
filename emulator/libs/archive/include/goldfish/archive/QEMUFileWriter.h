@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include "goldfish/archive/Writer.h"
@@ -19,11 +19,11 @@ namespace goldfish {
 namespace archive {
 
 struct QEMUFileWriter : public IWriter {
-    explicit QEMUFileWriter(QEMUFile *file) : mFile(file) {}
+    explicit QEMUFileWriter(QEMUFile* file) : mFile(file) {}
 
-    virtual void write(const void *src, size_t size) override;
+    virtual void write(const void* src, size_t size) override;
 
-    QEMUFile *mFile;
+    QEMUFile* mFile;
 };
 
 }  // namespace archive

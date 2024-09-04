@@ -14,6 +14,7 @@
 #include "android/emulation/control/secure/JwtTokenAuth.h"
 
 #include <gtest/gtest.h>
+
 #include <fstream>
 #include <initializer_list>
 #include <memory>
@@ -25,6 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+
 #include "aemu/base/files/PathUtils.h"
 #include "android/base/system/System.h"
 #include "android/base/testing/TestEvent.h"
@@ -55,52 +57,34 @@ using crypto::tink::TinkConfig;
 const std::string kGRADLE = "gradle-utp-emulator-control";
 
 class AllYellow : public AllowList {
-public:
-    bool requiresAuthentication(std::string_view path) override {
-        return true;
-    };
+  public:
+    bool requiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override {
-        return true;
-    }
+    bool isProtected(std::string_view sub, std::string_view path) override { return true; }
 };
 
 class AllGreen : public AllowList {
-public:
-    bool requiresAuthentication(std::string_view path) override {
-        return true;
-    };
+  public:
+    bool requiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override {
-        return true;
-    }
+    bool isAllowed(std::string_view sub, std::string_view path) override { return true; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class AllRed : public AllowList {
-public:
-    bool requiresAuthentication(std::string_view path) override {
-        return true;
-    };
+  public:
+    bool requiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override {
-        return false;
-    }
+    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class JwkTokenAuthTest : public ::testing::Test {
-public:
+  public:
     void SetUp() override {
         auto status = TinkConfig::Register();
         EXPECT_TRUE(status.ok());
@@ -129,17 +113,15 @@ public:
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
-        auto private_handle =
-                KeysetHandle::GenerateNew(tink::JwtEs512Template());
+        auto private_handle = KeysetHandle::GenerateNew(tink::JwtEs512Template());
         EXPECT_TRUE(private_handle.ok());
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
-        auto jsonSnippet =
-                tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
         write(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
 
-protected:
+  protected:
     std::unique_ptr<TestTempDir> mTempDir;
     TestEvent mTestEv;
     absl::StatusOr<tink::RawJwt> mSampleJwt;
@@ -179,15 +161,12 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
 
     EXPECT_TRUE(base::System::get()->pathExists(discover_file));
     auto discoverd_json = readFile(discover_file);
-    auto discovered_handle =
-            crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
+    auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
     auto public_handle = private_handle->GetPublicKeysetHandle();
 
     EXPECT_TRUE(discovered_handle.ok()) << public_handle.status().message();
-    auto ours =
-            crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
-    auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(
-            *discovered_handle->get());
+    auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+    auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(*discovered_handle->get());
     EXPECT_EQ(json::parse(ours.value()), json::parse(loaded.value()));
 }
 
@@ -275,8 +254,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
 
     JwtTokenAuth jwt(mTempDir->path(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(
-            jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not include d/e/f in the aud claim. Make sure to "
               "add it to the array.");
@@ -295,8 +273,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message) {
 
     JwtTokenAuth jwt(mTempDir->path(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(
-            jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "Make sure to add `allowedEndpoints.add(\"d/e/f\")` to the "
               "emulatorControl block in your gradle build file.");
@@ -314,8 +291,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message_no_aud) {
 
     JwtTokenAuth jwt(mTempDir->path(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(
-            jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not have an aud claim. Make sure to include: "
               "`\"aud\" : [\"d/e/f\"]` in your JWT.");
@@ -333,8 +309,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message_no_aud) {
 
     JwtTokenAuth jwt(mTempDir->path(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(
-            jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "Make sure to add `allowedEndpoints.add(\"d/e/f\")` to the "
               "emulatorControl block in your gradle build file.");
@@ -355,14 +330,11 @@ TEST_F(JwkTokenAuthTest, any_message) {
     auto token = (*sign)->SignAndEncode(*raw_jwt);
 
     auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
-    anyauth.emplace_back(std::make_unique<StaticTokenAuth>(
-            "foo", "android-studio", &mAllYellow));
-    anyauth.emplace_back(
-            std::make_unique<JwtTokenAuth>(mTempDir->path(), "", &mAllYellow));
+    anyauth.emplace_back(std::make_unique<StaticTokenAuth>("foo", "android-studio", &mAllYellow));
+    anyauth.emplace_back(std::make_unique<JwtTokenAuth>(mTempDir->path(), "", &mAllYellow));
 
     AnyTokenAuth any(std::move(anyauth), &mAllYellow);
-    auto message = std::string(
-            any.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(any.isTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not include d/e/f in the aud claim. Make sure to "
               "add it to the array.");
@@ -380,8 +352,7 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     auto discover_file = pj(mTempDir->path(), "loaded.jwk");
 
     JwtTokenAuth jwt(mTempDir->path(), discover_file, &mAllYellow);
-    EXPECT_TRUE(
-            base::System::get()->deleteFile(pj(mTempDir->path(), "valid.jwk")));
+    EXPECT_TRUE(base::System::get()->deleteFile(pj(mTempDir->path(), "valid.jwk")));
 
     // We have to wait until the discovery file becomes empty, indicating that
     // the emulator activated a new keyset.

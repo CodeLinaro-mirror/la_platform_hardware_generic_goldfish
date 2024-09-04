@@ -15,28 +15,28 @@
 // limitations under the License.
 #include "android/goldfish/devices/drives/sdcard_drive.h"
 
-#include "absl/status/status.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/devices/drives/disk_drive.h"
-#include "android/goldfish/config/emulator.h"
-
 #include <filesystem>
+
+#include "absl/status/status.h"
+
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/devices/drives/disk_drive.h"
 
 namespace android::goldfish {
 absl::Status SDCardDrive::initialize(const Emulator& emulator) {
-  if (exists()) {
-    return absl::OkStatus();
-  }
-
-  auto hw = emulator.avd().hw();
-
-  if (!fs::exists(hw.hw_sdCard_path)) {
-    auto status =
-        createExt4Image(hw.hw_sdCard_path, hw.hw_sdCard_size, "sdcard");
-    if (!status.ok()) {
-      return status;
+    if (exists()) {
+        return absl::OkStatus();
     }
-  }
-  return convertImgToQcow2(hw.hw_sdCard_path);
+
+    auto hw = emulator.avd().hw();
+
+    if (!fs::exists(hw.hw_sdCard_path)) {
+        auto status = createExt4Image(hw.hw_sdCard_path, hw.hw_sdCard_size, "sdcard");
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    return convertImgToQcow2(hw.hw_sdCard_path);
 }
-} // namespace android::goldfish
+}  // namespace android::goldfish

@@ -12,26 +12,26 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stddef.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
 /* simple utility to parse directories for files            */
 /* needed because Unix and Windows don't use the same stuff */
 
-typedef struct DirScanner  DirScanner;
+typedef struct DirScanner DirScanner;
 
 /* Create a new directory scanner object from a given rootPath.
  * returns NULL in case of failure (error code in errno)
  */
-DirScanner*    dirScanner_new ( const char*  rootPath );
+DirScanner* dirScanner_new(const char* rootPath);
 
 /* Destroy a given directory scanner. You must always call
  * this function to release proper system resources.
  */
-void           dirScanner_free( DirScanner*  s );
+void dirScanner_free(DirScanner* s);
 
 /* Get the name of the next file from a directory scanner.
  * Returns NULL when there is no more elements in the list.
@@ -45,14 +45,14 @@ void           dirScanner_free( DirScanner*  s );
  * change on the next call to this function or when the
  * scanner is destroyed.
  */
-const char*    dirScanner_next( DirScanner*  s );
+const char* dirScanner_next(DirScanner* s);
 
 /* A variant of dirScanner_next() which returns the full path
  * to the next directory element.
  */
-const char*    dirScanner_nextFull( DirScanner*  s );
+const char* dirScanner_nextFull(DirScanner* s);
 
 /* Return the number of entries in the given initialized DirScanner. */
-size_t         dirScanner_numEntries( DirScanner*  s );
+size_t dirScanner_numEntries(DirScanner* s);
 
 ANDROID_END_HEADER

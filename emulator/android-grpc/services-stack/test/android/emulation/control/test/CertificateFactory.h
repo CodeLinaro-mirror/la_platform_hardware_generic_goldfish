@@ -20,7 +20,7 @@ namespace emulation {
 namespace control {
 
 class CertificateFactory {
-public:
+  public:
     // Creates a self signed private key and certificate.
     // |dir| The directory where to write the files to.
     // |prefix| The prefix of the file.
@@ -32,9 +32,8 @@ public:
     //
     // Returns a tuple with the path to <private key, cert>
     // or empty strings in case of failure.
-    static std::tuple<std::string, std::string> generateCertKeyPair(
-            std::string dir,
-            std::string prefix);
+    static std::tuple<std::string, std::string> generateCertKeyPair(std::string dir,
+                                                                    std::string prefix);
 };
 
 }  // namespace control

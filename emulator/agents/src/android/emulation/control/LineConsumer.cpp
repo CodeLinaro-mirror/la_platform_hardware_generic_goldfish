@@ -26,5 +26,5 @@ int LineConsumer::Callback(void* opaque, const char* buff, int len) {
     return len;
 }
 
-}  // emulation
-}  // android
+}  // namespace emulation
+}  // namespace android

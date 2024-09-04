@@ -20,9 +20,8 @@
 
 namespace android {
 
-class WindowsInstaller
-{
-public:
+class WindowsInstaller {
+  public:
     /*
      * GetVersion
      *

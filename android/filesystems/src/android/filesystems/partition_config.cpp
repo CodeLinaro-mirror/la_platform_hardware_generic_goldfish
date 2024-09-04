@@ -35,23 +35,22 @@ using android::internal::PartitionConfigBackend;
 
 // State structure shared by several functions.
 using PartitionConfigState = struct {
-  char** error_message;
-  AndroidPartitionSetupFunction setup_func;
-  void* setup_opaque;
-  PartitionConfigBackend* backend;
+    char** error_message;
+    AndroidPartitionSetupFunction setup_func;
+    void* setup_opaque;
+    PartitionConfigBackend* backend;
 };
 
 // Helper function used to record an error message into the |state|,
 // then return false. |format| is a typical printf()-like formatting
 // string followed by optional arguments. Always return false to
 // indicate an error.
-static auto partition_config_error(PartitionConfigState* state,
-                                   const char* format, ...) -> bool {
-  va_list args;
-  va_start(args, format);
-  vasprintf(state->error_message, format, args);
-  va_end(args);
-  return false;
+static auto partition_config_error(PartitionConfigState* state, const char* format, ...) -> bool {
+    va_list args;
+    va_start(args, format);
+    vasprintf(state->error_message, format, args);
+    va_end(args);
+    return false;
 }
 
 // Extract the partition type/format of a given partition image
@@ -65,21 +64,16 @@ static auto partition_config_error(PartitionConfigState* state,
 // On success, sets |*partitionType| to an appropriate value,
 // on failure (i.e. |partitionPath| does not appear in the fstab
 // file), leave the value untouched.
-static void extractPartitionFormat(PartitionConfigState* state,
-                                   const std::string& fstab,
-                                   const char* partitionName,
-                                   const char* partitionPath,
+static void extractPartitionFormat(PartitionConfigState* state, const std::string& fstab,
+                                   const char* partitionName, const char* partitionPath,
                                    AndroidPartitionType* partitionType) {
-  std::string partFormat;
-  if (!state->backend->parsePartitionFormat(fstab, partitionPath,
-                                            &partFormat)) {
-    ABSL_VLOG(1) << "Could not extract format of " << partitionName
-                 << "partition!";
-    return;
-  }
-  ABSL_VLOG(1) << "Found format of " << partitionName << " partition: '"
-               << partFormat << "'";
-  *partitionType = androidPartitionType_fromString(partFormat.c_str());
+    std::string partFormat;
+    if (!state->backend->parsePartitionFormat(fstab, partitionPath, &partFormat)) {
+        ABSL_VLOG(1) << "Could not extract format of " << partitionName << "partition!";
+        return;
+    }
+    ABSL_VLOG(1) << "Found format of " << partitionName << " partition: '" << partFormat << "'";
+    *partitionType = androidPartitionType_fromString(partFormat.c_str());
 }
 
 // List of value describing how to handle partition images in
@@ -95,9 +89,9 @@ static void extractPartitionFormat(PartitionConfigState* state,
 // MUST_WIPE means that the partition image should be wiped cleaned,
 // even if it exists. This is useful to implement the -wipe-data option.
 using AndroidPartitionOpenMode = enum {
-  ANDROID_PARTITION_OPEN_MODE_MUST_EXIST,
-  ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED,
-  ANDROID_PARTITION_OPEN_MODE_MUST_WIPE,
+    ANDROID_PARTITION_OPEN_MODE_MUST_EXIST,
+    ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED,
+    ANDROID_PARTITION_OPEN_MODE_MUST_WIPE,
 };
 
 // Add a NAND partition image to the hardware configuration.
@@ -136,312 +130,286 @@ using AndroidPartitionOpenMode = enum {
 // image and creation of temporary copies.
 //
 static auto addNandImage(PartitionConfigState* state, const char* part_name,
-                         AndroidPartitionType part_type,
-                         AndroidPartitionOpenMode part_mode, uint64_t part_size,
-                         const char* part_file, const char* part_init_file,
+                         AndroidPartitionType part_type, AndroidPartitionOpenMode part_mode,
+                         uint64_t part_size, const char* part_file, const char* part_init_file,
                          bool readonly) -> bool {
-  // Sanitize parameters, an empty string must be the same as NULL.
-  if ((part_file != nullptr) && (*part_file == 0)) {
-    part_file = nullptr;
-  }
-  if ((part_init_file != nullptr) && (*part_init_file == 0)) {
-    part_init_file = nullptr;
-  }
-
-  // Sanity checks.
-  if (part_size == 0) {
-    return partition_config_error(state, "Invalid %s partition size 0x%" PRIx64,
-                                  part_name, part_size);
-  }
-
-  if ((part_init_file != nullptr) &&
-      !state->backend->pathExists(part_init_file)) {
-    return partition_config_error(state, "Missing initial %s image: %s",
-                                  part_name, part_init_file);
-  }
-
-  // In read-only mode, the initial partition image can be treated as
-  // the main one.
-  if (readonly && (part_file == nullptr) && (part_init_file != nullptr)) {
-    part_file = part_init_file;
-    part_init_file = nullptr;
-  }
-
-  // As a special case, a |part_file| of '<temp>' means a temporary
-  // partition is needed.
-  if ((part_file != nullptr) && (strcmp(part_file, "<temp>") == 0)) {
-    part_file = nullptr;
-  }
-
-  // Verify partition type, or probe it if needed.
-  {
-    // First determine which image file to probe.
-    const char* image_file = nullptr;
-    if ((part_file != nullptr) && state->backend->pathExists(part_file)) {
-      image_file = part_file;
-    } else if (part_init_file != nullptr) {
-      image_file = part_init_file;
-    } else if (part_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
-      return partition_config_error(
-          state, "Cannot determine type of %s partition: no image files!",
-          part_name);
+    // Sanitize parameters, an empty string must be the same as NULL.
+    if ((part_file != nullptr) && (*part_file == 0)) {
+        part_file = nullptr;
+    }
+    if ((part_init_file != nullptr) && (*part_init_file == 0)) {
+        part_init_file = nullptr;
     }
 
-    if (part_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
-      ABSL_VLOG(1) << "Probing " << part_name
-                   << " image file for partition type: " << image_file;
+    // Sanity checks.
+    if (part_size == 0) {
+        return partition_config_error(state, "Invalid %s partition size 0x%" PRIx64, part_name,
+                                      part_size);
+    }
 
-      part_type = state->backend->probePartitionFileType(image_file);
-    } else if (image_file != nullptr) {
-      // Probe the current image file to check that it is of the
-      // right partition format.
-      AndroidPartitionType image_type =
-          state->backend->probePartitionFileType(image_file);
-      if (image_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
-        return partition_config_error(
-            state, "Cannot determine %s partition type of: %s", part_name,
-            image_file);
-      }
+    if ((part_init_file != nullptr) && !state->backend->pathExists(part_init_file)) {
+        return partition_config_error(state, "Missing initial %s image: %s", part_name,
+                                      part_init_file);
+    }
 
-      if (image_type != part_type) {
-        // The image file exists, but is not in the proper format!
-        // This can happen in certain cases, e.g. a KitKat/x86 AVD
-        // created with SDK 23.0.2 and started with the
-        // corresponding emulator will create a cache.img in 'yaffs2'
-        // format, while the system really expect it to be 'ext4',
-        // as listed in the ramdisk.img.
-        //
-        // To work-around the problem, simply re-create the file
-        // by wiping it when allowed.
+    // In read-only mode, the initial partition image can be treated as
+    // the main one.
+    if (readonly && (part_file == nullptr) && (part_init_file != nullptr)) {
+        part_file = part_init_file;
+        part_init_file = nullptr;
+    }
 
-        if (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_EXIST) {
-          return partition_config_error(
-              state, "Invalid %s partition image type: %s (expected %s)",
-              part_name, androidPartitionType_toString(image_type),
-              androidPartitionType_toString(part_type));
+    // As a special case, a |part_file| of '<temp>' means a temporary
+    // partition is needed.
+    if ((part_file != nullptr) && (strcmp(part_file, "<temp>") == 0)) {
+        part_file = nullptr;
+    }
+
+    // Verify partition type, or probe it if needed.
+    {
+        // First determine which image file to probe.
+        const char* image_file = nullptr;
+        if ((part_file != nullptr) && state->backend->pathExists(part_file)) {
+            image_file = part_file;
+        } else if (part_init_file != nullptr) {
+            image_file = part_init_file;
+        } else if (part_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
+            return partition_config_error(
+                    state, "Cannot determine type of %s partition: no image files!", part_name);
         }
-        ABSL_VLOG(1) << "Image type mismatch for " << part_name
-                     << " partition: "
-                     << androidPartitionType_toString(image_type)
-                     << " (expected "
-                     << androidPartitionType_toString(part_type) << ")";
 
-        part_mode = ANDROID_PARTITION_OPEN_MODE_MUST_WIPE;
-      }
+        if (part_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
+            ABSL_VLOG(1) << "Probing " << part_name
+                         << " image file for partition type: " << image_file;
+
+            part_type = state->backend->probePartitionFileType(image_file);
+        } else if (image_file != nullptr) {
+            // Probe the current image file to check that it is of the
+            // right partition format.
+            AndroidPartitionType image_type = state->backend->probePartitionFileType(image_file);
+            if (image_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
+                return partition_config_error(state, "Cannot determine %s partition type of: %s",
+                                              part_name, image_file);
+            }
+
+            if (image_type != part_type) {
+                // The image file exists, but is not in the proper format!
+                // This can happen in certain cases, e.g. a KitKat/x86 AVD
+                // created with SDK 23.0.2 and started with the
+                // corresponding emulator will create a cache.img in 'yaffs2'
+                // format, while the system really expect it to be 'ext4',
+                // as listed in the ramdisk.img.
+                //
+                // To work-around the problem, simply re-create the file
+                // by wiping it when allowed.
+
+                if (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_EXIST) {
+                    return partition_config_error(
+                            state, "Invalid %s partition image type: %s (expected %s)", part_name,
+                            androidPartitionType_toString(image_type),
+                            androidPartitionType_toString(part_type));
+                }
+                ABSL_VLOG(1) << "Image type mismatch for " << part_name
+                             << " partition: " << androidPartitionType_toString(image_type)
+                             << " (expected " << androidPartitionType_toString(part_type) << ")";
+
+                part_mode = ANDROID_PARTITION_OPEN_MODE_MUST_WIPE;
+            }
+        }
     }
-  }
 
-  ABSL_VLOG(1) << part_name << " partition format: "
-               << androidPartitionType_toString(part_type);
+    ABSL_VLOG(1) << part_name << " partition format: " << androidPartitionType_toString(part_type);
 
-  bool need_make_empty = (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_WIPE);
+    bool need_make_empty = (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_WIPE);
 
-  // Must be here to avoid freeing the string too early.
-  std::string tempFile;
+    // Must be here to avoid freeing the string too early.
+    std::string tempFile;
 
-  if (readonly) {
-    if (!state->backend->pathExists(part_file)) {
-      return partition_config_error(state,
-                                    "Missing read-only %s partition image: %s",
-                                    part_name, part_file);
-    }
-    need_make_empty = false;
-  } else {
-    bool need_temp_partition = true;
-
-    if (part_init_file != nullptr) {
-      need_make_empty = true;
-    }
-
-    if (part_file != nullptr) {
-      if (!state->backend->pathLockFile(part_file)) {
-        ABSL_LOG(WARNING) << part_name
-                          << " image already in use, changes will not persist!";
-      } else {
-        need_temp_partition = false;
-
-        // If the partition image is missing, create it.
+    if (readonly) {
         if (!state->backend->pathExists(part_file)) {
-          if (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_EXIST) {
-            return partition_config_error(
-                state, "Missing %s partition image: %s", part_name, part_file);
-          }
-          if (!state->backend->pathEmptyFile(part_file)) {
-            return partition_config_error(
-                state, "Cannot create %s image file at %s: %s", part_name,
-                part_file, strerror(errno));
-          }
-          need_make_empty = true;
+            return partition_config_error(state, "Missing read-only %s partition image: %s",
+                                          part_name, part_file);
         }
-      }
+        need_make_empty = false;
+    } else {
+        bool need_temp_partition = true;
+
+        if (part_init_file != nullptr) {
+            need_make_empty = true;
+        }
+
+        if (part_file != nullptr) {
+            if (!state->backend->pathLockFile(part_file)) {
+                ABSL_LOG(WARNING) << part_name
+                                  << " image already in use, changes will not persist!";
+            } else {
+                need_temp_partition = false;
+
+                // If the partition image is missing, create it.
+                if (!state->backend->pathExists(part_file)) {
+                    if (part_mode == ANDROID_PARTITION_OPEN_MODE_MUST_EXIST) {
+                        return partition_config_error(state, "Missing %s partition image: %s",
+                                                      part_name, part_file);
+                    }
+                    if (!state->backend->pathEmptyFile(part_file)) {
+                        return partition_config_error(state,
+                                                      "Cannot create %s image file at %s: %s",
+                                                      part_name, part_file, strerror(errno));
+                    }
+                    need_make_empty = true;
+                }
+            }
+        }
+
+        // Do we need a temporary partition image ?
+        if (need_temp_partition) {
+            if (!state->backend->pathCreateTempFile(&tempFile)) {
+                return partition_config_error(state,
+                                              "Could not create temp file for "
+                                              "%s partition image: %s\n",
+                                              part_name, strerror(errno));
+            }
+            part_file = tempFile.c_str();
+            ABSL_VLOG(1) << "Mapping '" << part_name << "' partition image to " << part_file;
+
+            need_make_empty = true;
+        }
+
+        // Do we need to copy the initial partition file into the real one?
+        if (part_init_file != nullptr) {
+            if (!state->backend->pathCopyFile(part_file, part_init_file)) {
+                return partition_config_error(state,
+                                              "Could not copy initial %s partition "
+                                              "image to real one: %s\n",
+                                              part_name, strerror(errno));
+            }
+            need_make_empty = false;
+        }
     }
 
-    // Do we need a temporary partition image ?
-    if (need_temp_partition) {
-      if (!state->backend->pathCreateTempFile(&tempFile)) {
-        return partition_config_error(state,
-                                      "Could not create temp file for "
-                                      "%s partition image: %s\n",
-                                      part_name, strerror(errno));
-      }
-      part_file = tempFile.c_str();
-      ABSL_VLOG(1) << "Mapping '" << part_name << "' partition image to "
-                   << part_file;
-
-      need_make_empty = true;
+    // Do we need to make the partition image empty?
+    if (need_make_empty) {
+        ABSL_VLOG(1) << "Creating empty " << part_name << " partition image at: " << part_file;
+        int ret = static_cast<int>(
+                state->backend->makeEmptyPartition(part_type, part_size, part_file));
+        if (ret < 0) {
+            return partition_config_error(state, "Could not create %s image file at %s: %s",
+                                          part_name, part_file, strerror(-ret));
+        }
     }
 
-    // Do we need to copy the initial partition file into the real one?
-    if (part_init_file != nullptr) {
-      if (!state->backend->pathCopyFile(part_file, part_init_file)) {
-        return partition_config_error(state,
-                                      "Could not copy initial %s partition "
-                                      "image to real one: %s\n",
-                                      part_name, strerror(errno));
-      }
-      need_make_empty = false;
-    }
-  }
+    (*state->setup_func)(state->setup_opaque, part_name, part_size, part_file, part_type, readonly);
 
-  // Do we need to make the partition image empty?
-  if (need_make_empty) {
-    ABSL_VLOG(1) << "Creating empty " << part_name
-                 << " partition image at: " << part_file;
-    int ret = static_cast<int>(
-        state->backend->makeEmptyPartition(part_type, part_size, part_file));
-    if (ret < 0) {
-      return partition_config_error(state,
-                                    "Could not create %s image file at %s: %s",
-                                    part_name, part_file, strerror(-ret));
-    }
-  }
-
-  (*state->setup_func)(state->setup_opaque, part_name, part_size, part_file,
-                       part_type, readonly);
-
-  return true;
+    return true;
 }
 
-auto android_partition_configuration_setup(
-    const AndroidPartitionConfiguration* config,
-    AndroidPartitionSetupFunction setup_func, void* setup_opaque,
-    char** error_message) -> bool {
-  // Setup shared state.
-  PartitionConfigState state[1] = {{
-      .error_message = error_message,
-      .setup_func = setup_func,
-      .setup_opaque = setup_opaque,
-      .backend = PartitionConfigBackend::get(),
-  }};
+auto android_partition_configuration_setup(const AndroidPartitionConfiguration* config,
+                                           AndroidPartitionSetupFunction setup_func,
+                                           void* setup_opaque, char** error_message) -> bool {
+    // Setup shared state.
+    PartitionConfigState state[1] = {{
+            .error_message = error_message,
+            .setup_func = setup_func,
+            .setup_opaque = setup_opaque,
+            .backend = PartitionConfigBackend::get(),
+    }};
 
-  // Determine format of all partition images, if possible.
-  // Note that _UNKNOWN means the file, if it exists, will be probed.
-  AndroidPartitionType system_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
-  AndroidPartitionType vendor_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
-  AndroidPartitionType userdata_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
-  AndroidPartitionType cache_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
+    // Determine format of all partition images, if possible.
+    // Note that _UNKNOWN means the file, if it exists, will be probed.
+    AndroidPartitionType system_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
+    AndroidPartitionType vendor_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
+    AndroidPartitionType userdata_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
+    AndroidPartitionType cache_partition_type = ANDROID_PARTITION_TYPE_UNKNOWN;
 
-  {
-    // Starting with Android 4.4.x, the ramdisk.img contains
-    // an fstab.goldfish file that lists the format of each partition.
-    // If the file exists, parse it to get the appropriate values.
-    std::string fstab;
+    {
+        // Starting with Android 4.4.x, the ramdisk.img contains
+        // an fstab.goldfish file that lists the format of each partition.
+        // If the file exists, parse it to get the appropriate values.
+        std::string fstab;
 
-    if (state->backend->extractRamdiskFile(config->ramdisk_path,
-                                           config->fstab_name, &fstab)) {
-      ABSL_VLOG(1) << "Ramdisk image contains " << config->fstab_name
-                   << " file";
+        if (state->backend->extractRamdiskFile(config->ramdisk_path, config->fstab_name, &fstab)) {
+            ABSL_VLOG(1) << "Ramdisk image contains " << config->fstab_name << " file";
 
-      extractPartitionFormat(state, fstab, "system", "/system",
-                             &system_partition_type);
+            extractPartitionFormat(state, fstab, "system", "/system", &system_partition_type);
 
-      extractPartitionFormat(state, fstab, "vendor", "/vendor",
-                             &vendor_partition_type);
+            extractPartitionFormat(state, fstab, "vendor", "/vendor", &vendor_partition_type);
 
-      extractPartitionFormat(state, fstab, "userdata", "/data",
-                             &userdata_partition_type);
+            extractPartitionFormat(state, fstab, "userdata", "/data", &userdata_partition_type);
 
-      extractPartitionFormat(state, fstab, "cache", "/cache",
-                             &cache_partition_type);
-    } else {
-      ABSL_VLOG(1) << "No " << config->fstab_name << " file in ramdisk image";
-    }
-  }
-
-  // Initialize system partition image.
-  if (!addNandImage(
-          state, "system", system_partition_type,
-          ANDROID_PARTITION_OPEN_MODE_MUST_EXIST, config->system_partition.size,
-          config->system_partition.path, config->system_partition.init_path,
-          !config->writable_system)) {
-    return false;
-  }
-
-  // Initialize vendor partition image, if we have it.
-  if ((config->vendor_partition.path != nullptr) ||
-      (config->vendor_partition.init_path != nullptr)) {
-    if (!addNandImage(
-            state, "vendor", vendor_partition_type,
-            ANDROID_PARTITION_OPEN_MODE_MUST_EXIST,
-            config->vendor_partition.size, config->vendor_partition.path,
-            config->vendor_partition.init_path, !config->writable_system)) {
-      return false;
-    }
-  }
-
-  // Initialize data partition image.
-  AndroidPartitionOpenMode userdata_partition_mode =
-      config->wipe_data ? ANDROID_PARTITION_OPEN_MODE_MUST_WIPE
-                        : ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED;
-
-  if (!addNandImage(state, "userdata", userdata_partition_type,
-                    userdata_partition_mode, config->data_partition.size,
-                    config->data_partition.path,
-                    config->data_partition.init_path, false)) {
-    return false;
-  }
-
-  // Extend the userdata-qemu.img to the desired size - resize2fs can only
-  // extend partitions to fill available space.
-  // Resize userdata-qemu.img if the size is smaller than what config.ini
-  // says.
-  // This can happen as user wants a larger data partition without wiping it.
-  // b.android.com/196926
-  android::base::StorageCapacity current_data_size(config->data_partition.size);
-  System::get()->pathFileSize(config->data_partition.path, &current_data_size);
-  if ((config->wipe_data || current_data_size < config->data_partition.size) &&
-      !System::get()->pathIsQcow2(config->data_partition.path) &&
-      userdata_partition_type == ANDROID_PARTITION_TYPE_EXT4) {
-    if (current_data_size.bytes() < config->data_partition.size) {
-      ABSL_VLOG(1) << "userdata partition is resized from" << current_data_size
-                   << " to "
-                   << android::base::StorageCapacity(
-                          config->data_partition.size);
-    }
-    state->backend->resizeExt4Partition(config->data_partition.path,
-                                        config->data_partition.size);
-  }
-
-  // Initialize cache partition image, if any. Its type depends on the
-  // kernel version. For anything >= 3.10, it must be EXT4, or
-  // YAFFS2 otherwise.
-  if (config->cache_partition.path != nullptr) {
-    if (cache_partition_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
-      cache_partition_type = config->kernel_supports_yaffs2
-                                 ? ANDROID_PARTITION_TYPE_YAFFS2
-                                 : ANDROID_PARTITION_TYPE_EXT4;
+            extractPartitionFormat(state, fstab, "cache", "/cache", &cache_partition_type);
+        } else {
+            ABSL_VLOG(1) << "No " << config->fstab_name << " file in ramdisk image";
+        }
     }
 
-    AndroidPartitionOpenMode cache_partition_mode =
-        (config->wipe_data ? ANDROID_PARTITION_OPEN_MODE_MUST_WIPE
-                           : ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED);
-
-    if (!addNandImage(state, "cache", cache_partition_type,
-                      cache_partition_mode, config->cache_partition.size,
-                      config->cache_partition.path, nullptr, false)) {
-      return false;
+    // Initialize system partition image.
+    if (!addNandImage(state, "system", system_partition_type,
+                      ANDROID_PARTITION_OPEN_MODE_MUST_EXIST, config->system_partition.size,
+                      config->system_partition.path, config->system_partition.init_path,
+                      !config->writable_system)) {
+        return false;
     }
-  }
 
-  return true;
+    // Initialize vendor partition image, if we have it.
+    if ((config->vendor_partition.path != nullptr) ||
+        (config->vendor_partition.init_path != nullptr)) {
+        if (!addNandImage(state, "vendor", vendor_partition_type,
+                          ANDROID_PARTITION_OPEN_MODE_MUST_EXIST, config->vendor_partition.size,
+                          config->vendor_partition.path, config->vendor_partition.init_path,
+                          !config->writable_system)) {
+            return false;
+        }
+    }
+
+    // Initialize data partition image.
+    AndroidPartitionOpenMode userdata_partition_mode =
+            config->wipe_data ? ANDROID_PARTITION_OPEN_MODE_MUST_WIPE
+                              : ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED;
+
+    if (!addNandImage(state, "userdata", userdata_partition_type, userdata_partition_mode,
+                      config->data_partition.size, config->data_partition.path,
+                      config->data_partition.init_path, false)) {
+        return false;
+    }
+
+    // Extend the userdata-qemu.img to the desired size - resize2fs can only
+    // extend partitions to fill available space.
+    // Resize userdata-qemu.img if the size is smaller than what config.ini
+    // says.
+    // This can happen as user wants a larger data partition without wiping it.
+    // b.android.com/196926
+    android::base::StorageCapacity current_data_size(config->data_partition.size);
+    System::get()->pathFileSize(config->data_partition.path, &current_data_size);
+    if ((config->wipe_data || current_data_size < config->data_partition.size) &&
+        !System::get()->pathIsQcow2(config->data_partition.path) &&
+        userdata_partition_type == ANDROID_PARTITION_TYPE_EXT4) {
+        if (current_data_size.bytes() < config->data_partition.size) {
+            ABSL_VLOG(1) << "userdata partition is resized from" << current_data_size << " to "
+                         << android::base::StorageCapacity(config->data_partition.size);
+        }
+        state->backend->resizeExt4Partition(config->data_partition.path,
+                                            config->data_partition.size);
+    }
+
+    // Initialize cache partition image, if any. Its type depends on the
+    // kernel version. For anything >= 3.10, it must be EXT4, or
+    // YAFFS2 otherwise.
+    if (config->cache_partition.path != nullptr) {
+        if (cache_partition_type == ANDROID_PARTITION_TYPE_UNKNOWN) {
+            cache_partition_type = config->kernel_supports_yaffs2 ? ANDROID_PARTITION_TYPE_YAFFS2
+                                                                  : ANDROID_PARTITION_TYPE_EXT4;
+        }
+
+        AndroidPartitionOpenMode cache_partition_mode =
+                (config->wipe_data ? ANDROID_PARTITION_OPEN_MODE_MUST_WIPE
+                                   : ANDROID_PARTITION_OPEN_MODE_CREATE_IF_NEEDED);
+
+        if (!addNandImage(state, "cache", cache_partition_type, cache_partition_mode,
+                          config->cache_partition.size, config->cache_partition.path, nullptr,
+                          false)) {
+            return false;
+        }
+    }
+
+    return true;
 }

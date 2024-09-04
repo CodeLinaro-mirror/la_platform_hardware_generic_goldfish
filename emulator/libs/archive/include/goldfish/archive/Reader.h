@@ -8,11 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstddef>
 #include <string>
+
 #include "goldfish/archive/zigzag.h"
 
 namespace goldfish {
@@ -21,11 +22,11 @@ namespace archive {
 // See archive_unittests.cpp for usage examples
 struct IReader {
     virtual ~IReader() {}
-    virtual size_t read(void *dst, size_t size) = 0;
+    virtual size_t read(void* dst, size_t size) = 0;
 };
 
 // see Writer.h for encoding explanation
-inline zigzag::unsigned_t getUnsigned(IReader &r) {
+inline zigzag::unsigned_t getUnsigned(IReader& r) {
     zigzag::unsigned_t result = 0;
     unsigned shift = 0;
     constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
@@ -51,19 +52,19 @@ inline zigzag::signed_t getSigned(IReader& r) {
     return zigzag::decode(getUnsigned(r));
 }
 
-inline float getFloat(IReader &r) {
+inline float getFloat(IReader& r) {
     float result;
     r.read(&result, sizeof(result));
     return result;
 }
 
-inline double getDouble(IReader &r) {
+inline double getDouble(IReader& r) {
     double result;
     r.read(&result, sizeof(result));
     return result;
 }
 
-inline std::string getString(IReader &r) {
+inline std::string getString(IReader& r) {
     const size_t size = getUnsigned(r);
     std::string result(size, '?');
     if (r.read(result.data(), size) == size) {

@@ -23,12 +23,12 @@ namespace base {
 
 #ifdef __APPLE__
 #ifdef __arm64__
-    static const uintptr_t kPageSize = 16384;
+static const uintptr_t kPageSize = 16384;
 #else
-    static const uintptr_t kPageSize = 4096;
+static const uintptr_t kPageSize = 4096;
 #endif
 #else
-    static const uintptr_t kPageSize = 4096;
+static const uintptr_t kPageSize = 4096;
 #endif
 
 // A basic check that hints succeed for page-aligned memory,
@@ -54,8 +54,7 @@ TEST(MemoryHints, Basic) {
 
         char* forAlignedPtr = new char[kPageSize * 2];
         toDealloc.push_back(forAlignedPtr);
-        char* pagePtr =
-            (char*)(kPageSize + (uintptr_t)forAlignedPtr & ~(kPageSize - 1));
+        char* pagePtr = (char*)(kPageSize + (uintptr_t)forAlignedPtr & ~(kPageSize - 1));
 
         EXPECT_TRUE(memoryHint(pagePtr, kPageSize, MemoryHint::DontNeed));
         EXPECT_TRUE(memoryHint(pagePtr, kPageSize, MemoryHint::Normal));
@@ -64,11 +63,10 @@ TEST(MemoryHints, Basic) {
 
         // Check that zeroOutMemory works.
         EXPECT_TRUE(zeroOutMemory(pagePtr, kPageSize));
-        
     }
 
     for (auto ptr : toDealloc) {
-        delete [] ptr;
+        delete[] ptr;
     }
 }
 
@@ -84,4 +82,3 @@ TEST(MemoryHints, Negative) {
 
 }  // namespace base
 }  // namespace android
-

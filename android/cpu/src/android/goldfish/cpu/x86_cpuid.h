@@ -61,8 +61,8 @@ uint32_t android_get_x86_cpuid_extended_function_max();
  * that will be set on exit to the value of the corresponding register;
  * if one of this parameter is NULL, it is ignored.
  */
-void android_get_x86_cpuid(uint32_t function, uint32_t count, uint32_t *eax,
-                           uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
+void android_get_x86_cpuid(uint32_t function, uint32_t count, uint32_t* eax, uint32_t* ebx,
+                           uint32_t* ecx, uint32_t* edx);
 
 /*
  * android_get_x86_cpuid_vendor_id: retrieve x86 CPUID vendor id as a null
@@ -72,7 +72,7 @@ void android_get_x86_cpuid(uint32_t function, uint32_t count, uint32_t *eax,
  *
  * |vendor_id_len| - must be at least 13 bytes
  */
-void android_get_x86_cpuid_vendor_id(char *vendor_id, size_t vendor_id_len);
+void android_get_x86_cpuid_vendor_id(char* vendor_id, size_t vendor_id_len);
 
 // android_get_x86_cpuid_vmhost_vendor_id: get the vendor ID for the
 // currently running hypervisor. If there's no hypervisor, empty string is
@@ -83,18 +83,17 @@ void android_get_x86_cpuid_vendor_id(char *vendor_id, size_t vendor_id_len);
 // |vendor_id| - an output buffer, is always null-terminated after the call
 // |vendor_id_len| - must be at least 13 bytes
 //
-void android_get_x86_cpuid_vmhost_vendor_id(char *vendor_id,
-                                            size_t vendor_id_len);
+void android_get_x86_cpuid_vmhost_vendor_id(char* vendor_id, size_t vendor_id_len);
 
 // Possible CPU vendor ID types
 // Some VMs report their own CPU vendor ID instead of the real hardware,
 // in that case VENDOR_ID_VM is used
 typedef enum {
-  VENDOR_ID_AMD,
-  VENDOR_ID_INTEL,
-  VENDOR_ID_VIA,
-  VENDOR_ID_VM,
-  VENDOR_ID_OTHER,
+    VENDOR_ID_AMD,
+    VENDOR_ID_INTEL,
+    VENDOR_ID_VIA,
+    VENDOR_ID_VM,
+    VENDOR_ID_OTHER,
 } CpuVendorIdType;
 
 // Possible VM Vendor IDs
@@ -102,18 +101,18 @@ typedef enum {
 //   VENDOR_VM_NOTVM - not a VM, the string is known to identify a real CPU
 //   VENDOR_VM_OTHER - have no idea of the meaning of the vendor ID string
 typedef enum {
-  VENDOR_VM_VMWARE,
-  VENDOR_VM_VBOX,
-  VENDOR_VM_HYPERV,
-  VENDOR_VM_KVM,
-  VENDOR_VM_XEN,
-  VENDOR_VM_NOTVM,
-  VENDOR_VM_OTHER
+    VENDOR_VM_VMWARE,
+    VENDOR_VM_VBOX,
+    VENDOR_VM_HYPERV,
+    VENDOR_VM_KVM,
+    VENDOR_VM_XEN,
+    VENDOR_VM_NOTVM,
+    VENDOR_VM_OTHER
 } CpuVendorVmType;
 
 // Returns the type of vendor ID
-CpuVendorIdType android_get_x86_cpuid_vendor_id_type(const char *vendor_id);
-CpuVendorVmType android_get_x86_cpuid_vendor_vmhost_type(const char *vendor_id);
+CpuVendorIdType android_get_x86_cpuid_vendor_id_type(const char* vendor_id);
+CpuVendorVmType android_get_x86_cpuid_vendor_vmhost_type(const char* vendor_id);
 
 /*
  * android_get_x86_vendor_id_vmhost: identify known VM vendor ids by the
@@ -123,7 +122,7 @@ CpuVendorVmType android_get_x86_cpuid_vendor_vmhost_type(const char *vendor_id);
  * host vendor id strings. This is just another way of writing this:
  *  bool res = android_get_x86_cpuid_vendor_id_type(vendor_id) == VENDOR_ID_VM;
  */
-bool android_get_x86_cpuid_vendor_id_is_vmhost(const char *vendor_id);
+bool android_get_x86_cpuid_vendor_id_is_vmhost(const char* vendor_id);
 
 /*
  * android_get_x86_cpuid_vmx_support: returns 1 if the CPU supports Intel

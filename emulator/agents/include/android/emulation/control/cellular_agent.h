@@ -12,22 +12,41 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
 #include <stdbool.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
-enum CellularStatus { Cellular_Stat_Home,   Cellular_Stat_Roaming, Cellular_Stat_Searching,
-                      Cellular_Stat_Denied, Cellular_Stat_Unregistered };
+enum CellularStatus {
+    Cellular_Stat_Home,
+    Cellular_Stat_Roaming,
+    Cellular_Stat_Searching,
+    Cellular_Stat_Denied,
+    Cellular_Stat_Unregistered
+};
 
-enum CellularStandard { Cellular_Std_GSM,  Cellular_Std_HSCSD, Cellular_Std_GPRS, Cellular_Std_EDGE,
-                        Cellular_Std_UMTS, Cellular_Std_HSDPA, Cellular_Std_LTE, Cellular_Std_full,
-                        Cellular_Std_5G };
+enum CellularStandard {
+    Cellular_Std_GSM,
+    Cellular_Std_HSCSD,
+    Cellular_Std_GPRS,
+    Cellular_Std_EDGE,
+    Cellular_Std_UMTS,
+    Cellular_Std_HSDPA,
+    Cellular_Std_LTE,
+    Cellular_Std_full,
+    Cellular_Std_5G
+};
 
-enum CellularSignal { Cellular_Signal_None, Cellular_Signal_Poor, Cellular_Signal_Moderate,
-                      Cellular_Signal_Good, Cellular_Signal_Great };
+enum CellularSignal {
+    Cellular_Signal_None,
+    Cellular_Signal_Poor,
+    Cellular_Signal_Moderate,
+    Cellular_Signal_Good,
+    Cellular_Signal_Great
+};
 
-enum CellularMeterStatus { Cellular_Metered,   Cellular_Temporarily_Not_Metered };
+enum CellularMeterStatus { Cellular_Metered, Cellular_Temporarily_Not_Metered };
 
 typedef struct QAndroidCellularAgent {
     // Sets the cellular signal strength

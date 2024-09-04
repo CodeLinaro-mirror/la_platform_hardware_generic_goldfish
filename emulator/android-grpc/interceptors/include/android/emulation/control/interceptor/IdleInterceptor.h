@@ -37,14 +37,13 @@ using android::base::System;
 // An IdleInterceptor can be installed if you wish to terminate the emulator
 // when there is no gRPC activity within the given timeout.
 class IdleInterceptor : public grpc::experimental::Interceptor {
-public:
-    IdleInterceptor(std::chrono::seconds timeout,
-                    std::atomic<uint64_t>* terminationUnixTime,
+  public:
+    IdleInterceptor(std::chrono::seconds timeout, std::atomic<uint64_t>* terminationUnixTime,
                     std::atomic<uint64_t>* activeRequests);
     ~IdleInterceptor();
     virtual void Intercept(InterceptorBatchMethods* methods) override;
 
-private:
+  private:
     std::chrono::seconds mTimeout;
     std::atomic<uint64_t>* mTerminationUnixTime;
     std::atomic<uint64_t>* mActiveRequests;
@@ -55,15 +54,14 @@ private:
 // The interceptor will schedule a check every timeout seconds to see if any
 // gRPC activity took place. If no activity took place the emulator will be
 // shutdown in an orderly fashion.
-class IdleInterceptorFactory
-    : public grpc::experimental::ServerInterceptorFactoryInterface {
-public:
+class IdleInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface {
+  public:
     IdleInterceptorFactory(std::chrono::seconds timeout);
     virtual ~IdleInterceptorFactory() = default;
     virtual Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
     bool checkIdleTimeout();
 
-private:
+  private:
     int mShutdownAttempt{0};
     std::chrono::seconds mTimeout;
     std::atomic<uint64_t> mTerminationUnixTime;

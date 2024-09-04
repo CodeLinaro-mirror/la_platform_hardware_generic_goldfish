@@ -87,44 +87,37 @@ TEST(Win32UnicodeString, convertToUtf8) {
         EXPECT_EQ(strlen(kData[n].utf8), str1.size());
         EXPECT_STREQ(kData[n].utf8, str1.c_str());
 
-        std::string str2 = Win32UnicodeString::convertToUtf8(
-                kData[n].utf16, wcslen(kData[n].utf16));
+        std::string str2 =
+                Win32UnicodeString::convertToUtf8(kData[n].utf16, wcslen(kData[n].utf16));
         EXPECT_EQ(strlen(kData[n].utf8), str2.size());
         EXPECT_STREQ(kData[n].utf8, str2.c_str());
 
         char out[256];
-        int len = Win32UnicodeString::convertToUtf8(out, sizeof(out),
-                                                    kData[n].utf16);
+        int len = Win32UnicodeString::convertToUtf8(out, sizeof(out), kData[n].utf16);
         EXPECT_EQ(strlen(kData[n].utf8) + 1U, (size_t)len);
         EXPECT_STREQ(kData[n].utf8, out);
 
-        len = Win32UnicodeString::convertToUtf8(out, sizeof(out),
-                                                kData[n].utf16,
+        len = Win32UnicodeString::convertToUtf8(out, sizeof(out), kData[n].utf16,
                                                 wcslen(kData[n].utf16));
         EXPECT_EQ((int)strlen(kData[n].utf8), len);
         out[len] = 0;
         EXPECT_STREQ(kData[n].utf8, out);
 
         if (kData[n].utf8[0] != 0) {
-            len = Win32UnicodeString::convertToUtf8(out, 1,
-                                                    kData[n].utf16);
+            len = Win32UnicodeString::convertToUtf8(out, 1, kData[n].utf16);
             EXPECT_EQ(-1, len);
         }
 
-        len = Win32UnicodeString::convertToUtf8(nullptr, 0,
-                                                kData[n].utf16);
+        len = Win32UnicodeString::convertToUtf8(nullptr, 0, kData[n].utf16);
         EXPECT_EQ(-1, len);
 
-        len = Win32UnicodeString::convertToUtf8(nullptr, 0,
-                                                kData[n].utf16,
-                                                wcslen(kData[n].utf16));
+        len = Win32UnicodeString::convertToUtf8(nullptr, 0, kData[n].utf16, wcslen(kData[n].utf16));
         EXPECT_EQ(-1, len);
 
         len = Win32UnicodeString::calcUtf8BufferLength(kData[n].utf16);
         EXPECT_EQ((int)strlen(kData[n].utf8) + 1, len);
 
-        len = Win32UnicodeString::calcUtf8BufferLength(kData[n].utf16,
-                                                      wcslen(kData[n].utf16));
+        len = Win32UnicodeString::calcUtf8BufferLength(kData[n].utf16, wcslen(kData[n].utf16));
         EXPECT_EQ((int)strlen(kData[n].utf8), len);
     }
 }
@@ -143,13 +136,11 @@ TEST(Win32UnicodeString, convertFromUtf8) {
 
     for (size_t n = 0; n < kDataSize; ++n) {
         wchar_t out[256];
-        int len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out),
-                                                      kData[n].utf8);
+        int len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out), kData[n].utf8);
         EXPECT_EQ((int)wcslen(kData[n].utf16) + 1, len);
         EXPECT_STREQ(kData[n].utf16, out);
 
-        len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out),
-                                                  kData[n].utf8,
+        len = Win32UnicodeString::convertFromUtf8(out, ARRAY_SIZE(out), kData[n].utf8,
                                                   strlen(kData[n].utf8));
         EXPECT_EQ((int)wcslen(kData[n].utf16), len);
         out[len] = 0;
@@ -163,16 +154,13 @@ TEST(Win32UnicodeString, convertFromUtf8) {
         len = Win32UnicodeString::convertFromUtf8(nullptr, 0, kData[n].utf8);
         EXPECT_EQ(-1, len);
 
-        len = Win32UnicodeString::convertFromUtf8(nullptr, 0,
-                                                  kData[n].utf8,
-                                                  strlen(kData[n].utf8));
+        len = Win32UnicodeString::convertFromUtf8(nullptr, 0, kData[n].utf8, strlen(kData[n].utf8));
         EXPECT_EQ(-1, len);
 
         len = Win32UnicodeString::calcUtf16BufferLength(kData[n].utf8);
         EXPECT_EQ((int)wcslen(kData[n].utf16) + 1, len);
 
-        len = Win32UnicodeString::calcUtf16BufferLength(kData[n].utf8,
-                                                       strlen(kData[n].utf8));
+        len = Win32UnicodeString::calcUtf16BufferLength(kData[n].utf8, strlen(kData[n].utf8));
         EXPECT_EQ((int)wcslen(kData[n].utf16), len);
     }
 }
@@ -183,10 +171,10 @@ TEST(Win32UnicodeString, appending) {
         const wchar_t* second;
         const wchar_t* result;
     } kData[] = {
-        {L"foo", L"bar", L"foobar"},
-        {L"", L"bar", L"bar"},
-        {L"foo", L"", L"foo"},
-        {L"foobar", L" with ice cream", L"foobar with ice cream"},
+            {L"foo", L"bar", L"foobar"},
+            {L"", L"bar", L"bar"},
+            {L"foo", L"", L"foo"},
+            {L"foobar", L" with ice cream", L"foobar with ice cream"},
     };
 
     for (const auto& data : kData) {

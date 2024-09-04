@@ -24,72 +24,72 @@ namespace base {
 
 static constexpr std::string_view kInvalidVersion = "invalid";
 
-static bool isEof(std::istream &in) {
-  return in.peek() == std::char_traits<char>::eof();
+static bool isEof(std::istream& in) {
+    return in.peek() == std::char_traits<char>::eof();
 }
 
-Version::Version(const char *ver) : mData() {
-  if (!ver) {
-    *this = invalid();
-    return;
-  }
-  std::istringstream in(ver);
-  in >> std::noskipws;
-
-  // read the main part, major.minor.micro
-  in >> std::get<kMajor>(mData);
-  if (!in) {
-    *this = invalid();
-    return;
-  }
-
-  static const char delimiters[kComponentCount - 1] = {'.', '.', '-'};
-  for (int comp = kMinor; comp <= kBuild && !isEof(in); ++comp) {
-    char c;
-    in >> c >> component(static_cast<Component>(comp));
-    if (c != delimiters[comp - 1] || !in) {
-      *this = invalid();
-      return;
+Version::Version(const char* ver) : mData() {
+    if (!ver) {
+        *this = invalid();
+        return;
     }
-  }
+    std::istringstream in(ver);
+    in >> std::noskipws;
 
-  // make sure the stream is consumed to the end
-  if (!isEof(in)) {
-    *this = invalid();
-  }
+    // read the main part, major.minor.micro
+    in >> std::get<kMajor>(mData);
+    if (!in) {
+        *this = invalid();
+        return;
+    }
+
+    static const char delimiters[kComponentCount - 1] = {'.', '.', '-'};
+    for (int comp = kMinor; comp <= kBuild && !isEof(in); ++comp) {
+        char c;
+        in >> c >> component(static_cast<Component>(comp));
+        if (c != delimiters[comp - 1] || !in) {
+            *this = invalid();
+            return;
+        }
+    }
+
+    // make sure the stream is consumed to the end
+    if (!isEof(in)) {
+        *this = invalid();
+    }
 }
 
 std::string Version::toString() const {
-  if (!isValid()) {
-    return kInvalidVersion.data();
-  }
+    if (!isValid()) {
+        return kInvalidVersion.data();
+    }
 
-  std::string res = absl::StrFormat("%u.%u.%u", component<kMajor>(),
-                                    component<kMinor>(), component<kMicro>());
-  if (component<kBuild>() != kNone && component<kBuild>() != 0) {
-    absl::StrAppend(&res, absl::StrFormat("-%u", component<kBuild>()));
-  }
-  return res;
+    std::string res = absl::StrFormat("%u.%u.%u", component<kMajor>(), component<kMinor>(),
+                                      component<kMicro>());
+    if (component<kBuild>() != kNone && component<kBuild>() != 0) {
+        absl::StrAppend(&res, absl::StrFormat("-%u", component<kBuild>()));
+    }
+    return res;
 }
 
-Version::ComponentType &Version::component(Version::Component c) {
-  // this has to be a switch: tuple isn't a container, so it doesn't
-  // provide runtime indexing
-  switch (c) {
-  case kMajor:
-    return std::get<kMajor>(mData);
-  case kMinor:
-    return std::get<kMinor>(mData);
-  case kMicro:
-    return std::get<kMicro>(mData);
-  case kBuild:
-    return std::get<kBuild>(mData);
-  }
+Version::ComponentType& Version::component(Version::Component c) {
+    // this has to be a switch: tuple isn't a container, so it doesn't
+    // provide runtime indexing
+    switch (c) {
+        case kMajor:
+            return std::get<kMajor>(mData);
+        case kMinor:
+            return std::get<kMinor>(mData);
+        case kMicro:
+            return std::get<kMicro>(mData);
+        case kBuild:
+            return std::get<kBuild>(mData);
+    }
 
-  assert(false);
-  static ComponentType none = kNone;
-  return none;
+    assert(false);
+    static ComponentType none = kNone;
+    return none;
 }
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

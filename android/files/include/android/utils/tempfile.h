@@ -20,24 +20,29 @@ ANDROID_BEGIN_HEADER
  **
  ** simple interface to create an empty temporary file on the system.
  **
- ** create the file with tempfile_create(), which returns a reference to a TempFile
- ** object, or NULL if your system is so weird it doesn't have a temporary directory.
+ ** create the file with tempfile_create(), which returns a reference to a
+ *TempFile
+ ** object, or NULL if your system is so weird it doesn't have a temporary
+ *directory.
  **
- ** you can then call tempfile_path() to retrieve the TempFile's real path to open
- ** it. the returned path is owned by the TempFile object and should not be freed.
+ ** you can then call tempfile_path() to retrieve the TempFile's real path to
+ *open
+ ** it. the returned path is owned by the TempFile object and should not be
+ *freed.
  **
- ** all temporary files are destroyed when the program quits, unless you explicitly
+ ** all temporary files are destroyed when the program quits, unless you
+ *explicitly
  ** close them before that with tempfile_close()
  **/
 
-typedef struct TempFile   TempFile;
+typedef struct TempFile TempFile;
 
-extern  TempFile*    tempfile_create( );
-extern  TempFile*    tempfile_create_with_ext( const char* ext );
-extern  const char*  tempfile_path( TempFile*  temp );
-extern  void         tempfile_close( TempFile*  temp );
+extern TempFile* tempfile_create();
+extern TempFile* tempfile_create_with_ext(const char* ext);
+extern const char* tempfile_path(TempFile* temp);
+extern void tempfile_close(TempFile* temp);
 extern void tempfile_unref_and_close(const char* temp);
-extern void tempfile_unref_and_close_file( TempFile* temp );
+extern void tempfile_unref_and_close_file(TempFile* temp);
 
 /** TEMP FILE CLEANUP
  **
@@ -52,7 +57,7 @@ extern void tempfile_unref_and_close_file( TempFile* temp );
  **
  ** Call 'atexit_close_fd_remove' before explicitly closing a 'fd'
  **/
-extern void          atexit_close_fd(int  fd);
-extern void          atexit_close_fd_remove(int  fd);
+extern void atexit_close_fd(int fd);
+extern void atexit_close_fd_remove(int fd);
 
 ANDROID_END_HEADER

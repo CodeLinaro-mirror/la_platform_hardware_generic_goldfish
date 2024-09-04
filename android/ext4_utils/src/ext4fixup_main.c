@@ -20,35 +20,34 @@
 #endif
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "ext4fixup.h"
 
-static void usage(char *me)
-{
+static void usage(char* me) {
     fprintf(stderr, "%s: usage: %s [-vn] <image or block device>\n", me, me);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     int opt;
     int verbose = 0;
     int no_write = 0;
-    char *fsdev;
-    char *me;
+    char* fsdev;
+    char* me;
     int stop_phase = 0, stop_loc = 0, stop_count = 0;
 
     me = basename(argv[0]);
 
     while ((opt = getopt(argc, argv, "vnd:")) != -1) {
         switch (opt) {
-        case 'v':
-            verbose = 1;
-            break;
-        case 'n':
-            no_write = 1;
-            break;
-        case 'd':
-            sscanf(optarg, "%d,%d,%d", &stop_phase, &stop_loc, &stop_count);
-            break;
+            case 'v':
+                verbose = 1;
+                break;
+            case 'n':
+                no_write = 1;
+                break;
+            case 'd':
+                sscanf(optarg, "%d,%d,%d", &stop_phase, &stop_loc, &stop_count);
+                break;
         }
     }
 

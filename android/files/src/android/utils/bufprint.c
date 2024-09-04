@@ -11,52 +11,45 @@
 */
 
 #include "android/utils/bufprint.h"
-#include "android/utils/path.h"
-#include "aemu/base/logging/CLog.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "aemu/base/logging/CLog.h"
+#include "android/utils/path.h"
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
-#  include "windows.h"
-#  include "shlobj.h"
+#include "shlobj.h"
+#include "windows.h"
 #else
-#  include <unistd.h>
-#  include <sys/stat.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
-#define  D(...)  VERBOSE_PRINT(init,__VA_ARGS__)
-
+#define D(...) VERBOSE_PRINT(init, __VA_ARGS__)
 
 /** USEFUL STRING BUFFER FUNCTIONS
  **/
 
-char*
-vbufprint( char*        buffer,
-           char*        buffer_end,
-           const char*  fmt,
-           va_list      args )
-{
-    int  len = vsnprintf( buffer, buffer_end - buffer, fmt, args );
-    if (len < 0 || buffer+len >= buffer_end) {
-        if (buffer < buffer_end)
-            buffer_end[-1] = 0;
+char* vbufprint(char* buffer, char* buffer_end, const char* fmt, va_list args) {
+    int len = vsnprintf(buffer, buffer_end - buffer, fmt, args);
+    if (len < 0 || buffer + len >= buffer_end) {
+        if (buffer < buffer_end) buffer_end[-1] = 0;
         return buffer_end;
     }
     return buffer + len;
 }
 
-char*
-bufprint(char*  buffer, char*  end, const char*  fmt, ... )
-{
-    va_list  args;
-    char*    result;
+char* bufprint(char* buffer, char* end, const char* fmt, ...) {
+    va_list args;
+    char* result;
 
     va_start(args, fmt);
     result = vbufprint(buffer, end, fmt, args);
     va_end(args);
-    return  result;
+    return result;
 }

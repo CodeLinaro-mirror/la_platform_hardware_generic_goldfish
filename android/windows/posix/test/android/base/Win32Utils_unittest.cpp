@@ -23,37 +23,38 @@
 #define WINVER 0x0600
 #define _WIN32_WINNT 0x0600
 
+#include "aemu/base/system/Win32Utils.h"
+
 #include <windows.h>
 #include <winnls.h>
 
-#include "aemu/base/system/Win32Utils.h"
 #include "gtest/gtest.h"
 
 namespace android {
 namespace base {
 
-#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 TEST(Win32Utils, quoteCommandLine) {
-  static const struct {
-      const char* input;
-      const char* expected;
-  } kData[] = {
-      { "foo", "foo" },
-      { "foo bar", "\"foo bar\"" },
-      { "foo\\bar", "foo\\bar" },
-      { "foo\\\\bar", "foo\\\\bar" },
-      { "foo\"bar", "\"foo\\\"bar\"" },
-      { "foo\\\"bar", "\"foo\\\\\\\"bar\"" },
-      { "foo\\bar zoo", "\"foo\\bar zoo\"" },
-  };
-  for (size_t n = 0; n < ARRAY_SIZE(kData); ++n) {
-      const char* input = kData[n].input;
-      const char* expected = kData[n].expected;
+    static const struct {
+        const char* input;
+        const char* expected;
+    } kData[] = {
+            {"foo", "foo"},
+            {"foo bar", "\"foo bar\""},
+            {"foo\\bar", "foo\\bar"},
+            {"foo\\\\bar", "foo\\\\bar"},
+            {"foo\"bar", "\"foo\\\"bar\""},
+            {"foo\\\"bar", "\"foo\\\\\\\"bar\""},
+            {"foo\\bar zoo", "\"foo\\bar zoo\""},
+    };
+    for (size_t n = 0; n < ARRAY_SIZE(kData); ++n) {
+        const char* input = kData[n].input;
+        const char* expected = kData[n].expected;
 
-      std::string out = Win32Utils::quoteCommandLine(input);
-      EXPECT_STREQ(expected, out.c_str()) << "Quoting '" << input << "'";
-  }
+        std::string out = Win32Utils::quoteCommandLine(input);
+        EXPECT_STREQ(expected, out.c_str()) << "Quoting '" << input << "'";
+    }
 }
 
 TEST(Win32Utils, getErrorString) {
@@ -69,9 +70,9 @@ TEST(Win32Utils, getErrorString) {
     }
 
     std::string file_not_found = Win32Utils::getErrorString(2);
-    EXPECT_TRUE(0 == strcmp("The system cannot find the file specified.\r\n",
-                            file_not_found.c_str()) ||
-                0 == strcmp("File not found.\r\n", file_not_found.c_str()));
+    EXPECT_TRUE(
+            0 == strcmp("The system cannot find the file specified.\r\n", file_not_found.c_str()) ||
+            0 == strcmp("File not found.\r\n", file_not_found.c_str()));
 }
 
 }  // namespace base

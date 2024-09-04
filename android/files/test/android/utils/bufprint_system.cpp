@@ -10,11 +10,11 @@
 ** GNU General Public License for more details.
 */
 
-#include "android/utils/bufprint.h"
-
-#include "android/base/system/System.h"
 #include <filesystem>
 #include <string>
+
+#include "android/base/system/System.h"
+#include "android/utils/bufprint.h"
 
 using android::base::System;
 
@@ -22,14 +22,14 @@ using android::base::System;
 // android::base::System to make them mockable during unit-testing.
 
 inline static std::string tmpdir() {
-  return System::pathAsString(System::get()->getTempDir());
+    return System::pathAsString(System::get()->getTempDir());
 }
 
-char *bufprint_temp_dir(char *buff, char *end) {
-  return bufprint(buff, end, "%s", tmpdir().c_str());
+char* bufprint_temp_dir(char* buff, char* end) {
+    return bufprint(buff, end, "%s", tmpdir().c_str());
 }
 
-char *bufprint_temp_file(char *buff, char *end, const char *suffix) {
-  return bufprint(buff, end, "%s%c%s", tmpdir().c_str(),
-                  std::filesystem::path::preferred_separator, suffix);
+char* bufprint_temp_file(char* buff, char* end, const char* suffix) {
+    return bufprint(buff, end, "%s%c%s", tmpdir().c_str(),
+                    std::filesystem::path::preferred_separator, suffix);
 }

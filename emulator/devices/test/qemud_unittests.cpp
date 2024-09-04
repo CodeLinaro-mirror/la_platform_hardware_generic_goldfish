@@ -9,14 +9,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include <gtest/gtest.h>
+
 #include <cstdint>
 #include <cstring>
 #include <vector>
 
-#include <gtest/gtest.h>
-
-#include "goldfish/devices/qemud.h"
 #include "goldfish/archive/DequeArchive.h"
+#include "goldfish/devices/qemud.h"
 
 namespace goldfish {
 using archive::DequeArchive;
@@ -29,22 +29,18 @@ namespace qemud {
 
 namespace {
 struct TestSocket : public ISocket {
-    void sendAsync(const void *const data, const size_t size) override {
-        const uint8_t *const data8 = static_cast<const uint8_t *>(data);
+    void sendAsync(const void* const data, const size_t size) override {
+        const uint8_t* const data8 = static_cast<const uint8_t*>(data);
         storage.insert(storage.end(), data8, data8 + size);
     }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
-        return newPlug;
-    }
+    PlugPtr switchPlug(PlugPtr newPlug) override { return newPlug; }
 
-    PlugPtr unplugImpl() override {
-        return {};
-    }
+    PlugPtr unplugImpl() override { return {}; }
 
     std::vector<uint8_t> storage;
 };
-}
+}  // namespace
 
 TEST(qemud, encodeRequestSize) {
     uint8_t sizeBytes[kSizeSize];
@@ -88,9 +84,8 @@ TEST(qemud, loopback) {
     bool continueReceiving = true;
     unsigned payloadsReceived = 0;
     std::vector<uint8_t> payload;
-    Parser parser([&payload, &payloadsReceived, &continueReceiving]
-                  (const void *data, size_t size){
-        const uint8_t *data8 = static_cast<const uint8_t *>(data);
+    Parser parser([&payload, &payloadsReceived, &continueReceiving](const void* data, size_t size) {
+        const uint8_t* data8 = static_cast<const uint8_t*>(data);
         payload.assign(data8, data8 + size);
         ++payloadsReceived;
         return continueReceiving;

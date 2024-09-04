@@ -10,21 +10,13 @@
 // GNU General Public License for more details.
 
 #include "android/utils/eintr_wrapper.h"
+
 #include "aemu/base/logging/CLog.h"
 
-
 #ifndef _WIN32
-void android_eintr_wrapper_fatal(const char* file,
-                                 long lineno,
-                                 const char* function,
+void android_eintr_wrapper_fatal(const char* file, long lineno, const char* function,
                                  const char* call) {
-    dfatal(
-            "%s:%ld:%s%s System call looped around EINTR %d times: %s\n",
-            file,
-            lineno,
-            function ? function : "",
-            function ? ":" : "",
-            MAX_EINTR_LOOP_COUNT,
-            call);
+    dfatal("%s:%ld:%s%s System call looped around EINTR %d times: %s\n", file, lineno,
+           function ? function : "", function ? ":" : "", MAX_EINTR_LOOP_COUNT, call);
 }
 #endif  // !_WIN32

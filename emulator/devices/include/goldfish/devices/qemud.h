@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstddef>
@@ -37,23 +37,23 @@ namespace qemud {
 
 constexpr size_t kSizeSize = 4;
 
-void encodeRequestSize(uint32_t size, uint8_t *data);
-size_t decodeRequestSize(const uint8_t *const data8);
+void encodeRequestSize(uint32_t size, uint8_t* data);
+size_t decodeRequestSize(const uint8_t* const data8);
 
 struct Parser {
-    using Sink = std::function<bool(const void *data, size_t size)>;
+    using Sink = std::function<bool(const void* data, size_t size)>;
 
     Parser(Sink sink);
-    bool onReceive(const void *const data, size_t size);
-    void saveToSnapshot(archive::IWriter &) const;
-    bool loadFromSnapshot(archive::IReader &);
+    bool onReceive(const void* const data, size_t size);
+    void saveToSnapshot(archive::IWriter&) const;
+    bool loadFromSnapshot(archive::IReader&);
 
-private:
+  private:
     Sink mSink;
     std::vector<uint8_t> mBuffer;
 };
 
-void sendAsync(const void *data, size_t size, cable::ISocket &dst);
+void sendAsync(const void* data, size_t size, cable::ISocket& dst);
 
 }  // namespace qemud
 }  // namespace devices

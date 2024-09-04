@@ -13,27 +13,27 @@
 // limitations under the License.
 #include "android/goldfish/devices/audio_device.h"
 
+#include <initializer_list>
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-
-#include <initializer_list>
-#include <string_view>
 namespace android::goldfish {
 absl::Status AudioDevice::initialize(const Emulator& emulator) {
-  return absl::OkStatus();
+    return absl::OkStatus();
 }
 
-std::vector<std::string>
-AudioDevice::getQemuParameters(const Emulator &emulator) const {
-  // TODO(jansene): Enable audio.
-  return {
-      "-audiodev", "none,id=hda,out.mixing-engine=off",
-      "-device",   absl::StrCat("intel-hda,addr=", addr()),
-      "-device",   "hda-output,audiodev=hda",
-  };
+std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator) const {
+    // TODO(jansene): Enable audio.
+    return {
+            "-audiodev", "none,id=hda,out.mixing-engine=off",
+            "-device",   absl::StrCat("intel-hda,addr=", addr()),
+            "-device",   "hda-output,audiodev=hda",
+    };
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <inttypes.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -39,8 +39,7 @@ AndroidPartitionType androidPartitionType_probeFile(const char* image_file);
 // Create or reset the file at |image_file| to be an empty partition of type
 // |part_type| and size |part_size|. Returns 0 on success, or -errno on
 // failure.
-int androidPartitionType_makeEmptyFile(AndroidPartitionType part_type,
-                                       uint64_t part_size,
+int androidPartitionType_makeEmptyFile(AndroidPartitionType part_type, uint64_t part_size,
                                        const char* image_file);
 
 ANDROID_END_HEADER

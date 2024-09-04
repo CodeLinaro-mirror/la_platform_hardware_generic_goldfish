@@ -28,24 +28,24 @@ namespace control {
  *
  */
 class DisplayChangeListener {
-public:
-  virtual ~DisplayChangeListener() = default;
+  public:
+    virtual ~DisplayChangeListener() = default;
 
-  /**
-   * @brief Adds an event listener to this object.
-   *
-   * The listener will receive Image events when new images are available.
-   * The image will be in the provided ImageFormat and of the display id in the
-   * image format.
-   *
-   * @param listener A pointer to the listener object to add.
-   * @param fmt The desired format of the image.
-   */
-  virtual EventChangeSupport<Image> *addListener(ImageFormat fmt) = 0;
+    /**
+     * @brief Adds an event listener to this object.
+     *
+     * The listener will receive Image events when new images are available.
+     * The image will be in the provided ImageFormat and of the display id in the
+     * image format.
+     *
+     * @param listener A pointer to the listener object to add.
+     * @param fmt The desired format of the image.
+     */
+    virtual EventChangeSupport<Image>* addListener(ImageFormat fmt) = 0;
 
-  virtual Image getScreenshot(ImageFormat fmt) = 0;
+    virtual Image getScreenshot(ImageFormat fmt) = 0;
 };
 
-} // namespace control
-} // namespace emulation
-} // namespace android
+}  // namespace control
+}  // namespace emulation
+}  // namespace android

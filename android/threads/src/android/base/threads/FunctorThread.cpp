@@ -20,8 +20,7 @@ namespace android {
 namespace base {
 
 FunctorThread::FunctorThread(Functor&& func, ThreadFlags flags)
-    : Thread(flags)
-    , mThreadFunc(std::move(func)) {
+    : Thread(flags), mThreadFunc(std::move(func)) {
     assert(mThreadFunc);
 }
 

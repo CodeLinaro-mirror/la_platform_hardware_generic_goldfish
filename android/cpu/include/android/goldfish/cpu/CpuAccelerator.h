@@ -12,7 +12,6 @@
 #pragma once
 
 #include <cstdlib>
-
 #include <string>
 #include <utility>
 
@@ -39,13 +38,13 @@ namespace android {
 //  CPU_ACCELERATOR_WHPX means Windows Hypervisor Platform.
 //
 enum CpuAccelerator {
-  CPU_ACCELERATOR_NONE = 0,
-  CPU_ACCELERATOR_KVM,
-  CPU_ACCELERATOR_HAX,
-  CPU_ACCELERATOR_HVF,
-  CPU_ACCELERATOR_WHPX,
-  CPU_ACCELERATOR_AEHD,
-  CPU_ACCELERATOR_MAX,
+    CPU_ACCELERATOR_NONE = 0,
+    CPU_ACCELERATOR_KVM,
+    CPU_ACCELERATOR_HAX,
+    CPU_ACCELERATOR_HVF,
+    CPU_ACCELERATOR_WHPX,
+    CPU_ACCELERATOR_AEHD,
+    CPU_ACCELERATOR_MAX,
 };
 
 // Returns whether or not the CPU supports all modern x86
@@ -84,9 +83,8 @@ AndroidCpuAcceleration GetCurrentCpuAcceleratorStatusCode();
 
 // For unit testing/debugging purpose only, must be called before
 // GetCurrentCpuAccelerator().
-void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel,
-                                        AndroidCpuAcceleration status_code,
-                                        const char *status);
+void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel, AndroidCpuAcceleration status_code,
+                                        const char* status);
 
 // Returns the Hyper-V configuration of the current system
 // and a short message describing it.
@@ -97,7 +95,6 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus();
 std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo();
 
 // For testing
-base::Version parseMacOSVersionString(const std::string &str,
-                                      std::string *status);
+base::Version parseMacOSVersionString(const std::string& str, std::string* status);
 
-} // namespace android
+}  // namespace android

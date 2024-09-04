@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "absl/status/status.h"
-#include "aemu/base/files/IniFile.h"
-#include "android/base/system/storage_capacity.h"
 #include <cstdint>
 #include <string>
+
+#include "absl/status/status.h"
+
+#include "aemu/base/files/IniFile.h"
+#include "android/base/system/storage_capacity.h"
 namespace android::goldfish {
 
 using base::StorageCapacity;
@@ -25,11 +27,11 @@ class Avd;
 
 // describes the properties of a given virtual device configuration file.
 class HardwareConfig {
-public:
-  HardwareConfig();
-  ~HardwareConfig() = default;
+  public:
+    HardwareConfig();
+    ~HardwareConfig() = default;
 
-  void load(Avd *avd, IniFile *ini);
+    void load(Avd* avd, IniFile* ini);
 
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
 #define HWCFG_INT(n, s, d, a, t) int n;
@@ -38,7 +40,7 @@ public:
 #define HWCFG_DISKSIZE(n, s, d, a, t) StorageCapacity n;
 
 #include "host-common/hw-config-defs.h"
-  StorageCapacity hw_sdCard_size{512_MiB};
+    StorageCapacity hw_sdCard_size{512_MiB};
 };
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

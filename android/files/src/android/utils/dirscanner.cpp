@@ -11,12 +11,12 @@
 */
 #include "android/utils/dirscanner.h"
 
-#include "android/base/system/System.h"
-#include "aemu/base/files/PathUtils.h"
-
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <filesystem>
+
+#include "aemu/base/files/PathUtils.h"
+#include "android/base/system/System.h"
 
 #ifdef _WIN32
 #include "aemu/base/system/Win32UnicodeString.h"
@@ -33,14 +33,9 @@ struct DirScanner {
     std::string result_str;
     size_t pos;
 
-    explicit DirScanner(fs::path dir) :
-            entries(),
-            prefix(dir),
-            result_str(),
-            pos(0u) {
+    explicit DirScanner(fs::path dir) : entries(), prefix(dir), result_str(), pos(0u) {
         entries = android::base::System::get()->scanDirEntries(dir);
-        for(const auto& entry : entries) {
-
+        for (const auto& entry : entries) {
 #ifdef _WIN32
             auto converted = Win32UnicodeString(entry.string());
             strEntries.push_back(converted.toString());
@@ -49,7 +44,6 @@ struct DirScanner {
 #endif
         }
     }
-
 };
 
 const char* dirScanner_next(DirScanner* s) {
@@ -61,7 +55,7 @@ const char* dirScanner_next(DirScanner* s) {
 
 const char* dirScanner_nextFull(DirScanner* s) {
     if (s->pos < s->strEntries.size()) {
-        auto path =  s->prefix / s->entries[s->pos++];
+        auto path = s->prefix / s->entries[s->pos++];
 #if _WIN32
         s->result_str = Win32UnicodeString(path.string()).toString();
 #else
@@ -77,12 +71,12 @@ size_t dirScanner_numEntries(DirScanner* s) {
 }
 
 DirScanner* dirScanner_new(const char* rootPath) {
-    #ifdef _WIN32
+#ifdef _WIN32
     auto root = Win32UnicodeString(rootPath);
     DirScanner* s = new DirScanner(root.toString());
-    #else
+#else
     DirScanner* s = new DirScanner(rootPath);
-    #endif
+#endif
     return s;
 }
 

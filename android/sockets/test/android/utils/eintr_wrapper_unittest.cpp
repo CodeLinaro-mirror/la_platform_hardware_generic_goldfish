@@ -14,10 +14,9 @@
 
 #include "android/utils/eintr_wrapper.h"
 
-#include <stdarg.h>
-#include <setjmp.h>
-
 #include <gtest/gtest.h>
+#include <setjmp.h>
+#include <stdarg.h>
 
 // Loop counter used by several functions below.
 static int loop_count = 0;
@@ -25,20 +24,19 @@ static int loop_count = 0;
 // This function returns the first time it is called, or -1/EINVAL
 // otherwise.
 static int return_einval_after_first_call(void) {
-    if (++loop_count == 1)
-        return 0;
+    if (++loop_count == 1) return 0;
 
     errno = EINVAL;
     return -1;
 }
 
-TEST(eintr_wrapper,NoLoopOnSuccess) {
+TEST(eintr_wrapper, NoLoopOnSuccess) {
     loop_count = 0;
     EXPECT_EQ(0, HANDLE_EINTR(return_einval_after_first_call()));
     EXPECT_EQ(1, loop_count);
 }
 
-TEST(eintr_wrapper,NoLoopOnRegularError) {
+TEST(eintr_wrapper, NoLoopOnRegularError) {
     loop_count = 0;
     EXPECT_EQ(0, HANDLE_EINTR(return_einval_after_first_call()));
     EXPECT_EQ(-1, HANDLE_EINTR(return_einval_after_first_call()));
@@ -57,7 +55,7 @@ static int always_return_eintr(void) {
 #endif
 }
 
-TEST(eintr_wrapper,IgnoreEintr) {
+TEST(eintr_wrapper, IgnoreEintr) {
     loop_count = 0;
     EXPECT_EQ(0, IGNORE_EINTR(always_return_eintr()));
     EXPECT_EQ(1, loop_count);
@@ -75,7 +73,7 @@ static int loop_eintr_10(void) {
     return 0;
 }
 
-TEST(eintr_wrapper,LoopOnEintr) {
+TEST(eintr_wrapper, LoopOnEintr) {
     loop_count = 0;
     EXPECT_EQ(0, HANDLE_EINTR(loop_eintr_10()));
     EXPECT_EQ(10, loop_count);

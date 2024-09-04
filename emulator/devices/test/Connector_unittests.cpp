@@ -11,8 +11,8 @@
 
 #include <gtest/gtest.h>
 
-#include "goldfish/devices/Connector.h"
 #include "goldfish/archive/DequeArchive.h"
+#include "goldfish/devices/Connector.h"
 #include "goldfish/devices/cable/saveload.h"
 
 namespace goldfish {
@@ -25,49 +25,41 @@ using cable::SocketPtr;
 
 namespace {
 struct TestSocket : public cable::ISocket {
-    void sendAsync(const void *data, size_t size) override {
-    }
+    void sendAsync(const void* data, size_t size) override {}
 
     PlugPtr switchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override {
-        return std::move(plug);
-    }
+    PlugPtr unplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) {
-        return plug->onReceive(data.data(), data.size());
-    }
+    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
 
     PlugPtr plug;
 };
 
 struct TestDevice : public cable::IPlug {
     TestDevice(cable::SocketPtr socket, bool isQemud, std::string_view args)
-        : mSocket(std::move(socket)), mIsQemud(isQemud)
-        , mArgs(std::string(args.begin(), args.end())) {}
+        : mSocket(std::move(socket)),
+          mIsQemud(isQemud),
+          mArgs(std::string(args.begin(), args.end())) {}
 
-    cable::SocketPtr onUnplug() override {
-        return std::move(mSocket);
-    }
+    cable::SocketPtr onUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void *data, size_t size) override {
-        mData.append(static_cast<const char *>(data), size);
+    bool onReceive(const void* data, size_t size) override {
+        mData.append(static_cast<const char*>(data), size);
         return true;
     }
 
-    bool supportsLoadingFromSnapshot() const override {
-        return true;
-    }
+    bool supportsLoadingFromSnapshot() const override { return true; }
 
     TypeId getSnapshotTypeId() const override {
         using namespace std::string_literals;
         return "TestDevice"s;
     }
 
-    bool saveStateToSnapshot(archive::IWriter &writer) const override {
+    bool saveStateToSnapshot(archive::IWriter& writer) const override {
         writer << mIsQemud << mArgs << mData;
         return true;
     }
@@ -79,20 +71,18 @@ struct TestDevice : public cable::IPlug {
 };
 
 const Connector::DeviceEntry kDeviceEntries[] = {
-    {"-TestDevice", [](cable::SocketPtr socket,
-                       PingTopic &pingTopic,
-                       std::string_view args){
-        return std::make_shared<TestDevice>(std::move(socket), false, args);
-    }},
-    {"qTestDevice", [](cable::SocketPtr socket,
-                       PingTopic &pingTopic,
-                       std::string_view args){
-        return std::make_shared<TestDevice>(std::move(socket), true, args);
-    }},
+        {"-TestDevice",
+         [](cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args) {
+             return std::make_shared<TestDevice>(std::move(socket), false, args);
+         }},
+        {"qTestDevice",
+         [](cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args) {
+             return std::make_shared<TestDevice>(std::move(socket), true, args);
+         }},
 };
 
 constexpr size_t kDeviceEntriesSize = sizeof(kDeviceEntries) / sizeof(kDeviceEntries[0]);
-}  // namespace namespace
+}  // namespace
 
 TEST(Connector, incomplete_request) {
     using namespace std::literals;
@@ -102,8 +92,7 @@ TEST(Connector, incomplete_request) {
     {
         PingTopic pingTopic;
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("incom"sv));
         EXPECT_TRUE(testSocket.send("plete"sv));
@@ -122,9 +111,8 @@ TEST(Connector, bad_request) {
 
     PingTopic pingTopic;
     TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
-                                                      kDeviceEntries, kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
+                                                  kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("bad\0"sv));
     EXPECT_FALSE(testSocket.send("pipe:TestDevice:correct but ignored\0"sv));
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
@@ -140,9 +128,8 @@ TEST(Connector, unknown_device) {
 
     PingTopic pingTopic;
     TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
-                                                      kDeviceEntries, kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
+                                                  kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
@@ -158,9 +145,8 @@ TEST(Connector, unknown_qemud_device) {
 
     PingTopic pingTopic;
     TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
-                                                      kDeviceEntries, kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
+                                                  kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:qemud:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
@@ -177,8 +163,7 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
     {
         PingTopic pingTopic;
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
@@ -186,9 +171,9 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");    // type
-    EXPECT_EQ(getUnsigned(archive), 1);             // isQemud
-    EXPECT_EQ(getString(archive), "args");          // args
+    EXPECT_EQ(getString(archive), "TestDevice");  // type
+    EXPECT_EQ(getUnsigned(archive), 1);           // isQemud
+    EXPECT_EQ(getString(archive), "args");        // args
     EXPECT_EQ(getString(archive), "unconsumed");
 }
 
@@ -200,8 +185,7 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
     {
         PingTopic pingTopic;
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));
@@ -209,9 +193,9 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");    // type
-    EXPECT_EQ(getUnsigned(archive), 1);             // isQemud
-    EXPECT_EQ(getString(archive), "");              // args
+    EXPECT_EQ(getString(archive), "TestDevice");  // type
+    EXPECT_EQ(getUnsigned(archive), 1);           // isQemud
+    EXPECT_EQ(getString(archive), "");            // args
     EXPECT_EQ(getString(archive), "unconsumed");
 }
 
@@ -223,8 +207,7 @@ TEST(Connector, TestDevice_args_unconsumed) {
     {
         PingTopic pingTopic;
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
@@ -232,9 +215,9 @@ TEST(Connector, TestDevice_args_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");    // type
-    EXPECT_EQ(getUnsigned(archive), 0);             // isQemud
-    EXPECT_EQ(getString(archive), "args");          // args
+    EXPECT_EQ(getString(archive), "TestDevice");  // type
+    EXPECT_EQ(getUnsigned(archive), 0);           // isQemud
+    EXPECT_EQ(getString(archive), "args");        // args
     EXPECT_EQ(getString(archive), "unconsumed");
 }
 
@@ -246,8 +229,7 @@ TEST(Connector, TestDevice_unconsumed) {
     {
         PingTopic pingTopic;
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket),
-                                                      pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));
@@ -255,9 +237,9 @@ TEST(Connector, TestDevice_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");    // type
-    EXPECT_EQ(getUnsigned(archive), 0);             // isQemud
-    EXPECT_EQ(getString(archive), "");              // args
+    EXPECT_EQ(getString(archive), "TestDevice");  // type
+    EXPECT_EQ(getUnsigned(archive), 0);           // isQemud
+    EXPECT_EQ(getString(archive), "");            // args
     EXPECT_EQ(getString(archive), "unconsumed");
 }
 

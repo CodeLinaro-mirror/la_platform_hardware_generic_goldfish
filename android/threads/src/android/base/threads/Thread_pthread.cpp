@@ -29,12 +29,14 @@ namespace android {
 namespace base {
 
 Thread::Thread(ThreadFlags flags, int stackSize, std::optional<std::string> nameOpt)
-    : mThread((pthread_t)NULL), mStackSize(stackSize), mFlags(flags), mNameOpt(std::move(nameOpt)) {}
+    : mThread((pthread_t)NULL),
+      mStackSize(stackSize),
+      mFlags(flags),
+      mNameOpt(std::move(nameOpt)) {}
 
 Thread::~Thread() {
     assert(!mStarted || mFinished);
-    if ((mFlags & ThreadFlags::Detach) == ThreadFlags::NoFlags && mStarted &&
-        !mJoined) {
+    if ((mFlags & ThreadFlags::Detach) == ThreadFlags::NoFlags && mStarted && !mJoined) {
         // Make sure we reclaim the OS resources.
         pthread_join(mThread, nullptr);
     }
@@ -56,8 +58,7 @@ bool Thread::start() {
         pthread_attr_setstacksize(&attr, mStackSize);
     }
 
-    if (pthread_create(&mThread, mStackSize ? &attr : nullptr, thread_main,
-                       this)) {
+    if (pthread_create(&mThread, mStackSize ? &attr : nullptr, thread_main, this)) {
         LOG(ERROR) << "Thread: failed to create a thread, errno " << errno;
         ret = false;
         // We _do not_ need to guard this access to |mFinished| because we're
@@ -116,8 +117,7 @@ bool Thread::tryWait(intptr_t* exitStatus) {
 
     if (!mJoined) {
         if (pthread_join(mThread, NULL)) {
-            LOG(WARNING) << "Thread: failed to join a finished thread, errno "
-                         << errno;
+            LOG(WARNING) << "Thread: failed to join a finished thread, errno " << errno;
         }
         mJoined = true;
     }
@@ -198,7 +198,6 @@ static unsigned long sUiThreadId = 0;
 
 void setUiThreadId(unsigned long id) {
     sUiThreadId = id;
-
 }
 
 bool isRunningInUiThread() {

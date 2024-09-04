@@ -8,12 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
+#include "goldfish/devices/cable/cable.h"
 
 /* These functions should be used inside socket managers
  * to save-load their internal implementations of `ISocket`.
@@ -26,13 +26,13 @@ namespace cable {
 /* fully (both `IPlug::TypeId` and its state) saves
  *`IPlug` to a snapshot.
  */
-bool savePlugToSnapshot(const IPlug &plug, archive::IWriter &);
+bool savePlugToSnapshot(const IPlug& plug, archive::IWriter&);
 
 /* reads `IPlug::TypeId`, finds its loader (see `registerPlugLoader`
  * in cable.h) and loads an `IPlug` from a snapshot. If any of these
  * operation fails, it returns the given `socket` back.
  */
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, archive::IReader &);
+PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, archive::IReader&);
 
 }  // namespace cable
 }  // namespace devices

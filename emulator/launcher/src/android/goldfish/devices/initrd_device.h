@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
 #include <filesystem>
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
@@ -26,13 +27,13 @@ namespace android::goldfish {
  * configuration properties necessary for the emulator to boot.
  */
 class Initrd : public Device {
-public:
-  explicit Initrd() : Device("initrd") {}
+  public:
+    explicit Initrd() : Device("initrd") {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
-private:
-  std::vector<std::pair<std::string, std::string>> mUserspaceBootOpts;
+  private:
+    std::vector<std::pair<std::string, std::string>> mUserspaceBootOpts;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

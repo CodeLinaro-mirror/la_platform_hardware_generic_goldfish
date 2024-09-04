@@ -47,55 +47,52 @@ using android::base::Bazel;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
-int main(int argc, char **argv) {
-  absl::InitializeLog();
-  absl::log_internal::EnableSymbolizeLogStackTrace(true);
-  absl::SetProgramUsageMessage(
-      "Welcome to goldfish \U0001F420, the android emulator launcher");
-  absl::ParseCommandLine(argc, argv);
-  Bazel::storeCommandLineArgs(argc, argv);
-  std::cout
-      << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
+int main(int argc, char** argv) {
+    absl::InitializeLog();
+    absl::log_internal::EnableSymbolizeLogStackTrace(true);
+    absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
+    absl::ParseCommandLine(argc, argv);
+    Bazel::storeCommandLineArgs(argc, argv);
+    std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
-  if (absl::GetFlag(FLAGS_list_avds)) {
-    auto avds = Avd::list();
-    for (const auto &name : avds) {
-      auto a = Avd::fromName(name);
-      if (!a.status().ok()) {
-        std::cout << name << "is not valid: " << a.status().message();
-      } else {
-        std::cout << a->details() << '\n';
-      }
+    if (absl::GetFlag(FLAGS_list_avds)) {
+        auto avds = Avd::list();
+        for (const auto& name : avds) {
+            auto a = Avd::fromName(name);
+            if (!a.status().ok()) {
+                std::cout << name << "is not valid: " << a.status().message();
+            } else {
+                std::cout << a->details() << '\n';
+            }
+        }
+        return 0;
     }
+
+    auto name = absl::GetFlag(FLAGS_avd);
+    auto status = Avd::fromName(name);
+    if (!status.ok()) {
+        LOG(FATAL) << "Failed to load " << name << " due to " << status.status().message();
+    }
+    LOG(INFO) << "Creating emulator";
+    std::vector<std::string> additionalParams;
+    if (!absl::GetFlag(FLAGS_vnc).empty()) {
+        additionalParams.push_back("-display");
+        additionalParams.push_back(absl::StrCat("vnc=", absl::GetFlag(FLAGS_vnc)));
+    }
+
+    if (!absl::GetFlag(FLAGS_logcat).empty()) {
+        additionalParams.push_back("-chardev");
+        additionalParams.push_back(
+                absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
+    }
+
+    Emulator emulator{std::move(status.value()), std::move(additionalParams)};
+
+    if (absl::GetFlag(FLAGS_wipe_data)) {
+        emulator.clear();
+    }
+
+    (void)emulator.launch();
+
     return 0;
-  }
-
-  auto name = absl::GetFlag(FLAGS_avd);
-  auto status = Avd::fromName(name);
-  if (!status.ok()) {
-    LOG(FATAL) << "Failed to load " << name << " due to "
-               << status.status().message();
-  }
-  LOG(INFO) << "Creating emulator";
-  std::vector<std::string> additionalParams;
-  if (!absl::GetFlag(FLAGS_vnc).empty()) {
-    additionalParams.push_back("-display");
-    additionalParams.push_back(absl::StrCat("vnc=", absl::GetFlag(FLAGS_vnc)));
-  }
-
-  if (!absl::GetFlag(FLAGS_logcat).empty()) {
-    additionalParams.push_back("-chardev");
-    additionalParams.push_back(
-        absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
-  }
-
-  Emulator emulator{std::move(status.value()), std::move(additionalParams)};
-
-  if (absl::GetFlag(FLAGS_wipe_data)) {
-    emulator.clear();
-  }
-
-  (void)emulator.launch();
-
-  return 0;
 }

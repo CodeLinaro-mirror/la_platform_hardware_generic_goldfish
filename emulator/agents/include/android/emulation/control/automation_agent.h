@@ -10,10 +10,10 @@
 // GNU General Public License for more details.
 #pragma once
 
+#include <string_view>
+
 #include "android/automation/AutomationController.h"
 #include "android/utils/compiler.h"
-
-#include <string_view>
 
 ANDROID_BEGIN_HEADER
 
@@ -25,23 +25,20 @@ typedef struct QAndroidAutomationAgent {
     void (*reset)();
 
     // Start a recording to a file.
-    android::automation::StartResult (*startRecording)(
-            std::string_view filename);
+    android::automation::StartResult (*startRecording)(std::string_view filename);
 
     // Stops a recording to a file.
     android::automation::StopResult (*stopRecording)();
 
     // Start a playback from a file.
-    android::automation::StartResult (*startPlayback)(
-            std::string_view filename);
+    android::automation::StartResult (*startPlayback)(std::string_view filename);
 
     // Stop playback from a file.
     android::automation::StopResult (*stopPlayback)();
 
     // Start playback with stop callback.
-    android::automation::StartResult (*startPlaybackWithCallback)(
-            std::string_view filename,
-            void (*onStopCallback)());
+    android::automation::StartResult (*startPlaybackWithCallback)(std::string_view filename,
+                                                                  void (*onStopCallback)());
 
     // Set the macro name in the header of a file.
     void (*setMacroName)(std::string_view macroName, std::string_view filename);

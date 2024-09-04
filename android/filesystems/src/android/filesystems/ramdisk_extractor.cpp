@@ -11,13 +11,13 @@
 
 #include "android/filesystems/ramdisk_extractor.h"
 
+#include <zlib.h>
+
 #include <cinttypes>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-#include <zlib.h>
 
 #include "absl/log/log.h"
 
@@ -54,7 +54,7 @@ namespace {
 //     }
 //      .. stream is closed automatically on scope exit.
 class GZipInputStream {
-public:
+  public:
     // Open a new input stream to read from file |filePath|.
     // The constructor can never fail, so call error() after
     // this to see if an error occurred.
@@ -156,7 +156,7 @@ public:
         return true;
     }
 
-private:
+  private:
     GZipInputStream(const GZipInputStream&) = delete;
     auto operator=(const GZipInputStream&) -> const GZipInputStream& = delete;
 
@@ -190,9 +190,7 @@ auto parse_hex8(const char* input, uint32_t* value) -> bool {
 
 }  // namespace
 
-auto android_extractRamdiskFile(const char* ramdiskPath,
-                                const char* fileName,
-                                char** out,
+auto android_extractRamdiskFile(const char* ramdiskPath, const char* fileName, char** out,
                                 size_t* outSize) -> bool {
     *out = nullptr;
     *outSize = 0;
@@ -228,8 +226,7 @@ auto android_extractRamdiskFile(const char* ramdiskPath,
         cpio_newc_header header;
         if (!input.doRead(&header, sizeof header)) {
             // Assume end of input here.
-            D("Could not find %s in ramdisk image at %s\n", fileName,
-              ramdiskPath);
+            D("Could not find %s in ramdisk image at %s\n", fileName, ramdiskPath);
             return false;
         }
 
@@ -265,8 +262,7 @@ auto android_extractRamdiskFile(const char* ramdiskPath,
         static const char kTrailer[] = "TRAILER!!!";
         static const size_t kTrailerSize = sizeof(kTrailer) - 1U;
 
-        if ((entrySize == 0 || nameSize != fileNameLen + 1U) &&
-            nameSize != kTrailerSize + 1U) {
+        if ((entrySize == 0 || nameSize != fileNameLen + 1U) && nameSize != kTrailerSize + 1U) {
             D("---- %d Skipping\n", __LINE__);
         } else {
             // Read the name and compare it.
@@ -281,8 +277,7 @@ auto android_extractRamdiskFile(const char* ramdiskPath,
             skipCount -= nameSize;
 
             // Check for last entry.
-            if (nameSize == kTrailerSize &&
-                (strcmp(entryName.c_str(), kTrailer) == 0)) {
+            if (nameSize == kTrailerSize && (strcmp(entryName.c_str(), kTrailer) == 0)) {
                 D("End of archive reached. Could not find %s in ramdisk image "
                   "at %s",
                   fileName, ramdiskPath);
@@ -290,8 +285,7 @@ auto android_extractRamdiskFile(const char* ramdiskPath,
             }
 
             // Check for the search file name.
-            if (nameSize == entryName.size() &&
-                (strcmp(entryName.c_str(), fileName) == 0)) {
+            if (nameSize == entryName.size() && (strcmp(entryName.c_str(), fileName) == 0)) {
                 // Found it !! Skip over padding.
                 if (!input.doSkip(skipName - nameSize)) {
                     D("Could not skip ramdisk name entry!");

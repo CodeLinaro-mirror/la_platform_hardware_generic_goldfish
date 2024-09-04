@@ -16,23 +16,21 @@
 typedef struct DisplayChangeListener;
 typedef struct DisplaySurface;
 typedef struct GrpcDeviceConfiguration {
-  char *addr;
-  char *tls_cer;
-  char *tls_key;
-  char *tls_ca;
-  char *allowlist;
-  char *avd;
-  bool use_token;
-  int idle_timeout;
-  int port;
+    char* addr;
+    char* tls_cer;
+    char* tls_key;
+    char* tls_ca;
+    char* allowlist;
+    char* avd;
+    bool use_token;
+    int idle_timeout;
+    int port;
 } GrpcDeviceConfiguration;
 
-bool initialize(GrpcDeviceConfiguration *device);
-void finalize(GrpcDeviceConfiguration *device);
+bool initialize(GrpcDeviceConfiguration* device);
+void finalize(GrpcDeviceConfiguration* device);
 
 // UI related callbacks
-void grpc_dpy_gfx_update(struct DisplayChangeListener *dcl, int x, int y, int w,
-                         int h);
-void grpc_dpy_gfx_refresh(struct DisplayChangeListener *dcl);
-void grpc_dpy_gfx_switch(struct DisplayChangeListener *dcl,
-                         struct DisplaySurface *new_surface);
+void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h);
+void grpc_dpy_gfx_refresh(struct DisplayChangeListener* dcl);
+void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);

@@ -11,9 +11,9 @@
 
 #include "aemu/base/async/Looper.h"
 
-#include "aemu/base/async/DefaultLooper.h"
-
 #include <utility>
+
+#include "aemu/base/async/DefaultLooper.h"
 
 namespace android {
 namespace base {
@@ -62,14 +62,9 @@ Looper* Looper::Timer::parentLooper() const {
     return mLooper;
 }
 
-Looper::Timer::Timer(Looper* looper,
-                     Looper::Timer::Callback callback,
-                     void* opaque,
+Looper::Timer::Timer(Looper* looper, Looper::Timer::Callback callback, void* opaque,
                      Looper::ClockType clock)
-    : mLooper(looper),
-      mCallback(callback),
-      mOpaque(opaque),
-      mClockType(clock) {}
+    : mLooper(looper), mCallback(callback), mOpaque(opaque), mClockType(clock) {}
 
 Looper::FdWatch::~FdWatch() = default;
 
@@ -77,10 +72,7 @@ int Looper::FdWatch::fd() const {
     return mFd;
 }
 
-Looper::FdWatch::FdWatch(Looper* looper,
-                         int fd,
-                         Looper::FdWatch::Callback callback,
-                         void* opaque)
+Looper::FdWatch::FdWatch(Looper* looper, int fd, Looper::FdWatch::Callback callback, void* opaque)
     : mLooper(looper), mFd(fd), mCallback(callback), mOpaque(opaque) {}
 
 Looper::Task::Task(Looper* looper, Looper::Task::Callback&& callback)

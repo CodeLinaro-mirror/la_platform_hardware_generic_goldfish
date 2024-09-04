@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
 #include "nlohmann/json.hpp"
 #include "tink/keyset_handle.h"
 
@@ -30,7 +31,7 @@ namespace control {
 // A class for loading JSON Web Key (JWK) sets from files and managing the
 // active set of keys.
 class JwkKeyLoader {
-public:
+  public:
     using Path = std::string;
     using json = nlohmann::json;
     using Keyset = std::unique_ptr<crypto::tink::KeysetHandle>;
@@ -55,9 +56,7 @@ public:
      * @param wait_for The delay between each retry attempt.
      * @return An absl::Status indicating success or failure of the operation.
      */
-    absl::Status addWithRetryForEmpty(Path toAdd,
-                                      int retries,
-                                      std::chrono::milliseconds wait_for);
+    absl::Status addWithRetryForEmpty(Path toAdd, int retries, std::chrono::milliseconds wait_for);
 
     /**
      * Loads a JWK set from a file and adds it to the collection.
@@ -106,7 +105,7 @@ public:
      */
     std::string activeKeysetAsString() const;
 
-private:
+  private:
     std::unordered_map<Path, json> mPublicKeys;
     mutable std::mutex mKeylock;
 };

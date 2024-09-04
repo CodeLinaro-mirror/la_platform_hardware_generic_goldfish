@@ -17,16 +17,16 @@ namespace base {
  * Executes the specified program with the given arguments, abstracting away
  * operating system-specific differences.
  *
- * This function provides a simplified interface for executing external programs,
- * handling variations between POSIX and Windows systems:
+ * This function provides a simplified interface for executing external
+ * programs, handling variations between POSIX and Windows systems:
  *
  * - **POSIX:** Directly calls `execv()` to replace the current process with the
  *   new program.
  * - **Windows:** Spawns a child process and waits for its completion. This
  *   workaround addresses limitations in the Windows console that hinder
  *   concurrent process execution. Additionally, it installs a console control
- *   handler to gracefully terminate the child process in response to events like
- *   Ctrl-C or closing the console window.
+ *   handler to gracefully terminate the child process in response to events
+ * like Ctrl-C or closing the console window.
  *
  * @param path The path to the executable file.
  * @param argv An array of strings representing the command-line arguments,
@@ -35,6 +35,6 @@ namespace base {
  * @return This function only returns on error; a successful execution
  *         will not return.
  */
-int safe_execv(const char *path, char *const *argv);
-} // namespace base
-} // namespace android
+int safe_execv(const char* path, char* const* argv);
+}  // namespace base
+}  // namespace android

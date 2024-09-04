@@ -35,7 +35,7 @@ namespace control {
  */
 template <typename T>
 class Library {
-public:
+  public:
     /**
      * @brief Borrow an object of type `T` with optional constructor arguments.
      *
@@ -60,11 +60,10 @@ public:
      */
     template <typename... Args>
     std::shared_ptr<T> acquire(Args&&... args) {
-        std::shared_ptr<T> obj(new T(std::forward<Args>(args)...),
-                               [this](T* ptr) {
-                                   removeBorrowedObject(ptr);
-                                   delete ptr;
-                               });
+        std::shared_ptr<T> obj(new T(std::forward<Args>(args)...), [this](T* ptr) {
+            removeBorrowedObject(ptr);
+            delete ptr;
+        });
 
         std::lock_guard<std::mutex> lock(mBorrowedLock);
         mBorrowed.insert(obj.get());
@@ -89,11 +88,10 @@ public:
     // timeout, `false` otherwise.
     bool waitUntilLibraryIsClear(const std::chrono::milliseconds timeout) {
         std::unique_lock<std::mutex> lock(mBorrowedLock);
-        return mBorrowedCv.wait_for(lock, timeout,
-                                    [this]() { return mBorrowed.empty(); });
+        return mBorrowedCv.wait_for(lock, timeout, [this]() { return mBorrowed.empty(); });
     }
 
-private:
+  private:
     std::unordered_set<T*> mBorrowed;
     std::mutex mBorrowedLock;
     std::condition_variable mBorrowedCv;

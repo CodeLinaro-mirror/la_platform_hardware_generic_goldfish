@@ -14,34 +14,30 @@
  * limitations under the License.
  */
 
-#include <errno.h>
-
 #include "ext4_sb.h"
 
-int ext4_parse_sb(struct ext4_super_block *sb, struct fs_info *info)
-{
-	uint64_t len_blocks;
+#include <errno.h>
 
-        if (sb->s_magic != EXT4_SUPER_MAGIC)
-                return -EINVAL;
+int ext4_parse_sb(struct ext4_super_block* sb, struct fs_info* info) {
+    uint64_t len_blocks;
 
-        if ((sb->s_state & EXT4_VALID_FS) != EXT4_VALID_FS)
-                return -EINVAL;
+    if (sb->s_magic != EXT4_SUPER_MAGIC) return -EINVAL;
 
-	info->block_size = 1024 << sb->s_log_block_size;
-	info->blocks_per_group = sb->s_blocks_per_group;
-	info->inodes_per_group = sb->s_inodes_per_group;
-	info->inode_size = sb->s_inode_size;
-	info->inodes = sb->s_inodes_count;
-	info->feat_ro_compat = sb->s_feature_ro_compat;
-	info->feat_compat = sb->s_feature_compat;
-	info->feat_incompat = sb->s_feature_incompat;
-	info->bg_desc_reserve_blocks = sb->s_reserved_gdt_blocks;
-	info->label = sb->s_volume_name;
+    if ((sb->s_state & EXT4_VALID_FS) != EXT4_VALID_FS) return -EINVAL;
 
-	len_blocks = ((uint64_t)sb->s_blocks_count_hi << 32) +
-                sb->s_blocks_count_lo;
-	info->len = (uint64_t)info->block_size * len_blocks;
+    info->block_size = 1024 << sb->s_log_block_size;
+    info->blocks_per_group = sb->s_blocks_per_group;
+    info->inodes_per_group = sb->s_inodes_per_group;
+    info->inode_size = sb->s_inode_size;
+    info->inodes = sb->s_inodes_count;
+    info->feat_ro_compat = sb->s_feature_ro_compat;
+    info->feat_compat = sb->s_feature_compat;
+    info->feat_incompat = sb->s_feature_incompat;
+    info->bg_desc_reserve_blocks = sb->s_reserved_gdt_blocks;
+    info->label = sb->s_volume_name;
 
-	return 0;
+    len_blocks = ((uint64_t)sb->s_blocks_count_hi << 32) + sb->s_blocks_count_lo;
+    info->len = (uint64_t)info->block_size * len_blocks;
+
+    return 0;
 }

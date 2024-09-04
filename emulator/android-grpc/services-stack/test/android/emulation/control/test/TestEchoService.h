@@ -15,17 +15,19 @@
 #pragma once
 #include <grpcpp/grpcpp.h>  // for Status
 #include <stdint.h>         // for uint8_t
-#include <cstdint>          // for uint8_t
-#include <memory>           // for unique_ptr
-#include <type_traits>      // for move
-#include <utility>          // for move
-#include <vector>           // for vector
+
+#include <cstdint>      // for uint8_t
+#include <memory>       // for unique_ptr
+#include <type_traits>  // for move
+#include <utility>      // for move
+#include <vector>       // for vector
 
 #include "grpcpp/impl/codegen/completion_queue.h"  // for ServerC...
 #include "grpcpp/impl/codegen/server_context.h"    // for ServerC...
 #include "grpcpp/impl/codegen/status.h"            // for Status
 #include "grpcpp/impl/codegen/sync_stream.h"       // for ServerR...
-#include "test_echo_service.grpc.pb.h"             // for TestEcho
+
+#include "test_echo_service.grpc.pb.h"  // for TestEcho
 
 namespace google {
 namespace protobuf {
@@ -42,14 +44,11 @@ using grpc::ServerContext;
 using grpc::Status;
 
 class TestEchoServiceBase : public TestEcho::Service {
-public:
+  public:
     virtual ~TestEchoServiceBase() = default;
-    Status echo(ServerContext* context,
-                const Msg* request,
-                Msg* response) override;
+    Status echo(ServerContext* context, const Msg* request, Msg* response) override;
 
-    Status data(ServerContext* context,
-                const ::google::protobuf::Empty* empty,
+    Status data(ServerContext* context, const ::google::protobuf::Empty* empty,
                 Msg* response) override;
 
     int invocations() { return mCounter; }
@@ -58,48 +57,41 @@ public:
 
     void plusOne() { mCounter++; }
 
-protected:
+  protected:
     int mCounter{0};
     std::vector<uint8_t> mData;
 };
 
 class HeartbeatService : public TestEcho::Service {
-public:
-    ::grpc::Status streamEcho(
-            ::grpc::ServerContext* /*context*/,
-            ::grpc::ServerReaderWriter<Msg, Msg>* /*stream*/) override;
+  public:
+    ::grpc::Status streamEcho(::grpc::ServerContext* /*context*/,
+                              ::grpc::ServerReaderWriter<Msg, Msg>* /*stream*/) override;
 };
 
 #ifndef DISABLE_ASYNC_GRPC
-class AsyncHeartbeatService
-    : public TestEcho::WithCallbackMethod_streamEcho<HeartbeatService> {
-    grpc::ServerBidiReactor<Msg, Msg>* streamEcho(
-            ::grpc::CallbackServerContext* context) override;
+class AsyncHeartbeatService : public TestEcho::WithCallbackMethod_streamEcho<HeartbeatService> {
+    grpc::ServerBidiReactor<Msg, Msg>* streamEcho(::grpc::CallbackServerContext* context) override;
 };
 #else
 class AsyncHeartbeatService : public TestEcho::Service {
-public:
+  public:
     ~AsyncHeartbeatService() = default;
-    ::grpc::Status streamEcho(
-            ::grpc::ServerContext* /*context*/,
-            ::grpc::ServerReaderWriter<Msg, Msg>* /*stream*/) override;
+    ::grpc::Status streamEcho(::grpc::ServerContext* /*context*/,
+                              ::grpc::ServerReaderWriter<Msg, Msg>* /*stream*/) override;
 };
 #endif
 
 #ifndef DISABLE_ASYNC_GRPC
-class AsyncTestEchoService
-    : public TestEcho::WithCallbackMethod_streamEcho<TestEchoServiceBase> {
-public:
-    grpc::ServerBidiReactor<Msg, Msg>* streamEcho(
-            ::grpc::CallbackServerContext* context) override;
+class AsyncTestEchoService : public TestEcho::WithCallbackMethod_streamEcho<TestEchoServiceBase> {
+  public:
+    grpc::ServerBidiReactor<Msg, Msg>* streamEcho(::grpc::CallbackServerContext* context) override;
 };
 #else
 class AsyncTestEchoService : public TestEchoServiceBase {
-public:
+  public:
     ~AsyncTestEchoService() = default;
-    virtual ::grpc::Status streamEcho(
-            ::grpc::ServerContext* context,
-            ::grpc::ServerReaderWriter<Msg, Msg>* stream) override;
+    virtual ::grpc::Status streamEcho(::grpc::ServerContext* context,
+                                      ::grpc::ServerReaderWriter<Msg, Msg>* stream) override;
 };
 #endif
 

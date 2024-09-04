@@ -22,7 +22,6 @@
 #include "google/protobuf/empty.pb.h"
 
 #include "aemu/base/logging/Log.h"
-
 #include "android/emulation/control/utils/EmulatorGrcpClient.h"
 namespace android {
 namespace emulation {
@@ -42,10 +41,9 @@ static OnCompleted<Empty> nothing = [](absl::StatusOr<Empty*> _ignored) {};
  * @param grpc_status The gRPC status object to convert.
  * @return The equivalent Abseil status object.
  */
-static absl::Status ConvertGrpcStatusToAbseilStatus(
-    const ::grpc::Status& grpc_status) {
-  return absl::Status(static_cast<absl::StatusCode>(grpc_status.error_code()),
-                      grpc_status.error_message());
+static absl::Status ConvertGrpcStatusToAbseilStatus(const ::grpc::Status& grpc_status) {
+    return absl::Status(static_cast<absl::StatusCode>(grpc_status.error_code()),
+                        grpc_status.error_message());
 }
 
 /**
@@ -61,12 +59,12 @@ static absl::Status ConvertGrpcStatusToAbseilStatus(
  * a unique_ptr to the client context object.
  */
 template <class Request, class Response>
-std::tuple<Request*, Response*, std::shared_ptr<grpc::ClientContext>>
-createGrpcRequestContext(const std::shared_ptr<EmulatorGrpcClient>& client) {
-  auto request = new Request();
-  auto response = new Response();
-  auto context = client->newContext();
-  return std::make_tuple(request, response, std::move(context));
+std::tuple<Request*, Response*, std::shared_ptr<grpc::ClientContext>> createGrpcRequestContext(
+        const std::shared_ptr<EmulatorGrpcClient>& client) {
+    auto request = new Request();
+    auto response = new Response();
+    auto context = client->newContext();
+    return std::make_tuple(request, response, std::move(context));
 }
 
 /**
@@ -92,25 +90,25 @@ createGrpcRequestContext(const std::shared_ptr<EmulatorGrpcClient>& client) {
 
 template <class Request, class Response>
 std::function<void(::grpc::Status)> grpcCallCompletionHandler(
-    std::shared_ptr<grpc::ClientContext> context, Request* request,
-    Response* response, OnCompleted<Response> onDone) {
-  return [context, request, response, onDone](::grpc::Status status) {
-    if (status.ok()) {
-      // Call completed successfully, invoke the onDone callback with the
-      // response object.
-      onDone(response);
-    } else {
-      // Call failed somehow, convert the grpc::Status object to an
-      // absl::StatusOr and pass it to the onDone callback.
-      LOG(WARNING) << "Failed to complete call to" << context->peer()
-                   << " due to: " << status.error_message();
-      onDone(ConvertGrpcStatusToAbseilStatus(status));
-    }
+        std::shared_ptr<grpc::ClientContext> context, Request* request, Response* response,
+        OnCompleted<Response> onDone) {
+    return [context, request, response, onDone](::grpc::Status status) {
+        if (status.ok()) {
+            // Call completed successfully, invoke the onDone callback with the
+            // response object.
+            onDone(response);
+        } else {
+            // Call failed somehow, convert the grpc::Status object to an
+            // absl::StatusOr and pass it to the onDone callback.
+            LOG(WARNING) << "Failed to complete call to" << context->peer()
+                         << " due to: " << status.error_message();
+            onDone(ConvertGrpcStatusToAbseilStatus(status));
+        }
 
-    // Cleanup the resources used by the gRPC call.
-    delete request;
-    delete response;
-  };
+        // Cleanup the resources used by the gRPC call.
+        delete request;
+        delete response;
+    };
 }
 }  // namespace control
 }  // namespace emulation

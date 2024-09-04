@@ -8,11 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstdint>
 #include <deque>
+
 #include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
 
@@ -23,8 +24,8 @@ namespace archive {
 struct DequeArchive : public IReader, public IWriter {
     using Storage = std::deque<uint8_t>;
 
-    virtual size_t read(void *dst, size_t size) override;
-    virtual void write(const void *src, size_t size) override;
+    virtual size_t read(void* dst, size_t size) override;
+    virtual void write(const void* src, size_t size) override;
 
     bool empty() const { return storage.empty(); }
     size_t size() const { return storage.size(); }

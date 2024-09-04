@@ -20,13 +20,14 @@
 #include <thread>         // for sleep_for
 #include <unordered_set>  // for unorder...
 
+#include "grpcpp/impl/codegen/async_stream.h"      // for ServerA...
+#include "grpcpp/impl/codegen/completion_queue.h"  // for ServerC...
+#include "grpcpp/impl/codegen/server_context.h"    // for ServerC...
+#include "grpcpp/impl/codegen/status.h"            // for Status
+#include "grpcpp/impl/codegen/sync_stream.h"       // for ServerR...
+
 #include "android/emulation/control/test/TestEchoService.h"  // for AsyncHe...
 #include "android/emulation/control/utils/EventWaiter.h"     // for EventWa...
-#include "grpcpp/impl/codegen/async_stream.h"                // for ServerA...
-#include "grpcpp/impl/codegen/completion_queue.h"            // for ServerC...
-#include "grpcpp/impl/codegen/server_context.h"              // for ServerC...
-#include "grpcpp/impl/codegen/status.h"                      // for Status
-#include "grpcpp/impl/codegen/sync_stream.h"                 // for ServerR...
 #include "test_echo_service.pb.h"                            // for Msg
 
 #ifdef DISABLE_ASYNC_GRPC
@@ -43,7 +44,7 @@ namespace emulation {
 namespace control {
 
 class EventReceiver {
-public:
+  public:
     virtual ~EventReceiver() = default;
     virtual void eventArrived() = 0;
 };
@@ -51,7 +52,7 @@ public:
 // A global heart beat...
 // It basically beats every 500ms, and fires an event.
 class Beat {
-public:
+  public:
     Beat() : mRunner([this]() { run(); }) {}
 
     ~Beat() {
@@ -73,7 +74,7 @@ public:
 
     int counter() { return mCounter; }
 
-private:
+  private:
     void run() {
         while (mRun) {
             std::this_thread::sleep_for(mTimeout);
@@ -100,14 +101,13 @@ std::unique_ptr<Beat> s_global_beat = std::make_unique<Beat>();
 
 // A bridge from event receiver --> EventWatiter
 class SyncHeartbeatReceiver : public EventWaiter, public EventReceiver {
-public:
+  public:
     void eventArrived() override { newEvent(); };
 };
 
 // The synchronous version of or our Heartbeat service.
-::grpc::Status HeartbeatService::streamEcho(
-        ::grpc::ServerContext* context,
-        ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
+::grpc::Status HeartbeatService::streamEcho(::grpc::ServerContext* context,
+                                            ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
     bool clientAvailable = !context->IsCancelled();
     auto frameEvent = std::make_unique<SyncHeartbeatReceiver>();
     s_global_beat->addListener(frameEvent.get());
@@ -130,7 +130,7 @@ public:
 // The async version.
 template <class Connection>
 class AsyncHeartbeatReceiver {
-public:
+  public:
     AsyncHeartbeatReceiver() : mRunner([this]() { deliveryLoop(); }) {
         s_global_beat->addListener(&mReceiver);
     }
@@ -168,7 +168,7 @@ public:
         mListeners.erase(waiter);
     }
 
-private:
+  private:
     bool mRun{true};
     std::thread mRunner;
 
@@ -180,16 +180,15 @@ private:
 };
 
 class HeartbeatHandler : public SimpleServerBidiStream<Msg, Msg> {
-public:
-    HeartbeatHandler(AsyncHeartbeatReceiver<HeartbeatHandler*>* listener)
-        : mHandler(listener) {
+  public:
+    HeartbeatHandler(AsyncHeartbeatReceiver<HeartbeatHandler*>* listener) : mHandler(listener) {
         mHandler->addListener(this);
     }
     ~HeartbeatHandler() { mHandler->removeListener(this); }
     void Read(const Msg* msg) override {};
-       void OnDone() override { delete this; }
+    void OnDone() override { delete this; }
 
-private:
+  private:
     AsyncHeartbeatReceiver<HeartbeatHandler*>* mHandler;
 };
 
@@ -201,9 +200,8 @@ grpc::ServerBidiReactor<Msg, Msg>* AsyncHeartbeatService::streamEcho(
     return handler;
 }
 #else
-::grpc::Status AsyncHeartbeatService::streamEcho(
-        ::grpc::ServerContext* /*context*/,
-        ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
+::grpc::Status AsyncHeartbeatService::streamEcho(::grpc::ServerContext* /*context*/,
+                                                 ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
     static AsyncHeartbeatReceiver<HeartbeatHandler*> s_global_handler;
     return BidiRunner<HeartbeatHandler>(stream, &s_global_handler).status();
 }

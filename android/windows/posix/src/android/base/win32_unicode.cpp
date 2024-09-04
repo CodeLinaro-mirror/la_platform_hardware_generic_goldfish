@@ -39,4 +39,3 @@ wchar_t* win32_utf8_to_utf16_str(const char* str) {
 }
 
 }  // extern "C"
-

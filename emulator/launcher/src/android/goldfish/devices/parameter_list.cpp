@@ -15,6 +15,7 @@
 
 #include <android/goldfish/config/emulator.h>
 #include <android/goldfish/devices/device.h>
+
 #include <string>
 #include <vector>
 
@@ -23,17 +24,16 @@
 namespace android::goldfish {
 class Emulator;
 
-std::vector<std::string>
-ParameterList::getQemuParameters(const Emulator& emulator) const {
-  return mParams;
+std::vector<std::string> ParameterList::getQemuParameters(const Emulator& emulator) const {
+    return mParams;
 }
 
 int ParameterList::gIdCounter = 0;
 
 absl::Status ParameterList::initialize(const Emulator& emulator) {
-  return absl::OkStatus();
+    return absl::OkStatus();
 }
 
 ParameterList::ParameterList(std::vector<std::string> params)
     : Device("params_" + std::to_string(++gIdCounter)), mParams(params) {}
-} // namespace android::goldfish
+}  // namespace android::goldfish

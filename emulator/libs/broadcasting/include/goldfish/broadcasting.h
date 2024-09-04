@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cassert>
@@ -52,18 +52,19 @@ namespace broadcasting {
  */
 
 struct TopicBase;
-template <class Callback> struct TopicBaseTpl;
-template <class... Args> struct Topic;
+template <class Callback>
+struct TopicBaseTpl;
+template <class... Args>
+struct Topic;
 
 struct Ticket {
     ~Ticket() { assert(!isSubscribed()); }
 
     Ticket() = default;
 
-    Ticket(Ticket &&rhs)
-        : Ticket(std::exchange(rhs.mTopic, nullptr), rhs.mValue) {}
+    Ticket(Ticket&& rhs) : Ticket(std::exchange(rhs.mTopic, nullptr), rhs.mValue) {}
 
-    Ticket& operator=(Ticket &&rhs) {
+    Ticket& operator=(Ticket&& rhs) {
         if (this != &rhs) {
             swap(*this, rhs);
         }
@@ -73,35 +74,36 @@ struct Ticket {
     bool isSubscribed() const { return mTopic != nullptr; }
     void unsubscribe();
 
-    static void swap(Ticket &lhs, Ticket &rhs) {
+    static void swap(Ticket& lhs, Ticket& rhs) {
         using std::swap;
         swap(lhs.mTopic, rhs.mTopic);
         swap(lhs.mValue, rhs.mValue);
     }
 
-    Ticket(const Ticket &) = delete;
-    Ticket& operator=(const Ticket &) = delete;
+    Ticket(const Ticket&) = delete;
+    Ticket& operator=(const Ticket&) = delete;
 
-private:
+  private:
     friend TopicBase;
-    template <class Callback> friend struct TopicBaseTpl;
-    template <class... Args> friend struct Topic;
+    template <class Callback>
+    friend struct TopicBaseTpl;
+    template <class... Args>
+    friend struct Topic;
 
     using value_t = unsigned;
 
-    Ticket(TopicBase *const topic, const value_t value)
-        : mTopic(topic), mValue(value) {}
+    Ticket(TopicBase* const topic, const value_t value) : mTopic(topic), mValue(value) {}
 
     void release() { mTopic = nullptr; }
 
-    TopicBase *mTopic = nullptr;
+    TopicBase* mTopic = nullptr;
     value_t mValue = 0;
 };
 
 struct TopicBase {
     virtual ~TopicBase() {}
 
-private:
+  private:
     friend Ticket;
     virtual void unsubscribeImpl(Ticket::value_t) = 0;
 };
@@ -113,7 +115,8 @@ inline void Ticket::unsubscribe() {
     }
 }
 
-template <class Callback> struct TopicBaseTpl : public TopicBase {
+template <class Callback>
+struct TopicBaseTpl : public TopicBase {
     Ticket subscribe(Callback callback) {
         std::lock_guard<std::mutex> guard(mMutex);
         while (true) {
@@ -126,39 +129,42 @@ template <class Callback> struct TopicBaseTpl : public TopicBase {
         }
     }
 
-    TopicBaseTpl(const TopicBaseTpl &) = delete;
-    TopicBaseTpl(TopicBaseTpl &&) = delete;
-    TopicBaseTpl& operator=(const TopicBaseTpl &) = delete;
-    TopicBaseTpl& operator=(TopicBaseTpl &&) = delete;
+    TopicBaseTpl(const TopicBaseTpl&) = delete;
+    TopicBaseTpl(TopicBaseTpl&&) = delete;
+    TopicBaseTpl& operator=(const TopicBaseTpl&) = delete;
+    TopicBaseTpl& operator=(TopicBaseTpl&&) = delete;
 
-protected:
+  protected:
     TopicBaseTpl() = default;
 
     std::unordered_map<Ticket::value_t, Callback> mSubscriptions;
     Ticket::value_t mLastTicket = {};
     std::mutex mMutex;
 
-private:
+  private:
     void unsubscribeImpl(const Ticket::value_t ticket) override {
         std::lock_guard<std::mutex> guard(mMutex);
         mSubscriptions.erase(ticket);
     }
 };
 
-template <class... Args> struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
+template <class... Args>
+struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
     using Callback = std::function<std::optional<Ticket>(Args...)>;
     using TopicT = TopicBaseTpl<Callback>;
-    using TopicT::subscribe;
-    using TopicT::mSubscriptions;
     using TopicT::mMutex;
+    using TopicT::mSubscriptions;
+    using TopicT::subscribe;
 
-    template <class T> Ticket subscribe(T &object, std::optional<Ticket>(T::*const method)(Args...)) {
-        return subscribe([&object, method](Args... args){
+    template <class T>
+    Ticket subscribe(T& object, std::optional<Ticket> (T::*const method)(Args...)) {
+        return subscribe([&object, method](Args... args) {
             return (object.*method)(std::forward<Args>(args)...);
         });
     }
 
-    template <class T> Ticket subscribe(T &object, void(T::*const method)(Args...)) {
+    template <class T>
+    Ticket subscribe(T& object, void (T::*const method)(Args...)) {
         return subscribe([&object, method](Args... args) {
             (object.*method)(std::forward<Args>(args)...);
             return std::nullopt;
@@ -182,20 +188,21 @@ template <class... Args> struct Topic : public TopicBaseTpl<std::function<std::o
     }
 };
 
-template <> struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>> {
+template <>
+struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>> {
     using Callback = std::function<std::optional<Ticket>(void)>;
     using TopicT = TopicBaseTpl<Callback>;
-    using TopicT::subscribe;
-    using TopicT::mSubscriptions;
     using TopicT::mMutex;
+    using TopicT::mSubscriptions;
+    using TopicT::subscribe;
 
-    template <class T> Ticket subscribe(T &object, std::optional<Ticket>(T::*const method)()) {
-        return subscribe([&object, method](){
-            return (object.*method)();
-        });
+    template <class T>
+    Ticket subscribe(T& object, std::optional<Ticket> (T::*const method)()) {
+        return subscribe([&object, method]() { return (object.*method)(); });
     }
 
-    template <class T> Ticket subscribe(T &object, void(T::*const method)()) {
+    template <class T>
+    Ticket subscribe(T& object, void (T::*const method)()) {
         return subscribe([&object, method]() {
             (object.*method)();
             return std::nullopt;

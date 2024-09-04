@@ -24,36 +24,28 @@ ANDROID_BEGIN_HEADER
  **
  **/
 
-extern void   print_tabular( const char** strings, int  count,
-                             const char*  prefix,  int  width );
+extern void print_tabular(const char** strings, int count, const char* prefix, int width);
 
 /** CHARACTER TRANSLATION
  **
  ** converts one character into another in strings
  **/
 
-extern void   buffer_translate_char( char*        buff,
-                                     unsigned     buffLen,
-                                     const char*  src,
-                                     char         fromChar,
-                                     char         toChar );
+extern void buffer_translate_char(char* buff, unsigned buffLen, const char* src, char fromChar,
+                                  char toChar);
 // Note: |srcLen| doesn't include the null-terminator.
-extern void   buffer_translate_char_with_len(char*        buff,
-                                             unsigned     buffLen,
-                                             const char*  src,
-                                             unsigned     srcLen,
-                                             char         fromChar,
-                                             char         toChar );
+extern void buffer_translate_char_with_len(char* buff, unsigned buffLen, const char* src,
+                                           unsigned srcLen, char fromChar, char toChar);
 
-extern void   string_translate_char( char*  str, char from, char to );
+extern void string_translate_char(char* str, char from, char to);
 
 /** TEMP CHAR STRINGS
  **
  ** implement a circular ring of temporary string buffers
  **/
 
-extern char*  tempstr_get( int   size );
-extern char*  tempstr_format( const char*  fmt, ... );
+extern char* tempstr_get(int size);
+extern char* tempstr_format(const char* fmt, ...);
 
 /** QUOTING
  **
@@ -61,8 +53,8 @@ extern char*  tempstr_format( const char*  fmt, ... );
  ** newlines with \n, etc...
  **/
 
-extern const char*   quote_bytes( const char*  str, int  len );
-extern const char*   quote_str( const char*  str );
+extern const char* quote_bytes(const char* str, int len);
+extern const char* quote_str(const char* str);
 
 /** DECIMAL AND HEXADECIMAL CHARACTER SEQUENCES
  **/
@@ -70,10 +62,10 @@ extern const char*   quote_str( const char*  str );
 /* decodes a sequence of 'len' hexadecimal chars from 'hex' into
  * an integer. returns -1 in case of error (i.e. badly formed chars)
  */
-extern int    hex2int( const uint8_t*  hex, int  len );
+extern int hex2int(const uint8_t* hex, int len);
 
 /* encodes an integer 'val' into 'len' hexadecimal characters into 'hex' */
-extern void   int2hex( uint8_t*  hex, int  len, int  val );
+extern void int2hex(uint8_t* hex, int len, int val);
 
 /** STRING PARAMETER PARSING
  **/
@@ -82,7 +74,7 @@ extern void   int2hex( uint8_t*  hex, int  len, int  val );
  * This routine is implemented on top of the standard 'strtol' for 32/64 bit
  * portability.
  */
-extern int strtoi(const char *nptr, char **endptr, int base);
+extern int strtoi(const char* nptr, char** endptr, int base);
 
 /* Gets a parameter value out of the parameter string.
  * Parameter format for this routine is as such:
@@ -127,8 +119,8 @@ extern int get_token_value_alloc(const char* params, const char* name, char** va
  *  name - Parameter name. Parameter value must be a decimal number.
  *  value - Upon success contains integer value for the given parameter.
  * Return:
- *  0 on success, or -1 if requested parameter is not found, or -2 if parameter's
- *  format was bad (i.e. value was not a decimal number).
+ *  0 on success, or -1 if requested parameter is not found, or -2 if
+ * parameter's format was bad (i.e. value was not a decimal number).
  */
 extern int get_token_value_int(const char* params, const char* name, int* value);
 

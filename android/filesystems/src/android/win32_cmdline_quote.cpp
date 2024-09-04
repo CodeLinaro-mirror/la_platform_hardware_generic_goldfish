@@ -13,7 +13,6 @@
 
 #include "aemu/base/misc/StringUtils.h"
 #include "aemu/base/system/Win32Utils.h"
-
 #include "android/utils/system.h"
 
 char* win32_cmdline_quote(const char* param) {

@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
-
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
 // Configures the rutabaga gfxstream based graphics card.
 // The gpu card lives in the first pci slot (01.0)
 class GpuDevice : public PciDevice {
-public:
-  explicit GpuDevice() : PciDevice("gpu", "01.0") {}
+  public:
+    explicit GpuDevice() : PciDevice("gpu", "01.0") {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

@@ -23,14 +23,12 @@
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/synchronization/Event.h"
 #include "aemu/base/system/Win32UnicodeString.h"
-
 #include "android/base/system/System.h"
 
 #define DEBUG 0
 #if DEBUG >= 1
-#define DD(fmt, ...)                                                           \
-  printf("ReadDirectoryChangesWin32: %s:%d| " fmt "\n", __func__, __LINE__,    \
-         ##__VA_ARGS__)
+#define DD(fmt, ...) \
+    printf("ReadDirectoryChangesWin32: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #else
 #define DD(...) (void)0
 #endif
@@ -41,110 +39,108 @@ namespace base {
 
 // A Very basic file system change detector.
 class ReadDirectoryChangesWin32 : public FileSystemWatcher {
-public:
-  ReadDirectoryChangesWin32(Path path,
-                            FileSystemWatcherCallback onChangeCallback)
-      : FileSystemWatcher(onChangeCallback), mPath(path) {}
+  public:
+    ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback onChangeCallback)
+        : FileSystemWatcher(onChangeCallback), mPath(path) {}
 
-  ~ReadDirectoryChangesWin32() { stop(); }
+    ~ReadDirectoryChangesWin32() { stop(); }
 
-  bool start() override {
-    bool expected = false;
-    if (!mRunning.compare_exchange_strong(expected, true)) {
-      return false;
-    }
-    std::thread watcher([this] { watchForChanges(); });
-    mWatcherThread = std::move(watcher);
-    mStarted.wait();
-    return mDirHandle != INVALID_HANDLE_VALUE;
-  }
-
-  void stop() override {
-    bool expected = true;
-    if (mRunning.compare_exchange_strong(expected, false)) {
-      CancelIoEx(mDirHandle, NULL);
-      mWatcherThread.join();
-    }
-  }
-
-private:
-  bool watchForChanges() {
-    const Win32UnicodeString szDirectory(mPath.c_str());
-    mDirHandle = CreateFileW(
-        szDirectory.c_str(), GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
-
-    mStarted.signal();
-    if (mDirHandle == INVALID_HANDLE_VALUE) {
-      return false;
+    bool start() override {
+        bool expected = false;
+        if (!mRunning.compare_exchange_strong(expected, true)) {
+            return false;
+        }
+        std::thread watcher([this] { watchForChanges(); });
+        mWatcherThread = std::move(watcher);
+        mStarted.wait();
+        return mDirHandle != INVALID_HANDLE_VALUE;
     }
 
-    while (mRunning) {
-      DWORD dwBytesReturned = 0;
-      BYTE buffer[4096] = {0};
-      if (ReadDirectoryChangesW(mDirHandle, buffer, sizeof(buffer), TRUE,
-                                FILE_NOTIFY_CHANGE_FILE_NAME |
-                                    FILE_NOTIFY_CHANGE_DIR_NAME |
-                                    FILE_NOTIFY_CHANGE_ATTRIBUTES,
-                                &dwBytesReturned, NULL, NULL) == 0) {
+    void stop() override {
+        bool expected = true;
+        if (mRunning.compare_exchange_strong(expected, false)) {
+            CancelIoEx(mDirHandle, NULL);
+            mWatcherThread.join();
+        }
+    }
+
+  private:
+    bool watchForChanges() {
+        const Win32UnicodeString szDirectory(mPath.c_str());
+        mDirHandle =
+                CreateFileW(szDirectory.c_str(), GENERIC_READ,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+                            OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+
+        mStarted.signal();
+        if (mDirHandle == INVALID_HANDLE_VALUE) {
+            return false;
+        }
+
+        while (mRunning) {
+            DWORD dwBytesReturned = 0;
+            BYTE buffer[4096] = {0};
+            if (ReadDirectoryChangesW(mDirHandle, buffer, sizeof(buffer), TRUE,
+                                      FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
+                                              FILE_NOTIFY_CHANGE_ATTRIBUTES,
+                                      &dwBytesReturned, NULL, NULL) == 0) {
+                CloseHandle(mDirHandle);
+                mDirHandle = INVALID_HANDLE_VALUE;
+                return false;
+            }
+            DWORD offset = 0;
+            while (mRunning) {
+                FILE_NOTIFY_INFORMATION* info =
+                        reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buffer + offset);
+                Win32UnicodeString filename(info->FileName);
+                Path changed = pj(mPath, filename.toString());
+                DD("Action: %d - %s (%d)", info->Action, changed.c_str(), offset);
+                switch (info->Action) {
+                    case FILE_ACTION_ADDED:
+                        mChangeCallback(WatcherChangeType::Created, changed);
+                        break;
+                    case FILE_ACTION_MODIFIED:
+                        mChangeCallback(WatcherChangeType::Changed, changed);
+                        break;
+                    case FILE_ACTION_REMOVED:
+                        mChangeCallback(WatcherChangeType::Deleted, changed);
+                        break;
+                    case FILE_ACTION_RENAMED_NEW_NAME:
+                        mChangeCallback(WatcherChangeType::Created, changed);
+                        break;
+                    case FILE_ACTION_RENAMED_OLD_NAME:
+                        mChangeCallback(WatcherChangeType::Deleted, changed);
+                        break;
+                    default:
+                        break;
+                }
+
+                if (info->NextEntryOffset == 0) {
+                    break;
+                }
+
+                offset += info->NextEntryOffset;
+            }
+        }
+
         CloseHandle(mDirHandle);
         mDirHandle = INVALID_HANDLE_VALUE;
-        return false;
-      }
-      DWORD offset = 0;
-      while (mRunning) {
-        FILE_NOTIFY_INFORMATION *info =
-            reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer + offset);
-        Win32UnicodeString filename(info->FileName);
-        Path changed = pj(mPath, filename.toString());
-        DD("Action: %d - %s (%d)", info->Action, changed.c_str(), offset);
-        switch (info->Action) {
-        case FILE_ACTION_ADDED:
-          mChangeCallback(WatcherChangeType::Created, changed);
-          break;
-        case FILE_ACTION_MODIFIED:
-          mChangeCallback(WatcherChangeType::Changed, changed);
-          break;
-        case FILE_ACTION_REMOVED:
-          mChangeCallback(WatcherChangeType::Deleted, changed);
-          break;
-        case FILE_ACTION_RENAMED_NEW_NAME:
-          mChangeCallback(WatcherChangeType::Created, changed);
-          break;
-        case FILE_ACTION_RENAMED_OLD_NAME:
-          mChangeCallback(WatcherChangeType::Deleted, changed);
-          break;
-        default:
-          break;
-        }
-
-        if (info->NextEntryOffset == 0) {
-          break;
-        }
-
-        offset += info->NextEntryOffset;
-      }
+        return true;
     }
 
-    CloseHandle(mDirHandle);
-    mDirHandle = INVALID_HANDLE_VALUE;
-    return true;
-  }
-
-  Path mPath;
-  HANDLE mDirHandle;
-  std::atomic_bool mRunning{false};
-  std::thread mWatcherThread;
-  Event mStarted;
+    Path mPath;
+    HANDLE mDirHandle;
+    std::atomic_bool mRunning{false};
+    std::thread mWatcherThread;
+    Event mStarted;
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
-    Path path, FileSystemWatcherCallback onChangeCallback) {
-  if (!System::get()->pathIsDir(path)) {
-    return nullptr;
-  }
-  return std::make_unique<ReadDirectoryChangesWin32>(path, onChangeCallback);
+        Path path, FileSystemWatcherCallback onChangeCallback) {
+    if (!System::get()->pathIsDir(path)) {
+        return nullptr;
+    }
+    return std::make_unique<ReadDirectoryChangesWin32>(path, onChangeCallback);
 };
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

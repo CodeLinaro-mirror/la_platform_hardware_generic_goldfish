@@ -15,9 +15,7 @@ namespace android {
 namespace base {
 
 void ContiguousRangeMapper::add(uintptr_t start, uintptr_t size) {
-    if (mHasRange &&
-        (mEnd != start ||
-         (mBatchSize && (mEnd - mStart >= mBatchSize)))) {
+    if (mHasRange && (mEnd != start || (mBatchSize && (mEnd - mStart >= mBatchSize)))) {
         finish();
     }
 

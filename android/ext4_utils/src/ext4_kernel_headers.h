@@ -37,9 +37,9 @@
 #endif
 
 #include "ext4.h"
-#include "xattr.h"
 #include "ext4_extents.h"
 #include "jbd2.h"
+#include "xattr.h"
 
 #ifndef __BIONIC__
 #undef __le64

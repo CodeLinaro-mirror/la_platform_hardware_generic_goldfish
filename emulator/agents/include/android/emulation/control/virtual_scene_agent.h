@@ -22,12 +22,8 @@ ANDROID_BEGIN_HEADER
 // |filename| - Path to an image file, either PNG or JPEG, or nullptr if none
 //              is set.
 // |scale| - The poster scale, a value between 0 and 1.
-typedef void (*EnumeratePostersCallback)(void* context,
-                                         const char* posterName,
-                                         float minWidth,
-                                         float maxWidth,
-                                         const char* filename,
-                                         float scale);
+typedef void (*EnumeratePostersCallback)(void* context, const char* posterName, float minWidth,
+                                         float maxWidth, const char* filename, float scale);
 
 typedef struct QAndroidVirtualSceneAgent {
     // Set the initial poster of the scene, loaded from persisted settings.

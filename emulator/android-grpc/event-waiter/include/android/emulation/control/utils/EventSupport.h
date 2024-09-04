@@ -15,14 +15,14 @@
 #include <mutex>
 #include <unordered_set>
 
-#include "android/grpc/utils/SimpleAsyncGrpc.h"
 #include "google/protobuf/util/message_differencer.h"
+
+#include "android/grpc/utils/SimpleAsyncGrpc.h"
 
 #define DEBUG_EVT 0
 
 #if DEBUG_EVT >= 1
-#define DD_EVT(fmt, ...) \
-    printf("EventSupport: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define DD_EVT(fmt, ...) printf("EventSupport: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #else
 #define DD_EVT(...) (void)0
 #endif
@@ -41,7 +41,7 @@ namespace control {
  */
 template <class T>
 class EventListener {
-public:
+  public:
     virtual ~EventListener() = default;
 
     /**
@@ -56,7 +56,7 @@ public:
 
 template <>
 class EventListener<void> {
-public:
+  public:
     virtual ~EventListener() = default;
 
     /**
@@ -77,7 +77,7 @@ public:
  */
 template <class T>
 class EventChangeSupport {
-public:
+  public:
     EventChangeSupport() = default;
     ~EventChangeSupport() = default;
 
@@ -129,7 +129,7 @@ public:
         return mListeners.size();
     }
 
-private:
+  private:
     std::mutex mListenerLock;  // A mutex to protect the listener set
     std::unordered_set<EventListener<T>*> mListeners;
 };
@@ -142,7 +142,7 @@ private:
  */
 template <>
 class EventChangeSupport<void> {
-public:
+  public:
     EventChangeSupport() = default;
     ~EventChangeSupport() = default;
 
@@ -191,7 +191,7 @@ public:
         return mListeners.size();
     }
 
-private:
+  private:
     std::mutex mListenerLock;
     std::unordered_set<EventListener<void>*> mListeners;
 };
@@ -208,7 +208,7 @@ template <class T>
 class GenericEventHandler : public EventListener<T> {
     using ChangeSupport = EventChangeSupport<T>;
 
-public:
+  public:
     /**
      * Constructs a new GenericEventHandler with the specified listener.
      * The listener is used to subscribe to and receive events of type T.
@@ -230,10 +230,10 @@ public:
         unsubscribe();
     }
 
-protected:
+  protected:
     void unsubscribe() { mListener->removeListener(this); }
 
-private:
+  private:
     ChangeSupport* mListener;
 };
 
@@ -245,9 +245,8 @@ private:
  * @tparam T The type of events to be written to the gRPC stream.
  */
 template <class T, class Event>
-class BaseEventStreamWriter : public SimpleServerWriter<T>,
-                              public GenericEventHandler<Event> {
-public:
+class BaseEventStreamWriter : public SimpleServerWriter<T>, public GenericEventHandler<Event> {
+  public:
     using ChangeSupport = EventChangeSupport<Event>;
 
     /**
@@ -260,8 +259,7 @@ public:
      * @param listener A pointer to the ChangeSupport instance that will handle
      *        event subscriptions and event notifications.
      */
-    BaseEventStreamWriter(ChangeSupport* listener)
-        : GenericEventHandler<Event>(listener) {}
+    BaseEventStreamWriter(ChangeSupport* listener) : GenericEventHandler<Event>(listener) {}
 
     virtual ~BaseEventStreamWriter() = default;
 
@@ -291,9 +289,8 @@ template <class T>
 class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
     using ChangeSupport = EventChangeSupport<T>;
 
-public:
-    GenericEventStreamWriter(ChangeSupport* listener)
-        : BaseEventStreamWriter<T, T>(listener) {}
+  public:
+    GenericEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter<T, T>(listener) {}
 
     virtual ~GenericEventStreamWriter() = default;
 
@@ -329,9 +326,8 @@ template <class T>
 class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
     using ChangeSupport = EventChangeSupport<T>;
 
-public:
-    UniqueEventStreamWriter(ChangeSupport* listener)
-        : GenericEventStreamWriter<T>(listener) {}
+  public:
+    UniqueEventStreamWriter(ChangeSupport* listener) : GenericEventStreamWriter<T>(listener) {}
     virtual ~UniqueEventStreamWriter() = default;
 
     /**
@@ -342,8 +338,7 @@ public:
      */
     void eventArrived(const T event) override {
         const std::lock_guard<std::mutex> lock(mEventLock);
-        if (!google::protobuf::util::MessageDifferencer::Equals(event,
-                                                                mLastEvent)) {
+        if (!google::protobuf::util::MessageDifferencer::Equals(event, mLastEvent)) {
             mLastEvent = event;
             GenericEventStreamWriter<T>::Write(event);
         }

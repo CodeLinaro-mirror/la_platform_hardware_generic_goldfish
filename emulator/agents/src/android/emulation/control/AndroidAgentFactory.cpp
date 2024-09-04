@@ -24,34 +24,34 @@ using android::goldfish::AndroidConsoleFactory;
 static AndroidConsoleAgents sConsoleAgents{0};
 static bool isInitialized = false;
 
-bool agentsAvailable() { return isInitialized; }
-
-const AndroidConsoleAgents *getConsoleAgents() {
-  if (!isInitialized) {
-    // Let's not get involved with undefined behavior, if this happens the
-    // developer is not calling injectConsoleAgents early enough.
-        LOG(ERROR) << "Accessing console agents before injecting them.";
-  }
-  return &sConsoleAgents;
+bool agentsAvailable() {
+    return isInitialized;
 }
 
-#define ANDROID_DEFINE_CONSOLE_GETTER_IMPL(typ, name)                          \
-  const typ *const AndroidConsoleFactory::android_get_##typ() const {          \
-        return sConsoleAgents.name;                                            \
-  };
+const AndroidConsoleAgents* getConsoleAgents() {
+    if (!isInitialized) {
+        // Let's not get involved with undefined behavior, if this happens the
+        // developer is not calling injectConsoleAgents early enough.
+        LOG(ERROR) << "Accessing console agents before injecting them.";
+    }
+    return &sConsoleAgents;
+}
+
+#define ANDROID_DEFINE_CONSOLE_GETTER_IMPL(typ, name)                   \
+    const typ* const AndroidConsoleFactory::android_get_##typ() const { \
+        return sConsoleAgents.name;                                     \
+    };
 
 ANDROID_CONSOLE_AGENTS_LIST(ANDROID_DEFINE_CONSOLE_GETTER_IMPL)
 
-#define ANDROID_CONSOLE_AGENT_SETTER(typ, name)                                \
-  sConsoleAgents.name = factory.android_get_##typ();
+#define ANDROID_CONSOLE_AGENT_SETTER(typ, name) sConsoleAgents.name = factory.android_get_##typ();
 
-void android::goldfish::injectConsoleAgents(
-    const AndroidConsoleFactory &factory) {
-  if (isInitialized) {
+void android::goldfish::injectConsoleAgents(const AndroidConsoleFactory& factory) {
+    if (isInitialized) {
         // This is not necessarily an error, as there are cases where this might
         // be acceptable.
         fprintf(stderr, "Warning: console agents were already injected!\n");
-  }
-  ANDROID_CONSOLE_AGENTS_LIST(ANDROID_CONSOLE_AGENT_SETTER);
-  isInitialized = true;
+    }
+    ANDROID_CONSOLE_AGENTS_LIST(ANDROID_CONSOLE_AGENT_SETTER);
+    isInitialized = true;
 }

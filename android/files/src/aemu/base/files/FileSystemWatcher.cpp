@@ -21,6 +21,5 @@ namespace base {
 
 using Path = std::filesystem::path;
 
-
 }  // namespace base
 }  // namespace android

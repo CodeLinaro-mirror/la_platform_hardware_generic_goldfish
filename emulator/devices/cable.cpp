@@ -8,10 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
+
+#include "goldfish/devices/cable/cable.h"
 
 #include <unordered_map>
-#include "goldfish/devices/cable/cable.h"
+
 #include "goldfish/devices/cable/saveload.h"
 
 namespace goldfish {
@@ -23,20 +25,19 @@ using PlugLoadersMap = std::unordered_map<IPlug::TypeId, PlugLoader>;
 /* We can't rely on the initialization order of global variables.
  * See Meyers' Singleton.
  */
-PlugLoadersMap &getLoaders() {
+PlugLoadersMap& getLoaders() {
     static PlugLoadersMap instance;
     return instance;
 }
 }  // namespace
 
 bool registerPlugLoader(IPlug::TypeId typeId, PlugLoader loader) {
-    return getLoaders().insert({std::move(typeId),
-                                std::move(loader)}).second;
+    return getLoaders().insert({std::move(typeId), std::move(loader)}).second;
 }
 
 using archive::IWriter;
 
-bool savePlugToSnapshot(const IPlug &plug, IWriter &writer) {
+bool savePlugToSnapshot(const IPlug& plug, IWriter& writer) {
     if (!plug.supportsLoadingFromSnapshot()) {
         return false;
     }
@@ -52,13 +53,13 @@ bool savePlugToSnapshot(const IPlug &plug, IWriter &writer) {
 
 using archive::IReader;
 
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader &reader) {
+PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
     const std::string id = getString(reader);
     if (id.empty()) {
         return socket;
     }
 
-    const auto &loaders = getLoaders();
+    const auto& loaders = getLoaders();
     const auto i = loaders.find(id);
     if (i == loaders.end()) {
         return socket;

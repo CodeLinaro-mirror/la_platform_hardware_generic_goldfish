@@ -15,6 +15,7 @@
 #include "android/emulation/control/utils/EventWaiter.h"
 
 #include <gtest/gtest.h>  // for SuiteApiResolver, TestInfo (ptr only), Message
+
 #include <thread>         // for thread
 #include <unordered_map>  // for unordered_map
 #include <utility>        // for pair
@@ -42,7 +43,7 @@ void notify_all() {
 }
 
 class EventWaiterTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
         sRegistrySize = 0;
         sReceivers.clear();
@@ -66,8 +67,7 @@ TEST_F(EventWaiterTest, times_out) {
 TEST_F(EventWaiterTest, wake_up_for_event) {
     EventWaiter tst(fake_add_cb, fake_remove_cb);
     auto test = std::thread([]() {
-        for (int i = 0; i < 100; i++)
-            notify_all();
+        for (int i = 0; i < 100; i++) notify_all();
     });
 
     // Wait until we have fired a lot of events.
@@ -81,11 +81,9 @@ TEST_F(EventWaiterTest, times_out_not_enough) {
     EventWaiter tst(fake_add_cb, fake_remove_cb);
     bool completed = false;
     auto test = std::thread([&completed]() {
-        for (int i = 0; i < 100; i++)
-            notify_all();
+        for (int i = 0; i < 100; i++) notify_all();
         completed = true;
     });
-
 
     test.join();
     EXPECT_TRUE(completed);
@@ -101,9 +99,7 @@ TEST_F(EventWaiterTest, times_out_not_enough) {
 }
 
 TEST_F(EventWaiterTest, no_callback_no_crash) {
-    {
-        EventWaiter wt;
-    }
+    { EventWaiter wt; }
     SUCCEED();
 }
 

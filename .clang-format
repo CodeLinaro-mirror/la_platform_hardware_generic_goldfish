@@ -1,6 +1,23 @@
 # Use the Google style in this project.
 BasedOnStyle: Google
 
+# c++03:                          latest:
+# vector<set<int> > x;    vs.     vector<set<int>> x;
+Standard: Latest
+
+# We will take the android approach of using 4 spaces, and
+# we will never allow tabs.
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 8
+UseTab: Never
+AccessModifierOffset: -2
+AllowShortFunctionsOnASingleLine: Inline
+
+# Most monitors can easily display more than 80 chars.
+ColumnLimit: 100
+CommentPragmas: '(@copydoc|@copybrief|@see|@overload|@snippet|NOLINT:)'
+
 # Some folks prefer to write "int& foo" while others prefer "int &foo".  The
 # Google Style Guide only asks for consistency within a project, we chose
 # "int& foo" for this project:
@@ -17,29 +34,26 @@ IncludeCategories:
   # anything else, especially strsafe.h.
   - Regex: '^<wchar.h>'
     Priority: 5
-  # first, non system headers that are included like <> - these are all
-  # local carveouts, and get sorted below c++ but before "" files
-  - Regex: '^<(openssl/|gmock/|gtest/|zlib|zconf|benchmark/|google/|absl)'
-    Priority: 30
-
-  # Frequently we include these like "..."
-  - Regex: '^"(openssl/|gmock/|gtest/|zlib|zconf|benchmark/|google/|absl)'
-    Priority: 31
-  # Next we will have the aemu libs.
-  - Regex: '^"(aemu/|host-common/)'
-    Priority: 32
-
   # first C system headers - they have a . in the filename
   - Regex: '^<.*\.'
     Priority: 10
   # then C++ system headers - no ., the only thing that will match now
   - Regex: '^<'
     Priority: 20
+    #
+  # first, non system headers that are included like <> - these are all
+  # local carveouts, and get sorted below c++ but before "" files
+  - Regex: '^<(openssl/|gmock/|gtest/|zlib|zconf|benchmark/|google/|absl|grpc)'
+    Priority: 30
+
+  # Frequently we include these like "..."
+  - Regex: '^"(openssl/|gmock/|gtest/|zlib|zconf|benchmark/|google/|absl|grpc)'
+    Priority: 31
+
   # finally other "" includes go between system headers and our headers
   - Regex: '^"'
     Priority: 40
 
-CommentPragmas: '(@copydoc|@copybrief|@see|@overload|@snippet)'
 # Format raw string literals with a `pb` or `proto` tag as proto.
 RawStringFormats:
 - Language: TextProto
@@ -51,13 +65,11 @@ RawStringFormats:
 ---
 Language: ObjC
 BasedOnStyle: Google
-ColumnLimit: 80
+ColumnLimit: 100
 ObjCBlockIndentWidth: 2
 ---
 Language: Proto
 BasedOnStyle: Google
-ColumnLimit: 80
+ColumnLimit: 100
 ...
-
-
 

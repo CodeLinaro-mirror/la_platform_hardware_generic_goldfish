@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "aemu/base/StringFormat.h"
-#include "aemu/base/system/Win32UnicodeString.h"
 #include "aemu/base/system/Win32Utils.h"
 
 #include <string_view>
+
+#include "aemu/base/StringFormat.h"
+#include "aemu/base/system/Win32UnicodeString.h"
 
 namespace android {
 namespace base {
@@ -45,19 +46,16 @@ std::string Win32Utils::quoteCommandLine(std::string_view cmdLine) {
 
         if (!commandLine[n]) {
             // End of string, if there are backslashes, double them.
-            for (; num_backslashes > 0; num_backslashes--)
-                out += "\\\\";
+            for (; num_backslashes > 0; num_backslashes--) out += "\\\\";
             break;
         }
 
         if (commandLine[n] == '"') {
             // Escape all backslashes as well as the quote that follows them.
-            for (; num_backslashes > 0; num_backslashes--)
-                out += "\\\\";
+            for (; num_backslashes > 0; num_backslashes--) out += "\\\\";
             out += "\\\"";
         } else {
-            for (; num_backslashes > 0; num_backslashes--)
-                out += '\\';
+            for (; num_backslashes > 0; num_backslashes--) out += '\\';
             out += commandLine[n];
         }
         n++;
@@ -74,16 +72,15 @@ std::string Win32Utils::getErrorString(DWORD error_code) {
 
     LPWSTR error_string = nullptr;
 
-    DWORD format_result = FormatMessageW(
-            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-            nullptr, error_code, 0, (LPWSTR)&error_string, 2, nullptr);
+    DWORD format_result =
+            FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER, nullptr,
+                           error_code, 0, (LPWSTR)&error_string, 2, nullptr);
     if (error_string) {
         result = Win32UnicodeString::convertToUtf8(error_string);
         ::LocalFree(error_string);
     } else {
-        StringAppendFormat(&result,
-                           "Error Code: %li (FormatMessage result: %li)",
-                           error_code, format_result);
+        StringAppendFormat(&result, "Error Code: %li (FormatMessage result: %li)", error_code,
+                           format_result);
     }
     return result;
 }
@@ -94,15 +91,14 @@ Optional<_OSVERSIONINFOEXW> Win32Utils::getWindowsVersion() {
     OSVERSIONINFOEXW ver;
     ver.dwOSVersionInfoSize = sizeof(ver);
 
-    typedef DWORD (WINAPI *RtlGetVersion_t) (OSVERSIONINFOEXW*);
+    typedef DWORD(WINAPI * RtlGetVersion_t)(OSVERSIONINFOEXW*);
 
     hLib = LoadLibraryW(L"Ntdll.dll");
     if (!hLib) {
         return {};
     }
 
-    auto f_RtlGetVersion =
-            (RtlGetVersion_t)GetProcAddress(hLib, "RtlGetVersion");
+    auto f_RtlGetVersion = (RtlGetVersion_t)GetProcAddress(hLib, "RtlGetVersion");
     if (!f_RtlGetVersion || f_RtlGetVersion(&ver)) {
         // RtlGetVersion returns non-zero values in case of errors.
         ver = {};
@@ -112,7 +108,7 @@ Optional<_OSVERSIONINFOEXW> Win32Utils::getWindowsVersion() {
     return ver;
 }
 
-ServiceStatus Win32Utils::getServiceStatus(const char *srcName) {
+ServiceStatus Win32Utils::getServiceStatus(const char* srcName) {
     SC_HANDLE hsrc, hscm;
     SERVICE_STATUS_PROCESS ssStatus;
     DWORD dwBytesNeeded, ec;
@@ -127,13 +123,12 @@ ServiceStatus Win32Utils::getServiceStatus(const char *srcName) {
     if (!hsrc) {
         ec = GetLastError();
         CloseServiceHandle(hscm);
-        if (ec == ERROR_SERVICE_DOES_NOT_EXIST)
-            return SVC_NOT_FOUND;
+        if (ec == ERROR_SERVICE_DOES_NOT_EXIST) return SVC_NOT_FOUND;
         return SVC_ERROR_OPENSERVICE;
     }
 
-    result = QueryServiceStatusEx(hsrc, SC_STATUS_PROCESS_INFO,
-        (LPBYTE)&ssStatus, sizeof(ssStatus), &dwBytesNeeded);
+    result = QueryServiceStatusEx(hsrc, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssStatus, sizeof(ssStatus),
+                                  &dwBytesNeeded);
 
     CloseServiceHandle(hsrc);
     CloseServiceHandle(hscm);
@@ -144,7 +139,6 @@ ServiceStatus Win32Utils::getServiceStatus(const char *srcName) {
 
     return static_cast<ServiceStatus>(ssStatus.dwCurrentState);
 }
-
 
 }  // namespace base
 }  // namespace android

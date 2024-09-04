@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <gtest/gtest.h>
+
 #include <thread>
+
 #include "android/emulation/control/utils/Library.h"
 
 // Global variable to keep track of destructor calls
@@ -25,8 +27,7 @@ struct CustomObject {
     CustomObject() = default;
     ~CustomObject() { globalDestructorCalls++; }
 
-    void nothing() { /* do nothing.. */
-    }
+    void nothing() { /* do nothing.. */ }
 };
 
 TEST(LibraryTest, BorrowFromEmptyLibrary) {
@@ -123,8 +124,7 @@ TEST(LibraryTest, ConcurrencyTest) {
     }
 
     // Ensure the counter matches the expected total number of borrows
-    EXPECT_EQ(counter.load(std::memory_order_relaxed),
-              numThreads * numIterationsPerThread);
+    EXPECT_EQ(counter.load(std::memory_order_relaxed), numThreads * numIterationsPerThread);
 
     // Check that the library is empty.
     int count = 0;
@@ -135,8 +135,7 @@ TEST(LibraryTest, ConcurrencyTest) {
 TEST(LibraryTest, WaitForEmptyLibraryTestTimesOut) {
     Library<int> myLibrary;
     auto item = myLibrary.acquire(5);
-    EXPECT_FALSE(
-            myLibrary.waitUntilLibraryIsClear(std::chrono::milliseconds(10)));
+    EXPECT_FALSE(myLibrary.waitUntilLibraryIsClear(std::chrono::milliseconds(10)));
 }
 
 TEST(LibraryTest, WaitForEmptyLibraryTestWaitsUntilFinished) {

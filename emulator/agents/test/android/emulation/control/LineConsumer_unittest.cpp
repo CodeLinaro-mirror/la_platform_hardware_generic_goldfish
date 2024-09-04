@@ -60,9 +60,7 @@ TEST(CannedCallbacks, LineConsumerBadBuffers) {
 // The API with which we use LineConsumer is often C API.
 extern "C" {
 
-static void callCallback(void* opaque,
-                         LineConsumerCallback callback,
-                         const char* str) {
+static void callCallback(void* opaque, LineConsumerCallback callback, const char* str) {
     callback(opaque, str, strlen(str));
 }
 }

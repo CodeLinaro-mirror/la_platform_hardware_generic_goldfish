@@ -14,29 +14,25 @@
 
 #include "aemu/base/system/Win32UnicodeString.h"
 
-#include <algorithm>
-
+#include <string.h>
 #include <windows.h>
 
-#include <string.h>
+#include <algorithm>
 
 namespace android {
 namespace base {
 
 Win32UnicodeString::Win32UnicodeString() : mStr(nullptr), mSize(0u) {}
 
-Win32UnicodeString::Win32UnicodeString(const char* str, size_t len)
-    : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const char* str, size_t len) : mStr(nullptr), mSize(0u) {
     reset(str, len);
 }
 
-Win32UnicodeString::Win32UnicodeString(const char* str)
-    : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const char* str) : mStr(nullptr), mSize(0u) {
     reset(str);
 }
 
-Win32UnicodeString::Win32UnicodeString(const std::string& str)
-    : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const std::string& str) : mStr(nullptr), mSize(0u) {
     reset(str.c_str());
 }
 
@@ -44,15 +40,13 @@ Win32UnicodeString::Win32UnicodeString(size_t size) : mStr(nullptr), mSize(0u) {
     resize(size);
 }
 
-Win32UnicodeString::Win32UnicodeString(const wchar_t* str)
-    : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const wchar_t* str) : mStr(nullptr), mSize(0u) {
     size_t len = str ? wcslen(str) : 0u;
     resize(len);
     ::memcpy(mStr, str ? str : L"", len * sizeof(wchar_t));
 }
 
-Win32UnicodeString::Win32UnicodeString(const Win32UnicodeString& other)
-    : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const Win32UnicodeString& other) : mStr(nullptr), mSize(0u) {
     resize(other.mSize);
     ::memcpy(mStr, other.c_str(), other.mSize * sizeof(wchar_t));
 }
@@ -61,8 +55,7 @@ Win32UnicodeString::~Win32UnicodeString() {
     delete[] mStr;
 }
 
-Win32UnicodeString& Win32UnicodeString::operator=(
-        const Win32UnicodeString& other) {
+Win32UnicodeString& Win32UnicodeString::operator=(const Win32UnicodeString& other) {
     resize(other.mSize);
     ::memcpy(mStr, other.c_str(), other.mSize * sizeof(wchar_t));
     return *this;
@@ -106,7 +99,7 @@ void Win32UnicodeString::reset(const char* str) {
 
 void Win32UnicodeString::resize(size_t newSize) {
     if (newSize == 0) {
-        delete [] mStr;
+        delete[] mStr;
         mStr = nullptr;
         mSize = 0;
     } else if (newSize <= mSize) {
@@ -178,14 +171,14 @@ int Win32UnicodeString::calcUtf8BufferLength(const wchar_t* str, int len) {
     if (len == 0) {
         return 0;
     }
-    const int utf8Len = WideCharToMultiByte(CP_UTF8,  // CodePage
-                                            0,        // dwFlags
-                                            str,      // lpWideCharStr
-                                            len,      // cchWideChar
-                                            nullptr,  // lpMultiByteStr
-                                            0,        // cbMultiByte
-                                            nullptr,  // lpDefaultChar
-                                            nullptr); // lpUsedDefaultChar
+    const int utf8Len = WideCharToMultiByte(CP_UTF8,   // CodePage
+                                            0,         // dwFlags
+                                            str,       // lpWideCharStr
+                                            len,       // cchWideChar
+                                            nullptr,   // lpMultiByteStr
+                                            0,         // cbMultiByte
+                                            nullptr,   // lpDefaultChar
+                                            nullptr);  // lpUsedDefaultChar
 
     return convertRetVal(utf8Len);
 }
@@ -209,8 +202,7 @@ int Win32UnicodeString::calcUtf16BufferLength(const char* str, int len) {
 }
 
 // static
-int Win32UnicodeString::convertToUtf8(char* outStr, int outLen,
-                                      const wchar_t* str, int len) {
+int Win32UnicodeString::convertToUtf8(char* outStr, int outLen, const wchar_t* str, int len) {
     if (!outStr || outLen < 0 || !str || (len < 0 && len != -1)) {
         return -1;
     }
@@ -218,20 +210,19 @@ int Win32UnicodeString::convertToUtf8(char* outStr, int outLen,
         return 0;
     }
 
-    const int utf8Len = WideCharToMultiByte(CP_UTF8,  // CodePage
-                                            0,        // dwFlags
-                                            str,      // lpWideCharStr
-                                            len,      // cchWideChar
-                                            outStr,   // lpMultiByteStr
-                                            outLen,   // cbMultiByte
-                                            nullptr,  // lpDefaultChar
-                                            nullptr); // lpUsedDefaultChar
+    const int utf8Len = WideCharToMultiByte(CP_UTF8,   // CodePage
+                                            0,         // dwFlags
+                                            str,       // lpWideCharStr
+                                            len,       // cchWideChar
+                                            outStr,    // lpMultiByteStr
+                                            outLen,    // cbMultiByte
+                                            nullptr,   // lpDefaultChar
+                                            nullptr);  // lpUsedDefaultChar
     return convertRetVal(utf8Len);
 }
 
 // static
-int Win32UnicodeString::convertFromUtf8(wchar_t* outStr, int outLen,
-                                        const char* str, int len) {
+int Win32UnicodeString::convertFromUtf8(wchar_t* outStr, int outLen, const char* str, int len) {
     if (!outStr || outLen < 0 || !str || (len < 0 && len != -1)) {
         return -1;
     }

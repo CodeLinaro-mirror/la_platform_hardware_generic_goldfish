@@ -14,7 +14,7 @@
 #include <gtest/gtest.h>
 
 class ScopedFileData {
-public:
+  public:
     ScopedFileData() : mStatus(0) { fileData_initEmpty(&mFileData); }
 
     ScopedFileData(const void* buff, size_t length) {
@@ -36,7 +36,8 @@ public:
     const FileData* ptr() const { return &mFileData; }
     FileData& operator*() { return mFileData; }
     FileData* operator->() { return &mFileData; }
-private:
+
+  private:
     FileData mFileData;
     int mStatus;
 };
@@ -44,7 +45,7 @@ private:
 TEST(FileData, IsValid) {
     EXPECT_FALSE(fileData_isValid(NULL));
 
-    FileData fakeData = { (uint8_t*)0x012345678, 12345, 23983 };
+    FileData fakeData = {(uint8_t*)0x012345678, 12345, 23983};
     EXPECT_FALSE(fileData_isValid(&fakeData));
 }
 

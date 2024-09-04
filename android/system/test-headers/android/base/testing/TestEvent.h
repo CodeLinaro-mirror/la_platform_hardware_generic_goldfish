@@ -41,45 +41,44 @@
 // count.
 
 class TestEvent {
-  DISALLOW_COPY_AND_ASSIGN(TestEvent);
+    DISALLOW_COPY_AND_ASSIGN(TestEvent);
 
-public:
-  static constexpr int64_t kDefaultTimeoutMs = 10000; // 10 seconds.
+  public:
+    static constexpr int64_t kDefaultTimeoutMs = 10000;  // 10 seconds.
 
-  TestEvent() = default;
+    TestEvent() = default;
 
-  void signal() {
-    {
-      std::lock_guard<std::mutex> lock(mMutex);
-      ++mSignaledCount;
+    void signal() {
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            ++mSignaledCount;
+        }
+        mCv.notify_one();
     }
-    mCv.notify_one();
-  }
 
-  bool isSignaled() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    return mSignaledCount > 0;
-  }
-
-  void reset() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mSignaledCount = 0;
-  }
-
-  void wait(int64_t timeoutMs = kDefaultTimeoutMs) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    if (mSignaledCount > 0 ||
-        mCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
-                     [this] { return mSignaledCount > 0; })) {
-      ASSERT_GT(mSignaledCount, 0);
-      --mSignaledCount;
-    } else {
-      FAIL() << "TestEvent::wait() timed out.";
+    bool isSignaled() {
+        std::lock_guard<std::mutex> lock(mMutex);
+        return mSignaledCount > 0;
     }
-  }
 
-private:
-  std::condition_variable mCv;
-  std::mutex mMutex;
-  size_t mSignaledCount = 0;
+    void reset() {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mSignaledCount = 0;
+    }
+
+    void wait(int64_t timeoutMs = kDefaultTimeoutMs) {
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mSignaledCount > 0 || mCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+                                               [this] { return mSignaledCount > 0; })) {
+            ASSERT_GT(mSignaledCount, 0);
+            --mSignaledCount;
+        } else {
+            FAIL() << "TestEvent::wait() timed out.";
+        }
+    }
+
+  private:
+    std::condition_variable mCv;
+    std::mutex mMutex;
+    size_t mSignaledCount = 0;
 };

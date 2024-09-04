@@ -32,7 +32,7 @@ namespace android {
 //   "1.2.4"         -> -1
 //   "asfd"          -> -1
 
-int32_t cpuAcceleratorParseVersionScript(const std::string &version_script);
+int32_t cpuAcceleratorParseVersionScript(const std::string& version_script);
 
 // This function searches one or more kernel extension directories for the
 // specified version file.
@@ -41,10 +41,9 @@ int32_t cpuAcceleratorParseVersionScript(const std::string &version_script);
 // returns 0 - HAXM not installed
 // returns -1 - HAXM corrupt or too old
 // returns 0x01020004 for version version number e.g. "1.2.4"
-int32_t cpuAcceleratorGetHaxVersion(const char *kext_dir[],
-                                    const size_t kext_dir_count,
-                                    const char *version_file);
+int32_t cpuAcceleratorGetHaxVersion(const char* kext_dir[], const size_t kext_dir_count,
+                                    const char* version_file);
 
 #endif
 
-} // namespace android
+}  // namespace android

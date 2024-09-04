@@ -14,9 +14,9 @@
 
 #include "aemu/base/memory/OnDemand.h"
 
-#include "aemu/base/threads/ThreadPool.h"
-
 #include <gtest/gtest.h>
+
+#include "aemu/base/threads/ThreadPool.h"
 
 using android::base::makeAtomicOnDemand;
 using android::base::makeOnDemand;
@@ -31,15 +31,14 @@ struct State {
     int moved;
 
     friend bool operator==(const State& l, const State& r) {
-        return l.created == r.created && l.destroyed == r.destroyed &&
-               l.moved == r.moved;
+        return l.created == r.created && l.destroyed == r.destroyed && l.moved == r.moved;
     }
 };
 
 static State sState = {};
 
 class OnDemandTest : public ::testing::Test {
-public:
+  public:
     void SetUp() override { sState = {}; }
 
     void TearDown() override { sState = {}; }
@@ -124,8 +123,7 @@ TEST_F(OnDemandTest, makeMore) {
         std::string s;
         bool b;
 
-        Test4(int n, char c, std::string s, bool b = true)
-            : n(n), c(c), s(s), b(b) {}
+        Test4(int n, char c, std::string s, bool b = true) : n(n), c(c), s(s), b(b) {}
     };
 
     {

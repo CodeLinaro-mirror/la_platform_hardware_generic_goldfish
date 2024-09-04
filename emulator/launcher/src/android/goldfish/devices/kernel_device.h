@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
-
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 namespace fs = std::filesystem;
 
 // Configures the kernel for qemu.
 class KernelDevice : public Device {
-public:
-  explicit KernelDevice() : Device("kernel") {}
+  public:
+    explicit KernelDevice() : Device("kernel") {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
-private:
-  absl::StatusOr<fs::path> mDiskImage;
+  private:
+    absl::StatusOr<fs::path> mDiskImage;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

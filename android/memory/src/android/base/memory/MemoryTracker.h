@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include "aemu/base/Compiler.h"
-
 #include <atomic>
 #include <memory>
 #include <string>
+
+#include "aemu/base/Compiler.h"
 
 /*Example usage:
 #include "GLcommon/GLESmacros.h"
@@ -38,7 +38,7 @@ namespace base {
 class MemoryTracker {
     DISALLOW_COPY_ASSIGN_AND_MOVE(MemoryTracker);
 
-public:
+  public:
     struct MallocStats {
         std::atomic<int64_t> mAllocated{0};
         std::atomic<int64_t> mLive{0};
@@ -52,10 +52,9 @@ public:
     void start();
     void stop();
     bool isEnabled();
-    std::unique_ptr<MemoryTracker::MallocStats> getUsage(
-            const std::string& group);
+    std::unique_ptr<MemoryTracker::MallocStats> getUsage(const std::string& group);
 
-private:
+  private:
     class Impl;
     std::unique_ptr<Impl> mImpl;
 };

@@ -20,7 +20,6 @@
 #include "aemu/base/synchronization/Event.h"
 #include "aemu/base/synchronization/MessageChannel.h"
 #include "aemu/base/threads/ThreadStore.h"
-
 #include "android/utils/looper.h"
 
 namespace android {
@@ -29,7 +28,7 @@ namespace base {
 namespace {
 
 class State {
-public:
+  public:
     State(Looper* looper, bool owned) : mLooper(looper), mOwned(owned) {}
 
     ~State() {
@@ -40,16 +39,14 @@ public:
 
     Looper* looper() const { return mLooper; }
 
-private:
+  private:
     Looper* mLooper;
     bool mOwned;
 };
 
 class ThreadLooperStore : public ThreadStore<State> {
-public:
-    bool hasLooper() const {
-        return ThreadStoreBase::get() != NULL;
-    }
+  public:
+    bool hasLooper() const { return ThreadStoreBase::get() != NULL; }
 
     void setLooper(Looper* looper, bool own) {
         CHECK(!get());
@@ -90,12 +87,14 @@ void ThreadLooper::setLooper(Looper* looper, bool own) {
 }
 
 class MainLoopClosureRunner {
-public:
-    MainLoopClosureRunner() :
-        mTimer(((Looper*)android_getMainLooper())->createTimer(
-            [](void* obj, Looper::Timer*) {
-                ((MainLoopClosureRunner*)obj)->runClosures(); },
-            (void*)this)) { }
+  public:
+    MainLoopClosureRunner()
+        : mTimer(((Looper*)android_getMainLooper())
+                         ->createTimer(
+                                 [](void* obj, Looper::Timer*) {
+                                     ((MainLoopClosureRunner*)obj)->runClosures();
+                                 },
+                                 (void*)this)) {}
 
     void appendAndWake(ThreadLooper::Closure&& func) {
         mPendingClosures.send(std::move(func));
@@ -104,10 +103,12 @@ public:
         }
     }
 
-private:
+  private:
     void runClosures() {
         ThreadLooper::Closure f;
-        while (mPendingClosures.tryReceive(&f)) { f(); }
+        while (mPendingClosures.tryReceive(&f)) {
+            f();
+        }
     }
 
     std::unique_ptr<Looper::Timer> mTimer = {};
@@ -119,9 +120,9 @@ static LazyInstance<MainLoopClosureRunner> sMainRunner = LAZY_INSTANCE_INIT;
 // static
 void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
     if (!android_getMainLooper()) {
-      LOG(ERROR) << "trying to run on main looper "
-                    "without a main looper!";
-      return;
+        LOG(ERROR) << "trying to run on main looper "
+                      "without a main looper!";
+        return;
     }
 
     sMainRunner->appendAndWake(std::move(func));
@@ -130,13 +131,12 @@ void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
 // static
 void ThreadLooper::runOnMainLooperAndWaitForCompletion(ThreadLooper::Closure&& func) {
     if (!android_getMainLooper()) {
-      LOG(ERROR) << "trying to run on main looper "
-                    "without a main looper!";
-      return;
+        LOG(ERROR) << "trying to run on main looper "
+                      "without a main looper!";
+        return;
     }
 
-    if (looper_getForThread() ==
-        android_getMainLooper()) {  // We are on mainlooop.
+    if (looper_getForThread() == android_getMainLooper()) {  // We are on mainlooop.
         func();
         return;
     }

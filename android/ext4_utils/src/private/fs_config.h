@@ -30,7 +30,6 @@
 #endif
 #include <sys/types.h>
 
-
 #include "android_filesystem_capability.h"
 
 #define CAP_MASK_LONG(cap_name) (1ULL << (cap_name))
@@ -58,7 +57,8 @@ struct fs_path_config {
     const char* prefix;
 };
 
-/* Rules for directories and files has moved to system/code/libcutils/fs_config.c */
+/* Rules for directories and files has moved to
+ * system/code/libcutils/fs_config.c */
 
 __BEGIN_DECLS
 
@@ -73,9 +73,8 @@ __BEGIN_DECLS
  *  system/extras/ext4_utils/canned_fs_config.c
  */
 
-
-void fs_config(const char* path, int dir, unsigned* uid, unsigned* gid,
-               unsigned* mode, uint64_t* capabilities);
+void fs_config(const char* path, int dir, unsigned* uid, unsigned* gid, unsigned* mode,
+               uint64_t* capabilities);
 
 __END_DECLS
 

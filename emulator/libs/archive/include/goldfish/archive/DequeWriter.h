@@ -8,11 +8,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstdint>
 #include <deque>
+
 #include "goldfish/archive/Writer.h"
 
 namespace goldfish {
@@ -22,11 +23,11 @@ namespace archive {
 struct DequeWriter : public IWriter {
     using Storage = std::deque<uint8_t>;
 
-    explicit DequeWriter(Storage *storage) : mStorage(storage) {}
+    explicit DequeWriter(Storage* storage) : mStorage(storage) {}
 
-    virtual void write(const void *src, size_t size) override;
+    virtual void write(const void* src, size_t size) override;
 
-    Storage *mStorage;
+    Storage* mStorage;
 };
 
 }  // namespace archive

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #pragma once
-#include "android/console.h" // for ANDROID_CONSOLE_AGENTS_LIST
+#include "android/console.h"  // for ANDROID_CONSOLE_AGENTS_LIST
 
 #ifdef _WIN32
 #ifdef CONSOLE_EXPORTS
@@ -29,8 +29,7 @@ struct QAndroidAutomationAgent;
 
 namespace android {
 namespace goldfish {
-#define ANDROID_DEFINE_CONSOLE_GETTER(typ, name)                               \
-  virtual const typ *const android_get_##typ() const;
+#define ANDROID_DEFINE_CONSOLE_GETTER(typ, name) virtual const typ* const android_get_##typ() const;
 
 // The default android console factory will not do anything, it will
 // leave the console agents intact.
@@ -41,8 +40,8 @@ namespace goldfish {
 // override the method of interest and call injectConsoleAgents, it will replace
 // the existing agents with the one your factory provides.
 class CONSOLE_API AndroidConsoleFactory {
-public:
-  ANDROID_CONSOLE_AGENTS_LIST(ANDROID_DEFINE_CONSOLE_GETTER)
+  public:
+    ANDROID_CONSOLE_AGENTS_LIST(ANDROID_DEFINE_CONSOLE_GETTER)
 };
 
 // Returns true if the agents have been injected, false
@@ -58,7 +57,7 @@ bool agentsAvailable();
 //
 // Note: It is currently not safe to inject agents after the first injection has
 // taken place.
-CONSOLE_API void injectConsoleAgents(const AndroidConsoleFactory &factory);
+CONSOLE_API void injectConsoleAgents(const AndroidConsoleFactory& factory);
 
-} // namespace goldfish
-} // namespace android
+}  // namespace goldfish
+}  // namespace android

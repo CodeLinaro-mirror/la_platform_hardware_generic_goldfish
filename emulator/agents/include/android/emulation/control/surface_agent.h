@@ -65,9 +65,7 @@ typedef struct QAndroidSurfaceAgent {
     SkinSurface* (*skin_surface_create)(int, int, int, int);
     SkinSurface* (*skin_surface_create_from_data)(const void*, int);
     SkinSurface* (*skin_surface_create_from_file)(const char*);
-    SkinSurface* (*skin_surface_create_derived)(SkinSurface*,
-                                                SkinRotation,
-                                                int);
+    SkinSurface* (*skin_surface_create_derived)(SkinSurface*, SkinRotation, int);
 
     /* Check if a surface needs to be resized at all: only when the "original"
      * dimensions change does the surface need to be re-created. Otherwise, it
@@ -80,23 +78,14 @@ typedef struct QAndroidSurfaceAgent {
 
     void (*skin_surface_reverse_map)(SkinSurface*, int*, int*);
 
-    void (*skin_surface_get_scaled_rect)(SkinSurface*,
-                                         const SkinRect*,
-                                         SkinRect*);
+    void (*skin_surface_get_scaled_rect)(SkinSurface*, const SkinRect*, SkinRect*);
 
     void (*skin_surface_update)(SkinSurface*, SkinRect*);
 
-    void (*skin_surface_upload)(SkinSurface*,
-                                const SkinRect*,
-                                const void*,
-                                int);
+    void (*skin_surface_upload)(SkinSurface*, const SkinRect*, const void*, int);
 
     /* Blit a surface into another one */
-    void (*skin_surface_blit)(SkinSurface*,
-                              SkinPos*,
-                              SkinSurface*,
-                              SkinRect*,
-                              SkinBlitOp);
+    void (*skin_surface_blit)(SkinSurface*, SkinPos*, SkinSurface*, SkinRect*, SkinBlitOp);
 
     /* Blit a colored rectangle into a destination surface */
     void (*skin_surface_fill)(SkinSurface*, SkinRect*, uint32_t);

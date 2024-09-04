@@ -13,19 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "ext4_utils.h"
-#include "make_ext4fs.h"
-#include "ext4_extents.h"
-#include "allocate.h"
 #include "ext4fixup.h"
 
-#include <sparse/sparse.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <sparse/sparse.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include "allocate.h"
+#include "ext4_extents.h"
+#include "ext4_utils.h"
+#include "make_ext4fs.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
@@ -48,21 +47,22 @@
 
 /* The two modes the recurse_dir() can be in */
 #define SANITY_CHECK_PASS 1
-#define MARK_INODE_NUMS   2
+#define MARK_INODE_NUMS 2
 #define UPDATE_INODE_NUMS 3
 
 /* Magic numbers to indicate what state the update process is in */
-#define MAGIC_STATE_MARKING_INUMS  0x7000151515565512ll
+#define MAGIC_STATE_MARKING_INUMS 0x7000151515565512ll
 #define MAGIC_STATE_UPDATING_INUMS 0x6121131211735123ll
-#define MAGIC_STATE_UPDATING_SB    0x15e1715151558477ll
+#define MAGIC_STATE_UPDATING_SB 0x15e1715151558477ll
 
 /* Internal state variables corresponding to the magic numbers */
-#define STATE_UNSET          0
-#define STATE_MARKING_INUMS  1
+#define STATE_UNSET 0
+#define STATE_MARKING_INUMS 1
 #define STATE_UPDATING_INUMS 2
-#define STATE_UPDATING_SB    3
+#define STATE_UPDATING_SB 3
 
-/* Used for automated testing of this programs ability to stop and be restarted wthout error */
+/* Used for automated testing of this programs ability to stop and be restarted
+ * wthout error */
 static int bail_phase = 0;
 static int bail_loc = 0;
 static int bail_count = 0;
@@ -76,35 +76,29 @@ static int new_inodes_per_group = 0;
 
 static int no_write_fixup_state = 0;
 
-static int compute_new_inum(unsigned int old_inum)
-{
+static int compute_new_inum(unsigned int old_inum) {
     unsigned int group, offset;
 
     group = (old_inum - 1) / info.inodes_per_group;
-    offset = (old_inum -1) % info.inodes_per_group;
+    offset = (old_inum - 1) % info.inodes_per_group;
 
     return (group * new_inodes_per_group) + offset + 1;
 }
 
 /* Function to read the primary superblock */
-static void read_sb(int fd, struct ext4_super_block *sb)
-{
+static void read_sb(int fd, struct ext4_super_block* sb) {
     off64_t ret;
 
     ret = lseek64(fd, 1024, SEEK_SET);
-    if (ret < 0)
-        critical_error_errno("failed to seek to superblock");
+    if (ret < 0) critical_error_errno("failed to seek to superblock");
 
     ret = read(fd, sb, sizeof(*sb));
-    if (ret < 0)
-        critical_error_errno("failed to read superblock");
-    if (ret != sizeof(*sb))
-        critical_error("failed to read all of superblock");
+    if (ret < 0) critical_error_errno("failed to read superblock");
+    if (ret != sizeof(*sb)) critical_error("failed to read all of superblock");
 }
 
 /* Function to write a primary or backup superblock at a given offset */
-static void write_sb(int fd, unsigned long long offset, struct ext4_super_block *sb)
-{
+static void write_sb(int fd, unsigned long long offset, struct ext4_super_block* sb) {
     off64_t ret;
 
     if (no_write) {
@@ -112,18 +106,14 @@ static void write_sb(int fd, unsigned long long offset, struct ext4_super_block 
     }
 
     ret = lseek64(fd, offset, SEEK_SET);
-    if (ret < 0)
-        critical_error_errno("failed to seek to superblock");
+    if (ret < 0) critical_error_errno("failed to seek to superblock");
 
     ret = write(fd, sb, sizeof(*sb));
-    if (ret < 0)
-        critical_error_errno("failed to write superblock");
-    if (ret != sizeof(*sb))
-        critical_error("failed to write all of superblock");
+    if (ret < 0) critical_error_errno("failed to write superblock");
+    if (ret != sizeof(*sb)) critical_error("failed to write all of superblock");
 }
 
-static int get_fs_fixup_state(int fd)
-{
+static int get_fs_fixup_state(int fd) {
     unsigned long long magic;
     int ret, len;
 
@@ -153,8 +143,7 @@ static int get_fs_fixup_state(int fd)
     return ret;
 }
 
-static int set_fs_fixup_state(int fd, int state)
-{
+static int set_fs_fixup_state(int fd, int state) {
     unsigned long long magic;
     struct ext4_super_block sb;
     int len;
@@ -188,7 +177,8 @@ static int set_fs_fixup_state(int fd, int state)
 
     read_sb(fd, &sb);
     if (magic) {
-        /* If we are in the process of updating the filesystem, make it unmountable */
+        /* If we are in the process of updating the filesystem, make it unmountable
+         */
         sb.s_desc_size |= 1;
     } else {
         /* we are done, so make the filesystem mountable again */
@@ -199,8 +189,7 @@ static int set_fs_fixup_state(int fd, int state)
     return 0;
 }
 
-static int read_ext(int fd)
-{
+static int read_ext(int fd) {
     off64_t ret;
     struct ext4_super_block sb;
 
@@ -218,62 +207,57 @@ static int read_ext(int fd)
      * it is being fixed up.  Also allow 0, which means the old ext2
      * size is in use.
      */
-    if (((sb.s_desc_size & ~1) != sizeof(struct ext2_group_desc)) &&
-        ((sb.s_desc_size & ~1) != 0))
+    if (((sb.s_desc_size & ~1) != sizeof(struct ext2_group_desc)) && ((sb.s_desc_size & ~1) != 0))
         critical_error("error: bg_desc_size != sizeof(struct ext2_group_desc)\n");
 
     ret = lseek64(fd, info.len, SEEK_SET);
-    if (ret < 0)
-        critical_error_errno("failed to seek to end of input image");
+    if (ret < 0) critical_error_errno("failed to seek to end of input image");
 
     ret = lseek64(fd, info.block_size * (aux_info.first_data_block + 1), SEEK_SET);
-    if (ret < 0)
-        critical_error_errno("failed to seek to block group descriptors");
+    if (ret < 0) critical_error_errno("failed to seek to block group descriptors");
 
     ret = read(fd, aux_info.bg_desc, info.block_size * aux_info.bg_desc_blocks);
-    if (ret < 0)
-        critical_error_errno("failed to read block group descriptors");
+    if (ret < 0) critical_error_errno("failed to read block group descriptors");
     if (ret != (int)info.block_size * (int)aux_info.bg_desc_blocks)
         critical_error("failed to read all of block group descriptors");
 
     if (verbose) {
         printf("Found filesystem with parameters:\n");
-        printf("    Size: %"PRIu64"\n", info.len);
+        printf("    Size: %" PRIu64 "\n", info.len);
         printf("    Block size: %d\n", info.block_size);
         printf("    Blocks per group: %d\n", info.blocks_per_group);
         printf("    Inodes per group: %d\n", info.inodes_per_group);
         printf("    Inode size: %d\n", info.inode_size);
         printf("    Label: %s\n", info.label);
-        printf("    Blocks: %"PRIu64"\n", aux_info.len_blocks);
+        printf("    Blocks: %" PRIu64 "\n", aux_info.len_blocks);
         printf("    Block groups: %d\n", aux_info.groups);
         printf("    Reserved block group size: %d\n", info.bg_desc_reserve_blocks);
         printf("    Used %d/%d inodes and %d/%d blocks\n",
-                aux_info.sb->s_inodes_count - aux_info.sb->s_free_inodes_count,
-                aux_info.sb->s_inodes_count,
-                aux_info.sb->s_blocks_count_lo - aux_info.sb->s_free_blocks_count_lo,
-                aux_info.sb->s_blocks_count_lo);
+               aux_info.sb->s_inodes_count - aux_info.sb->s_free_inodes_count,
+               aux_info.sb->s_inodes_count,
+               aux_info.sb->s_blocks_count_lo - aux_info.sb->s_free_blocks_count_lo,
+               aux_info.sb->s_blocks_count_lo);
     }
 
     return 0;
 }
 
-static int read_inode(int fd, unsigned int inum, struct ext4_inode *inode)
-{
+static int read_inode(int fd, unsigned int inum, struct ext4_inode* inode) {
     unsigned int bg_num, bg_offset;
     off64_t inode_offset;
     int len;
 
-    bg_num = (inum-1) / info.inodes_per_group;
-    bg_offset = (inum-1) % info.inodes_per_group;
+    bg_num = (inum - 1) / info.inodes_per_group;
+    bg_offset = (inum - 1) % info.inodes_per_group;
 
     inode_offset = ((unsigned long long)aux_info.bg_desc[bg_num].bg_inode_table * info.block_size) +
-                    (bg_offset * info.inode_size);
+                   (bg_offset * info.inode_size);
 
     if (lseek64(fd, inode_offset, SEEK_SET) < 0) {
         critical_error_errno("failed to seek to inode %d\n", inum);
     }
 
-    len=read(fd, inode, sizeof(*inode));
+    len = read(fd, inode, sizeof(*inode));
     if (len != sizeof(*inode)) {
         critical_error_errno("failed to read inode %d\n", inum);
     }
@@ -281,18 +265,17 @@ static int read_inode(int fd, unsigned int inum, struct ext4_inode *inode)
     return 0;
 }
 
-static int read_block(int fd, unsigned long long block_num, void *block)
-{
+static int read_block(int fd, unsigned long long block_num, void* block) {
     off64_t off;
     unsigned int len;
 
     off = block_num * info.block_size;
 
-    if (lseek64(fd, off, SEEK_SET) , 0) {
+    if (lseek64(fd, off, SEEK_SET), 0) {
         critical_error_errno("failed to seek to block %lld\n", block_num);
     }
 
-    len=read(fd, block, info.block_size);
+    len = read(fd, block, info.block_size);
     if (len != info.block_size) {
         critical_error_errno("failed to read block %lld\n", block_num);
     }
@@ -300,8 +283,7 @@ static int read_block(int fd, unsigned long long block_num, void *block)
     return 0;
 }
 
-static int write_block(int fd, unsigned long long block_num, void *block)
-{
+static int write_block(int fd, unsigned long long block_num, void* block) {
     off64_t off;
     unsigned int len;
 
@@ -315,7 +297,7 @@ static int write_block(int fd, unsigned long long block_num, void *block)
         critical_error_errno("failed to seek to block %lld\n", block_num);
     }
 
-    len=write(fd, block, info.block_size);
+    len = write(fd, block, info.block_size);
     if (len != info.block_size) {
         critical_error_errno("failed to write block %lld\n", block_num);
     }
@@ -323,23 +305,19 @@ static int write_block(int fd, unsigned long long block_num, void *block)
     return 0;
 }
 
-static int bitmap_get_bit(u8 *bitmap, u32 bit)
-{
-        if (bitmap[bit / 8] & (1 << (bit % 8)))
-                return 1;
+static int bitmap_get_bit(u8* bitmap, u32 bit) {
+    if (bitmap[bit / 8] & (1 << (bit % 8))) return 1;
 
-        return 0;
+    return 0;
 }
 
-static void bitmap_clear_bit(u8 *bitmap, u32 bit)
-{
-        bitmap[bit / 8] &= ~(1 << (bit % 8));
+static void bitmap_clear_bit(u8* bitmap, u32 bit) {
+    bitmap[bit / 8] &= ~(1 << (bit % 8));
 
-        return;
+    return;
 }
 
-static void check_inode_bitmap(int fd, unsigned int bg_num)
-{
+static void check_inode_bitmap(int fd, unsigned int bg_num) {
     unsigned int inode_bitmap_block_num;
     unsigned char block[MAX_EXT4_BLOCK_SIZE];
     int i, bitmap_updated = 0;
@@ -370,13 +348,11 @@ static void check_inode_bitmap(int fd, unsigned int bg_num)
 }
 
 /* Update the superblock and bgdesc of the specified block group */
-static int update_superblocks_and_bg_desc(int fd, int state)
-{
+static int update_superblocks_and_bg_desc(int fd, int state) {
     off64_t ret;
     struct ext4_super_block sb;
     unsigned int num_block_groups, total_new_inodes;
     unsigned int i;
-
 
     read_sb(fd, &sb);
 
@@ -390,17 +366,18 @@ static int update_superblocks_and_bg_desc(int fd, int state)
 
     /* Update the free inodes count in each block group descriptor */
     for (i = 0; i < num_block_groups; i++) {
-       if (state == STATE_UPDATING_SB) {
-           aux_info.bg_desc[i].bg_free_inodes_count += (new_inodes_per_group - sb.s_inodes_per_group);
-       }
-       check_inode_bitmap(fd, i);
+        if (state == STATE_UPDATING_SB) {
+            aux_info.bg_desc[i].bg_free_inodes_count +=
+                    (new_inodes_per_group - sb.s_inodes_per_group);
+        }
+        check_inode_bitmap(fd, i);
     }
 
     /* First some sanity checks */
     if ((sb.s_inodes_count + total_new_inodes) != (new_inodes_per_group * num_block_groups)) {
         critical_error("Failed sanity check on new inode count\n");
     }
-    if (new_inodes_per_group % (info.block_size/info.inode_size)) {
+    if (new_inodes_per_group % (info.block_size / info.inode_size)) {
         critical_error("Failed sanity check on new inode per group alignment\n");
     }
 
@@ -414,31 +391,35 @@ static int update_superblocks_and_bg_desc(int fd, int state)
             unsigned int sb_offset;
 
             if (i == 0) {
-              /* The first superblock is offset by 1K to leave room for boot sectors */
-              sb_offset = 1024;
+                /* The first superblock is offset by 1K to leave room for boot sectors
+                 */
+                sb_offset = 1024;
             } else {
-              sb_offset = 0;
+                sb_offset = 0;
             }
 
             sb.s_block_group_nr = i;
-            /* Don't write out the backup superblocks with the bit set in the s_desc_size
-             * which prevents the filesystem from mounting.  The bit for the primary
-             * superblock will be cleared on the final call to set_fs_fixup_state() */
+            /* Don't write out the backup superblocks with the bit set in the
+             * s_desc_size which prevents the filesystem from mounting.  The bit for
+             * the primary superblock will be cleared on the final call to
+             * set_fs_fixup_state() */
             if (i != 0) {
                 sb.s_desc_size &= ~1;
             }
 
-            write_sb(fd, (unsigned long long)i * info.blocks_per_group * info.block_size + sb_offset, &sb);
+            write_sb(fd,
+                     (unsigned long long)i * info.blocks_per_group * info.block_size + sb_offset,
+                     &sb);
 
-            ret = lseek64(fd, ((unsigned long long)i * info.blocks_per_group * info.block_size) +
-                              (info.block_size * (aux_info.first_data_block + 1)), SEEK_SET);
-            if (ret < 0)
-                critical_error_errno("failed to seek to block group descriptors");
+            ret = lseek64(fd,
+                          ((unsigned long long)i * info.blocks_per_group * info.block_size) +
+                                  (info.block_size * (aux_info.first_data_block + 1)),
+                          SEEK_SET);
+            if (ret < 0) critical_error_errno("failed to seek to block group descriptors");
 
             if (!no_write) {
                 ret = write(fd, aux_info.bg_desc, info.block_size * aux_info.bg_desc_blocks);
-                if (ret < 0)
-                    critical_error_errno("failed to write block group descriptors");
+                if (ret < 0) critical_error_errno("failed to write block group descriptors");
                 if (ret != (int)info.block_size * (int)aux_info.bg_desc_blocks)
                     critical_error("failed to write all of block group descriptors");
             }
@@ -451,10 +432,8 @@ static int update_superblocks_and_bg_desc(int fd, int state)
     return 0;
 }
 
-
-static int get_direct_blocks(struct ext4_inode *inode, unsigned long long *block_list,
-                                                       unsigned int *count)
-{
+static int get_direct_blocks(struct ext4_inode* inode, unsigned long long* block_list,
+                             unsigned int* count) {
     unsigned int i = 0;
     unsigned int ret = 0;
     unsigned int sectors_per_block;
@@ -474,24 +453,23 @@ static int get_direct_blocks(struct ext4_inode *inode, unsigned long long *block
     return ret;
 }
 
-static int get_indirect_blocks(int fd, struct ext4_inode *inode,
-                               unsigned long long *block_list, unsigned int *count)
-{
+static int get_indirect_blocks(int fd, struct ext4_inode* inode, unsigned long long* block_list,
+                               unsigned int* count) {
     unsigned int i;
-    unsigned int *indirect_block;
+    unsigned int* indirect_block;
     unsigned int sectors_per_block;
 
     sectors_per_block = info.block_size / INODE_BLOCK_SIZE;
 
-    indirect_block = (unsigned int *)malloc(info.block_size);
+    indirect_block = (unsigned int*)malloc(info.block_size);
     if (indirect_block == 0) {
         critical_error("failed to allocate memory for indirect_block\n");
     }
 
     read_block(fd, inode->i_block[EXT4_NDIR_BLOCKS], indirect_block);
 
-    for(i = 0; i < (inode->i_blocks_lo / sectors_per_block - EXT4_NDIR_BLOCKS); i++) {
-       block_list[EXT4_NDIR_BLOCKS+i] = indirect_block[i];
+    for (i = 0; i < (inode->i_blocks_lo / sectors_per_block - EXT4_NDIR_BLOCKS); i++) {
+        block_list[EXT4_NDIR_BLOCKS + i] = indirect_block[i];
     }
 
     *count += i;
@@ -501,9 +479,9 @@ static int get_indirect_blocks(int fd, struct ext4_inode *inode,
     return 0;
 }
 
-static int get_block_list_indirect(int fd, struct ext4_inode *inode, unsigned long long *block_list)
-{
-    unsigned int count=0;
+static int get_block_list_indirect(int fd, struct ext4_inode* inode,
+                                   unsigned long long* block_list) {
+    unsigned int count = 0;
 
     if (get_direct_blocks(inode, block_list, &count)) {
         get_indirect_blocks(fd, inode, block_list, &count);
@@ -512,10 +490,9 @@ static int get_block_list_indirect(int fd, struct ext4_inode *inode, unsigned lo
     return count;
 }
 
-static int get_extent_ents(struct ext4_extent_header *ext_hdr, unsigned long long *block_list)
-{
+static int get_extent_ents(struct ext4_extent_header* ext_hdr, unsigned long long* block_list) {
     int i, j;
-    struct ext4_extent *extent;
+    struct ext4_extent* extent;
     off64_t fs_block_num;
 
     if (ext_hdr->eh_depth != 0) {
@@ -525,24 +502,24 @@ static int get_extent_ents(struct ext4_extent_header *ext_hdr, unsigned long lon
     /* The extent entries immediately follow the header, so add 1 to the pointer
      * and cast it to an extent pointer.
      */
-    extent = (struct ext4_extent *)(ext_hdr + 1);
+    extent = (struct ext4_extent*)(ext_hdr + 1);
 
     for (i = 0; i < ext_hdr->eh_entries; i++) {
-         fs_block_num = ((off64_t)extent->ee_start_hi << 32) | extent->ee_start_lo;
-         for (j = 0; j < extent->ee_len; j++) {
-             block_list[extent->ee_block+j] = fs_block_num+j;
-         }
-         extent++;
+        fs_block_num = ((off64_t)extent->ee_start_hi << 32) | extent->ee_start_lo;
+        for (j = 0; j < extent->ee_len; j++) {
+            block_list[extent->ee_block + j] = fs_block_num + j;
+        }
+        extent++;
     }
 
     return 0;
 }
 
-static int get_extent_idx(int fd, struct ext4_extent_header *ext_hdr, unsigned long long *block_list)
-{
+static int get_extent_idx(int fd, struct ext4_extent_header* ext_hdr,
+                          unsigned long long* block_list) {
     int i;
-    struct ext4_extent_idx *extent_idx;
-    struct ext4_extent_header *tmp_ext_hdr;
+    struct ext4_extent_idx* extent_idx;
+    struct ext4_extent_header* tmp_ext_hdr;
     off64_t fs_block_num;
     unsigned char block[MAX_EXT4_BLOCK_SIZE];
 
@@ -554,46 +531,44 @@ static int get_extent_idx(int fd, struct ext4_extent_header *ext_hdr, unsigned l
     /* The extent entries immediately follow the header, so add 1 to the pointer
      * and cast it to an extent pointer.
      */
-    extent_idx = (struct ext4_extent_idx *)(ext_hdr + 1);
+    extent_idx = (struct ext4_extent_idx*)(ext_hdr + 1);
 
     for (i = 0; i < ext_hdr->eh_entries; i++) {
-         fs_block_num = ((off64_t)extent_idx->ei_leaf_hi << 32) | extent_idx->ei_leaf_lo;
-         read_block(fd, fs_block_num, block);
-         tmp_ext_hdr = (struct ext4_extent_header *)block;
+        fs_block_num = ((off64_t)extent_idx->ei_leaf_hi << 32) | extent_idx->ei_leaf_lo;
+        read_block(fd, fs_block_num, block);
+        tmp_ext_hdr = (struct ext4_extent_header*)block;
 
-         if (tmp_ext_hdr->eh_depth == 0) {
-             get_extent_ents(tmp_ext_hdr, block_list); /* leaf node, fill in block_list */
-         } else {
-             get_extent_idx(fd, tmp_ext_hdr, block_list); /* recurse down the tree */
-         }
+        if (tmp_ext_hdr->eh_depth == 0) {
+            get_extent_ents(tmp_ext_hdr, block_list); /* leaf node, fill in block_list */
+        } else {
+            get_extent_idx(fd, tmp_ext_hdr, block_list); /* recurse down the tree */
+        }
     }
 
     return 0;
 }
 
-static int get_block_list_extents(int fd, struct ext4_inode *inode, unsigned long long *block_list)
-{
-    struct ext4_extent_header *extent_hdr;
+static int get_block_list_extents(int fd, struct ext4_inode* inode,
+                                  unsigned long long* block_list) {
+    struct ext4_extent_header* extent_hdr;
 
-    extent_hdr = (struct ext4_extent_header *)inode->i_block;
+    extent_hdr = (struct ext4_extent_header*)inode->i_block;
 
     if (extent_hdr->eh_magic != EXT4_EXT_MAGIC) {
-        critical_error("extent header has unexpected magic value 0x%4.4x\n",
-                       extent_hdr->eh_magic);
+        critical_error("extent header has unexpected magic value 0x%4.4x\n", extent_hdr->eh_magic);
     }
 
     if (extent_hdr->eh_depth == 0) {
-         get_extent_ents((struct ext4_extent_header *)inode->i_block, block_list);
-         return 0;
+        get_extent_ents((struct ext4_extent_header*)inode->i_block, block_list);
+        return 0;
     }
 
-    get_extent_idx(fd, (struct ext4_extent_header *)inode->i_block, block_list);
+    get_extent_idx(fd, (struct ext4_extent_header*)inode->i_block, block_list);
 
     return 0;
 }
 
-static int is_entry_dir(int fd, struct ext4_dir_entry_2 *dirp, int pass)
-{
+static int is_entry_dir(int fd, struct ext4_dir_entry_2* dirp, int pass) {
     struct ext4_inode inode;
     int ret = 0;
 
@@ -620,16 +595,15 @@ static int is_entry_dir(int fd, struct ext4_dir_entry_2 *dirp, int pass)
     return ret;
 }
 
-static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsize, int mode)
-{
-    unsigned long long *block_list;
+static int recurse_dir(int fd, struct ext4_inode* inode, char* dirbuf, int dirsize, int mode) {
+    unsigned long long* block_list;
     unsigned int num_blocks;
     struct ext4_dir_entry_2 *dirp, *prev_dirp = 0;
     char name[256];
     unsigned int i, leftover_space, is_dir;
     struct ext4_inode tmp_inode;
     int tmp_dirsize;
-    char *tmp_dirbuf;
+    char* tmp_dirbuf;
 
     switch (mode) {
         case SANITY_CHECK_PASS:
@@ -642,7 +616,7 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
 
     if (dirsize % info.block_size) {
         critical_error("dirsize %d not a multiple of block_size %d.  This is unexpected!\n",
-                dirsize, info.block_size);
+                       dirsize, info.block_size);
     }
 
     num_blocks = dirsize / info.block_size;
@@ -655,14 +629,15 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
     if (inode->i_flags & EXT4_EXTENTS_FL) {
         get_block_list_extents(fd, inode, block_list);
     } else {
-        /* A directory that requires doubly or triply indirect blocks in huge indeed,
-         * and will almost certainly not exist, especially since make_ext4fs only creates
-         * directories with extents, and the kernel will too, but check to make sure the
-         * directory is not that big and give an error if so.  Our limit is 12 direct blocks,
-         * plus block_size/4 singly indirect blocks, which for a filesystem with 4K blocks
-         * is a directory 1036 blocks long, or 4,243,456 bytes long!  Assuming an average
-         * filename length of 20 (which I think is generous) thats 20 + 8 bytes overhead
-         * per entry, or 151,552 entries in the directory!
+        /* A directory that requires doubly or triply indirect blocks in huge
+         * indeed, and will almost certainly not exist, especially since make_ext4fs
+         * only creates directories with extents, and the kernel will too, but check
+         * to make sure the directory is not that big and give an error if so.  Our
+         * limit is 12 direct blocks, plus block_size/4 singly indirect blocks,
+         * which for a filesystem with 4K blocks is a directory 1036 blocks long, or
+         * 4,243,456 bytes long!  Assuming an average filename length of 20 (which I
+         * think is generous) thats 20 + 8 bytes overhead per entry, or 151,552
+         * entries in the directory!
          */
         if (num_blocks > (info.block_size / 4 + EXT4_NDIR_BLOCKS)) {
             critical_error("Non-extent based directory is too big!\n");
@@ -675,12 +650,12 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
         read_block(fd, block_list[i], dirbuf + (i * info.block_size));
     }
 
-    dirp = (struct ext4_dir_entry_2 *)dirbuf;
-    while (dirp < (struct ext4_dir_entry_2 *)(dirbuf + dirsize)) {
+    dirp = (struct ext4_dir_entry_2*)dirbuf;
+    while (dirp < (struct ext4_dir_entry_2*)(dirbuf + dirsize)) {
         count++;
-        leftover_space = (char *)(dirbuf + dirsize) - (char *)dirp;
-        if (((mode == SANITY_CHECK_PASS) || (mode == UPDATE_INODE_NUMS)) &&
-            (leftover_space <= 8) && prev_dirp) {
+        leftover_space = (char*)(dirbuf + dirsize) - (char*)dirp;
+        if (((mode == SANITY_CHECK_PASS) || (mode == UPDATE_INODE_NUMS)) && (leftover_space <= 8) &&
+            prev_dirp) {
             /* This is a bug in an older version of make_ext4fs, where it
              * didn't properly include the rest of the block in rec_len.
              * Update rec_len on the previous entry to include the rest of
@@ -699,27 +674,27 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
         }
 
         strncpy(name, dirp->name, dirp->name_len);
-        name[dirp->name_len]='\0';
+        name[dirp->name_len] = '\0';
 
         /* Only recurse on pass UPDATE_INODE_NUMS if the high bit is set.
          * Otherwise, this inode entry has already been updated
          * and we'll do the wrong thing.  Also don't recurse on . or ..,
          * and certainly not on non-directories!
          */
-        /* Hrm, looks like filesystems made by fastboot on stingray set the file_type
-         * flag, but the lost+found directory has the type set to Unknown, which
-         * seems to imply I need to read the inode and get it.
+        /* Hrm, looks like filesystems made by fastboot on stingray set the
+         * file_type flag, but the lost+found directory has the type set to Unknown,
+         * which seems to imply I need to read the inode and get it.
          */
         is_dir = is_entry_dir(fd, dirp, mode);
-        if ( is_dir && (strcmp(name, ".") && strcmp(name, "..")) &&
+        if (is_dir && (strcmp(name, ".") && strcmp(name, "..")) &&
             ((mode == SANITY_CHECK_PASS) || (mode == MARK_INODE_NUMS) ||
-              ((mode == UPDATE_INODE_NUMS) && (dirp->inode & 0x80000000))) ) {
+             ((mode == UPDATE_INODE_NUMS) && (dirp->inode & 0x80000000)))) {
             /* A directory!  Recurse! */
             read_inode(fd, dirp->inode & 0x7fffffff, &tmp_inode);
 
             if (!S_ISDIR(tmp_inode.i_mode)) {
                 critical_error("inode %d for name %s does not point to a directory\n",
-                        dirp->inode & 0x7fffffff, name);
+                               dirp->inode & 0x7fffffff, name);
             }
             if (verbose) {
                 printf("inode %d %s use extents\n", dirp->inode & 0x7fffffff,
@@ -749,7 +724,8 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
             }
         }
 
-        /* Process entry based on current mode.  Either set high bit or change inode number */
+        /* Process entry based on current mode.  Either set high bit or change inode
+         * number */
         if (mode == MARK_INODE_NUMS) {
             dirp->inode |= 0x80000000;
         } else if (mode == UPDATE_INODE_NUMS) {
@@ -764,7 +740,7 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
 
         /* Point dirp at the next entry */
         prev_dirp = dirp;
-        dirp = (struct ext4_dir_entry_2*)((char *)dirp + dirp->rec_len);
+        dirp = (struct ext4_dir_entry_2*)((char*)dirp + dirp->rec_len);
     }
 
     /* Write out all the blocks for this directory */
@@ -780,21 +756,18 @@ static int recurse_dir(int fd, struct ext4_inode *inode, char *dirbuf, int dirsi
     return 0;
 }
 
-int ext4fixup(char *fsdev)
-{
+int ext4fixup(char* fsdev) {
     return ext4fixup_internal(fsdev, 0, 0, 0, 0, 0);
 }
 
-int ext4fixup_internal(char *fsdev, int v_flag, int n_flag,
-                       int stop_phase, int stop_loc, int stop_count)
-{
+int ext4fixup_internal(char* fsdev, int v_flag, int n_flag, int stop_phase, int stop_loc,
+                       int stop_count) {
     int fd;
     struct ext4_inode root_inode;
     unsigned int dirsize;
-    char *dirbuf;
+    char* dirbuf;
 
-    if (setjmp(setjmp_env))
-        return EXIT_FAILURE; /* Handle a call to longjmp() */
+    if (setjmp(setjmp_env)) return EXIT_FAILURE; /* Handle a call to longjmp() */
 
     verbose = v_flag;
     no_write = n_flag;
@@ -805,8 +778,7 @@ int ext4fixup_internal(char *fsdev, int v_flag, int n_flag,
 
     fd = open(fsdev, O_RDWR);
 
-    if (fd < 0)
-        critical_error_errno("failed to open filesystem image");
+    if (fd < 0) critical_error_errno("failed to open filesystem image");
 
     read_ext(fd);
 
@@ -814,7 +786,7 @@ int ext4fixup_internal(char *fsdev, int v_flag, int n_flag,
         critical_error("Expected filesystem to have filetype flag set\n");
     }
 
-#if 0 // If we have to fix the directory rec_len issue, we can't use this check
+#if 0  // If we have to fix the directory rec_len issue, we can't use this check
     /* Check to see if the inodes/group is copacetic */
     if (info.inodes_per_blockgroup % (info.block_size/info.inode_size) == 0) {
              /* This filesystem has either already been updated, or was
@@ -827,8 +799,9 @@ int ext4fixup_internal(char *fsdev, int v_flag, int n_flag,
     }
 #endif
 
-    /* Compute what the new value of inodes_per_blockgroup will be when we're done */
-    new_inodes_per_group=ALIGN(info.inodes_per_group,(info.block_size/info.inode_size));
+    /* Compute what the new value of inodes_per_blockgroup will be when we're done
+     */
+    new_inodes_per_group = ALIGN(info.inodes_per_group, (info.block_size / info.inode_size));
 
     read_inode(fd, EXT4_ROOT_INO, &root_inode);
 
@@ -852,13 +825,14 @@ int ext4fixup_internal(char *fsdev, int v_flag, int n_flag,
 
     /* Perform a sanity check pass first, try to catch any errors that will occur
      * before we actually change anything, so we don't leave a filesystem in a
-     * corrupted, unrecoverable state.  Set no_write, make it quiet, and do a recurse
-     * pass and a update_superblock pass.  Set flags back to requested state when done.
-     * Only perform sanity check if the state is unset.  If the state is _NOT_ unset,
-     * then the tool has already been run and interrupted, and it presumably ran and
-     * passed sanity checked before it got interrupted.  It is _NOT_ safe to run sanity
-     * check if state is unset because it assumes inodes are to be computed using the
-     * old inodes/group, but some inode numbers may be updated to the new number.
+     * corrupted, unrecoverable state.  Set no_write, make it quiet, and do a
+     * recurse pass and a update_superblock pass.  Set flags back to requested
+     * state when done. Only perform sanity check if the state is unset.  If the
+     * state is _NOT_ unset, then the tool has already been run and interrupted,
+     * and it presumably ran and passed sanity checked before it got interrupted.
+     * It is _NOT_ safe to run sanity check if state is unset because it assumes
+     * inodes are to be computed using the old inodes/group, but some inode
+     * numbers may be updated to the new number.
      */
     if (get_fs_fixup_state(fd) == STATE_UNSET) {
         verbose = 0;

@@ -14,10 +14,10 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 

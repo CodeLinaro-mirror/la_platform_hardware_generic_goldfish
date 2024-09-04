@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
-
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
 class AudioDevice : public PciDevice {
-public:
-  explicit AudioDevice(std::string addr) : PciDevice("audio", addr) {}
+  public:
+    explicit AudioDevice(std::string addr) : PciDevice("audio", addr) {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

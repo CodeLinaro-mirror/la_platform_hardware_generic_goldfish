@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
-
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 // Configures the "motherboard", it will determine the qemu binary needed to run
 // and will also setup the proper motherboard configuration, including magical
@@ -25,14 +25,14 @@
 namespace android::goldfish {
 
 class Machine : public Device {
-public:
-  explicit Machine() : Device("machine") {}
+  public:
+    explicit Machine() : Device("machine") {}
 
-  fs::path qemu_binary() { return mBinary; }
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    fs::path qemu_binary() { return mBinary; }
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
-private:
-  fs::path mBinary;
+  private:
+    fs::path mBinary;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

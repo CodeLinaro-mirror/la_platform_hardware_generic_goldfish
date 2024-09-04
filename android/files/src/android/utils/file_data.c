@@ -10,25 +10,23 @@
 // GNU General Public License for more details.
 
 #include "android/utils/file_data.h"
-#include "android/base/file/file_io.h"
-#include "aemu/base/logging/CLog.h"
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "aemu/base/logging/CLog.h"
+#include "android/base/file/file_io.h"
+
 // Use a magic value in the |flags| field to indicate that a FileData
 // value was properly initialized. Helps catch errors at runtime.
 #define FILE_DATA_MAGIC ((size_t)0x87002013U)
 
 bool fileData_isValid(const FileData* data) {
-    if (!data)
-        return false;
-    if (data->flags == FILE_DATA_MAGIC)
-        return true;
-    if (data->flags == 0 && data->data == NULL && data->size == 0)
-        return true;
+    if (!data) return false;
+    if (data->flags == FILE_DATA_MAGIC) return true;
+    if (data->flags == 0 && data->data == NULL && data->size == 0) return true;
     return false;
 }
 
@@ -52,8 +50,7 @@ void fileData_initEmpty(FileData* data) {
 
 int fileData_initFromFile(FileData* data, const char* filePath) {
     FILE* f = android_fopen(filePath, "rb");
-    if (!f)
-        return -errno;
+    if (!f) return -errno;
 
     int ret = 0;
     do {
@@ -120,9 +117,7 @@ int fileData_initFrom(FileData* data, const FileData* other) {
     return 0;
 }
 
-int fileData_initFromMemory(FileData* data,
-                            const void* input,
-                            size_t inputLen) {
+int fileData_initFromMemory(FileData* data, const void* input, size_t inputLen) {
     FileData other;
     fileData_initWith(&other, input, inputLen);
     memset(data, 0, sizeof(*data));  // make valgrind happy.

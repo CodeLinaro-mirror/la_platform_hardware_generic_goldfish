@@ -18,12 +18,9 @@ namespace android {
 namespace base {
 namespace internal {
 
-ParallelTaskBase::ParallelTaskBase(Looper* looper,
-                                   Looper::Duration checkTimeoutMs,
+ParallelTaskBase::ParallelTaskBase(Looper* looper, Looper::Duration checkTimeoutMs,
                                    ThreadFlags flags)
-    : mLooper(looper),
-      mCheckTimeoutMs(checkTimeoutMs),
-      mManagedThread(this, flags) {}
+    : mLooper(looper), mCheckTimeoutMs(checkTimeoutMs), mManagedThread(this, flags) {}
 
 bool ParallelTaskBase::start() {
     if (!mManagedThread.start()) {
@@ -40,13 +37,11 @@ bool ParallelTaskBase::inFlight() const {
 }
 
 // static
-void ParallelTaskBase::tryWaitTillJoinedStatic(void* opaqueThis,
-                                               Looper::Timer* timer) {
+void ParallelTaskBase::tryWaitTillJoinedStatic(void* opaqueThis, Looper::Timer* timer) {
     static_cast<ParallelTaskBase*>(opaqueThis)->tryWaitTillJoined(timer);
 }
 
 void ParallelTaskBase::tryWaitTillJoined(Looper::Timer* timer) {
-
     if (!mManagedThread.tryWait(nullptr)) {
         mTimer->startRelative(mCheckTimeoutMs);
         return;

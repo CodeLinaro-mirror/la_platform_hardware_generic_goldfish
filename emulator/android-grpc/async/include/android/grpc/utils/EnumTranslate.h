@@ -16,10 +16,9 @@
 #include <type_traits>
 
 class EnumTranslate {
-public:
+  public:
     template <class fst, class snd, class key>
-    using _select_other = typename std::
-            conditional<std::is_same<key, snd>::value, fst, snd>::type;
+    using _select_other = typename std::conditional<std::is_same<key, snd>::value, fst, snd>::type;
 
     // @brief  Translate an external protobuf enum to an internal protobuf enum.
     //
@@ -35,11 +34,9 @@ public:
     // @retval The translated value or not_found if the entry was not found
     template <class fst, class snd, size_t SIZE, class key>
     static constexpr _select_other<fst, snd, key> translate(
-            const std::tuple<fst, snd> (&static_array)[SIZE],
-            const key& object,
+            const std::tuple<fst, snd> (&static_array)[SIZE], const key& object,
             const _select_other<fst, snd, key> not_found) {
-        static_assert(!std::is_same<fst, snd>::value,
-                      "Cannot map same types to each other.");
+        static_assert(!std::is_same<fst, snd>::value, "Cannot map same types to each other.");
         for (const auto& tuple : static_array) {
             if (std::get<key>(tuple) == object) {
                 return std::get<_select_other<fst, snd, key>>(tuple);
@@ -79,10 +76,8 @@ public:
     // exists.
     template <class fst, class snd, size_t SIZE, class key>
     static constexpr _select_other<fst, snd, key> translate(
-            const std::tuple<fst, snd> (&static_array)[SIZE],
-            const key& object) {
-        return translate(
-                static_array, object,
-                std::get<_select_other<fst, snd, key>>(static_array[SIZE - 1]));
+            const std::tuple<fst, snd> (&static_array)[SIZE], const key& object) {
+        return translate(static_array, object,
+                         std::get<_select_other<fst, snd, key>>(static_array[SIZE - 1]));
     }
 };

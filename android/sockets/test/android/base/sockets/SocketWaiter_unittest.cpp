@@ -8,11 +8,13 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include <memory>
-#include "aemu/base/sockets/SocketUtils.h"
 #include "aemu/base/sockets/SocketWaiter.h"
 
 #include <gtest/gtest.h>
+
+#include <memory>
+
+#include "aemu/base/sockets/SocketUtils.h"
 
 namespace android {
 namespace base {
@@ -119,7 +121,6 @@ TEST(SocketWaiter, waitOnWriteEvent) {
     socketClose(s2);
     socketClose(s1);
 }
-
 
 }  // namespace base
 }  // namespace android

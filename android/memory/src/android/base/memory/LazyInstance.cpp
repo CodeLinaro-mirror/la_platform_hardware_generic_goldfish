@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "aemu/base/memory/LazyInstance.h"
+
 #include <thread>
 
 namespace android {
@@ -23,15 +24,12 @@ bool LazyInstanceState::inNoObjectState() const {
     return state == State::Init || state == State::Destroying;
 }
 
-template <LazyInstanceState::State start,
-          LazyInstanceState::State intermediate,
+template <LazyInstanceState::State start, LazyInstanceState::State intermediate,
           LazyInstanceState::State end>
-static bool checkAndTransformState(
-        std::atomic<LazyInstanceState::State>* state) {
+static bool checkAndTransformState(std::atomic<LazyInstanceState::State>* state) {
     for (;;) {
         auto current = start;
-        if (state->compare_exchange_strong(current, intermediate,
-                                           std::memory_order_acquire,
+        if (state->compare_exchange_strong(current, intermediate, std::memory_order_acquire,
                                            std::memory_order_acquire)) {
             // The object was in the expected |start| state, so we're done here
             // and return that the action needs to be done.
@@ -57,8 +55,7 @@ bool LazyInstanceState::needConstruction() {
     if (mState.load(std::memory_order_acquire) == State::Done) {
         return false;
     }
-    return checkAndTransformState<State::Init, State::Constructing, State::Done>(
-            &mState);
+    return checkAndTransformState<State::Init, State::Constructing, State::Done>(&mState);
 }
 
 void LazyInstanceState::doneConstructing() {
@@ -66,8 +63,7 @@ void LazyInstanceState::doneConstructing() {
 }
 
 bool LazyInstanceState::needDestruction() {
-    return checkAndTransformState<State::Done, State::Destroying, State::Init>(
-            &mState);
+    return checkAndTransformState<State::Done, State::Destroying, State::Init>(&mState);
 }
 
 void LazyInstanceState::doneDestroying() {

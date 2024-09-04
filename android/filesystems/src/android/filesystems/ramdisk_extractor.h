@@ -11,10 +11,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stddef.h>
 
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -24,9 +23,7 @@ ANDROID_BEGIN_HEADER
 // On success, returns true and sets |*out| to point to a heap allocated
 // block containing the extracted content, of size |*out_size| bytes.
 // On failure, return false.
-bool android_extractRamdiskFile(const char* ramdisk_path,
-                                const char* file_path,
-                                char** out,
+bool android_extractRamdiskFile(const char* ramdisk_path, const char* file_path, char** out,
                                 size_t* out_size);
 
 ANDROID_END_HEADER

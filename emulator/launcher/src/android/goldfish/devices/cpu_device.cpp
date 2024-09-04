@@ -27,44 +27,41 @@
 
 namespace android::goldfish {
 absl::Status CpuDevice::initialize(const Emulator& emulator) {
-  // TODO(jansene): do a series of checks.
-  // TODO(invoking qemu --accel help will give supported hypervisors)
-  // TODO(invoking qemu --cpu help will give supported cpus)
+    // TODO(jansene): do a series of checks.
+    // TODO(invoking qemu --accel help will give supported hypervisors)
+    // TODO(invoking qemu --cpu help will give supported cpus)
 
-  return absl::OkStatus();
+    return absl::OkStatus();
 }
 
-std::vector<std::string>
-CpuDevice::getQemuParameters(const Emulator& emulator) const {
-  const Avd& avd = emulator.avd();
-  auto hw = avd.hw();
+std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) const {
+    const Avd& avd = emulator.avd();
+    auto hw = avd.hw();
 
-  auto supported = GetCurrentCpuAccelerator();
-  auto aarch = avd.detectArchitecture();
+    auto supported = GetCurrentCpuAccelerator();
+    auto aarch = avd.detectArchitecture();
 
-  std::string accel = "tcg";
-  std::string cpu = "host";
+    std::string accel = "tcg";
+    std::string cpu = "host";
 #ifdef __arm64__
 
-  if (aarch == Avd::CpuArchitecture::kArm &&
-      supported != CPU_ACCELERATOR_NONE) {
-    accel = CpuAcceleratorToString(supported);
-    cpu = "cortex-a57";
-  } else {
-    LOG(WARNING) << "Using TCG, which is not going to be fast!";
-    cpu = "Snowridge";
-  }
+    if (aarch == Avd::CpuArchitecture::kArm && supported != CPU_ACCELERATOR_NONE) {
+        accel = CpuAcceleratorToString(supported);
+        cpu = "cortex-a57";
+    } else {
+        LOG(WARNING) << "Using TCG, which is not going to be fast!";
+        cpu = "Snowridge";
+    }
 #else
-  if (aarch == Avd::CpuArchitecture::kX86 && supported != CPU_ACCELERATOR_NONE) {
-    accel = CpuAcceleratorToString(supported);
-    cpu = "Snowridge";
-  } else {
-    LOG(WARNING) << "Using TCG, which is not going to be fast!";
-    cpu = "cortex-a57";
-  }
+    if (aarch == Avd::CpuArchitecture::kX86 && supported != CPU_ACCELERATOR_NONE) {
+        accel = CpuAcceleratorToString(supported);
+        cpu = "Snowridge";
+    } else {
+        LOG(WARNING) << "Using TCG, which is not going to be fast!";
+        cpu = "cortex-a57";
+    }
 #endif
-  return {"-smp", std::to_string(hw.hw_cpu_ncore), "-accel", accel, "-cpu",
-          cpu};
+    return {"-smp", std::to_string(hw.hw_cpu_ncore), "-accel", accel, "-cpu", cpu};
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

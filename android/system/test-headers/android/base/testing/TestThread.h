@@ -15,10 +15,10 @@
 #pragma once
 
 #ifdef _WIN32
-#  define WIN32_LEAN_AND_MEAN 1
-#  include <windows.h>
+#define WIN32_LEAN_AND_MEAN 1
+#include <windows.h>
 #else
-#  include <pthread.h>
+#include <pthread.h>
 #endif
 
 #include <stdint.h>
@@ -30,25 +30,19 @@ namespace base {
 // This shall only be used during unit testing, and allows test code
 // to not depend on the implementation of android::base::Thread.
 class TestThread {
-public:
+  public:
     // Main thread function type.
-    typedef void* (ThreadFunction)(void* param);
+    typedef void*(ThreadFunction)(void* param);
 
     // Constructor actually launches a new platform thread.
-    TestThread(ThreadFunction* func, void* funcParam,
-               int stackSize = 16384) {
+    TestThread(ThreadFunction* func, void* funcParam, int stackSize = 16384) {
 #ifdef _WIN32
-        mThread = CreateThread(NULL,
-                               stackSize,
-                               (DWORD WINAPI (*)(void*))func,
-                               funcParam,
-                               0,
-                               NULL);
+        mThread = CreateThread(NULL, stackSize, (DWORD WINAPI(*)(void*))func, funcParam, 0, NULL);
 #else
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setstacksize(&attr, stackSize);
-        pthread_create(&mThread,  &attr, func, funcParam);
+        pthread_create(&mThread, &attr, func, funcParam);
         pthread_attr_destroy(&attr);
 #endif
     }
@@ -71,7 +65,7 @@ public:
         return (intptr_t)ret;
     }
 
-private:
+  private:
 #ifdef _WIN32
     HANDLE mThread;
 #else

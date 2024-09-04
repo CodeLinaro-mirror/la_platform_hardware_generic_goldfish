@@ -23,19 +23,17 @@ extern "C" {
 
 struct selabel_handle;
 
-int make_ext4fs(const char *filename, long long len,
-                const char *mountpoint, struct selabel_handle *sehnd);
+int make_ext4fs(const char* filename, long long len, const char* mountpoint,
+                struct selabel_handle* sehnd);
 
-int make_ext4fs_from_dir(const char *filename, const char *dirname,
-                         long long len, const char *mountpoint,
-                         struct selabel_handle *sehnd, int verbose);
+int make_ext4fs_from_dir(const char* filename, const char* dirname, long long len,
+                         const char* mountpoint, struct selabel_handle* sehnd, int verbose);
 
-int make_ext4fs_extra(const char *filename, long long len,
-                      const char *mountpoint, struct selabel_handle *sehnd,
-                      int wipe, int verbose);
+int make_ext4fs_extra(const char* filename, long long len, const char* mountpoint,
+                      struct selabel_handle* sehnd, int wipe, int verbose);
 
-int make_ext4fs_sparse_fd(int fd, long long len,
-                const char *mountpoint, struct selabel_handle *sehnd);
+int make_ext4fs_sparse_fd(int fd, long long len, const char* mountpoint,
+                          struct selabel_handle* sehnd);
 
 #ifdef __cplusplus
 }

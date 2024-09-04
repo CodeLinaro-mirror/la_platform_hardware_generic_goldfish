@@ -14,11 +14,11 @@
 
 #include "aemu/base/threads/ThreadStore.h"
 
-#include "aemu/base/synchronization/Lock.h"
-#include "android/base/testing/TestThread.h"
-#include "aemu/base/threads/Thread.h"
-
 #include <gtest/gtest.h>
+
+#include "aemu/base/synchronization/Lock.h"
+#include "aemu/base/threads/Thread.h"
+#include "android/base/testing/TestThread.h"
 
 namespace android {
 namespace base {
@@ -27,15 +27,14 @@ namespace {
 
 // Helper class used to count instance creation and destruction.
 class StaticCounter {
-public:
+  public:
     enum {
         kMaxInstances = 1000,
     };
 
     StaticCounter() {
         AutoLock lock(mLock);
-        if (mCreationCount < kMaxInstances)
-            mInstances[mCreationCount] = this;
+        if (mCreationCount < kMaxInstances) mInstances[mCreationCount] = this;
         mCreationCount++;
     }
 
@@ -61,11 +60,10 @@ public:
     }
 
     static void freeAll() {
-        for (size_t n = 0; n < kMaxInstances; ++n)
-            delete mInstances[n];
+        for (size_t n = 0; n < kMaxInstances; ++n) delete mInstances[n];
     }
 
-private:
+  private:
     static Lock mLock;
     static size_t mCreationCount;
     static size_t mDestructionCount;
@@ -80,14 +78,15 @@ size_t StaticCounter::mDestructionCount = 0;
 StaticCounter* StaticCounter::mInstances[kMaxInstances];
 
 class MyThread : public Thread {
-public:
+  public:
     MyThread(StaticCounterStore* store) : mStore(store) {}
 
     virtual intptr_t main() {
         mStore->set(new StaticCounter());
         return 0;
     }
-private:
+
+  private:
     StaticCounterStore* mStore;
 };
 
@@ -105,7 +104,7 @@ TEST(ThreadStoreBase, MainThreadWithoutDestructor) {
 // The following test checks that exiting a thread correctly deletes
 // any thread-local value stored in it.
 static void simplyDestroy(void* value) {
-    delete (StaticCounter*) value;
+    delete (StaticCounter*)value;
 }
 
 static void* simpleThreadFunc(void* param) {

@@ -26,27 +26,25 @@ namespace base {
 // its view() method, and cleared with its reset() method.
 // read() operations on the stream are forbidden.
 class TestMemoryOutputStream : public Stream {
-public:
-  virtual ssize_t read(void *buffer, size_t len) override {
-    errno = EINVAL;
-    return -1;
-  }
+  public:
+    virtual ssize_t read(void* buffer, size_t len) override {
+        errno = EINVAL;
+        return -1;
+    }
 
-  virtual ssize_t write(const void *buffer, size_t len) override {
-    mData.insert(mData.end(), static_cast<const char *>(buffer),
-                 static_cast<const char *>(buffer) + len);
-    return static_cast<ssize_t>(len);
-  }
+    virtual ssize_t write(const void* buffer, size_t len) override {
+        mData.insert(mData.end(), static_cast<const char*>(buffer),
+                     static_cast<const char*>(buffer) + len);
+        return static_cast<ssize_t>(len);
+    }
 
-  std::string_view view() const {
-    return std::string_view(mData.data(), mData.size());
-  }
+    std::string_view view() const { return std::string_view(mData.data(), mData.size()); }
 
-  void reset() { mData.clear(); }
+    void reset() { mData.clear(); }
 
-private:
-  std::vector<char> mData;
+  private:
+    std::vector<char> mData;
 };
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

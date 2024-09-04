@@ -10,11 +10,12 @@
 // GNU General Public License for more details.
 
 #include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
 
 #include <gtest/gtest.h>
 
 #include <utility>
+
+#include "aemu/base/sockets/SocketUtils.h"
 
 namespace android {
 namespace base {

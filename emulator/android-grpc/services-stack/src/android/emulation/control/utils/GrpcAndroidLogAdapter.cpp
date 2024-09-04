@@ -19,18 +19,18 @@ namespace android {
 namespace emulation {
 namespace control {
 void gpr_log_to_android_log(gpr_log_func_args* args) {
-  if (!args) return;
-  switch (args->severity) {
-    case GPR_LOG_SEVERITY_DEBUG:
-      VLOG(2).AtLocation(args->file, args->line) << args->message;
-      break;
-    case GPR_LOG_SEVERITY_INFO:
-      LOG(INFO).AtLocation(args->file, args->line) << args->message;
-      break;
-    case GPR_LOG_SEVERITY_ERROR:
-      LOG(ERROR).AtLocation(args->file, args->line) << args->message;
-      break;
-  }
+    if (!args) return;
+    switch (args->severity) {
+        case GPR_LOG_SEVERITY_DEBUG:
+            VLOG(2).AtLocation(args->file, args->line) << args->message;
+            break;
+        case GPR_LOG_SEVERITY_INFO:
+            LOG(INFO).AtLocation(args->file, args->line) << args->message;
+            break;
+        case GPR_LOG_SEVERITY_ERROR:
+            LOG(ERROR).AtLocation(args->file, args->line) << args->message;
+            break;
+    }
 }
 void gpr_null_logger(gpr_log_func_args* args) {}
 }  // namespace control

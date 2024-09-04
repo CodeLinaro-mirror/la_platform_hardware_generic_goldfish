@@ -16,6 +16,7 @@
 #include <grpcpp/grpcpp.h>  // for CreateCustomChannel
 #include <stdio.h>          // for size_t
 #include <sys/types.h>      // for mode_t
+#include <zlib.h>           // for crc32
 
 #include <cstdint>  // for uint8_t, uint64_t
 #include <memory>   // for unique_ptr, shar...
@@ -23,28 +24,25 @@
 #include <string>   // for string, operator+
 #include <vector>   // for vector
 
-#include <zlib.h>  // for crc32
+#include "absl/log/log.h"                      // for LogStreamVoidify
+#include "benchmark/benchmark.h"               // for State, Benchmark
+#include "google/protobuf/empty.pb.h"          // for Empty
+#include "grpcpp/impl/grpc_library.h"          // Hack Attack! Needed for static initializer
+#include "grpcpp/security/credentials.h"       // for InsecureChannelC...
+#include "grpcpp/support/channel_arguments.h"  // for ChannelArguments
 
-#include "absl/log/log.h"              // for LogStreamVoidify
-#include "benchmark/benchmark.h"       // for State, Benchmark
-#include "google/protobuf/empty.pb.h"  // for Empty
-
-#include "aemu/base/files/PathUtils.h"       // for PathUtils
-#include "aemu/base/memory/LazyInstance.h"   // for LazyInstance
-#include "aemu/base/memory/SharedMemory.h"   // for SharedMemory
-#include "aemu/base/sockets/ScopedSocket.h"  // for ScopedSocket
-#include "aemu/base/sockets/SocketUtils.h"   // for socketRecvAll
-
+#include "aemu/base/files/PathUtils.h"               // for PathUtils
+#include "aemu/base/memory/LazyInstance.h"           // for LazyInstance
+#include "aemu/base/memory/SharedMemory.h"           // for SharedMemory
+#include "aemu/base/sockets/ScopedSocket.h"          // for ScopedSocket
+#include "aemu/base/sockets/SocketUtils.h"           // for socketRecvAll
 #include "android/base/system/System.h"              // for System, RunOptions
 #include "android/base/testing/TestTempDir.h"        // for TestTempDir
 #include "android/emulation/control/GrpcServices.h"  // for control
-#include "grpcpp/impl/grpc_library.h"  // Hack Attack! Needed for static initializer
-#include "grpcpp/security/credentials.h"       // for InsecureChannelC...
-#include "grpcpp/support/channel_arguments.h"  // for ChannelArguments
-#include "ipc_test_service.grpc.pb.h"          // for TestRunner::Stub
-#include "ipc_test_service.pb.h"               // for Test, Test::Grpc
-#include "test_echo_service.grpc.pb.h"         // for TestEcho, TestEc...
-#include "test_echo_service.pb.h"              // for Msg
+#include "ipc_test_service.grpc.pb.h"                // for TestRunner::Stub
+#include "ipc_test_service.pb.h"                     // for Test, Test::Grpc
+#include "test_echo_service.grpc.pb.h"               // for TestEcho, TestEc...
+#include "test_echo_service.pb.h"                    // for Msg
 
 // This contains a series of benchmarks that can be used to determine which mode
 // of ipc is best suited for sharing large blobs of memory (i.e. image frame
@@ -110,29 +108,26 @@ const std::string kSharedReader = "ipc_reader";
 // This class prepares the remote process for the test we
 // are going to run.
 class GrpcDriver {
-public:
+  public:
     GrpcDriver() { launchRemoteProc(); }
     ~GrpcDriver() { System::get()->killProcess(mTestPid); }
 
     void launchRemoteProc() {
         // Do your best to find the reader executable, does not
         // always work. You can always launch manually.
-        std::string executable =
-                System::get()->findBundledExecutable(kSharedReader);
+        std::string executable = System::get()->findBundledExecutable(kSharedReader);
 
-        if (!System::get()->runCommand(
-                    {executable, "--port", std::to_string(mPort)},
-                    RunOptions::DontWait, System::kInfinite, nullptr,
-                    &mTestPid)) {
-            LOG(INFO) << "Failed to launch " << executable << " --port "
-                      << mPort << ", asuming you are running it manually.";
+        if (!System::get()->runCommand({executable, "--port", std::to_string(mPort)},
+                                       RunOptions::DontWait, System::kInfinite, nullptr,
+                                       &mTestPid)) {
+            LOG(INFO) << "Failed to launch " << executable << " --port " << mPort
+                      << ", asuming you are running it manually.";
         }
 
         grpc::ChannelArguments ch_args;
         ch_args.SetMaxReceiveMessageSize(-1);
-        auto channel = grpc::CreateCustomChannel(
-                "localhost:" + std::to_string(mPort),
-                ::grpc::InsecureChannelCredentials(), ch_args);
+        auto channel = grpc::CreateCustomChannel("localhost:" + std::to_string(mPort),
+                                                 ::grpc::InsecureChannelCredentials(), ch_args);
         mStub = TestRunner::NewStub(channel);
     }
 
@@ -141,13 +136,13 @@ public:
         grpc::ClientContext ctx;
         auto status = mStub->runTest(&ctx, test, &response);
         if (!status.ok()) {
-            LOG(FATAL) << "Failed to make configure remote process: "
-                       << status.error_code() << ", " << status.error_message();
+            LOG(FATAL) << "Failed to make configure remote process: " << status.error_code() << ", "
+                       << status.error_message();
         }
         return response;
     }
 
-private:
+  private:
     System::Pid mTestPid;
     int mPort = 13121;
     std::unique_ptr<TestRunner::Stub> mStub;
@@ -160,7 +155,7 @@ android::base::LazyInstance<GrpcDriver> sGrpcDriver = LAZY_INSTANCE_INIT;
 // you will probably want to subclass this and implement the
 // prepare and chksum methods.
 class PerfTest {
-public:
+  public:
     PerfTest() {}
     ~PerfTest() {}
 
@@ -182,13 +177,13 @@ public:
         mConfig = sGrpcDriver->prepare(mTest);
     }
 
-protected:
+  protected:
     Test mTest;    // Desired test configuration.
     Test mConfig;  // Actual configuration after remote prepare was called.
 };
 
 class SharedMemoryTest : public PerfTest {
-public:
+  public:
     SharedMemoryTest(std::string unique_name) {
         mTest.set_target(Test::SharedMemory);
         mTest.set_handle(unique_name);
@@ -197,8 +192,7 @@ public:
     SharedMemoryTest() {
         // File backed ram in a temporary file somewhere.
         mTest.set_target(Test::SharedMemory);
-        mTest.set_handle("file://" + android::base::PathUtils::join(
-                                             mTempDir.path(), "shared.mem"));
+        mTest.set_handle("file://" + android::base::PathUtils::join(mTempDir.path(), "shared.mem"));
     }
 
     void prepare() override {
@@ -206,17 +200,15 @@ public:
         mMemory->open(SharedMemory::AccessMode::READ_ONLY);
     }
 
-    uint64_t chksum() override {
-        return read_region((uint8_t*)mMemory->get(), mTest.size());
-    }
+    uint64_t chksum() override { return read_region((uint8_t*)mMemory->get(), mTest.size()); }
 
-private:
+  private:
     TestTempDir mTempDir{"shared"};
     std::unique_ptr<SharedMemory> mMemory;
 };
 
 class SocketTest : public PerfTest {
-public:
+  public:
     SocketTest() { mTest.set_target(Test::RawSocket); }
 
     void prepare() override {
@@ -226,29 +218,28 @@ public:
 
     uint64_t chksum() override {
         if (!socketRecvAll(mSocket.get(), mData.data(), mData.size())) {
-            LOG(ERROR)
-                    << "Did not receive all bytes from remote process at port: "
-                    << mConfig.port();
+            LOG(ERROR) << "Did not receive all bytes from remote process at port: "
+                       << mConfig.port();
             return -1;
         }
         return read_region(mData.data(), mData.size());
     }
 
-private:
+  private:
     std::vector<uint8_t> mData;
     ScopedSocket mSocket;
 };
 
 class GrpcTest : public PerfTest {
-public:
+  public:
     GrpcTest() { mTest.set_target(Test::Grpc); }
 
     void prepare() override {
         auto address = "localhost:" + std::to_string(mConfig.port());
         grpc::ChannelArguments ch_args;
         ch_args.SetMaxReceiveMessageSize(-1);
-        auto channel = grpc::CreateCustomChannel(
-                address, ::grpc::InsecureChannelCredentials(), ch_args);
+        auto channel =
+                grpc::CreateCustomChannel(address, ::grpc::InsecureChannelCredentials(), ch_args);
         mStub = TestEcho::NewStub(channel);
     }
 
@@ -256,16 +247,15 @@ public:
         grpc::ClientContext ctx;
         Msg response;
         mStub->data(&ctx, ::google::protobuf::Empty(), &response);
-        return read_region((uint8_t*)response.data().data(),
-                           response.data().size());
+        return read_region((uint8_t*)response.data().data(), response.data().size());
     }
 
-private:
+  private:
     std::unique_ptr<TestEcho::Stub> mStub;
 };
 
 class LocalTest : public PerfTest {
-public:
+  public:
     LocalTest() { mTest.set_target(Test::Nothing); }
 
     void prepare() override {
@@ -273,24 +263,21 @@ public:
         mConfig.set_chksum(fill_region(mData.data(), mData.size()));
     }
 
-    uint64_t chksum() override {
-        return read_region(mData.data(), mData.size());
-    }
+    uint64_t chksum() override { return read_region(mData.data(), mData.size()); }
 
-private:
+  private:
     std::vector<uint8_t> mData;
 };
 
 class ThreadTest : public GrpcTest {
-public:
+  public:
     ThreadTest(Test_TestType typ) { mTest.set_target(typ); }
 
     std::shared_ptr<::grpc::Channel> getChannel() {
         auto address = "localhost:" + std::to_string(mConfig.port());
         grpc::ChannelArguments ch_args;
         ch_args.SetMaxReceiveMessageSize(-1);
-        return grpc::CreateCustomChannel(
-                address, ::grpc::InsecureChannelCredentials(), ch_args);
+        return grpc::CreateCustomChannel(address, ::grpc::InsecureChannelCredentials(), ch_args);
     }
 
     uint64_t chksum() override { return 0; }
@@ -299,9 +286,7 @@ public:
 };
 
 // Actual test runner, call setup, prepare and checksum when needed.
-void do_test(PerfTest* perf,
-             benchmark::State& state,
-             bool prepare_only_once = false) {
+void do_test(PerfTest* perf, benchmark::State& state, bool prepare_only_once = false) {
     perf->setup(state.range_x());
     if (prepare_only_once) {
         perf->prepare();
@@ -312,8 +297,7 @@ void do_test(PerfTest* perf,
         }
         uint64_t chk = perf->chksum();
         if (chk != perf->expected()) {
-            LOG(FATAL) << "Incorrect checksum: " << chk
-                       << " != " << perf->expected();
+            LOG(FATAL) << "Incorrect checksum: " << chk << " != " << perf->expected();
         };
     };
 
@@ -390,26 +374,26 @@ void BM_read_grpc_reuse_ext_chk(benchmark::State& state) {
 class SetupSyncHeartbeat {
     SetupSyncHeartbeat() { mSyncTest.setup(0); }
 
-public:
+  public:
     static ThreadTest* connection() {
         static SetupSyncHeartbeat setup;
         return &setup.mSyncTest;
     }
 
-private:
+  private:
     ThreadTest mSyncTest{Test::SyncStreamPerf};
 };
 
 class SetupASyncHeartbeat {
     SetupASyncHeartbeat() { mSyncTest.setup(0); }
 
-public:
+  public:
     static ThreadTest* connection() {
         static SetupASyncHeartbeat setup;
         return &setup.mSyncTest;
     }
 
-private:
+  private:
     ThreadTest mSyncTest{Test::AsyncStreamPerf};
 };
 
@@ -433,7 +417,6 @@ void BM_async_grpc_heartbeat(benchmark::State& state) {
     auto grpc = SetupASyncHeartbeat::connection();
     read_heartbeat(grpc, state);
 }
-
 
 BENCHMARK(BM_sync_grpc_heartbeat)->Threads(512);
 BENCHMARK(BM_async_grpc_heartbeat)->Threads(512);

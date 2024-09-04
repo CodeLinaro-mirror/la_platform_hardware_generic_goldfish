@@ -63,10 +63,10 @@ TEST(ScopedPtr, makeCustomScopedPtr_fromLambda) {
 
     auto ptr1 = makeCustomScopedPtr(malloc(1), freeAsLambda);
 
-    ScopedPtr<void, FuncDelete<void(*)(void*)>> ptr2 =
+    ScopedPtr<void, FuncDelete<void (*)(void*)>> ptr2 =
             makeCustomScopedPtr(malloc(1), freeAsLambda);
 
-    ScopedPtr<void, FuncDelete<void(*)(void*)>> ptr3 =
+    ScopedPtr<void, FuncDelete<void (*)(void*)>> ptr3 =
             makeCustomScopedPtr(malloc(1), +freeAsLambda);
 
     static_assert(!std::is_same<decltype(ptr1), decltype(ptr2)>::value,

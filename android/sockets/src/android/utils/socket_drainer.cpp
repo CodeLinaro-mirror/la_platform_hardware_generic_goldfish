@@ -25,7 +25,7 @@ namespace {
 typedef ::Looper CLooper;
 typedef ::android::base::Looper BaseLooper;
 
-android::base::SocketDrainer *s_socket_drainer = NULL;
+android::base::SocketDrainer* s_socket_drainer = NULL;
 
 }  // namespace
 
@@ -34,8 +34,7 @@ void socket_drainer_start(CLooper* looper) {
         return;
     }
     if (!s_socket_drainer) {
-        s_socket_drainer = new SocketDrainer(
-                reinterpret_cast<BaseLooper*>(looper));
+        s_socket_drainer = new SocketDrainer(reinterpret_cast<BaseLooper*>(looper));
     }
 }
 

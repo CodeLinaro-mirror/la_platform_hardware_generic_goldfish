@@ -37,36 +37,36 @@ namespace android::base {
 //      functionAcceptingConstCharPointer(myNullTerminatedString);
 //
 class CStrWrapper {
-public:
-  CStrWrapper(std::string_view stringView) : mStringView(stringView) {}
+  public:
+    CStrWrapper(std::string_view stringView) : mStringView(stringView) {}
 
-  // Returns a null-terminated char*, potentially creating a copy to add a
-  // null terminator.
-  const char *get() {
-    if (mStringView.back() == '\0') {
-      return mStringView.data();
-    } else {
-      // Create the std::string copy on-demand.
-      if (!mStringCopy) {
-        mStringCopy.emplace(mStringView);
-      }
+    // Returns a null-terminated char*, potentially creating a copy to add a
+    // null terminator.
+    const char* get() {
+        if (mStringView.back() == '\0') {
+            return mStringView.data();
+        } else {
+            // Create the std::string copy on-demand.
+            if (!mStringCopy) {
+                mStringCopy.emplace(mStringView);
+            }
 
-      return mStringCopy->c_str();
+            return mStringCopy->c_str();
+        }
     }
-  }
 
-  // Alias for get
-  const char *c_str() { return get(); }
+    // Alias for get
+    const char* c_str() { return get(); }
 
-  // Enable casting to const char*
-  operator const char *() { return get(); }
+    // Enable casting to const char*
+    operator const char*() { return get(); }
 
-private:
-  const std::string_view mStringView;
-  std::optional<std::string> mStringCopy;
+  private:
+    const std::string_view mStringView;
+    std::optional<std::string> mStringCopy;
 };
 
 inline CStrWrapper c_str(std::string_view stringView) {
-  return CStrWrapper(stringView);
+    return CStrWrapper(stringView);
 }
-} // namespace android::base
+}  // namespace android::base

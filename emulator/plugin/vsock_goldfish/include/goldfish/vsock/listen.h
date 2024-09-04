@@ -8,17 +8,17 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <functional>
+
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace vsock {
 
-using HostPortListener =
-    std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
+using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 
 bool listen(uint32_t hostPort, HostPortListener);
 

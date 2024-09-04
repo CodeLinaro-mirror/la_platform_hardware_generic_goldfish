@@ -31,14 +31,14 @@ extern "C" {
 #include <unistd.h>
 #endif
 
-#include <sys/types.h>
 #include <errno.h>
+#include <setjmp.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <setjmp.h>
-#include <stdint.h>
+#include <sys/types.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
 #define lseek64 lseek
@@ -51,10 +51,21 @@ extern "C" {
 
 extern int force;
 
-#define warn(fmt, args...) do { fprintf(stderr, "warning: %s: " fmt "\n", __func__, ## args); } while (0)
-#define error(fmt, args...) do { fprintf(stderr, "error: %s: " fmt "\n", __func__, ## args); if (!force) longjmp(setjmp_env, EXIT_FAILURE); } while (0)
+#define warn(fmt, args...)                                           \
+    do {                                                             \
+        fprintf(stderr, "warning: %s: " fmt "\n", __func__, ##args); \
+    } while (0)
+#define error(fmt, args...)                                        \
+    do {                                                           \
+        fprintf(stderr, "error: %s: " fmt "\n", __func__, ##args); \
+        if (!force) longjmp(setjmp_env, EXIT_FAILURE);             \
+    } while (0)
 #define error_errno(s, args...) error(s ": %s", ##args, strerror(errno))
-#define critical_error(fmt, args...) do { fprintf(stderr, "critical error: %s: " fmt "\n", __func__, ## args); longjmp(setjmp_env, EXIT_FAILURE); } while (0)
+#define critical_error(fmt, args...)                                        \
+    do {                                                                    \
+        fprintf(stderr, "critical error: %s: " fmt "\n", __func__, ##args); \
+        longjmp(setjmp_env, EXIT_FAILURE);                                  \
+    } while (0)
 #define critical_error_errno(s, args...) critical_error(s ": %s", ##args, strerror(errno))
 
 #define EXT4_JNL_BACKUP_BLOCKS 1
@@ -63,7 +74,7 @@ extern int force;
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define DIV_ROUND_UP(x, y) (((x) + (y) - 1)/(y))
+#define DIV_ROUND_UP(x, y) (((x) + (y) - 1) / (y))
 #define ALIGN(x, y) ((y) * DIV_ROUND_UP((x), (y)))
 
 /* XXX */
@@ -87,61 +98,58 @@ struct block_group_info;
 struct xattr_list_element;
 
 struct ext2_group_desc {
-	u32 bg_block_bitmap;
-	u32 bg_inode_bitmap;
-	u32 bg_inode_table;
-	u16 bg_free_blocks_count;
-	u16 bg_free_inodes_count;
-	u16 bg_used_dirs_count;
-	u16 bg_flags;
-	u32 bg_reserved[2];
-	u16 bg_reserved16;
-	u16 bg_checksum;
+    u32 bg_block_bitmap;
+    u32 bg_inode_bitmap;
+    u32 bg_inode_table;
+    u16 bg_free_blocks_count;
+    u16 bg_free_inodes_count;
+    u16 bg_used_dirs_count;
+    u16 bg_flags;
+    u32 bg_reserved[2];
+    u16 bg_reserved16;
+    u16 bg_checksum;
 };
 
 struct data_extents_node {
-	u8* addr;
-	struct data_extents_node* next;
+    u8* addr;
+    struct data_extents_node* next;
 };
 
 struct fs_aux_info {
-	struct ext4_super_block *sb;
-	struct ext4_super_block **backup_sb;
-	struct ext2_group_desc *bg_desc;
-	struct block_group_info *bgs;
-	struct xattr_list_element *xattrs;
-	journal_superblock_t *jsb;
-	u32 first_data_block;
-	u64 len_blocks;
-	u32 inode_table_blocks;
-	u32 groups;
-	u32 bg_desc_blocks;
-	u32 default_i_flags;
-	u32 blocks_per_ind;
-	u32 blocks_per_dind;
-	u32 blocks_per_tind;
-	u32 *resize_dind_block_data;
-	u32 *resize_ind_block_data;
-	u8 *sb_alloc;
-	struct data_extents_node data_extents;
-	struct data_extents_node* last_data_extent;
-
+    struct ext4_super_block* sb;
+    struct ext4_super_block** backup_sb;
+    struct ext2_group_desc* bg_desc;
+    struct block_group_info* bgs;
+    struct xattr_list_element* xattrs;
+    journal_superblock_t* jsb;
+    u32 first_data_block;
+    u64 len_blocks;
+    u32 inode_table_blocks;
+    u32 groups;
+    u32 bg_desc_blocks;
+    u32 default_i_flags;
+    u32 blocks_per_ind;
+    u32 blocks_per_dind;
+    u32 blocks_per_tind;
+    u32* resize_dind_block_data;
+    u32* resize_ind_block_data;
+    u8* sb_alloc;
+    struct data_extents_node data_extents;
+    struct data_extents_node* last_data_extent;
 };
 
 extern struct fs_info info;
 extern struct fs_aux_info aux_info;
-extern struct sparse_file *ext4_sparse_file;
+extern struct sparse_file* ext4_sparse_file;
 
 extern jmp_buf setjmp_env;
 
-static inline int log_2(int j)
-{
-	int i;
+static inline int log_2(int j) {
+    int i;
 
-	for (i = 0; j > 0; i++)
-		j >>= 1;
+    for (i = 0; j > 0; i++) j >>= 1;
 
-	return i - 1;
+    return i - 1;
 }
 
 int ext4_bg_has_super_block(int bg);
@@ -156,19 +164,18 @@ void ext4_queue_sb(void);
 u64 get_block_device_size(int fd);
 int is_block_device_fd(int fd);
 u64 get_file_size(int fd);
-u64 parse_num(const char *arg);
-void ext4_parse_sb_info(struct ext4_super_block *sb);
-u16 ext4_crc16(u16 crc_in, const void *buf, int size);
+u64 parse_num(const char* arg);
+void ext4_parse_sb_info(struct ext4_super_block* sb);
+u16 ext4_crc16(u16 crc_in, const void* buf, int size);
 
-typedef void (*fs_config_func_t)(const char *path, int dir, unsigned *uid, unsigned *gid,
-        unsigned *mode, uint64_t *capabilities);
+typedef void (*fs_config_func_t)(const char* path, int dir, unsigned* uid, unsigned* gid,
+                                 unsigned* mode, uint64_t* capabilities);
 
 struct selabel_handle;
 
-int make_ext4fs_internal(int fd, const char *directory,
-                         const char *mountpoint, fs_config_func_t fs_config_func, int gzip,
-                         int sparse, int crc, int wipe,
-                         struct selabel_handle *sehnd, int verbose);
+int make_ext4fs_internal(int fd, const char* directory, const char* mountpoint,
+                         fs_config_func_t fs_config_func, int gzip, int sparse, int crc, int wipe,
+                         struct selabel_handle* sehnd, int verbose);
 
 #ifdef __cplusplus
 }

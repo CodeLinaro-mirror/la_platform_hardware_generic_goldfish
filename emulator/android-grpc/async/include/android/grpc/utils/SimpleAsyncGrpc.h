@@ -14,6 +14,7 @@
 #pragma once
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/support/client_callback.h>
+
 #include <functional>
 #include <mutex>
 #include <queue>
@@ -28,17 +29,12 @@ struct Select {
 
     // Selects the type at the specified index from the pack of types
     // If the index is out of range, the last available type is selected
-    using type =
-            typename std::tuple_element<(Index < sizeof...(Args) ? Index
-                                                                 : LastIndex),
-                                        std::tuple<Args...>>::type;
+    using type = typename std::tuple_element<(Index < sizeof...(Args) ? Index : LastIndex),
+                                             std::tuple<Args...>>::type;
 };
 
 // Specialization for template types with a pack of template arguments
-template <std::size_t Index,
-          template <typename...>
-          class Template,
-          typename... Args>
+template <std::size_t Index, template <typename...> class Template, typename... Args>
 struct Select<Index, Template<Args...>> {
     // Recursively selects the type at the specified index from the pack of
     // template arguments
@@ -61,7 +57,7 @@ using Select_t = typename Select<Index, T>::type;
 // you create the reader object.
 template <typename T>
 class WithSimpleReader : public T {
-public:
+  public:
     using is_server = std::is_base_of<grpc::internal::ServerReactor, T>;
 
     // We select index 0, or index 1 in case of Bi-directional reactors.
@@ -93,7 +89,7 @@ public:
     // Callback that will be invoked when a new object was read.
     virtual void Read(const R* read) = 0;
 
-private:
+  private:
     R mIncoming;
 };
 
@@ -104,15 +100,13 @@ private:
 // The channel will be closed with status::ok
 // if a message cannot be read (i.e. OnReadDone is not ok)
 template <typename R>
-class SimpleServerLambdaReader
-    : public WithSimpleReader<grpc::ServerReadReactor<R>> {
+class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor<R>> {
     using ReadCallback = std::function<void(const R*)>;
     using OnDoneCallback = std::function<void()>;
 
-public:
+  public:
     SimpleServerLambdaReader(
-            ReadCallback readFn,
-            OnDoneCallback doneFn = []() {})
+            ReadCallback readFn, OnDoneCallback doneFn = []() {})
         : mReadFn(readFn), mDoneFn(doneFn) {}
 
     virtual void Read(const R* read) override { mReadFn(read); }
@@ -122,7 +116,7 @@ public:
         delete this;
     }
 
-private:
+  private:
     ReadCallback mReadFn;
     OnDoneCallback mDoneFn;
 };
@@ -148,15 +142,13 @@ private:
 // read->StartRead();
 // read->StartCall();
 template <typename R>
-class SimpleClientLambdaReader
-    : public WithSimpleReader<grpc::ClientReadReactor<R>> {
+class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor<R>> {
     using ReadCallback = std::function<void(const R*)>;
     using OnDoneCallback = std::function<void(::grpc::Status)>;
 
-public:
+  public:
     SimpleClientLambdaReader(
-            std::shared_ptr<grpc::ClientContext> context,
-            ReadCallback readFn,
+            std::shared_ptr<grpc::ClientContext> context, ReadCallback readFn,
             OnDoneCallback doneFn = [](auto s) {})
         : mReadFn(readFn), mContext(std::move(context)), mDoneFn(doneFn) {}
 
@@ -169,7 +161,7 @@ public:
 
     virtual void TryCancel() { mContext->TryCancel(); }
 
-private:
+  private:
     ReadCallback mReadFn;
     OnDoneCallback mDoneFn;
     std::shared_ptr<grpc::ClientContext> mContext;
@@ -183,7 +175,7 @@ private:
 //   higher than what gRPC can actually push out on the wire.
 template <typename T>
 class WithSimpleQueueWriter : public T {
-public:
+  public:
     // We always select index 0 of the T<X,...>
     using W = Select_t<0, T>;
 
@@ -205,7 +197,7 @@ public:
         NextWrite();
     }
 
-private:
+  private:
     void NextWrite() {
         {
             const std::lock_guard<std::mutex> lock(mWritelock);
@@ -222,15 +214,14 @@ private:
 };
 
 template <typename W>
-class SimpleClientWriter
-    : public WithSimpleQueueWriter<grpc::ClientWriteReactor<W>> {
-public:
+class SimpleClientWriter : public WithSimpleQueueWriter<grpc::ClientWriteReactor<W>> {
+  public:
     SimpleClientWriter(std::shared_ptr<::grpc::ClientContext> context)
         : mContext(std::move(context)) {}
 
     ::grpc::ClientContext* context() { return mContext.get(); }
 
-private:
+  private:
     std::shared_ptr<::grpc::ClientContext> mContext;
 };
 // A bi directional serverstream constructed from a simple reader and

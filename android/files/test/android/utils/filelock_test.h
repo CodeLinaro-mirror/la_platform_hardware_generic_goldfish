@@ -14,10 +14,10 @@
 
 // A set of flags that are only relevant for windows based unit tests
 class WindowsFlags {
-public:
-  static bool sIsParentProcess;
-  static HANDLE sChildRead;
-  static HANDLE sChildWrite;
-  static char sFileLockPath[MAX_PATH];
+  public:
+    static bool sIsParentProcess;
+    static HANDLE sChildRead;
+    static HANDLE sChildWrite;
+    static char sFileLockPath[MAX_PATH];
 };
 #endif

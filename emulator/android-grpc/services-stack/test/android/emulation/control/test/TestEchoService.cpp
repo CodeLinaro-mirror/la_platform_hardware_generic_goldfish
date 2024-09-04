@@ -15,6 +15,7 @@
 #include "android/emulation/control/test/TestEchoService.h"
 
 #include <grpcpp/grpcpp.h>
+
 #include "test_echo_service.pb.h"
 
 #ifndef DISABLE_ASYNC_GRPC
@@ -30,16 +31,13 @@ namespace android {
 namespace emulation {
 namespace control {
 
-Status TestEchoServiceBase::echo(ServerContext* context,
-                                 const Msg* request,
-                                 Msg* response) {
+Status TestEchoServiceBase::echo(ServerContext* context, const Msg* request, Msg* response) {
     response->set_counter(mCounter++);
     response->set_msg(request->msg());
     return Status::OK;
 }
 
-Status TestEchoServiceBase::data(ServerContext* context,
-                                 const ::google::protobuf::Empty* empty,
+Status TestEchoServiceBase::data(ServerContext* context, const ::google::protobuf::Empty* empty,
                                  Msg* response) {
     response->set_counter(mCounter++);
     response->set_data(mData.data(), mData.size());
@@ -47,7 +45,7 @@ Status TestEchoServiceBase::data(ServerContext* context,
 }
 
 class StreamEchoHandler : public SimpleServerBidiStream<Msg, Msg> {
-public:
+  public:
     StreamEchoHandler(TestEchoServiceBase* parent) : mParent(parent) {}
     void Read(const Msg* msg) override {
         Msg reply;
@@ -63,7 +61,7 @@ public:
         delete this;
     }
 
-private:
+  private:
     TestEchoServiceBase* mParent;
 };
 
@@ -73,9 +71,8 @@ grpc::ServerBidiReactor<Msg, Msg>* AsyncTestEchoService::streamEcho(
     return new StreamEchoHandler(this);
 }
 #else
-::grpc::Status AsyncTestEchoService::streamEcho(
-        ::grpc::ServerContext* context,
-        ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
+::grpc::Status AsyncTestEchoService::streamEcho(::grpc::ServerContext* context,
+                                                ::grpc::ServerReaderWriter<Msg, Msg>* stream) {
     return BidiRunner<StreamEchoHandler>(stream, this).status();
 };
 #endif

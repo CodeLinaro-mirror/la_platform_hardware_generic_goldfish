@@ -11,9 +11,8 @@
 
 #include "aemu/base/memory/MallocUsableSize.h"
 
-#include <stdlib.h>
-
 #include <gtest/gtest.h>
+#include <stdlib.h>
 
 namespace android {
 namespace base {

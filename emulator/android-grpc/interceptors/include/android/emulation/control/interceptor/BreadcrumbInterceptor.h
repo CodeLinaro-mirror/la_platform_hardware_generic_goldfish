@@ -46,22 +46,21 @@ using grpc::experimental::ServerRpcInfo;
 // '/android.emulation.control.EmulatorController/sendMouse',
 // datetime.datetime(2023, 12, 8, 15, 15))
 class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
-public:
+  public:
     explicit BreadcrumbInterceptor(ClientRpcInfo* info);
     explicit BreadcrumbInterceptor(ServerRpcInfo* info);
     ~BreadcrumbInterceptor() override;
 
     void Intercept(InterceptorBatchMethods* methods) override;
 
-private:
+  private:
     std::uint32_t mCrc;
 };
 
 // The factory class that needs to be registered with the gRPC server/client.
-class BreadcrumbInterceptorFactory
-    : public grpc::experimental::ServerInterceptorFactoryInterface,
-      public grpc::experimental::ClientInterceptorFactoryInterface {
-public:
+class BreadcrumbInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface,
+                                     public grpc::experimental::ClientInterceptorFactoryInterface {
+  public:
     BreadcrumbInterceptorFactory();
     ~BreadcrumbInterceptorFactory() override = default;
     Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;

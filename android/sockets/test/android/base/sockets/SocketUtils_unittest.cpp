@@ -11,12 +11,12 @@
 
 #include "aemu/base/sockets/SocketUtils.h"
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include <gtest/gtest.h>
-
 #include <errno.h>
+#include <gtest/gtest.h>
 #include <signal.h>
 #include <string.h>
+
+#include "aemu/base/sockets/ScopedSocket.h"
 
 namespace android {
 namespace base {
@@ -127,7 +127,7 @@ namespace {
 // Helper class to temporary install a SIGPIPE signal handler that
 // will simply store the signal number into a global variable.
 class SigPipeSignalHandler {
-public:
+  public:
     SigPipeSignalHandler() {
         sSignal = -1;
         struct sigaction act = {};
@@ -135,13 +135,11 @@ public:
         ::sigaction(SIGPIPE, &act, &mOldAction);
     }
 
-    ~SigPipeSignalHandler() {
-        ::sigaction(SIGPIPE, &mOldAction, nullptr);
-    }
+    ~SigPipeSignalHandler() { ::sigaction(SIGPIPE, &mOldAction, nullptr); }
 
     int signaled() const { return sSignal; }
 
-private:
+  private:
     struct sigaction mOldAction;
 
     static int sSignal;
@@ -156,7 +154,7 @@ int SigPipeSignalHandler::sSignal = 0;
 
 TEST(SocketUtils, socketSendDoesNotGenerateSigPipe) {
 #if defined(__aarch64__) && defined(__APPLE__)
-  GTEST_SKIP() << "Skipping test for mac_arm_x64 bots.";
+    GTEST_SKIP() << "Skipping test for mac_arm_x64 bots.";
 #endif
     // Check that writing to a broken pipe does not generate a SIGPIPE
     // signal on non-Windows platforms.
@@ -184,7 +182,7 @@ TEST(SocketUtils, socketSendDoesNotGenerateSigPipe) {
 
         int port = socketGetPort(s1.get());
         ScopedSocket s2(socketTcp4LoopbackClient(port));
-        ASSERT_TRUE(s2. valid());
+        ASSERT_TRUE(s2.valid());
 
         ScopedSocket s3(socketAcceptAny(s1.get()));
         ASSERT_TRUE(s3.valid());
@@ -206,8 +204,7 @@ TEST(SocketUtils, socketSendDoesNotGenerateSigPipe) {
 #ifdef __APPLE__
                 // On OS X, errno is sometimes EPROTOTYPE instead of EPIPE
                 // when this happens.
-                EXPECT_TRUE(errno == EPIPE || errno == EPROTOTYPE)
-                        << strerror(errno);
+                EXPECT_TRUE(errno == EPIPE || errno == EPROTOTYPE) << strerror(errno);
 #else
                 EXPECT_EQ(EPIPE, errno) << strerror(errno);
 #endif

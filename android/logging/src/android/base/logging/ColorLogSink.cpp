@@ -42,72 +42,69 @@ inline static constexpr std::string_view kColorBgMagenta = "\033[45m";
 inline static constexpr std::string_view kColorBgYellow = "\033[43m";
 inline static constexpr std::string_view kColorBgCyan = "\033[46m";
 
-std::string_view ColorLogSink::TranslateSeverity(
-    const absl::LogEntry& entry) const {
-  if (entry.verbosity() > 0) {
-    switch (entry.verbosity()) {
-      case 1:
-        return "DEBUG  ";
-      case 2:
-        return "VERBOSE";
-      default:
-        return "TRACE  ";
+std::string_view ColorLogSink::TranslateSeverity(const absl::LogEntry& entry) const {
+    if (entry.verbosity() > 0) {
+        switch (entry.verbosity()) {
+            case 1:
+                return "DEBUG  ";
+            case 2:
+                return "VERBOSE";
+            default:
+                return "TRACE  ";
+        }
     }
-  }
-  switch (entry.log_severity()) {
-    case absl::LogSeverity::kInfo:
-      return "INFO   ";
-    case absl::LogSeverity::kWarning:
-      return "WARNING";
-    case absl::LogSeverity::kError:
-      return "ERROR  ";
-    case absl::LogSeverity::kFatal:
-      return "FATAL  ";
-  }
+    switch (entry.log_severity()) {
+        case absl::LogSeverity::kInfo:
+            return "INFO   ";
+        case absl::LogSeverity::kWarning:
+            return "WARNING";
+        case absl::LogSeverity::kError:
+            return "ERROR  ";
+        case absl::LogSeverity::kFatal:
+            return "FATAL  ";
+    }
 }
 
 void ColorLogSink::Send(const absl::LogEntry& entry) {
-  if (mVerbose) {
-    auto now = entry.timestamp();
-    auto location =
-        absl::StrFormat("%s:%d", entry.source_basename(), entry.source_line());
-    *mOutputStream << Color(entry.log_severity())
-                   << absl::FormatTime("%H:%M:%E6S", now, absl::LocalTimeZone())
-                   << absl::StreamFormat(" %d %s ", entry.tid(),
-                                         TranslateSeverity(entry))
-                   << absl::StreamFormat("%s:%d | ", entry.source_basename(),
-                                         entry.source_line())
-                   << entry.text_message_with_newline();
+    if (mVerbose) {
+        auto now = entry.timestamp();
+        auto location = absl::StrFormat("%s:%d", entry.source_basename(), entry.source_line());
+        *mOutputStream << Color(entry.log_severity())
+                       << absl::FormatTime("%H:%M:%E6S", now, absl::LocalTimeZone())
+                       << absl::StreamFormat(" %d %s ", entry.tid(), TranslateSeverity(entry))
+                       << absl::StreamFormat("%s:%d | ", entry.source_basename(),
+                                             entry.source_line())
+                       << entry.text_message_with_newline();
 
-  } else {
-    *mOutputStream << Color(entry.log_severity()) << TranslateSeverity(entry)
-                   << " | " << entry.text_message_with_newline();
-  }
+    } else {
+        *mOutputStream << Color(entry.log_severity()) << TranslateSeverity(entry) << " | "
+                       << entry.text_message_with_newline();
+    }
 
-  if (mUseColor) {
-    *mOutputStream << kColorNormal;
-  }
-  if (entry.log_severity() >= absl::LogSeverity::kWarning) {
-    mOutputStream->flush();
-  }
+    if (mUseColor) {
+        *mOutputStream << kColorNormal;
+    }
+    if (entry.log_severity() >= absl::LogSeverity::kWarning) {
+        mOutputStream->flush();
+    }
 }
 
 std::string_view ColorLogSink::Color(absl::LogSeverity severity) const {
-  if (!mUseColor) {
-    return kColorNoFormat;
-  }
-  switch (severity) {
-    case absl::LogSeverity::kInfo:
-      return kColorNormal;
-    case absl::LogSeverity::kWarning:
-      return kColorNormalYellow;
-    case absl::LogSeverity::kError:
-      return kColorNormalRed;
-    case absl::LogSeverity::kFatal:
-      return kColorBoldRed;
-    default:
-      return kColorNoFormat;
-  }
+    if (!mUseColor) {
+        return kColorNoFormat;
+    }
+    switch (severity) {
+        case absl::LogSeverity::kInfo:
+            return kColorNormal;
+        case absl::LogSeverity::kWarning:
+            return kColorNormalYellow;
+        case absl::LogSeverity::kError:
+            return kColorNormalRed;
+        case absl::LogSeverity::kFatal:
+            return kColorBoldRed;
+        default:
+            return kColorNoFormat;
+    }
 }
 
 };  // namespace base

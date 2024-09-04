@@ -41,46 +41,45 @@
 // }
 // assert(sMock == nullptr);
 
-template <typename T> class MockReplacementHandle {
-  DISALLOW_COPY_AND_ASSIGN(MockReplacementHandle);
+template <typename T>
+class MockReplacementHandle {
+    DISALLOW_COPY_AND_ASSIGN(MockReplacementHandle);
 
-public:
-  MockReplacementHandle() {}
+  public:
+    MockReplacementHandle() {}
 
-  MockReplacementHandle(T *location, T original)
-      : mLocation(location), mOriginal(std::move(original)) {}
+    MockReplacementHandle(T* location, T original)
+        : mLocation(location), mOriginal(std::move(original)) {}
 
-  MockReplacementHandle(MockReplacementHandle &&other)
-      : mLocation(std::move(other.mLocation)),
-        mOriginal(std::move(other.mOriginal)) {
-    other.mLocation = nullptr;
-  }
-
-  ~MockReplacementHandle() { reset(); }
-
-  MockReplacementHandle &operator=(MockReplacementHandle &&other) {
-    mLocation = std::move(other.mLocation);
-    mOriginal = std::move(other.mOriginal);
-    other.mLocation = nullptr;
-    return *this;
-  }
-
-  void reset() {
-    if (mLocation) {
-      *mLocation = mOriginal;
-      mLocation = nullptr;
+    MockReplacementHandle(MockReplacementHandle&& other)
+        : mLocation(std::move(other.mLocation)), mOriginal(std::move(other.mOriginal)) {
+        other.mLocation = nullptr;
     }
-  }
 
-private:
-  T *mLocation = nullptr;
-  T mOriginal;
+    ~MockReplacementHandle() { reset(); }
+
+    MockReplacementHandle& operator=(MockReplacementHandle&& other) {
+        mLocation = std::move(other.mLocation);
+        mOriginal = std::move(other.mOriginal);
+        other.mLocation = nullptr;
+        return *this;
+    }
+
+    void reset() {
+        if (mLocation) {
+            *mLocation = mOriginal;
+            mLocation = nullptr;
+        }
+    }
+
+  private:
+    T* mLocation = nullptr;
+    T mOriginal;
 };
 
-template <typename T, typename U,
-          typename = android::base::enable_if<std::is_constructible<T, U>>>
-MockReplacementHandle<T> replaceMock(T *location, U newValue) {
-  T original = std::move(*location);
-  *location = std::move(newValue);
-  return MockReplacementHandle<T>(location, std::move(original));
+template <typename T, typename U, typename = android::base::enable_if<std::is_constructible<T, U>>>
+MockReplacementHandle<T> replaceMock(T* location, U newValue) {
+    T original = std::move(*location);
+    *location = std::move(newValue);
+    return MockReplacementHandle<T>(location, std::move(original));
 }

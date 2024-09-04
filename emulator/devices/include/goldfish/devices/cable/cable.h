@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include <cstddef>
@@ -24,7 +24,7 @@ namespace goldfish {
 namespace devices {
 namespace cable {
 
-struct IPlug;   // see the definition below
+struct IPlug;  // see the definition below
 using PlugPtr = std::shared_ptr<IPlug>;
 
 /* `ISocket` represents an entity to control a connection
@@ -46,7 +46,7 @@ struct ISocket {
      * not fully connected yet, the data will sit and wait
      * the `IPlug::onConnect` notification.
      */
-    virtual void sendAsync(const void *data, size_t size) = 0;
+    virtual void sendAsync(const void* data, size_t size) = 0;
 
     /* `switchPlug` is used to switch plugs connected to a
      * socket, e.g. if you need to switch the wire protocol.
@@ -54,9 +54,7 @@ struct ISocket {
     virtual PlugPtr switchPlug(PlugPtr newPlug) = 0;
 
     struct Unplugger {
-        void operator()(ISocket *s) const {
-            s->unplugImpl();
-        }
+        void operator()(ISocket* s) const { s->unplugImpl(); }
     };
 
     using Ptr = std::unique_ptr<ISocket, ISocket::Unplugger>;
@@ -72,7 +70,7 @@ struct ISocket {
         return plug;
     }
 
-protected:
+  protected:
     /* `unplugImpl` destroys the `ISocket` instance in the
      * internal socket manager data structures (`~ISocket`
      * will be called).
@@ -104,7 +102,7 @@ struct IPlug {
      * If `onReceive` returns `false`, `onUnplug` will be
      * called after.
      */
-    virtual bool onReceive(const void *data, size_t size) = 0;
+    virtual bool onReceive(const void* data, size_t size) = 0;
 
     /* `onUnplug` is called when the remote party hangs up.
      * Please note this method is not called if `IPlug`
@@ -125,7 +123,7 @@ struct IPlug {
      */
     virtual bool supportsLoadingFromSnapshot() const { return false; }
     virtual TypeId getSnapshotTypeId() const { return {}; }
-    virtual bool saveStateToSnapshot(archive::IWriter &) const { return false; };
+    virtual bool saveStateToSnapshot(archive::IWriter&) const { return false; };
 };
 
 using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
@@ -134,7 +132,7 @@ using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
  * from `QEMUFile` (a snapshot). If it cannot load a plug,
  * it must return the `SocketPtr` back.
  */
-using PlugLoader = std::function<PlugOrSocket(SocketPtr, archive::IReader &)>;
+using PlugLoader = std::function<PlugOrSocket(SocketPtr, archive::IReader&)>;
 
 bool registerPlugLoader(IPlug::TypeId, PlugLoader);
 

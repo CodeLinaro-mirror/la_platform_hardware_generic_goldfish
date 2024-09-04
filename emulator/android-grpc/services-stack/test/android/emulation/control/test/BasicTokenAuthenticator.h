@@ -17,6 +17,7 @@
 #include <string>  // for string
 
 #include "absl/status/statusor.h"  // for StatusOr
+
 #include "android/emulation/control/secure/BasicTokenAuth.h"
 #include "tink/config/tink_config.h"        // for TinkConfig
 #include "tink/jwt/jwk_set_converter.h"     // for JwkSetFromPublicKeyset...
@@ -41,27 +42,23 @@ using ::android::emulation::control::BasicTokenAuth;
 
 // A credentials plugin that injects the given token when making a gRPC call.
 class BasicTokenAuthenticator : public grpc::MetadataCredentialsPlugin {
-public:
-    BasicTokenAuthenticator(const grpc::string& token)
-        : mToken("Bearer " + token) {}
+  public:
+    BasicTokenAuthenticator(const grpc::string& token) : mToken("Bearer " + token) {}
     ~BasicTokenAuthenticator() = default;
 
-    grpc::Status GetMetadata(
-            grpc::string_ref service_url,
-            grpc::string_ref method_name,
-            const grpc::AuthContext& channel_auth_context,
-            std::multimap<grpc::string, grpc::string>* metadata) override {
-        metadata->insert(
-                std::make_pair(BasicTokenAuth::DEFAULT_HEADER, mToken));
+    grpc::Status GetMetadata(grpc::string_ref service_url, grpc::string_ref method_name,
+                             const grpc::AuthContext& channel_auth_context,
+                             std::multimap<grpc::string, grpc::string>* metadata) override {
+        metadata->insert(std::make_pair(BasicTokenAuth::DEFAULT_HEADER, mToken));
         return grpc::Status::OK;
     }
 
-private:
+  private:
     grpc::string mToken;
 };
 
 class JwtTokenAuthenticator : public grpc::MetadataCredentialsPlugin {
-public:
+  public:
     JwtTokenAuthenticator(const grpc::string& path) : mPath(path) {
         auto status = TinkConfig::Register();
         assert(status.ok());
@@ -69,17 +66,14 @@ public:
     }
     ~JwtTokenAuthenticator() = default;
 
-    grpc::Status GetMetadata(
-            grpc::string_ref service_url,
-            grpc::string_ref method_name,
-            const grpc::AuthContext& channel_auth_context,
-            std::multimap<grpc::string, grpc::string>* metadata) override {
+    grpc::Status GetMetadata(grpc::string_ref service_url, grpc::string_ref method_name,
+                             const grpc::AuthContext& channel_auth_context,
+                             std::multimap<grpc::string, grpc::string>* metadata) override {
         // Reconstruct the path, this i.e. /a/b/c/${method_name}
         std::string url(service_url.begin(), service_url.end());
         std::string method(method_name.begin(), method_name.end());
         std::size_t found = url.rfind("/");
-        auto aud = absl::StrFormat(
-                "%s/%s", std::string(url.begin() + found, url.end()), method);
+        auto aud = absl::StrFormat("%s/%s", std::string(url.begin() + found, url.end()), method);
         absl::Time now = absl::Now();
 
         auto raw_jwt = tink::RawJwtBuilder()
@@ -95,7 +89,7 @@ public:
         return grpc::Status::OK;
     }
 
-private:
+  private:
     void write(std::string fname, std::string snippet) {
         std::ofstream out(fname);
         out << snippet;
@@ -105,11 +99,9 @@ private:
     std::unique_ptr<tink::KeysetHandle> writeEs512(std::string fname) {
         // Let's generate a json key.
         auto status = tink::JwtSignatureRegister();
-        auto private_handle =
-                tink::KeysetHandle::GenerateNew(tink::JwtEs512Template());
+        auto private_handle = tink::KeysetHandle::GenerateNew(tink::JwtEs512Template());
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
-        auto jsonSnippet =
-                tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+        auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
         write(fname, *jsonSnippet);
         return std::move(private_handle.ValueOrDie());
     }

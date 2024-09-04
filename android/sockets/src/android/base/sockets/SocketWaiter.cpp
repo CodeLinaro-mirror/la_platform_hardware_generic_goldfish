@@ -16,10 +16,9 @@
 #ifdef _WIN32
 #include "aemu/base/sockets/Winsock.h"
 #else
-#  include <sys/types.h>
-#  include <sys/select.h>
+#include <sys/select.h>
+#include <sys/types.h>
 #endif
-
 
 #include <errno.h>
 #include <string.h>
@@ -30,10 +29,8 @@ namespace base {
 namespace {
 
 class SelectSocketWaiter : public SocketWaiter {
-public:
-    SelectSocketWaiter() : SocketWaiter() {
-        reset();
-    }
+  public:
+    SelectSocketWaiter() : SocketWaiter() { reset(); }
 
     virtual ~SelectSocketWaiter() {}
 
@@ -77,9 +74,7 @@ public:
         return events;
     }
 
-    virtual bool hasFds() const {
-        return getFdCount() > 0;
-    }
+    virtual bool hasFds() const { return getFdCount() > 0; }
 
     virtual void update(int fd, unsigned events) {
         // Compute current flags for fd.
@@ -123,9 +118,9 @@ public:
             return 0;
         }
 
-       // The Mac version of select() will return EINVAL on timeouts larger
-       // than 100000000, so clamp it instead since it's unlikely we're
-       // going to wait this long (27.777. hours).
+        // The Mac version of select() will return EINVAL on timeouts larger
+        // than 100000000, so clamp it instead since it's unlikely we're
+        // going to wait this long (27.777. hours).
 #if _DARWIN_C_SOURCE
         if (timeout_ms != INT64_MAX && timeout_ms > 100000000000LL) {
             timeout_ms = 100000000000LL;
@@ -159,7 +154,7 @@ public:
         return ret;
     }
 
-    virtual int nextPendingFd(unsigned *fdEvents) {
+    virtual int nextPendingFd(unsigned* fdEvents) {
         int count = getFdCount();
         int fd = mPendingFd;
 
@@ -231,7 +226,7 @@ public:
         return maxFd + 1;
     }
 
-private:
+  private:
     fd_set mReads[1];
     fd_set mWrites[1];
     fd_set mReadsResult[1];

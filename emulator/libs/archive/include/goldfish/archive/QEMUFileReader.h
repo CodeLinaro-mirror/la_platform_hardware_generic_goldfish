@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include "goldfish/archive/Reader.h"
@@ -19,11 +19,11 @@ namespace goldfish {
 namespace archive {
 
 struct QEMUFileReader : public IReader {
-    explicit QEMUFileReader(QEMUFile *file) : mFile(file) {}
+    explicit QEMUFileReader(QEMUFile* file) : mFile(file) {}
 
-    virtual size_t read(void *dst, size_t size) override;
+    virtual size_t read(void* dst, size_t size) override;
 
-    QEMUFile *mFile;
+    QEMUFile* mFile;
 };
 
 }  // namespace archive

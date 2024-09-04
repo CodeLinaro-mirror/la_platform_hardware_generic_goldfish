@@ -40,8 +40,7 @@ bool Thread::start() {
     bool ret = true;
     mStarted = true;
     DWORD threadId = 0;
-    mThread = CreateThread(NULL, mStackSize, &Thread::thread_main, this, 0,
-                           &threadId);
+    mThread = CreateThread(NULL, mStackSize, &Thread::thread_main, this, 0, &threadId);
     if (!mThread) {
         // don't reset mStarted: we're artificially limiting the user's
         // ability to retry the failed starts here.
@@ -140,7 +139,6 @@ unsigned long getCurrentThreadId() {
 static unsigned long sUiThreadId = 0;
 void setUiThreadId(unsigned long id) {
     sUiThreadId = id;
-
 }
 
 bool isRunningInUiThread() {

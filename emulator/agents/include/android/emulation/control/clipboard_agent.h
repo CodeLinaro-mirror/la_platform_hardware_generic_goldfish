@@ -10,11 +10,11 @@
 // GNU General Public License for more details.
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -26,14 +26,12 @@ typedef struct QAndroidClipboardAgent {
     // as a result of an action inside the guest. Note that multiple functions
     // can be registered.
     // |cb| is the pointer to the function
-    void (*registerGuestClipboardCallback)(
-        void(*cb)(void*, const uint8_t*, size_t), void* context);
+    void (*registerGuestClipboardCallback)(void (*cb)(void*, const uint8_t*, size_t),
+                                           void* context);
 
     // Sets the contents of the guest clipboard.
     // |buf| is the content to pass, len is the number of bytes in |buf|.
-    void (*setGuestClipboardContents)(
-        const uint8_t* buf,
-        size_t len);
+    void (*setGuestClipboardContents)(const uint8_t* buf, size_t len);
 } QAndroidClipboardAgent;
 
 ANDROID_END_HEADER

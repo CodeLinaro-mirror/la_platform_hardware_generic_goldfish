@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdint.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -25,9 +25,7 @@ ANDROID_BEGIN_HEADER
 // default is around 105, and we probably don't want to dim the emulator's
 // output at that level.
 //
-typedef void (*AndroidHwLightBrightnessFunc)(void* opaque,
-                                             const char* light,
-                                             int brightness);
+typedef void (*AndroidHwLightBrightnessFunc)(void* opaque, const char* light, int brightness);
 
 // used to record a hw control 'client'
 typedef struct {

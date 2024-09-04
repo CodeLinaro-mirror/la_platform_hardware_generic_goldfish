@@ -21,9 +21,9 @@
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "grpc++/grpc++.h"
 
 #include "android/emulation/control/secure/AuthErrorFactory.h"
-#include "grpc++/grpc++.h"
 
 namespace android {
 namespace emulation {
@@ -37,7 +37,6 @@ namespace control {
 #define DD(...)
 #endif
 
-
 DisableAccess BasicTokenAuth::noAccess;
 const std::string_view kSTUDIO = "android-studio";
 
@@ -48,143 +47,128 @@ const std::string_view kSTUDIO = "android-studio";
  * @param absl_status The Abseil status object to convert.
  * @return The equivalent Abseil status object.
  */
-static grpc::Status
-ConvertAbseilStatusToGrpcStatus(const absl::Status &absl_status) {
-  return grpc::Status(static_cast<grpc::StatusCode>(absl_status.code()),
-                      std::string(absl_status.message()));
+static grpc::Status ConvertAbseilStatusToGrpcStatus(const absl::Status& absl_status) {
+    return grpc::Status(static_cast<grpc::StatusCode>(absl_status.code()),
+                        std::string(absl_status.message()));
 }
 
-BasicTokenAuth::BasicTokenAuth(std::string header, AllowList *list)
+BasicTokenAuth::BasicTokenAuth(std::string header, AllowList* list)
     : mHeader(header), mAllowList(list) {}
 
 BasicTokenAuth::~BasicTokenAuth() = default;
 
-grpc::Status BasicTokenAuth::Process(const InputMetadata &auth_metadata,
-                                     grpc::AuthContext *context,
-                                     OutputMetadata *consumed_auth_metadata,
-                                     OutputMetadata *response_metadata) {
-  auto path = auth_metadata.find(PATH);
+grpc::Status BasicTokenAuth::Process(const InputMetadata& auth_metadata, grpc::AuthContext* context,
+                                     OutputMetadata* consumed_auth_metadata,
+                                     OutputMetadata* response_metadata) {
+    auto path = auth_metadata.find(PATH);
 
-  if (path == auth_metadata.end()) {
-    return grpc::Status(grpc::StatusCode::INTERNAL,
-                        "The metadata does not contain a path");
-  }
+    if (path == auth_metadata.end()) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, "The metadata does not contain a path");
+    }
 
-  std::string_view uri(path->second.data(), path->second.length());
+    std::string_view uri(path->second.data(), path->second.length());
 
-  // First lets see if we even need to validate this uri.
-  if (!allowList()->requiresAuthentication(uri)) {
-    return grpc::Status::OK;
-  }
+    // First lets see if we even need to validate this uri.
+    if (!allowList()->requiresAuthentication(uri)) {
+        return grpc::Status::OK;
+    }
 
-  auto header = auth_metadata.find(mHeader);
-  if (header == auth_metadata.end()) {
-    return ConvertAbseilStatusToGrpcStatus(
-        AuthErrorFactory::authErrorMissingHeader(mHeader));
-  }
+    auto header = auth_metadata.find(mHeader);
+    if (header == auth_metadata.end()) {
+        return ConvertAbseilStatusToGrpcStatus(AuthErrorFactory::authErrorMissingHeader(mHeader));
+    }
 
-  std::string_view token(header->second.data(), header->second.length());
-  if (!canHandleToken(token)) {
-    return ConvertAbseilStatusToGrpcStatus(
-        AuthErrorFactory::authErrorNoValidatorForToken(uri, token));
-  }
+    std::string_view token(header->second.data(), header->second.length());
+    if (!canHandleToken(token)) {
+        return ConvertAbseilStatusToGrpcStatus(
+                AuthErrorFactory::authErrorNoValidatorForToken(uri, token));
+    }
 
-  auto auth = isTokenValid(uri, token);
-  return ConvertAbseilStatusToGrpcStatus(auth);
+    auto auth = isTokenValid(uri, token);
+    return ConvertAbseilStatusToGrpcStatus(auth);
 };
 
-StaticTokenAuth::StaticTokenAuth(std::string token, std::string iss,
-                                 AllowList *list)
-    : BasicTokenAuth(DEFAULT_HEADER, list),
-      mStaticToken(DEFAULT_BEARER + token), mIssuer(iss) {
-  LOG(WARNING)
-      << "*** Basic token auth should only be used by android-studio ***";
+StaticTokenAuth::StaticTokenAuth(std::string token, std::string iss, AllowList* list)
+    : BasicTokenAuth(DEFAULT_HEADER, list), mStaticToken(DEFAULT_BEARER + token), mIssuer(iss) {
+    LOG(WARNING) << "*** Basic token auth should only be used by android-studio ***";
 };
 
 bool StaticTokenAuth::canHandleToken(std::string_view token) {
-  return token == mStaticToken;
+    return token == mStaticToken;
 }
 
-absl::Status StaticTokenAuth::isTokenValid(std::string_view path,
-                                           std::string_view token) {
-  if (!canHandleToken(token)) {
-    // This can be very verbose..
-    DD("%s != %s", mStaticToken, token);
-    return AuthErrorFactory::authErrorInvalidToken(token);
-  }
+absl::Status StaticTokenAuth::isTokenValid(std::string_view path, std::string_view token) {
+    if (!canHandleToken(token)) {
+        // This can be very verbose..
+        DD("%s != %s", mStaticToken, token);
+        return AuthErrorFactory::authErrorInvalidToken(token);
+    }
 
-  if (allowList()->isRed(mIssuer, path)) {
-    return AuthErrorFactory::authErrorNotOnAllowList(kSTUDIO, path,
-                                                     allowList()->getSource());
-  }
+    if (allowList()->isRed(mIssuer, path)) {
+        return AuthErrorFactory::authErrorNotOnAllowList(kSTUDIO, path, allowList()->getSource());
+    }
 
-  return absl::OkStatus();
+    return absl::OkStatus();
 }
 
-AnyTokenAuth::AnyTokenAuth(
-    std::vector<std::unique_ptr<BasicTokenAuth>> validators,
-    AllowList *allowlist)
-    : BasicTokenAuth(DEFAULT_HEADER, allowlist),
-      mUniqueValidators(std::move(validators)) {
-  for (const auto &validator : mUniqueValidators) {
-    mValidators.push_back(validator.get());
-  }
+AnyTokenAuth::AnyTokenAuth(std::vector<std::unique_ptr<BasicTokenAuth>> validators,
+                           AllowList* allowlist)
+    : BasicTokenAuth(DEFAULT_HEADER, allowlist), mUniqueValidators(std::move(validators)) {
+    for (const auto& validator : mUniqueValidators) {
+        mValidators.push_back(validator.get());
+    }
 }
 
-AnyTokenAuth::AnyTokenAuth(std::vector<BasicTokenAuth *> validators,
-                           AllowList *allowlist)
-    : BasicTokenAuth(DEFAULT_HEADER, allowlist),
-      mValidators(std::move(validators)) {}
+AnyTokenAuth::AnyTokenAuth(std::vector<BasicTokenAuth*> validators, AllowList* allowlist)
+    : BasicTokenAuth(DEFAULT_HEADER, allowlist), mValidators(std::move(validators)) {}
 
 bool AnyTokenAuth::canHandleToken(std::string_view token) {
-  if (mValidators.empty()) {
-    return true;
-  }
-
-  for (const auto &validator : mValidators) {
-    if (validator->canHandleToken(token)) {
-      return true;
+    if (mValidators.empty()) {
+        return true;
     }
-  }
 
-  return false;
+    for (const auto& validator : mValidators) {
+        if (validator->canHandleToken(token)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
-absl::Status AnyTokenAuth::isTokenValid(std::string_view path,
-                                        std::string_view token) {
-  if (mValidators.empty()) {
-    return absl::OkStatus();
-  }
-
-  // This should only be called when at least one validator is willing to
-  // process this token.
-  for (const auto &validator : mValidators) {
-    if (validator->canHandleToken(token)) {
-      return validator->isTokenValid(path, token);
+absl::Status AnyTokenAuth::isTokenValid(std::string_view path, std::string_view token) {
+    if (mValidators.empty()) {
+        return absl::OkStatus();
     }
-  }
 
-  // Oh oh! How did we end up here??
-  std::string validators =
-      std::accumulate(mValidators.begin(), mValidators.end(), std::string(),
-                      [](auto str, const auto &validator) {
-                        return std::move(str) + ", " + validator->name();
-                      });
+    // This should only be called when at least one validator is willing to
+    // process this token.
+    for (const auto& validator : mValidators) {
+        if (validator->canHandleToken(token)) {
+            return validator->isTokenValid(path, token);
+        }
+    }
 
-  auto fatalError =
-      absl::StrFormat("FATAL: No validator that can handle token. This "
-                      "should not happen, please file a bug including "
-                      "this information: Validation failure `validators: "
-                      "%s`, `path: %s`, `token: %s`",
-                      validators, path, token);
+    // Oh oh! How did we end up here??
+    std::string validators = std::accumulate(mValidators.begin(), mValidators.end(), std::string(),
+                                             [](auto str, const auto& validator) {
+                                                 return std::move(str) + ", " + validator->name();
+                                             });
 
-  LOG(ERROR) << "Internal error! " << fatalError;
+    auto fatalError = absl::StrFormat(
+            "FATAL: No validator that can handle token. This "
+            "should not happen, please file a bug including "
+            "this information: Validation failure `validators: "
+            "%s`, `path: %s`, `token: %s`",
+            validators, path, token);
 
-  // Should not happen, at least one validator should have been able
-  // to handle the token.
-  return absl::InternalError(fatalError);
+    LOG(ERROR) << "Internal error! " << fatalError;
+
+    // Should not happen, at least one validator should have been able
+    // to handle the token.
+    return absl::InternalError(fatalError);
 }
 
-} // namespace control
-} // namespace emulation
-} // namespace android
+}  // namespace control
+}  // namespace emulation
+}  // namespace android

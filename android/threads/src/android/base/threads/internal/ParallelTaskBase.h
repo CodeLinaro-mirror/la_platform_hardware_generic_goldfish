@@ -14,12 +14,12 @@
 
 #pragma once
 
+#include <memory>
+
 #include "aemu/base/Compiler.h"
 #include "aemu/base/async/Looper.h"
 #include "aemu/base/threads/Thread.h"
 #include "aemu/base/threads/Types.h"
-
-#include <memory>
 
 namespace android {
 namespace base {
@@ -30,12 +30,11 @@ namespace internal {
 //
 // This is an implementation detail. DO NOT use this class directly.
 class ParallelTaskBase {
-public:
+  public:
     virtual ~ParallelTaskBase() = default;
 
-protected:
-    ParallelTaskBase(android::base::Looper* looper,
-                     android::base::Looper::Duration checkTimeoutMs,
+  protected:
+    ParallelTaskBase(android::base::Looper* looper, android::base::Looper::Duration checkTimeoutMs,
                      ThreadFlags flags);
 
     // API functions.
@@ -46,9 +45,9 @@ protected:
     virtual void taskImpl() = 0;
     virtual void taskDoneImpl() = 0;
 
-private:
+  private:
     class ManagedThread : public ::android::base::Thread {
-    public:
+      public:
         ManagedThread(ParallelTaskBase* manager, ThreadFlags flags)
             : Thread(flags), mManager(manager) {}
 
@@ -58,13 +57,12 @@ private:
             return 0;
         }
 
-    private:
+      private:
         ParallelTaskBase* mManager;
     };
 
     // Called prediodically to |tryJoin| the launched thread.
-    static void tryWaitTillJoinedStatic(void* opaqueThis,
-                                        android::base::Looper::Timer* timer);
+    static void tryWaitTillJoinedStatic(void* opaqueThis, android::base::Looper::Timer* timer);
 
     void tryWaitTillJoined(android::base::Looper::Timer* timer);
 

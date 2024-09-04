@@ -27,12 +27,11 @@ extern "C" {
 #include <string>
 
 typedef struct SampleBaseDev {
-  DeviceClass parent_class;
-  std::string base;
+    DeviceClass parent_class;
+    std::string base;
 } SampleBaseDev;
 
 typedef struct SampleDev {
-  SampleBaseDev parent_class;
-  std::string amessage;
+    SampleBaseDev parent_class;
+    std::string amessage;
 } SampleDev;
-

@@ -29,13 +29,11 @@ const struct {
         {"ext4", ANDROID_PARTITION_TYPE_EXT4},
 };
 
-const size_t kPartitionTypeMapSize =
-        sizeof(kPartitionTypeMap) / sizeof(kPartitionTypeMap[0]);
+const size_t kPartitionTypeMapSize = sizeof(kPartitionTypeMap) / sizeof(kPartitionTypeMap[0]);
 
 }  // namespace
 
-auto androidPartitionType_toString(AndroidPartitionType part_type) -> const
-        char* {
+auto androidPartitionType_toString(AndroidPartitionType part_type) -> const char* {
     for (auto n : kPartitionTypeMap) {
         if (n.value == part_type) {
             return n.name;
@@ -45,8 +43,7 @@ auto androidPartitionType_toString(AndroidPartitionType part_type) -> const
     return "unknown";
 }
 
-auto androidPartitionType_fromString(const char* part_type)
-        -> AndroidPartitionType {
+auto androidPartitionType_fromString(const char* part_type) -> AndroidPartitionType {
     for (auto n : kPartitionTypeMap) {
         if (strcmp(n.name, part_type) == 0) {
             return n.value;
@@ -55,8 +52,7 @@ auto androidPartitionType_fromString(const char* part_type)
     return ANDROID_PARTITION_TYPE_UNKNOWN;
 }
 
-auto androidPartitionType_probeFile(const char* image_file)
-        -> AndroidPartitionType {
+auto androidPartitionType_probeFile(const char* image_file) -> AndroidPartitionType {
     if (path_exists(image_file) == 0) {
         return ANDROID_PARTITION_TYPE_UNKNOWN;
     }
@@ -68,8 +64,7 @@ auto androidPartitionType_probeFile(const char* image_file)
     return ANDROID_PARTITION_TYPE_YAFFS2;
 }
 
-auto androidPartitionType_makeEmptyFile(AndroidPartitionType part_type,
-                                        uint64_t part_size,
+auto androidPartitionType_makeEmptyFile(AndroidPartitionType part_type, uint64_t part_size,
                                         const char* part_file) -> int {
     switch (part_type) {
         case ANDROID_PARTITION_TYPE_YAFFS2:

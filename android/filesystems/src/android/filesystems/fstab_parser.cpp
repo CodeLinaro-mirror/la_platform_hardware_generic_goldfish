@@ -46,10 +46,8 @@ auto getTokenLen(const char* p, const char* end) -> size_t {
 
 }  // namespace
 
-auto android_parseFstabPartitionFormat(const char* fstabData,
-                                       size_t fstabSize,
-                                       const char* partitionName,
-                                       char** out) -> bool {
+auto android_parseFstabPartitionFormat(const char* fstabData, size_t fstabSize,
+                                       const char* partitionName, char** out) -> bool {
     const char* p = fstabData;
     const char* end = p + fstabSize;
 
@@ -82,8 +80,7 @@ auto android_parseFstabPartitionFormat(const char* fstabData,
 
         line = skipWhitespace(line, line_end);
         size_t tokenLen = getTokenLen(line, line_end);
-        if (tokenLen != partitionNameLen ||
-            memcmp(line, partitionName, tokenLen) != 0) {
+        if (tokenLen != partitionNameLen || memcmp(line, partitionName, tokenLen) != 0) {
             // Not the right partition.
             continue;
         }

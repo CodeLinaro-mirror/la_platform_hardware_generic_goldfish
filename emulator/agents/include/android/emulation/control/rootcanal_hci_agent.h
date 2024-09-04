@@ -14,6 +14,7 @@
 #pragma once
 #include <stdbool.h>
 #include <sys/types.h>
+
 #include "android/utils/compiler.h"
 
 #ifdef _MSC_VER
@@ -23,7 +24,6 @@
 ANDROID_BEGIN_HEADER
 
 typedef void (*dataAvailableCallback)(void* opaque);
-
 
 // An agent that talks to hci vsock in android.
 // This can be used to send and receive data packets from a system image

@@ -14,27 +14,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+#include <android/goldfish/config/hardware_config.h>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+
 #include "android/goldfish/devices/drives/disk_drive.h"
-#include <android/goldfish/config/hardware_config.h>
 
 namespace android::goldfish {
 
 class UserDataDrive : public MutableDiskDrive {
-public:
-  explicit UserDataDrive(const HardwareConfig& hw)
-      : MutableDiskDrive("userdata", "05.0") {
-    mDiskId = "userdata";
-    mDiskImage = fs::path(absl::StrCat(hw.disk_dataPartition_path, ".qcow2"));
-  }
+  public:
+    explicit UserDataDrive(const HardwareConfig& hw) : MutableDiskDrive("userdata", "05.0") {
+        mDiskId = "userdata";
+        mDiskImage = fs::path(absl::StrCat(hw.disk_dataPartition_path, ".qcow2"));
+    }
 
-  absl::Status initialize(const Emulator& emulator) override;
+    absl::Status initialize(const Emulator& emulator) override;
 
-private:
-  absl::Status minimizeUserDataPartition(const Emulator& emulator);
-  absl::Status createImage(const HardwareConfig& hw, const fs::path data_path);
-  absl::Status createUserData(const Emulator& emulator, const fs::path data_path,
-                              bool asQcow2);
+  private:
+    absl::Status minimizeUserDataPartition(const Emulator& emulator);
+    absl::Status createImage(const HardwareConfig& hw, const fs::path data_path);
+    absl::Status createUserData(const Emulator& emulator, const fs::path data_path, bool asQcow2);
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

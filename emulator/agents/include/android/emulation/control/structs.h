@@ -13,9 +13,9 @@
 // limitations under the License.
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <inttypes.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 // This file defines common structs used by the interfaces defined for

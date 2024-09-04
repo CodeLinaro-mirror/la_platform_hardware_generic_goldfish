@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "ext4_utils.h"
 #include "wipe.h"
+
+#include "ext4_utils.h"
 
 #if WIPE_IS_SUPPORTED
 
@@ -25,52 +26,50 @@
 #include <sys/ioctl.h>
 
 #ifndef BLKDISCARD
-#define BLKDISCARD _IO(0x12,119)
+#define BLKDISCARD _IO(0x12, 119)
 #endif
 
 #ifndef BLKSECDISCARD
-#define BLKSECDISCARD _IO(0x12,125)
+#define BLKSECDISCARD _IO(0x12, 125)
 #endif
 
-int wipe_block_device(int fd, s64 len)
-{
-	u64 range[2];
-	int ret;
+int wipe_block_device(int fd, s64 len) {
+    u64 range[2];
+    int ret;
 
-	if (!is_block_device_fd(fd)) {
-		// Wiping only makes sense on a block device.
-		return 0;
-	}
+    if (!is_block_device_fd(fd)) {
+        // Wiping only makes sense on a block device.
+        return 0;
+    }
 
-	range[0] = 0;
-	range[1] = len;
-	ret = ioctl(fd, BLKSECDISCARD, &range);
-	if (ret < 0) {
-		range[0] = 0;
-		range[1] = len;
-		ret = ioctl(fd, BLKDISCARD, &range);
-		if (ret < 0) {
-			warn("Discard failed\n");
-			return 1;
-		} else {
-			warn("Wipe via secure discard failed, used discard instead\n");
-			return 0;
-		}
-	}
+    range[0] = 0;
+    range[1] = len;
+    ret = ioctl(fd, BLKSECDISCARD, &range);
+    if (ret < 0) {
+        range[0] = 0;
+        range[1] = len;
+        ret = ioctl(fd, BLKDISCARD, &range);
+        if (ret < 0) {
+            warn("Discard failed\n");
+            return 1;
+        } else {
+            warn("Wipe via secure discard failed, used discard instead\n");
+            return 0;
+        }
+    }
 
-	return 0;
+    return 0;
 }
 
-#else  /* __linux__ */
+#else /* __linux__ */
 #error "Missing block device wiping implementation for this platform!"
 #endif
 
-#else  /* WIPE_IS_SUPPORTED */
+#else /* WIPE_IS_SUPPORTED */
 
-int wipe_block_device(int fd, s64 len)
-{
-	/* Wiping is not supported on this platform. */
-	return 1;
+int wipe_block_device(int fd, s64 len) {
+    /* Wiping is not supported on this platform. */
+    return 1;
 }
 
-#endif  /* WIPE_IS_SUPPORTED */
+#endif /* WIPE_IS_SUPPORTED */

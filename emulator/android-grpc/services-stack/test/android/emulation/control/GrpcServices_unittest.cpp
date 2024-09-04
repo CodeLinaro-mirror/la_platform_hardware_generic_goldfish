@@ -8,9 +8,12 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "android/emulation/control/GrpcServices.h"
+
 #include <grpcpp/grpcpp.h>                // for OK
 #include <grpcpp/security/credentials.h>  // for Insec...
 #include <gtest/gtest.h>                  // for Asser...
+
 #include <chrono>
 #include <fstream>   // for ifstream
 #include <iterator>  // for istre...
@@ -20,18 +23,18 @@
 #include <tuple>        // for tuple...
 #include <type_traits>  // for add_c...
 
-#include "aemu/base/files/PathUtils.h"      // for pj
+#include "grpc/grpc_security_constants.h"
+#include "gtest/gtest_pred_impl.h"
+
+#include "aemu/base/files/PathUtils.h"         // for pj
 #include "android/base/system/System.h"        // for System
 #include "android/base/testing/TestSystem.h"   // for TestS...
 #include "android/base/testing/TestTempDir.h"  // for TestT...
 #include "android/base/testing/TestTempDir.h"  // for TestTempDir
-#include "android/emulation/control/GrpcServices.h"
 #include "android/emulation/control/test/BasicTokenAuthenticator.h"
 #include "android/emulation/control/test/CertificateFactory.h"  // for Certi...
 #include "android/emulation/control/test/TestEchoService.h"     // for getTe...
 #include "android/utils/debug.h"
-#include "grpc/grpc_security_constants.h"
-#include "gtest/gtest_pred_impl.h"
 #include "test_echo_service.grpc.pb.h"  // for TestEcho
 #include "test_echo_service.pb.h"       // for Msg
 
@@ -48,7 +51,7 @@ using android::base::pj;
 using grpc::Service;
 
 class GrpcServiceTest : public ::testing::Test {
-protected:
+  protected:
     GrpcServiceTest() : mTestSystem("/", System::kProgramBitness) {
         mTempDir = mTestSystem.getTempRoot();
         EXPECT_TRUE(mTempDir->makeSubDir("home"));
@@ -63,9 +66,8 @@ protected:
     void SetUp() {
         mTestSystem.host()->setEnvironmentVariable("GRPC_VERBOSITY", "DEBUG");
         mEchoService = new AsyncTestEchoService();
-        mBuilder.withAllowList(pj(mTestSystem.host()->getProgramDirectory(),
-                                  "test_allow_list.json")
-                                       .c_str());
+        mBuilder.withAllowList(
+                pj(mTestSystem.host()->getProgramDirectory(), "test_allow_list.json").c_str());
         mHelloWorld.set_msg(HELLO);
     }
 
@@ -75,9 +77,7 @@ protected:
     }
 
     std::string address() {
-        return !mEmuController
-                       ? ""
-                       : "localhost:" + std::to_string(mEmuController->port());
+        return !mEmuController ? "" : "localhost:" + std::to_string(mEmuController->port());
     }
 
     std::string readFile(std::string fname) {
@@ -90,8 +90,7 @@ protected:
     std::tuple<Msg, grpc::Status> sayHello(
             const std::shared_ptr<grpc::ChannelCredentials>& creds,
             const bool wait_for_ready = true,
-            const std::shared_ptr<grpc::CallCredentials>& call_creds =
-                    nullptr) {
+            const std::shared_ptr<grpc::CallCredentials>& call_creds = nullptr) {
         // Now let's connect with a client.
         auto channel = grpc::CreateChannel(address(), creds);
         auto client = TestEcho::NewStub(channel);
@@ -99,10 +98,8 @@ protected:
         // You might see unexpected failures with fail fast semantics
         // and transient connection issues.
         ctx.set_wait_for_ready(wait_for_ready);
-        if (call_creds)
-            ctx.set_credentials(call_creds);
-        ctx.set_deadline(std::chrono::system_clock::now() +
-                         std::chrono::seconds(15));
+        if (call_creds) ctx.set_credentials(call_creds);
+        ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(15));
         Msg response;
         auto status = client->echo(&ctx, mHelloWorld, &response);
         return std::make_tuple(response, status);
@@ -147,8 +144,8 @@ TEST_F(GrpcServiceTest, BadSecretsRegistrationFails) {
 }
 
 TEST_F(GrpcServiceTest, SecureRegistrationSucceeds) {
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     mBuilder.withService(mEchoService)
             .withPortRange(0, 1)
@@ -157,12 +154,11 @@ TEST_F(GrpcServiceTest, SecureRegistrationSucceeds) {
 }
 
 TEST_F(GrpcServiceTest, SecureWithCaRegistrationSucceeds) {
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     mBuilder.withService(mEchoService)
             .withPortRange(0, 1)
@@ -173,12 +169,11 @@ TEST_F(GrpcServiceTest, SecureWithCaRegistrationSucceeds) {
 
 TEST_F(GrpcServiceTest, SecureCanNotConnectWithInsecureClient) {
     // When tls is on, you must use tls!
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     mBuilder.withService(mEchoService)
             .withPortRange(0, 1)
@@ -193,12 +188,11 @@ TEST_F(GrpcServiceTest, SecureCanNotConnectWithInsecureClient) {
 TEST_F(GrpcServiceTest, SecureCanConnectWithSecure) {
     // A secure client can connect to a secure server.
     // This demonstrates mutual auth with self signed certs.
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     // Server will use the client cert as the certificate authority..
     mBuilder.withService(mEchoService)
@@ -222,16 +216,14 @@ TEST_F(GrpcServiceTest, SecureCanConnectWithSecure) {
 TEST_F(GrpcServiceTest, SecureRejectsWrongCerts) {
     // A secure client can connect to a secure server.
     // This demonstrates mutual auth with self signed certs.
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     const auto [client_wrong_priv, client_wrong_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "wrong_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "wrong_certs");
 
     // Server will use the client cert as the certificate authority..
     mBuilder.withService(mEchoService)
@@ -255,12 +247,11 @@ TEST_F(GrpcServiceTest, SecureRejectsWrongCerts) {
 TEST_F(GrpcServiceTest, ServerSecureDoesNotDemandClientSecure) {
     // The server can identify itself, but does not require clients
     // to identify themselves.
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     // Server will use the client cert as the certificate authority,
     mBuilder.withService(mEchoService)
@@ -289,9 +280,7 @@ TEST_F(GrpcServiceTest, DoNotLaunchWithEmptyToken) {
 
 TEST_F(GrpcServiceTest, InsecureWithNoTokenRejects) {
     auto invocations = mEchoService->invocations();
-    mBuilder.withService(mEchoService)
-            .withPortRange(0, 1)
-            .withAuthToken(mToken.c_str());
+    mBuilder.withService(mEchoService).withPortRange(0, 1).withAuthToken(mToken.c_str());
 
     EXPECT_TRUE(construct());
 
@@ -326,19 +315,15 @@ TEST_F(GrpcServiceTest, InsecureWithNoJwtRejects) {
 
 TEST_F(GrpcServiceTest, InsecureWithGoodTokenAccepts) {
     auto invocations = mEchoService->invocations();
-    mBuilder.withService(mEchoService)
-            .withPortRange(0, 1)
-            .withAuthToken(mToken.c_str());
+    mBuilder.withService(mEchoService).withPortRange(0, 1).withAuthToken(mToken.c_str());
 
     EXPECT_TRUE(construct());
 
     auto token = getTokenCredentials();
     // Note! ::grpc::InsecureChannel WILL NOT INJECT HEADERS!
-    auto [msg, status] = sayHello(
-            ::grpc::experimental::LocalCredentials(LOCAL_TCP), true, token);
+    auto [msg, status] = sayHello(::grpc::experimental::LocalCredentials(LOCAL_TCP), true, token);
     EXPECT_EQ(HELLO, msg.msg());
-    EXPECT_EQ(grpc::StatusCode::OK, status.error_code())
-            << "Error: " << status.error_message();
+    EXPECT_EQ(grpc::StatusCode::OK, status.error_code()) << "Error: " << status.error_message();
 
     // Underlying service method was called
     EXPECT_EQ(invocations + 1, mEchoService->invocations());
@@ -347,8 +332,7 @@ TEST_F(GrpcServiceTest, InsecureWithGoodTokenAccepts) {
 TEST_F(GrpcServiceTest, InsecureWithGoodJwtAccepts) {
     auto credentials = getJwtCredentials();
 
-    EXPECT_TRUE(
-            System::get()->pathExists(pj(mTempDir->path(), "unittest.jwk")));
+    EXPECT_TRUE(System::get()->pathExists(pj(mTempDir->path(), "unittest.jwk")));
 
     auto invocations = mEchoService->invocations();
     auto keyfile = pj(mTempDir->path(), "keys.jwk");
@@ -362,8 +346,7 @@ TEST_F(GrpcServiceTest, InsecureWithGoodJwtAccepts) {
 
     // Note! ::grpc::InsecureChannel WILL NOT INJECT HEADERS!
     auto [msg, status] =
-            sayHello(::grpc::experimental::LocalCredentials(LOCAL_TCP), true,
-                     credentials);
+            sayHello(::grpc::experimental::LocalCredentials(LOCAL_TCP), true, credentials);
     EXPECT_EQ(HELLO, msg.msg());
     EXPECT_EQ(grpc::StatusCode::OK, status.error_code())
             << "Failure message: " << status.error_message();
@@ -375,12 +358,11 @@ TEST_F(GrpcServiceTest, InsecureWithGoodJwtAccepts) {
 
 TEST_F(GrpcServiceTest, SecureWithBadTokenRejects) {
     auto invocations = mEchoService->invocations();
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     // Server will use the client cert as the certificate authority..
     // and we will require an auth token.
@@ -409,12 +391,11 @@ TEST_F(GrpcServiceTest, SecureWithBadTokenRejects) {
 
 TEST_F(GrpcServiceTest, SecureWithGoodTokenAccepts) {
     auto invocations = mEchoService->invocations();
-    const auto [priv, cert] = CertificateFactory::generateCertKeyPair(
-            mTestSystem.getHomeDirectory(), "server_certs");
+    const auto [priv, cert] =
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "server_certs");
 
     const auto [client_priv, client_cert] =
-            CertificateFactory::generateCertKeyPair(
-                    mTestSystem.getHomeDirectory(), "client_certs");
+            CertificateFactory::generateCertKeyPair(mTestSystem.getHomeDirectory(), "client_certs");
 
     // Server will use the client cert as the certificate authority..
     // and we will require an auth token.
@@ -452,8 +433,7 @@ TEST_F(GrpcServiceTest, AsyncServerStreamingWorks) {
     auto channel = grpc::CreateChannel(address(), creds);
     auto client = TestEcho::NewStub(channel);
     grpc::ClientContext ctx;
-    ctx.set_deadline(std::chrono::system_clock::now() +
-                     std::chrono::seconds(10));
+    ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(10));
     Msg response;
     Msg hello;
     hello.set_counter(5);
@@ -462,8 +442,7 @@ TEST_F(GrpcServiceTest, AsyncServerStreamingWorks) {
     int responses = 0;
     auto bidistream = client->streamEcho(&ctx);
     bidistream->Write(hello);
-    while (response.counter() < hello.counter() &&
-           bidistream->Read(&response)) {
+    while (response.counter() < hello.counter() && bidistream->Read(&response)) {
         responses++;
         printf("Got responses: %d\n", responses);
     }

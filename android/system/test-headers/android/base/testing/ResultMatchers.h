@@ -21,42 +21,43 @@
 namespace android {
 namespace base {
 
-template <typename T, typename E,
-          typename = typename std::enable_if<!std::is_void<T>::value>::type>
-void PrintTo(const Result<T, E> &param, std::ostream *os) {
-  if (param.ok()) {
-    *os << "Ok(" << ::testing::PrintToString(param.ok().value()) << ")";
-  } else {
-    *os << "Err(" << ::testing::PrintToString(param.err().value()) << ")";
-  }
+template <typename T, typename E, typename = typename std::enable_if<!std::is_void<T>::value>::type>
+void PrintTo(const Result<T, E>& param, std::ostream* os) {
+    if (param.ok()) {
+        *os << "Ok(" << ::testing::PrintToString(param.ok().value()) << ")";
+    } else {
+        *os << "Err(" << ::testing::PrintToString(param.err().value()) << ")";
+    }
 }
 
 template <typename E>
-void PrintTo(const Result<void, E> &param, std::ostream *os) {
-  if (param.ok()) {
-    *os << "Ok()";
-  } else {
-    *os << "Err(" << ::testing::PrintToString(param.err().value()) << ")";
-  }
+void PrintTo(const Result<void, E>& param, std::ostream* os) {
+    if (param.ok()) {
+        *os << "Ok()";
+    } else {
+        *os << "Err(" << ::testing::PrintToString(param.err().value()) << ")";
+    }
 }
 
-MATCHER(IsOk, "Ok()") { return arg.ok(); }
+MATCHER(IsOk, "Ok()") {
+    return arg.ok();
+}
 
 MATCHER_P(IsOk, value, "Ok(" + ::testing::PrintToString(value) + ")") {
-  if (!arg.ok()) {
-    return false;
-  }
+    if (!arg.ok()) {
+        return false;
+    }
 
-  return ::testing::Matches(value)(arg.ok().value());
+    return ::testing::Matches(value)(arg.ok().value());
 }
 
 MATCHER_P(IsErr, err, "Err(" + ::testing::PrintToString(err) + ")") {
-  if (!arg.err()) {
-    return false;
-  }
+    if (!arg.err()) {
+        return false;
+    }
 
-  return ::testing::Matches(err)(arg.err().value());
+    return ::testing::Matches(err)(arg.err().value());
 }
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

@@ -18,6 +18,7 @@
 // #include "android/base/testing/TestThread.h"
 
 #include <gtest/gtest.h>
+
 #include <mutex>
 #include <thread>
 
@@ -27,17 +28,18 @@ namespace base {
 namespace {
 
 class Foo {
-public:
+  public:
     Foo() : mValue(42) {}
     int get() const { return mValue; }
     void set(int value) { mValue = value; }
     ~Foo() { mValue = 13; }
-private:
+
+  private:
     int mValue;
 };
 
 class StaticCounter {
-public:
+  public:
     StaticCounter() {
         std::lock_guard lock(mLock);
         mCounter++;
@@ -53,7 +55,7 @@ public:
         mCounter = 0;
     }
 
-private:
+  private:
     static std::mutex mLock;
     static int mCounter;
 };
@@ -104,14 +106,14 @@ namespace {
 
 // The following is the shared structure between all threads.
 struct MultiState {
-    MultiState(LazyInstance<StaticCounter>* staticCounter) :
-            mStaticCounter(staticCounter), mCount(0) {}
+    MultiState(LazyInstance<StaticCounter>* staticCounter)
+        : mStaticCounter(staticCounter), mCount(0) {}
 
     enum {
         kMaxThreads = 1000,
     };
 
-    std::mutex  mLock;
+    std::mutex mLock;
     LazyInstance<StaticCounter>* mStaticCounter;
     size_t mCount;
     void* mValues[kMaxThreads];
@@ -139,7 +141,7 @@ TEST(LazyInstance, MultipleThreads) {
 
     // Create all threads.
     for (size_t n = 0; n < kNumThreads; ++n) {
-        state.mThreads[n] = new std::thread([this, &state]{threadFunc(&state);});
+        state.mThreads[n] = new std::thread([this, &state] { threadFunc(&state); });
     }
 
     // Wait for their completion.

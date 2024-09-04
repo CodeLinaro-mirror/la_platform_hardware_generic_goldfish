@@ -13,11 +13,13 @@
 // limitations under the License.
 #pragma once
 #include <grpcpp/grpcpp.h>  // for string_ref
-#include <memory>           // for unique_ptr
-#include <string>           // for string
-#include <vector>           // for vector
+
+#include <memory>  // for unique_ptr
+#include <string>  // for string
+#include <vector>  // for vector
 
 #include "absl/status/status.h"  // for Status
+
 #include "android/emulation/control/secure/AllowList.h"
 
 namespace android {
@@ -40,7 +42,7 @@ namespace control {
  * @see grpc::AuthMetadataProcessor
  */
 class BasicTokenAuth : public grpc::AuthMetadataProcessor {
-public:
+  public:
     /**
      * Creates a AuthMetadataProcessor that looks for the given header and
      * removes the given prefix before invoking the isTokenValid call.
@@ -60,15 +62,13 @@ public:
     /// will be sent as part of the response. If the return value is not
     /// Status::OK, the rpc call will be aborted with the error code and error
     /// message sent back to the client.
-    grpc::Status Process(const InputMetadata& auth_metadata,
-                         grpc::AuthContext* context,
+    grpc::Status Process(const InputMetadata& auth_metadata, grpc::AuthContext* context,
                          OutputMetadata* consumed_auth_metadata,
                          OutputMetadata* response_metadata) override;
 
     // This method should return `absl::OkStatus()` in case of success, or
     // provide a more detailed explanation of the validation faluire.
-    virtual absl::Status isTokenValid(std::string_view path,
-                                      std::string_view token) = 0;
+    virtual absl::Status isTokenValid(std::string_view path, std::string_view token) = 0;
 
     virtual bool canHandleToken(std::string_view token) { return false; }
 
@@ -91,7 +91,7 @@ public:
 
     AllowList* allowList() { return mAllowList; }
 
-private:
+  private:
     AllowList* mAllowList{&noAccess};
     std::string mHeader;
 
@@ -105,20 +105,19 @@ private:
 // is present and matches the token used when creating this class.
 //
 class StaticTokenAuth : public BasicTokenAuth {
-public:
+  public:
     StaticTokenAuth(std::string token, std::string iss, AllowList* list);
     ~StaticTokenAuth() = default;
 
     bool canHandleToken(std::string_view token) override;
 
-    absl::Status isTokenValid(std::string_view path,
-                              std::string_view token) override;
+    absl::Status isTokenValid(std::string_view path, std::string_view token) override;
 
     const static inline std::string DEFAULT_BEARER{"Bearer "};
 
     std::string name() override { return "StaticTokenAuth"; }
 
-private:
+  private:
     std::string mStaticToken;
     std::string mIssuer;
 };
@@ -130,19 +129,17 @@ private:
 //
 // Only one of the validators has to succeed.
 class AnyTokenAuth : public BasicTokenAuth {
-public:
-    AnyTokenAuth(std::vector<std::unique_ptr<BasicTokenAuth>> validators,
-                 AllowList* list);
+  public:
+    AnyTokenAuth(std::vector<std::unique_ptr<BasicTokenAuth>> validators, AllowList* list);
     AnyTokenAuth(std::vector<BasicTokenAuth*> validators, AllowList* list);
     ~AnyTokenAuth() = default;
 
     bool canHandleToken(std::string_view token) override;
-    absl::Status isTokenValid(std::string_view path,
-                              std::string_view token) override;
+    absl::Status isTokenValid(std::string_view path, std::string_view token) override;
 
     std::string name() override { return "AnyTokenAuth"; }
 
-private:
+  private:
     std::vector<BasicTokenAuth*> mValidators;
     std::vector<std::unique_ptr<BasicTokenAuth>> mUniqueValidators;
 };

@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #pragma once
 #include "goldfish/archive/Reader.h"
@@ -17,9 +17,8 @@
 namespace goldfish {
 namespace vsock {
 
-void setParentStateSnapshotHandlers(void *parent,
-                                    int(*save)(const void *, archive::IWriter &),
-                                    int(*load)(void *, archive::IReader &));
+void setParentStateSnapshotHandlers(void* parent, int (*save)(const void*, archive::IWriter&),
+                                    int (*load)(void*, archive::IReader&));
 
 }  // namespace vsock
 }  // namespace goldfish

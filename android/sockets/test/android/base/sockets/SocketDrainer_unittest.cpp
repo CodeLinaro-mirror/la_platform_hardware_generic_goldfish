@@ -10,21 +10,20 @@
 // GNU General Public License for more details.
 
 #include "aemu/base/sockets/SocketDrainer.h"
+
 #include "aemu/base/sockets/SocketUtils.h"
-#include "android/utils/looper.h"
-#include "android/utils/tempfile.h"
-#include "android/utils/socket_drainer.h"
 #include "android/base/file/file_io.h"
+#include "android/utils/looper.h"
+#include "android/utils/socket_drainer.h"
+#include "android/utils/tempfile.h"
 
-
-// The following unit tests only work on Linux and OS X, because they rely on "fork()"
-// system call, which is not supported by Windows yet.
+// The following unit tests only work on Linux and OS X, because they rely on
+// "fork()" system call, which is not supported by Windows yet.
 
 #ifndef _WIN32
 
-#include <gtest/gtest.h>
-
 #include <errno.h>
+#include <gtest/gtest.h>
 #include <stdio.h>
 
 namespace android {
@@ -32,7 +31,7 @@ namespace base {
 
 namespace {
 
-const int kBigNumber = (1<<10);
+const int kBigNumber = (1 << 10);
 
 int writeToSocket(const char* filename, int socket_fd) {
     FILE* ff = android_fopen(filename, "w");
@@ -138,7 +137,7 @@ TEST(SocketDrainer, GracefulShutDownFromCpp) {
     EXPECT_EQ(kBigNumber, numWritten);
 }
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android
 
 #endif

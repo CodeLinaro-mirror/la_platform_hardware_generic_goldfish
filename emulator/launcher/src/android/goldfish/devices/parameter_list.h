@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/devices/device.h"
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
@@ -22,27 +20,28 @@
 #include <unordered_map>
 #include <vector>
 
+#include "android/goldfish/config/avd.h"
+#include "android/goldfish/devices/device.h"
+
 namespace android::goldfish {
 
 // A simple list of parameters that need to be added. This is not a real
 // "device" Usually this contains things like the telnet server, or -no-reboot,
 // etc.
 class ParameterList : public Device {
-public:
-  explicit ParameterList(std::initializer_list<std::string> params)
-      : Device("params_" + std::to_string(++gIdCounter)),
-        mParams(params.begin(), params.end()) {}
+  public:
+    explicit ParameterList(std::initializer_list<std::string> params)
+        : Device("params_" + std::to_string(++gIdCounter)), mParams(params.begin(), params.end()) {}
 
-  explicit ParameterList(std::vector<std::string> params);
-  ~ParameterList() override = default;
+    explicit ParameterList(std::vector<std::string> params);
+    ~ParameterList() override = default;
 
-  std::vector<std::string>
-  getQemuParameters(const Emulator &emulator) const override;
-  absl::Status initialize(const Emulator &emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
 
-private:
-  std::vector<std::string> mParams;
-  static int gIdCounter;
+  private:
+    std::vector<std::string> mParams;
+    static int gIdCounter;
 };
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

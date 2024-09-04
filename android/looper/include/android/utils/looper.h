@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-#include "aemu/base/utils/stream.h"
-
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <limits.h>
+
+#include "aemu/base/utils/stream.h"
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -37,13 +37,13 @@ ANDROID_BEGIN_HEADER
  **********************************************************************/
 
 /* A Duration represents a duration in milliseconds */
-typedef int64_t   Duration;
+typedef int64_t Duration;
 
 /* High-precision duration, in nanoseconds */
-typedef uint64_t  DurationNs;
+typedef uint64_t DurationNs;
 
 /* A special Duration value used to mean "infinite" */
-#define  DURATION_INFINITE       ((Duration)INT64_MAX)
+#define DURATION_INFINITE ((Duration)INT64_MAX)
 
 // Type of the clock used in a Looper object
 //  LOOPER_CLOCK_REALTIME - realtime monotonic host clock
@@ -56,11 +56,7 @@ typedef uint64_t  DurationNs;
 //        other types may be not implemented by different times and fall back
 //        to LOOPER_CLOCK_HOST
 
-typedef enum {
-    LOOPER_CLOCK_REALTIME,
-    LOOPER_CLOCK_VIRTUAL,
-    LOOPER_CLOCK_HOST
-} LooperClockType;
+typedef enum { LOOPER_CLOCK_REALTIME, LOOPER_CLOCK_VIRTUAL, LOOPER_CLOCK_HOST } LooperClockType;
 
 /**********************************************************************
  **********************************************************************
@@ -69,7 +65,6 @@ typedef enum {
  *****
  **********************************************************************
  **********************************************************************/
-
 
 /* A Looper is an abstraction for an event loop, which can
  * be implemented in different ways. For example, the UI program may
@@ -100,7 +95,7 @@ typedef enum {
  * looper_getForThread() instead. Its implementation relies on top of
  * the QEMU event loop instead.
  */
-typedef struct Looper    Looper;
+typedef struct Looper Looper;
 
 /* Return the Looper instance for the current thread. If none exists,
  * create a new one with looper_newGeneric().
@@ -117,12 +112,12 @@ void looper_setForThread(Looper* looper);
 void looper_setForThreadToOwn(Looper* looper);
 
 /* Create a new generic looper that can be used in any context / thread. */
-Looper*  looper_newGeneric(void);
+Looper* looper_newGeneric(void);
 
 typedef struct LoopTimer LoopTimer;
 typedef void (*LoopTimerFunc)(void* opaque, LoopTimer* timer);
 
-typedef struct LoopIo    LoopIo;
+typedef struct LoopIo LoopIo;
 typedef void (*LoopIoFunc)(void* opaque, int fd, unsigned events);
 
 /**********************************************************************
@@ -136,12 +131,8 @@ typedef void (*LoopIoFunc)(void* opaque, int fd, unsigned events);
 /* Initialize a LoopTimer with a callback and an 'opaque' value.
  * Each timer belongs to only one looper object.
  */
-LoopTimer* loopTimer_new(Looper*        looper,
-                         LoopTimerFunc  callback,
-                         void*          opaque);
-LoopTimer* loopTimer_newWithClock(Looper* looper,
-                                  LoopTimerFunc callback,
-                                  void* opaque,
+LoopTimer* loopTimer_new(Looper* looper, LoopTimerFunc callback, void* opaque);
+LoopTimer* loopTimer_newWithClock(Looper* looper, LoopTimerFunc callback, void* opaque,
                                   LooperClockType clock);
 
 /* Finalize a LoopTimer */
@@ -186,14 +177,11 @@ int loopTimer_isActive(LoopTimer* timer);
  * Socket accept()s are mapped to LOOP_IO_READ events.
  */
 enum {
-    LOOP_IO_READ  = (1 << 0),
+    LOOP_IO_READ = (1 << 0),
     LOOP_IO_WRITE = (1 << 1),
 };
 
-LoopIo* loopIo_new(Looper* looper,
-                   int fd,
-                   LoopIoFunc callback,
-                   void* opaque);
+LoopIo* loopIo_new(Looper* looper, int fd, LoopIoFunc callback, void* opaque);
 
 /* Note: This does not close the file descriptor! */
 void loopIo_free(LoopIo* io);
@@ -244,8 +232,8 @@ int looper_runWithDeadline(Looper* looper, Duration deadline_ms);
 /* Run the event loop, until looper_forceQuit() is called, or there is no
  * more registered watchers for events/timers in the looper.
  */
-inline  void looper_run(Looper* looper) {
-    (void) looper_runWithDeadline(looper, DURATION_INFINITE);
+inline void looper_run(Looper* looper) {
+    (void)looper_runWithDeadline(looper, DURATION_INFINITE);
 }
 
 /* A variant of looper_run() that allows to run the event loop only
@@ -258,9 +246,8 @@ inline  void looper_run(Looper* looper) {
  *    ETIMEDOUT   -> timeout reached
  *
  */
-inline  int looper_runWithTimeout(Looper* looper, Duration timeout_ms) {
-    if (timeout_ms != DURATION_INFINITE)
-        timeout_ms += looper_now(looper);
+inline int looper_runWithTimeout(Looper* looper, Duration timeout_ms) {
+    if (timeout_ms != DURATION_INFINITE) timeout_ms += looper_now(looper);
 
     return looper_runWithDeadline(looper, timeout_ms);
 }

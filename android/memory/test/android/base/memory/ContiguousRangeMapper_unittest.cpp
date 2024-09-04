@@ -22,15 +22,13 @@ namespace base {
 
 TEST(ContiguousRangeMapper, Basic) {
     std::vector<uintptr_t> elements = {
-        1, 2, 3, 5, 6, 7,
+            1, 2, 3, 5, 6, 7,
     };
 
     int numTotalRanges = 0;
 
     ContiguousRangeMapper rm(
-        [&numTotalRanges](uintptr_t start, uintptr_t size) {
-            ++numTotalRanges;
-        });
+            [&numTotalRanges](uintptr_t start, uintptr_t size) { ++numTotalRanges; });
 
     EXPECT_EQ(0, numTotalRanges);
 
@@ -54,22 +52,13 @@ TEST(ContiguousRangeMapper, Basic) {
 
 TEST(ContiguousRangeMapper, Pages) {
     std::vector<uintptr_t> elements = {
-        0x1000,
-        0x2000,
-        0x3000,
-        0x5000,
-        0x6000,
-        0x7000,
-        0xa000,
-        0xc000,
+            0x1000, 0x2000, 0x3000, 0x5000, 0x6000, 0x7000, 0xa000, 0xc000,
     };
 
     int numTotalRanges = 0;
 
     ContiguousRangeMapper rm(
-        [&numTotalRanges](uintptr_t start, uintptr_t size) {
-            ++numTotalRanges;
-        });
+            [&numTotalRanges](uintptr_t start, uintptr_t size) { ++numTotalRanges; });
 
     for (auto elt : elements) {
         rm.add(elt, 0x1000);
@@ -82,27 +71,24 @@ TEST(ContiguousRangeMapper, Pages) {
 
 TEST(ContiguousRangeMapper, PagesBatched) {
     std::vector<uintptr_t> elements = {
-        0x1000,
-        0x2000,
+            0x1000, 0x2000,
 
-        0x3000,
+            0x3000,
 
-        0x5000,
-        0x6000,
+            0x5000, 0x6000,
 
-        0x7000,
+            0x7000,
 
-        0xa000,
+            0xa000,
 
-        0xc000,
+            0xc000,
     };
 
     int numTotalRanges = 0;
 
     ContiguousRangeMapper rm(
-        [&numTotalRanges](uintptr_t start, uintptr_t size) {
-            ++numTotalRanges;
-        }, 0x2000); // 2 page batch
+            [&numTotalRanges](uintptr_t start, uintptr_t size) { ++numTotalRanges; },
+            0x2000);  // 2 page batch
 
     for (auto elt : elements) {
         rm.add(elt, 0x1000);

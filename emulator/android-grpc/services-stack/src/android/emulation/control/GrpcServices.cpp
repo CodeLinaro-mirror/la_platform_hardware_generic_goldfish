@@ -18,9 +18,10 @@
 #include "msvc-posix.h"
 #endif
 #include <assert.h>
+#include <grpcpp/grpcpp.h>
+
 #include <chrono>
 #include <fstream>
-#include <grpcpp/grpcpp.h>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -51,344 +52,330 @@ using grpc::ServerBuilder;
 using grpc::ServerCompletionQueue;
 using grpc::Service;
 
-std::ostream &
-operator<<(std::ostream &os,
-           const EmulatorControllerService::Builder::Authorization &a) {
-  if (a == EmulatorControllerService::Builder::Authorization::None) {
-    os << "none";
-  } else if ((int)a & (int)EmulatorControllerService::Builder::Authorization::
-                          StaticToken) {
-    os << "+token";
-  } else if ((int)a &
-             (int)EmulatorControllerService::Builder::Authorization::JwtToken) {
-    os << "+jwt";
-  }
-  return os;
+std::ostream& operator<<(std::ostream& os,
+                         const EmulatorControllerService::Builder::Authorization& a) {
+    if (a == EmulatorControllerService::Builder::Authorization::None) {
+        os << "none";
+    } else if ((int)a & (int)EmulatorControllerService::Builder::Authorization::StaticToken) {
+        os << "+token";
+    } else if ((int)a & (int)EmulatorControllerService::Builder::Authorization::JwtToken) {
+        os << "+jwt";
+    }
+    return os;
 }
 
 // This class owns all the created resources, and is responsible for stopping
 // and properly releasing resources.
 class EmulatorControllerServiceImpl : public EmulatorControllerService {
-public:
-  ~EmulatorControllerServiceImpl() { stop(); }
+  public:
+    ~EmulatorControllerServiceImpl() { stop(); }
 
-  void stop() override {
-    auto deadline =
-        std::chrono::system_clock::now() + std::chrono::milliseconds(500);
-    mServer->Shutdown(deadline);
-  }
+    void stop() override {
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(500);
+        mServer->Shutdown(deadline);
+    }
 
-  EmulatorControllerServiceImpl(int port,
-                                std::vector<std::shared_ptr<Service>> services,
-                                std::unique_ptr<AllowList> allowlist,
-                                grpc::Server *server,
-                                remote::Endpoint description)
-      : mPort(port), mRegisteredServices(services),
-        mAllowList(std::move(allowlist)), mServer(server),
-        mEndpoint(description) {}
+    EmulatorControllerServiceImpl(int port, std::vector<std::shared_ptr<Service>> services,
+                                  std::unique_ptr<AllowList> allowlist, grpc::Server* server,
+                                  remote::Endpoint description)
+        : mPort(port),
+          mRegisteredServices(services),
+          mAllowList(std::move(allowlist)),
+          mServer(server),
+          mEndpoint(description) {}
 
-  int port() const override { return mPort; }
+    int port() const override { return mPort; }
 
-  void wait() override { mServer->Wait(); }
+    void wait() override { mServer->Wait(); }
 
-  const remote::Endpoint &description() const override { return mEndpoint; }
+    const remote::Endpoint& description() const override { return mEndpoint; }
 
-private:
-  std::unique_ptr<grpc::Server> mServer;
-  std::unique_ptr<AllowList> mAllowList;
-  std::vector<std::shared_ptr<Service>> mRegisteredServices;
-  remote::Endpoint mEndpoint;
-  int mPort;
-  int queueidx = 0;
-  std::string mCert;
+  private:
+    std::unique_ptr<grpc::Server> mServer;
+    std::unique_ptr<AllowList> mAllowList;
+    std::vector<std::shared_ptr<Service>> mRegisteredServices;
+    remote::Endpoint mEndpoint;
+    int mPort;
+    int queueidx = 0;
+    std::string mCert;
 };
 
 // Returns the whole file contents, or empty if the file could not be read
 // or is empty. Will set the valid flag to false if the file cannot be read
 // or is empty.
-std::string Builder::readSecrets(const char *fname) {
-  if (!fname) {
-    LOG(ERROR) << "Cannot read secrets from nothing.";
-    mValid = false;
-    return "";
-  }
-  if (!System::get()->pathExists(fname)) {
-    LOG(ERROR) << "File " << fname << " does not exist or is unreadable";
-    mValid = false;
-    return "";
-  }
-  std::ifstream fstream(PathUtils::asUnicodePath(fname).c_str());
-  auto contents = std::string(std::istreambuf_iterator<char>(fstream),
-                              std::istreambuf_iterator<char>());
+std::string Builder::readSecrets(const char* fname) {
+    if (!fname) {
+        LOG(ERROR) << "Cannot read secrets from nothing.";
+        mValid = false;
+        return "";
+    }
+    if (!System::get()->pathExists(fname)) {
+        LOG(ERROR) << "File " << fname << " does not exist or is unreadable";
+        mValid = false;
+        return "";
+    }
+    std::ifstream fstream(PathUtils::asUnicodePath(fname).c_str());
+    auto contents =
+            std::string(std::istreambuf_iterator<char>(fstream), std::istreambuf_iterator<char>());
 
-  if (fstream.fail()) {
-    LOG(ERROR) << "Failure while reading from: " << fname;
-    mValid = false;
-  } else if (contents.empty()) {
-    LOG(ERROR) << "The file " << fname << " is empty.";
-    mValid = true;
-  }
+    if (fstream.fail()) {
+        LOG(ERROR) << "Failure while reading from: " << fname;
+        mValid = false;
+    } else if (contents.empty()) {
+        LOG(ERROR) << "The file " << fname << " is empty.";
+        mValid = true;
+    }
 
-  return contents;
+    return contents;
 }
 
 Builder::Builder() {
-  mEmulatorAccessPath = pj(
-      {System::get()->getLauncherDirectory(), "lib", "emulator_access.json"});
+    mEmulatorAccessPath =
+            pj({System::get()->getLauncherDirectory(), "lib", "emulator_access.json"});
 };
 
-int Builder::port() { return mPort; }
-
-Builder &Builder::withService(Service *service) {
-  if (service != nullptr)
-    mServices.emplace_back(std::shared_ptr<Service>(service));
-  return *this;
+int Builder::port() {
+    return mPort;
 }
 
-Builder &Builder::withSecureService(Service *service) {
-  if (service != nullptr)
-    mSecureServices.emplace_back(std::shared_ptr<Service>(service));
-  return *this;
-}
-
-Builder &Builder::withAuthToken(std::string token) {
-  mAuthToken = token;
-  mValid = !token.empty();
-  mAuthMode = mAuthMode | Authorization::StaticToken;
-  return *this;
-}
-
-Builder &Builder::withJwtAuthDiscoveryDir(std::string jwks,
-                                          std::string jwkLoadedPath) {
-  mJwkPath = jwks;
-  mJwkLoadedPath = jwkLoadedPath;
-  mValid = System::get()->pathExists(jwks) && System::get()->pathCanRead(jwks);
-  mAuthMode = mAuthMode | Authorization::JwtToken;
-  return *this;
-}
-
-Builder &Builder::withCertAndKey(const char *certfile,
-                                 const char *privateKeyFile,
-                                 const char *caFile) {
-  if (!certfile) {
+Builder& Builder::withService(Service* service) {
+    if (service != nullptr) mServices.emplace_back(std::shared_ptr<Service>(service));
     return *this;
-  }
+}
 
-  if (!privateKeyFile) {
+Builder& Builder::withSecureService(Service* service) {
+    if (service != nullptr) mSecureServices.emplace_back(std::shared_ptr<Service>(service));
     return *this;
-  }
-
-  mCertfile = certfile;
-  auto key = readSecrets(privateKeyFile);
-  auto cert = readSecrets(certfile);
-
-  grpc::SslServerCredentialsOptions::PemKeyCertPair keycert = {key, cert};
-  grpc::SslServerCredentialsOptions ssl_opts;
-  ssl_opts.pem_key_cert_pairs.push_back(keycert);
-
-  // Register the certificate authority if one exists.
-  if (caFile) {
-    auto ca = readSecrets(caFile);
-    ssl_opts.pem_root_certs = ca;
-    ssl_opts.client_certificate_request =
-        GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY;
-    mCaCerts = true;
-  }
-
-  mCredentials = grpc::SslServerCredentials(ssl_opts);
-  mSecurity = Security::Tls;
-  return *this;
 }
 
-Builder &Builder::withVerboseLogging(bool verbose) {
-  mVerbose = verbose;
-  return *this;
+Builder& Builder::withAuthToken(std::string token) {
+    mAuthToken = token;
+    mValid = !token.empty();
+    mAuthMode = mAuthMode | Authorization::StaticToken;
+    return *this;
 }
 
-Builder &Builder::withAddress(std::string address) {
-  mBindAddress = address;
-  return *this;
+Builder& Builder::withJwtAuthDiscoveryDir(std::string jwks, std::string jwkLoadedPath) {
+    mJwkPath = jwks;
+    mJwkLoadedPath = jwkLoadedPath;
+    mValid = System::get()->pathExists(jwks) && System::get()->pathCanRead(jwks);
+    mAuthMode = mAuthMode | Authorization::JwtToken;
+    return *this;
 }
 
-Builder &Builder::withIdleTimeout(std::chrono::seconds timeout) {
-  mTimeout = timeout;
-  return *this;
-}
-
-Builder &Builder::withLogging(bool logging) {
-  mLogging = logging;
-  return *this;
-}
-
-Builder &Builder::withPortRange(int start, int end) {
-  assert(end > start);
-  int port = start;
-  bool found = false;
-  for (port = start; !found && port < end; port++) {
-    // Find a free port.
-    android::base::ScopedSocket s0(socketTcp4LoopbackServer(port));
-    if (s0.valid()) {
-      mPort = android::base::socketGetPort(s0.get());
-      mIpMode = IpMode::Ipv4;
-      found = true;
-    } else {
-      // Try ipv6 port
-      s0 = socketTcp6LoopbackServer(port);
-      if (s0.valid()) {
-        mPort = android::base::socketGetPort(s0.get());
-        mIpMode = IpMode::Ipv6;
-        found = true;
-      }
+Builder& Builder::withCertAndKey(const char* certfile, const char* privateKeyFile,
+                                 const char* caFile) {
+    if (!certfile) {
+        return *this;
     }
-  }
-  return *this;
+
+    if (!privateKeyFile) {
+        return *this;
+    }
+
+    mCertfile = certfile;
+    auto key = readSecrets(privateKeyFile);
+    auto cert = readSecrets(certfile);
+
+    grpc::SslServerCredentialsOptions::PemKeyCertPair keycert = {key, cert};
+    grpc::SslServerCredentialsOptions ssl_opts;
+    ssl_opts.pem_key_cert_pairs.push_back(keycert);
+
+    // Register the certificate authority if one exists.
+    if (caFile) {
+        auto ca = readSecrets(caFile);
+        ssl_opts.pem_root_certs = ca;
+        ssl_opts.client_certificate_request =
+                GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY;
+        mCaCerts = true;
+    }
+
+    mCredentials = grpc::SslServerCredentials(ssl_opts);
+    mSecurity = Security::Tls;
+    return *this;
 }
 
-Builder &Builder::withAllowList(const char *path) {
-  if (path) {
-    mEmulatorAccessPath = path;
-  }
-  return *this;
+Builder& Builder::withVerboseLogging(bool verbose) {
+    mVerbose = verbose;
+    return *this;
+}
+
+Builder& Builder::withAddress(std::string address) {
+    mBindAddress = address;
+    return *this;
+}
+
+Builder& Builder::withIdleTimeout(std::chrono::seconds timeout) {
+    mTimeout = timeout;
+    return *this;
+}
+
+Builder& Builder::withLogging(bool logging) {
+    mLogging = logging;
+    return *this;
+}
+
+Builder& Builder::withPortRange(int start, int end) {
+    assert(end > start);
+    int port = start;
+    bool found = false;
+    for (port = start; !found && port < end; port++) {
+        // Find a free port.
+        android::base::ScopedSocket s0(socketTcp4LoopbackServer(port));
+        if (s0.valid()) {
+            mPort = android::base::socketGetPort(s0.get());
+            mIpMode = IpMode::Ipv4;
+            found = true;
+        } else {
+            // Try ipv6 port
+            s0 = socketTcp6LoopbackServer(port);
+            if (s0.valid()) {
+                mPort = android::base::socketGetPort(s0.get());
+                mIpMode = IpMode::Ipv6;
+                found = true;
+            }
+        }
+    }
+    return *this;
+}
+
+Builder& Builder::withAllowList(const char* path) {
+    if (path) {
+        mEmulatorAccessPath = path;
+    }
+    return *this;
 }
 //  Human readable logging.
 template <typename Sink>
 void AbslStringify(Sink& sink, const Builder::Security value) {
-  const char *s = 0;
-#define STATE(p)                                                               \
-  case (Builder::Security::p):                                                 \
-    s = #p;                                                                    \
-    break;
-  switch (value) {
-    STATE(Insecure);
-    STATE(Tls);
-    STATE(Local)
-  }
+    const char* s = 0;
+#define STATE(p)                 \
+    case (Builder::Security::p): \
+        s = #p;                  \
+        break;
+    switch (value) {
+        STATE(Insecure);
+        STATE(Tls);
+        STATE(Local)
+    }
 #undef STATE
-  absl::Format(&sink, "%s", s);
+    absl::Format(&sink, "%s", s);
 }
 
 std::unique_ptr<AllowList> loadAllowlist(std::string path) {
-  auto emulator_access =
-      std::ifstream(PathUtils::asUnicodePath(path.c_str()).c_str());
+    auto emulator_access = std::ifstream(PathUtils::asUnicodePath(path.c_str()).c_str());
 
-  if (!emulator_access.good()) {
-    LOG(WARNING) << "Cannot find access file " << path
-                 << ", blocking all access.";
-    return std::make_unique<DisableAccess>();
-  }
+    if (!emulator_access.good()) {
+        LOG(WARNING) << "Cannot find access file " << path << ", blocking all access.";
+        return std::make_unique<DisableAccess>();
+    }
 
-  LOG(INFO) << "Using security allow list from: " << path;
-  auto list = AllowList::fromStream(emulator_access);
-  list->setSource(path);
+    LOG(INFO) << "Using security allow list from: " << path;
+    auto list = AllowList::fromStream(emulator_access);
+    list->setSource(path);
 
-  return list;
+    return list;
 }
 
 std::unique_ptr<EmulatorControllerService> Builder::build() {
-  // Setup a log redirector.
-  if (mVerbose) {
-    gpr_set_log_function(&gpr_log_to_android_log);
-  } else {
-    gpr_set_log_function(&gpr_null_logger);
-  }
-
-  if (mPort == -1) {
-    // No agents, or no port was found.
-    LOG(INFO) << "No agents, or valid port was found";
-    return nullptr;
-  }
-
-  if (!mValid) {
-    LOG(ERROR) << "Couldn't configure security system.";
-    return nullptr;
-  }
-
-  remote::Endpoint endpoint;
-  if (!mCredentials) {
-    if (mBindAddress == "localhost" || mBindAddress == "[::1]") {
-      mCredentials = LocalServerCredentials(LOCAL_TCP);
-      mSecurity = Security::Local;
+    // Setup a log redirector.
+    if (mVerbose) {
+        gpr_set_log_function(&gpr_log_to_android_log);
     } else {
-      mCredentials = grpc::InsecureServerCredentials();
-      mSecurity = Security::Insecure;
+        gpr_set_log_function(&gpr_null_logger);
     }
-  }
 
-  std::unique_ptr<AllowList> allowList = loadAllowlist(mEmulatorAccessPath);
-  if (!mAuthToken.empty() || !mJwkPath.empty()) {
-    if (mSecurity == Security::Insecure) {
-      mBindAddress = "[::1]";
-      mCredentials = LocalServerCredentials(LOCAL_TCP);
-      mSecurity = Security::Local;
-      LOG(WARNING) << "Token/JWT auth requested without tls, restricting "
-                      "access to localhost.";
+    if (mPort == -1) {
+        // No agents, or no port was found.
+        LOG(INFO) << "No agents, or valid port was found";
+        return nullptr;
     }
-    auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
-    if (!mAuthToken.empty()) {
-      anyauth.emplace_back(std::make_unique<StaticTokenAuth>(
-          mAuthToken, "android-studio", allowList.get()));
-      auto header = endpoint.add_required_headers();
-      header->set_key("authorization");
-      header->set_value("Bearer " + mAuthToken);
+
+    if (!mValid) {
+        LOG(ERROR) << "Couldn't configure security system.";
+        return nullptr;
     }
-    if (!mJwkPath.empty()) {
-      anyauth.emplace_back(std::make_unique<JwtTokenAuth>(
-          mJwkPath, mJwkLoadedPath, allowList.get()));
+
+    remote::Endpoint endpoint;
+    if (!mCredentials) {
+        if (mBindAddress == "localhost" || mBindAddress == "[::1]") {
+            mCredentials = LocalServerCredentials(LOCAL_TCP);
+            mSecurity = Security::Local;
+        } else {
+            mCredentials = grpc::InsecureServerCredentials();
+            mSecurity = Security::Insecure;
+        }
     }
-    mCredentials->SetAuthMetadataProcessor(
-        std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
-  } else {
-    LOG(WARNING) << "*** No gRPC protection active ***";
-  }
-  // Translate loopback Ipv4/Ipv6 preference ourselves. gRPC resolver can
-  // do it slightly differently than us, leading to unexpected results.
-  if (mBindAddress == "[::1]" || mBindAddress == "127.0.0.1" ||
-      mBindAddress == "localhost") {
-    mBindAddress = (mIpMode == IpMode::Ipv4 ? "127.0.0.1" : "[::1]");
-  }
 
-  std::string server_address = mBindAddress + ":" + std::to_string(mPort);
-
-  ServerBuilder builder;
-  builder.AddListeningPort(server_address, mCredentials);
-  for (auto service : mServices) {
-    builder.RegisterService(service.get());
-  }
-
-  if (mSecurity == Security::Tls && mCaCerts) {
-    for (auto service : mSecureServices) {
-      builder.RegisterService(service.get());
+    std::unique_ptr<AllowList> allowList = loadAllowlist(mEmulatorAccessPath);
+    if (!mAuthToken.empty() || !mJwkPath.empty()) {
+        if (mSecurity == Security::Insecure) {
+            mBindAddress = "[::1]";
+            mCredentials = LocalServerCredentials(LOCAL_TCP);
+            mSecurity = Security::Local;
+            LOG(WARNING) << "Token/JWT auth requested without tls, restricting "
+                            "access to localhost.";
+        }
+        auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
+        if (!mAuthToken.empty()) {
+            anyauth.emplace_back(std::make_unique<StaticTokenAuth>(mAuthToken, "android-studio",
+                                                                   allowList.get()));
+            auto header = endpoint.add_required_headers();
+            header->set_key("authorization");
+            header->set_value("Bearer " + mAuthToken);
+        }
+        if (!mJwkPath.empty()) {
+            anyauth.emplace_back(
+                    std::make_unique<JwtTokenAuth>(mJwkPath, mJwkLoadedPath, allowList.get()));
+        }
+        mCredentials->SetAuthMetadataProcessor(
+                std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
+    } else {
+        LOG(WARNING) << "*** No gRPC protection active ***";
     }
-  }
-  // Register logging & metrics interceptor.
-  std::vector<
-      std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>>
-      creators;
+    // Translate loopback Ipv4/Ipv6 preference ourselves. gRPC resolver can
+    // do it slightly differently than us, leading to unexpected results.
+    if (mBindAddress == "[::1]" || mBindAddress == "127.0.0.1" || mBindAddress == "localhost") {
+        mBindAddress = (mIpMode == IpMode::Ipv4 ? "127.0.0.1" : "[::1]");
+    }
 
-  if (mLogging) {
-    creators.emplace_back(std::make_unique<StdOutLoggingInterceptorFactory>());
-  }
-  // Bring back when we have crash reporting and metrics.
-  //   creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
-  //   creators.emplace_back(std::make_unique<MetricsInterceptorFactory>());
-  if (mTimeout.count() > 0) {
-    creators.emplace_back(std::make_unique<IdleInterceptorFactory>(mTimeout));
-  }
-  builder.experimental().SetInterceptorCreators(std::move(creators));
+    std::string server_address = mBindAddress + ":" + std::to_string(mPort);
 
-  auto service = builder.BuildAndStart();
-  if (!service)
-    return nullptr;
+    ServerBuilder builder;
+    builder.AddListeningPort(server_address, mCredentials);
+    for (auto service : mServices) {
+        builder.RegisterService(service.get());
+    }
 
-  endpoint.set_target(server_address);
+    if (mSecurity == Security::Tls && mCaCerts) {
+        for (auto service : mSecureServices) {
+            builder.RegisterService(service.get());
+        }
+    }
+    // Register logging & metrics interceptor.
+    std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>> creators;
 
-  LOG(INFO) << "Started GRPC server at " << server_address.c_str()
-            << ", security: " << mSecurity << ", auth: " << mAuthMode;
-  return std::unique_ptr<EmulatorControllerService>(
-      new EmulatorControllerServiceImpl(mPort, std::move(mServices),
-                                        std::move(allowList), service.release(),
-                                        endpoint));
+    if (mLogging) {
+        creators.emplace_back(std::make_unique<StdOutLoggingInterceptorFactory>());
+    }
+    // Bring back when we have crash reporting and metrics.
+    //   creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
+    //   creators.emplace_back(std::make_unique<MetricsInterceptorFactory>());
+    if (mTimeout.count() > 0) {
+        creators.emplace_back(std::make_unique<IdleInterceptorFactory>(mTimeout));
+    }
+    builder.experimental().SetInterceptorCreators(std::move(creators));
+
+    auto service = builder.BuildAndStart();
+    if (!service) return nullptr;
+
+    endpoint.set_target(server_address);
+
+    LOG(INFO) << "Started GRPC server at " << server_address.c_str() << ", security: " << mSecurity
+              << ", auth: " << mAuthMode;
+    return std::unique_ptr<EmulatorControllerService>(new EmulatorControllerServiceImpl(
+            mPort, std::move(mServices), std::move(allowList), service.release(), endpoint));
 }
-} // namespace control
-} // namespace emulation
-} // namespace android
+}  // namespace control
+}  // namespace emulation
+}  // namespace android

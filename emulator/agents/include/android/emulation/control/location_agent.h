@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
+
+#include "android/utils/compiler.h"
 #ifdef _MSC_VER
 #include "msvc-posix.h"
 #else
@@ -39,11 +39,8 @@ typedef struct QAndroidLocationAgent {
     //   |heading| is degrees, -180..+360, 0=North, 90=East
     //   |nSatellites| is the number of satellites used
     //   |time| is UTC, in the format provided by gettimeofday()
-    void (*gpsSendLoc)(double latitude, double longitude,
-                       double metersElevation,
-                       double speed, double heading,
-                       int nSatellites,
-                       const struct timeval *time);
+    void (*gpsSendLoc)(double latitude, double longitude, double metersElevation, double speed,
+                       double heading, int nSatellites, const struct timeval* time);
 
     // Get the current device location
     //
@@ -56,10 +53,8 @@ typedef struct QAndroidLocationAgent {
     //   |outHeading| is device heading in degrees (0=north, 90=east)
     //   |outNSatellites| is the number of satellites used
     // Null 'out' pointers are safely ignored.
-    int (*gpsGetLoc)(double* outLatitude, double* outLongitude,
-                     double* outMetersElevation,
-                     double* outVelocityKnots, double* outHeading,
-                     int* outNSatellites);
+    int (*gpsGetLoc)(double* outLatitude, double* outLongitude, double* outMetersElevation,
+                     double* outVelocityKnots, double* outHeading, int* outNSatellites);
 
     // Send an NMEA fix sentence to the device.
     void (*gpsSendNmea)(const char* sentence);

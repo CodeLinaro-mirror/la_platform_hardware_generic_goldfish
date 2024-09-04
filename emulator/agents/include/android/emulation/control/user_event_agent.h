@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #pragma once
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 typedef struct SkinEvent SkinEvent;
@@ -28,21 +28,12 @@ typedef struct QAndroidUserEventAgent {
     void (*sendKey)(unsigned key, bool down);
     void (*sendKeyCode)(int key);
     void (*sendKeyCodes)(int* keycodes, int count);
-    void (*sendTouchEvents)(const SkinEvent* const data,
-                            int displayId);
+    void (*sendTouchEvents)(const SkinEvent* const data, int displayId);
 
     // Mouse event.
-    void (*sendMouseEvent)(int dx,
-                           int dy,
-                           int dz,
-                           int buttonsState,
-                           int displayId);
+    void (*sendMouseEvent)(int dx, int dy, int dz, int buttonsState, int displayId);
     // Pen event.
-    void (*sendPenEvent)(int dx,
-                         int dy,
-                         const SkinEvent* ev,
-                         int buttonsState,
-                         int displayId);
+    void (*sendPenEvent)(int dx, int dy, const SkinEvent* ev, int buttonsState, int displayId);
     // Mouse wheel event.
     // dx and dy are indicating how much the mouse wheel is rotated. Scaled so
     // that 120 equals to 1 wheel click. (120 is chosen as a multiplier often

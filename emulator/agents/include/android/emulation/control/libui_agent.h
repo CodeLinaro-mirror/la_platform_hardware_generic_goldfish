@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
-
 #include <stdbool.h>
+
+#include "android/utils/compiler.h"
 
 ANDROID_BEGIN_HEADER
 
@@ -23,8 +23,8 @@ typedef void (*LibuiKeyCodeSendFunc)(int* codes, int count, void* context);
 typedef struct QAndroidLibuiAgent {
     // Converts the passed text into a set of UI input events and sends them
     // using |sendFunc|.
-    bool (*convertUtf8ToKeyCodeEvents)(
-            const unsigned char* text, int len, LibuiKeyCodeSendFunc sendFunc, void* context);
+    bool (*convertUtf8ToKeyCodeEvents)(const unsigned char* text, int len,
+                                       LibuiKeyCodeSendFunc sendFunc, void* context);
 
     // Requests UI code to gracefully shut down and exit. Doesn't wait for it to
     // complete.

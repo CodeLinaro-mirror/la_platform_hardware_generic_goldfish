@@ -10,15 +10,16 @@
 ** GNU General Public License for more details.
 */
 
-#include "aemu/base/logging/CLog.h"
-#include "android/base/file/file_io.h"
-#include "android/utils/bufprint.h"
 #include "android/utils/tempfile.h"
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "aemu/base/logging/CLog.h"
+#include "android/base/file/file_io.h"
+#include "android/utils/bufprint.h"
 
 #ifdef _WIN32
 #ifdef _MSC_VER
@@ -52,138 +53,142 @@
  **/
 
 struct TempFile {
-  const char *name;
-  TempFile *next;
+    const char* name;
+    TempFile* next;
 };
 
 typedef struct TempFile TempFile;
 
 static void tempfile_atexit();
-static TempFile *_all_tempfiles;
+static TempFile* _all_tempfiles;
 
-TempFile *tempfile_create() { return tempfile_create_with_ext(NULL); }
+TempFile* tempfile_create() {
+    return tempfile_create_with_ext(NULL);
+}
 
-TempFile *tempfile_create_with_ext(const char *ext) {
-  TempFile *tempfile;
-  const char *tempname = NULL;
+TempFile* tempfile_create_with_ext(const char* ext) {
+    TempFile* tempfile;
+    const char* tempname = NULL;
 
 #ifdef _WIN32
-  char temp_namebuff[MAX_PATH];
-  char temp_dir[MAX_PATH];
-  char *p = temp_dir, *end = p + sizeof(temp_dir);
-  UINT retval;
+    char temp_namebuff[MAX_PATH];
+    char temp_dir[MAX_PATH];
+    char *p = temp_dir, *end = p + sizeof(temp_dir);
+    UINT retval;
 
-  p = bufprint_temp_dir(p, end);
-  if (p >= end) {
-    D("TEMP directory path is too long");
-    return NULL;
-  }
-
-  retval = GetTempFileNameA(temp_dir, "TMP", 0, temp_namebuff);
-  if (retval == 0) {
-    D("can't create temporary file in '%s'", temp_dir);
-    return NULL;
-  }
-  if (ext) {
-    char temp_oldnamebuff[MAX_PATH];
-
-    strcpy(temp_oldnamebuff, temp_namebuff);
-    strncat(temp_namebuff, ext, strlen(ext));
-    D("Moving %s -> %s",temp_oldnamebuff, temp_namebuff);
-    // if (!PathFileExistsA(temp_oldnamebuff)) {
-    //   derror("%s does not exist.", temp_oldnamebuff);
-    // }
-    if (!MoveFileExA(temp_oldnamebuff, temp_namebuff, MOVEFILE_REPLACE_EXISTING)) {
-      derror("Failed to move file, err: %d", GetLastError());
+    p = bufprint_temp_dir(p, end);
+    if (p >= end) {
+        D("TEMP directory path is too long");
+        return NULL;
     }
-  }
 
-  tempname = temp_namebuff;
+    retval = GetTempFileNameA(temp_dir, "TMP", 0, temp_namebuff);
+    if (retval == 0) {
+        D("can't create temporary file in '%s'", temp_dir);
+        return NULL;
+    }
+    if (ext) {
+        char temp_oldnamebuff[MAX_PATH];
+
+        strcpy(temp_oldnamebuff, temp_namebuff);
+        strncat(temp_namebuff, ext, strlen(ext));
+        D("Moving %s -> %s", temp_oldnamebuff, temp_namebuff);
+        // if (!PathFileExistsA(temp_oldnamebuff)) {
+        //   derror("%s does not exist.", temp_oldnamebuff);
+        // }
+        if (!MoveFileExA(temp_oldnamebuff, temp_namebuff, MOVEFILE_REPLACE_EXISTING)) {
+            derror("Failed to move file, err: %d", GetLastError());
+        }
+    }
+
+    tempname = temp_namebuff;
 #else
 #define TEMPLATE "/tmp/.android-emulator-XXXXXX"
-  int tempfd = -1;
-  char template[512];
-  char *p = template, *end = p + sizeof(template);
+    int tempfd = -1;
+    char template[512];
+    char *p = template, *end = p + sizeof(template);
 
-  p = bufprint_temp_file(p, end, "emulator-XXXXXX");
-  if (ext) {
-    bufprint(p, end, ext);
-  }
-  if (p >= end) {
-    D("Xcannot create temporary file in /tmp/android !! ");
-    return NULL;
-  }
+    p = bufprint_temp_file(p, end, "emulator-XXXXXX");
+    if (ext) {
+        bufprint(p, end, ext);
+    }
+    if (p >= end) {
+        D("Xcannot create temporary file in /tmp/android !! ");
+        return NULL;
+    }
 
-  D("template: %s\n", template);
-  if (ext) {
-    tempfd = mkstemps(template, strlen(ext));
-  } else {
-    tempfd = mkstemp(template);
-  }
-  if (tempfd < 0) {
-    D("cannot create temporary file in /tmp/android !!");
-    return NULL;
-  }
-  close(tempfd);
-  tempname = template;
+    D("template: %s\n", template);
+    if (ext) {
+        tempfd = mkstemps(template, strlen(ext));
+    } else {
+        tempfd = mkstemp(template);
+    }
+    if (tempfd < 0) {
+        D("cannot create temporary file in /tmp/android !!");
+        return NULL;
+    }
+    close(tempfd);
+    tempname = template;
 #endif
-  tempfile = malloc(sizeof(*tempfile) + strlen(tempname) + 1);
-  tempfile->name = (char *)(tempfile + 1);
-  strcpy((char *)tempfile->name, tempname);
+    tempfile = malloc(sizeof(*tempfile) + strlen(tempname) + 1);
+    tempfile->name = (char*)(tempfile + 1);
+    strcpy((char*)tempfile->name, tempname);
 
-  tempfile->next = _all_tempfiles;
-  _all_tempfiles = tempfile;
+    tempfile->next = _all_tempfiles;
+    _all_tempfiles = tempfile;
 
-  if (!tempfile->next) {
-    atexit(tempfile_atexit);
-  }
+    if (!tempfile->next) {
+        atexit(tempfile_atexit);
+    }
 
-  return tempfile;
+    return tempfile;
 }
 
-const char *tempfile_path(TempFile *temp) { return temp ? temp->name : NULL; }
+const char* tempfile_path(TempFile* temp) {
+    return temp ? temp->name : NULL;
+}
 
-void tempfile_close(TempFile *tempfile) {
+void tempfile_close(TempFile* tempfile) {
 #ifdef _WIN32
-  DeleteFileA(tempfile->name);
+    DeleteFileA(tempfile->name);
 #else
-  android_unlink(tempfile->name);
+    android_unlink(tempfile->name);
 #endif
 }
 
-void tempfile_unref_and_close(const char *filename) {
-  if (!filename) {
-    dwarning("tring to close null file name.\n");
-    return;
-  }
-  if (!_all_tempfiles) {
+void tempfile_unref_and_close(const char* filename) {
+    if (!filename) {
+        dwarning("tring to close null file name.\n");
+        return;
+    }
+    if (!_all_tempfiles) {
+        dwarning("%s not referenced, skip deletion", filename);
+        return;
+    }
+    if (!strcmp(_all_tempfiles->name, filename)) {
+        TempFile* toDelete = _all_tempfiles;
+        _all_tempfiles = toDelete->next;
+        tempfile_close(toDelete);
+        free(toDelete);
+        return;
+    }
+    TempFile* prev = _all_tempfiles;
+    TempFile* tempfile;
+    for (tempfile = _all_tempfiles->next; tempfile; tempfile = tempfile->next) {
+        if (!strcmp(tempfile->name, filename)) {
+            prev->next = tempfile->next;
+            tempfile_close(tempfile);
+            free(tempfile);
+            return;
+        }
+        prev = tempfile;
+    }
     dwarning("%s not referenced, skip deletion", filename);
     return;
-  }
-  if (!strcmp(_all_tempfiles->name, filename)) {
-    TempFile *toDelete = _all_tempfiles;
-    _all_tempfiles = toDelete->next;
-    tempfile_close(toDelete);
-    free(toDelete);
-    return;
-  }
-  TempFile *prev = _all_tempfiles;
-  TempFile *tempfile;
-  for (tempfile = _all_tempfiles->next; tempfile; tempfile = tempfile->next) {
-    if (!strcmp(tempfile->name, filename)) {
-      prev->next = tempfile->next;
-      tempfile_close(tempfile);
-      free(tempfile);
-      return;
-    }
-    prev = tempfile;
-  }
-  dwarning("%s not referenced, skip deletion", filename);
-  return;
 }
 
-void tempfile_unref_and_close_file(TempFile *file) {
-  tempfile_unref_and_close(tempfile_path(file));
+void tempfile_unref_and_close_file(TempFile* file) {
+    tempfile_unref_and_close(tempfile_path(file));
 }
 
 /** TEMP FILE CLEANUP
@@ -194,54 +199,49 @@ void tempfile_unref_and_close_file(TempFile *file) {
 #define MAX_ATEXIT_FDS 16
 
 typedef struct {
-  int count;
-  int fds[MAX_ATEXIT_FDS];
+    int count;
+    int fds[MAX_ATEXIT_FDS];
 } AtExitFds;
 
-static void atexit_fds_add(AtExitFds *t, int fd) {
-  if (t->count < MAX_ATEXIT_FDS)
-    t->fds[t->count++] = fd;
-  else {
-    dwarning(
-        "%s: over %d calls. Program exit may not cleanup all temporary files",
-        __FUNCTION__, MAX_ATEXIT_FDS);
-  }
-}
-
-static void atexit_fds_del(AtExitFds *t, int fd) {
-  int nn;
-  for (nn = 0; nn < t->count; nn++)
-    if (t->fds[nn] == fd) {
-      /* move the last element to the current position */
-      t->count -= 1;
-      t->fds[nn] = t->fds[t->count];
-      break;
+static void atexit_fds_add(AtExitFds* t, int fd) {
+    if (t->count < MAX_ATEXIT_FDS)
+        t->fds[t->count++] = fd;
+    else {
+        dwarning("%s: over %d calls. Program exit may not cleanup all temporary files",
+                 __FUNCTION__, MAX_ATEXIT_FDS);
     }
 }
 
-static void atexit_fds_close_all(AtExitFds *t) {
-  int nn;
-  for (nn = 0; nn < t->count; nn++)
-    close(t->fds[nn]);
+static void atexit_fds_del(AtExitFds* t, int fd) {
+    int nn;
+    for (nn = 0; nn < t->count; nn++)
+        if (t->fds[nn] == fd) {
+            /* move the last element to the current position */
+            t->count -= 1;
+            t->fds[nn] = t->fds[t->count];
+            break;
+        }
+}
+
+static void atexit_fds_close_all(AtExitFds* t) {
+    int nn;
+    for (nn = 0; nn < t->count; nn++) close(t->fds[nn]);
 }
 
 static AtExitFds _atexit_fds[1];
 
 void atexit_close_fd(int fd) {
-  if (fd >= 0)
-    atexit_fds_add(_atexit_fds, fd);
+    if (fd >= 0) atexit_fds_add(_atexit_fds, fd);
 }
 
 void atexit_close_fd_remove(int fd) {
-  if (fd >= 0)
-    atexit_fds_del(_atexit_fds, fd);
+    if (fd >= 0) atexit_fds_del(_atexit_fds, fd);
 }
 
 static void tempfile_atexit(void) {
-  TempFile *tempfile;
+    TempFile* tempfile;
 
-  atexit_fds_close_all(_atexit_fds);
+    atexit_fds_close_all(_atexit_fds);
 
-  for (tempfile = _all_tempfiles; tempfile; tempfile = tempfile->next)
-    tempfile_close(tempfile);
+    for (tempfile = _all_tempfiles; tempfile; tempfile = tempfile->next) tempfile_close(tempfile);
 }

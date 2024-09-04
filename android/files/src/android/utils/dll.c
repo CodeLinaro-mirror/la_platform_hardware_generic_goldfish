@@ -55,9 +55,7 @@ ADynamicLibrary* adynamicLibrary_open(const char* libraryName, char** pError) {
     return (ADynamicLibrary*)result;
 }
 
-void* adynamicLibrary_findSymbol(ADynamicLibrary* lib,
-                                 const char* symbolName,
-                                 char** pError) {
+void* adynamicLibrary_findSymbol(ADynamicLibrary* lib, const char* symbolName, char** pError) {
     void* result;
 
     *pError = NULL;
@@ -118,9 +116,7 @@ ADynamicLibrary* adynamicLibrary_open(const char* libraryName, char** pError) {
     return (ADynamicLibrary*)result;
 }
 
-void* adynamicLibrary_findSymbol(ADynamicLibrary* lib,
-                                 const char* symbolName,
-                                 char** pError) {
+void* adynamicLibrary_findSymbol(ADynamicLibrary* lib, const char* symbolName, char** pError) {
     void* result;
 
     *pError = NULL;

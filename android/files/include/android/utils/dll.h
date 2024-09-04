@@ -17,7 +17,7 @@
 ANDROID_BEGIN_HEADER
 
 /* Opaque type to model a dynamic library handle */
-typedef struct ADynamicLibrary   ADynamicLibrary;
+typedef struct ADynamicLibrary ADynamicLibrary;
 
 /* Try to load/open a dynamic library named 'libraryName', looking for
  * it in the optional paths listed by 'libraryPaths'.
@@ -34,15 +34,12 @@ typedef struct ADynamicLibrary   ADynamicLibrary;
  *
  * returns an ADynamicLibrary pointer.
  */
-ADynamicLibrary*   adynamicLibrary_open( const char*  libraryName,
-                                         char**       pError);
+ADynamicLibrary* adynamicLibrary_open(const char* libraryName, char** pError);
 
 /* Find a symbol inside a dynamic library. */
-void* adynamicLibrary_findSymbol( ADynamicLibrary*  lib,
-                                  const char*       symbolName,
-                                  char**            pError);
+void* adynamicLibrary_findSymbol(ADynamicLibrary* lib, const char* symbolName, char** pError);
 
 /* Close/unload a given dynamic library */
-void  adynamicLibrary_close( ADynamicLibrary*  lib );
+void adynamicLibrary_close(ADynamicLibrary* lib);
 
 ANDROID_END_HEADER

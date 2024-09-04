@@ -12,10 +12,9 @@
 #include "aemu/base/async/Looper.h"
 
 #include <errno.h>
+#include <gtest/gtest.h>
 
 #include <memory>
-
-#include <gtest/gtest.h>
 
 #include "absl/log/log.h"
 
@@ -63,8 +62,7 @@ TEST(GenericLooper, RunWithoutHandlers) {
     // Similarly, runWithDeadlineMs(kInfiniteDuration) should return
     // EWOULDBLOCK.
     now0 = looper->nowMs();
-    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(
-            Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     now1 = looper->nowMs();
     EXPECT_LE(now1 - now0, kMaxDelayMs);
 
@@ -96,15 +94,13 @@ struct TimerGroup {
 
 }  // namespace
 
-static void myTimerCallbackStopSecondTimer(void* opaque,
-                                           Looper::Timer* timer) {
+static void myTimerCallbackStopSecondTimer(void* opaque, Looper::Timer* timer) {
     auto group = static_cast<TimerGroup*>(opaque);
     ASSERT_EQ(timer, group->timer1);
     group->timer2->stop();
 }
 
-static void myTimerCallbackShouldNeverBeCalled(void* opaque,
-                                               Looper::Timer* timer) {
+static void myTimerCallbackShouldNeverBeCalled(void* opaque, Looper::Timer* timer) {
     GTEST_FAIL() << "This timer callback should never be called!!";
 }
 
@@ -112,8 +108,7 @@ TEST(GenericLooper, RunWithSingleTimer) {
     std::unique_ptr<Looper> looper(Looper::create());
 
     // Create a timer that runs after 10ms then calls Looper::forceQuit().
-    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(
-            myTimerCallbackNoop, looper.get()));
+    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(myTimerCallbackNoop, looper.get()));
     ASSERT_TRUE(timer1.get());
     ASSERT_EQ(looper.get(), timer1->parentLooper());
     EXPECT_FALSE(timer1->isActive());
@@ -134,8 +129,7 @@ TEST(GenericLooper, DISABLED_RunWithSingleTimerTimingOut) {
     std::unique_ptr<Looper> looper(Looper::create());
 
     // Create a timer that runs after 10ms then calls Looper::forceQuit().
-    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(
-            myTimerCallbackNoop, looper.get()));
+    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(myTimerCallbackNoop, looper.get()));
     ASSERT_TRUE(timer1.get());
     ASSERT_EQ(looper.get(), timer1->parentLooper());
     EXPECT_FALSE(timer1->isActive());
@@ -156,8 +150,8 @@ TEST(GenericLooper, RunWithSingleTimerForceQuitting) {
     std::unique_ptr<Looper> looper(Looper::create());
 
     // Create a timer that runs after 10ms then calls Looper::forceQuit().
-    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(
-            myTimerCallbackForceQuit, looper.get()));
+    std::unique_ptr<Looper::Timer> timer1(
+            looper->createTimer(myTimerCallbackForceQuit, looper.get()));
     ASSERT_TRUE(timer1.get());
     ASSERT_EQ(looper.get(), timer1->parentLooper());
     EXPECT_FALSE(timer1->isActive());
@@ -177,8 +171,7 @@ TEST(GenericLooper, RunWithSingleTimerSelfDeleting) {
 
     // Create a timer that runs after 10ms then self deletes itself, which
     // will force run() to exit.
-    Looper::Timer* timer1 = looper->createTimer(
-            myTimerCallbackSelfDelete, looper.get());
+    Looper::Timer* timer1 = looper->createTimer(myTimerCallbackSelfDelete, looper.get());
     ASSERT_TRUE(timer1);
     ASSERT_EQ(looper.get(), timer1->parentLooper());
 
@@ -199,17 +192,19 @@ TEST(GenericLooper, DISABLED_RunWithTwoTimersOneStoppingTheOther) {
     // Looper::run() to exit after 10ms.
     std::unique_ptr<Looper> looper(Looper::create());
 
-    TimerGroup group = { .looper = looper.get(), };
+    TimerGroup group = {
+            .looper = looper.get(),
+    };
 
     // Create a timer that runs after 10ms then calls Looper::forceQuit().
-    std::unique_ptr<Looper::Timer> timer1(looper->createTimer(
-            myTimerCallbackStopSecondTimer, &group));
+    std::unique_ptr<Looper::Timer> timer1(
+            looper->createTimer(myTimerCallbackStopSecondTimer, &group));
     ASSERT_TRUE(timer1.get());
     ASSERT_EQ(looper.get(), timer1->parentLooper());
     group.timer1 = timer1.get();
 
-    std::unique_ptr<Looper::Timer> timer2(looper->createTimer(
-            myTimerCallbackShouldNeverBeCalled, looper.get()));
+    std::unique_ptr<Looper::Timer> timer2(
+            looper->createTimer(myTimerCallbackShouldNeverBeCalled, looper.get()));
     ASSERT_TRUE(timer1.get());
     ASSERT_EQ(looper.get(), timer2->parentLooper());
     group.timer2 = timer2.get();
@@ -228,8 +223,7 @@ TEST(GenericLooper, DISABLED_RunWithTwoTimersOneStoppingTheOther) {
     EXPECT_FALSE(timer2->isActive());
 }
 
-static void myFdWatchCallbackWriteBooleanFlag(void* opaque, int fd,
-                                              unsigned events) {
+static void myFdWatchCallbackWriteBooleanFlag(void* opaque, int fd, unsigned events) {
     EXPECT_EQ(Looper::FdWatch::kEventRead, events);
     auto pflag = static_cast<bool*>(opaque);
     *pflag = true;
@@ -248,9 +242,7 @@ TEST(GenericLooper, RunWithSingleFdWatchWithTimeout) {
     // immediately from its loop with EWOULDBLOCK.
     bool flag = false;
     std::unique_ptr<Looper::FdWatch> watch1(
-        looper->createFdWatch(s1.get(),
-                              myFdWatchCallbackWriteBooleanFlag,
-                              &flag));
+            looper->createFdWatch(s1.get(), myFdWatchCallbackWriteBooleanFlag, &flag));
     ASSERT_TRUE(watch1.get());
 
     EXPECT_EQ(0U, watch1->poll());
@@ -279,9 +271,7 @@ TEST(GenericLooper, RunWithSingleFdWatchSettingBooleanFlag) {
     // of 100ms due to the event.
     bool flag = false;
     std::unique_ptr<Looper::FdWatch> watch1(
-        looper->createFdWatch(s1.get(),
-                              myFdWatchCallbackWriteBooleanFlag,
-                              &flag));
+            looper->createFdWatch(s1.get(), myFdWatchCallbackWriteBooleanFlag, &flag));
     ASSERT_TRUE(watch1.get());
 
     EXPECT_EQ(0U, watch1->poll());
@@ -299,8 +289,7 @@ TEST(GenericLooper, RunWithSingleFdWatchSettingBooleanFlag) {
     EXPECT_TRUE(flag);  // Callback was called.
 }
 
-static void myTimerCallbackRemoveFdWatchRead(void* opaque,
-                                             Looper::Timer* timer) {
+static void myTimerCallbackRemoveFdWatchRead(void* opaque, Looper::Timer* timer) {
     auto watch = static_cast<Looper::FdWatch*>(opaque);
     ASSERT_EQ(Looper::FdWatch::kEventRead, watch->poll());
     watch->dontWantRead();
@@ -319,9 +308,7 @@ TEST(GenericLooper, DISABLED_RunTimerAndFdWatchWithTimerRemovingPendingWatch) {
     // of 100ms due to the event.
     bool flag = false;
     std::unique_ptr<Looper::FdWatch> watch1(
-            looper->createFdWatch(s1.get(),
-                                  myFdWatchCallbackWriteBooleanFlag,
-                                  &flag));
+            looper->createFdWatch(s1.get(), myFdWatchCallbackWriteBooleanFlag, &flag));
     ASSERT_TRUE(watch1.get());
 
     EXPECT_EQ(0U, watch1->poll());
@@ -335,9 +322,7 @@ TEST(GenericLooper, DISABLED_RunTimerAndFdWatchWithTimerRemovingPendingWatch) {
     // Create a new timer that will be fired immediately and will remove the
     // pending watch.
     std::unique_ptr<Looper::Timer> timer1(
-            looper->createTimer(myTimerCallbackRemoveFdWatchRead,
-                                watch1.get()));
-
+            looper->createTimer(myTimerCallbackRemoveFdWatchRead, watch1.get()));
 
     const Duration kDelayMs = 10;
     Duration now0 = looper->nowMs();
@@ -356,30 +341,24 @@ TEST(GenericLooper, CreateTask) {
     auto task = looper->createTask([&taskRan]() { taskRan = true; });
     ASSERT_TRUE(task);
 
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_FALSE(taskRan);
 
     task->schedule();
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_TRUE(taskRan);
 
     taskRan = false;
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
 
     task->schedule();
     task->cancel();
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_FALSE(taskRan);
 
     task->schedule();
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_TRUE(taskRan);
 }
 
@@ -389,13 +368,11 @@ TEST(GenericLooper, ScheduleCallback) {
     bool taskRan = false;
     looper->scheduleCallback([&taskRan]() { taskRan = true; });
 
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_TRUE(taskRan);
 
     taskRan = false;
-    EXPECT_EQ(EWOULDBLOCK,
-              looper->runWithDeadlineMs(Looper::kDurationInfinite));
+    EXPECT_EQ(EWOULDBLOCK, looper->runWithDeadlineMs(Looper::kDurationInfinite));
     EXPECT_FALSE(taskRan);
 }
 

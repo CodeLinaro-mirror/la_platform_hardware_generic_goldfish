@@ -19,11 +19,9 @@ namespace goldfish {
 //                                   ^ 4 byte aligned
 
 std::vector<char> buildBootconfigBlob(
-    const size_t srcSize,
-    const std::vector<std::pair<std::string, std::string>> &bootconfig);
+        const size_t srcSize, const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
-int createRamdiskWithBootconfig(
-    const char *srcRamdiskPath, const char *dstRamdiskPath,
-    const std::vector<std::pair<std::string, std::string>> &bootconfig);
+int createRamdiskWithBootconfig(const char* srcRamdiskPath, const char* dstRamdiskPath,
+                                const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
-} // namespace goldfish
+}  // namespace goldfish

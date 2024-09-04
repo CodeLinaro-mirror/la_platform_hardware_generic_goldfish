@@ -13,8 +13,9 @@
 // limitations under the License.
 #include "android/emulation/control/adb/AdbService.h"
 
-#include <fstream>
 #include <grpcpp/grpcpp.h>
+
+#include <fstream>
 #include <sstream>
 
 #include "aemu/base/files/PathUtils.h"
@@ -25,8 +26,8 @@
 namespace google {
 namespace protobuf {
 class Empty;
-} // namespace protobuf
-} // namespace google
+}  // namespace protobuf
+}  // namespace google
 
 using android::base::PathUtils;
 using ::google::protobuf::Empty;
@@ -40,29 +41,29 @@ namespace emulation {
 namespace control {
 
 class AdbServiceImpl : public Adb::Service {
-public:
-  Status pullAdbKey(ServerContext *context, const Empty *request,
-                    AdbKey *response) override {
-    auto privKey = getPrivateAdbKeyPath();
-    if (privKey.empty()) {
-      return Status(StatusCode::ABORTED, "Private key was not found", "");
+  public:
+    Status pullAdbKey(ServerContext* context, const Empty* request, AdbKey* response) override {
+        auto privKey = getPrivateAdbKeyPath();
+        if (privKey.empty()) {
+            return Status(StatusCode::ABORTED, "Private key was not found", "");
+        }
+
+        std::ifstream privateKey(privKey);
+        std::stringstream keyText;
+        keyText << privateKey.rdbuf();
+
+        if (privateKey.bad()) {
+            return Status(StatusCode::ABORTED, "Unable to read private key file.", "");
+        }
+
+        response->set_private_key(keyText.str());
+        return Status::OK;
     }
-
-    std::ifstream privateKey(privKey);
-    std::stringstream keyText;
-    keyText << privateKey.rdbuf();
-
-    if (privateKey.bad()) {
-      return Status(StatusCode::ABORTED, "Unable to read private key file.",
-                    "");
-    }
-
-    response->set_private_key(keyText.str());
-    return Status::OK;
-  }
 };
 
-grpc::Service *getAdbService() { return new AdbServiceImpl(); }
-} // namespace control
-} // namespace emulation
-} // namespace android
+grpc::Service* getAdbService() {
+    return new AdbServiceImpl();
+}
+}  // namespace control
+}  // namespace emulation
+}  // namespace android

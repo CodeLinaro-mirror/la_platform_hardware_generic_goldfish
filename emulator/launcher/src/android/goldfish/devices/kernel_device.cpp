@@ -25,42 +25,41 @@
 
 namespace android::goldfish {
 absl::Status KernelDevice::initialize(const Emulator& emulator) {
-  const Avd& avd = emulator.avd();
-  auto hw = avd.hw();
+    const Avd& avd = emulator.avd();
+    auto hw = avd.hw();
 
-  // Use the one provided by hardware config if available
-  if (!hw.kernel_path.empty()) {
-    mDiskImage = hw.kernel_path;
-    return absl::OkStatus();
-  }
-
-  // Get the one defined in the avd.
-  auto options = {Avd::ImageType::KERNEL, Avd::ImageType::KERNELRANCHU64,
-                  Avd::ImageType::KERNELRANCHU};
-  for (const auto &option : options) {
-    mDiskImage = avd.getSystemImagePath(option);
-    if (mDiskImage.ok()) {
-      hw.kernel_path = mDiskImage->string();
-      return absl::OkStatus();
+    // Use the one provided by hardware config if available
+    if (!hw.kernel_path.empty()) {
+        mDiskImage = hw.kernel_path;
+        return absl::OkStatus();
     }
-    LOG(INFO) << mDiskImage.status().message();
-  }
 
-  return absl::NotFoundError("No kernel image found.");
+    // Get the one defined in the avd.
+    auto options = {Avd::ImageType::KERNEL, Avd::ImageType::KERNELRANCHU64,
+                    Avd::ImageType::KERNELRANCHU};
+    for (const auto& option : options) {
+        mDiskImage = avd.getSystemImagePath(option);
+        if (mDiskImage.ok()) {
+            hw.kernel_path = mDiskImage->string();
+            return absl::OkStatus();
+        }
+        LOG(INFO) << mDiskImage.status().message();
+    }
+
+    return absl::NotFoundError("No kernel image found.");
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string>
-KernelDevice::getQemuParameters(const Emulator& emulator) const {
-  return {
-      "-kernel",
-      mDiskImage->string(),
-      "-append",
-      // Note the parameters need to be within '
-      "'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "
-      "cma=296M@0-4G loop.max_part=7 memmap=0x10000$0xff018000 "
-      "printk.devkmsg=on bootconfig'",
-  };
+std::vector<std::string> KernelDevice::getQemuParameters(const Emulator& emulator) const {
+    return {
+            "-kernel",
+            mDiskImage->string(),
+            "-append",
+            // Note the parameters need to be within '
+            "'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "
+            "cma=296M@0-4G loop.max_part=7 memmap=0x10000$0xff018000 "
+            "printk.devkmsg=on bootconfig'",
+    };
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

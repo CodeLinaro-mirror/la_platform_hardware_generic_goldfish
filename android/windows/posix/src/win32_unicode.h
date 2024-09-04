@@ -35,4 +35,3 @@ int win32_utf16_to_utf8_buf(const wchar_t* str, char* buffer, int size);
 wchar_t* win32_utf8_to_utf16_str(const char* str);
 
 ANDROID_END_HEADER
-

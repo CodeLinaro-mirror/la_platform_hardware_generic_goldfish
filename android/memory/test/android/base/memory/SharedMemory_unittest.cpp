@@ -25,174 +25,171 @@ namespace android {
 namespace base {
 
 TEST(SharedMemory, ShareVisibleWithinSameProc) {
-  const mode_t user_read_only = 0600;
-  std::string unique_name = "tst_21654869810548";
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter(unique_name, message.size());
-  base::SharedMemory mReader(unique_name, message.size());
+    const mode_t user_read_only = 0600;
+    std::string unique_name = "tst_21654869810548";
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter(unique_name, message.size());
+    base::SharedMemory mReader(unique_name, message.size());
 
-  ASSERT_FALSE(mWriter.isOpen());
-  ASSERT_FALSE(mReader.isOpen());
+    ASSERT_FALSE(mWriter.isOpen());
+    ASSERT_FALSE(mReader.isOpen());
 
-  int err = mWriter.create(user_read_only);
-  ASSERT_EQ(0, err);
-  err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
-  ASSERT_EQ(0, err);
+    int err = mWriter.create(user_read_only);
+    ASSERT_EQ(0, err);
+    err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
+    ASSERT_EQ(0, err);
 
-  ASSERT_TRUE(mWriter.isOpen());
-  ASSERT_TRUE(mReader.isOpen());
+    ASSERT_TRUE(mWriter.isOpen());
+    ASSERT_TRUE(mReader.isOpen());
 
-  memcpy(*mWriter, message.c_str(), message.size());
-  std::string read(static_cast<const char *>(*mReader));
-  ASSERT_TRUE(message == read);
+    memcpy(*mWriter, message.c_str(), message.size());
+    std::string read(static_cast<const char*>(*mReader));
+    ASSERT_TRUE(message == read);
 
-  mWriter.close();
-  mReader.close();
-  ASSERT_FALSE(mWriter.isOpen());
-  ASSERT_FALSE(mReader.isOpen());
+    mWriter.close();
+    mReader.close();
+    ASSERT_FALSE(mWriter.isOpen());
+    ASSERT_FALSE(mReader.isOpen());
 }
 
 TEST(SharedMemory, ShareFileBackedVisibleWithinSameProc) {
-  android::base::TestSystem ts{"/home"};
-  // Note the unicode character in the filename below!!
-  std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
-  const mode_t user_read_only = 0600;
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter("file:///" + unique_name, message.size());
-  base::SharedMemory mReader("file:///" + unique_name, message.size());
+    android::base::TestSystem ts{"/home"};
+    // Note the unicode character in the filename below!!
+    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
+    const mode_t user_read_only = 0600;
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter("file:///" + unique_name, message.size());
+    base::SharedMemory mReader("file:///" + unique_name, message.size());
 
-  ASSERT_FALSE(mWriter.isOpen());
-  ASSERT_FALSE(mReader.isOpen());
+    ASSERT_FALSE(mWriter.isOpen());
+    ASSERT_FALSE(mReader.isOpen());
 
-  int err = mWriter.create(user_read_only);
-  ASSERT_EQ(0, err);
-  err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
-  ASSERT_EQ(0, err);
+    int err = mWriter.create(user_read_only);
+    ASSERT_EQ(0, err);
+    err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
+    ASSERT_EQ(0, err);
 
-  ASSERT_TRUE(mWriter.isOpen());
-  ASSERT_TRUE(mReader.isOpen());
+    ASSERT_TRUE(mWriter.isOpen());
+    ASSERT_TRUE(mReader.isOpen());
 
-  memcpy(*mWriter, message.c_str(), message.size());
-  std::string read(static_cast<const char *>(*mReader));
+    memcpy(*mWriter, message.c_str(), message.size());
+    std::string read(static_cast<const char*>(*mReader));
 
-  EXPECT_EQ(message, read);
+    EXPECT_EQ(message, read);
 
-  mWriter.close();
-  mReader.close();
-  ASSERT_FALSE(mWriter.isOpen());
-  ASSERT_FALSE(mReader.isOpen());
+    mWriter.close();
+    mReader.close();
+    ASSERT_FALSE(mWriter.isOpen());
+    ASSERT_FALSE(mReader.isOpen());
 }
 
 TEST(SharedMemory, ShareFileCanReadAfterDelete) {
-  // Make sure you can still read the memory, even if the server has marked
-  // the file for deletion.
-  android::base::TestSystem ts{"/home"};
-  // Note the unicode character in the filename below!!
-  std::string unique_name =
-      System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
-  const mode_t user_read_only = 0600;
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter("file://" + unique_name, message.size());
-  base::SharedMemory mReader("file://" + unique_name, message.size());
+    // Make sure you can still read the memory, even if the server has marked
+    // the file for deletion.
+    android::base::TestSystem ts{"/home"};
+    // Note the unicode character in the filename below!!
+    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
+    const mode_t user_read_only = 0600;
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter("file://" + unique_name, message.size());
+    base::SharedMemory mReader("file://" + unique_name, message.size());
 
-  ASSERT_FALSE(mWriter.isOpen());
-  ASSERT_FALSE(mReader.isOpen());
+    ASSERT_FALSE(mWriter.isOpen());
+    ASSERT_FALSE(mReader.isOpen());
 
-  mWriter.create(user_read_only);
-  memcpy(*mWriter, message.c_str(), message.size());
+    mWriter.create(user_read_only);
+    memcpy(*mWriter, message.c_str(), message.size());
 
-  mReader.open(SharedMemory::AccessMode::READ_ONLY);
-  mWriter.close();
+    mReader.open(SharedMemory::AccessMode::READ_ONLY);
+    mWriter.close();
 
-  std::string read(static_cast<const char *>(*mReader));
-  ASSERT_TRUE(message == read);
+    std::string read(static_cast<const char*>(*mReader));
+    ASSERT_TRUE(message == read);
 
-  mReader.close();
+    mReader.close();
 }
 
 TEST(SharedMemory, ShareFileDoesCleanedUp) {
-  // Make sure that the file gets removed after the server closes down.
-  android::base::TestSystem ts{"/home"};
-  std::string unique_name =
-      System::pathAsString(ts.getTempRoot()->path() / "shared.mem");
-  const mode_t user_read_only = 0600;
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter("file://" + unique_name, message.size());
+    // Make sure that the file gets removed after the server closes down.
+    android::base::TestSystem ts{"/home"};
+    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shared.mem");
+    const mode_t user_read_only = 0600;
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter("file://" + unique_name, message.size());
 
-  ASSERT_FALSE(mWriter.isOpen());
-  mWriter.create(user_read_only);
-  memcpy(*mWriter, message.c_str(), message.size());
-  ASSERT_TRUE(ts.host()->pathExists(unique_name));
-  mWriter.close();
-  ASSERT_FALSE(ts.host()->pathExists(unique_name));
+    ASSERT_FALSE(mWriter.isOpen());
+    mWriter.create(user_read_only);
+    memcpy(*mWriter, message.c_str(), message.size());
+    ASSERT_TRUE(ts.host()->pathExists(unique_name));
+    mWriter.close();
+    ASSERT_FALSE(ts.host()->pathExists(unique_name));
 }
 
 TEST(SharedMemory, CanShare4KVideo) {
-  // Make sure we can use this for sharing video, for now 4K ought to be
-  // enough for anybody.
-  // This test will likely segfault/fail on a default MacOS config when using
-  // shared memory.
-  //
-  // See:  sysctl -A | grep shm
-  // which should produce something like:
-  // kern.sysv.shmmax: 4194304
-  // kern.sysv.shmmin: 1
-  // kern.sysv.shmmni: 32
-  // kern.sysv.shmseg: 8
-  // kern.sysv.shmall: 1024
+    // Make sure we can use this for sharing video, for now 4K ought to be
+    // enough for anybody.
+    // This test will likely segfault/fail on a default MacOS config when using
+    // shared memory.
+    //
+    // See:  sysctl -A | grep shm
+    // which should produce something like:
+    // kern.sysv.shmmax: 4194304
+    // kern.sysv.shmmin: 1
+    // kern.sysv.shmmni: 32
+    // kern.sysv.shmseg: 8
+    // kern.sysv.shmall: 1024
 
-  const int FourK = 3840 * 2160 * 4; // 4k resolution with 4 bytes per pixel.
-  android::base::TestSystem ts{"/home"};
-  auto unique_name = ts.getTempRoot()->path() / "shared.mem";
-  const mode_t user_read_only = 0600;
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter(
-      "file://" + android::base::System::pathAsString(unique_name),
-      message.size());
+    const int FourK = 3840 * 2160 * 4;  // 4k resolution with 4 bytes per pixel.
+    android::base::TestSystem ts{"/home"};
+    auto unique_name = ts.getTempRoot()->path() / "shared.mem";
+    const mode_t user_read_only = 0600;
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter("file://" + android::base::System::pathAsString(unique_name),
+                               message.size());
 
-  ASSERT_FALSE(mWriter.isOpen());
-  mWriter.create(user_read_only);
-  memcpy(*mWriter, message.c_str(), message.size());
-  ASSERT_TRUE(ts.host()->pathExists(unique_name));
-  mWriter.close();
-  ASSERT_FALSE(ts.host()->pathExists(unique_name));
+    ASSERT_FALSE(mWriter.isOpen());
+    mWriter.create(user_read_only);
+    memcpy(*mWriter, message.c_str(), message.size());
+    ASSERT_TRUE(ts.host()->pathExists(unique_name));
+    mWriter.close();
+    ASSERT_FALSE(ts.host()->pathExists(unique_name));
 }
 
 TEST(SharedMemory, CannotOpenTwice) {
-  const mode_t user_read_only = 0600;
-  std::string unique_name = "tst_21654869810548";
-  std::string message = "Hello World!";
-  base::SharedMemory mWriter(unique_name, message.size());
-  base::SharedMemory mReader(unique_name, message.size());
-  int err = mWriter.create(user_read_only);
-  ASSERT_EQ(0, err);
-  err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
-  ASSERT_EQ(0, err);
+    const mode_t user_read_only = 0600;
+    std::string unique_name = "tst_21654869810548";
+    std::string message = "Hello World!";
+    base::SharedMemory mWriter(unique_name, message.size());
+    base::SharedMemory mReader(unique_name, message.size());
+    int err = mWriter.create(user_read_only);
+    ASSERT_EQ(0, err);
+    err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
+    ASSERT_EQ(0, err);
 
-  // Second create should fail..
-  err = mWriter.create(user_read_only);
-  ASSERT_NE(0, err);
+    // Second create should fail..
+    err = mWriter.create(user_read_only);
+    ASSERT_NE(0, err);
 
-  // Second open should fail..
-  err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
-  ASSERT_NE(0, err);
+    // Second open should fail..
+    err = mReader.open(SharedMemory::AccessMode::READ_ONLY);
+    ASSERT_NE(0, err);
 }
 
 TEST(SharedMemory, CreateNoMapping) {
-  const mode_t user_read_write = 0755;
-  std::string name = "tst_21654869810548";
-  base::SharedMemory mem(name, 256);
+    const mode_t user_read_write = 0755;
+    std::string name = "tst_21654869810548";
+    base::SharedMemory mem(name, 256);
 
-  ASSERT_FALSE(mem.isOpen());
+    ASSERT_FALSE(mem.isOpen());
 
-  int err = mem.createNoMapping(user_read_write);
-  ASSERT_EQ(0, err);
+    int err = mem.createNoMapping(user_read_write);
+    ASSERT_EQ(0, err);
 
-  ASSERT_FALSE(mem.isMapped());
+    ASSERT_FALSE(mem.isMapped());
 
-  mem.close();
-  ASSERT_FALSE(mem.isOpen());
+    mem.close();
+    ASSERT_FALSE(mem.isOpen());
 }
 
-} // namespace base
-} // namespace android
+}  // namespace base
+}  // namespace android

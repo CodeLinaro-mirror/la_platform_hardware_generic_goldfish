@@ -18,11 +18,11 @@
 #endif
 
 #if AEMU_TCMALLOC_ENABLED && defined(__linux__)
+#include <execinfo.h>
+#include <libunwind.h>
 #include <malloc_extension_c.h>
 #include <malloc_hook.h>
 
-#include <execinfo.h>
-#include <libunwind.h>
 #include <algorithm>
 #include <set>
 #include <sstream>
@@ -46,7 +46,7 @@ struct FuncRange {
 };
 
 class MemoryTracker::Impl {
-public:
+  public:
 #if AEMU_TCMALLOC_ENABLED && defined(__linux__)
     Impl()
         : mData([](const FuncRange* a, const FuncRange* b) {
@@ -84,8 +84,7 @@ public:
             return false;
         }
         mRegisterFuncs.insert(key);
-        mData.insert(new FuncRange{key, (intptr_t)info.start_ip,
-                                   info.end_ip - info.start_ip});
+        mData.insert(new FuncRange{key, (intptr_t)info.start_ip, info.end_ip - info.start_ip});
 
         return true;
     }
@@ -133,7 +132,7 @@ public:
 
     std::string printUsage(int verbosity) {
         std::stringstream ss;
-        if (!enabled){
+        if (!enabled) {
             ss << "Memory tracker not enabled\n";
             return ss.str();
         }
@@ -151,11 +150,9 @@ public:
             for (auto it : mData) {
                 allStats.push_back(it);
             }
-            std::sort(allStats.begin(), allStats.end(),
-                      [](FuncRange* a, FuncRange* b) {
-                          return std::abs(a->mStats.mLive) >
-                                 std::abs(b->mStats.mLive);
-                      });
+            std::sort(allStats.begin(), allStats.end(), [](FuncRange* a, FuncRange* b) {
+                return std::abs(a->mStats.mLive) > std::abs(b->mStats.mLive);
+            });
             for (auto it : allStats) {
                 ss << it->mName + " memory allocated: ";
                 ss << (float)it->mStats.mAllocated.load() / 1048576.0f;
@@ -172,13 +169,10 @@ public:
         MemoryTracker::get()->mImpl->newHook(ptr, size);
     }
 
-    static void delete_hook(const void* ptr) {
-        MemoryTracker::get()->mImpl->deleteHook(ptr);
-    }
+    static void delete_hook(const void* ptr) { MemoryTracker::get()->mImpl->deleteHook(ptr); }
 
     void start() {
-        if (!MallocHook::AddNewHook(&new_hook) ||
-            !MallocHook::AddDeleteHook(&delete_hook)) {
+        if (!MallocHook::AddNewHook(&new_hook) || !MallocHook::AddDeleteHook(&delete_hook)) {
             E("Failed to add malloc hooks.");
             enabled = false;
         } else {
@@ -206,7 +200,7 @@ public:
         return std::move(ms);
     }
 
-private:
+  private:
     bool enabled = false;
     std::set<FuncRange*, bool (*)(const FuncRange*, const FuncRange*)> mData;
     std::set<std::string> mRegisterFuncs;
@@ -222,23 +216,18 @@ private:
 
     void stop() { E("Not implemented"); }
 
-    std::string printUsage(int verbosity) {
-        return "<memory usage tracker not implemented>";
-    }
+    std::string printUsage(int verbosity) { return "<memory usage tracker not implemented>"; }
 
     bool isEnabled() { return false; }
 
-    std::unique_ptr<MallocStats> getUsage(const std::string& group) {
-        return nullptr;
-    }
+    std::unique_ptr<MallocStats> getUsage(const std::string& group) { return nullptr; }
 
 #endif
 };
 
 MemoryTracker::MemoryTracker() : mImpl(new MemoryTracker::Impl()) {}
 
-bool MemoryTracker::addToGroup(const std::string& group,
-                             const std::string& func) {
+bool MemoryTracker::addToGroup(const std::string& group, const std::string& func) {
     return mImpl->addToGroup(group, func);
 }
 
@@ -258,8 +247,7 @@ bool MemoryTracker::isEnabled() {
     return mImpl->isEnabled();
 }
 
-std::unique_ptr<MemoryTracker::MallocStats> MemoryTracker::getUsage(
-        const std::string& group) {
+std::unique_ptr<MemoryTracker::MallocStats> MemoryTracker::getUsage(const std::string& group) {
     return mImpl->getUsage(group);
 }
 

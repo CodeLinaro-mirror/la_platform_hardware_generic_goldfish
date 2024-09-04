@@ -19,6 +19,6 @@
 
 #include "ext4_utils.h"
 
-void generate_uuid(const char *namespace, const char *name, u8 result[16]);
+void generate_uuid(const char* namespace, const char* name, u8 result[16]);
 
 #endif

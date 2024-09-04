@@ -10,8 +10,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "qemu/atomic.hpp"
 #include <memory>
+
+#include "qemu/atomic.hpp"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -26,18 +27,18 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-#include "android/goldfish/config/avd.h"
 #include <memory>
 #include <string>
 
+#include "android/goldfish/config/avd.h"
+
 typedef struct AvdInfoDev {
-  DeviceClass parent_class;
-  std::string ini_path;
+    DeviceClass parent_class;
+    std::string ini_path;
 } AvdInfoDev;
 
 #define TYPE_AVD "avdinfo"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
-#define AVD_INFO_DEVICE_GET_CLASS(obj)                                         \
-  OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
+#define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-android::goldfish::Avd *get_avd();
+android::goldfish::Avd* get_avd();

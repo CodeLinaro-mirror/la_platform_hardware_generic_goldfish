@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-*/
+ */
 
 #include "goldfish/devices/qemud.h"
 
@@ -29,7 +29,7 @@ static unsigned parseHex1(uint8_t c) {
 }
 }  // namespace
 
-void encodeRequestSize(const uint32_t size, uint8_t *const data) {
+void encodeRequestSize(const uint32_t size, uint8_t* const data) {
     if (size <= UINT16_MAX) {
         static const char dict[] = "0123456789ABCDEF";
         data[0] = dict[size >> 12];
@@ -44,7 +44,7 @@ void encodeRequestSize(const uint32_t size, uint8_t *const data) {
     }
 }
 
-size_t decodeRequestSize(const uint8_t *const data8) {
+size_t decodeRequestSize(const uint8_t* const data8) {
     if (data8[0] & 0x80) {
         // 31bit big-endian encoding
         return (size_t(data8[0] & 0x7F) << 24) | (size_t(data8[1]) << 16) |
@@ -58,9 +58,9 @@ size_t decodeRequestSize(const uint8_t *const data8) {
 
 Parser::Parser(Sink sink) : mSink(std::move(sink)) {}
 
-bool Parser::onReceive(const void *const data, size_t size) {
+bool Parser::onReceive(const void* const data, size_t size) {
     bool result = true;
-    const uint8_t *data8 = static_cast<const uint8_t *>(data);
+    const uint8_t* data8 = static_cast<const uint8_t*>(data);
 
     while (size > 0) {
         const size_t bufSize = mBuffer.size();
@@ -122,17 +122,17 @@ bool Parser::onReceive(const void *const data, size_t size) {
     return result;
 }
 
-void Parser::saveToSnapshot(archive::IWriter &writer) const {
+void Parser::saveToSnapshot(archive::IWriter& writer) const {
     writer << mBuffer.size();
     writer.write(mBuffer.data(), mBuffer.size());
 }
 
-bool Parser::loadFromSnapshot(archive::IReader &reader) {
+bool Parser::loadFromSnapshot(archive::IReader& reader) {
     mBuffer.resize(getUnsigned(reader));
     return reader.read(mBuffer.data(), mBuffer.size());
 }
 
-void sendAsync(const void *data, const size_t size, cable::ISocket &dst) {
+void sendAsync(const void* data, const size_t size, cable::ISocket& dst) {
     uint8_t sizeBytes[kSizeSize];
     encodeRequestSize(size, sizeBytes);
     dst.sendAsync(sizeBytes, sizeof(sizeBytes));

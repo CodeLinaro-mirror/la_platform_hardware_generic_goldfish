@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/goldfish/devices/device.h"
-
 #include <string>
 #include <vector>
+
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
 // Configures the amount of memory used and possibly the memory mapped file
 // needed for fast
 class MemoryDevice : public Device {
-public:
-  explicit MemoryDevice() : Device("memory") {}
+  public:
+    explicit MemoryDevice() : Device("memory") {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 };
-} // namespace android::goldfish
+}  // namespace android::goldfish

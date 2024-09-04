@@ -13,12 +13,14 @@
 // limitations under the License.
 #pragma once
 #include <grpcpp/grpcpp.h>
+
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
+
 #include "android/emulation/control/secure/AllowList.h"
 #include "android/emulation/control/secure/BasicTokenAuth.h"
 #include "android/emulation/control/secure/JwkDirectoryObserver.h"
@@ -46,20 +48,18 @@ using Path = std::string;
 // the 'path' is not on the green list.
 // The 'exp' field is not yet expired.
 class JwtTokenAuth : public BasicTokenAuth {
-public:
+  public:
     JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList* list);
     ~JwtTokenAuth() = default;
 
     bool canHandleToken(std::string_view token) override;
 
-    absl::Status isTokenValid(std::string_view path,
-                              std::string_view token) override;
+    absl::Status isTokenValid(std::string_view path, std::string_view token) override;
 
     std::string name() override { return "JwtTokenAuth"; }
 
-private:
-    void updateKeysetHandle(
-            std::unique_ptr<crypto::tink::KeysetHandle> incomingHandle);
+  private:
+    void updateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle> incomingHandle);
 
     static constexpr const std::string_view DEFAULT_BEARER{"Bearer "};
     static constexpr const std::string_view kJwkExt{".jwk"};

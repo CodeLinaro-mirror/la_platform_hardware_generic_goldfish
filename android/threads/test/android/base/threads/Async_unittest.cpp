@@ -14,16 +14,16 @@
 
 #include "aemu/base/threads/Async.h"
 
-#include "aemu/base/async/Looper.h"
-
 #include <gtest/gtest.h>
+
+#include "aemu/base/async/Looper.h"
 
 namespace android {
 namespace base {
 
 TEST(AsyncTest, Simple) {
     for (int i = 0; i < 10; i++) {
-        async([] { });
+        async([] {});
     }
 }
 
@@ -37,14 +37,12 @@ TEST(AsyncThreadWithLooper, Tasks) {
     AsyncThreadWithLooper thread;
     auto looper = thread.getLooper();
     auto timer1 = looper->createTimer(
-        [](void* opaque, Looper::Timer* timer) {
-            fprintf(stderr, "%s: timer1\n", __func__);
-        }, 0);
+            [](void* opaque, Looper::Timer* timer) { fprintf(stderr, "%s: timer1\n", __func__); },
+            0);
     timer1->startAbsolute(0);
     auto timer2 = looper->createTimer(
-        [](void* opaque, Looper::Timer* timer) {
-            fprintf(stderr, "%s: timer2\n", __func__);
-        }, 0);
+            [](void* opaque, Looper::Timer* timer) { fprintf(stderr, "%s: timer2\n", __func__); },
+            0);
     timer2->startAbsolute(0);
 }
 

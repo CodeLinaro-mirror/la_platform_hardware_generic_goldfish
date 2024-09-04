@@ -8,13 +8,13 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "aemu/base/memory/SharedMemory.h"
-
 #include <shlwapi.h>
+
 #include <cassert>
 #include <string>
 
 #include "aemu/base/files/PathUtils.h"
+#include "aemu/base/memory/SharedMemory.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 
 namespace android {
@@ -92,13 +92,12 @@ int SharedMemory::openInternal(AccessMode access, bool doMapping) {
         objectName = nullptr;
     }
 
-    HANDLE hMapFile = CreateFileMappingW(
-            mFile,
-            NULL,             // default security
-            protection,       // read/write access
-            memory.HighPart,  // maximum object size (high-order DWORD)
-            memory.LowPart,   // maximum object size (low-order DWORD)
-            objectName);      // name of mapping object
+    HANDLE hMapFile = CreateFileMappingW(mFile,
+                                         NULL,             // default security
+                                         protection,       // read/write access
+                                         memory.HighPart,  // maximum object size (high-order DWORD)
+                                         memory.LowPart,   // maximum object size (low-order DWORD)
+                                         objectName);      // name of mapping object
 
     if (hMapFile == NULL) {
         int err = -GetLastError();

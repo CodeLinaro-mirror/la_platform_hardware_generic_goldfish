@@ -15,29 +15,30 @@
 // limitations under the License.
 #include "android/goldfish/devices/drives/cache_drive.h"
 
+#include <filesystem>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+
 #include "aemu/base/logging/Log.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 
-#include <filesystem>
-
 namespace android::goldfish {
 absl::Status CacheDrive::initialize(const Emulator& emulator) {
-  if (exists()) {
-    return absl::OkStatus();
-  }
+    if (exists()) {
+        return absl::OkStatus();
+    }
 
-  LOG(INFO) << "Preparing empty cache drive";
-  auto hw = emulator.avd().hw();
-  auto status = createExt4Image(hw.disk_cachePartition_path,
-                                     hw.disk_cachePartition_size, "cache");
-  if (!status.ok()) {
-    return status;
-  }
+    LOG(INFO) << "Preparing empty cache drive";
+    auto hw = emulator.avd().hw();
+    auto status =
+            createExt4Image(hw.disk_cachePartition_path, hw.disk_cachePartition_size, "cache");
+    if (!status.ok()) {
+        return status;
+    }
 
-  return convertImgToQcow2(hw.disk_cachePartition_path);
+    return convertImgToQcow2(hw.disk_cachePartition_path);
 }
 
-} // namespace android::goldfish
+}  // namespace android::goldfish
