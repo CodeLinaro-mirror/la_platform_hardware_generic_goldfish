@@ -51,7 +51,7 @@ When you add a new plugin you must take care of the following things:
 ## CPU dependent devices
 
 If your drivers are architecture specific you will need to add the proper definitions for the target of interest.
-For example if your device is arm64 only you will need to add the following set of defines:
+For example if your device is arm64 only you will need to add the following set of defines to your bazel build:
 
 ```python
    defines = [

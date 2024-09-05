@@ -110,8 +110,6 @@ pkg_files(
         "//external/qemu:hw-display-virtio-vga-gl",
         "//hardware/generic/goldfish/emulator/devices",
         "//hardware/generic/goldfish/emulator/plugin/avd",
-        "//hardware/generic/goldfish/emulator/plugin/sample",
-        "//hardware/generic/goldfish/emulator/plugin/sample:sample-base",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-riscv64",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-x86_64",
