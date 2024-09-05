@@ -6,14 +6,7 @@ cc_library(
         "src/android/base/threads/ThreadStore.cpp",
         "src/android/base/threads/internal/ParallelTaskBase.cpp",
         "src/android/base/threads/internal/ParallelTaskBase.h",
-    ] + select({
-        "@platforms//os:windows": [
-            "src/android/base/threads/Thread_win32.cpp",
-        ],
-        "//conditions:default": [
-            "src/android/base/threads/Thread_pthread.cpp",
-        ],
-    }),
+    ],
     hdrs = glob([
         "include/android/utils/*.h",
     ]),
