@@ -64,22 +64,7 @@ const QemuModinfo qemu_modinfo[] = {
                 .deps = ((const char*[]){LIB_PREFIX "rutabaga_ffi",
                                          LIB_PREFIX "hw-display-virtio-vga", NULL}),
         },
-        {
-                .name = LIB_PREFIX "sample-base",
-                .objs = ((const char*[]){"sample-base", NULL}),
-        },
         {.name = LIB_PREFIX "rutabaga_ffi"},
-        // This will make the module "sample" available inside qemu
-        // In our case the sample driver is just very simple and doesn't really
-        // do anything.
-        // Note that every function you use from qemu must be explicitly exported
-        // in windows //external/qemu:platform/windows-amd64/qemu-system-x86_64.def
-        {
-                .name = LIB_PREFIX "sample",
-                .opts = ((const char*[]){"device", NULL}),
-                .objs = ((const char*[]){"sample", NULL}),
-                .deps = ((const char*[]){LIB_PREFIX "sample-base", NULL}),
-        },
         {
                 .name = LIB_PREFIX "avd",
                 .opts = ((const char*[]){"device", NULL}),
