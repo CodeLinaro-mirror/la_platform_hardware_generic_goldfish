@@ -140,9 +140,9 @@ absl::Status Emulator::initialize() {
     return absl::OkStatus();
 }
 
-std::vector<std::string> Emulator::getCmdline() {
+std::vector<std::string> Emulator::getCmdline() const {
     std::vector<std::string> params{get<Machine>("machine")->qemu_binary().string()};
-    for (auto& device : mDevices) {
+    for (const auto& device : mDevices) {
         auto component = device->getQemuParameters(*this);
         params.insert(params.end(), component.begin(), component.end());
     }

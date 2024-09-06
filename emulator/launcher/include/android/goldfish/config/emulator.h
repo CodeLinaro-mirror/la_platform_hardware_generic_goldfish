@@ -95,7 +95,7 @@ class Emulator {
 
   private:
     // Constructs the qemu command line.
-    std::vector<std::string> getCmdline();
+    std::vector<std::string> getCmdline() const;
     std::string mVmodule;
 
     const Avd mAvd;
