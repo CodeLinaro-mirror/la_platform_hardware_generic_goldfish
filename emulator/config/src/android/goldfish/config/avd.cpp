@@ -198,10 +198,14 @@ absl::StatusOr<fs::path> Avd::getSystemImagePath(Avd::ImageType imgType) const {
                                                key));
 }
 
-std::string Avd::details() const {
-    auto icon = getIconForDeviceType(getDeviceType());
-    return absl::StrFormat("%-45s  - (%4dx%4d) %s", mName, mHwCfg.hw_lcd_width,
-                           mHwCfg.hw_lcd_height, icon);
+std::string Avd::details(const bool verbose) const {
+    if (verbose) {
+        auto icon = getIconForDeviceType(getDeviceType());
+        return absl::StrFormat("%-45s  - (%4dx%4d) %s", mName, mHwCfg.hw_lcd_width,
+                               mHwCfg.hw_lcd_height, icon);
+    } else {
+        return mName;
+    }
 }
 
 Avd::Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
