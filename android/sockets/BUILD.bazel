@@ -9,7 +9,6 @@ cc_library(
             "src/android/base/sockets/SocketDrainer.cpp",
             "src/android/base/sockets/SocketUtils.cpp",
             "src/android/base/sockets/SocketWaiter.cpp",
-            "src/android/base/sockets/ThreadLooper.cpp",
             "src/android/utils/eintr_wrapper.c",
             "src/android/utils/eintr_wrapper.h",
             "src/android/utils/misc.c",
