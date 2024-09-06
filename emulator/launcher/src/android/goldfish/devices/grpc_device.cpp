@@ -49,9 +49,8 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const Emulator& emulator)
         LOG(WARNING) << "** Using development allow list, do not use in production **";
     }
 
-    std::string grpc_device =
-            absl::StrFormat("grpc,port=%d,token=true,avd=%s,allowlist=%s", 8556,
-                            emulator.avd().name(), System::pathAsString(allowlist));
+    std::string grpc_device = absl::StrFormat("grpc,port=%d,token=true,allowlist=%s", 8556,
+                                              System::pathAsString(allowlist));
 
     return {"-device", grpc_device, "-trace", "module_*"};
 }

@@ -14,7 +14,6 @@ cc_library(
         "include/android/goldfish/display/SharedMemoryLibrary.h",
         "include/android/goldfish/grpc-service-device.h",
     ],
-    defines = ["BUILD_DSO"],
     includes = [
         "include",
         "src",
@@ -30,6 +29,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/event-waiter",
         "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
+        "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "@com_google_absl//absl/strings",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",
