@@ -25,7 +25,6 @@ cc_library(
     ],
     deps = [
         "//external/crosvm/rutabaga_gfx",
-        "//external/qemu:libhwcore",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
