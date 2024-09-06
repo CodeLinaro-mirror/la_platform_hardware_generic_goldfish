@@ -86,9 +86,10 @@ int main(int argc, char** argv) {
     }
 
     auto name = absl::GetFlag(FLAGS_avd);
-    auto status = Avd::fromName(name);
-    if (!status.ok()) {
-        LOG(FATAL) << "Failed to load " << name << " due to " << status.status().message();
+    auto avd = Avd::fromName(name);
+    if (!avd.ok()) {
+        LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
+        return -1;
     }
 
     LOG(INFO) << "Creating emulator";
@@ -104,7 +105,7 @@ int main(int argc, char** argv) {
                 absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
     }
 
-    Emulator emulator{std::move(status.value()), static_cast<int>(logLevel),
+    Emulator emulator{std::move(avd.value()), static_cast<int>(logLevel),
                       std::move(absl::GetFlag(FLAGS_vmodule)), std::move(additionalParams)};
 
     if (absl::GetFlag(FLAGS_wipe_data)) {
