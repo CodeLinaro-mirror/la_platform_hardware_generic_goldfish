@@ -61,16 +61,7 @@ using android::goldfish::Emulator;
 int main(int argc, char** argv) {
     absl::InitializeLog();
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
-    absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
     absl::ParseCommandLine(argc, argv);
-
-    absl::LogSeverityAtLeast logLevel = absl::GetFlag(FLAGS_verbose)
-                                                ? absl::LogSeverityAtLeast::kInfo
-                                                : absl::LogSeverityAtLeast::kWarning;
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(logLevel);
-    Bazel::storeCommandLineArgs(argc, argv);
-    std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
     if (absl::GetFlag(FLAGS_list_avds)) {
         auto avds = Avd::list();
@@ -84,6 +75,15 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
+
+    absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
+    absl::LogSeverityAtLeast logLevel = absl::GetFlag(FLAGS_verbose)
+                                                ? absl::LogSeverityAtLeast::kInfo
+                                                : absl::LogSeverityAtLeast::kWarning;
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::SetMinLogLevel(logLevel);
+    Bazel::storeCommandLineArgs(argc, argv);
+    std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
     auto name = absl::GetFlag(FLAGS_avd);
     auto avd = Avd::fromName(name);
