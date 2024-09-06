@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
     absl::InitializeLog();
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
     absl::ParseCommandLine(argc, argv);
+    const bool verboseLogging = absl::GetFlag(FLAGS_verbose);
 
     if (absl::GetFlag(FLAGS_list_avds)) {
         auto avds = Avd::list();
@@ -70,16 +71,15 @@ int main(int argc, char** argv) {
             if (!a.status().ok()) {
                 std::cout << name << "is not valid: " << a.status().message();
             } else {
-                std::cout << a->details() << '\n';
+                std::cout << a->details(verboseLogging) << '\n';
             }
         }
         return 0;
     }
 
     absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
-    absl::LogSeverityAtLeast logLevel = absl::GetFlag(FLAGS_verbose)
-                                                ? absl::LogSeverityAtLeast::kInfo
-                                                : absl::LogSeverityAtLeast::kWarning;
+    absl::LogSeverityAtLeast logLevel =
+            verboseLogging ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(logLevel);
     Bazel::storeCommandLineArgs(argc, argv);

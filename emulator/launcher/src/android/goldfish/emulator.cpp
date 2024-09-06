@@ -151,7 +151,7 @@ std::vector<std::string> Emulator::getCmdline() {
 }
 
 absl::Status Emulator::launch() {
-    LOG(INFO) << "Preparing " << mAvd.details();
+    LOG(INFO) << "Preparing " << mAvd.details(true);
     auto status = initialize();
     if (!status.ok()) {
         LOG(INFO) << "Failed to prepare emulator: " << status.message();

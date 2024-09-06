@@ -79,7 +79,7 @@ class Avd {
     Avd(Avd&& other) noexcept;
 
     // A detailed string describing this avd
-    std::string details() const;
+    std::string details(bool verbose) const;
 
     /**
      * @brief Returns the human-readable name of the AVD. This name corresponds to
