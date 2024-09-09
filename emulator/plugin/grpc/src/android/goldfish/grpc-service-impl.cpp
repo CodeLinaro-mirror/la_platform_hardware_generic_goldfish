@@ -142,7 +142,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
 }
 
 void finalize(GrpcDeviceConfiguration* device) {
-    LOG(INFO) << "Finalizing gRPC endpoint";
+    VLOG(1) << "Finalizing gRPC endpoint";
     if (grpcService) {
         // Explicitly cleanup resources. We do not want to do this at
         // program exit as we may be holding on to loopers, which threads
@@ -163,19 +163,19 @@ void finalize(GrpcDeviceConfiguration* device) {
 
 // TODO(jansene): Hook up the actual display rendering.
 void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
-    LOG(INFO) << "grpc_dpy_gfx_update x: " << x << " y: " << y << " w: " << w << " h: " << h
-              << " g_image: " << g_image;
+    VLOG(1) << "grpc_dpy_gfx_update x: " << x << " y: " << y << " w: " << w << " h: " << h
+            << " g_image: " << g_image;
     gDisplayTransformer.fireEvent(g_image);
 }
 
 void grpc_dpy_gfx_refresh(struct DisplayChangeListener* dcl) {
-    // LOG(INFO) << "grpc_dpy_gfx_refresh";
+    VLOG(1) << "grpc_dpy_gfx_refresh";
 }
 void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface) {
     if (g_image) {
         pixman_image_unref(g_image);
     }
     g_image = new_surface->image;
-    LOG(INFO) << "grpc_dpy_gfx_switch: " << new_surface->image;
+    VLOG(1) << "grpc_dpy_gfx_switch: " << new_surface->image;
     pixman_image_ref(g_image);
 }
