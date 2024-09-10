@@ -13,6 +13,7 @@
 #pragma once
 #include <cassert>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
@@ -62,7 +63,7 @@ struct Ticket {
 
     Ticket() = default;
 
-    Ticket(Ticket&& rhs) : Ticket(std::exchange(rhs.mTopic, nullptr), rhs.mValue) {}
+    Ticket(Ticket&& rhs) : Ticket(std::move(rhs.mTopic), rhs.mValue) {}
 
     Ticket& operator=(Ticket&& rhs) {
         if (this != &rhs) {
@@ -71,7 +72,7 @@ struct Ticket {
         return *this;
     }
 
-    bool isSubscribed() const { return mTopic != nullptr; }
+    bool isSubscribed() const { return mTopic.use_count() > 0; }
     void unsubscribe();
 
     static void swap(Ticket& lhs, Ticket& rhs) {
@@ -92,15 +93,16 @@ struct Ticket {
 
     using value_t = unsigned;
 
-    Ticket(TopicBase* const topic, const value_t value) : mTopic(topic), mValue(value) {}
+    Ticket(std::weak_ptr<TopicBase> topic, const value_t value)
+        : mTopic(std::move(topic)), mValue(value) {}
 
-    void release() { mTopic = nullptr; }
+    void release() { mTopic.reset(); }
 
-    TopicBase* mTopic = nullptr;
+    std::weak_ptr<TopicBase> mTopic;
     value_t mValue = 0;
 };
 
-struct TopicBase {
+struct TopicBase : std::enable_shared_from_this<TopicBase> {
     virtual ~TopicBase() {}
 
   private:
@@ -109,9 +111,10 @@ struct TopicBase {
 };
 
 inline void Ticket::unsubscribe() {
-    if (mTopic) {
-        mTopic->unsubscribeImpl(mValue);
-        mTopic = nullptr;
+    const auto pinned = mTopic.lock();
+    if (pinned) {
+        pinned->unsubscribeImpl(mValue);
+        release();
     }
 }
 
@@ -124,7 +127,7 @@ struct TopicBaseTpl : public TopicBase {
             const auto result = mSubscriptions.insert({ticket, {}});
             if (result.second) {
                 result.first->second = std::move(callback);
-                return Ticket(this, ticket);
+                return Ticket(shared_from_this(), ticket);
             }
         }
     }
@@ -177,7 +180,7 @@ struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>
         while (i != mSubscriptions.end()) {
             std::optional<Ticket> result = (i->second)(std::forward<Args>(args)...);
             if (result.has_value()) {
-                assert(result->mTopic == this);
+                assert(result->mTopic.lock().get() == this);
                 assert(result->mValue == i->first);
                 result->release();
                 i = mSubscriptions.erase(i);
@@ -215,7 +218,7 @@ struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>>
         while (i != mSubscriptions.end()) {
             std::optional<Ticket> result = (i->second)();
             if (result.has_value()) {
-                assert(result->mTopic == this);
+                assert(result->mTopic.lock().get() == this);
                 assert(result->mValue == i->first);
                 result->release();
                 i = mSubscriptions.erase(i);

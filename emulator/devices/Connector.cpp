@@ -38,10 +38,10 @@ bool qnameEquals(const char q, const std::string_view name, const char* qname) {
 }
 }  // namespace
 
-Connector::Connector(SocketPtr socket, PingTopic& pingTopic, const DeviceEntry* devicesEntries,
-                     const size_t devicesEntriesSize)
+Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
+                     const DeviceEntry* devicesEntries, const size_t devicesEntriesSize)
     : mSocket(std::move(socket)),
-      mPingTopic(pingTopic),
+      mPingTopic(std::move(pingTopic)),
       mDevicesEntries(devicesEntries),
       mDevicesEntriesSize(devicesEntriesSize) {}
 

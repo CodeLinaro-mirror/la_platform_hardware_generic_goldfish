@@ -72,11 +72,13 @@ struct TestDevice : public cable::IPlug {
 
 const Connector::DeviceEntry kDeviceEntries[] = {
         {"-TestDevice",
-         [](cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args) {
+         [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+            std::string_view args) {
              return std::make_shared<TestDevice>(std::move(socket), false, args);
          }},
         {"qTestDevice",
-         [](cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args) {
+         [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+            std::string_view args) {
              return std::make_shared<TestDevice>(std::move(socket), true, args);
          }},
 };
@@ -90,7 +92,7 @@ TEST(Connector, incomplete_request) {
     DequeArchive archive;
 
     {
-        PingTopic pingTopic;
+        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
         TestSocket testSocket;
         testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
@@ -109,7 +111,7 @@ TEST(Connector, bad_request) {
 
     DequeArchive archive;
 
-    PingTopic pingTopic;
+    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
     TestSocket testSocket;
     testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
                                                   kDeviceEntriesSize);
@@ -126,7 +128,7 @@ TEST(Connector, unknown_device) {
 
     DequeArchive archive;
 
-    PingTopic pingTopic;
+    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
     TestSocket testSocket;
     testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
                                                   kDeviceEntriesSize);
@@ -143,7 +145,7 @@ TEST(Connector, unknown_qemud_device) {
 
     DequeArchive archive;
 
-    PingTopic pingTopic;
+    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
     TestSocket testSocket;
     testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
                                                   kDeviceEntriesSize);
@@ -161,7 +163,7 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
     DequeArchive archive;
 
     {
-        PingTopic pingTopic;
+        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
         TestSocket testSocket;
         testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
@@ -183,7 +185,7 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
     DequeArchive archive;
 
     {
-        PingTopic pingTopic;
+        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
         TestSocket testSocket;
         testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
@@ -205,7 +207,7 @@ TEST(Connector, TestDevice_args_unconsumed) {
     DequeArchive archive;
 
     {
-        PingTopic pingTopic;
+        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
         TestSocket testSocket;
         testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);
@@ -227,7 +229,7 @@ TEST(Connector, TestDevice_unconsumed) {
     DequeArchive archive;
 
     {
-        PingTopic pingTopic;
+        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
         TestSocket testSocket;
         testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
                                                       kDeviceEntries, kDeviceEntriesSize);

@@ -12,6 +12,7 @@
 
 #pragma once
 #include <functional>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -56,16 +57,17 @@ namespace devices {
  */
 
 struct Connector : public cable::IPlug {
-    using DeviceFactory = std::function<cable::PlugPtr(
-            cable::SocketPtr socket, PingTopic& pingTopic, std::string_view args)>;
+    using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
+                                                       const std::shared_ptr<PingTopic>& pingTopic,
+                                                       std::string_view args)>;
 
     struct DeviceEntry {
         const char* qname;  // prefixed with 'q' for qemud, use '-' otherwise
         DeviceFactory factory;
     };
 
-    Connector(cable::SocketPtr socket, PingTopic& pingTopic, const DeviceEntry* devicesEntries,
-              size_t devicesEntriesSize);
+    Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
+              const DeviceEntry* devicesEntries, size_t devicesEntriesSize);
 
     cable::SocketPtr onUnplug() override;
     bool onReceive(const void* data, size_t size) override;
@@ -84,7 +86,7 @@ struct Connector : public cable::IPlug {
                                              size_t unconsumedSize);
 
     cable::SocketPtr mSocket;
-    PingTopic& mPingTopic;
+    const std::shared_ptr<PingTopic> mPingTopic;
     const DeviceEntry* const mDevicesEntries;
     const size_t mDevicesEntriesSize;
     Buffer mBuffer;
