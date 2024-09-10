@@ -88,12 +88,6 @@ static void grpc_set_addr(Object* obj, const char* value, Error** errp) {
     strcpy(grpc_device->config.addr, value);
 }
 
-static void grpc_set_avd(Object* obj, const char* value, Error** errp) {
-    GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.avd = malloc(strlen(value) + 1);
-    strcpy(grpc_device->config.avd, value);
-}
-
 static void grpc_set_port(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     uint32_t value;
@@ -151,9 +145,6 @@ static void grpc_class_init(ObjectClass* oc, void* data) {
     object_class_property_set_description(oc, "addr",
                                           "Address to which the grpc service should be bound.");
 
-    object_class_property_add_str(oc, "avd", NULL, grpc_set_avd);
-    object_class_property_set_description(
-            oc, "avd", "name of one of the existing AVDs available on your host machine");
     object_class_property_add(oc, "port", "int", NULL, grpc_set_port, NULL, NULL);
     object_class_property_set_description(oc, "port",
                                           "The port to which the grpc service should be bound.");

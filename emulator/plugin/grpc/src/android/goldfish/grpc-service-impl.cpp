@@ -41,6 +41,7 @@ extern "C" {
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/GrpcServices.h"
 #include "android/goldfish/EmulatorAdvertisement.h"
+#include "android/goldfish/avd-info.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/display/QemuDisplayTransformer.h"
@@ -76,15 +77,7 @@ static QemuDisplayTransformer gDisplayTransformer{};
 static pixman_image_t* g_image;
 
 bool initialize(GrpcDeviceConfiguration* device) {
-    if (!device->avd) {
-        LOG(ERROR) << "Cannot initialize the gRPC endpoint without avd definition";
-        return false;
-    }
-    auto avd = Avd::fromName(device->avd);
-
-    if (!avd.ok()) {
-        return false;
-    }
+    auto avd = get_avd();
 
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{
