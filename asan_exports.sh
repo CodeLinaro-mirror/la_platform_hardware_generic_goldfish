@@ -12,7 +12,7 @@ sourced_file_path=${BASH_SOURCE[0]}
 sourced_dir=$(dirname $sourced_file_path)
 script_dir=$(realpath "$sourced_dir")
 
-suppressions=$(realpath $script_dir/leak_supressions.txt)
+suppressions=$(realpath $script_dir/leak_suppressions.txt)
 symbolizer=$(realpath $script_dir/../../../prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer)
 
 export ASAN_OPTIONS=detect_odr_violation=0
