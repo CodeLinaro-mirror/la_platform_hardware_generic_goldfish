@@ -1,6 +1,29 @@
 cc_library(
+    name = "absl-c-bridge",
+    srcs = [
+        "src/android/base/logging/AbseilLogBridge.cpp",
+    ],
+    hdrs = ["include/android/base/logging/AbseilLogBridge.h"],
+    includes = ["include"],
+    local_defines = ["LOGGING_API_SHARED"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "backend",
     srcs = [
+        "src/android/base/logging/AbseilLogBridge.cpp",
         "src/android/base/logging/ColorLogSink.cpp",
         "src/android/base/logging/Log.cpp",
         "src/android/base/logging/LogConfiguration.cpp",
@@ -40,6 +63,7 @@ cc_test(
         "//conditions:default": [],
     }),
     deps = [
+        ":absl-c-bridge",
         ":backend",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_googletest//:gtest_main",
