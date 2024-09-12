@@ -83,6 +83,44 @@ bazel build --copt=-funsafe-math-optimizations //hardware/generic/goldfish/emula
 
 Would globablly allow unsafe floating-point optimizations.
 
+
+### Configuring ASAN
+
+AddressSanitizer (ASAN) is a memory error detector that helps identify issues like buffer overflows and use-after-free errors. When using ASAN, ensure the following environment variables are set:
+
+```sh
+export ASAN_OPTIONS=detect_odr_violation=0
+```
+Statically linking glib is causing One Definition Rule (ODR) violations in some of the shared libraries we use. ODR violations occur when the same global object is defined differently in multiple parts of a program. Disabling ODR violation detection prevents ASAN from reporting these errors, which are expected in our current configuration.
+
+You'll need to use a symbolizer to decode the stack frames reported by ASAN. A symbolizer translates memory addresses back into human-readable function names and line numbers, making it easier to understand error reports.
+
+```sh
+export ASAN_SYMBOLIZER_PATH=/to/clang/llvm-symbolizer
+```
+
+The pixman-1 library, due to complex initialization logic, leaks a few bytes. The set of known (or acceptable) leaks is defined in [leak_suppressions.txt](./leak_suppressions.txt)
+
+```sh
+export LSAN_OPTIONS=suppressions=$PWD/leak_suppressions.txt
+```
+
+Use the [asan_exports.sh](./asan_exports.sh) shell script to load this configuration into your shell:
+
+```bash
+source ./asan_exports.sh
+```
+
+Next you can run the emulator under asan as:
+
+```bash
+bazel run --config asan //hardware/generic/goldfish/emulator/launcher:goldfish  -- --avd V
+```
+
+*Note: If you are not seeing memory address translated to stackframes you might have to update the [asan_exports.sh](./asan_exports.sh) shell script to point to the proper symbolizer.*
+
+
+
 ### Creating a JSON Compilation Database with Bazel
 
 A JSON Compilation Database is a special file that captures the exact commands used to compile your C++ project. It stores information about include paths, compiler flags, and the location of source files. This data acts as a roadmap, guiding code analysis tools and editors like VSCode and Vim to understand your project's structure, enabling advanced features like:
