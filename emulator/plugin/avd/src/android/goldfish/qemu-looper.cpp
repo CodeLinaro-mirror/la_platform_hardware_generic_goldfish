@@ -38,7 +38,7 @@ extern "C" {
 #include <utility>
 
 namespace android {
-namespace qemu {
+namespace goldfish {
 
 static bool sSkipTimerOps = false;
 static Notifier sLooperShutdown = {
@@ -381,5 +381,5 @@ BaseLooper* qemuLooper() {
     return &looper;
 }
 
-}  // namespace qemu
+}  // namespace goldfish
 }  // namespace android
