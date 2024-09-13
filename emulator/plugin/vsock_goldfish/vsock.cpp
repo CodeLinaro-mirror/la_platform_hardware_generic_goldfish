@@ -32,7 +32,7 @@ extern "C" {
 #include "standard-headers/linux/virtio_vsock.h"
 }
 
-#define DEBUG_MSG(FMT, ...) fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
+#define DEBUG_MSG(FMT, ...)  // fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
 
 namespace {
 using goldfish::archive::IReader;

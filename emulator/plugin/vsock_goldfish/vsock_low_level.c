@@ -47,7 +47,7 @@ DECLARE_INSTANCE_CHECKER(VirtIOVSock, VIRTIO_VSOCK, TYPE_VIRTIO_VSOCK);
 
 #define VMADDR_CID_HOST 2
 
-#define DEBUG_MSG(FMT, ...) fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
+#define DEBUG_MSG(FMT, ...)  // fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
 
 static VirtQueueElement* virtqueue_pop_elem(VirtQueue* const vq) {
     return (VirtQueueElement*)virtqueue_pop(vq, sizeof(VirtQueueElement));
