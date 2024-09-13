@@ -211,7 +211,7 @@ struct GoldfishVirtioVsockDevice {
         stream.plug = std::move(NOT_NULL(plug));
         stream.sendOp(VIRTIO_VSOCK_OP_REQUEST);
 
-        (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+        sendPacketsAndNotify();
         return SocketPtr(&stream);
     }
 
@@ -244,7 +244,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::mutex> lock(mStateMutex);
         if (stream.isConnected) {
             stream.hostToGuestBuf.append(data, size);
-            (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+            sendPacketsAndNotify();
         }
     }
 
@@ -252,7 +252,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::mutex> lock(mStateMutex);
         recycleStreamLocked(stream, false, VIRTIO_VSOCK_OP_SHUTDOWN);
         mStreams.erase(stream);
-        (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+        sendPacketsAndNotify();
     }
 
     void recycleStreamLocked(VsockStream& stream, const bool callOnUnplug,
@@ -455,7 +455,7 @@ struct GoldfishVirtioVsockDevice {
         }
     }
 
-    int onPacketsSend() {
+    int sendPackets() {
         DEBUG_MSG("this=%p", this);
 
         bool needNotify = false;
@@ -541,7 +541,13 @@ struct GoldfishVirtioVsockDevice {
         return needNotify;
     }
 
-    int onEventsSend() {
+    void sendPacketsAndNotify() {
+        if (sendPackets()) {
+            (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+        }
+    }
+
+    int sendEvents() {
         DEBUG_MSG("this=%p", this);
         bool needNotify = false;
 
@@ -666,10 +672,7 @@ struct GoldfishVirtioVsockDevice {
             }
         }
 
-        if (need_notify) {
-            (*NOT_NULL(mQemuDevApi)->haveHostToGuestPackets)(NOT_NULL(mQemuDev));
-        }
-
+        sendPacketsAndNotify();
         return 0;
     }
 
@@ -775,11 +778,11 @@ void goldfish_virtio_vsock_accept_guest_to_host(void* impl, const struct virtio_
 }
 
 int goldfish_virtio_vsock_handle_host_to_guest(void* impl) {
-    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketsSend();
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).sendPackets();
 }
 
 int goldfish_virtio_vsock_handle_event_to_guest(void* impl) {
-    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onEventsSend();
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).sendEvents();
 }
 
 int goldfish_virtio_vsock_impl_save(const void* impl, QEMUFile* f) {
