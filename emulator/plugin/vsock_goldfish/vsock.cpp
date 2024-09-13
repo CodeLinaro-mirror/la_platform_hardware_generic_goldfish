@@ -211,7 +211,7 @@ struct GoldfishVirtioVsockDevice {
         stream.plug = std::move(NOT_NULL(plug));
         stream.sendOp(VIRTIO_VSOCK_OP_REQUEST);
 
-        sendPacketsAndNotify();
+        sendPacketsAndNotifyLocked();
         return SocketPtr(&stream);
     }
 
@@ -244,7 +244,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::mutex> lock(mStateMutex);
         if (stream.isConnected) {
             stream.hostToGuestBuf.append(data, size);
-            sendPacketsAndNotify();
+            sendPacketsAndNotifyLocked();
         }
     }
 
@@ -252,7 +252,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::mutex> lock(mStateMutex);
         recycleStreamLocked(stream, false, VIRTIO_VSOCK_OP_SHUTDOWN);
         mStreams.erase(stream);
-        sendPacketsAndNotify();
+        sendPacketsAndNotifyLocked();
     }
 
     void recycleStreamLocked(VsockStream& stream, const bool callOnUnplug,
@@ -455,13 +455,11 @@ struct GoldfishVirtioVsockDevice {
         }
     }
 
-    int sendPackets() {
+    int sendPacketsLocked() {
         DEBUG_MSG("this=%p", this);
 
         bool needNotify = false;
         VirtIOVSockSendResult sendResult;
-
-        const std::lock_guard<std::mutex> lock(mStateMutex);
         const auto sendPacketHostToGuest = mQemuDevApi->sendPacketHostToGuest;
 
         while (!mOrphanPackets.empty()) {
@@ -541,8 +539,13 @@ struct GoldfishVirtioVsockDevice {
         return needNotify;
     }
 
-    void sendPacketsAndNotify() {
-        if (sendPackets()) {
+    int sendPackets() {
+        const std::lock_guard<std::mutex> lock(mStateMutex);
+        return sendPacketsLocked();
+    }
+
+    void sendPacketsAndNotifyLocked() {
+        if (sendPacketsLocked()) {
             (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
         }
     }
@@ -672,7 +675,7 @@ struct GoldfishVirtioVsockDevice {
             }
         }
 
-        sendPacketsAndNotify();
+        sendPacketsAndNotifyLocked();
         return 0;
     }
 
