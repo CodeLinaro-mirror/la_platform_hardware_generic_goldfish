@@ -17,6 +17,7 @@ cc_library(
         "vsock.cpp",
         "vsock_low_level.c",
         "vsock_low_level.h",
+        "vsock_port_fwd.cpp",
     ],
     defines = [
         "NEED_CPU_H",
@@ -28,12 +29,15 @@ cc_library(
     ],
     deps = [
         ":goldfish_vsock_hdrs",
-        "//external/qemu:libhwcore",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/libs/archive:QEMUFileArchive",
         "//hardware/generic/goldfish/emulator/libs/debug",
+        "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
+        "//hardware/generic/goldfish/emulator/plugin/avd:qemu-looper",
     ],
     alwayslink = True,
 ) for arch in [
