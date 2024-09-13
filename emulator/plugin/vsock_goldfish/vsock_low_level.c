@@ -248,7 +248,7 @@ static void virtio_vsock_handle_guest_to_host(VirtIODevice* const dev, VirtQueue
         virtio_notify(dev, vq);
     }
 
-    virtio_notify(dev, s->host_to_guest_vq);
+    virtio_vsock_handle_host_to_guest(dev, s->host_to_guest_vq);
 }
 
 static void virtio_vsock_have_host_to_guest_events(void* const s_raw) {
