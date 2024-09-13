@@ -139,7 +139,7 @@ static void virtio_vsock_parse_guest_to_host(VirtIOVSock* const s, void* impl,
         return;
     }
 
-    if (hdr.type != VIRTIO_VSOCK_OP_RW) {
+    if (hdr.op != VIRTIO_VSOCK_OP_RW) {
         goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, NULL);
         return;
     }
