@@ -62,6 +62,7 @@ AsyncSocket::AsyncSocket(Looper* looper, ScopedSocket socket)
     socketSetNonBlocking(mSocket.get());
     mFdWatch = std::unique_ptr<Looper::FdWatch>(
             mLooper->createFdWatch(mSocket.get(), socket_watcher, this));
+    mFdWatch->wantRead();
 }
 
 void AsyncSocket::wantRead() {
@@ -80,7 +81,9 @@ ssize_t AsyncSocket::recv(char* buffer, uint64_t bufferSize) {
         if (fd == -1) {
             return 0;
         }
+        wantRead();
     }
+
     // It is still possible that the fd is no longer open
     ssize_t read = socketRecv(fd, buffer, bufferSize);
     if (read == 0) {
