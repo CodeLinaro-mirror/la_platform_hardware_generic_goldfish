@@ -201,7 +201,7 @@ struct GoldfishVirtioVsockDevice {
     SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
         DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         const uint32_t hostPort = mSrcPortAllocator.get() + kDynamicPortsStart;
 
         const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
@@ -218,7 +218,7 @@ struct GoldfishVirtioVsockDevice {
     bool listen(const uint32_t hostPort, HostPortListener hostPortListener) {
         DEBUG_MSG("this=%p, hostPort=%u", this, hostPort);
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         return mHostPortListeners.insert({hostPort, std::move(hostPortListener)}).second;
     }
 
@@ -241,7 +241,7 @@ struct GoldfishVirtioVsockDevice {
     void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
         DEBUG_MSG("this=%p", this);
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         if (stream.isConnected) {
             stream.hostToGuestBuf.append(data, size);
             sendPacketsAndNotifyLocked();
@@ -249,7 +249,7 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void unplugFromDevice(VsockStream& stream) {
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         recycleStreamLocked(stream, false, VIRTIO_VSOCK_OP_SHUTDOWN);
         mStreams.erase(stream);
         sendPacketsAndNotifyLocked();
@@ -359,7 +359,7 @@ struct GoldfishVirtioVsockDevice {
     void realize(void* const dev, const GoldfishVirtIOVSockDevAPI* const devApi) {
         DEBUG_MSG("this=%p, dev=%p, devApi=%p", this, dev, devApi);
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         mQemuDev = NOT_NULL(dev);
         mQemuDevApi = NOT_NULL(devApi);
     }
@@ -367,7 +367,7 @@ struct GoldfishVirtioVsockDevice {
     void unrealize() {
         DEBUG_MSG("this=%p", this);
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         // TODO
     }
 
@@ -376,7 +376,7 @@ struct GoldfishVirtioVsockDevice {
 
         if (status & VIRTIO_CONFIG_S_NEEDS_RESET) {
             DEBUG_MSG("this=%p, status=S_NEEDS_RESET", this);
-            const std::lock_guard<std::mutex> lock(mStateMutex);
+            const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
 
             for (const VsockStream& stream : mStreams) {
                 NOT_NULL(stream.plug)->onUnplug().release();
@@ -393,7 +393,7 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void onPacketReceive(const struct virtio_vsock_hdr& hdr, const void* data) {
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         if (hdr.op == VIRTIO_VSOCK_OP_REQUEST) {
             if (!processPacketOpRequestLocked(hdr)) {
                 queueOrphanPacketLocked(hdr, VIRTIO_VSOCK_OP_RST);
@@ -540,7 +540,7 @@ struct GoldfishVirtioVsockDevice {
     }
 
     int sendPackets() {
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         return sendPacketsLocked();
     }
 
@@ -554,7 +554,7 @@ struct GoldfishVirtioVsockDevice {
         DEBUG_MSG("this=%p", this);
         bool needNotify = false;
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         // TODO
         return needNotify;
     }
@@ -569,7 +569,7 @@ struct GoldfishVirtioVsockDevice {
             }
         }
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         mSrcPortAllocator.saveToSnapshot(writer);
 
         writer << mOrphanPackets.size();
@@ -612,7 +612,7 @@ struct GoldfishVirtioVsockDevice {
             }
         }
 
-        const std::lock_guard<std::mutex> lock(mStateMutex);
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         r = mSrcPortAllocator.loadFromSnapshot(reader);
         if (r) {
             return r;
@@ -707,7 +707,7 @@ struct GoldfishVirtioVsockDevice {
     // Other iterators and references are not invalidated.
     using Streams = std::set<VsockStream, VsockStreamComparer>;
 
-    mutable std::mutex mStateMutex;
+    mutable std::recursive_mutex mStateMutex;
 
     void* mQemuDev = nullptr;
     const GoldfishVirtIOVSockDevAPI* mQemuDevApi = nullptr;
