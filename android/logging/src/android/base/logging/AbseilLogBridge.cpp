@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
+#include <unordered_map>
 
 #include "absl/base/log_severity.h"
 #include "absl/log/log.h"
@@ -59,6 +60,12 @@ inline absl::LogSeverity severityToAbsl(int severity) {
     }
 }
 
+// HACK ATTACK! The vlog macro secretly introduces a static global variable
+// to indicate the location site. We will not be able to do this for c-code
+// so we will dynamically allocate this in a map.
+using ::absl::log_internal::VLogSite;
+static std::unordered_map<const char*, std::unique_ptr<VLogSite>> s_vlogMap;
+
 /**
  * @brief Logs a message to Abseil logging library.
  *
@@ -86,8 +93,14 @@ extern "C" void _log_to_abseil(int severity, const char* file, unsigned int line
     // Note that we will only format a string if the logging system
     // is enabled.
     if (severity < 0) {
-        VLOG(abs(severity)).AtLocation(file, line)
-                << formatString(buffer, std::size(buffer), format, args);
+        auto vlogsite = s_vlogMap.find(file);
+        if (vlogsite == s_vlogMap.end()) {
+            vlogsite = s_vlogMap.emplace(file, std::make_unique<VLogSite>(file)).first;
+        }
+        if (vlogsite->second->IsEnabled(-severity)) {
+            LOG(INFO).AtLocation(file, line)
+                    << formatString(buffer, std::size(buffer), format, args);
+        }
     } else {
         LOG(LEVEL(severityToAbsl(severity))).AtLocation(file, line)
                 << formatString(buffer, std::size(buffer), format, args);
