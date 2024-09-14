@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include "absl/base/log_severity.h"
@@ -60,11 +62,66 @@ inline absl::LogSeverity severityToAbsl(int severity) {
     }
 }
 
-// HACK ATTACK! The vlog macro secretly introduces a static global variable
-// to indicate the location site. We will not be able to do this for c-code
-// so we will dynamically allocate this in a map.
 using ::absl::log_internal::VLogSite;
-static std::unordered_map<const char*, std::unique_ptr<VLogSite>> s_vlogMap;
+
+// Holder object for both the site object and file
+// for which this site is being used (file is private in VLogSite)
+struct VLogHolder {
+    const char* file;
+    VLogSite site;
+};
+
+/**
+ * @brief Gets a VLogSite object for the given name.
+ *
+ * This function retrieves a VLogSite object associated with the specified
+ * name.
+ *
+ * @param file The file name
+ * @return A pointer to the VLogSite object.
+ */
+extern "C" void* _get_vlog_site(const char* name) {
+    static std::mutex s_vlogSitesMutex;
+    // We track allocated VLogSite's here, so they will be properly
+    // cleaned upon exit.
+    static std::vector<std::unique_ptr<VLogHolder>> s_vlogSites;
+    std::lock_guard<std::mutex> lock(s_vlogSitesMutex);
+    auto vlog = new VLogHolder{name, VLogSite(name)};
+    s_vlogSites.emplace_back(vlog);
+    return vlog;
+}
+
+/**
+ * @brief Logs a message to Abseil logging library.
+ *
+ * This function takes a severity level, file name, line number, format string,
+ * and variable arguments, formats the message, and logs it using the Abseil
+ * logging library.
+ *
+ * Negative severity levels are treated as verbose logs.
+ *
+ * @param vlog_site VLogHolder object used by the VLOG macro.
+ * @param severity The severity level of the vlog message.
+ * @param file The name of the file where the log message originated.
+ * @param line The line number in the file where the log message originated.
+ * @param format The format string for the log message.
+ * @param ... The variable arguments for the format string.
+ */
+extern "C" void _vlog_to_abseil(void* vlog_site, int severity, unsigned int line,
+                                const char* format, ...) {
+    constexpr int bufferSize = 4096;
+    char buffer[bufferSize];
+    static_assert(std::size(buffer) == bufferSize);
+
+    va_list args;
+    va_start(args, format);
+    auto holder = static_cast<VLogHolder*>(vlog_site);
+    if (holder->site.IsEnabled(severity)) {
+        LOG(INFO).AtLocation(holder->file, line)
+                << formatString(buffer, std::size(buffer), format, args);
+    }
+    va_end(args);
+}
 
 /**
  * @brief Logs a message to Abseil logging library.
@@ -92,19 +149,8 @@ extern "C" void _log_to_abseil(int severity, const char* file, unsigned int line
 
     // Note that we will only format a string if the logging system
     // is enabled.
-    if (severity < 0) {
-        auto vlogsite = s_vlogMap.find(file);
-        if (vlogsite == s_vlogMap.end()) {
-            vlogsite = s_vlogMap.emplace(file, std::make_unique<VLogSite>(file)).first;
-        }
-        if (vlogsite->second->IsEnabled(-severity)) {
-            LOG(INFO).AtLocation(file, line)
-                    << formatString(buffer, std::size(buffer), format, args);
-        }
-    } else {
-        LOG(LEVEL(severityToAbsl(severity))).AtLocation(file, line)
-                << formatString(buffer, std::size(buffer), format, args);
-    }
+    LOG(LEVEL(severityToAbsl(severity))).AtLocation(file, line)
+            << formatString(buffer, std::size(buffer), format, args);
 
     va_end(args);
 }

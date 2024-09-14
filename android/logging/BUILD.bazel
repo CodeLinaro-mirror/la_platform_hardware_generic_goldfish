@@ -58,6 +58,7 @@ cc_test(
             "test/**/*.h",
         ],
     ),
+    copts = ["-Wno-deprecated-declarations"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
@@ -67,5 +68,16 @@ cc_test(
         ":backend",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "log_bridge_perf",
+    size = "small",
+    srcs = ["test/android/base/logging/AbseilLogBridge_perf.cpp"],
+    copts = ["-Wno-deprecated-declarations"],
+    deps = [
+        ":absl-c-bridge",
+        "@com_github_google_benchmark//:benchmark",
     ],
 )
