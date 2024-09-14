@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb-dap",
+            "request": "launch",
+            "name": "Debug Goldfish",
+            // Replace <path_to_your_binary> with the actual path to your
+            // binary. If you want to debug BUILD target
+            // `//path/to:my_test`, the path to your binary will be
+            // `${workspaceFolder}/bazel-bin/path/to/my_test`.
+            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            // Set any program arguments here.
+            "args": [
+                "--avd",
+                "V",
+                // "--vmodule", // Enable VLOG for
+                // "*=1",       // Files matching
+                "--verbose"
+            ],
+            // Set any environment values here, not you would likely want to keep at least these
+            "env": [
+                // We are pretending to be a bazel run..
+                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                // Asan configuration.
+                "ASAN_OPTIONS=detect_odr_violation=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "debuggerRoot": "${workspaceFolder}",
+            "sourceMap": [
+                [
+                    "/proc/self/cwd",
+                    "${workspaceFolder}",
+                ]
+            ],
+            "stopOnEntry": false,
+            "initCommands": [
+                "settings set target.process.follow-fork-mode child",
+                "pro hand -p true -s false SIGUSR1",
+                "pro hand -p true -s false SIGUSR2"
+            ]
+        }
+    ]
+}

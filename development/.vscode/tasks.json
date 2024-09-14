@@ -1,0 +1,81 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "aemu: Build emulator with asan",
+            "type": "shell",
+            "command": "bazel build --config asan //hardware/generic/goldfish/emulator/launcher:goldfish",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "label": "aemu: Update compile commands database",
+            "type": "shell",
+            "command": "bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/generic/goldfish/...",
+            "group": {
+                "kind": "build",
+            },
+        },
+        {
+            "label": "aemu: Run emulator test suite",
+            "type": "shell",
+            "command": "bazel test --config asan --test_output=errors //hardware/generic/goldfish/emulator:emulator_unit_tests",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                {
+                    // Matcher for compile errors when building the tests.
+                    "base": "$gcc",
+                    "owner": "cpp",
+                    // The file name for reported problems is relative to the opened folder.
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceFolder}"
+                    ],
+                    // The actual pattern to match problems in the output.
+                    "pattern": {
+                        // The regular expression. Example to match: helloWorld.c:5:3: warning: implicit declaration of function ‘printf’ [-Wimplicit-function-declaration]
+                        "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                        // The first match group matches the file name which is relative.
+                        "file": 1,
+                        // The second match group matches the line on which the problem occurred.
+                        "line": 2,
+                        // The third match group matches the column at which the problem occurred.
+                        "column": 3,
+                        // The fourth match group matches the problem's severity. Can be ignored. Then all problems are captured as errors.
+                        "severity": 4,
+                        // The fifth match group matches the message.
+                        "message": 5
+                    }
+                },
+                {
+                    // Matcher for google test output.
+                    "base": "$gcc",
+                    "owner": "cpp",
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceFolder}"
+                    ],
+                    "pattern": [
+                        {
+                            "regexp": "^(.*):(\\d+):\\s+Failure$", // Match failure line
+                            "file": 1,
+                            "line": 2
+                        },
+                        {
+                            "regexp": "^(?!.*:(\\d+):\\s+Failure$)(.*)", // Match non-failure lines
+                            "message": 2,
+                            "loop": true // Continue capturing all subsequent lines
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+}

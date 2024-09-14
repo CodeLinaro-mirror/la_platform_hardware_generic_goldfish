@@ -65,12 +65,12 @@ We have the following build configurations available:
 Typical slowdown introduced by AddressSanitizer is *2x*.
 
 - **msan**: Memory sanitizer build. MemorySanitizer is a detector of uninitialized reads.  Typical slowdown introduced by MemorySanitizer is **3x**.
-- **tsan**: Thread sanitizer build.  ThreadSanitizer is a tool that detects data races. Typical slowdown introduced by ThreadSanitizer is about **5x-15x**. Typical memory overhead introduced by ThreadSanitizer is about **5x-10x**.
+- **tsan**: Thread sanitizer build.  ThreadSanitizer is a tool that detects data races. Typical slowdown introduced by ThreadSanitizer is about **5x-15x**. Typical memory overhead introduced by ThreadSanitizer is about **5x-10x**. *Note:* This might need additional effort to get working with QEMU.
 
-You can select the configuration by passing the `--config {my_config}` parameters. For example to create a thread sanitizer release you can do:
+You can select the configuration by passing the `--config {my_config}` parameters. For example to create a address sanitizer release you can do:
 
 ```sh
-bazel build --config tsan //hardware/generic/goldfish/emulator:release
+bazel build --config asan //hardware/generic/goldfish/emulator:release
 ```
 
 ### Setting global build options
@@ -83,7 +83,6 @@ bazel build --copt=-funsafe-math-optimizations //hardware/generic/goldfish/emula
 
 Would globablly allow unsafe floating-point optimizations.
 
-
 ### Configuring ASAN
 
 AddressSanitizer (ASAN) is a memory error detector that helps identify issues like buffer overflows and use-after-free errors. When using ASAN, ensure the following environment variables are set:
@@ -91,6 +90,7 @@ AddressSanitizer (ASAN) is a memory error detector that helps identify issues li
 ```sh
 export ASAN_OPTIONS=detect_odr_violation=0
 ```
+
 Statically linking glib is causing One Definition Rule (ODR) violations in some of the shared libraries we use. ODR violations occur when the same global object is defined differently in multiple parts of a program. Disabling ODR violation detection prevents ASAN from reporting these errors, which are expected in our current configuration.
 
 You'll need to use a symbolizer to decode the stack frames reported by ASAN. A symbolizer translates memory addresses back into human-readable function names and line numbers, making it easier to understand error reports.
@@ -119,22 +119,71 @@ bazel run --config asan //hardware/generic/goldfish/emulator/launcher:goldfish  
 
 *Note: If you are not seeing memory address translated to stackframes you might have to update the [asan_exports.sh](./asan_exports.sh) shell script to point to the proper symbolizer.*
 
+## Using Visual Studio Code
 
+Visual Studio Code is a versatile code editor developed by Microsoft, designed to streamline coding for various languages and frameworks. It offers features that enhance productivity and efficiency.
 
-### Creating a JSON Compilation Database with Bazel
+You can obtain Visual Studio Code here:
+
+- Within Google: [go/vscode/install](http://go/vscode/install), make sure to follow all the instructions. Make sure you also install `sudo apt install google-lldb-vscode`, so you have the lldb debug adapter installed.
+- Directly from Microsoft: [https://code.visualstudio.com/](https://code.visualstudio.com/).
+
+Once you have installed Visual Studio Code, open the following workspace: [development/emu-dev.code-workspace](development/emu-dev.code-workspace). Install the set of recommended extensions to improve your development experience.
+
+Additional steps:
+
+- For MacOs:
+  - Update the lldb-dap settings: `lldb-dap.executable-path` (Use the key combo `⌘,` and type `lldb-dap.executable-path`) to point to `/usr/local/bin/lldb-debug-adapter`.
+- For Google Linux (glinux):
+  - Install the google lldb vscode extension: `sudo apt install google-lldb-vscode`.
+
+### Enable IntelliSense
+
+In order for IntelliSense to work you will need to create a JSON compilation database. This can be done by running the `aemu: Update compile commands database` task.  Issue the following command: `ctrl-P Tasks: Run Task` ( `⌘P Tasks: Run Task` on macOS). Next select `aemu: Update compile commands database`. This will create the compilation database that is used by IntelliSense.  Once you have run this, you should have code completion, code navigation, etc., available to you.
+
+*Note: You will have to re-run the `aemu: Update compile commands database` task for each change to a Bazel BUILD file*.
+
+### Building targets
+
+You can build targets in various ways:
+
+- By running `ctrl-P Bazel: Build Target` ( `⌘P Bazel: Build Target` on macOS) command.
+- You can build the asan version of the emulator by running the `aemu: Build emulator with asan` task.  `ctrl-P Tasks: Run Task` ( `⌘P Tasks: Run Task` on macOS), after which you can select it. Or use the quick shortcut `ctrl-B` (`⌘B` on macOS).
+- By opening the BUILD file of interrest, and clicking the highlighted build minilink provided by the bazel plugin.
+
+*Note: You can create custom tasks by modifying [tasks.json](development/.vscode/tasks.json), learn more about that [here](https://code.visualstudio.com/docs/editor/tasks)*.
+
+### Debugging the Emulator
+
+There is a default task to compile the emulator, which can be run with `ctrl-B` (`⌘B` on macOS). After that, you can debug the emulator from the debug menu `ctrl-D` (`⌘D` on macOS). You can select `Debug Goldfish` from the menu.  You can create additional launch targets by modifying [launch.json](development/.vscode/launch.json).
+
+*Note: Breakpoints in dependencies, like abseil, or grpc, are not yet working*.
+
+### Running unit tests
+
+You have the following options when running tests:
+
+- Run the whole test suite.  Issue the following command: `ctrl-P Tasks: Run Test Task` ( `⌘P Tasks: Run Test Task` on macOS).
+- Run individual tests *(Only works for tests under //hardware/..., and is very slow!)*.
+  - You can open op the unittest.cpp file of interrest. You should see a run button next to the test definition to run the test. See [ColorLogSink_unittest.cpp](android/logging/test/android/base/logging/ColorLogSink_unittest.cpp) for example.
+  - You should have a test runner icon (looks like a flask, on hover it should say testing) in the [Activity Bar](https://code.visualstudio.com/docs/getstarted/userinterface). Click on that, which should change the Primary Side bar to the Testing panel, which shows all individual tests.
+
+*Note: Debugging individual tests is not yet supported, you will have to create a custom launch configuration yourself*.
+
+## Creating a JSON Compilation Database with Bazel
 
 A JSON Compilation Database is a special file that captures the exact commands used to compile your C++ project. It stores information about include paths, compiler flags, and the location of source files. This data acts as a roadmap, guiding code analysis tools and editors like VSCode and Vim to understand your project's structure, enabling advanced features like:
 
-* **Accurate Code Navigation:**  Jump to definitions, find all references, and navigate complex codebases with confidence.
-* **Intelligent Code Completion:** Receive context-aware suggestions for variables, functions, and classes as you type.
-* **On-the-Fly Diagnostics:** Catch errors and potential issues early, even before you compile your code.
-* **Refactoring Support:** Rename symbols, extract methods, and perform other refactorings safely and efficiently.
+- **Accurate Code Navigation:**  Jump to definitions, find all references, and navigate complex codebases with confidence.
+- **Intelligent Code Completion:** Receive context-aware suggestions for variables, functions, and classes as you type.
+- **On-the-Fly Diagnostics:** Catch errors and potential issues early, even before you compile your code.
+- **Refactoring Support:** Rename symbols, extract methods, and perform other refactorings safely and efficiently.
 
 Various editors and IDE's can consume this file to provide you with an improved developer experience:
 
-* **VSCode:** The `clangd` extension seamlessly integrates with a JSON Compilation Database, enhancing the built-in C++ support.
-* **Vim:** Plugins like `YouCompleteMe` or `coc.nvim` can leverage `clangd`'s capabilities for powerful code completion and navigation.
-* **Other Editors:** Many modern code editors offer similar integration possibilities, making JSON Compilation Databases a universal tool for C++ development.
+- **VSCode:** The standard intellisense extension seamlessly integrates with a JSON Compilation Database, enhancing the built-in C++ support.
+- **Vim:** Plugins like `YouCompleteMe` or `coc.nvim` can leverage `clangd`'s capabilities for powerful code completion and navigation.
+- **Other Editors:** Many modern code editors offer similar integration possibilities, making JSON Compilation Databases a universal tool for C++ development.
 
 In your Bazel workspace, you can generate a JSON Compilation Database using the following command:
 
@@ -148,9 +197,9 @@ This command runs the extract-cc tool located in the specified Bazel package. Th
 
 **Important Considerations**
 
-* **Generated Source Files:** Source files generated during the build process, such as protobuf files, gRPC service definitions, and QEMU trace headers, will not be indexed.
-* **Build File Modifications:** Any changes to `BUILD` or `BUILD.bazel` files require re-running the tool to update the database.
-* **Editor/IDE Configuration:** Some editors or IDEs might require additional configuration to utilize the generated `compile_commands.json` file. Consult your editor's documentation for specific instructions.
+- **Generated Source Files:** Source files generated during the build process, such as protobuf files, gRPC service definitions, and QEMU trace headers, will not be indexed.
+- **Build File Modifications:** Any changes to `BUILD` or `BUILD.bazel` files require re-running the tool to update the database.
+- **Editor/IDE Configuration:** Some editors or IDEs might require additional configuration to utilize the generated `compile_commands.json` file. Consult your editor's documentation for specific instructions.
 
 ## Adding Additional Functionality
 

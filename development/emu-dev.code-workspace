@@ -1,0 +1,32 @@
+{
+	"folders": [
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../build/bazel",
+			"name": "Bazel Configuration",
+		},
+		{
+			"path": "../../../../tools/buildSrc/servers",
+			"name": "Build Bot Configuration"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true, // this is a default value
+			"**/.DS_Store": true, // this is a default value
+			"external/qemu/build": true,
+			"**/bazel-*": true,
+			"../../..repo": true,
+			"**/.cache": true,
+			"../../..cache": true,
+			"prebuilts": true,
+			"tools": true,
+		},
+		"workbench.colorTheme": "Eva Dark Italic",
+		// "C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
+		"mesonbuild.selectRootDir": false,
+		"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+	}
+}
