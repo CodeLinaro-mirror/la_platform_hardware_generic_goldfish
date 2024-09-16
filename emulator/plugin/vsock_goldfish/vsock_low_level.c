@@ -77,6 +77,10 @@ static VirtIOVSockSendResult virtio_vsock_send_packet_host_to_guest(
 
     hdr->src_cid = VMADDR_CID_HOST;
     hdr->dst_cid = s->guest_cid;
+    hdr->type = VIRTIO_VSOCK_TYPE_STREAM;
+    hdr->flags = (hdr->op == VIRTIO_VSOCK_OP_SHUTDOWN)
+                         ? (VIRTIO_VSOCK_SHUTDOWN_RCV | VIRTIO_VSOCK_SHUTDOWN_SEND)
+                         : 0;
 
     do {
         VirtQueueElement* const e = virtqueue_pop_elem(vq);

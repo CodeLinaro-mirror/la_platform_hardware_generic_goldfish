@@ -317,17 +317,13 @@ struct GoldfishVirtioVsockDevice {
                                                       const uint32_t hostFwdCnt,
                                                       const uint32_t len) const {
         constexpr uint32_t kHostBufAllocSize = 64 * 1024;
-        const uint32_t flags = 0;
 
+        // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
         struct virtio_vsock_hdr hdr = {
-                //.src_cid = ...,  see virtio_vsock_send_packet_host_to_guest
-                //.dst_cid = ...,
                 .src_port = srcPort,
                 .dst_port = dstPort,
                 .len = len,
-                .type = VIRTIO_VSOCK_TYPE_STREAM,
                 .op = static_cast<uint16_t>(op),
-                .flags = flags,
                 .buf_alloc = kHostBufAllocSize,
                 .fwd_cnt = hostFwdCnt,
         };
@@ -574,8 +570,8 @@ struct GoldfishVirtioVsockDevice {
 
         writer << mOrphanPackets.size();
         for (const auto& packet : mOrphanPackets) {
-            writer << packet.src_port << packet.dst_port << packet.op << packet.flags
-                   << packet.buf_alloc << packet.fwd_cnt;
+            writer << packet.src_port << packet.dst_port << packet.op << packet.buf_alloc
+                   << packet.fwd_cnt;
         }
 
         writer << mStreams.size();
@@ -625,11 +621,9 @@ struct GoldfishVirtioVsockDevice {
             packet.src_port = getUnsigned(reader);
             packet.dst_port = getUnsigned(reader);
             packet.op = getUnsigned(reader);
-            packet.flags = getUnsigned(reader);
             packet.buf_alloc = getUnsigned(reader);
             packet.fwd_cnt = getUnsigned(reader);
             packet.len = 0;  // orphan packets don't carry data
-            packet.type = VIRTIO_VSOCK_TYPE_STREAM;
             mOrphanPackets.push_back(packet);
         }
 
