@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string_view>
@@ -22,6 +23,7 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "android/goldfish/qemu-looper.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/vsock/connect.h"
 // clang-format off
 // IWYU pragma: begin_keep
@@ -54,6 +56,7 @@ using android::base::AsyncSocketAdapter;
 using android::base::AsyncSocketEventListener;
 using android::base::AsyncSocketServer;
 using android::base::SimpleAsyncSocket;
+using goldfish::devices::ConnectionAwaiter;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::ISocket;
 using goldfish::devices::cable::SocketPtr;
@@ -171,7 +174,12 @@ class VSockProxy {
      * @param hostPort The TCP port on the host to listen on.
      */
     VSockProxy(int guestPort, int hostPort) : mGuestPort(guestPort), mHostPort(hostPort) {
-        startServer();
+        using namespace std::chrono_literals;
+        // The server socket will be created once the guest port is reachable.
+        mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
+                android::goldfish::qemuLooper(),
+                [&](auto plug) { return goldfish::vsock::connect(mGuestPort, plug); },
+                [&](SocketPtr sock) { startServer(); }, 100ms);
     }
 
   private:
@@ -207,6 +215,8 @@ class VSockProxy {
     int mHostPort;
     /// The AsyncSocketServer used to listen for incoming connections.
     std::unique_ptr<AsyncSocketServer> mSocketServer;
+    /// Waiter that waits until the guest is connected.
+    std::shared_ptr<ConnectionAwaiter> mConnectionAwaiter;
 };
 }  // namespace
 
