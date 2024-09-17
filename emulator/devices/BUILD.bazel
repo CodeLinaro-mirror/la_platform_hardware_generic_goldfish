@@ -83,6 +83,25 @@ cc_library(
     alwayslink = True,
 )
 
+cc_library(
+    name = "connection_awaiter",
+    srcs = [
+        "connection_awaiter.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/devices/connection_awaiter.h",
+    ],
+    copts = copts,
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/google/aemu/base:aemu-base",
+    ],
+)
+
 cc_test(
     name = "devices_unittests",
     size = "small",
@@ -93,7 +112,10 @@ cc_test(
     ),
     copts = copts,
     deps = [
+        ":connection_awaiter",
         ":devices",
+        "//hardware/generic/goldfish/android/looper",
+        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
         "@com_google_googletest//:gtest_main",
     ],
