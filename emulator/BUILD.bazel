@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -149,6 +150,11 @@ pkg_zip(
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables =
         ":zip_naming_variables",
+)
+
+build_test(
+    name = "release_build_test",
+    targets = [":release"],
 )
 
 test_suite(
