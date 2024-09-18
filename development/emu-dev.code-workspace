@@ -25,7 +25,7 @@
 			"tools": true,
 		},
 		"workbench.colorTheme": "Eva Dark Italic",
-		// "C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
+		"C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
 		"mesonbuild.selectRootDir": false,
 		"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
 	}
