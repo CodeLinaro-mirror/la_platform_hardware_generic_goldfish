@@ -35,14 +35,119 @@
                 [
                     "/proc/self/cwd",
                     "${workspaceFolder}",
-                ]
+                ],
+                // Down below you will find all the "local_repositories"
+                // that we are using. If new repositories are introduced
+                // you will have to add them here, or else symbols will
+                // not be found.
+                [
+                    "../com_google_absl",
+                    "${workspaceFolder}/external/abseil-cpp"
+                ],
+                [
+                    "../com_google_googletest",
+                    "${workspaceFolder}/external/googletest"
+                ],
+                [
+                    "../com_google_protobuf",
+                    "${workspaceFolder}/external/protobuf"
+                ],
+                [
+                    "../tink_cc",
+                    "${workspaceFolder}/external/tink"
+                ],
+                [
+                    "../com_google_protobuf",
+                    "${workspaceFolder}/external/protobuf"
+                ],
+                [
+                    "../boringssl",
+                    "${workspaceFolder}/external/boringssl/src"
+                ],
+                [
+                    "../zlib",
+                    "${workspaceFolder}/external/zlib"
+                ],
+                [
+                    "../glib",
+                    "${workspaceFolder}/external/glib"
+                ],
             ],
+            "preLaunchTask": "aemu: Build emulator with asan",
             "stopOnEntry": false,
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
                 "pro hand -p true -s false SIGUSR1",
                 "pro hand -p true -s false SIGUSR2"
             ]
+        },
+        {
+            "type": "lldb-dap",
+            "request": "launch",
+            "name": "Debug Unit Test",
+            // Replace <path_to_your_binary> with the actual path to your
+            // binary. If you want to debug BUILD target
+            // `//path/to:my_test`, the path to your binary will be
+            // `${workspaceFolder}/bazel-bin/path/to/my_test`.
+            "program": "${workspaceFolder}/bazel-bin//hardware/generic/goldfish/android/logging/backend_unittests",
+            // Set any program arguments here.
+            "args": [
+                "--gtest_filter=*",
+            ],
+            // Set any environment values here, not you would likely want to keep at least these
+            "env": [
+                // We are pretending to be a bazel run..
+                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                // Asan configuration.
+                "ASAN_OPTIONS=detect_odr_violation=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "debuggerRoot": "${workspaceFolder}",
+            "sourceMap": [
+                [
+                    "/proc/self/cwd",
+                    "${workspaceFolder}",
+                ],
+                // Down below you will find all the "local_repositories"
+                // that we are using. If new repositories are introduced
+                // you will have to add them here, or else symbols will
+                // not be found.
+                [
+                    "../com_google_absl",
+                    "${workspaceFolder}/external/abseil-cpp"
+                ],
+                [
+                    "../com_google_googletest",
+                    "${workspaceFolder}/external/googletest"
+                ],
+                [
+                    "../com_google_protobuf",
+                    "${workspaceFolder}/external/protobuf"
+                ],
+                [
+                    "../tink_cc",
+                    "${workspaceFolder}/external/tink"
+                ],
+                [
+                    "../com_google_protobuf",
+                    "${workspaceFolder}/external/protobuf"
+                ],
+                [
+                    "../boringssl",
+                    "${workspaceFolder}/external/boringssl/src"
+                ],
+                [
+                    "../zlib",
+                    "${workspaceFolder}/external/zlib"
+                ],
+                [
+                    "../glib",
+                    "${workspaceFolder}/external/glib"
+                ],
+            ],
+            "preLaunchTask": "aemu: Build emulator test suite",
+            "stopOnEntry": false,
         }
     ]
 }
