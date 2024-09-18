@@ -17,6 +17,7 @@ struct virtio_vsock_hdr;
 typedef unsigned VirtIOVSockSendResult;
 
 #include "qemu/typedefs.h"
+#include "stddef.h"
 #include "stdint.h"
 
 #define VirtIOVSockSend_NeedNotify_SHIFT 0
@@ -54,9 +55,15 @@ extern void* goldfish_virtio_vsock_impl_realize(void* dev,
 extern void goldfish_virtio_vsock_impl_unrealize(void* impl);
 
 extern void goldfish_virtio_vsock_set_status(void* impl, uint8_t status);
-extern void goldfish_virtio_vsock_accept_guest_to_host(void* impl,
-                                                       const struct virtio_vsock_hdr* hdr,
-                                                       const void* data);
+extern void goldfish_virtio_vsock_accept_guest_to_host_control(void* impl,
+                                                               const struct virtio_vsock_hdr* hdr);
+
+extern void* goldfish_virtio_vsock_accept_guest_to_host_rw_start(
+        void* impl, const struct virtio_vsock_hdr* hdr);
+extern int goldfish_virtio_vsock_accept_guest_to_host_rw(void* impl, void* stream, const void* data,
+                                                         size_t size);
+extern void goldfish_virtio_vsock_accept_guest_to_host_rw_end(void* impl, void* stream,
+                                                              int erase_stream);
 
 // return: non-zero - notify the vq, zero - do nothing
 extern int goldfish_virtio_vsock_handle_host_to_guest(void* impl);

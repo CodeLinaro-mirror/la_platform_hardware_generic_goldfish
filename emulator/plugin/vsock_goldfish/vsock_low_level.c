@@ -144,92 +144,38 @@ static void virtio_vsock_parse_guest_to_host(VirtIOVSock* const s, void* impl,
     }
 
     if (hdr.op != VIRTIO_VSOCK_OP_RW) {
-        goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, NULL);
+        goldfish_virtio_vsock_accept_guest_to_host_control(impl, &hdr);
         return;
     }
 
-    /* The code below avoids redundant memcpys, e.g. all the following
-     * iovecs will be sent in separate calls (no memcpy will be called):
-     * * [small]
-     * * [large]
-     * * [large, large]
-     * * [small, large, small, large]
-     * * [small, large, small]
-     *
-     * Several small consequent iovecs will be merged (as long as they
-     * fit into the merge_buffer: [small, small, small] could be sent
-     * as one merged piece.
-     */
+    /* handle VIRTIO_VSOCK_OP_RW */
+    void* stream = goldfish_virtio_vsock_accept_guest_to_host_rw_start(impl, &hdr);
+    if (!stream) {
+        return;
+    }
 
+    int erase_stream = 0;
     size_t size = hdr.len;
     size_t offset = sizeof(hdr);
-
-#define LARGE_ENOUGH 1024
-#define MERGE_BUFFER_CAPACITY (LARGE_ENOUGH * 2)
-    char merge_buffer[MERGE_BUFFER_CAPACITY];
-    size_t merge_buffer_size = 0;
-    struct iovec small = {.iov_len = 0};
 
     for (; iovec_num && size; --iovec_num, ++iovec) {
         const size_t iov_len = iovec->iov_len;
         const size_t skip_size = MIN(offset, iov_len);
         const size_t data_size = MIN(size, iov_len - skip_size);
-        void* const data = iovec->iov_base + skip_size;
 
-        if (data_size >= LARGE_ENOUGH) {
-            if (merge_buffer_size > 0) {
-                hdr.len = merge_buffer_size;
-                goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, merge_buffer);
-                merge_buffer_size = 0;
-            } else if (small.iov_len > 0) {
-                hdr.len = small.iov_len;
-                goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, small.iov_base);
-                small.iov_len = 0;
+        if (data_size > 0) {
+            void* const data = iovec->iov_base + skip_size;
+            erase_stream =
+                    goldfish_virtio_vsock_accept_guest_to_host_rw(impl, stream, data, data_size);
+            if (erase_stream) {
+                break;
             }
-
-            hdr.len = data_size;
-            goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, data);
-        } else if (merge_buffer_size > 0) {
-            if ((merge_buffer_size + data_size) > MERGE_BUFFER_CAPACITY) {
-                hdr.len = merge_buffer_size;
-                goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, merge_buffer);
-                merge_buffer_size = 0;
-
-                small.iov_base = data;
-                small.iov_len = data_size;
-            } else {
-                memcpy(&merge_buffer[merge_buffer_size], data, data_size);
-                merge_buffer_size += data_size;
-            }
-        } else if (small.iov_len == 0) {
-            small.iov_base = data;
-            small.iov_len = data_size;
-        } else if ((small.iov_len + data_size) > MERGE_BUFFER_CAPACITY) {
-            hdr.len = small.iov_len;
-            goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, small.iov_base);
-
-            small.iov_base = data;
-            small.iov_len = data_size;
-        } else {
-            memcpy(merge_buffer, small.iov_base, small.iov_len);
-            memcpy(&merge_buffer[small.iov_len], data, data_size);
-            merge_buffer_size = small.iov_len + data_size;
-            small.iov_len = 0;
+            size -= data_size;
         }
-
         offset -= skip_size;
-        size -= data_size;
     }
-#undef MERGE_BUFFER_CAPACITY
-#undef LARGE_ENOUGH
 
-    if (merge_buffer_size > 0) {
-        hdr.len = merge_buffer_size;
-        goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, merge_buffer);
-    } else if (small.iov_len > 0) {
-        hdr.len = small.iov_len;
-        goldfish_virtio_vsock_accept_guest_to_host(impl, &hdr, small.iov_base);
-    }
+    goldfish_virtio_vsock_accept_guest_to_host_rw_end(impl, stream, erase_stream);
 }
 
 static void virtio_vsock_handle_guest_to_host(VirtIODevice* const dev, VirtQueue* const vq) {

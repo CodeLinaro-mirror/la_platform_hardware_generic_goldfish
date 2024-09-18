@@ -388,7 +388,7 @@ struct GoldfishVirtioVsockDevice {
         }
     }
 
-    void onPacketReceive(const struct virtio_vsock_hdr& hdr, const void* data) {
+    void onPacketReceiveControl(const struct virtio_vsock_hdr& hdr) {
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         if (hdr.op == VIRTIO_VSOCK_OP_REQUEST) {
             if (!processPacketOpRequestLocked(hdr)) {
@@ -419,16 +419,6 @@ struct GoldfishVirtioVsockDevice {
                         mStreams.erase(streamI);
                         break;
 
-                    case VIRTIO_VSOCK_OP_RW:
-                        if (stream.isConnected && NOT_NULL(stream.plug)->onReceive(data, hdr.len)) {
-                            stream.hostFwdCnt += hdr.len;
-                            stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
-                        } else {
-                            recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
-                            mStreams.erase(streamI);
-                        }
-                        break;
-
                     case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
                         // we already updated guest counters (guestBufAlloc and guestFwdCnt)
                         break;
@@ -449,6 +439,45 @@ struct GoldfishVirtioVsockDevice {
                 queueOrphanPacketLocked(hdr, VIRTIO_VSOCK_OP_RST);
             }
         }
+    }
+
+    void* onPacketReceiveRwStart(const struct virtio_vsock_hdr& hdr) {
+        const VsockStreamKey key(hdr.src_port, hdr.dst_port);
+
+        mStateMutex.lock();  // see onPacketReceiveRwEnd for unlock
+        const auto streamI = mStreams.find(key);
+        if (streamI != mStreams.end()) {
+            VsockStream& stream = const_cast<VsockStream&>(*streamI);
+            stream.guestBufAlloc = hdr.buf_alloc;
+            stream.guestFwdCnt = hdr.fwd_cnt;
+            return &stream;
+        } else {
+            // onPacketReceiveRwEnd is not required if there is no stream
+            mStateMutex.unlock();
+            return nullptr;
+        }
+    }
+
+    // see onPacketReceiveRwStart and onPacketReceiveRwEnd
+    int onPacketReceiveRw(void* streamPtr, const void* data, const size_t size) {
+        VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
+
+        if (stream.isConnected && NOT_NULL(stream.plug)->onReceive(data, size)) {
+            stream.hostFwdCnt += size;
+            stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    void onPacketReceiveRwEnd(void* streamPtr, const int eraseStream) {
+        if (eraseStream) {
+            VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
+            recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
+            mStreams.erase(stream);
+        }
+        mStateMutex.unlock();  // see onPacketReceiveRwStart
     }
 
     int sendPacketsLocked() {
@@ -769,9 +798,23 @@ void goldfish_virtio_vsock_set_status(void* impl, uint8_t status) {
     GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).setStatus(status);
 }
 
-void goldfish_virtio_vsock_accept_guest_to_host(void* impl, const struct virtio_vsock_hdr* hdr,
-                                                const void* data) {
-    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceive(*hdr, data);
+void goldfish_virtio_vsock_accept_guest_to_host_control(void* impl,
+                                                        const struct virtio_vsock_hdr* hdr) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveControl(*hdr);
+}
+
+void* goldfish_virtio_vsock_accept_guest_to_host_rw_start(void* impl,
+                                                          const struct virtio_vsock_hdr* hdr) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRwStart(*hdr);
+}
+
+int goldfish_virtio_vsock_accept_guest_to_host_rw(void* impl, void* stream, const void* data,
+                                                  size_t size) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRw(stream, data, size);
+}
+
+void goldfish_virtio_vsock_accept_guest_to_host_rw_end(void* impl, void* stream, int erase_stream) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRwEnd(stream, erase_stream);
 }
 
 int goldfish_virtio_vsock_handle_host_to_guest(void* impl) {
