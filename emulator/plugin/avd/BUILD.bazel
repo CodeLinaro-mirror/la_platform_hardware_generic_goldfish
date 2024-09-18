@@ -2,7 +2,6 @@ cc_library(
     name = "avd_hdrs",
     hdrs = [
         "include/android/goldfish/avd-info.h",
-        "include/android/goldfish/qemu-looper.h",
     ],
     includes = ["include"],
     visibility = [
@@ -11,10 +10,39 @@ cc_library(
 )
 
 cc_library(
+    name = "qemu-looper",
+    srcs = [
+        "src/android/goldfish/qemu-looper.cpp",
+    ],
+    hdrs = [
+        "include/android/goldfish/qemu-looper.h",
+    ],
+    copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/android/looper",
+        "//hardware/generic/goldfish/android/memory",
+        "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/threads",
+        "//hardware/generic/goldfish/emulator/config",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/log:log_sink_registry",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "avd_impl",
     srcs = [
         "src/android/goldfish/avd-info.cpp",
-        "src/android/goldfish/qemu-looper.cpp",
     ],
     copts = ["-Wno-extern-c-compat"],
     visibility = [
@@ -22,6 +50,7 @@ cc_library(
     ],
     deps = [
         ":avd_hdrs",
+        ":qemu-looper",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/looper",
