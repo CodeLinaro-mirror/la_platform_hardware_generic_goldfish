@@ -7,6 +7,7 @@
 		"bjob.vsc-bazel-tools",
 		"DavidAnson.vscode-markdownlint",
 		"googlecloudtools.cloudcode",
+		"hbenl.vscode-test-explorer",
 		"helly25.helly25iwyu",
 		"jeff-hykin.better-cpp-syntax",
 		"llvm-vs-code-extensions.lldb-dap",

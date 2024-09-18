@@ -157,8 +157,6 @@ You can build targets in various ways:
 
 There is a default task to compile the emulator, which can be run with `ctrl-B` (`⌘B` on macOS). After that, you can debug the emulator from the debug menu `ctrl-D` (`⌘D` on macOS). You can select `Debug Goldfish` from the menu.  You can create additional launch targets by modifying [launch.json](development/.vscode/launch.json).
 
-*Note: Breakpoints in dependencies, like abseil, or grpc, are not yet working*.
-
 ### Running unit tests
 
 You have the following options when running tests:
@@ -168,7 +166,14 @@ You have the following options when running tests:
   - You can open op the unittest.cpp file of interrest. You should see a run button next to the test definition to run the test. See [ColorLogSink_unittest.cpp](android/logging/test/android/base/logging/ColorLogSink_unittest.cpp) for example.
   - You should have a test runner icon (looks like a flask, on hover it should say testing) in the [Activity Bar](https://code.visualstudio.com/docs/getstarted/userinterface). Click on that, which should change the Primary Side bar to the Testing panel, which shows all individual tests.
 
-*Note: Debugging individual tests is not yet supported, you will have to create a custom launch configuration yourself*.
+*Note: Debugging individual tests only seems to work on linux*.
+
+### Known Issues
+
+- ***Linux***:
+  - You might have to remove the  `prebuilts/clang/host/linux-x86/BUILD.bazel` file. This bazel file has some issues, causing failures when trying to discover all available tests by [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin.
+- ***MacOs***
+  - The [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin will not debug individual tests.
 
 ## Creating a JSON Compilation Database with Bazel
 
