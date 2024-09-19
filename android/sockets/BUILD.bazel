@@ -57,11 +57,28 @@ cc_library(
         ],
 )
 
+cc_library(
+    name = "test-sockets",
+    srcs = [
+        "test/android/base/sockets/ChecksumSocket.cpp",
+        "test/android/base/sockets/SimpleTestServer.cpp",
+        "test/android/base/sockets/SimpleThreadLooper.cpp",
+    ],
+    hdrs = glob(["test/include/android/**/*.h"]),
+    includes = ["test/include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sockets",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
 cc_test(
     name = "sockets_unittests",
     srcs = glob(
         [
-            "test/**/*.cpp",
+            "test/**/*test.cpp",
             "test/**/*.h",
         ],
         exclude = ["test/**/Win32"],
@@ -72,6 +89,7 @@ cc_test(
     }),
     deps = [
         ":sockets",
+        ":test-sockets",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/looper",
@@ -83,5 +101,19 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "async_socket_perf",
+    size = "small",
+    srcs = ["test/android/base/sockets/AsyncSocket_perf.cpp"] + glob([
+        "test/**/*.h",
+    ]),
+    copts = ["-Wno-deprecated-declarations"],
+    includes = ["test"],
+    deps = [
+        ":test-sockets",
+        "@com_github_google_benchmark//:benchmark",
     ],
 )
