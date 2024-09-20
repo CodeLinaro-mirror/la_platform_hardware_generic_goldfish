@@ -16,6 +16,7 @@
 
 #include <algorithm>  // for find_if
 #include <iterator>   // for prev
+#include <thread>
 #include <utility>    // for move, pair
 
 #include "aemu/base/files/Stream.h"          // for Stream
@@ -139,6 +140,7 @@ void DefaultLooper::scheduleCallback(Looper::TaskCallback&& callback) {
 
 int DefaultLooper::runWithDeadlineMs(Looper::Duration deadlineMs) {
     mForcedExit = false;
+    mThreadId = std::this_thread::get_id();
 
     while (!mForcedExit) {
         // Return immediately with EWOULDBLOCK if there are no
