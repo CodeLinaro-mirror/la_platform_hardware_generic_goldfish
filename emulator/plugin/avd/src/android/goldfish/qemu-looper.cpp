@@ -81,7 +81,9 @@ class QemuLooper : public BaseLooper {
 
     virtual ~QemuLooper() { DCHECK(mPendingFdWatches.empty()); }
 
-    std::string_view name() const override { return "QEMU2 main loop"; }
+    std::string_view name() const override { return "QEMU main loop"; }
+
+    bool onLooperThread() const override { return qemu_in_coroutine(); }
 
     static QEMUClockType toQemuClockType(ClockType clock) {
         static_assert((int)QEMU_CLOCK_HOST == (int)BaseLooper::ClockType::kHost &&
