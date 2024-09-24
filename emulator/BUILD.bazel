@@ -260,6 +260,7 @@ test_suite(
         ":protobuf_unit_tests",
         "//hardware/generic/goldfish/android:emulator_android_tests",
         "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
+        "//hardware/generic/goldfish/emulator/adb/logger:logger_unitests",
         "//hardware/generic/goldfish/emulator/android-grpc:android-grpc-unit-tests",
         "//hardware/generic/goldfish/emulator/devices:devices_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",

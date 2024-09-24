@@ -11,15 +11,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <memory>
+
 #include "absl/log/log.h"
 
 #include "android/emulation/control/adb/AdbHostServer.h"
+#include "android/emulation/control/adb/AdbMessageLogger.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/atomic.hpp"
+#include "goldfish/vsock/vsock_port_fwd.h"
 
 extern "C" {
-#include "goldfish/vsock/vsock_port_fwd.h"
 #include "qom/object.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
@@ -46,6 +50,11 @@ OBJECT_DECLARE_TYPE(AdbVSockDev, AdbDeviceClass, ADB_VSOCK_DEVICE)
 #define ADB_VSOCK_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AdbDeviceClass, obj, TYPE_ADB_VSOCK_DEVICE)
 
 using android::emulation::AdbHostServer;
+using android::emulation::control::AdbLogger;
+
+static void adb_vsock_accept(VSockFwdDev* device, goldfish::devices::cable::ISocket* socket) {
+    socket->setDataSniffer(std::make_unique<AdbLogger>(device->host_port, device->guest_port));
+}
 
 // QEMU device configuration logic
 static void adb_vsock_connected(VSockFwdDev* device) {
@@ -66,6 +75,10 @@ static void adb_vsock_realize(DeviceState* dev, Error** errp) {
         LOG(WARNING) << "The ADBD guest port is usually 5555, not " << vsock_fwd_dev->guest_port;
     }
     vsock_fwd_dev->on_connect = adb_vsock_connected;
+
+    if (VLOG_IS_ON(1)) {
+        vsock_fwd_dev->on_accept = adb_vsock_accept;
+    }
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);

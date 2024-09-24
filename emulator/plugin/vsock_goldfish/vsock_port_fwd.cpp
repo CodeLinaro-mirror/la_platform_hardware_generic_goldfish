@@ -106,9 +106,13 @@ class HostToGuestConnection : public IPlug {
         }
     }
 
-    static void connectToGuest(std::shared_ptr<HostToGuestConnection> connection) {
+    static void connectToGuest(std::shared_ptr<HostToGuestConnection> connection,
+                               VSockFwdDev* device) {
         VLOG(VLOG_DBG) << "Connecting to guest over vsock on port: " << connection->mGuestPort;
         connection->mGuestSocket = goldfish::vsock::connect(connection->mGuestPort, connection);
+        if (device->on_accept) {
+            device->on_accept(device, connection->mGuestSocket.get());
+        }
     }
 
     void onConnect() override {
@@ -200,7 +204,7 @@ class VSockProxyImpl : public VSockProxy {
     bool acceptIncomingSocket(int fd) {
         VLOG(VLOG_DBG) << "Accepting connection from: " << mDevice->host_port << " with fd: " << fd;
         auto forward = std::make_shared<HostToGuestConnection>(fd, mDevice->guest_port);
-        HostToGuestConnection::connectToGuest(forward);
+        HostToGuestConnection::connectToGuest(forward, mDevice);
         mSocketServer->startListening();
         return true;
     }

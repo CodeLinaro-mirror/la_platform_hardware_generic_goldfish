@@ -1,0 +1,22 @@
+cc_library(
+    name = "logger",
+    srcs = ["src/android/emulation/control/adb/AdbMesageLogger.cpp"],
+    hdrs = ["include/android/emulation/control/adb/AdbMessageLogger.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "logger_unitests",
+    srcs = glob(["test/*_unittest.cpp"]),
+    deps = [
+        ":logger",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
