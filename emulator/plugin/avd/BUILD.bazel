@@ -42,6 +42,7 @@ cc_library(
 cc_library(
     name = "avd_impl",
     srcs = [
+        "src/android/goldfish/adb-device.cpp",
         "src/android/goldfish/avd-info.cpp",
     ],
     copts = ["-Wno-extern-c-compat"],
@@ -57,7 +58,9 @@ cc_library(
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/threads",
+        "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:globals",

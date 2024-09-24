@@ -30,8 +30,7 @@
 #include "qemu/atomic.hpp"
 
 extern "C" {
-#include "qemu/osdep.h"
-#include "hw/qdev-core.h"
+#include "goldfish/vsock/vsock_port_fwd.h"
 #include "qom/object.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
@@ -165,34 +164,31 @@ class HostToGuestConnection : public IPlug {
  * the guest is not yet up. We expect those who connect to the port to be able with
  * the potential delays this can cause.
  */
-class VSockProxy {
+class VSockProxyImpl : public VSockProxy {
   public:
-    /**
-     * @brief Constructs a VSockProxy object.
-     *
-     * @param guestPort The vsock port on the guest to forward to.
-     * @param hostPort The TCP port on the host to listen on.
-     */
-    VSockProxy(int guestPort, int hostPort) : mGuestPort(guestPort), mHostPort(hostPort) {
+    VSockProxyImpl(VSockFwdDev* device) : mDevice(device) {
         using namespace std::chrono_literals;
         // The server socket will be created once the guest port is reachable.
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
                 android::goldfish::qemuLooper(),
-                [&](auto plug) { return goldfish::vsock::connect(mGuestPort, plug); },
+                [&](auto plug) { return goldfish::vsock::connect(mDevice->guest_port, plug); },
                 [&](SocketPtr sock) { startServer(); }, 100ms);
     }
 
   private:
     void startServer() {
         mSocketServer = AsyncSocketServer::createTcpLoopbackServer(
-                mHostPort, [this](int fd) { return acceptIncomingSocket(fd); },
+                mDevice->host_port, [this](int fd) { return acceptIncomingSocket(fd); },
                 AsyncSocketServer::LoopbackMode::kIPv4AndIPv6, android::goldfish::qemuLooper());
         if (!mSocketServer) {
-            LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mGuestPort
-                       << " to the host: " << mHostPort
+            LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
+                       << " to the host: " << mDevice->host_port
                        << " could not be created, error code: " << errno;
         }
         mSocketServer->startListening();
+        if (mDevice->on_connect) {
+            mDevice->on_connect(mDevice);
+        }
     }
 
     /**
@@ -202,17 +198,16 @@ class VSockProxy {
      * @return True if the socket was accepted successfully, false otherwise.
      */
     bool acceptIncomingSocket(int fd) {
-        VLOG(VLOG_DBG) << "Accepting connection from: " << mHostPort << " with fd: " << fd;
-        auto forward = std::make_shared<HostToGuestConnection>(fd, mGuestPort);
+        VLOG(VLOG_DBG) << "Accepting connection from: " << mDevice->host_port << " with fd: " << fd;
+        auto forward = std::make_shared<HostToGuestConnection>(fd, mDevice->guest_port);
         HostToGuestConnection::connectToGuest(forward);
         mSocketServer->startListening();
         return true;
     }
 
-    /// The vsock port on the guest to forward to.
-    int mGuestPort;
-    /// The TCP port on the host to listen on.
-    int mHostPort;
+    /// The vsock device definition
+    VSockFwdDev* mDevice;
+
     /// The AsyncSocketServer used to listen for incoming connections.
     std::unique_ptr<AsyncSocketServer> mSocketServer;
     /// Waiter that waits until the guest is connected.
@@ -222,21 +217,9 @@ class VSockProxy {
 
 // QEMU device configuration logic
 
-struct VSockFwdDev {
-    DeviceClass parent_class;
-    int host_port;
-    int guest_port;
-    VSockProxy* forwarder;
-};
-
-#define TYPE_VSOCK_FWD "virtio-goldfish-hostfwd-socket"
-#define VSOCK_FWD_DEV(obj) OBJECT_CHECK(VSockFwdDev, (obj), TYPE_VSOCK_FWD)
-#define VSOCK_FWD_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(VSockFwdDev, obj, TYPE_VSOCK_FWD)
-
 static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(dev);
-    vsock_fwd_device->forwarder =
-            new VSockProxy(vsock_fwd_device->guest_port, vsock_fwd_device->host_port);
+    vsock_fwd_device->forwarder = new VSockProxyImpl(vsock_fwd_device);
 
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (host:guest) " << vsock_fwd_device->host_port
                    << ":" << vsock_fwd_device->guest_port;

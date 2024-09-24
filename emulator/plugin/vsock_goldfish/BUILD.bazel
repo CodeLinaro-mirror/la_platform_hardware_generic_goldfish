@@ -4,6 +4,7 @@ cc_library(
         "include/goldfish/vsock/connect.h",
         "include/goldfish/vsock/listen.h",
         "include/goldfish/vsock/snapshot.h",
+        "include/goldfish/vsock/vsock_port_fwd.h",
     ],
     includes = ["include"],
     visibility = [
@@ -31,6 +32,7 @@ cc_library(
         ":goldfish_vsock_hdrs",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/devices:cable",
