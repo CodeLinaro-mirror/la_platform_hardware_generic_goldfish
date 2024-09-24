@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include <memory>
 #include <mutex>
 #include <string_view>
@@ -20,6 +19,7 @@
 
 #include "aemu/base/async/AsyncSocket.h"
 #include "aemu/base/async/AsyncSocketServer.h"
+#include "aemu/base/sockets/ScopedSocket.h"
 #include "android/goldfish/qemu-looper.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/vsock/connect.h"
@@ -62,7 +62,7 @@ namespace {
 class HostToGuestConnection : public IPlug {
   public:
     HostToGuestConnection(int fd, int guestPort)
-        : mAsyncSocket(android::goldfish::qemuLooper(), fd),
+        : mAsyncSocket(android::goldfish::qemuLooper(), android::base::ScopedSocket(fd)),
           mHostSocket(
                   &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
                   [this]() { closeHost(); }),
