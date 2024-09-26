@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/emulation/control/utils/EventSupport.h"
-#include "hardware/generic/goldfish/emulator/android-grpc/event-waiter/include/android/emulation/control/utils/EventSupport.h"
+#include "android/emulation/control/utils/GrpcEventStreamSupport.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.pb.h"
 
 namespace android {

@@ -11,7 +11,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
-        "//hardware/generic/goldfish/emulator/android-grpc/event-waiter",
+        "//hardware/generic/goldfish/emulator/android-grpc/event-stream",
         "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
         "//hardware/google/aemu/base:aemu-base",
     ],

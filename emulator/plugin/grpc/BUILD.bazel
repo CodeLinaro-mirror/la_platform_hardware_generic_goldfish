@@ -27,7 +27,7 @@ cc_library(
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
-        "//hardware/generic/goldfish/emulator/android-grpc/event-waiter",
+        "//hardware/generic/goldfish/emulator/android-grpc/event-stream",
         "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "@com_google_absl//absl/strings",
