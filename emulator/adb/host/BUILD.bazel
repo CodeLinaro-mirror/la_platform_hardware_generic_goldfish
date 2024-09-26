@@ -1,26 +1,27 @@
 cc_library(
-    name = "secrets",
-    srcs = ["src/android/emulation/control/adb/adbkey.cpp"],
-    hdrs = ["include/android/emulation/control/adb/adbkey.h"],
+    name = "host",
+    srcs = ["src/AdbHostServer.cpp"],
+    hdrs = ["include/android/emulation/control/adb/AdbHostServer.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config",
         "//hardware/google/aemu/base:aemu-base",
-        "@boringssl//:ssl",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
 
 cc_test(
-    name = "secrets_unitests",
-    srcs = ["test/adbkey_unittest.cpp"],
+    name = "host_unitests",
+    srcs = ["test/AdbHostServer_unittest.cpp"],
     deps = [
-        ":secrets",
+        ":host",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/google/aemu:aemu-host-common-test-headers",
+        "//hardware/google/aemu/base:aemu-base",
         "@com_google_googletest//:gtest_main",
     ],
 )
