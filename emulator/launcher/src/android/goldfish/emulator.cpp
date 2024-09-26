@@ -86,26 +86,30 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
     mDevices.emplace_back(std::make_unique<AudioDevice>("09.0"));
     mDevices.emplace_back(std::make_unique<GrpcDevice>());
 
-    auto simple_parameters =
-            std::vector<std::string>{"-serial", "stdio", "-nodefaults", "-no-reboot",
-                                     // Debug monitor
-                                     "-monitor", "telnet::45454,server,nowait",
-                                     // our virtio-vsock
-                                     "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
-                                     // // TODO(jansene): host_port should be dynamic..
-                                     "-device", "virtio-goldfish-adb,host_port=5555",
-                                     // Keyboard
-                                     "-device", "virtio-keyboard-pci",
-                                     // Series of simple devices that don't need configuring
-                                     "-device", "virtio-serial-pci,ioeventfd=off",
-                                     // Hardware RNG device
-                                     "-device", "virtio-rng-pci",
-                                     // // virtio logcat consoles, note that order matters here!
-                                     "-device", "virtconsole,chardev=forhvc0",
-                                     //
-                                     "-device", "virtconsole,chardev=forhvc1",
-                                     //
-                                     "-chardev", "null,id=forhvc0"};
+    auto simple_parameters = std::vector<std::string>{
+            "-serial",
+            "stdio",
+            "-nodefaults",
+            "-no-reboot",
+            // Debug monitor
+            "-monitor",
+            "telnet::45454,server,nowait",
+            // our virtio-vsock
+            "-device",
+            "virtio-goldfish-vsock-pci,guest-cid=3",
+            // // TODO(jansene): host_port should be dynamic..
+            "-device",
+            "virtio-goldfish-adb,host_port=5555",
+            // Keyboard
+            "-device",
+            "virtio-keyboard-pci",
+            // Series of simple devices that don't need configuring
+            "-device",
+            "virtio-serial-pci,ioeventfd=off",
+            // Hardware RNG device
+            "-device",
+            "virtio-rng-pci",
+    };
 
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.

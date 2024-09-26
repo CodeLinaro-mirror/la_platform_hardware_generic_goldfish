@@ -41,7 +41,7 @@ ABSL_FLAG(bool, verbose, false, "Verbose");
 ABSL_FLAG(std::string, vnc, "",
           "vnc configuration to use, if any. These will be passed to QEMU as "
           "-display vnc=<...>");
-ABSL_FLAG(std::string, logcat, "/dev/stdout", "Location to write logcat to");
+ABSL_FLAG(std::string, logcat, "", "Location to write logcat to");
 ABSL_FLAG(std::string, vmodule, "",
           "per-module log verbosity level."
           " Argument is a comma-separated list of <module name>=<log level>."
@@ -100,9 +100,13 @@ int main(int argc, char** argv) {
     }
 
     if (!absl::GetFlag(FLAGS_logcat).empty()) {
-        additionalParams.push_back("-chardev");
-        additionalParams.push_back(
-                absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat)));
+        // virtio logcat consoles, note that order matters here!
+        additionalParams.insert(
+                additionalParams.end(),
+                {"-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
+                 // Actual logcat location.
+                 "-device", "virtconsole,chardev=forhvc1", "-chardev",
+                 absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat))});
     }
 
     Emulator emulator{std::move(avd.value()), static_cast<int>(logLevel),
