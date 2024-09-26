@@ -37,6 +37,7 @@ extern "C" {
 namespace {
 using goldfish::archive::IReader;
 using goldfish::archive::IWriter;
+using goldfish::devices::cable::IDataSniffer;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugOrSocket;
 using goldfish::devices::cable::PlugPtr;
@@ -149,6 +150,7 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
 
     GoldfishVirtioVsockDevice& vsockDev;
     PlugPtr plug;
+    std::unique_ptr<IDataSniffer> dataSniffer;
     SocketBuffer hostToGuestBuf;
     const uint32_t guestPort;
     const uint32_t hostPort;
@@ -165,6 +167,10 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     PlugPtr switchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
+    }
+
+    void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
+        dataSniffer = std::move(sniffer);
     }
 
     void sendOp(enum virtio_vsock_op op) {
@@ -243,6 +249,10 @@ struct GoldfishVirtioVsockDevice {
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         if (stream.isConnected) {
+            if (stream.dataSniffer) {
+                stream.dataSniffer->toSocket(data, size);
+            }
+
             stream.hostToGuestBuf.append(data, size);
             sendPacketsAndNotifyLocked();
         }
@@ -462,13 +472,19 @@ struct GoldfishVirtioVsockDevice {
     int onPacketReceiveRw(void* streamPtr, const void* data, const size_t size) {
         VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
 
-        if (stream.isConnected && NOT_NULL(stream.plug)->onReceive(data, size)) {
-            stream.hostFwdCnt += size;
-            stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
-            return 0;
-        } else {
-            return 1;
+        if (stream.isConnected) {
+            if (stream.dataSniffer) {
+                stream.dataSniffer->toPlug(data, size);
+            }
+
+            if (NOT_NULL(stream.plug)->onReceive(data, size)) {
+                stream.hostFwdCnt += size;
+                stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
+                return 0;
+            }
         }
+
+        return 1;
     }
 
     void onPacketReceiveRwEnd(void* streamPtr, const int eraseStream) {
@@ -612,6 +628,8 @@ struct GoldfishVirtioVsockDevice {
             const bool supportsLoading = plug.supportsLoadingFromSnapshot();
             writer << supportsLoading;
             if (supportsLoading) {
+                assert(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
+
                 const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
 
                 writer << stream.guestBufAlloc << stream.guestFwdCnt << stream.hostSentCnt << flags;
