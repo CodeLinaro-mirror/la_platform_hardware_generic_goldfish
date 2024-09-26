@@ -24,6 +24,12 @@ namespace goldfish {
 namespace devices {
 namespace cable {
 
+struct IDataSniffer {
+    virtual ~IDataSniffer() = default;
+    virtual void toSocket(const void* data, size_t dataSize) = 0;
+    virtual void toPlug(const void* data, size_t dataSize) = 0;
+};
+
 struct IPlug;  // see the definition below
 using PlugPtr = std::shared_ptr<IPlug>;
 
@@ -69,6 +75,8 @@ struct ISocket {
         socket.release();  // `~ISocket` was called in `unplugImpl`
         return plug;
     }
+
+    virtual void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) {}
 
   protected:
     /* `unplugImpl` destroys the `ISocket` instance in the
