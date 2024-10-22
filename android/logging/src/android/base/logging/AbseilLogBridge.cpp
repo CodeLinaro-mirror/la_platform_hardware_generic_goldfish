@@ -17,6 +17,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include "absl/base/log_severity.h"
 #include "absl/log/log.h"
