@@ -38,7 +38,81 @@ void writeToFile(fs::path path, std::string text) {
     iniFile.close();
 }
 
-TEST(AvdUtil, path_getAvdSystemPath) {
+void createTestAvd(TestSystem& sys, TestTempDir* tmp, const std::string& targetString) {
+    std::string sdkRoot = pj(tmp->pathString(), "android_home");
+    std::string avdConfig = pj(pj(sdkRoot, "avd"), "config.ini");
+    sys.envSet("ANDROID_AVD_HOME", sdkRoot);
+
+    // Create an ini file for the test AVD
+    writeToFile(pj(sdkRoot, "test_avd.ini"), std::string("path=") + pj(sdkRoot, "avd").string());
+
+    // Set the 'target' property in the config.ini file
+    writeToFile(avdConfig, "target=" + targetString);
+}
+
+TEST(Avd, apiLevel) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    tmp->makeSubDir("android_home");
+    tmp->makeSubDir(pj("android_home", "avd"));
+
+    createTestAvd(sys, tmp, "android-30");
+
+    auto avdResult = Avd::fromName("test_avd");
+    ASSERT_TRUE(avdResult.ok());
+    Avd avd = std::move(avdResult.value());
+
+    EXPECT_EQ(avd.apiLevel(), 30);
+}
+
+TEST(Avd, dessert) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    tmp->makeSubDir("android_home");
+    tmp->makeSubDir(pj("android_home", "avd"));
+
+    createTestAvd(sys, tmp, "android-30");
+
+    auto avdResult = Avd::fromName("test_avd");
+    ASSERT_TRUE(avdResult.ok());
+    Avd avd = std::move(avdResult.value());
+
+    EXPECT_EQ(avd.dessert(), "R");
+}
+
+TEST(Avd, unknownApiLevel) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    tmp->makeSubDir("android_home");
+    tmp->makeSubDir(pj("android_home", "avd"));
+
+    createTestAvd(sys, tmp, "android-1");  // API level 1 doesn't have a dessert name
+
+    auto avdResult = Avd::fromName("test_avd");
+    ASSERT_TRUE(avdResult.ok());
+    Avd avd = std::move(avdResult.value());
+
+    EXPECT_EQ(avd.apiLevel(), 3);  // Should default to API level 3
+    EXPECT_EQ(avd.dessert(), "");  // No dessert name for API level 1
+}
+
+TEST(Avd, invalidTargetFormat) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    tmp->makeSubDir("android_home");
+    tmp->makeSubDir(pj("android_home", "avd"));
+
+    createTestAvd(sys, tmp, "invalid-target-format");
+
+    auto avdResult = Avd::fromName("test_avd");
+    ASSERT_TRUE(avdResult.ok());
+    Avd avd = std::move(avdResult.value());
+
+    EXPECT_EQ(avd.apiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
+    EXPECT_EQ(avd.dessert(), "");                      // No dessert name for invalid API level
+}
+
+TEST(Avd, path_getAvdSystemPath) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.getTempRoot();
     tmp->makeSubDir("android_home");

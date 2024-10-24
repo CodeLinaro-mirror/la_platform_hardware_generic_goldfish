@@ -168,6 +168,43 @@ class Avd {
     bool playstore() const { return false; }
 
     /**
+     * @brief Retrieves the API level of the AVD.
+     *
+     * This method extracts the API level from the `target` property in the AVD's
+     * configuration file. The `target` property can have two formats:
+     *  *  `android-<level>`
+     *  *  `<vendor-name>:<add-on-name>:<level>`
+     *
+     * The `<level>` can be a decimal number or a code name
+     * (e.g., "Tiramisu").
+     *
+     * @return The API level as an integer. Returns `kUnknownApiLevel` if the
+     *         API level cannot be determined.
+     */
+    int apiLevel() const;
+
+    /**
+     * @brief Retrieves the dessert name associated with the AVD's API level.
+     *
+     * This method returns the dessert name (e.g., "Tiramisu") corresponding to the
+     * AVD's API level.
+     *
+     * @return The dessert name as a string, or an empty string if the API level
+     *         does not have a corresponding dessert name.
+     */
+    std::string dessert() const;
+
+    /**
+     * @brief Retrieves a descriptive string for the AVD's API level.
+     *
+     * This method returns a string that describes the API level, including the
+     * version number, code name (if applicable), and potentially other relevant
+     * information.
+     *
+     * @return The API description string.
+     */
+    std::string apiDescription() const;
+    /**
      * @brief Lists the names of available Android Virtual Devices (AVDs).
      *
      * This method scans the standard location where AVDs are stored, looking for
@@ -216,6 +253,8 @@ class Avd {
     };
 
     static absl::StatusOr<Avd> parse(fs::path ini_file);
+
+    static constexpr int kUnknownApiLevel = 1000;
 
   private:
     Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
