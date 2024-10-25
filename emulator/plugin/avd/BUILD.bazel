@@ -1,11 +1,15 @@
 cc_library(
     name = "avd_hdrs",
     hdrs = [
+        "include/android/goldfish/avd-finalize.h",
         "include/android/goldfish/avd-info.h",
     ],
     includes = ["include"],
     visibility = [
         "//visibility:public",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/devices:connector_registry",
     ],
 )
 
@@ -44,6 +48,7 @@ cc_library(
     name = "avd_impl",
     srcs = [
         "src/android/goldfish/adb-device.cpp",
+        "src/android/goldfish/avd-finalize.cpp",
         "src/android/goldfish/avd-info.cpp",
     ],
     copts = ["-Wno-extern-c-compat"],
@@ -61,6 +66,7 @@ cc_library(
         "//hardware/generic/goldfish/android/threads",
         "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -81,6 +87,7 @@ cc_binary(
            select({
                "@platforms//os:windows": [
                    "//external/qemu:qemu-system-x86_64.if",
+                   "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-impl-x86_64",
                ],
                "//conditions:default": [],
            }),

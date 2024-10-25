@@ -77,7 +77,7 @@ static QemuDisplayTransformer gDisplayTransformer{};
 static pixman_image_t* g_image;
 
 bool initialize(GrpcDeviceConfiguration* device) {
-    auto avd = get_avd();
+    auto avd = android::goldfish::avd_info::get_avd();
 
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{

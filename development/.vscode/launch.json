@@ -89,7 +89,7 @@
             // binary. If you want to debug BUILD target
             // `//path/to:my_test`, the path to your binary will be
             // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin//hardware/generic/goldfish/android/logging/backend_unittests",
+            "program": "${workspaceFolder}/bazel-bin//hardware/generic/goldfish/emulator/devices/devices_unittests",
             // Set any program arguments here.
             "args": [
                 "--gtest_filter=*",

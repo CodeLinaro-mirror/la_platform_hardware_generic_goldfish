@@ -43,12 +43,19 @@ extern "C" {
 using android::goldfish::Avd;
 static std::unique_ptr<Avd> gAvd;
 
+namespace android::goldfish::avd_info {
 android::goldfish::Avd* get_avd() {
     if (gAvd) {
         return gAvd.get();
     }
     return nullptr;
 }
+
+using ::goldfish::devices::ConnectorRegistry;
+ConnectorRegistry& deviceRegistry() {
+    return ConnectorRegistry::defaultRegistry();
+}
+}  // namespace android::goldfish::avd_info
 
 static void UpdateVModule(const std::string& vmodule) {
     std::vector<std::pair<std::string_view, int>> glob_levels;
