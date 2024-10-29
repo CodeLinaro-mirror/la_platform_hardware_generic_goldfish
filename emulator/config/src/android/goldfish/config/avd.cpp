@@ -15,17 +15,25 @@
 
 #include <android/goldfish/config/hardware_config.h>
 
+#include <cctype>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <regex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 
 #include "aemu/base/files/IniFile.h"
 #include "android/base/system/System.h"
@@ -75,6 +83,118 @@ static const std::string_view _imageFileNames[static_cast<int>(Avd::ImageType::A
 #undef _AVD_IMG
 };
 
+struct ApiLevelInfo {
+    std::string_view dessertName;
+    std::string_view fullName;
+};
+
+const absl::flat_hash_map<int, ApiLevelInfo> kApiLevelInfo = {
+        {10, {"Gingerbread", "2.3.3 (Gingerbread) - API 10 (Rev 2)"}},
+        {14, {"Ice Cream Sandwich", "4.0 (Ice Cream Sandwich) - API 14 (Rev 4)"}},
+        {15, {"Ice Cream Sandwich", "4.0.3 (Ice Cream Sandwich) - API 15 (Rev 5)"}},
+        {16, {"Jelly Bean", "4.1 (Jelly Bean) - API 16 (Rev 5)"}},
+        {17, {"Jelly Bean", "4.2 (Jelly Bean) - API 17 (Rev 3)"}},
+        {18, {"Jelly Bean", "4.3 (Jelly Bean) - API 18 (Rev 3)"}},
+        {19, {"KitKat", "4.4 (KitKat) - API 19 (Rev 4)"}},
+        {20, {"KitKat", "4.4 (KitKat Wear) - API 20 (Rev 2)"}},
+        {21, {"Lollipop", "5.0 (Lollipop) - API 21 (Rev 2)"}},
+        {22, {"Lollipop", "5.1 (Lollipop) - API 22 (Rev 2)"}},
+        {23, {"Marshmallow", "6.0 (Marshmallow) - API 23 (Rev 1)"}},
+        {24, {"Nougat", "7.0 (Nougat) - API 24"}},
+        {25, {"Nougat", "7.1 (Nougat) - API 25"}},
+        {26, {"Oreo", "8.0 (Oreo) - API 26"}},
+        {27, {"Oreo", "8.1 (Oreo) - API 27"}},
+        {28, {"Pie", "9.0 (Pie) - API 28"}},
+        {29, {"Q", "10.0 (Q) - API 29"}},
+        {30, {"R", "11.0 (R) - API 30"}},
+        {31, {"S", "12.0 (S) - API 31"}},
+        {32, {"Sv2", "12.0 (S) - API 32"}},
+        {33, {"Tiramisu", "13.0 (T) - API 33"}},
+        {34, {"UpsideDownCake", "14.0 (U) - API 34"}},
+        {35, {"VanillaIceCream", "15.0 (V) - API 35"}},
+};
+
+std::string_view getApiDessertName(int apiLevel) {
+    auto it = kApiLevelInfo.find(apiLevel);
+    if (it != kApiLevelInfo.end()) {
+        return it->second.dessertName;
+    }
+    return "";
+}
+
+std::string getFullApiName(int apiLevel) {
+    if (apiLevel < 0 || apiLevel > 99) {
+        return "Unknown API version";
+    }
+
+    auto it = kApiLevelInfo.find(apiLevel);
+    if (it != kApiLevelInfo.end()) {
+        return std::string(it->second.fullName);
+    } else {
+        return absl::StrFormat("API %d", apiLevel);
+    }
+}
+
+int getApiLevelFromDessertName(std::string_view dessertName) {
+    for (const auto& [apiLevel, info] : kApiLevelInfo) {
+        if (info.dessertName == dessertName) {
+            return apiLevel;
+        }
+    }
+    return Avd::kUnknownApiLevel;
+}
+
+int getApiLevelFromLetter(char letter) {
+    char letterUpper = absl::ascii_toupper(letter);
+    for (const auto& [apiLevel, info] : kApiLevelInfo) {
+        if (absl::ascii_toupper(info.dessertName[0]) == letterUpper) {
+            return apiLevel;
+        }
+    }
+    return Avd::kUnknownApiLevel;
+}
+
+int getApiLevel(std::string_view target) {
+    int level = Avd::kUnknownApiLevel;
+
+    if (target.empty()) {
+        // Use your preferred logging method here.
+        return level;
+    }
+
+    std::string_view levelStr;
+    if (absl::StartsWith(target, "android-")) {
+        levelStr = target.substr(8);
+    } else {
+        std::vector<std::string_view> parts = absl::StrSplit(target, ':');
+        if (parts.size() == 3) {
+            levelStr = parts[2];
+        }
+    }
+
+    if (levelStr.empty() || !absl::ascii_isdigit(levelStr[0])) {
+        if (!levelStr.empty() && absl::ascii_isalpha(levelStr[0])) {
+            if (levelStr.size() == 1) {
+                level = getApiLevelFromLetter(levelStr[0]);
+            } else {
+                level = getApiLevelFromDessertName(levelStr);
+            }
+        } else {
+            // Use your preferred error handling here.
+            return Avd::kUnknownApiLevel;
+        }
+    } else {
+        if (!absl::SimpleAtoi(levelStr, &level)) {
+            // Handle the error (e.g., log, return default value)
+            return Avd::kUnknownApiLevel;
+        }
+
+        level = std::max(level, 3);
+    }
+
+    return level;
+}
+
 static std::string getIconForDeviceType(DeviceType flavor) {
     switch (flavor) {
         case DeviceType::kPhone:
@@ -105,11 +225,23 @@ Avd::CpuArchitecture Avd::detectArchitecture() const {
     return CpuArchitecture::kUnknown;
 }
 
+int Avd::apiLevel() const {
+    return getApiLevel(mConfig->getString("target", ""));
+}
+
+std::string Avd::dessert() const {
+    return std::string(getApiDessertName(apiLevel()));
+}
+
+std::string Avd::apiDescription() const {
+    return getFullApiName(apiLevel());
+}
+
 Avd::Avd(Avd&& other) noexcept
-    : mContentPath(std::move(other.mContentPath)),
+    : mName(std::move(other.mName)),
+      mContentPath(std::move(other.mContentPath)),
       mTarget(std::move(other.mTarget)),
       mConfig(std::move(other.mConfig)),
-      mName(std::move(other.mName)),
       mHwCfg(std::move(other.mHwCfg)) {}
 
 bool Avd::hasEncryptionKey() const {
