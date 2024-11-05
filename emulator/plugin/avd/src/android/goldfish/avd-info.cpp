@@ -29,6 +29,8 @@
 #include "absl/strings/string_view.h"
 
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/qemu-looper.h"
+#include "android/physics/SensorDevice.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -41,6 +43,9 @@ extern "C" {
 // clang-format on
 
 using android::goldfish::Avd;
+using goldfish::devices::PingTopic;
+using goldfish::devices::cable::SocketPtr;
+
 static std::unique_ptr<Avd> gAvd;
 
 namespace android::goldfish::avd_info {
@@ -93,6 +98,13 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     VLOG(1) << "Device configuration, avd_info: " << *avd_info;
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::make_unique<Avd>(std::move(status.value()));
+
+    android::goldfish::avd_info::deviceRegistry().registerQemuDevice(
+            "sensors", [&](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                           std::string_view args) {
+                return goldfish::devices::sensor::ISensorDevice::create(
+                        std::move(socket), gAvd.get(), android::goldfish::qemuLooper());
+            });
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

@@ -17,9 +17,11 @@
             "args": [
                 "--avd",
                 "V",
-                // "--vmodule", // Enable VLOG for
-                // "*=1",       // Files matching
-                "--verbose"
+                "   ", // Enable VLOG for
+                "SensorDevice*=1",       // Files matching
+                "--verbose",
+                "--logcat",
+                "/dev/stdout"
             ],
             // Set any environment values here, not you would likely want to keep at least these
             "env": [

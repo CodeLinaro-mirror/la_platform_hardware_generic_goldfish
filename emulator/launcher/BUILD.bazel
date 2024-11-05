@@ -120,6 +120,7 @@ cc_binary(
     srcs = ["src/android/goldfish/launcher.cpp"],
     data = [
         ":plugins",
+        "//external/qemu:qemu-img",
         "//external/qemu:qemu-keymaps",
         "//external/qemu:qemu-roms",
         "//external/qemu:qemu-system-aarch64",
