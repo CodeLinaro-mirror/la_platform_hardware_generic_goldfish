@@ -64,11 +64,12 @@ namespace {
 class HostToGuestConnection : public IPlug {
   public:
     HostToGuestConnection(int fd, int guestPort)
-        : mAsyncSocket(android::goldfish::qemuLooper(), android::base::ScopedSocket(fd)),
+        : mLooper(android::goldfish::qemuLooper()),
+          mAsyncSocket(mLooper, android::base::ScopedSocket(fd)),
+          mGuestPort(guestPort),
           mHostSocket(
                   &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
-                  [this]() { closeHost(); }),
-          mGuestPort(guestPort) {}
+                  [this]() { closeHost(); }) {}
 
     ~HostToGuestConnection() {
         VLOG(VLOG_DBG) << "Connection to " << mGuestPort << " is finalized.";
@@ -96,8 +97,9 @@ class HostToGuestConnection : public IPlug {
         std::lock_guard<std::recursive_mutex> lock(mClosing);
 
         // Make sure we clean up any outstanding events.
-        mHostSocket.dispose();
         if (!mDisposing) {
+            mLooper->registerQemuThread();
+            mHostSocket.dispose();
             mDisposing = true;
             VLOG(VLOG_DBG) << "The host is closing the connection, unplugging.";
             ISocket::unplug(std::move(mGuestSocket));
@@ -134,6 +136,7 @@ class HostToGuestConnection : public IPlug {
         static int total = 0;
         VLOG(VLOG_TRACE) << "Forwarding from guest (" << mGuestPort << "): " << size
                          << ", total: " << (total += size);
+        mLooper->registerQemuThread();
         return mHostSocket.send((char*)data, size) == size;
     }
 
@@ -142,15 +145,17 @@ class HostToGuestConnection : public IPlug {
         VLOG(VLOG_DBG) << "The guest has unplugged, closing socket.";
         if (!mDisposing) {
             mDisposing = true;
+            mLooper->registerQemuThread();
             mHostSocket.dispose();
         }
         return std::move(mGuestSocket);
     }
 
   private:
-    int mGuestPort;
     bool mDisposing{false};
+    int mGuestPort;
     std::recursive_mutex mClosing;
+    android::goldfish::QemuLooper* mLooper;
     SocketPtr mGuestSocket;
     AsyncSocket mAsyncSocket;
     SimpleAsyncSocket mHostSocket;

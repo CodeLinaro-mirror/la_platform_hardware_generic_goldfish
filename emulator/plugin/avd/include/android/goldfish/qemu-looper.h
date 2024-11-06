@@ -13,6 +13,13 @@
 namespace android {
 namespace goldfish {
 
+class QemuLooper : public android::base::Looper {
+  public:
+    virtual ~QemuLooper() = default;
+    // Registers the current thread as a qemu thread.
+    virtual void registerQemuThread() = 0;
+};
+
 // An implementation of android::base::Looper on top of the QEMU main
 // event loop. There are few important things here:
 //
@@ -22,6 +29,6 @@ namespace goldfish {
 //  2/ It is not possible to call the runWithDeadlineMs() method, since
 //     the event loop is started in the application's main thread by
 //     the executable.
-android::base::Looper* qemuLooper();
+QemuLooper* qemuLooper();
 }  // namespace goldfish
 }  // namespace android

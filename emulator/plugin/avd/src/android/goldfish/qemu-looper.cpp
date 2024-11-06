@@ -8,6 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "android/goldfish/qemu-looper.h"
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
@@ -49,13 +51,14 @@ static Notifier sLooperShutdown = {
                 },
         .node = {}};
 
-namespace {
 // extern "C" void qemu_system_shutdown_request(QemuShutdownCause reason);
 
 using android::base::System;
 using BaseLooper = ::android::base::Looper;
 using BaseTimer = ::android::base::Looper::Timer;
 using BaseFdWatch = ::android::base::Looper::FdWatch;
+
+namespace {
 
 // An implementation of android::base::Looper on top of the QEMU main
 // event loop. There are few important things here:
@@ -73,17 +76,21 @@ using BaseFdWatch = ::android::base::Looper::FdWatch;
 // FdWatch instances, see the comment in the declaration of FdWatch
 // below to understand why.
 //
-class QemuLooper : public BaseLooper {
+class QemuLooperImpl : public QemuLooper {
   public:
-    QemuLooper() : mQemuBh(qemu_bh_new(handleBottomHalf, this)) {
+    static thread_local bool sIsQemuThread;
+
+    QemuLooperImpl() : mQemuBh(qemu_bh_new(handleBottomHalf, this)) {
         qemu_register_shutdown_notifier(&sLooperShutdown);
     }
 
-    virtual ~QemuLooper() { DCHECK(mPendingFdWatches.empty()); }
+    virtual ~QemuLooperImpl() { DCHECK(mPendingFdWatches.empty()); }
 
     std::string_view name() const override { return "QEMU main loop"; }
 
-    bool onLooperThread() const override { return qemu_in_coroutine(); }
+    void registerQemuThread() override { sIsQemuThread = true; };
+
+    bool onLooperThread() const override { return sIsQemuThread; }
 
     static QEMUClockType toQemuClockType(ClockType clock) {
         static_assert((int)QEMU_CLOCK_HOST == (int)BaseLooper::ClockType::kHost &&
@@ -106,7 +113,7 @@ class QemuLooper : public BaseLooper {
 
     class FdWatch : public BaseFdWatch {
       public:
-        FdWatch(QemuLooper* looper, int fd, BaseFdWatch::Callback callback, void* opaque)
+        FdWatch(QemuLooperImpl* looper, int fd, BaseFdWatch::Callback callback, void* opaque)
             : BaseFdWatch(looper, fd, callback, opaque) {}
 
         virtual ~FdWatch() {
@@ -148,14 +155,14 @@ class QemuLooper : public BaseLooper {
 
         void setPending(unsigned event) {
             if (!mPendingEvents) {
-                asQemuLooper(mLooper)->addPendingFdWatch(this);
+                asQemuLooperImpl(mLooper)->addPendingFdWatch(this);
             }
             mPendingEvents |= event;
         }
 
         void clearPending() {
             if (mPendingEvents) {
-                asQemuLooper(mLooper)->delPendingFdWatch(this);
+                asQemuLooperImpl(mLooper)->delPendingFdWatch(this);
                 mPendingEvents = 0;
             }
         }
@@ -187,9 +194,9 @@ class QemuLooper : public BaseLooper {
     //
     class Timer : public BaseTimer {
       public:
-        Timer(QemuLooper* looper, BaseTimer::Callback callback, void* opaque, ClockType clock)
+        Timer(QemuLooperImpl* looper, BaseTimer::Callback callback, void* opaque, ClockType clock)
             : BaseTimer(looper, callback, opaque, clock) {
-            mTimer = ::timer_new(QemuLooper::toQemuClockType(mClockType), SCALE_MS,
+            mTimer = ::timer_new(QemuLooperImpl::toQemuClockType(mClockType), SCALE_MS,
                                  qemuTimerCallbackAdapter, this);
         }
 
@@ -206,7 +213,7 @@ class QemuLooper : public BaseLooper {
             if (timeout_ms == kDurationInfinite) {
                 timer_del(mTimer);
             } else {
-                timeout_ms += qemu_clock_get_ms(QemuLooper::toQemuClockType(mClockType));
+                timeout_ms += qemu_clock_get_ms(QemuLooperImpl::toQemuClockType(mClockType));
                 timer_mod(mTimer, timeout_ms);
             }
         }
@@ -256,8 +263,8 @@ class QemuLooper : public BaseLooper {
     };
 
     virtual BaseTimer* createTimer(BaseTimer::Callback callback, void* opaque,
-                                   ClockType clock) override {
-        return new QemuLooper::Timer(this, callback, opaque, clock);
+                                   BaseLooper::ClockType clock) override {
+        return new QemuLooperImpl::Timer(this, callback, opaque, clock);
     }
 
     //
@@ -266,7 +273,7 @@ class QemuLooper : public BaseLooper {
 
     class Task : public BaseLooper::Task {
       public:
-        Task(Looper* looper, BaseLooper::Task::Callback&& callback)
+        Task(BaseLooper* looper, BaseLooper::Task::Callback&& callback)
             : BaseLooper::Task(looper, std::move(callback)),
               mBottomHalf(qemu_bh_new(&Task::handleBottomHalf, this)) {}
 
@@ -289,7 +296,7 @@ class QemuLooper : public BaseLooper {
 
     class SelfDeletingTask : public Task {
       public:
-        SelfDeletingTask(Looper* looper, BaseLooper::Task::Callback&& callback)
+        SelfDeletingTask(BaseLooper* looper, BaseLooper::Task::Callback&& callback)
             : Task(looper, std::move(callback)) {}
 
         void run() override {
@@ -298,7 +305,7 @@ class QemuLooper : public BaseLooper {
         }
     };
 
-    BaseLooper::TaskPtr createTask(TaskCallback&& callback) override {
+    BaseLooper::TaskPtr createTask(BaseLooper::TaskCallback&& callback) override {
         return BaseLooper::TaskPtr(new Task(this, std::move(callback)));
     }
 
@@ -337,8 +344,8 @@ class QemuLooper : public BaseLooper {
         void operator()(QEMUBH* x) const { qemu_bh_delete(x); }
     };
 
-    static inline QemuLooper* asQemuLooper(BaseLooper* looper) {
-        return reinterpret_cast<QemuLooper*>(looper);
+    static inline QemuLooperImpl* asQemuLooperImpl(BaseLooper* looper) {
+        return reinterpret_cast<QemuLooperImpl*>(looper);
     }
 
     void addPendingFdWatch(FdWatch* watch) {
@@ -361,7 +368,7 @@ class QemuLooper : public BaseLooper {
     // Called by QEMU as soon as the main loop has finished processed
     // I/O events. Used to look at pending watches and fire them.
     static void handleBottomHalf(void* opaque) {
-        QemuLooper* looper = reinterpret_cast<QemuLooper*>(opaque);
+        QemuLooperImpl* looper = reinterpret_cast<QemuLooperImpl*>(opaque);
         FdWatchSet& pendingFdWatches = looper->mPendingFdWatches;
         const auto end = pendingFdWatches.end();
         auto i = pendingFdWatches.begin();
@@ -376,10 +383,11 @@ class QemuLooper : public BaseLooper {
     FdWatchSet mPendingFdWatches;
 };
 
+thread_local bool QemuLooperImpl::sIsQemuThread = false;
 }  // namespace
 
-BaseLooper* qemuLooper() {
-    static QemuLooper looper;
+QemuLooper* qemuLooper() {
+    static QemuLooperImpl looper;
     return &looper;
 }
 

@@ -63,6 +63,7 @@ AsyncSocket::AsyncSocket(Looper* looper, ScopedSocket socket)
     socketSetNonBlocking(mSocket.get());
     mFdWatch = std::unique_ptr<Looper::FdWatch>(
             mLooper->createFdWatch(mSocket.get(), socket_watcher, this));
+    wantRead();
 }
 
 void AsyncSocket::wantRead() {
