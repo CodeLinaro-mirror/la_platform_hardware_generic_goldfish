@@ -4,6 +4,7 @@ cc_library(
     name = "event-support",
     srcs = ["src/android/emulation/control/utils/EventWaiter.cpp"],
     hdrs = [
+        "include/android/emulation/control/utils/CallbackEventSupport.h",
         "include/android/emulation/control/utils/EventSupport.h",
         "include/android/emulation/control/utils/EventWaiter.h",
     ],
@@ -13,7 +14,10 @@ cc_library(
 
 cc_test(
     name = "event-support-test",
-    srcs = ["test/android/emulation/control/utils/EventWaiter_unittest.cpp"],
+    srcs = [
+        "test/android/emulation/control/utils/CallbackEvent_unittest.cpp",
+        "test/android/emulation/control/utils/EventWaiter_unittest.cpp",
+    ],
     deps = [
         ":event-support",
         "@com_google_googletest//:gtest",
