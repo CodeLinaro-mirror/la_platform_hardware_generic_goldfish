@@ -350,7 +350,9 @@ DefaultLooper::Timer::Timer(DefaultLooper* looper, Looper::Timer::Callback callb
       mDeadline(kDurationInfinite),
       mPending(false) {
     // this implementation only supports a host clock
-    DCHECK(clock == ClockType::kHost);
+    if (clock == ClockType::kHost) {
+        LOG(WARNING) << "You should only use this in unit tests!";
+    }
     DCHECK(mCallback);
     looper->addTimer(this);
 }
