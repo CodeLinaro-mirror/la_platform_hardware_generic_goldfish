@@ -69,9 +69,13 @@ class HostToGuestConnection : public IPlug {
           mGuestPort(guestPort),
           mHostSocket(
                   &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
-                  [this]() { closeHost(); }) {}
+                  [this]() { closeHost(); }) {
+        mLooper->registerQemuThread();
+    }
 
     ~HostToGuestConnection() {
+        mLooper->registerQemuThread();
+        closeHost();
         VLOG(VLOG_DBG) << "Connection to " << mGuestPort << " is finalized.";
     }
 
