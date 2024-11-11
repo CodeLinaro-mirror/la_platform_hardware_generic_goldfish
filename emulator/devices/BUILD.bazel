@@ -144,3 +144,24 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "test-socket",
+    srcs = [
+        "test/goldfish/devices/test_socket.cpp",
+    ],
+    hdrs = [
+        "test/goldfish/devices/test_socket.h",
+    ],
+    copts = copts,
+    includes = ["test"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":cable",
+        "//hardware/generic/goldfish/android/looper",
+        "//hardware/generic/goldfish/android/sockets",
+    ],
+    alwayslink = True,
+)
