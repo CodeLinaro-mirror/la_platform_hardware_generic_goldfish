@@ -13,30 +13,21 @@
 // limitations under the License.
 #include "android/physics/SensorDevice.h"
 
-#include <assert.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <initializer_list>
+#include <cassert>
+#include <cstdbool>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
-#include "absl/types/span.h"
 
 #include "aemu/base/async/Looper.h"
-#include "android/emulation/control/utils/EventSupport.h"
 #include "android/goldfish/config/avd.h"
 #include "android/physics/PhysicalModel.h"
 #include "android/physics/Sensors.h"
@@ -56,25 +47,25 @@ namespace {  // Anonymous namespace for internal helpers
 // Sensor information
 struct SensorInfo {
     const std::string_view name;
-    int id;
+    int id{0};
 };
 
 // Physical parameter information
 struct PhysicalParameterInfo {
     const std::string_view name;
-    int id;
+    int id{0};
 };
 
 // Serialized sensor data
 struct SerializedSensor {
-    unsigned long measurement_id;
-    int length;
+    unsigned long measurement_id{0};
+    int length{0};
     char value[128];
 };
 
 // Sensor data with enabled state
 struct Sensor {
-    bool enabled;
+    bool enabled{false};
     SerializedSensor serialized;
 };
 
@@ -253,17 +244,6 @@ class SensorDevice : public ISensorDevice {
 
     ~SensorDevice() {}
     SocketPtr onUnplug() override { return std::move(mSocket); }
-
-    std::string int2hex(int16_t value) {
-        static const char hexchars[] = "0123456789abcdef";
-        std::string result = "0000\0";
-
-        for (int i = 3; i >= 0; --i) {
-            result[3 - i] = hexchars[(value >> (i * 4)) & 0xF];
-        }
-
-        return result;
-    }
 
     void send(std::string_view msg) {
         goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
