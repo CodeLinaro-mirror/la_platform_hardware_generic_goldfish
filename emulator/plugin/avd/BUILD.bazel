@@ -9,7 +9,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/devices:connector_registry",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
     ],
 )
 
@@ -66,7 +66,7 @@ cc_library(
         "//hardware/generic/goldfish/android/threads",
         "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/config",
-        "//hardware/generic/goldfish/emulator/devices:connector_registry",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "//hardware/generic/goldfish/emulator/sensors",
         "@com_google_absl//absl/log",

@@ -23,6 +23,7 @@
 #include "android/goldfish/config/avd.h"
 #include "android/physics/Sensors.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::sensor {
 
@@ -81,7 +82,23 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
 
     virtual std::chrono::milliseconds getSensorDelayMs() = 0;
 
-    // Registers the sensor device with qemu
-    static std::shared_ptr<ISensorDevice> create(SocketPtr socket, Avd* avd, Looper* looper);
+    /**
+     * @brief Registers the sensor device with the connector registry.
+     *
+     * This function registers the sensor device with the provided
+     * `IConnectorRegistry` instance, making it available for connection
+     * through the qemud pipe.  The provided `Avd` object supplies
+     * configuration information for the sensor device, while the `Looper`
+     * instance manages the event loop for asynchronous operations.
+     *
+     * @param registry The `IConnectorRegistry` instance to register with.
+     * @param avd The `Avd` object containing the AVD configuration.
+     * @param looper The `Looper` instance to use for asynchronous operations.
+     *
+     * @note The `avd` and `looper` objects are expected to remain valid for
+     * the lifetime of the registry.  Their lifecycles should be managed
+     * externally to ensure they outlive the registry.
+     */
+    static void registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper);
 };
 }  // namespace goldfish::devices::sensor

@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <goldfish/vsock/listen.h>
 
 #include <functional>
 #include <memory>
@@ -29,7 +28,56 @@
 namespace goldfish {
 namespace devices {
 
-using goldfish::vsock::HostPortListener;
+using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
+
+struct IConnectorRegistry {
+    virtual ~IConnectorRegistry() = default;
+
+    /**
+     * @brief Registers a QEMU device with the registry.
+     *
+     * This method registers devices that use the older "qemud" protocol, which
+     * has some differences compared to the standard protocol used by
+     * `registerDevice()`. The "qemud" protocol involves a specific data format
+     * and handshake mechanism.
+     *
+     * @see https://android.googlesource.com/platform/external/qemu/+/master/docs/ANDROID-QEMUD.TXT
+     *      for a detailed description of the "qemud" protocol.
+     *
+     * @param name The name of the device.
+     * @param factory The factory function for creating the device.
+     * @return `true` if the device was registered successfully, `false` otherwise.
+     */
+    virtual bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) = 0;
+
+    /**
+     * @brief Registers a device with the registry.
+     *
+     * @param name The name of the device.
+     * @param factory The factory function for creating the device.
+     * @return `true` if the device was registered successfully, `false` otherwise.
+     */
+    virtual bool registerDevice(std::string name, Connector::DeviceFactory factory) = 0;
+};
+
+/**
+ * @brief A no-op implementation of the IConnectorRegistry interface.
+ *
+ * This class provides a null or no-op implementation of the `IConnectorRegistry`
+ * interface.  It's primarily useful for testing or in situations where a
+ * `ConnectorRegistry` is required but no actual device registration is needed.
+ * All registration methods simply return `true`, effectively ignoring any
+ * registration requests.
+ */
+class NullConnectorRegistry : public IConnectorRegistry {
+    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override {
+        return true;
+    }
+
+    bool registerDevice(std::string name, Connector::DeviceFactory factory) override {
+        return true;
+    };
+};
 
 /**
  * @brief A registry for managing and listening for connections to virtual devices.
@@ -42,7 +90,7 @@ using goldfish::vsock::HostPortListener;
  *
  * @see goldfish/devices/Connector.h for details on the underlying protocol.
  */
-class ConnectorRegistry {
+class ConnectorRegistry : public IConnectorRegistry {
   public:
     /**
      * @brief Function signature for starting a listener.
@@ -57,6 +105,7 @@ class ConnectorRegistry {
      */
 
     ConnectorRegistry();
+
     DISALLOW_COPY_AND_ASSIGN(ConnectorRegistry);
 
     /**
@@ -87,31 +136,9 @@ class ConnectorRegistry {
      */
     bool listen(ListenFn startListening);
 
-    /**
-     * @brief Registers a QEMU device with the registry.
-     *
-     * This method registers devices that use the older "qemud" protocol, which
-     * has some differences compared to the standard protocol used by
-     * `registerDevice()`. The "qemud" protocol involves a specific data format
-     * and handshake mechanism.
-     *
-     * @see https://android.googlesource.com/platform/external/qemu/+/master/docs/ANDROID-QEMUD.TXT
-     *      for a detailed description of the "qemud" protocol.
-     *
-     * @param name The name of the device.
-     * @param factory The factory function for creating the device.
-     * @return `true` if the device was registered successfully, `false` otherwise.
-     */
-    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory);
+    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override;
 
-    /**
-     * @brief Registers a device with the registry.
-     *
-     * @param name The name of the device.
-     * @param factory The factory function for creating the device.
-     * @return `true` if the device was registered successfully, `false` otherwise.
-     */
-    bool registerDevice(std::string name, Connector::DeviceFactory factory);
+    bool registerDevice(std::string name, Connector::DeviceFactory factory) override;
 
     static ConnectorRegistry& defaultRegistry();
 

@@ -81,7 +81,7 @@ static TestSocket* gTestSocket;
 namespace vsock {
 
 // Custom vsock::listen implementation for unit tests.
-bool listen(const uint32_t hostPort, HostPortListener listener) {
+bool listen(const uint32_t hostPort, devices::HostPortListener listener) {
     if (gListenCalled) {
         return false;
     }

@@ -99,12 +99,9 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::make_unique<Avd>(std::move(status.value()));
 
-    android::goldfish::avd_info::deviceRegistry().registerQemuDevice(
-            "sensors", [&](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                           std::string_view args) {
-                return goldfish::devices::sensor::ISensorDevice::create(
-                        std::move(socket), gAvd.get(), android::goldfish::qemuLooper());
-            });
+    goldfish::devices::sensor::ISensorDevice::registerDevice(
+            &android::goldfish::avd_info::deviceRegistry(), gAvd.get(),
+            android::goldfish::qemuLooper());
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

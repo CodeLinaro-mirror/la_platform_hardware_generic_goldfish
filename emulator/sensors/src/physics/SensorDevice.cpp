@@ -704,8 +704,13 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-std::shared_ptr<ISensorDevice> ISensorDevice::create(SocketPtr socket, Avd* avd, Looper* looper) {
-    return std::make_shared<SensorDevice>(std::move(socket), avd, looper);
+// Registers the sensor device with the registry
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper) {
+    registry->registerQemuDevice(
+            "sensors", [avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                                     std::string_view args) {
+                return std::make_shared<SensorDevice>(std::move(socket), avd, looper);
+            });
 }
 
 }  // namespace goldfish::devices::sensor

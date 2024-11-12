@@ -103,10 +103,7 @@ cc_library(
 )
 
 cc_library(
-    name = "connector_registry",
-    srcs = [
-        "connector_registry.cpp",
-    ],
+    name = "connector_registry_hdrs",
     hdrs = [
         "include/goldfish/devices/connector_registry.h",
     ],
@@ -116,6 +113,26 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        ":devices",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "connector_registry_impl",
+    srcs = [
+        "connector_registry.cpp",
+    ],
+    copts = copts,
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":connector_registry_hdrs",
         ":devices",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "//hardware/google/aemu/base:aemu-base",
@@ -136,7 +153,8 @@ cc_test(
     copts = copts,
     deps = [
         ":connection_awaiter",
-        ":connector_registry",
+        ":connector_registry_hdrs",
+        ":connector_registry_impl",
         ":devices",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/sockets",
@@ -151,10 +169,15 @@ cc_library(
         "test/goldfish/devices/test_socket.cpp",
     ],
     hdrs = [
+        "include/goldfish/devices/connector_registry.h",
+        "test/goldfish/devices/test_connector_registry.h",
         "test/goldfish/devices/test_socket.h",
     ],
     copts = copts,
-    includes = ["test"],
+    includes = [
+        "include",
+        "test",
+    ],
     visibility = [
         "//visibility:public",
     ],

@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 
 #include "android/goldfish/config/avd-test.h"
+#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 namespace goldfish::devices::sensor {
 
@@ -39,9 +40,10 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
 class SensorDeviceTest : public android::goldfish::AvdTest {
     void SetUp() override {
-        socket = goldfish::devices::fakeConnection(&looper);
-        test_socket = (TestSocket*)socket.get();
-        device = ISensorDevice::create(std::move(socket), avd(), &looper);
+        ISensorDevice::registerDevice(&registry, avd(), registry.getLooper());
+        device = registry.constructDevice<ISensorDevice>();
+        test_socket = registry.getSocket();
+        looper = registry.getLooper();
         clear();
     }
 
@@ -50,10 +52,10 @@ class SensorDeviceTest : public android::goldfish::AvdTest {
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    TestLooper looper;
+    TestLooper* looper;
+    TestConnectorRegistry registry;
     TestSocket* test_socket;
-    SocketPtr socket;
-    std::shared_ptr<ISensorDevice> device;
+    ISensorDevice* device;
 };
 
 TEST_F(SensorDeviceTest, canCreateDevice) {
@@ -76,24 +78,24 @@ TEST_F(SensorDeviceTest, canSetSensors) {
 }
 
 TEST_F(SensorDeviceTest, setDelayCausesATick) {
-    looper.setVirtualTimeNs(1234567890);
+    looper->setVirtualTimeNs(1234567890);
     receive("set-delay:10");
     EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:1234567890000"));
 }
 
 TEST_F(SensorDeviceTest, setTimeOffset) {
-    looper.setVirtualTimeNs(1234567890);
+    looper->setVirtualTimeNs(1234567890);
     receive("time:100");
     receive("set-delay:1");
     EXPECT_THAT(test_socket->storage, HasSubstr("000Eguest-sync:10"));
 }
 
 TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
-    looper.setVirtualTimeNs(1234567890);
+    looper->setVirtualTimeNs(1234567890);
     receive("set-delay:1");
     clear();
     EXPECT_THAT(test_socket->storage, Eq(""));
-    looper.runWithTimeoutMs(50);
+    looper->runWithTimeoutMs(50);
 
     // We should see a sync several times.
     EXPECT_THAT(countOccurrences(test_socket->storage, "guest-sync:"), Gt(10));
