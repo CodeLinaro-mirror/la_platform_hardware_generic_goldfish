@@ -264,6 +264,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/android-grpc:android-grpc-unit-tests",
         "//hardware/generic/goldfish/emulator/devices:devices_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
+        "//hardware/generic/goldfish/emulator/sensors:sensors_unittests",
         "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",
