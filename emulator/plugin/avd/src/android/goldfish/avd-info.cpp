@@ -28,6 +28,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
+#include "android/clipboard/ClipboardDevice.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/qemu-looper.h"
 #include "android/physics/SensorDevice.h"
@@ -99,9 +100,12 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::make_unique<Avd>(std::move(status.value()));
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(
-            &android::goldfish::avd_info::deviceRegistry(), gAvd.get(),
-            android::goldfish::qemuLooper());
+    auto looper = android::goldfish::qemuLooper();
+    auto avd = gAvd.get();
+    auto registry = &android::goldfish::avd_info::deviceRegistry();
+
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd, looper);
+    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
