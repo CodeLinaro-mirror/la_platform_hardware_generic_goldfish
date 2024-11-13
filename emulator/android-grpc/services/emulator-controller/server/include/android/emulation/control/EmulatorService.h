@@ -15,6 +15,7 @@
 #include <grpc++/grpc++.h>
 
 #include "android/emulation/control/display/DisplayChangeListener.h"
+#include "goldfish/devices/connector_registry.h"
 #include "host-common/vm_operations.h"
 
 namespace android {
@@ -22,6 +23,7 @@ namespace emulation {
 namespace control {
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
+                                     goldfish::devices::ConnectorRegistry* connectorRegistry,
                                      DisplayChangeListener* displayChangeListener);
 
 }  // namespace control

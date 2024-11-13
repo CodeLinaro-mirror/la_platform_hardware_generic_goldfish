@@ -78,6 +78,7 @@ static pixman_image_t* g_image;
 
 bool initialize(GrpcDeviceConfiguration* device) {
     auto avd = android::goldfish::avd_info::get_avd();
+    auto registry = &android::goldfish::avd_info::deviceRegistry();
 
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{
@@ -89,8 +90,8 @@ bool initialize(GrpcDeviceConfiguration* device) {
             {"avd.id", avd->get("avd.ini.displayname", avd->name())},
             {"avd.dir", System ::pathAsString(avd->getContentPath())},
             {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
-    auto emulator = android::emulation::control::getEmulatorController(gQAndroidVmOperations,
-                                                                       &gDisplayTransformer);
+    auto emulator = android::emulation::control::getEmulatorController(
+            gQAndroidVmOperations, registry, &gDisplayTransformer);
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)

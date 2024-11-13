@@ -2,17 +2,28 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc
 
 cc_library(
     name = "emulator-service",
-    srcs = ["src/android/emulation/control/EmulatorService.cpp"],
+    srcs = [
+        "src/android/emulation/control/EmulatorService.cpp",
+        "src/android/emulation/control/SensorService.cpp",
+        "src/android/emulation/control/SensorService.h",
+    ],
     hdrs = [
         "include/android/emulation/control/EmulatorService.h",
         "include/android/emulation/control/display/DisplayChangeListener.h",
     ],
-    includes = ["include"],
+    includes = [
+        "include",
+        "src",
+    ],
     deps = [
         "//hardware/generic/goldfish/emulator/agents",
+        "//hardware/generic/goldfish/emulator/android-grpc/absl:translate",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
         "//hardware/generic/goldfish/emulator/android-grpc/event-stream",
         "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/hal/sensors:headers",
         "//hardware/google/aemu/base:aemu-base",
     ],
 )

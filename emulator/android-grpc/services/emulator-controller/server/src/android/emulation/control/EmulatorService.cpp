@@ -13,14 +13,14 @@
 // limitations under the License.
 #include "android/emulation/control/EmulatorService.h"
 
-#include <grpc++/grpc++.h>
-#include <grpcpp/support/status.h>
+#include <grpcpp/grpcpp.h>
 
 #include <chrono>
 
 #include "absl/log/log.h"
 
 #include "aemu/base/process/Process.h"
+#include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 #include "host-common/vm_operations.h"
@@ -29,6 +29,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
+using ::goldfish::devices::ConnectorRegistry;
 using grpc::ServerContext;
 using grpc::Status;
 
@@ -36,9 +37,11 @@ using grpc::Status;
 class EmulatorControllerImpl final
     : public EmulatorController::WithCallbackMethod_streamScreenshot<EmulatorController::Service> {
   public:
-    EmulatorControllerImpl(const QAndroidVmOperations* vm,
+    EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
                            DisplayChangeListener* displayChangeListener)
-        : mVm(vm), mDisplayChangeListener(displayChangeListener) {}
+        : mVm(vm),
+          mSensorService(connectorRegistry),
+          mDisplayChangeListener(displayChangeListener) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
@@ -119,6 +122,16 @@ class EmulatorControllerImpl final
         return Status::OK;
     }
 
+    Status setSensor(ServerContext* context, const SensorValue* request,
+                     ::google::protobuf::Empty* reply) override {
+        return mSensorService.setSensor(context, request, reply);
+    }
+
+    Status getSensor(ServerContext* context, const SensorValue* request,
+                     SensorValue* reply) override {
+        return mSensorService.getSensor(context, request, reply);
+    }
+
     ::grpc::ServerWriteReactor<Image>* streamScreenshot(::grpc::CallbackServerContext* /*context*/,
                                                         const ImageFormat* request) override {
         LOG(INFO) << "streamScreenshot";
@@ -131,12 +144,14 @@ class EmulatorControllerImpl final
 
   private:
     const QAndroidVmOperations* mVm;
+    SensorServiceImpl mSensorService;
     DisplayChangeListener* mDisplayChangeListener;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
+                                     ConnectorRegistry* connectorRegistry,
                                      DisplayChangeListener* displayChangeListener) {
-    return new EmulatorControllerImpl(vm, displayChangeListener);
+    return new EmulatorControllerImpl(vm, connectorRegistry, displayChangeListener);
 }
 
 }  // namespace control
