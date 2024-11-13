@@ -20,6 +20,7 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/process/Process.h"
+#include "android/emulation/control/ClipboardService.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
@@ -36,13 +37,16 @@ using grpc::Status;
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
-    : public EmulatorController::WithCallbackMethod_streamScreenshot<EmulatorController::Service> {
+    : public EmulatorController::WithCallbackMethod_streamClipboard<
+              EmulatorController::WithCallbackMethod_streamScreenshot<
+                      EmulatorController::Service>> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd,
                            DisplayChangeListener* displayChangeListener)
         : mVm(vm),
           mSensorService(connectorRegistry),
+          mClipboardService(connectorRegistry),
           mDisplayChangeListener(displayChangeListener),
           mStatusService(connectorRegistry, avd) {}
 
@@ -140,6 +144,22 @@ class EmulatorControllerImpl final
         return mSensorService.getSensor(context, request, reply);
     }
 
+    ::grpc::ServerWriteReactor<ClipData>* streamClipboard(
+            ::grpc::CallbackServerContext* context,
+            const ::google::protobuf::Empty* request) override {
+        return mClipboardService.streamClipboard(context, request);
+    }
+
+    Status getClipboard(ServerContext* context, const ::google::protobuf::Empty* request,
+                        ClipData* reply) override {
+        return mClipboardService.getClipboard(context, request, reply);
+    }
+
+    Status setClipboard(ServerContext* context, const ClipData* request,
+                        ::google::protobuf::Empty* reply) override {
+        return mClipboardService.setClipboard(context, request, reply);
+    }
+
     ::grpc::ServerWriteReactor<Image>* streamScreenshot(::grpc::CallbackServerContext* /*context*/,
                                                         const ImageFormat* request) override {
         LOG(INFO) << "streamScreenshot";
@@ -153,6 +173,7 @@ class EmulatorControllerImpl final
   private:
     const QAndroidVmOperations* mVm;
     SensorServiceImpl mSensorService;
+    ClipboardServiceImpl mClipboardService;
     DisplayChangeListener* mDisplayChangeListener;
     StatusServiceImpl mStatusService;
 };
