@@ -14,6 +14,8 @@
 // limitations under the License.
 #pragma once
 
+#include <goldfish/devices/cable/cable.h>
+
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -142,11 +144,47 @@ class ConnectorRegistry : public IConnectorRegistry {
 
     static ConnectorRegistry& defaultRegistry();
 
+    /**
+     * @brief Retrieves a weak pointer to an active device, if any.
+     *
+     * An active device is a device that has been created in response to a
+     * guest request. The guest requests a device by name using the `pipe:`
+     * protocol over virtio-vsock. If the device has been unplugged by the
+     * guest (via a call to `IPlug::onUnplug`), the `weak_ptr` will be empty
+     * and the entry removed from the internal active device map.
+     *
+     * @tparam T The expected type of the device.
+     * @param name The name of the device.
+     * @return A `weak_ptr` to the active device, or an empty `weak_ptr` if
+     *         no device with the given name is currently active.
+     */
+    template <typename T>
+    std::weak_ptr<T> activeDevice(std::string name) {
+        std::lock_guard<std::mutex> lock(mActivePlugsMutex);
+        auto it = mActivePlugs.find(name);
+        if (it != mActivePlugs.end()) {
+            if (auto plugPtr = it->second.lock()) {
+                // Try to cast the shared_ptr to the target type
+                if (auto castPtr = std::dynamic_pointer_cast<T>(plugPtr)) {
+                    return std::weak_ptr<T>(castPtr);
+                }
+                // If cast fails, return empty weak_ptr
+                return std::weak_ptr<T>();
+            } else {
+                // The device has been unplugged; remove the stale entry.
+                mActivePlugs.erase(it);
+            }
+        }
+        return std::weak_ptr<T>();
+    }
+
   private:
     std::shared_ptr<PingTopic> mPingTopic;
     bool mAcceptingRegistries;
     std::mutex mEntriesMutex;
+    std::mutex mActivePlugsMutex;
     absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
+    absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
     std::vector<Connector::DeviceEntry> mDevices;
 };
 }  // namespace devices
