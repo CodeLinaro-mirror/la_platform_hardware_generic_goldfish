@@ -14,7 +14,6 @@
 #include "android/goldfish/avd-info.h"
 
 #include <aemu/base/logging/LogSeverity.h>
-#include <qapi/error.h>
 
 #include <memory>
 
@@ -31,6 +30,7 @@
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/qemu-looper.h"
+#include "android/misc/GuestStatusDevice.h"
 #include "android/physics/SensorDevice.h"
 
 // clang-format off
@@ -39,6 +39,8 @@ extern "C" {
 #include "qemu/osdep.h"
 #include "hw/qdev-core.h"
 #include "qapi/visitor.h"
+#include "qapi/error.h"
+#include "sysemu/reset.h"
 }
 // IWYU pragma: end_keep
 // clang-format on
@@ -106,6 +108,8 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
 
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd, looper);
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
+    goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
+                                                                        qemu_register_reset);
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
