@@ -7,9 +7,11 @@ cc_library(
         "include/android/emulation/control/utils/CallbackEventSupport.h",
         "include/android/emulation/control/utils/EventSupport.h",
         "include/android/emulation/control/utils/EventWaiter.h",
+        "include/android/emulation/control/utils/PropertyChangeSupport.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = ["@com_google_absl//absl/synchronization"],
 )
 
 cc_test(
@@ -17,6 +19,7 @@ cc_test(
     srcs = [
         "test/android/emulation/control/utils/CallbackEvent_unittest.cpp",
         "test/android/emulation/control/utils/EventWaiter_unittest.cpp",
+        "test/android/emulation/control/utils/PropertyChangeEvent_unittest.cpp",
     ],
     deps = [
         ":event-support",
