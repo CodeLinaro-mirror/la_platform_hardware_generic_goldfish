@@ -32,6 +32,7 @@ using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
 
 using ClipboardData = std::string_view;
+using namespace std::string_view_literals;
 
 /**
  * @brief Interface for interacting with the Android clipboard emulation.
@@ -88,6 +89,9 @@ using ClipboardData = std::string_view;
 class IClipboardDevice : public IPlug, public WithCallbacks<EventChangeSupport, ClipboardData> {
   public:
     ~IClipboardDevice() override {}
+
+    // Name under which you should register this in qemu
+    static constexpr std::string_view serviceName = "clipboard"sv;
 
     /**
      * @brief Checks if the clipboard device is enabled.

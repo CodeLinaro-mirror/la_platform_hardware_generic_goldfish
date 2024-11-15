@@ -34,6 +34,7 @@ using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
+using namespace std::string_view_literals;
 
 using SensorData = std::vector<float>;
 
@@ -43,7 +44,7 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
     ~ISensorDevice() override {}
 
     // Name under which you should register this in qemud
-    static constexpr std::string_view name = "sensors";
+    static constexpr std::string_view serviceName = "sensors"sv;
 
     /**
      * @brief Retrieves sensor data for the specified Android sensor.

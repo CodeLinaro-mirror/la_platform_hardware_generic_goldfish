@@ -154,14 +154,13 @@ class ConnectorRegistry : public IConnectorRegistry {
      * and the entry removed from the internal active device map.
      *
      * @tparam T The expected type of the device.
-     * @param name The name of the device.
      * @return A `weak_ptr` to the active device, or an empty `weak_ptr` if
      *         no device with the given name is currently active.
      */
     template <typename T>
-    std::weak_ptr<T> activeDevice(std::string name) {
+    std::weak_ptr<T> activeDevice() {
         std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-        auto it = mActivePlugs.find(name);
+        auto it = mActivePlugs.find(T::serviceName);
         if (it != mActivePlugs.end()) {
             if (auto plugPtr = it->second.lock()) {
                 // Try to cast the shared_ptr to the target type

@@ -32,6 +32,7 @@ using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
+using namespace std::string_view_literals;
 
 /**
  * @brief Represents the status of the Android guest.
@@ -109,7 +110,7 @@ struct AndroidGuestStatus {
 class IGuestStatusDevice : public IPlug,
                            public WithCallbacks<EventChangeSupport, AndroidGuestStatus> {
   public:
-    static constexpr std::string_view serviceName = "QemuMiscPipe";
+    static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 
     ~IGuestStatusDevice() override {}
 

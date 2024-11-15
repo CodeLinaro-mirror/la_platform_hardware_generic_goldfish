@@ -707,8 +707,9 @@ class SensorDevice : public ISensorDevice {
 // Registers the sensor device with the registry
 void ISensorDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper) {
     registry->registerQemuDevice(
-            "sensors", [avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                                     std::string_view args) {
+            std::string(ISensorDevice::serviceName),
+            [avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                          std::string_view args) {
                 return std::make_shared<SensorDevice>(std::move(socket), avd, looper);
             });
 }
