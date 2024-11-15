@@ -13,8 +13,6 @@
 // limitations under the License.
 #include "android/goldfish/avd-info.h"
 
-#include <aemu/base/logging/LogSeverity.h>
-
 #include <memory>
 
 #include "absl/log/globals.h"
@@ -27,7 +25,9 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
+#include "aemu/base/logging/LogSeverity.h"
 #include "android/clipboard/ClipboardDevice.h"
+#include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/qemu-looper.h"
 #include "android/misc/GuestStatusDevice.h"
@@ -110,6 +110,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
                                                                         qemu_register_reset);
+    goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry);
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
