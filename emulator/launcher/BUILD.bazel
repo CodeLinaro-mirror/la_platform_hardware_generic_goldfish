@@ -143,6 +143,7 @@ cc_binary(
         "//hardware/generic/goldfish/android/filesystems",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/third_party/json",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/flags:flag",

@@ -1,0 +1,37 @@
+# This is quite an old c-style command line parsing library written around 2008
+cc_library(
+    name = "cmdline",
+    srcs = glob([
+        "src/**/*",
+    ]),
+    hdrs = glob([
+        "include/**/*",
+    ]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/config",
+    ],
+)
+
+cc_test(
+    name = "cmdline_unittests",
+    srcs = glob([
+        "test/**/*",
+    ]),
+    includes = ["test"],
+    deps = [
+        ":cmdline",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/config:avd-test",
+        "//hardware/generic/goldfish/emulator/devices:test-socket",
+        "//hardware/google/aemu:aemu-host-common-test-headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "//hardware/google/aemu/base:aemu-base-headers",
+        "//hardware/google/aemu/base:test-matchers",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
