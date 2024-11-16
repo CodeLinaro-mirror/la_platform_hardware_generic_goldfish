@@ -91,7 +91,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
             {"avd.dir", System ::pathAsString(avd->getContentPath())},
             {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            gQAndroidVmOperations, registry, &gDisplayTransformer);
+            gQAndroidVmOperations, registry, avd, &gDisplayTransformer);
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)
