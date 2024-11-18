@@ -68,7 +68,8 @@ const QemuModinfo qemu_modinfo[] = {
         {
                 .name = LIB_PREFIX "avd",
                 .opts = ((const char*[]){"device", NULL}),
-                .objs = ((const char*[]){"avdstart", "virtio-goldfish-adb", "avdend", NULL}),
+                .objs = ((const char*[]){"avdstart", "virtio-goldfish-adb", "goldfish_battery",
+                                         "avdend", NULL}),
                 .deps = ((const char*[]){LIB_PREFIX "virtio-vsock-goldfish-" ARCH_SUFFIX, NULL}),
         },
         {

@@ -71,6 +71,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/fingerprint",
         "//hardware/generic/goldfish/emulator/hal/guest-status",
         "//hardware/generic/goldfish/emulator/hal/sensors",
+        "//hardware/generic/goldfish/emulator/plugin/battery",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

@@ -1,0 +1,26 @@
+cc_library(
+    name = "headers",
+    hdrs = [
+        "include/android/battery/battery.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+    ],
+)
+
+cc_library(
+    name = "battery",
+    srcs = [
+        "src/battery.cpp",
+        "src/goldfish_battery.c",
+        "src/goldfish_battery.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":headers",
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+    ],
+    alwayslink = True,
+)
