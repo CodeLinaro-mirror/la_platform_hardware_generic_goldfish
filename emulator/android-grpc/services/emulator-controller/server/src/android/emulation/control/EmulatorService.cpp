@@ -38,6 +38,7 @@ class EmulatorControllerImpl final
     : public EmulatorController::WithCallbackMethod_streamScreenshot<EmulatorController::Service> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
+                           android::goldfish::Avd* avd,
                            DisplayChangeListener* displayChangeListener)
         : mVm(vm),
           mSensorService(connectorRegistry),
@@ -150,8 +151,9 @@ class EmulatorControllerImpl final
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
                                      ConnectorRegistry* connectorRegistry,
+                                     android::goldfish::Avd* avd,
                                      DisplayChangeListener* displayChangeListener) {
-    return new EmulatorControllerImpl(vm, connectorRegistry, displayChangeListener);
+    return new EmulatorControllerImpl(vm, connectorRegistry, avd, displayChangeListener);
 }
 
 }  // namespace control

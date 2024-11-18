@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,22 +11,38 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#pragma once
-#include <grpc++/grpc++.h>
 
-#include "android/emulation/control/display/DisplayChangeListener.h"
+#pragma once
+
+#include <grpcpp/grpcpp.h>
+
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/connector_registry.h"
-#include "host-common/vm_operations.h"
+#include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
-                                     ::goldfish::devices::ConnectorRegistry* connectorRegistry,
-                                     android::goldfish::Avd* avd,
-                                     DisplayChangeListener* displayChangeListener);
+using android::goldfish::Avd;
+using ::goldfish::devices::ConnectorRegistry;
+using grpc::ServerContext;
+using grpc::Status;
+
+/**
+
+ */
+class StatusServiceImpl {
+  public:
+    StatusServiceImpl(ConnectorRegistry* connectorRegistry, Avd* avd);
+
+    Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
+                     EmulatorStatus* reply);
+
+  private:
+    ConnectorRegistry* mRegistry;
+    Avd* mAvd;
+};
 
 }  // namespace control
 }  // namespace emulation

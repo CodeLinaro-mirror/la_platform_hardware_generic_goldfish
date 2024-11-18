@@ -6,6 +6,8 @@ cc_library(
         "src/android/emulation/control/EmulatorService.cpp",
         "src/android/emulation/control/SensorService.cpp",
         "src/android/emulation/control/SensorService.h",
+        "src/android/emulation/control/StatusService.cpp",
+        "src/android/emulation/control/StatusService.h",
     ],
     hdrs = [
         "include/android/emulation/control/EmulatorService.h",
@@ -23,6 +25,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
         "//hardware/generic/goldfish/emulator/hal/sensors:headers",
         "//hardware/google/aemu/base:aemu-base",
     ],
