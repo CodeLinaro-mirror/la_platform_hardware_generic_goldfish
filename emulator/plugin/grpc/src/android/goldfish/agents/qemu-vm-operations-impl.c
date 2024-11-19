@@ -37,7 +37,7 @@ static bool qemu_vm_resume() {
 }
 
 static EmuRunState qemu_get_runstate() {
-    return (EmuRunState)global_state_get_runstate();
+    return (EmuRunState)runstate_get();
 };
 
 static void system_reset_request() {
