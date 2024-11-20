@@ -16,10 +16,6 @@
 
 #include <string>
 
-#include "absl/flags/flag.h"
-#include "absl/flags/internal/flag.h"
-#include "absl/flags/parse.h"
-#include "absl/flags/usage.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/internal/globals.h"
@@ -27,32 +23,34 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/bazel/bazel_info.h"
+#include "android/cmdline-option.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
+#include "android/main-help.h"
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
 
-ABSL_FLAG(std::string, avd, "V", "The avd to launch.");
-ABSL_FLAG(bool, list_avds, false, "List available avds");
-ABSL_FLAG(bool, wipe_data, false, "Wipe data and create partitions etc.");
-ABSL_FLAG(bool, verbose, false, "Verbose");
-ABSL_FLAG(std::string, vnc, "",
-          "vnc configuration to use, if any. These will be passed to QEMU as "
-          "-display vnc=<...>");
-ABSL_FLAG(std::string, logcat, "", "Location to write logcat to");
-ABSL_FLAG(std::string, vmodule, "",
-          "per-module log verbosity level."
-          " Argument is a comma-separated list of <module name>=<log level>."
-          " <module name> is a glob pattern, matched against the filename base"
-          " (that is, name ignoring .cc/.h./-inl.h)."
-          " A pattern without slashes matches just the file name portion, otherwise"
-          " the whole file path below the workspace root"
-          " (still without .cc/.h./-inl.h) is matched."
-          " ? and * in the glob pattern match any single or sequence of characters"
-          " respectively including slashes."
-          " <log level> desired log level for the matching modules.");
+// ABSL_FLAG(std::string, avd, "V", "The avd to launch.");
+// ABSL_FLAG(bool, list_avds, false, "List available avds");
+// ABSL_FLAG(bool, wipe_data, false, "Wipe data and create partitions etc.");
+// ABSL_FLAG(bool, verbose, false, "Verbose");
+// ABSL_FLAG(std::string, vnc, "",
+//           "vnc configuration to use, if any. These will be passed to QEMU as "
+//           "-display vnc=<...>");
+// ABSL_FLAG(std::string, logcat, "", "Location to write logcat to");
+// ABSL_FLAG(std::string, vmodule, "",
+//           "per-module log verbosity level."
+//           " Argument is a comma-separated list of <module name>=<log level>."
+//           " <module name> is a glob pattern, matched against the filename base"
+//           " (that is, name ignoring .cc/.h./-inl.h)."
+//           " A pattern without slashes matches just the file name portion, otherwise"
+//           " the whole file path below the workspace root"
+//           " (still without .cc/.h./-inl.h) is matched."
+//           " ? and * in the glob pattern match any single or sequence of characters"
+//           " respectively including slashes."
+//           " <log level> desired log level for the matching modules.");
 
 using android::base::Bazel;
 using android::goldfish::Avd;
@@ -61,10 +59,23 @@ using android::goldfish::Emulator;
 int main(int argc, char** argv) {
     absl::InitializeLog();
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
-    absl::ParseCommandLine(argc, argv);
-    const bool verboseLogging = absl::GetFlag(FLAGS_verbose);
 
-    if (absl::GetFlag(FLAGS_list_avds)) {
+    for (int nn = 1; nn < argc; nn++) {
+        const char* opt = argv[nn];
+        int helpStatus = emulator_parseHelpOption(opt);
+        if (helpStatus >= 0) {
+            return helpStatus;
+        }
+    }
+
+    AndroidOptions opts;
+    if (android_parse_options(&argc, &argv, &opts) < 0) {
+        return 1;
+    }
+
+    const bool verboseLogging = opts.verbose;
+
+    if (opts.list_avds) {
         auto avds = Avd::list();
         for (const auto& name : avds) {
             auto a = Avd::fromName(name);
@@ -77,7 +88,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    absl::SetProgramUsageMessage("Welcome to goldfish \U0001F420, the android emulator launcher");
     absl::LogSeverityAtLeast logLevel =
             verboseLogging ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
@@ -85,7 +95,7 @@ int main(int argc, char** argv) {
     Bazel::storeCommandLineArgs(argc, argv);
     std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
-    auto name = absl::GetFlag(FLAGS_avd);
+    auto name = opts.avd;
     auto avd = Avd::fromName(name);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
@@ -93,26 +103,27 @@ int main(int argc, char** argv) {
     }
 
     LOG(INFO) << "Creating emulator";
-    std::vector<std::string> additionalParams;
-    if (!absl::GetFlag(FLAGS_vnc).empty()) {
-        additionalParams.push_back("-display");
-        additionalParams.push_back(absl::StrCat("vnc=", absl::GetFlag(FLAGS_vnc)));
-    }
 
-    if (!absl::GetFlag(FLAGS_logcat).empty()) {
+    std::vector<std::string> additionalParams;
+    additionalParams.push_back("-display");
+    additionalParams.push_back("vnc=localhost:5901");
+
+    if (opts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         additionalParams.insert(
                 additionalParams.end(),
                 {"-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
                  // Actual logcat location.
                  "-device", "virtconsole,chardev=forhvc1", "-chardev",
-                 absl::StrCat("file,id=forhvc1,path=", absl::GetFlag(FLAGS_logcat))});
+                 absl::StrCat("file,id=forhvc1,path=", opts.logcat_output)});
     }
 
-    Emulator emulator{std::move(avd.value()), static_cast<int>(logLevel),
-                      std::move(absl::GetFlag(FLAGS_vmodule)), std::move(additionalParams)};
+    auto vmodules = opts.vmodule ? opts.vmodule : "";
 
-    if (absl::GetFlag(FLAGS_wipe_data)) {
+    Emulator emulator{std::move(avd.value()), static_cast<int>(logLevel), std::move(vmodules),
+                      std::move(additionalParams)};
+
+    if (opts.wipe_data) {
         emulator.clear();
     }
 
