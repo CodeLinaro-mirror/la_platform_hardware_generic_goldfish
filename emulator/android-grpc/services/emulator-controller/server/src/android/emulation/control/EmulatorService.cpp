@@ -21,6 +21,7 @@
 
 #include "aemu/base/process/Process.h"
 #include "android/emulation/control/SensorService.h"
+#include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 #include "host-common/vm_operations.h"
@@ -42,13 +43,19 @@ class EmulatorControllerImpl final
                            DisplayChangeListener* displayChangeListener)
         : mVm(vm),
           mSensorService(connectorRegistry),
-          mDisplayChangeListener(displayChangeListener) {}
+          mDisplayChangeListener(displayChangeListener),
+          mStatusService(connectorRegistry, avd) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
                                     DisplayConfigurations* reply) override {
         return Status(::grpc::StatusCode::FAILED_PRECONDITION,
                       "The multi-display feature is not available", "");
+    }
+
+    Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
+                     EmulatorStatus* reply) override {
+        return mStatusService.getStatus(context, request, reply);
     }
 
     Status setVmState(ServerContext* context, const VmRunState* request,
@@ -147,6 +154,7 @@ class EmulatorControllerImpl final
     const QAndroidVmOperations* mVm;
     SensorServiceImpl mSensorService;
     DisplayChangeListener* mDisplayChangeListener;
+    StatusServiceImpl mStatusService;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
