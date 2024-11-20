@@ -152,7 +152,6 @@ TEST(AsyncSocketTest, receives_an_echo) {
 
 TEST(AsyncSocketTest, receives_a_close) {
     SimpleTestServer mServer(0, [](auto msg) { return std::string(msg); });
-    std::string_view message = "Hello World!";
     bool closeWasCalled = false;
 
     mServer.start();
