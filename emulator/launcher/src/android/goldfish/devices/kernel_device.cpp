@@ -17,6 +17,7 @@
 #include <string_view>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
@@ -51,14 +52,18 @@ absl::Status KernelDevice::initialize(const Emulator& emulator) {
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
 std::vector<std::string> KernelDevice::getQemuParameters(const Emulator& emulator) const {
+    auto opts = emulator.opts();
     return {
             "-kernel",
             mDiskImage->string(),
             "-append",
             // Note the parameters need to be within '
-            "'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "
-            "cma=296M@0-4G loop.max_part=7 memmap=0x10000$0xff018000 "
-            "printk.devkmsg=on bootconfig'",
+            absl::StrFormat("'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "
+                            "cma=296M@0-4G loop.max_part=7 memmap=0x10000$0xff018000 "
+                            "%s bootconfig'",
+                            (opts.shell || opts.shell_serial || opts.show_kernel)
+                                    ? "printk.devkmsg=on"
+                                    : ""),
     };
 }
 
