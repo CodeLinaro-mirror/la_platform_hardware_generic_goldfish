@@ -44,7 +44,7 @@ static pixman_format_code_t pixmanFormat(ImageFormat format) {
         case ImageFormat::RGBA8888:
             return PIXMAN_a8r8g8b8;
         case ImageFormat::RGB888:
-            return PIXMAN_r8g8b8;
+            return PIXMAN_b8g8r8;
         default:
             LOG(ERROR) << "Format: " << format.ShortDebugString() << ", not supported.";
             return PIXMAN_a8r8g8b8;
