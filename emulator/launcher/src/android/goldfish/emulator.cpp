@@ -56,23 +56,25 @@ using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
-                   std::vector<std::string> additionalParams)
-    : mAvd(std::move(avd)) {
+Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(std::move(opts)) {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
 
-    // Marshall parameters.
+    absl::LogSeverityAtLeast logLevel =
+            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+
+    std::string vmodules = opts.vmodule ? opts.vmodule : "";
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
+    auto ini_path = System::pathAsString(mAvd.getIniFile());
+
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
-
-    auto ini_path = System::pathAsString(mAvd.getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name()), "-device",
-            absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path, vmodules,
-                            logLevel)});
+            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
+                                       vmodules, logLevel)});
     addDevice<MemoryDevice>();
     addDevice<KernelDevice>();
     addDevice<Initrd>();
@@ -86,34 +88,45 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
     addDevice<AudioDevice>("09.0");
     addDevice<GrpcDevice>();
 
-    auto simple_parameters =
-            std::vector<std::string>{"-serial", "stdio", "-nodefaults", "-no-reboot",
-                                     // Debug monitor
-                                     "-monitor", "telnet::45454,server,nowait",
-                                     // our virtio-vsock
-                                     "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
-                                     // // TODO(jansene): host_port should be dynamic..
-                                     "-device", "virtio-goldfish-adb,host_port=5555",
-                                     // Keyboard
-                                     "-device", "virtio-keyboard-pci",
-                                     // Series of simple devices that don't need configuring
-                                     "-device", "virtio-serial-pci,ioeventfd=off",
-                                     // Hardware RNG device
-                                     "-device", "virtio-rng-pci", "-device", "avdend"};
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-nodefaults", "-no-reboot",
+            // Debug monitor
+            "-monitor", "telnet::45454,server,nowait",
+            // our virtio-vsock
+            "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
+            // // TODO(jansene): host_port should be dynamic..
+            "-device", "virtio-goldfish-adb,host_port=5555",
+            // Keyboard
+            "-device", "virtio-keyboard-pci",
+            // Series of simple devices that don't need configuring
+            "-device", "virtio-serial-pci,ioeventfd=off",
+            // Hardware RNG device
+            "-device", "virtio-rng-pci",
+            // Vnc display
+            "-display", "vnc=:1"});
 
+    if (opts.logcat_output) {
+        // virtio logcat consoles, note that order matters here!
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+                "-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
+                // Actual logcat location.
+                "-device", "virtconsole,chardev=forhvc1", "-chardev",
+                absl::StrCat("file,id=forhvc1,path=", opts.logcat_output)});
+    }
+
+    if (opts.show_kernel) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
+    }
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.
         fs::path bios_path = fs::path(Bazel::runfilesPath("_main/external/qemu/pc-bios"));
         assert(fs::exists(bios_path));
-
-        simple_parameters.push_back("-L");
-        simple_parameters.push_back(System::pathAsString(bios_path));
+        addDevice<ParameterList>(
+                std::initializer_list<std::string>{"-L", System::pathAsString(bios_path)});
     }
-    simple_parameters.insert(simple_parameters.end(),
-                             std::make_move_iterator(additionalParams.begin()),
-                             std::make_move_iterator(additionalParams.end()));
 
-    addDevice<ParameterList>(std::move(simple_parameters));
+    // This should always be the last device, as it will finalize android emulator initialization
+    addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
 }
 
 void Emulator::clear() {

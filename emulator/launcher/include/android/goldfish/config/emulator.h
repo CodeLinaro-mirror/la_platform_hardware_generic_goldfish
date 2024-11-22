@@ -23,6 +23,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
+#include "android/cmdline-option.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/device.h"
 
@@ -39,14 +40,9 @@ class Emulator {
      * parameters.
      *
      * @param avd The AVD configuration to use for the emulator.
-     * @param logLevel The minimum logging level to use, should be between 0 to 4.
-     * @param vmodules Per-module log verbosity levels.
-     * @param additionalParams Additional parameters to pass to the QEMU command
-     * line. These parameters will be appended to the default command line
-     * generated from the AVD configuration.
+     * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(Avd avd, int logLevel, std::string vmodules,
-                      std::vector<std::string> additionalParams = {});
+    explicit Emulator(Avd avd, AndroidOptions opts);
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -95,6 +91,9 @@ class Emulator {
     // The avd description used to configure this emulator
     const Avd& avd() const { return mAvd; }
 
+    // The android options used to configure this emulator
+    const AndroidOptions& opts() const { return mOpts; }
+
     /**
      * @brief Clears the device's persistent state and prepares it for
      * re-initialization.
@@ -128,6 +127,7 @@ class Emulator {
     std::string mVmodule;
 
     const Avd mAvd;
+    const AndroidOptions mOpts;
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;
 };

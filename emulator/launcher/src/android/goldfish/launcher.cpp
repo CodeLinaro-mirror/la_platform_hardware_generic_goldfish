@@ -73,8 +73,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const bool verboseLogging = opts.verbose;
-
     if (opts.list_avds) {
         auto avds = Avd::list();
         for (const auto& name : avds) {
@@ -82,14 +80,14 @@ int main(int argc, char** argv) {
             if (!a.status().ok()) {
                 std::cout << name << "is not valid: " << a.status().message();
             } else {
-                std::cout << a->details(verboseLogging) << '\n';
+                std::cout << a->details(opts.verbose) << '\n';
             }
         }
         return 0;
     }
 
     absl::LogSeverityAtLeast logLevel =
-            verboseLogging ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(logLevel);
     Bazel::storeCommandLineArgs(argc, argv);
@@ -103,25 +101,7 @@ int main(int argc, char** argv) {
     }
 
     LOG(INFO) << "Creating emulator";
-
-    std::vector<std::string> additionalParams;
-    additionalParams.push_back("-display");
-    additionalParams.push_back("vnc=localhost:5901");
-
-    if (opts.logcat_output) {
-        // virtio logcat consoles, note that order matters here!
-        additionalParams.insert(
-                additionalParams.end(),
-                {"-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
-                 // Actual logcat location.
-                 "-device", "virtconsole,chardev=forhvc1", "-chardev",
-                 absl::StrCat("file,id=forhvc1,path=", opts.logcat_output)});
-    }
-
-    auto vmodules = opts.vmodule ? opts.vmodule : "";
-
-    Emulator emulator{std::move(avd.value()), static_cast<int>(logLevel), std::move(vmodules),
-                      std::move(additionalParams)};
+    Emulator emulator{std::move(avd.value()), opts};
 
     if (opts.wipe_data) {
         emulator.clear();
