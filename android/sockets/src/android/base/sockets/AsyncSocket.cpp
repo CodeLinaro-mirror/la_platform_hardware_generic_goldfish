@@ -188,8 +188,10 @@ void AsyncSocket::onWrite() {
 void AsyncSocket::dispose() {
     // Only close if we are not actively closing.
     close();
-    std::unique_lock<std::mutex> watchLock(mWatchLock);
-    mWatchLockCv.wait(watchLock, [this] { return mFdWatch == nullptr; });
+    if (mFdWatch) {
+        std::unique_lock<std::mutex> watchLock(mWatchLock);
+        mWatchLockCv.wait(watchLock, [this] { return mFdWatch == nullptr; });
+    }
     setSocketEventListener(nullptr);
 }
 
