@@ -65,26 +65,26 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
 
     // Marshall parameters.
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
-    mDevices.emplace_back(std::make_unique<Machine>());
-    mDevices.emplace_back(std::make_unique<CpuDevice>());
+    addDevice<Machine>();
+    addDevice<CpuDevice>();
 
     auto ini_path = System::pathAsString(mAvd.getIniFile());
-    mDevices.emplace_back(std::make_unique<ParameterList>(std::initializer_list<std::string>{
+    addDevice<ParameterList>(std::initializer_list<std::string>{
             "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name()), "-device",
             absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path, vmodules,
-                            logLevel)}));
-    mDevices.emplace_back(std::make_unique<MemoryDevice>());
-    mDevices.emplace_back(std::make_unique<KernelDevice>());
-    mDevices.emplace_back(std::make_unique<Initrd>());
-    mDevices.emplace_back(std::make_unique<GpuDevice>());
-    mDevices.emplace_back(std::make_unique<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM));
-    mDevices.emplace_back(std::make_unique<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR));
-    mDevices.emplace_back(std::make_unique<UserDataDrive>(avd.hw()));
-    mDevices.emplace_back(std::make_unique<EncryptionDrive>(avd.hw()));
-    mDevices.emplace_back(std::make_unique<CacheDrive>(avd.hw()));
-    mDevices.emplace_back(std::make_unique<SDCardDrive>(avd.hw()));
-    mDevices.emplace_back(std::make_unique<AudioDevice>("09.0"));
-    mDevices.emplace_back(std::make_unique<GrpcDevice>());
+                            logLevel)});
+    addDevice<MemoryDevice>();
+    addDevice<KernelDevice>();
+    addDevice<Initrd>();
+    addDevice<GpuDevice>();
+    addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
+    addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
+    addDevice<UserDataDrive>(avd.hw());
+    addDevice<EncryptionDrive>(avd.hw());
+    addDevice<CacheDrive>(avd.hw());
+    addDevice<SDCardDrive>(avd.hw());
+    addDevice<AudioDevice>("09.0");
+    addDevice<GrpcDevice>();
 
     auto simple_parameters =
             std::vector<std::string>{"-serial", "stdio", "-nodefaults", "-no-reboot",
@@ -113,10 +113,7 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
                              std::make_move_iterator(additionalParams.begin()),
                              std::make_move_iterator(additionalParams.end()));
 
-    mDevices.emplace_back(std::make_unique<ParameterList>(std::move(simple_parameters)));
-    for (auto& device : mDevices) {
-        mDeviceMap[device->id()] = device.get();
-    }
+    addDevice<ParameterList>(std::move(simple_parameters));
 }
 
 void Emulator::clear() {

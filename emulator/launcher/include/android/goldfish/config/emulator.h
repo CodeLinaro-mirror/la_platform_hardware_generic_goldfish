@@ -20,9 +20,11 @@
 #include <unordered_map>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
@@ -61,6 +63,33 @@ class Emulator {
             return nullptr;
         }
         return static_cast<T*>(res->second);
+    }
+
+    /**
+     * @brief Adds a device of type T to the emulator.
+     *
+     * This function creates a new device of the specified type `T`
+     * using the provided arguments `args` and adds it to the emulator's
+     * device list (`mDevices`) and device map (`mDeviceMap`).
+     * The device's ID is used as the key in the device map.
+     *
+     * Note that the order in which you call this matters. If device A is
+     * added before B than A will be initialized before B.
+     *
+     * Inserting a device with the same id twice will result in a fatal error.
+     *
+     * @tparam T The type of the device to add. Must be a subclass of `Device`.
+     * @tparam Args The types of the arguments to pass to the device constructor.
+     * @param args The arguments to pass to the device constructor.
+     */
+    template <typename T, typename... Args>
+    void addDevice(Args&&... args) {
+        auto newDevice = std::make_unique<T>(std::forward<Args>(args)...);
+        auto result = mDeviceMap.insert({newDevice->id(), newDevice.get()});
+        if (!result.second) {
+            LOG(FATAL) << "Device with id " << newDevice->id() << " already exists.";
+        }
+        mDevices.push_back(std::move(newDevice));
     }
 
     // The avd description used to configure this emulator

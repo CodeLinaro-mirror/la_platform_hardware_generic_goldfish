@@ -9,7 +9,6 @@ cc_library(
         "src/android/goldfish/devices/audio_device.h",
         "src/android/goldfish/devices/cpu_device.cpp",
         "src/android/goldfish/devices/cpu_device.h",
-        "src/android/goldfish/devices/device.h",
         "src/android/goldfish/devices/drives/cache_drive.cpp",
         "src/android/goldfish/devices/drives/cache_drive.h",
         "src/android/goldfish/devices/drives/disk_drive.cpp",
@@ -36,7 +35,10 @@ cc_library(
         "src/android/goldfish/devices/parameter_list.h",
         "src/android/goldfish/emulator.cpp",
     ],
-    hdrs = ["include/android/goldfish/config/emulator.h"],
+    hdrs = [
+        "include/android/goldfish/config/emulator.h",
+        "include/android/goldfish/devices/device.h",
+    ],
     includes = [
         "include",
         "src",
@@ -47,6 +49,7 @@ cc_library(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/status:statusor",
