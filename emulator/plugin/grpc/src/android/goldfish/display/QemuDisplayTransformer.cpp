@@ -86,14 +86,17 @@ static absl::Status copy_buffer_to_pixman_image(pixman_image_t* src_img, const I
                                 (double)format.height() / pixman_image_get_height(src_img));
 
     // Apply the transformation and compositeE
-    pixman_image_set_transform(src_img, &transform);
+    pixman_image_set_transform(dst_img, &transform);
     pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img, 0, 0, 0, 0, 0, 0, format.width(),
                            format.height());
 
     int height = pixman_image_get_height(dst_img);
     int stride = pixman_image_get_stride(dst_img);
+    int width = pixman_image_get_width(dst_img);
     // Calculate total size to copy (height * stride)
     size_t cPixels = height * stride;
+    image.mutable_format()->set_height(height);
+    image.mutable_format()->set_width(width);
 
     // Make sure the image field has a string that is large enough.
     if (image.image().size() != cPixels) {
