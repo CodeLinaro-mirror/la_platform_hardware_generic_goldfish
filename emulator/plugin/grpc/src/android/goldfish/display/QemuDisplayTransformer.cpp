@@ -124,7 +124,7 @@ Image QemuDisplayTransformer::getScreenshot(ImageFormat fmt) {
         return Image();
     }
 
-    LOG(INFO) << "Getting screenshot";
+    VLOG(1) << "Getting screenshot";
     unsigned int nChannels = 4;
     unsigned int width;
     unsigned int height;
@@ -136,7 +136,7 @@ Image QemuDisplayTransformer::getScreenshot(ImageFormat fmt) {
 
     if (renderer->getScreenshot(nChannels, &width, &height, nullptr, &cPixels, fmt.display(),
                                 fmt.width(), fmt.height(), 0) != 0) {
-        LOG(INFO) << "Need: " << cPixels << " bytes";
+        VLOG(1) << "Need: " << cPixels << " bytes";
         if (image.image().size() != cPixels) {
             VLOG(1) << "Allocation of string object. " << image.image().size() << " < " << cPixels;
             auto buffer = new std::string(cPixels, 0);
@@ -151,13 +151,13 @@ Image QemuDisplayTransformer::getScreenshot(ImageFormat fmt) {
     }
 
     image.mutable_format()->CopyFrom(fmt);
-    LOG(INFO) << "QemuDisplayTransformer::getScreenshot: " << image.ShortDebugString();
+    VLOG(1) << "QemuDisplayTransformer::getScreenshot: " << image.ShortDebugString();
     return image;
 }
 
 ImageEventSupport* QemuDisplayTransformer::addListener(ImageFormat fmt) {
     const std::lock_guard<std::mutex> lock(mListenerLock);
-    LOG(INFO) << "QemuDisplayTransformer::addListener: " << fmt.ShortDebugString();
+    VLOG(1) << "QemuDisplayTransformer::addListener: " << fmt.ShortDebugString();
     if (!mListenerMap.count(fmt)) {
         Image img;
         img.mutable_format()->CopyFrom(fmt);
@@ -191,7 +191,7 @@ void QemuDisplayTransformer::fireEvent(pixman_image_t* src_img) {
             continue;
         }
 
-        LOG(INFO) << "QemuDisplayTransformer::fireEvent: " << format.ShortDebugString();
+        VLOG(1) << "QemuDisplayTransformer::fireEvent: " << format.ShortDebugString();
         listener->fireEvent(image);
     }
     // Step 2, send out events.
