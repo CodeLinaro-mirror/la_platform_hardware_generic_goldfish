@@ -65,14 +65,14 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
 
     // Marshall parameters.
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
-
     mDevices.emplace_back(std::make_unique<Machine>());
     mDevices.emplace_back(std::make_unique<CpuDevice>());
 
     auto ini_path = System::pathAsString(mAvd.getIniFile());
     mDevices.emplace_back(std::make_unique<ParameterList>(std::initializer_list<std::string>{
-            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
-                                       vmodules, logLevel)}));
+            "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name()), "-device",
+            absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path, vmodules,
+                            logLevel)}));
     mDevices.emplace_back(std::make_unique<MemoryDevice>());
     mDevices.emplace_back(std::make_unique<KernelDevice>());
     mDevices.emplace_back(std::make_unique<Initrd>());
