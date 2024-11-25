@@ -102,8 +102,9 @@ static VirtIOVSockSendResult virtio_vsock_send_packet_host_to_guest(
         iov_from_buf(e->in_sg, e->in_num, 0, hdr, sizeof(*hdr));
         iov_from_buf(e->in_sg, e->in_num, sizeof(*hdr), data8, data8_chunk_size);
         virtqueue_consume_elem(vq, e, sizeof(*hdr) + data8_chunk_size);
-        need_notify = true;
 
+        need_notify = true;
+        data8 += data8_chunk_size;
         data8_size -= data8_chunk_size;
         bytes_sent += data8_chunk_size;
     } while (data8_size);
