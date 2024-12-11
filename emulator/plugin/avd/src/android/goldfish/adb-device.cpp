@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 
 #include "android/emulation/control/adb/AdbHostServer.h"
 #include "android/emulation/control/adb/AdbMessageLogger.h"
