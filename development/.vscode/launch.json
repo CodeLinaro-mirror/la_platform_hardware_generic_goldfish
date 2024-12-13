@@ -15,13 +15,8 @@
             "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
             // Set any program arguments here.
             "args": [
-                "--avd",
+                "-avd",
                 "V",
-                "   ", // Enable VLOG for
-                "SensorDevice*=1",       // Files matching
-                "--verbose",
-                "--logcat",
-                "/dev/stdout"
             ],
             // Set any environment values here, not you would likely want to keep at least these
             "env": [
