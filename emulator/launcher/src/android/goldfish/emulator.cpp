@@ -98,6 +98,8 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
             "-device", "virtio-goldfish-adb,host_port=5555",
             // Keyboard
             "-device", "virtio-keyboard-pci",
+            // Mouse
+            "-device", "virtio-mouse-pci",
             // Series of simple devices that don't need configuring
             "-device", "virtio-serial-pci,ioeventfd=off",
             // Hardware RNG device
