@@ -79,10 +79,10 @@ Emulator::Emulator(Avd avd, int logLevel, std::string vmodules,
     addDevice<GpuDevice>();
     addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
     addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
-    addDevice<UserDataDrive>(avd.hw());
-    addDevice<EncryptionDrive>(avd.hw());
-    addDevice<CacheDrive>(avd.hw());
-    addDevice<SDCardDrive>(avd.hw());
+    addDevice<UserDataDrive>(mAvd.hw());
+    addDevice<EncryptionDrive>(mAvd.hw());
+    addDevice<CacheDrive>(mAvd.hw());
+    addDevice<SDCardDrive>(mAvd.hw());
     addDevice<AudioDevice>("09.0");
     addDevice<GrpcDevice>();
 
