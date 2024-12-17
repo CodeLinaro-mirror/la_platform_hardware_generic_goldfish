@@ -305,7 +305,8 @@ class HostSystem : public System {
             std::string launcherDirEnv = envGet("ANDROID_EMULATOR_LAUNCHER_DIR");
             if (!launcherDirEnv.empty()) {
                 mLauncherDir = std::move(launcherDirEnv);
-                return mLauncherDir;
+                VLOG(1) << "Using launcher dir from ANDROID_EMULATOR_LAUNCHER_DIR environment "
+                           "variable";
             }
         }
         return mLauncherDir;
@@ -1768,11 +1769,13 @@ fs::path System::findBundledExecutable(std::string_view programName) {
     const std::string executableName = std::string(programName) + kExe;
     fs::path executablePath = system->getLauncherDirectory() / executableName;
 
+    VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
     if (system->pathIsFile(executablePath)) {
         return executablePath;
     }
 
     executablePath = system->getLauncherDirectory() / "bin" / executableName;
+    VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
     if (system->pathIsFile(executablePath)) {
         return executablePath;
     }
@@ -1780,20 +1783,24 @@ fs::path System::findBundledExecutable(std::string_view programName) {
     // We might be running in a bazel dev environment.. Make that work for now
     auto workspace = system->envGet("BUILD_WORKSPACE_DIRECTORY");
     if (workspace.empty()) {
+        VLOG(1) << "Unable to find: " << programName << " and not running in a bazel workspace.";
         return "";
     }
 
+    VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << workspace;
     fs::path root = workspace;
     std::vector<fs::path> bazel_search{"bazel-bin/external/qemu",
                                        "bazel-bin/hardware/generic/goldfish/third_party/sparse"};
 
     for (const auto& option : bazel_search) {
         auto possible_exe = root / option / executableName;
+        VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << possible_exe;
         if (system->pathIsFile(possible_exe)) {
             return possible_exe;
         }
     }
 
+    VLOG(1) << "Unable to find: " << programName << " in bazel workspace";
     return "";
 }
 
