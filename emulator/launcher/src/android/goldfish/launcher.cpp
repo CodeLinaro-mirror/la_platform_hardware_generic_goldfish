@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <aemu/base/process/Command.h>
+#include <android/cmdline-definitions.h>
 #include <android/goldfish/devices/device.h>
 
 #include <string>
@@ -21,6 +22,7 @@
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/cmdline-option.h"
@@ -56,6 +58,39 @@ using android::base::Bazel;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
+/**
+ * @brief Configures the logging behavior based on command-line options.
+ *
+ * Sets the minimum log level and handles per-module log level settings.
+ *
+ * @param opts The AndroidOptions struct containing the command-line options.
+ */
+static void configureLogging(const AndroidOptions& opts) {
+    absl::LogSeverityAtLeast logLevel =
+            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::SetMinLogLevel(logLevel);
+
+    if (!opts.vmodule) {
+        return;
+    }
+
+    std::vector<std::pair<std::string_view, int>> glob_levels;
+    for (absl::string_view glob_level : absl::StrSplit(opts.vmodule, '|')) {
+        const size_t eq = glob_level.rfind('=');
+        if (eq == glob_level.npos) continue;
+        const absl::string_view glob = glob_level.substr(0, eq);
+        int level;
+        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
+        glob_levels.emplace_back(glob, level);
+    }
+    for (const auto& it : glob_levels) {
+        const absl::string_view glob = it.first;
+        const int level = it.second;
+        absl::SetVLogLevel(glob, level);
+    }
+}
+
 int main(int argc, char** argv) {
     absl::InitializeLog();
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
@@ -72,6 +107,7 @@ int main(int argc, char** argv) {
     if (android_parse_options(&argc, &argv, &opts) < 0) {
         return 1;
     }
+    configureLogging(opts);
 
     if (opts.list_avds) {
         auto avds = Avd::list();
@@ -86,10 +122,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    absl::LogSeverityAtLeast logLevel =
-            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(logLevel);
     Bazel::storeCommandLineArgs(argc, argv);
     std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
 
