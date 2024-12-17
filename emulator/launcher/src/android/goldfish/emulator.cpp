@@ -102,8 +102,17 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
             "-device", "virtio-serial-pci,ioeventfd=off",
             // Hardware RNG device
             "-device", "virtio-rng-pci",
-            // Vnc display
-            "-display", "vnc=:1"});
+            // ...
+    });
+
+#ifdef __linux__
+    // This ensures that only users on local box with read/write access to that path can access the
+    // VNC server. Ports can be forwarded with ssh.
+    addDevice<ParameterList>(
+            std::initializer_list<std::string>{"-display", "vnc=unix:/tmp/.qemu-emu-vnc"});
+    LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
+    LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc <remote-host>``";
+#endif
 
     if (opts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
