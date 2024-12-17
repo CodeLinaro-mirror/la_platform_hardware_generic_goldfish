@@ -11,48 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include <aemu/base/process/Command.h>
-#include <android/cmdline-definitions.h>
-#include <android/goldfish/devices/device.h>
-
 #include <string>
 
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/cmdline-option.h"
-#include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
-#include "android/goldfish/cpu/CpuAccelerator.h"
 #include "android/main-help.h"
-#include "android/utils/path.h"
-#include "android/utils/tempfile.h"
-
-// ABSL_FLAG(std::string, avd, "V", "The avd to launch.");
-// ABSL_FLAG(bool, list_avds, false, "List available avds");
-// ABSL_FLAG(bool, wipe_data, false, "Wipe data and create partitions etc.");
-// ABSL_FLAG(bool, verbose, false, "Verbose");
-// ABSL_FLAG(std::string, vnc, "",
-//           "vnc configuration to use, if any. These will be passed to QEMU as "
-//           "-display vnc=<...>");
-// ABSL_FLAG(std::string, logcat, "", "Location to write logcat to");
-// ABSL_FLAG(std::string, vmodule, "",
-//           "per-module log verbosity level."
-//           " Argument is a comma-separated list of <module name>=<log level>."
-//           " <module name> is a glob pattern, matched against the filename base"
-//           " (that is, name ignoring .cc/.h./-inl.h)."
-//           " A pattern without slashes matches just the file name portion, otherwise"
-//           " the whole file path below the workspace root"
-//           " (still without .cc/.h./-inl.h) is matched."
-//           " ? and * in the glob pattern match any single or sequence of characters"
-//           " respectively including slashes."
-//           " <log level> desired log level for the matching modules.");
 
 using android::base::Bazel;
 using android::goldfish::Avd;
@@ -132,7 +104,6 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    LOG(INFO) << "Creating emulator";
     Emulator emulator{std::move(avd.value()), opts};
 
     if (opts.wipe_data) {
