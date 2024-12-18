@@ -1,4 +1,5 @@
 load("plugins.bzl", "collect_plugins")
+load("version_info.bzl", "version_info_header")
 
 cc_library(
     name = "setup",
@@ -120,7 +121,10 @@ collect_plugins(
 
 cc_binary(
     name = "goldfish",
-    srcs = ["src/android/goldfish/launcher.cpp"],
+    srcs = [
+        "aemu_version.h",
+        "src/android/goldfish/launcher.cpp",
+    ],
     data = [
         ":plugins",
         "//external/qemu:qemu-img",
@@ -132,6 +136,7 @@ cc_binary(
         "//hardware/generic/goldfish/emulator/android-grpc/security:unsecure-emulator-access",
     ],
     includes = [
+        ".",
         "include",
         "src",
     ],
@@ -142,6 +147,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":setup",
+        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/cpu",
         "//hardware/generic/goldfish/android/filesystems",
         "//hardware/generic/goldfish/android/system",
@@ -153,4 +159,11 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",
     ],
+)
+
+version_info_header(
+    name = "version_info",
+    outs = "aemu_version.h",
+    template = "src/version_template.h.in",
+    version_info = "//hardware/generic/goldfish/emulator:aemu_version_info",
 )

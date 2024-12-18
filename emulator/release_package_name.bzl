@@ -44,12 +44,14 @@ aemu_naming = rule(
     # build_setting = config.string(flag = True),
     attrs = {
         "product_name": attr.string(
+            default = "Android Emulator",
             doc = "Placeholder for our final product name.",
         ),
         "revision": attr.string(
             doc = "Placeholder for our release revision.",
         ),
         "version": attr.string(
+            default = "99.1.1",
             doc = "Placeholder for our release version.",
         ),
         "platform": attr.string(

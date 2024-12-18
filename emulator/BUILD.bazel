@@ -43,7 +43,7 @@ build_id_from_command_line(
 )
 
 aemu_naming(
-    name = "zip_naming_variables",
+    name = "aemu_version_info",
     build_id_dep = ":build_id",
     platform = select({
         "@platforms//os:windows": "windows",
@@ -149,7 +149,7 @@ pkg_zip(
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables =
-        ":zip_naming_variables",
+        ":aemu_version_info",
 )
 
 build_test(

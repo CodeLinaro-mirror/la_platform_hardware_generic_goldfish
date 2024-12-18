@@ -20,6 +20,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
+#include "aemu_version.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/cmdline-option.h"
 #include "android/goldfish/config/avd.h"
@@ -63,6 +64,18 @@ static void configureLogging(const AndroidOptions& opts) {
     }
 }
 
+static void show_banner() {
+    constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
+    std::cout << "              .: .          \n";
+    std::cout << "            .    -            Welcome to goldfish\n";
+    std::cout << "        ==:    .-+       =-   The android emulator\n";
+    std::cout << "     :+            :  #:  .   Version: " VERSION << "-" << BUILD_ID << "\n";
+    std::cout << "    %     @         :@-   -   Platform: " << platform << "\n";
+    std::cout << "   :              *=   - -    Copyright 2024 The Android Open Source Project\n";
+    std::cout << "   :  -<      :+++      - \n";
+    std::cout << "    = _ _.*= .            \n";
+}
+
 int main(int argc, char** argv) {
     absl::InitializeLog();
     absl::log_internal::EnableSymbolizeLogStackTrace(true);
@@ -95,7 +108,7 @@ int main(int argc, char** argv) {
     }
 
     Bazel::storeCommandLineArgs(argc, argv);
-    std::cout << "Welcome to goldfish \U0001F420, the android emulator launcher\n";
+    show_banner();
 
     auto name = opts.avd;
     auto avd = Avd::fromName(name);
