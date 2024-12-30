@@ -269,6 +269,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/guest-status:guest-status_unittests",
         "//hardware/generic/goldfish/emulator/hal/sensors:sensors_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
+        "@com_google_crashpad//:crashpad_tests",
         "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",
