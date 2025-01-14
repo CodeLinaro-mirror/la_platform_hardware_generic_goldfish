@@ -43,10 +43,11 @@ This guide will help you set up your Windows machine to build and contribute to 
 5.  **Build the Emulator:** Once the script finishes, it will print a command to the console. This is the command to build the emulator as executed by the build bots. Copy this command. It should look something like this:
 
     ```
-    bazel build //hardware/generic/goldfish/emulator:release
+        .\prebuilts\bazel\windows-x86_64\bazel.exe  build //hardware/generic/goldfish/emulator:release
     ```
 
     Open a new elevated powershell or command prompt, navigate to `C:\src\emu-dev` and paste the command. Hit Enter to start the build process. You should end up with a distribution zip file.
+
 
 ## That's It!
 

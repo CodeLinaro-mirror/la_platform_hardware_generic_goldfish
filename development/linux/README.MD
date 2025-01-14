@@ -13,14 +13,13 @@ This guide will help you set up your Linux machine to build and contribute to th
     Open a terminal and install the required packages using `apt-get`:
 
     ```bash
-    sudo apt-get install -y git build-essential qemu-kvm bazel
+    sudo apt-get install -y git build-essential qemu-kvm
     ```
 
     This command installs the following:
     *   `git`: Version control system.
     *   `build-essential`: Essential tools for compiling C/C++ code.
     *   `qemu-kvm`: Virtualization software for running the emulator.
-    *   `bazel`: The build system used for the Android Emulator.
 
 2.  **Install and Configure `repo`:**
 
@@ -68,7 +67,7 @@ Once the setup is complete and the source code is downloaded, you can build the 
 
 ```bash
     cd $HOME/src/emu-dev
-    bazel build //hardware/generic/goldfish/emulator:release
+    ./prebuilts/bazel/linux-x86_64/bazel build //hardware/generic/goldfish/emulator:release
 ```
 
 ## That's It!

@@ -109,11 +109,6 @@ Write-Host 'Installing Python 3...'
 $env:PATH = [Environment]::GetEnvironmentVariable('PATH', 'Machine')
 & py -m pip install --upgrade certifi pip html5lib
 
-## Install bazel
-Write-Host 'Installing bazel...'
-& choco install bazel > $null
-$env:PATH = [Environment]::GetEnvironmentVariable('PATH', 'Machine')
-
 ## Process Explorer (helpful for debugging buildbot/bazel processes).
 Write-Host 'Installing Process Explorer...'
 & choco install procexp  > $null
@@ -160,5 +155,12 @@ cd emu-dev
 # Initialize and sync the repo.
 repo init -u https://android.googlesource.com/platform/manifest -b emu-master-dev
 repo sync
+
+
+$newPath = "C:\src\emu-dev\prebuilts\bazel\windows-x86_64\;$Env:Path"
+[Environment]::SetEnvironmentVariable("PATH", $newPath, "Machine")  # Or "User" for user-specific
+$Env:Path = [Environment]::GetEnvironmentVariable("PATH", "Machine") # Or "User"
+Write-Host "Added C:\src\emu-dev\prebuilts\bazel\windows-x86_64\ to PATH"
+
 Write-Host 'All done, you might have to launch visual studio once to complete.'
 Write-Host 'bazel build //hardware/generic/goldfish/emulator:release'

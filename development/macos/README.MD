@@ -72,7 +72,7 @@ Once the setup is complete and the source code is downloaded, you can build the 
 
 ```bash
     cd $HOME/src/emu-dev
-    bazel build //hardware/generic/goldfish/emulator:release
+    ./prebuilts/bazel/darwin-x86_64/bazel build //hardware/generic/goldfish/emulator:release
 ```
 
 ## That's It!
