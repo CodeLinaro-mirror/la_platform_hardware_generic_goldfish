@@ -1,0 +1,86 @@
+# Getting Started with Android Emulator Development on MacOs
+
+This guide will help you set up your MacOs machine to build and contribute to the Android Emulator project.
+
+## Prerequisites
+
+*   **A supported Mac:**  An Apple Mac with Apple sillicon and macOS Ventura 13.0 or later.
+*   **Superuser (sudo) Privileges:** You'll need privileges to install system-wide packages.
+
+## Setup Steps
+
+1.  **Install Dependencies:**
+
+    ### What You Need
+
+    - **Xcode:** Version 14.3 or newer.
+    - **MacOS SDK:** Version 13.3 or later.
+
+    ### Getting Xcode
+
+    1. **Download:** Get Xcode from the App Store.
+    2. **Install:** Open the downloaded file, move Xcode to your "Applications" folder.
+    3. **Accept License & Install Tools:**
+
+    ```bash
+    sudo xcodebuild -license accept && sudo xcode-select --install
+    ```
+
+2.  **Install and Configure `repo`:**
+
+    `repo` is a tool built on top of Git that makes it easier to work with multiple Git repositories, which is common in Android development.
+
+    *   **Download and Set Permissions:**
+
+        ```bash
+        mkdir $HOME/bin
+        curl [http://commondatastorage.googleapis.com/git-repo-downloads/repo](http://commondatastorage.googleapis.com/git-repo-downloads/repo) > $HOME/bin/repo
+        chmod 700 $HOME/bin/repo
+        ```
+
+    *   **Add to PATH:**
+
+        ```bash
+        export PATH=$PATH:$HOME/bin
+        ```
+
+        To make this change permanent, add the `export PATH=$PATH:$HOME/bin` line to your shell's configuration file (e.g., `~/.bashrc` for Bash, `~/.zshrc` for Zsh). Then, source the file to apply the changes immediately:
+        ```bash
+        source ~/.bashrc  # Or source ~/.zshrc
+        ```
+
+3.  **Get the Source Code:**
+
+    *   **Initialize the Repository:**
+
+        ```bash
+        mkdir -p $HOME/src/emu-dev && cd $HOME/src/emu-dev
+        repo init -u [https://android.googlesource.com/platform/manifest](https://android.googlesource.com/platform/manifest) -b emu-dev
+        ```
+        This creates a directory for the emulator source code and initializes a `repo` workspace using the `emu-dev` branch of the Android Emulator manifest.
+
+    *   **Download the Code:**
+
+        ```bash
+        repo sync
+        ```
+        This command downloads the source code from all the required Git repositories.
+
+## Build the Emulator
+
+Once the setup is complete and the source code is downloaded, you can build the emulator. Refer to the Android Emulator project's internal documentation for the exact build command, which might look similar to the following.
+
+```bash
+    cd $HOME/src/emu-dev
+    bazel build //hardware/generic/goldfish/emulator:release
+```
+
+## That's It!
+
+You've now set up your Linux machine for Android Emulator development.  You're ready to start exploring the codebase, making changes, and contributing to the project.
+
+**Important Notes:**
+
+*   Refer to the [Android Emulator](../../README.MD) project's internal documentation for more advanced topics, coding guidelines, and contribution workflows.
+
+Happy developing!

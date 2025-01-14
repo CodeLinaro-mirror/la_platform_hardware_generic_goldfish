@@ -2,6 +2,10 @@
 
 This repository contains a series of plugins and tools to extend QEMU with android emulator functionality. The android emulator is build using bazel.
 
+- Get started with [Windows](development/windows/README.MD)
+- Get started with [Linux](development/linux/README.MD)
+- Get started with [MacOs](development/macos/README.MD)
+
 ## Quick Start
 
 You can create a release by running
