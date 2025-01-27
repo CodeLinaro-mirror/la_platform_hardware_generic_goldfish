@@ -1,0 +1,160 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+cc_library(
+    name = "init",
+    srcs = ["src/android/crashreport/CrashSytemInit.cpp"],
+    hdrs = ["include/android/crashreport/crash-initializer.h"],
+    data = ["@com_google_crashpad//handler:crashpad_handler"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":always_consent",
+        ":detectors",
+        ":uploader",
+        "//hardware/generic/goldfish/android/process",
+        "@com_google_crashpad//client",
+        "@com_google_crashpad//handler",
+        "@com_google_crashpad//snapshot",
+    ],
+)
+
+cc_library(
+    name = "detectors",
+    srcs = [
+        "src/android/crashreport/Breadcrumb.cpp",
+        "src/android/crashreport/CrashReporter.cpp",
+        "src/android/crashreport/HangDetector.cpp",
+        "src/android/crashreport/detectors/CrashDetectors.cpp",
+        "src/android/crashreport/detectors/TimeoutMonitor.cpp",
+    ],
+    hdrs = [
+        "include/android/crashreport/AnnotationCircularStreambuf.h",
+        "include/android/crashreport/AnnotationStreambuf.h",
+        "include/android/crashreport/Breadcrumb.h",
+        "include/android/crashreport/CrashConsent.h",
+        "include/android/crashreport/CrashReporter.h",
+        "include/android/crashreport/HangDetector.h",
+        "include/android/crashreport/SimpleStringAnnotation.h",
+        "include/android/crashreport/crash-export.h",
+        "include/android/crashreport/detectors/CrashDetectors.h",
+        "include/android/crashreport/detectors/TimeoutMonitor.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/launcher:aemu_version",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "@com_google_crashpad//client",
+        "@com_google_crashpad//handler",
+        "@com_google_crashpad//snapshot",
+        "@com_google_crashpad//third_party/mini_chromium:base",
+    ],
+)
+
+cc_library(
+    name = "uploader",
+    srcs = [
+        "include/android/crashreport/Uploader.h",
+        "src/android/crashreport/CrashUploader.cpp",
+    ],
+    defines = ["AEMU_CRASH_SHARED"],
+    includes = ["include"],
+    local_defines = ["AEMU_CRASH_EXPORTS"],
+    deps = [
+        ":always_consent",
+        "@com_google_crashpad//client",
+        "@com_google_crashpad//handler",
+        "@com_google_crashpad//snapshot",
+    ],
+)
+
+cc_library(
+    name = "always_consent",
+    srcs = ["src/android/crashreport/CrashConsentAlways.cpp"],
+    hdrs = [
+        "include/android/crashreport/CrashConsent.h",
+        "include/android/crashreport/crash-export.h",
+    ],
+    defines = ["AEMU_CRASH_SHARED"],
+    includes = ["include"],
+    local_defines = ["AEMU_CRASH_EXPORTS"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_crashpad//client",
+    ],
+)
+
+cc_binary(
+    name = "crashreport",
+    srcs = [
+        "include/android/crashreport/CrashReporter.h",
+        "src/android/crashreport/CrashUploadTool.cpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":detectors",
+        ":uploader",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/third_party/json",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/memory",
+        "@com_google_breakpad//src/common",
+        "@com_google_breakpad//src/processor",
+        "@com_google_crashpad//third_party/mini_chromium:base",
+    ],
+)
+
+cc_test(
+    name = "crashreport_test",
+    srcs = [
+        "test/android/crashreport/AnnotationBuffer_unittest.cpp",
+        "test/android/crashreport/CrashDump_unittest.cpp",
+        "test/android/crashreport/HangDetector_unittest.cpp",
+        "test/android/crashreport/detectors/CrashDetectors_unittest.cpp",
+        "test/android/crashreport/detectors/TimeoutMonitor_unittest.cpp",
+    ],
+    data = [
+        ":crash-me",
+        "@com_google_crashpad//handler:crashpad_handler",
+    ],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":always_consent",
+        ":detectors",
+        ":init",
+        "//hardware/generic/goldfish/android/looper",
+        "//hardware/generic/goldfish/android/process",
+        "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/strings",
+        "@com_google_breakpad//src/processor",
+        "@com_google_crashpad//client",
+    ],
+)
+
+cc_binary(
+    name = "crash-me",
+    srcs = [
+        "test/android/crashreport/testing/main-test-crasher.cpp",
+    ],
+    data = ["@com_google_crashpad//handler:crashpad_handler"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":always_consent",
+        ":init",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:initialize",
+    ],
+)
