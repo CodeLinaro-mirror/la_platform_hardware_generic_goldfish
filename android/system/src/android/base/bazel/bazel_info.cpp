@@ -42,11 +42,16 @@ std::string Bazel::runfilesPath(const std::string& path) {
             LOG(FATAL) << "Unable to create runfiles: " << error;
         }
         return runfiles->Rlocation(path);
-    } else {
-        std::unique_ptr<Runfiles> runfiles(
-                Runfiles::CreateForTest(BAZEL_CURRENT_REPOSITORY, &error));
-        return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
     }
+    std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(BAZEL_CURRENT_REPOSITORY, &error));
+
+    // 2 possibilities, it is under our workspace, or not.
+    std::string location = runfiles->Rlocation(path);
+    if (fs::exists(fs::path(location))) {
+        return location;
+    }
+
+    return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
 }
 
 bool Bazel::inBazel() {
