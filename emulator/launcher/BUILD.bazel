@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("plugins.bzl", "collect_plugins")
 load("version_info.bzl", "version_info_header")
 
@@ -166,4 +167,11 @@ version_info_header(
     outs = "aemu_version.h",
     template = "src/version_template.h.in",
     version_info = "//hardware/generic/goldfish/emulator:aemu_version_info",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "aemu_version",
+    hdrs = ["aemu_version.h"],
+    visibility = ["//visibility:public"],
 )
