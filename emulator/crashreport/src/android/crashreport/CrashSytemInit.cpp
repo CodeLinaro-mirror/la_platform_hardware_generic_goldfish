@@ -65,7 +65,7 @@ constexpr char CrashURL[] = "https://clients2.google.com/cr/staging_report";
 
 class CrashSystem {
   public:
-    CrashSystem() : mClient(new crashpad::CrashpadClient()), mConsentProvider(consentProvider()) {}
+    CrashSystem() : mClient(new crashpad::CrashpadClient()) {}
 
     // Gets a handle to single instance of crash reporter
     static CrashSystem* get();

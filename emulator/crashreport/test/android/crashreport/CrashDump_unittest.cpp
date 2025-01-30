@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <filesystem>
 #include <thread>
 
 #include "absl/log/globals.h"
@@ -35,6 +36,7 @@ using crashpad::CrashReportDatabase;
 using namespace std::chrono_literals;
 using android::base::Bazel;
 
+namespace fs = std::filesystem;
 const constexpr char kCrashpadDatabase[] = "emu-dev-test-crash.db";
 
 const std::string kCrashMe = "crash-me";
@@ -83,7 +85,7 @@ class CrashTest : public ::testing::Test {
     }
 
     void crash() {
-        std::string executable =
+        fs::path executable =
                 Bazel::runfilesPath("hardware/generic/goldfish/emulator/crashreport/crash-me");
         if (!Bazel::inBazel()) {
             executable = System::get()->findBundledExecutable(kCrashMe);

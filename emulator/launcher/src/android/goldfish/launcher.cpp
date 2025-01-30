@@ -23,6 +23,7 @@
 #include "aemu_version.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/cmdline-option.h"
+#include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/main-help.h"
@@ -109,6 +110,9 @@ int main(int argc, char** argv) {
 
     Bazel::storeCommandLineArgs(argc, argv);
     show_banner();
+    if (!crashhandler_init(argc, argv)) {
+        LOG(WARNING) << "Failed to initialize crashreporting.";
+    }
 
     auto name = opts.avd;
     auto avd = Avd::fromName(name);

@@ -16,7 +16,6 @@
 
 #include <fcntl.h>
 #include <gtest/gtest.h>
-#include <sys/fcntl.h>
 
 #include <cstddef>
 #include <fstream>

@@ -93,7 +93,9 @@ cc_binary(
         "src/android/crashreport/CrashUploadTool.cpp",
     ],
     includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = [
+        ":always_consent",
         ":detectors",
         ":uploader",
         "//hardware/generic/goldfish/android/system",
@@ -103,7 +105,12 @@ cc_binary(
         "@com_google_breakpad//src/common",
         "@com_google_breakpad//src/processor",
         "@com_google_crashpad//third_party/mini_chromium:base",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(

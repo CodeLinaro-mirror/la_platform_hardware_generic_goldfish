@@ -41,6 +41,8 @@
 
 #ifdef _WIN32
 #include <io.h>
+
+#include "base/strings/utf_string_conversions.h"
 #else
 #include <signal.h>
 #endif
@@ -65,17 +67,21 @@ CrashReporter::CrashReporter() {}
 
 FilePath CrashReporter::databaseDirectory() {
     auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
+    if (!database_directory.empty()) {
+#ifdef _WIN32
+        return ::base::FilePath(::base::UTF8ToWide(database_directory));
+#else
+        return ::base::FilePath(database_directory);
+#endif
+    }
+    auto crashDatabasePath = System::get()->getTempDir() / std::string(kCrashpadDatabase);
 
-    if (!database_directory.empty())
-        return ::base::FilePath(PathUtils::asUnicodePath(database_directory.c_str()).c_str());
-
-    auto crashDatabasePath = android::base::pj(System::get()->getTempDir(), kCrashpadDatabase);
-    return FilePath(PathUtils::asUnicodePath(crashDatabasePath.data()).c_str());
+    return FilePath(crashDatabasePath);
 }
 
 FilePath CrashReporter::handlerExe() {
     fs::path handler;
-    auto from_env = System::get()->getEnvironmentVariable("ANDROID_EMU_CRASHPAD_HANDLER");
+    auto from_env = System::get()->getEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
 
     if (!from_env.empty()) {
         handler = fs::path(from_env);
@@ -84,7 +90,7 @@ FilePath CrashReporter::handlerExe() {
     } else {
         handler = System::get()->findBundledExecutable(kCrashpadHandler);
     }
-    return FilePath(System::pathAsString(handler));
+    return FilePath(handler);
 }
 
 HangDetector& CrashReporter::hangDetector() {
