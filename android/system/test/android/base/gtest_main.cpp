@@ -26,6 +26,6 @@ int main(int argc, char* argv[]) {
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
 
-    testing::InitGoogleTest();
+    testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
