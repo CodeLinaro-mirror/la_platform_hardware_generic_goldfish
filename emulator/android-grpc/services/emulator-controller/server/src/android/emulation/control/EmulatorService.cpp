@@ -23,6 +23,7 @@
 #include "aemu/base/process/Process.h"
 #include "android/emulation/control/ClipboardService.h"
 #include "android/emulation/control/DisplayService.h"
+#include "android/emulation/control/GpsService.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
@@ -40,6 +41,7 @@ namespace control {
 
 using ::android::goldfish::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
+using ::google::protobuf::Empty;
 using grpc::ServerContext;
 using grpc::Status;
 
@@ -58,7 +60,8 @@ class EmulatorControllerImpl final
           mClipboardService(connectorRegistry),
           mDisplayService(multidisplay, connectorRegistry),
           mStatusService(connectorRegistry, avd),
-          mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))) {}
+          mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))),
+          mGpsService(connectorRegistry) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
@@ -144,6 +147,14 @@ class EmulatorControllerImpl final
         return Status::OK;
     }
 
+    Status getGps(ServerContext* context, const Empty* request, GpsState* reply) {
+        return mGpsService.getGps(context, request, reply);
+    }
+
+    Status setGps(ServerContext* context, const GpsState* request, Empty* reply) {
+        return mGpsService.setGps(context, request, reply);
+    }
+
     Status setSensor(ServerContext* context, const SensorValue* request,
                      ::google::protobuf::Empty* reply) override {
         return mSensorService.setSensor(context, request, reply);
@@ -225,6 +236,7 @@ class EmulatorControllerImpl final
     DisplayServiceImpl mDisplayService;
     StatusServiceImpl mStatusService;
     std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
+    GpsServiceImpl mGpsService;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
