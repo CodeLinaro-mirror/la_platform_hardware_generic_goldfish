@@ -30,6 +30,7 @@
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/qemu-looper.h"
+#include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
 #include "android/physics/SensorDevice.h"
 
@@ -111,6 +112,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
                                                                         qemu_register_reset);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry);
+    goldfish::devices::gps::IGpsDevice::registerDevice(registry);
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

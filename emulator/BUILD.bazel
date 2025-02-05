@@ -289,6 +289,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/crashreport:crashreport_test",
         "//hardware/generic/goldfish/emulator/hal/bootproperties:bootproperties_unittests",
         "//hardware/generic/goldfish/emulator/hal/clipboard:clipboard_unittests",
+        "//hardware/generic/goldfish/emulator/hal/gps:gps_unittests",
         "//hardware/generic/goldfish/emulator/hal/guest-status:guest-status_unittests",
         "//hardware/generic/goldfish/emulator/hal/sensors:sensors_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",

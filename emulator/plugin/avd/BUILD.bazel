@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
 cc_library(
     name = "avd_hdrs",
     hdrs = [
@@ -69,6 +71,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
         "//hardware/generic/goldfish/emulator/hal/clipboard",
         "//hardware/generic/goldfish/emulator/hal/fingerprint",
+        "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status",
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/plugin/battery",
