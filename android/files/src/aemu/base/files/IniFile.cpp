@@ -13,7 +13,8 @@
 
 #include <filesystem>
 
-#include "aemu/base/logging/Log.h"
+#include "absl/log/log.h"
+
 #include "android/base/system/System.h"
 
 #ifdef _MSC_VER

@@ -18,9 +18,9 @@
 #include <thread>
 
 #include "absl/log/globals.h"
+#include "absl/log/log.h"
 
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
@@ -62,7 +62,7 @@ class CrashTest : public ::testing::Test {
         reports.insert(reports.end(), pendingReports.begin(), pendingReports.end());
 
         for (const auto& report : reports) {
-            dinfo("Erasing %s\n", report.uuid.ToString());
+            LOG(INFO) << "Deleting crash report: " << report.uuid.ToString();
             mCrashdatabase->DeleteReport(report.uuid);
         }
     }

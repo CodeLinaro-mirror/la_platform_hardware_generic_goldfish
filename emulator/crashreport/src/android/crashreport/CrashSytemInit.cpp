@@ -25,7 +25,6 @@
 #include "aemu/base/async/RecurrentTask.h"
 #include "aemu/base/async/ThreadLooper.h"
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "aemu/base/system/Win32UnicodeString.h"

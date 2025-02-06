@@ -16,13 +16,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "android/base/system/System.h"
 
 #define DEBUG 0

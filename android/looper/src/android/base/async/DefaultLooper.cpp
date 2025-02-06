@@ -17,10 +17,12 @@
 #include <algorithm>  // for find_if
 #include <iterator>   // for prev
 #include <thread>
-#include <utility>    // for move, pair
+#include <utility>  // for move, pair
+
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 
 #include "aemu/base/files/Stream.h"          // for Stream
-#include "aemu/base/logging/Log.h"           // for DCHECK, LogMessage
 #include "aemu/base/logging/LogSeverity.h"   // for EMULATOR_LOG_FATAL
 #include "aemu/base/sockets/SocketWaiter.h"  // for SocketWaiter
 #include "android/base/system/System.h"      // for System

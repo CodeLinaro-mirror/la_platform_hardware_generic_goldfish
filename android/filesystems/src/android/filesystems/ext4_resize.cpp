@@ -20,9 +20,10 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/log.h"
+
 #include "aemu//base/process/Command.h"
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "android/base/system/System.h"
 #include "android/utils/path.h"
 #ifndef _MSC_VER

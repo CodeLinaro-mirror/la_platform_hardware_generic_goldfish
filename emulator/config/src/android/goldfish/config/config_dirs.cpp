@@ -17,7 +17,8 @@
 #include <filesystem>
 #include <string_view>
 
-#include "aemu/base/logging/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/system/System.h"
 #include "android/base/system/System.h"
 
