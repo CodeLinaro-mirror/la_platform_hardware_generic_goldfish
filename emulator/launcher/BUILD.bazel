@@ -53,6 +53,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/adb/secrets",
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/crashreport:detectors",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
