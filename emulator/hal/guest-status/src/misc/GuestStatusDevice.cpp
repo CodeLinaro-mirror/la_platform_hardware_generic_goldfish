@@ -92,8 +92,6 @@ class GuestStatusDevice : public IGuestStatusDevice {
             }
             VLOG(1) << "Heartbeat: " << heartbeat;
             fireEvent(createHeartbeatEvent(heartbeat));
-            send("OK");
-
         } else if (absl::StartsWith(message, "bootcomplete")) {
             std::chrono::milliseconds bootTime;
             {
@@ -101,13 +99,13 @@ class GuestStatusDevice : public IGuestStatusDevice {
                 bootTime = uptime() - mResetTimestampMs;
                 mBootTime = bootTime;
             }
-            send("OK");
             fireEvent(createBootCompletedEvent(bootTime));
             VLOG(1) << "Completed booting in: " << bootTime.count() << " ms.";
         } else {
             VLOG(1) << "Ignoring unknown message from guest (" << message.size() << "):" << message;
         }
 
+        send("KO");
         return true;
     }
 
