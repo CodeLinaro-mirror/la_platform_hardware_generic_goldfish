@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
 cc_library(
     name = "avd_hdrs",
     hdrs = [
@@ -72,6 +74,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/guest-status",
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/plugin/battery",
+        "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

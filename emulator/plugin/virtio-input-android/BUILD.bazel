@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "virtio-input-android",
+    srcs = [
+        "src/virtio-input-android.c",
+        "src/virtio-input-android.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "@pixman//:pixman-1",
+    ],
+    alwayslink = True,
+)

@@ -1,4 +1,3 @@
-
 // Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +13,6 @@
 // limitations under the License.
 #include "android/goldfish/config/emulator.h"
 
-#include <android/base/system/System.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -26,7 +24,7 @@
 #include <vector>
 
 // Use ABSL_LOG to avoid conflict with crashpadh logging
-#include "absl/log/absl_log.h"  
+#include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -75,9 +73,6 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
             "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
-    addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
-                                       vmodules, logLevel)});
     addDevice<MemoryDevice>();
     addDevice<KernelDevice>();
     addDevice<Initrd>();
@@ -89,20 +84,22 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
     addDevice<CacheDrive>(mAvd.hw());
     addDevice<SDCardDrive>(mAvd.hw());
     addDevice<AudioDevice>("09.0");
+
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
+                                       vmodules, logLevel)});
     addDevice<GrpcDevice>();
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-nodefaults", "-no-reboot",
             // Debug monitor
-            "-monitor", "telnet::45454,server,nowait",
+            "-monitor", "telnet::15454,server,nowait",
             // our virtio-vsock
             "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
             // // TODO(jansene): host_port should be dynamic..
             "-device", "virtio-goldfish-adb,host_port=5555",
             // Keyboard
-            "-device", "virtio-keyboard-pci",
-            // Mouse
-            "-device", "virtio-mouse-pci",
+            "-device", "virtio-keyboard-pci,head=0,display=gpu0",
             // Series of simple devices that don't need configuring
             "-device", "virtio-serial-pci,ioeventfd=off",
             // Hardware RNG device
@@ -110,14 +107,28 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
             // ...
     });
 
+    // Add our virtio devices, we connect them in QEMU to gpu0 and head=%d so qemu knows how to
+    // route input events for a given display to the proper device.
+    constexpr int VIRTIO_INPUT_MAX_NUM = 11;
+    for (int id = 0; id < VIRTIO_INPUT_MAX_NUM; id++) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+                "-device", absl::StrFormat("virtio-input-android-pci,display=gpu0,head=%d", id)});
+    }
+
 #ifdef __linux__
     // This ensures that only users on local box with read/write access to that path can access the
     // VNC server. Ports can be forwarded with ssh.
-    addDevice<ParameterList>(
-            std::initializer_list<std::string>{"-display", "vnc=unix:/tmp/.qemu-emu-vnc"});
+    // TODO(jansene):  we technically should force display=gpu0,head=0, to use proper qemu console
+    // routing. However it seems that the gpu0 is not yet ready at time of vnc registration.
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-display",
+            "vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0",
+    });
     ABSL_LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
     ABSL_LOG(INFO)
             << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc <remote-host>``";
+    ABSL_LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
+                      "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
 #endif
 
     if (opts.logcat_output) {
@@ -204,6 +215,7 @@ absl::Status Emulator::launch() {
     ABSL_LOG(INFO) << "Using crashpad handler: " << handler.str();
     ABSL_LOG(INFO) << "Using module dir: " << qemu_module_dir;
     ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
+
     auto proc = android::base::Command::create(getCmdline()).replace().execute();
     // We only get here if we failed to launch the application
     return absl::InternalError(absl::StrFormat("Failed to launch emulator, error code: %d", errno));
