@@ -1,0 +1,34 @@
+// Copyright 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#include "android/base/logging/AbseilLogBridge.h"
+
+void test_c_info_log(const char* message) {
+    ALOGI("%s", message);
+}
+
+void test_c_error_log(const char* message) {
+    ALOGE("%s", message);
+}
+
+void test_c_warning_log(const char* message) {
+    ALOGW("%s", message);
+}
+
+void test_c_vlog1(const char* message) {
+    ALOGV(1, "%s", message);
+}
+
+void test_c_vlog2(const char* message) {
+    ALOGV(2, "%s", message);
+}

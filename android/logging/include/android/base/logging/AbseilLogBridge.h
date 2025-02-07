@@ -10,6 +10,7 @@
 // GNU General Public License for more details.
 #pragma once
 #include <assert.h>
+#include <stdbool.h>
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
@@ -35,13 +36,16 @@ extern void* _get_vlog_site(const char* name);
 // Note: you cannot use VLOG macros in both header and .c files, since
 // unlike C++ we cannot declare a local lambda function with a static
 // initializer.
+static void* vlog_site_instance;
+
 static void* _vlog_site(const char* file) {
-    static void* vlog = _get_vlog_site(file);
-#ifndef NDEBUG
-    static const char* first = file;
-    assert(first == file);  // You can only use the VLOG macro in a single file.
-#endif
-    return vlog;
+    static bool initialized = false;
+    if (!initialized) {
+        vlog_site_instance = _get_vlog_site(file);
+        initialized = true;
+    }
+
+    return vlog_site_instance;
 }
 
 #define ALOGI(FMT, ...) _log_to_abseil(0, __FILE__, __LINE__, FMT, ##__VA_ARGS__)

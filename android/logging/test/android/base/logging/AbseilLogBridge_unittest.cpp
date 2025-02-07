@@ -32,6 +32,10 @@
 #include "aemu/base/testing/TestUtils.h"
 #include "host-common/logging.h"
 
+extern "C" {
+#include "hardware/generic/goldfish/android/logging/test/android/base/logging/abseil_log_c_test.h"
+}
+
 namespace {
 
 using ::testing::EndsWith;
@@ -134,4 +138,52 @@ TEST_F(AbseilLogCBridgeTest, Truncation) {
     EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr(expected_msg));
 }
 
+TEST_F(AbseilLogCBridgeTest, CInfoLog) {
+    test_c_info_log("This is a C INFO message");
+    EXPECT_EQ(log_sink_->captured_log_,
+              "I AbseilLogBridge_unittest.c:17 - This is a C INFO message");
+}
+
+TEST_F(AbseilLogCBridgeTest, CErrorLog) {
+    test_c_error_log("This is a C ERROR message");
+    EXPECT_EQ(log_sink_->captured_log_,
+              "E AbseilLogBridge_unittest.c:21 - This is a C ERROR message");
+}
+
+TEST_F(AbseilLogCBridgeTest, CWarningLog) {
+    test_c_warning_log("This is a C WARNING message");
+    EXPECT_EQ(log_sink_->captured_log_,
+              "W AbseilLogBridge_unittest.c:25 - This is a C WARNING message");
+}
+
+TEST_F(AbseilLogCBridgeTest, CVLOG1) {
+    test_c_vlog1("This is a C VLOG(1) message");
+    EXPECT_EQ(log_sink_->captured_log_,
+              "I AbseilLogBridge_unittest.c:29 - This is a C VLOG(1) message");
+}
+
+TEST_F(AbseilLogCBridgeTest, CVLOG2) {
+    test_c_vlog2("This is a C VLOG(2) message");
+    EXPECT_EQ(log_sink_->captured_log_,
+              "I AbseilLogBridge_unittest.c:33 - This is a C VLOG(2) message");
+}
+
+// -- Validate that vlogsite is properly initialized per compilation unit
+TEST_F(AbseilLogCBridgeTest, CVLOG1_File2) {
+    test_c2_vlog1("This is");
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("AbseilLogBridge_unittest2.c"));
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("This is from file 2"));
+}
+
+TEST_F(AbseilLogCBridgeTest, CVLOG2_File2) {
+    test_c2_vlog2("That is");
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("AbseilLogBridge_unittest2.c"));
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("That is from file 2"));
+}
+
+TEST_F(AbseilLogCBridgeTest, CInfo_File2) {
+    test_c2_info("something");
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("AbseilLogBridge_unittest2.c"));
+    EXPECT_THAT(log_sink_->captured_log_, testing::HasSubstr("something from file 2"));
+}
 }  // namespace

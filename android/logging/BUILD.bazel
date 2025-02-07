@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "absl-c-bridge",
     srcs = [
@@ -52,12 +54,15 @@ cc_library(
 
 cc_test(
     name = "backend_unittests",
-    srcs = glob(
-        [
-            "test/**/*unittest.cpp",
-            "test/**/*.h",
-        ],
-    ),
+    srcs = [
+        "test/android/base/logging/AbseilLogBridge_unittest.c",
+        "test/android/base/logging/AbseilLogBridge_unittest.cpp",
+        "test/android/base/logging/AbseilLogBridge_unittest2.c",
+        "test/android/base/logging/ColorLogSink_unittest.cpp",
+        "test/android/base/logging/LogFormatter_unittest.cpp",
+        "test/android/base/logging/Log_unittest.cpp",
+        "test/android/base/logging/abseil_log_c_test.h",
+    ],
     copts = ["-Wno-deprecated-declarations"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
