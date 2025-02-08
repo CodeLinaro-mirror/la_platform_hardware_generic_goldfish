@@ -20,10 +20,10 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "grpc_endpoint_description.pb.h"
 
-#include "aemu/base/logging/Log.h"
 #include "android/emulation/control/utils/Library.h"
 
 namespace android {

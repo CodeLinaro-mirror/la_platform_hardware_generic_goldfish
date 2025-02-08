@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "absl/log/log.h"
 #include "grpc/grpc_security_constants.h"
 #include "grpc/impl/codegen/connectivity_state.h"
 #include "grpc/impl/codegen/gpr_types.h"
@@ -32,7 +33,6 @@
 
 #include "aemu/base/Stopwatch.h"
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "android/base/files/IniFile.h"
 #include "android/emulation/control/EmulatorAdvertisement.h"
 #include "android/emulation/control/secure/BasicTokenAuth.h"

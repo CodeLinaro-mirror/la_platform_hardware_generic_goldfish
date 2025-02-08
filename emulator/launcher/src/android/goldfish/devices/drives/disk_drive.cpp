@@ -21,11 +21,11 @@
 #include <string_view>
 
 #include "absl/log/absl_log.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "android/base/system/System.h"

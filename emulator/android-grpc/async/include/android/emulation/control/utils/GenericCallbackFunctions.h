@@ -21,7 +21,6 @@
 #include "absl/status/statusor.h"
 #include "google/protobuf/empty.pb.h"
 
-#include "aemu/base/logging/Log.h"
 #include "android/emulation/control/utils/EmulatorGrcpClient.h"
 namespace android {
 namespace emulation {

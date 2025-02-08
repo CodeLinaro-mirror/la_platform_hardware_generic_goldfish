@@ -28,8 +28,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
+
 #include "aemu/base/files/PathUtils.h"
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/System.h"

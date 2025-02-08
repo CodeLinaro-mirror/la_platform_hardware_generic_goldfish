@@ -17,10 +17,10 @@
 
 #include <filesystem>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 
-#include "aemu/base/logging/Log.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 

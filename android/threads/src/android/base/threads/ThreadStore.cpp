@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/Log.h"
+#include "absl/log/log.h"
 
 // Set to 1 to print debug messages.
 #define DEBUG_THREAD_STORE 0

@@ -22,6 +22,7 @@
 #include <chrono>   // for seconds
 #include <utility>  // for __unwrap_reference<>::type
 
+#include "absl/log/log.h"
 #include "openssl/asn1.h"    // for ASN1_INTEGER_set, MBSTRING...
 #include "openssl/base.h"    // for EVP_PKEY, BIO, BIGNUM, RSA
 #include "openssl/bio.h"     // for BIO_free_all, BIO_new_file
@@ -30,8 +31,7 @@
 #include "openssl/x509.h"    // for X509_NAME_add_entry_by_txt
 
 #include "aemu/base/files/PathUtils.h"  // for pj, PathUtils (ptr only)
-#include "aemu/base/logging/Log.h"
-#include "android/utils/file_io.h"  // for android_fopen
+#include "android/utils/file_io.h"      // for android_fopen
 
 static bool generate_rsa_key(int bits, const char* public_pem, const char* private_pem,
                              EVP_PKEY** ppKey) {

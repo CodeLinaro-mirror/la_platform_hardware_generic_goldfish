@@ -29,11 +29,9 @@
 #include <vector>
 #endif
 
-#include "aemu/base/logging/Log.h"
+#include "absl/log/log.h"
 
 using android::base::LazyInstance;
-
-#define E(fmt, ...) derror("%s: " fmt, __func__, ##__VA_ARGS__);
 
 namespace android {
 namespace base {
@@ -173,7 +171,7 @@ class MemoryTracker::Impl {
 
     void start() {
         if (!MallocHook::AddNewHook(&new_hook) || !MallocHook::AddDeleteHook(&delete_hook)) {
-            E("Failed to add malloc hooks.");
+            LOG(ERROR) << "Failed to add malloc hooks.";
             enabled = false;
         } else {
             enabled = true;
@@ -212,9 +210,9 @@ class MemoryTracker::Impl {
         return false;
     }
 
-    void start() { E("Not implemented"); }
+    void start() { LOG(ERROR) << "Not implemented"; }
 
-    void stop() { E("Not implemented"); }
+    void stop() { LOG(ERROR) << "Not implemented"; }
 
     std::string printUsage(int verbosity) { return "<memory usage tracker not implemented>"; }
 

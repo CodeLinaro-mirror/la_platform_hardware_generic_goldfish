@@ -83,6 +83,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
 
     bool onReceive(const void* data, size_t size) override {
         std::string_view message(static_cast<const char*>(data), size);
+        VLOG(1) << "Received message from guest:" << message;
 
         if (absl::StartsWith(message, "heartbeat")) {
             uint64_t heartbeat = 0;
