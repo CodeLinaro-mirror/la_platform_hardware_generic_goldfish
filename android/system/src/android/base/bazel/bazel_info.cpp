@@ -39,7 +39,8 @@ std::string Bazel::runfilesPath(const std::string& path) {
         std::unique_ptr<Runfiles> runfiles(
                 Runfiles::Create(arg0, BAZEL_CURRENT_REPOSITORY, &error));
         if (!runfiles) {
-            LOG(FATAL) << "Unable to create runfiles: " << error;
+            LOG(ERROR) << "Unable to create runfiles, while running under bazel: " << error;
+            return "<unknown-root>";
         }
         return runfiles->Rlocation(path);
     }

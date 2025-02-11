@@ -40,6 +40,7 @@ cc_library(
         "include/android/crashreport/detectors/TimeoutMonitor.h",
     ],
     includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/launcher:aemu_version",

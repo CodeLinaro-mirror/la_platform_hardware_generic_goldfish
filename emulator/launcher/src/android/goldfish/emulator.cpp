@@ -21,19 +21,22 @@
 #include <initializer_list>
 #include <istream>
 #include <memory>
+#include <sstream>
 #include <string_view>
 #include <vector>
 
+// Use ABSL_LOG to avoid conflict with crashpadh logging
+#include "absl/log/absl_log.h"  
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
-#include "aemu/base/logging/Log.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
+#include "android/crashreport/CrashReporter.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/audio_device.h"
 #include "android/goldfish/devices/cpu_device.h"
@@ -112,8 +115,9 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
     // VNC server. Ports can be forwarded with ssh.
     addDevice<ParameterList>(
             std::initializer_list<std::string>{"-display", "vnc=unix:/tmp/.qemu-emu-vnc"});
-    LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
-    LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc <remote-host>``";
+    ABSL_LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
+    ABSL_LOG(INFO)
+            << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc <remote-host>``";
 #endif
 
     if (opts.logcat_output) {
@@ -142,14 +146,14 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
 
 void Emulator::clear() {
     for (auto& device : mDevices) {
-        LOG(INFO) << "Reset: " << device->id();
+        ABSL_LOG(INFO) << "Reset: " << device->id();
         device->clear();
     }
 }
 
 absl::Status Emulator::initialize() {
     for (auto& device : mDevices) {
-        LOG(INFO) << "Preparing: " << device->id();
+        ABSL_LOG(INFO) << "Preparing: " << device->id();
         auto status = device->initialize(*this);
         if (!status.ok()) {
             return status;
@@ -169,10 +173,10 @@ std::vector<std::string> Emulator::getCmdline() const {
 }
 
 absl::Status Emulator::launch() {
-    LOG(INFO) << "Preparing " << mAvd.details(true);
+    ABSL_LOG(INFO) << "Preparing " << mAvd.details(true);
     auto status = initialize();
     if (!status.ok()) {
-        LOG(INFO) << "Failed to prepare emulator: " << status.message();
+        ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();
         return status;
     }
 
@@ -190,10 +194,16 @@ absl::Status Emulator::launch() {
         qemu_module_dir = System::get()->getProgramDirectory() / "lib" / "qemu";
     }
 
+    // Make sure the child process is using the same crashpad handler as we are using.
+    std::stringstream handler;
+    handler << android::crashreport::CrashReporter::handlerExe();
+    System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
     System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
     System::get()->addLibrarySearchDir(qemu_module_dir);
-    LOG(INFO) << "Using module dir: " << qemu_module_dir;
-    LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
+
+    ABSL_LOG(INFO) << "Using crashpad handler: " << handler.str();
+    ABSL_LOG(INFO) << "Using module dir: " << qemu_module_dir;
+    ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
     auto proc = android::base::Command::create(getCmdline()).replace().execute();
     // We only get here if we failed to launch the application
     return absl::InternalError(absl::StrFormat("Failed to launch emulator, error code: %d", errno));
