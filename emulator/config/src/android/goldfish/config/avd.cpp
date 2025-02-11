@@ -245,7 +245,7 @@ Avd::Avd(Avd&& other) noexcept
       mHwCfg(std::move(other.mHwCfg)) {}
 
 bool Avd::hasEncryptionKey() const {
-    return getSystemImagePath(Avd::ImageType::ENCRYPTIONKEY).ok();
+    return getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).ok();
 }
 
 absl::StatusOr<Avd> Avd::fromName(std::string name) {
@@ -263,7 +263,7 @@ DeviceType Avd::getDeviceType() const {
 
     const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
 
-    auto buildprop = getSystemImagePath(Avd::ImageType::BUILDPROP);
+    auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
     if (!buildprop.ok()) {
         ABSL_LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
                           << ", using unknown avd device type.";
@@ -295,7 +295,7 @@ DeviceType Avd::getDeviceType() const {
     return res;
 }
 
-fs::path Avd::getImageFilenameByType(Avd::ImageType imgType) const {
+fs::path Avd::getImageFilename(Avd::ImageType imgType) const {
     return _imageFileNames[static_cast<uint8_t>(imgType)];
 }
 
@@ -306,10 +306,10 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
     }
     ABSL_VLOG(1) << "Did not find " << possible << " in " << mContentPath
                  << " falling back to system path";
-    return getSystemImagePath(imgType);
+    return getSystemImageFilePath(imgType);
 }
 
-absl::StatusOr<fs::path> Avd::getSystemImagePath(Avd::ImageType imgType) const {
+absl::StatusOr<fs::path> Avd::getSystemImageFilePath(Avd::ImageType imgType) const {
     auto sdk = ConfigDirs::getSdkRootDirectory();
     fs::path path = "no-sysimg";
     std::string key;

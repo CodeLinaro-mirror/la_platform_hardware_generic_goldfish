@@ -104,7 +104,7 @@ class Avd {
      * @param imgType The AVD image type for which to retrieve the filename.
      * @return fs::path The corresponding image filename.
      */
-    fs::path getImageFilenameByType(Avd::ImageType imgType) const;
+    fs::path getImageFilename(Avd::ImageType imgType) const;
 
     /**
      * @brief Retrieves an AVD image file path, favoring the content directory.
@@ -138,7 +138,7 @@ class Avd {
      * @see Avd::ImageType
      * @see ConfigDirs::getSdkRootDirectory
      */
-    absl::StatusOr<fs::path> getSystemImagePath(Avd::ImageType imgType) const;
+    absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const;
 
     /**
      * @brief Checks if the AVD supports encryption.

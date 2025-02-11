@@ -82,16 +82,16 @@ void HardwareConfig::load(Avd* avd, IniFile* ini) {
 
     if (disk_dataPartition_path.empty()) {
         disk_dataPartition_path =
-                (avd->getContentPath() / avd->getImageFilenameByType(Avd::ImageType::USERDATA))
-                        .string();
+                (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::USERDATA)).string();
     }
 
     disk_systemPartition_initPath =
-            avd->getSystemImagePath(Avd::ImageType::USERSYSTEM).value_or(fs::path()).string();
+            avd->getSystemImageFilePath(Avd::ImageType::USERSYSTEM).value_or(fs::path()).string();
 
     if (disk_systemPartition_initPath.empty() || !fs::exists(disk_systemPartition_initPath)) {
-        disk_systemPartition_initPath =
-                avd->getSystemImagePath(Avd::ImageType::INITSYSTEM).value_or(fs::path()).string();
+        disk_systemPartition_initPath = avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM)
+                                                .value_or(fs::path())
+                                                .string();
     }
 
     disk_encryptionKeyPartition_path =
@@ -103,15 +103,14 @@ void HardwareConfig::load(Avd* avd, IniFile* ini) {
     }
 
     hw_sdCard_path =
-            (avd->getContentPath() / avd->getImageFilenameByType(Avd::ImageType::SDCARD)).string();
+            (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::SDCARD)).string();
 
     disk_cachePartition_size = StorageCapacity(66, StorageCapacity::Unit::MiB).bytes();
     disk_cachePartition_path =
             avd->getImageFilePath(Avd::ImageType::CACHE).value_or(fs::path()).string();
     if (disk_cachePartition_path.empty()) {
         disk_cachePartition_path =
-                (avd->getContentPath() / avd->getImageFilenameByType(Avd::ImageType::CACHE))
-                        .string();
+                (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::CACHE)).string();
     }
 
     hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
