@@ -42,12 +42,12 @@ using android::base::operator""_MiB;
 using android::base::operator""_TiB;
 
 absl::Status RawDrive::initialize(const Emulator& emulator) {
-    return emulator.avd().getSystemImagePath(mImage).status();
+    return emulator.avd().getSystemImageFilePath(mImage).status();
 };
 
 std::vector<std::string> RawDrive::getQemuParameters(const Emulator& emulator) const {
     const Avd& avd = emulator.avd();
-    auto diskImage = avd.getSystemImagePath(mImage);
+    auto diskImage = avd.getSystemImageFilePath(mImage);
     auto diskId = diskImage->filename().string();
     return {"-device", absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr(), diskId),
             "-blockdev",

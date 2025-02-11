@@ -39,7 +39,7 @@ absl::Status KernelDevice::initialize(const Emulator& emulator) {
     auto options = {Avd::ImageType::KERNEL, Avd::ImageType::KERNELRANCHU64,
                     Avd::ImageType::KERNELRANCHU};
     for (const auto& option : options) {
-        mDiskImage = avd.getSystemImagePath(option);
+        mDiskImage = avd.getSystemImageFilePath(option);
         if (mDiskImage.ok()) {
             hw.kernel_path = mDiskImage->string();
             return absl::OkStatus();
