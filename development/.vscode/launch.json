@@ -23,8 +23,9 @@
                 // We are pretending to be a bazel run..
                 "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
                 "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
-                // Asan configuration.
-                "ASAN_OPTIONS=detect_odr_violation=0"
+                // Disable crash reporting, the debugger will get very confused when we fork the crashpad_handler
+                // we want to debug qemu, not crashpad_handler.
+                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
             ],
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
@@ -46,8 +47,80 @@
                     "${workspaceFolder}/external/googletest"
                 ],
                 [
+                    "../tink_cc",
+                    "${workspaceFolder}/external/tink"
+                ],
+                [
                     "../com_google_protobuf",
                     "${workspaceFolder}/external/protobuf"
+                ],
+                [
+                    "../boringssl",
+                    "${workspaceFolder}/external/boringssl/src"
+                ],
+                [
+                    "../zlib",
+                    "${workspaceFolder}/external/zlib"
+                ],
+                [
+                    "../glib",
+                    "${workspaceFolder}/external/glib"
+                ],
+            ],
+            "preLaunchTask": "aemu: Build debug emulator",
+            "stopOnEntry": false,
+            "initCommands": [
+                "settings set target.process.follow-fork-mode child",
+                "pro hand -p true -s false SIGUSR1",
+                "pro hand -p true -s false SIGUSR2"
+            ]
+        },
+        {
+            "type": "lldb-dap",
+            "request": "launch",
+            "name": "Debug Goldfish under Asan",
+            // Replace <path_to_your_binary> with the actual path to your
+            // binary. If you want to debug BUILD target
+            // `//path/to:my_test`, the path to your binary will be
+            // `${workspaceFolder}/bazel-bin/path/to/my_test`.
+            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            // Set any program arguments here.
+            "args": [
+                "-avd",
+                "V",
+            ],
+            // Set any environment values here, not you would likely want to keep at least these
+            "env": [
+                // We are pretending to be a bazel run..
+                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                // Asan configuration.
+                "ASAN_OPTIONS=detect_odr_violation=0",
+                "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                // On darwin: ${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r536225/bin/llvm-symbolizer
+                "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer",
+                // Disable crash reporting, the debugger will get very confused when we fork the crashpad_handler
+                // we want to debug qemu, not crashpad_handler.
+                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "debuggerRoot": "${workspaceFolder}",
+            "sourceMap": [
+                [
+                    "/proc/self/cwd",
+                    "${workspaceFolder}",
+                ],
+                // Down below you will find all the "local_repositories"
+                // that we are using. If new repositories are introduced
+                // you will have to add them here, or else symbols will
+                // not be found.
+                [
+                    "../com_google_absl",
+                    "${workspaceFolder}/external/abseil-cpp"
+                ],
+                [
+                    "../com_google_googletest",
+                    "${workspaceFolder}/external/googletest"
                 ],
                 [
                     "../tink_cc",
@@ -97,7 +170,13 @@
                 "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
                 "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
                 // Asan configuration.
-                "ASAN_OPTIONS=detect_odr_violation=0"
+                "ASAN_OPTIONS=detect_odr_violation=0",
+                "LSAN_OPTIONS=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                // On darwin: ${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r536225/bin/llvm-symbolizer
+                "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer",
+                // Disable crash reporting, the debugger could start tracking the crashpad-handler, which is usually not
+                // what you want to debug.
+                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
             ],
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
@@ -117,10 +196,6 @@
                 [
                     "../com_google_googletest",
                     "${workspaceFolder}/external/googletest"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
                 ],
                 [
                     "../tink_cc",
@@ -172,10 +247,6 @@
                 [
                     "../com_google_googletest",
                     "${workspaceFolder}/external/googletest"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
                 ],
                 [
                     "../tink_cc",
