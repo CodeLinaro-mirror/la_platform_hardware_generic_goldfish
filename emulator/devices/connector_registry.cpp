@@ -47,8 +47,10 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
         Connector::DeviceFactory registerfn = [value, key, this](auto socket, auto ping,
                                                                  auto args) {
             auto connector = value(std::move(socket), std::move(ping), args);
+            auto registryName = key.substr(1);
             std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-            mActivePlugs[key] = connector;
+            VLOG(1) << "Registering device: " << registryName;
+            mActivePlugs[registryName] = connector;
             return connector;
         };
         mDevices.push_back({key.c_str(), std::move(registerfn)});

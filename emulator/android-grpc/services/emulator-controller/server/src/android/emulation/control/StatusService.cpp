@@ -55,6 +55,8 @@ grpc::Status StatusServiceImpl::getStatus(ServerContext* context,
 
     auto weak = mRegistry->activeDevice<IGuestStatusDevice>();
     if (auto status = weak.lock()) {
+        VLOG(1) << "Getting status: " << status->hasBooted();
+        VLOG(1) << "Heartbeat: " << status->heartbeat();
         reply->set_booted(status->hasBooted());
         reply->set_heartbeat(status->heartbeat());
     }
