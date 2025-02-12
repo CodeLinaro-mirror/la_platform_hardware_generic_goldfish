@@ -229,10 +229,12 @@ class Avd {
      * @brief Constructs an AVD object from its name.
      *
      * @param name The name of the AVD.
+     * @param sysdir_override Optionally supply a path to override the system directory
+     *        search. Use empty string for default behaviour.
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<Avd> fromName(std::string name);
+    static absl::StatusOr<Avd> fromName(std::string name, std::string sysdir_override = "");
 
     /**
      * @brief Retrieves the value of the specified property from the AVD's
@@ -252,19 +254,20 @@ class Avd {
         return mConfig->get<T>(property, def);
     };
 
-    static absl::StatusOr<Avd> parse(fs::path ini_file);
+    static absl::StatusOr<Avd> parse(fs::path ini_file, std::string sysdir_override = "");
 
     static constexpr int kUnknownApiLevel = 1000;
 
   private:
     Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
-        std::string name);
+        std::string name, std::string sysdir_override);
 
     std::string mName;
     fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
     std::unique_ptr<IniFile> mTarget;
     std::unique_ptr<IniFile> mConfig;
     HardwareConfig mHwCfg;
+    std::string mSysdirOverride;
 };
 
 }  // namespace android::goldfish
