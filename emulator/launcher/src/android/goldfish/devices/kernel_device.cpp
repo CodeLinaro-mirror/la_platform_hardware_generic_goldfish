@@ -13,58 +13,93 @@
 // limitations under the License.
 #include "kernel_device.h"
 
+#include <android/cmdline-definitions.h>
+
 #include <initializer_list>
+#include <string>
 #include <string_view>
 
 #include "absl/log/log.h"
-#include "absl/strings/str_format.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 
+#include "aemu/base/utils/status_macros.h"
+#include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
-absl::Status KernelDevice::initialize(const Emulator& emulator) {
-    const Avd& avd = emulator.avd();
-    auto hw = avd.hw();
+
+namespace {
+absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts) {
+    // Use the one provided by flag if present.
+    if (opts.kernel != nullptr) {
+        return opts.kernel;
+    }
 
     // Use the one provided by hardware config if available
-    if (!hw.kernel_path.empty()) {
-        mDiskImage = hw.kernel_path;
-        return absl::OkStatus();
+    if (const auto& hw = avd.hw(); !hw.kernel_path.empty()) {
+        return hw.kernel_path;
     }
 
     // Get the one defined in the avd.
     auto options = {Avd::ImageType::KERNEL, Avd::ImageType::KERNELRANCHU64,
                     Avd::ImageType::KERNELRANCHU};
     for (const auto& option : options) {
-        mDiskImage = avd.getSystemImageFilePath(option);
-        if (mDiskImage.ok()) {
-            hw.kernel_path = mDiskImage->string();
-            return absl::OkStatus();
+        auto kernel_image = avd.getSystemImageFilePath(option);
+        if (kernel_image.ok()) {
+            // TODO Also update hw.kernel_path with the found image?
+            return *kernel_image;
         }
-        LOG(INFO) << mDiskImage.status().message();
+        LOG(INFO) << kernel_image.status().message();
     }
 
-    return absl::NotFoundError("No kernel image found.");
+    return absl::NotFoundError("No kernel image found");
+}
+
+absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
+    // Note the parameters need to be within '
+    std::string cl = "'no_timer_check 8250.nr_uarts=1 loop.max_part=7 ";
+    switch (auto a = avd.detectArchitecture(); a) {
+        case Avd::CpuArchitecture::kArm:
+            absl::StrAppend(&cl, absl::StrJoin({"console=ttyAMA0,38400", "keep_bootcon",
+                                                "earlyprintk=ttyAMA0", "ndns=3"},
+                                               " "));
+            break;
+        case Avd::CpuArchitecture::kX86:
+            absl::StrAppend(&cl,
+                            "clocksource=pit console=0 cma=296M@0-4G "
+                            "memmap=0x10000$0xff018000");
+            break;
+        case Avd::CpuArchitecture::kRiscV:
+        default:
+            return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
+    }
+
+    if (opts.shell || opts.shell_serial || opts.show_kernel) {
+        absl::StrAppend(&cl, " printk.devkmsg=on");
+    }
+    absl::StrAppend(&cl, " bootconfig'");
+    return cl;
+}
+}  // namespace
+
+absl::Status KernelDevice::initialize(const Emulator& emulator) {
+    const Avd& avd = emulator.avd();
+    const AndroidOptions& opts = emulator.opts();
+    ASSIGN_OR_RETURN(auto k, kernel_image(avd, opts));
+    mDiskImage = android::base::System::pathAsString(k);
+    ASSIGN_OR_RETURN(auto cl, command_line(avd, opts));
+    mCommandLine = std::move(cl);
+    return absl::OkStatus();
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
 std::vector<std::string> KernelDevice::getQemuParameters(const Emulator& emulator) const {
-    auto opts = emulator.opts();
-    return {
-            "-kernel",
-            mDiskImage->string(),
-            "-append",
-            // Note the parameters need to be within '
-            absl::StrFormat("'no_timer_check 8250.nr_uarts=1 clocksource=pit console=0 "
-                            "cma=296M@0-4G loop.max_part=7 memmap=0x10000$0xff018000 "
-                            "%s bootconfig'",
-                            (opts.shell || opts.shell_serial || opts.show_kernel)
-                                    ? "printk.devkmsg=on"
-                                    : ""),
-    };
+    return {"-kernel", mDiskImage, "-append", mCommandLine};
 }
 
 }  // namespace android::goldfish

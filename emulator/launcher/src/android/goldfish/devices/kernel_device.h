@@ -31,6 +31,7 @@ class KernelDevice : public Device {
     std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
   private:
-    absl::StatusOr<fs::path> mDiskImage;
+    std::string mDiskImage;
+    std::string mCommandLine;
 };
 }  // namespace android::goldfish
