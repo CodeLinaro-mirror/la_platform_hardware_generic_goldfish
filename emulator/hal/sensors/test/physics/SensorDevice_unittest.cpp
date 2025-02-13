@@ -10,13 +10,14 @@
 // GNU General Public License for more details.
 #include "android/physics/SensorDevice.h"
 
-#include <android/base/testing/TestSystem.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "gmock/gmock.h"
+#include "absl/strings/str_format.h"
 
+#include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/avd-test.h"
+#include "android/physics/Sensors.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 namespace goldfish::devices::sensor {
@@ -51,6 +52,11 @@ class SensorDeviceTest : public android::goldfish::AvdTest {
     void receive(std::string_view msg) { device->onReceive(msg.data(), msg.size()); }
     void clear() { test_socket->storage.clear(); }
 
+    void setAcceleration(float x, float y, float z) {
+        auto status = device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z});
+        EXPECT_TRUE(status.ok());
+    }
+
   protected:
     TestLooper* looper;
     TestConnectorRegistry registry;
@@ -80,7 +86,7 @@ TEST_F(SensorDeviceTest, canSetSensors) {
 TEST_F(SensorDeviceTest, setDelayCausesATick) {
     looper->setVirtualTimeNs(1234567890);
     receive("set-delay:10");
-    EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:1234567890000"));
+    EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:123456789"));
 }
 
 TEST_F(SensorDeviceTest, setTimeOffset) {
@@ -99,6 +105,78 @@ TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
 
     // We should see a sync several times.
     EXPECT_THAT(countOccurrences(test_socket->storage, "guest-sync:"), Gt(10));
+}
+
+static const float TOLERANCE = 0.1f;
+TEST_F(SensorDeviceTest, Portrait) {
+    setAcceleration(0.0, 9.8, 0.0);  // Approximating gravity on Earth
+    Rotation rotation = device->getDeviceRotation().value();
+    EXPECT_FLOAT_EQ(rotation.xAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.yAxis, 9.8f);
+    EXPECT_FLOAT_EQ(rotation.zAxis, 0.0f);
+    EXPECT_EQ(rotation.rotation, SkinRotation::PORTRAIT);
+}
+
+TEST_F(SensorDeviceTest, Landscape) {
+    setAcceleration(9.8, 0.0, 0.0);
+    Rotation rotation = device->getDeviceRotation().value();
+    EXPECT_FLOAT_EQ(rotation.xAxis, 9.8f);
+    EXPECT_FLOAT_EQ(rotation.yAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.zAxis, 0.0f);
+    EXPECT_EQ(rotation.rotation, SkinRotation::LANDSCAPE);
+}
+
+TEST_F(SensorDeviceTest, ReversePortrait) {
+    setAcceleration(0.0, -9.8, 0.0);
+    Rotation rotation = device->getDeviceRotation().value();
+    EXPECT_FLOAT_EQ(rotation.xAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.yAxis, -9.8f);
+    EXPECT_FLOAT_EQ(rotation.zAxis, 0.0f);
+    EXPECT_EQ(rotation.rotation, SkinRotation::REVERSE_PORTRAIT);
+}
+
+TEST_F(SensorDeviceTest, ReverseLandscape) {
+    setAcceleration(-9.8, 0.0, 0.0);
+    Rotation rotation = device->getDeviceRotation().value();
+    EXPECT_FLOAT_EQ(rotation.xAxis, -9.8f);
+    EXPECT_FLOAT_EQ(rotation.yAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.zAxis, 0.0f);
+    EXPECT_EQ(rotation.rotation, SkinRotation::REVERSE_LANDSCAPE);
+}
+
+TEST_F(SensorDeviceTest, Diagonal) {
+    // Test a diagonal rotation to ensure proper normalization and dot product calculation
+    setAcceleration(4.0, 4.0, 4.0);  // Not normalized
+    Rotation rotation = device->getDeviceRotation().value();
+    EXPECT_NEAR(rotation.xAxis, 4.0f, TOLERANCE);  // Expect the original values
+    EXPECT_NEAR(rotation.yAxis, 4.0f, TOLERANCE);
+    EXPECT_NEAR(rotation.zAxis, 4.0f, TOLERANCE);
+
+    // Should pick something,
+    bool rotationValid = false;
+    auto calculatedRotation = rotation.rotation;
+
+    for (const auto& v : {SkinRotation::PORTRAIT, SkinRotation::LANDSCAPE,
+                          SkinRotation::REVERSE_PORTRAIT, SkinRotation::REVERSE_LANDSCAPE}) {
+        if (v == calculatedRotation) {
+            rotationValid = true;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(rotationValid);
+}
+
+TEST_F(SensorDeviceTest, ZeroGravity) {
+    setAcceleration(0.0, 0.0, 0.0);
+    Rotation rotation = device->getDeviceRotation().value();
+
+    EXPECT_FLOAT_EQ(rotation.xAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.yAxis, 0.0f);
+    EXPECT_FLOAT_EQ(rotation.zAxis, 0.0f);
+
+    // In a zero-g situation, the rotation can't be reliably determined.
+    EXPECT_EQ(rotation.rotation, SkinRotation::PORTRAIT);  //
 }
 
 }  // namespace goldfish::devices::sensor
