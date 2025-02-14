@@ -242,15 +242,16 @@ Avd::Avd(Avd&& other) noexcept
       mContentPath(std::move(other.mContentPath)),
       mTarget(std::move(other.mTarget)),
       mConfig(std::move(other.mConfig)),
-      mHwCfg(std::move(other.mHwCfg)) {}
+      mHwCfg(std::move(other.mHwCfg)),
+      mSysdirOverride(std::move(other.mSysdirOverride)) {}
 
 bool Avd::hasEncryptionKey() const {
     return getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).ok();
 }
 
-absl::StatusOr<Avd> Avd::fromName(std::string name) {
+absl::StatusOr<Avd> Avd::fromName(std::string name, std::string sysdir_override) {
     auto directory_path = ConfigDirs::getAvdRootDirectory();
-    return Avd::parse(directory_path / (name + ".ini"));
+    return Avd::parse(directory_path / (name + ".ini"), std::move(sysdir_override));
 }
 
 DeviceType Avd::getDeviceType() const {
@@ -300,7 +301,7 @@ fs::path Avd::getImageFilename(Avd::ImageType imgType) const {
 }
 
 absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
-    auto possible = mContentPath / _imageFileNames[static_cast<uint8_t>(imgType)];
+    fs::path possible = mContentPath / _imageFileNames[static_cast<uint8_t>(imgType)];
     if (System::get()->pathIsFile(possible) && System::get()->pathCanRead(possible)) {
         return possible;
     }
@@ -310,7 +311,25 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
 }
 
 absl::StatusOr<fs::path> Avd::getSystemImageFilePath(Avd::ImageType imgType) const {
+    auto make_path = [imgType](const fs::path& p) {
+        return p / _imageFileNames[static_cast<uint8_t>(imgType)];
+    };
+
+    auto check_path = [](const fs::path& p) {
+        return System::get()->pathExists(p) && System::get()->pathCanRead(p);
+    };
+
+    if (!mSysdirOverride.empty()) {
+        if (auto p = make_path(mSysdirOverride); check_path(p)) {
+            VLOG(1) << "Found in sysdir override: " << p;
+            return p;
+        } else {
+            return absl::NotFoundError(
+                    absl::StrCat("Path ", p.string(), " using sysdir override does not exist"));
+        }
+    }
     auto sdk = ConfigDirs::getSdkRootDirectory();
+    VLOG(1) << "SDK Root path: " << sdk;
     fs::path path = "no-sysimg";
     std::string key;
     for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
@@ -318,12 +337,11 @@ absl::StatusOr<fs::path> Avd::getSystemImageFilePath(Avd::ImageType imgType) con
         if (!mConfig->hasKey(key)) {
             continue;
         }
-        path = sdk / mConfig->getString(key, "unused") /
-               _imageFileNames[static_cast<uint8_t>(imgType)];
-
-        if (System::get()->pathExists(path) && System::get()->pathCanRead(path)) {
+        if (path = make_path(sdk / mConfig->getString(key, "unused")); check_path(path)) {
+            VLOG(1) << "Found in system dir: " << path;
             return path;
         }
+        VLOG(1) << "Not found in system dir: " << path;
     }
     return absl::NotFoundError(absl::StrFormat("Path %s specified in %s does not exist (key=%s)",
                                                path.string(), mConfig->getBackingFile().string(),
@@ -341,15 +359,16 @@ std::string Avd::details(const bool verbose) const {
 }
 
 Avd::Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
-         std::string name)
-    : mContentPath(content_path),
+         std::string name, std::string sysdir_override)
+    : mName(name),
+      mContentPath(content_path),
       mTarget(std::move(target)),
       mConfig(std::move(config)),
-      mName(name) {
+      mSysdirOverride(std::move(sysdir_override)) {
     mHwCfg.load(this, mConfig.get());
 }
 
-absl::StatusOr<Avd> Avd::parse(fs::path ini_file) {
+absl::StatusOr<Avd> Avd::parse(fs::path ini_file, std::string sysdir_override) {
     auto sys = System::get();
     if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", System::pathAsString(ini_file)));
@@ -380,7 +399,7 @@ absl::StatusOr<Avd> Avd::parse(fs::path ini_file) {
     if (!config->read()) {
         return absl::InternalError("Unable to parse ini file: " + cfg_ini.string());
     }
-    return Avd(content_path, std::move(ini), std::move(config), name);
+    return Avd(content_path, std::move(ini), std::move(config), name, std::move(sysdir_override));
 }
 
 // Check that an AVD name is valid.

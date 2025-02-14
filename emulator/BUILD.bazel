@@ -291,6 +291,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/android-grpc:android-grpc-unit-tests",
         "//hardware/generic/goldfish/emulator/android-grpc/absl:translate_test",
         "//hardware/generic/goldfish/emulator/cmdline:cmdline_unittests",
+        "//hardware/generic/goldfish/emulator/config:config_unittests",
         "//hardware/generic/goldfish/emulator/crashreport:crashreport_test",
         "//hardware/generic/goldfish/emulator/hal/bootproperties:bootproperties_unittests",
         "//hardware/generic/goldfish/emulator/hal/clipboard:clipboard_unittests",

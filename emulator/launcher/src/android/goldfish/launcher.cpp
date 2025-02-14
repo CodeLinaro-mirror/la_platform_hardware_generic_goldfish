@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
     if (opts.list_avds) {
         auto avds = Avd::list();
         for (const auto& name : avds) {
-            auto a = Avd::fromName(name);
+            auto a = Avd::fromName(name, opts.sysdir);
             if (!a.status().ok()) {
                 std::cout << name << "is not valid: " << a.status().message();
             } else {
@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
     }
 
     auto name = opts.avd;
-    auto avd = Avd::fromName(name);
+    auto avd = Avd::fromName(name, opts.sysdir);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return -1;

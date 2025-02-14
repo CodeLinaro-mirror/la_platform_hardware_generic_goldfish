@@ -34,7 +34,7 @@ class AvdTest : public ::testing::Test {
         tmp->makeSubDir(pj("android_home", "avd"));
         createTestAvd(sys, tmp, "android-30");
 
-        auto avdResult = Avd::fromName("test_avd");
+        auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
         mAvd = std::make_unique<Avd>(std::move(avdResult.value()));
     }
 

@@ -91,7 +91,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
     UpdateVModule(avd_info->vmodule);
 
-    auto status = Avd::parse(avd_info->ini_path);
+    auto status = Avd::parse(avd_info->ini_path, /*sysdir_override=*/std::string());
     if (!status.ok()) {
         LOG(FATAL) << "Unable to load: " << avd_info->ini_path
                    << " due to: " << status.status().message();
