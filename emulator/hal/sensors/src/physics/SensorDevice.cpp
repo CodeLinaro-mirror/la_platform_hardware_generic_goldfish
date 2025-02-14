@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
@@ -420,10 +421,14 @@ class SensorDevice : public ISensorDevice {
 
         size_t out;
         getSensorValueSize(sensor_id, &out);
-        std::vector<float> data(out);
-        float* ptr = data.data();
-        getSensorValue(sensor_id, &ptr, out);
-        return data;
+        std::vector<float> val(out, 0);
+        std::vector<float*> ptr;
+        for (int i = 0; i < val.size(); i++) {
+            ptr.push_back(&val[i]);
+        }
+
+        getSensorValue(sensor_id, ptr.data(), ptr.size());
+        return val;
     }
 
     bool isSensorEnabled(AndroidSensor sensor_id) override {
@@ -438,6 +443,34 @@ class SensorDevice : public ISensorDevice {
 
     std::chrono::milliseconds getSensorDelayMs() override {
         return std::chrono::milliseconds(mDelayMs);
+    }
+
+    absl::StatusOr<Rotation> getDeviceRotation() override {
+        auto out = getSensorData(AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+        if (!out.ok()) {
+            return out.status();
+        }
+        glm::vec3 device_accelerometer(out->at(0), out->at(1), out->at(2));
+        glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
+
+        static const std::array<std::pair<glm::vec3, SkinRotation>, 4> directions{
+                std::make_pair(glm::vec3(0.0f, 1.0f, 0.0f), SkinRotation::PORTRAIT),
+                std::make_pair(glm::vec3(1.0f, 0.0f, 0.0f), SkinRotation::LANDSCAPE),
+                std::make_pair(glm::vec3(0.0f, -1.0f, 0.0f), SkinRotation::REVERSE_PORTRAIT),
+                std::make_pair(glm::vec3(-1.0f, 0.0f, 0.0f), SkinRotation::REVERSE_LANDSCAPE)};
+        auto coarse_orientation = SkinRotation::PORTRAIT;
+        for (const auto& v : directions) {
+            if (fabs(glm::dot(normalized_accelerometer, v.first) - 1.f) < 0.1f) {
+                coarse_orientation = v.second;
+                break;
+            }
+        }
+
+        Rotation r = {.rotation = coarse_orientation,
+                      .xAxis = out->at(0),
+                      .yAxis = out->at(1),
+                      .zAxis = out->at(2)};
+        return r;
     }
 
   private:

@@ -38,6 +38,21 @@ using namespace std::string_view_literals;
 
 using SensorData = std::vector<float>;
 
+enum class SkinRotation {
+    PORTRAIT = 0,          ///< Portrait orientation (0 degrees).
+    LANDSCAPE = 1,         ///< Landscape orientation (90 degrees clockwise).
+    REVERSE_PORTRAIT = 2,  ///< Reverse portrait orientation (180 degrees or -180 degrees).
+    REVERSE_LANDSCAPE =
+            3,  ///< Reverse landscape orientation (270 degrees clockwise or -90 degrees).
+};
+struct Rotation {
+    SkinRotation rotation;
+
+    float xAxis;  ///< The x-axis acceleration value (in m/s^2).
+    float yAxis;  ///< The y-axis acceleration value (in m/s^2).
+    float zAxis;  ///< The z-axis acceleration value (in m/s^2).
+};
+
 // A Qemud based sensor emulator.
 class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, AndroidSensor> {
   public:
@@ -82,6 +97,29 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
     virtual std::chrono::microseconds getSensorTimeOffset() = 0;
 
     virtual std::chrono::milliseconds getSensorDelayMs() = 0;
+
+    /**
+     * @brief Retrieves the device's current rotation based on accelerometer data.
+     *
+     * This method calculates the device's rotation by querying the accelerometer
+     * sensor (ANDROID_SENSOR_ACCELERATION) and analyzing its output.  The returned
+     * `Rotation` object provides both a coarse-grained representation of the
+     * rotation (as a `Rotation::SkinRotation` enum value: PORTRAIT, LANDSCAPE,
+     * REVERSE_PORTRAIT, or REVERSE_LANDSCAPE) and the raw accelerometer readings
+     * along the x, y, and z axes.
+     *
+     * The coarse rotation is determined by comparing the normalized accelerometer
+     * vector with known reference vectors for each of the four standard orientations.
+     *
+     * @return absl::StatusOr<Rotation> An `absl::StatusOr` object containing the
+     *         derived rotation information.
+     *         - If successful, the `value()` method of the returned object will
+     *           contain the `Rotation` object.
+     *         - If an error occurs (e.g., accelerometer data unavailable), the
+     *           returned object will contain an error status.  Check the status
+     *           using the `ok()` method.
+     */
+    virtual absl::StatusOr<Rotation> getDeviceRotation() = 0;
 
     /**
      * @brief Registers the sensor device with the connector registry.
