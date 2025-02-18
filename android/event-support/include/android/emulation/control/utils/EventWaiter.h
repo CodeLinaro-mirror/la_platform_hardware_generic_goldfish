@@ -13,11 +13,17 @@
 // limitations under the License.
 #pragma once
 
-#include <atomic>  // for atomic
-#include <chrono>  // for milliseconds
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
-#include <cstdint>  // for uint64_t
-#include <mutex>    // for condition_variable, mutex
+#include <cstdint>
+#include <mutex>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+
+#include "android/emulation/control/utils/EventSupport.h"
 
 namespace android {
 namespace emulation {
@@ -90,6 +96,107 @@ class EventWaiter {
     uint64_t mEventCounter{0};
     std::atomic<uint64_t> mLastEvent{0};
     RemoveCallback mRemove{nullptr};
+};
+
+/**
+ * @brief A generic event waiter class that allows waiting for events with sequence numbers.
+ *
+ * This class provides a mechanism to wait for new events of type T arriving through an
+ * EventChangeSupport, ensuring that events are processed in sequence.  It manages an internal event
+ * sequence counter.
+ *
+ * @tparam T The type of the events to be handled.
+ */
+template <typename T>
+class GenericEventWaiter {
+  private:
+    class InnerEventListener : public GenericEventHandler<T> {
+      public:
+        InnerEventListener(GenericEventWaiter<T>* waiter, EventChangeSupport<T>* listener)
+            : GenericEventHandler<T>(listener), mWaiter(waiter) {}
+        ~InnerEventListener() {}
+        void eventArrived(const T event) override { mWaiter->onEventArrived(); }
+
+      private:
+        GenericEventWaiter<T>* mWaiter;
+    };
+
+  public:
+    /**
+     * @brief Constructs a GenericEventWaiter.
+     *
+     * @param listener A pointer to the EventChangeSupport that this waiter will listen to.
+     */
+    GenericEventWaiter(EventChangeSupport<T>* listener) : mInnerListener(this, listener) {}
+
+    ~GenericEventWaiter() = default;
+
+    /**
+     * @brief Waits for a new event with a sequence number greater than the given one.
+     *
+     * This method blocks until either a new event with a higher sequence number than
+     * |lastSequenceNumber| arrives or the specified timeout is reached.
+     *
+     * @param timeout The maximum duration to wait for a new event.
+     * @param lastSequenceNumber The sequence number of the last processed event.  The waiter
+     *        will only return true if a new event with a greater sequence number arrives.
+     * @return True if a new event with a larger sequence number arrived, false if the timeout
+     *         was reached.
+     */
+    bool waitForNextEvent(absl::Duration timeout, uint64_t lastSequenceNumber) const {
+        auto nextEvent = [&]() {
+            // Note: that the following holds:
+            // mEventSequenceMutex.AssertHeld();
+            return mEventSequence > lastSequenceNumber;
+        };
+        absl::MutexLock lock(&mEventSequenceMutex);
+        mEventSequenceMutex.AwaitWithTimeout(absl::Condition(&nextEvent), timeout);
+        return mEventSequence > lastSequenceNumber;
+    }
+
+    /**
+     * @brief Waits for any new event to arrive.
+     *
+     * This method blocks until a new event arrives or the timeout is reached. It is equivalent
+     * to calling `waitForNextEvent` with the current event sequence number.  This means the
+     * method will return immediately if an event has already arrived *before* this method is
+     * called, even if that event has already been processed by another thread.
+     *
+     * @note This method is not race-free. If an event arrives between retrieving the current
+     * sequence number and calling `waitForNextEvent`, this call will miss that event and may
+     * wait for the *next* event.  If precise event ordering is essential or if the event
+     * source could fire events very rapidly, it's recommended to use the overload
+     * `waitForNextEvent(timeout, lastSequenceNumber)` and manage the sequence numbers
+     * explicitly.
+     *
+     * @param timeout The maximum duration to wait for a new event.
+     * @return True if a new event arrived, false if the timeout was reached.
+     */
+    bool waitForNextEvent(absl::Duration timeout) const {
+        return waitForNextEvent(timeout, mEventSequence);
+    }
+
+    /**
+     * @brief Gets the current event sequence number.
+     *
+     * @return The current event sequence number.
+     */
+    uint64_t getEventSequence() const {
+        absl::MutexLock lock(&mEventSequenceMutex);
+        return mEventSequence;
+    }
+
+  private:
+    void onEventArrived() {
+        absl::MutexLock lock(&mEventSequenceMutex);
+        mEventSequence++;
+    }
+
+    /// The current event sequence number. Guarded by |mEventSequenceMutex|.
+    uint64_t mEventSequence ABSL_GUARDED_BY(mEventSequenceMutex) = 0;
+    /// Mutex for protecting access to |mEventSequence|.
+    mutable absl::Mutex mEventSequenceMutex;
+    InnerEventListener mInnerListener;
 };
 
 }  // namespace control

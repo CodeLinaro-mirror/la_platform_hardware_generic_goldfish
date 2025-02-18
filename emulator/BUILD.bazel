@@ -286,6 +286,7 @@ test_suite(
     tests = [
         ":protobuf_unit_tests",
         "//hardware/generic/goldfish/android:emulator_android_tests",
+        "//hardware/generic/goldfish/android/event-support:event-support-test",
         "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
         "//hardware/generic/goldfish/emulator/adb/logger:logger_unitests",
         "//hardware/generic/goldfish/emulator/android-grpc:android-grpc-unit-tests",

@@ -196,6 +196,7 @@ TEST_F(CallbackTests, NoMemoryLeaks) {
     }
     EXPECT_EQ(events.callbackCount(), 0);
 }
+
 }  // namespace control
 }  // namespace emulation
 }  // namespace android
