@@ -14,8 +14,8 @@
 #pragma once
 #include <grpc++/grpc++.h>
 
-#include "android/emulation/control/display/DisplayChangeListener.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/display/MultiDisplay.h"
 #include "goldfish/devices/connector_registry.h"
 #include "host-common/vm_operations.h"
 
@@ -26,7 +26,7 @@ namespace control {
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
                                      ::goldfish::devices::ConnectorRegistry* connectorRegistry,
                                      android::goldfish::Avd* avd,
-                                     DisplayChangeListener* displayChangeListener);
+                                     android::goldfish::IMultiDisplay* multiDisplay);
 
 }  // namespace control
 }  // namespace emulation

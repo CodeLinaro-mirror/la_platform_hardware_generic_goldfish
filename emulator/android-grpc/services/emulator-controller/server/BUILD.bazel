@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
 
 cc_library(
@@ -5,6 +7,8 @@ cc_library(
     srcs = [
         "src/android/emulation/control/ClipboardService.cpp",
         "src/android/emulation/control/ClipboardService.h",
+        "src/android/emulation/control/DisplayService.cpp",
+        "src/android/emulation/control/DisplayService.h",
         "src/android/emulation/control/EmulatorService.cpp",
         "src/android/emulation/control/SensorService.cpp",
         "src/android/emulation/control/SensorService.h",
@@ -28,6 +32,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/hal/clipboard:headers",
+        "//hardware/generic/goldfish/emulator/hal/display",
         "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
         "//hardware/generic/goldfish/emulator/hal/sensors:headers",
         "//hardware/google/aemu/base:aemu-base",

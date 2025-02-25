@@ -97,7 +97,6 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     std::vector<std::shared_ptr<Service>> mRegisteredServices;
     remote::Endpoint mEndpoint;
     int mPort;
-    int queueidx = 0;
     std::string mCert;
 };
 

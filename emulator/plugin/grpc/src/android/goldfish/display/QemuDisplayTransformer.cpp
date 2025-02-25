@@ -51,18 +51,6 @@ static pixman_format_code_t pixmanFormat(ImageFormat format) {
     }
 }
 
-static void copy_pixman_image_to_buffer(pixman_image_t* image, uint8_t* pixels, size_t cPixels) {
-    int height = pixman_image_get_height(image);
-    int stride = pixman_image_get_stride(image);  // Bytes per row
-    uint8_t* source_data = (uint8_t*)pixman_image_get_data(image);
-
-    // Calculate total size to copy (height * stride)
-    size_t total_size = height * stride;
-
-    total_size = std::min(total_size, cPixels);
-    memcpy(pixels, source_data, total_size);
-}
-
 static absl::Status copy_buffer_to_pixman_image(pixman_image_t* src_img, const ImageFormat& format,
                                                 Image& image) {
     // TODO(jansene): We need to calculate the actual rotation and

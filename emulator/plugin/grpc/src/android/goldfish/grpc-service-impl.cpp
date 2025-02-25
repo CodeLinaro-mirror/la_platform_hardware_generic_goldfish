@@ -44,7 +44,7 @@ extern "C" {
 #include "android/goldfish/avd-info.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
-#include "android/goldfish/display/QemuDisplayTransformer.h"
+#include "android/goldfish/display/MultiDisplay.h"
 
 namespace fs = std::filesystem;
 using android::base::System;
@@ -52,7 +52,7 @@ using android::emulation::control::EmulatorControllerService;
 using android::goldfish::Avd;
 using android::goldfish::EmulatorAdvertisement;
 using android::goldfish::EmulatorProperties;
-using android::goldfish::QemuDisplayTransformer;
+using android::goldfish::IMultiDisplay;
 
 extern "C" const QAndroidVmOperations* const gQAndroidVmOperations;
 
@@ -73,7 +73,6 @@ static std::string generateToken(int cnt) {
 
 static std::unique_ptr<EmulatorAdvertisement> advertiser;
 static std::unique_ptr<EmulatorControllerService> grpcService;
-static QemuDisplayTransformer gDisplayTransformer{};
 static pixman_image_t* g_image;
 
 bool initialize(GrpcDeviceConfiguration* device) {
@@ -91,7 +90,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
             {"avd.dir", System ::pathAsString(avd->getContentPath())},
             {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            gQAndroidVmOperations, registry, avd, &gDisplayTransformer);
+            gQAndroidVmOperations, registry, avd, IMultiDisplay::instance());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)
@@ -160,23 +159,4 @@ void finalize(GrpcDeviceConfiguration* device) {
         pixman_image_unref(g_image);
         g_image = nullptr;
     }
-}
-
-// TODO(jansene): Hook up the actual display rendering.
-void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
-    VLOG(1) << "grpc_dpy_gfx_update x: " << x << " y: " << y << " w: " << w << " h: " << h
-            << " g_image: " << g_image;
-    gDisplayTransformer.fireEvent(g_image);
-}
-
-void grpc_dpy_gfx_refresh(struct DisplayChangeListener* dcl) {
-    VLOG(1) << "grpc_dpy_gfx_refresh";
-}
-void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface) {
-    if (g_image) {
-        pixman_image_unref(g_image);
-    }
-    g_image = new_surface->image;
-    VLOG(1) << "grpc_dpy_gfx_switch: " << new_surface->image;
-    pixman_image_ref(g_image);
 }

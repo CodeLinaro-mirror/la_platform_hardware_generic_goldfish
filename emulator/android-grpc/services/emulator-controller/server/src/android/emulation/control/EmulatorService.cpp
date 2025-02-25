@@ -21,9 +21,9 @@
 
 #include "aemu/base/process/Process.h"
 #include "android/emulation/control/ClipboardService.h"
+#include "android/emulation/control/DisplayService.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
-#include "android/emulation/control/display/DisplayChangeListener.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 #include "host-common/vm_operations.h"
 
@@ -31,23 +31,21 @@ namespace android {
 namespace emulation {
 namespace control {
 
+using ::android::goldfish::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
 using grpc::ServerContext;
 using grpc::Status;
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
-    : public EmulatorController::WithCallbackMethod_streamClipboard<
-              EmulatorController::WithCallbackMethod_streamScreenshot<
-                      EmulatorController::Service>> {
+    : public EmulatorController::WithCallbackMethod_streamClipboard<EmulatorController::Service> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
-                           android::goldfish::Avd* avd,
-                           DisplayChangeListener* displayChangeListener)
+                           android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
         : mVm(vm),
           mSensorService(connectorRegistry),
           mClipboardService(connectorRegistry),
-          mDisplayChangeListener(displayChangeListener),
+          mDisplayService(multidisplay, connectorRegistry),
           mStatusService(connectorRegistry, avd) {}
 
     Status getDisplayConfigurations(ServerContext* context,
@@ -160,29 +158,28 @@ class EmulatorControllerImpl final
         return mClipboardService.setClipboard(context, request, reply);
     }
 
-    ::grpc::ServerWriteReactor<Image>* streamScreenshot(::grpc::CallbackServerContext* /*context*/,
-                                                        const ImageFormat* request) override {
-        LOG(INFO) << "streamScreenshot";
-        auto listener = mDisplayChangeListener->addListener(*request);
-        LOG(INFO) << "listener registered";
-        auto writer = new GenericEventStreamWriter<Image>(listener);
-        writer->eventArrived(mDisplayChangeListener->getScreenshot(*request));
-        return writer;
+    Status streamScreenshot(ServerContext* context, const ImageFormat* request,
+                            grpc::ServerWriter<Image>* writer) override {
+        return mDisplayService.streamScreenshot(context, request, writer);
+    }
+
+    Status getScreenshot(ServerContext* context, const ImageFormat* request,
+                         Image* reply) override {
+        return mDisplayService.getScreenshot(context, request, reply);
     }
 
   private:
     const QAndroidVmOperations* mVm;
     SensorServiceImpl mSensorService;
     ClipboardServiceImpl mClipboardService;
-    DisplayChangeListener* mDisplayChangeListener;
+    DisplayServiceImpl mDisplayService;
     StatusServiceImpl mStatusService;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
                                      ConnectorRegistry* connectorRegistry,
-                                     android::goldfish::Avd* avd,
-                                     DisplayChangeListener* displayChangeListener) {
-    return new EmulatorControllerImpl(vm, connectorRegistry, avd, displayChangeListener);
+                                     android::goldfish::Avd* avd, IMultiDisplay* multidisplay) {
+    return new EmulatorControllerImpl(vm, connectorRegistry, avd, multidisplay);
 }
 
 }  // namespace control
