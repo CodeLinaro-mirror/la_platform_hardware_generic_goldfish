@@ -115,7 +115,7 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
                 "-device", absl::StrFormat("virtio-input-android-pci,display=gpu0,head=%d", id)});
     }
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     // This ensures that only users on local box with read/write access to that path can access the
     // VNC server. Ports can be forwarded with ssh.
     // TODO(jansene):  we technically should force display=gpu0,head=0, to use proper qemu console
