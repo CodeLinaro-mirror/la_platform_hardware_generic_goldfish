@@ -140,4 +140,36 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
      */
     static void registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper);
 };
+
+/**
+ * @brief Observes changes in sensor data for a specific Android sensor.
+ *
+ * The SensorObserver class allows you to monitor a particular Android sensor
+ * and receive notifications when its data changes. It internally compares
+ * the current sensor data with the previously observed data and triggers an
+ * event if a change is detected.
+ *
+ * @tparam SensorData The type of data representing the sensor values (e.g., std::vector<float>).
+ *
+ * @note
+ * The SensorObserver relies on the `ISensorDevice` to provide sensor data and
+ * to notify it when sensor events occur.
+ */
+class SensorObserver : public WithCallbacks<EventChangeSupport, SensorData> {
+  public:
+    /**
+     * @brief Constructs a SensorObserver for a specific sensor.
+     *
+     * @param device A shared pointer to the ISensorDevice to observe.
+     * @param id The AndroidSensor ID to observe.
+     */
+    SensorObserver(std::shared_ptr<ISensorDevice> device, AndroidSensor id);
+    ~SensorObserver();
+
+  private:
+    SensorData mOld;                               ///< The previously observed sensor data.
+    const std::shared_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
+    CallbackId mCallbackId;  ///< The ID of the registered callback in the ISensorDevice.
+};
+
 }  // namespace goldfish::devices::sensor

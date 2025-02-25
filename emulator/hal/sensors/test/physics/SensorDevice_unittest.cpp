@@ -23,6 +23,7 @@
 namespace goldfish::devices::sensor {
 
 using android::base::TestSystem;
+using ::testing::_;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -54,6 +55,11 @@ class SensorDeviceTest : public android::goldfish::AvdTest {
 
     void setAcceleration(float x, float y, float z) {
         auto status = device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z});
+        EXPECT_TRUE(status.ok());
+    }
+
+    void setProximity(float value) {
+        auto status = device->overrideSensor(AndroidSensor::ANDROID_SENSOR_PROXIMITY, {value});
         EXPECT_TRUE(status.ok());
     }
 
@@ -177,6 +183,85 @@ TEST_F(SensorDeviceTest, ZeroGravity) {
 
     // In a zero-g situation, the rotation can't be reliably determined.
     EXPECT_EQ(rotation.rotation, SkinRotation::PORTRAIT);  //
+}
+
+// Mock callback for testing SensorObserver
+class MockSensorCallback {
+  public:
+    MOCK_METHOD(void, onSensorChanged, (const SensorData& data));
+};
+
+TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
+    // Create a SensorObserver for the accelerometer
+    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
+    SensorObserver observer(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+
+    // Create a mock callback
+    MockSensorCallback mockCallback;
+
+    // Set up expectations: onSensorChanged should be called once with the new data
+    EXPECT_CALL(mockCallback, onSensorChanged(_)).Times(1);
+
+    // Register the mock callback with the observer
+    observer.addCallback(
+            [&mockCallback](const SensorData& data) { mockCallback.onSensorChanged(data); });
+
+    // Change the sensor data
+    setAcceleration(1.0f, 2.0f, 3.0f);
+
+    // No change, so no event
+    setAcceleration(1.0f, 2.0f, 3.0f);
+}
+
+TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
+    // Create a SensorObserver for the accelerometer
+    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
+    SensorObserver observer(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+
+    // Create mock callbacks
+    MockSensorCallback mockCallback1;
+    MockSensorCallback mockCallback2;
+
+    // Set up expectations: both callbacks should be called
+    EXPECT_CALL(mockCallback1, onSensorChanged(Eq(SensorData{1.0f, 2.0f, 3.0f}))).Times(1);
+    EXPECT_CALL(mockCallback2, onSensorChanged(Eq(SensorData{1.0f, 2.0f, 3.0f}))).Times(1);
+
+    // Register the mock callbacks with the observer
+    observer.addCallback(
+            [&mockCallback1](const SensorData& data) { mockCallback1.onSensorChanged(data); });
+    observer.addCallback(
+            [&mockCallback2](const SensorData& data) { mockCallback2.onSensorChanged(data); });
+
+    // Change the sensor data
+    setAcceleration(1.0f, 2.0f, 3.0f);
+}
+
+TEST_F(SensorDeviceTest, SensorObserverDifferentSensors) {
+    // Create a SensorObserver for the accelerometer and proximity
+    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
+    SensorObserver observerAcceleration(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observerProximity(sharedDevice, AndroidSensor::ANDROID_SENSOR_PROXIMITY);
+
+    // Create mock callbacks
+    MockSensorCallback mockCallbackAcceleration;
+    MockSensorCallback mockCallbackProximity;
+
+    // Set up expectations: both callbacks should be called
+    EXPECT_CALL(mockCallbackAcceleration, onSensorChanged(Eq(SensorData{1.0f, 2.0f, 3.0f})))
+            .Times(1);
+    EXPECT_CALL(mockCallbackProximity, onSensorChanged(Eq(SensorData{1.0f}))).Times(1);
+
+    // Register the mock callbacks with the observer
+    observerAcceleration.addCallback([&mockCallbackAcceleration](const SensorData& data) {
+        mockCallbackAcceleration.onSensorChanged(data);
+    });
+    observerProximity.addCallback([&mockCallbackProximity](const SensorData& data) {
+        mockCallbackProximity.onSensorChanged(data);
+    });
+
+    // Change the sensor data
+    setAcceleration(1.0f, 2.0f, 3.0f);
+    setProximity(1.0f);
 }
 
 }  // namespace goldfish::devices::sensor
