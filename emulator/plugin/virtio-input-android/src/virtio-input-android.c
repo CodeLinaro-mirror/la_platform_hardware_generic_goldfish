@@ -467,8 +467,6 @@ static void virtio_input_handle_event(DeviceState* dev, QemuConsole* src, InputE
     InputBtnEvent* btn;
     InputMultiTouchEvent* mtt;
 
-    assert(vahid->device_id == vhid->head - 1);
-
     DD("virtio_input_handle_event: for virtio_input_multi_touch_%d %s (%d)", vahid->device_id,
        vhid->display, vhid->head);
     switch (evt->type) {
