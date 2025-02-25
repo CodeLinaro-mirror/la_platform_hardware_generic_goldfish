@@ -52,7 +52,8 @@ static std::string getDeviceStateString(const HardwareConfig& hw) {
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int apiLevel, std::string kernelSerialPrefix,
-        const std::vector<std::string>& verifiedBootParameters, const HardwareConfig& hw) {
+        const std::vector<std::string>& verifiedBootParameters, const HardwareConfig& hw,
+        const AndroidOptions& opts) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
@@ -63,6 +64,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string qemuVsyncProp = "androidboot.qemu.vsync";
     std::string qemuGltransportNameProp = "androidboot.qemu.gltransport.name";
     std::string hwGltransportNameProp = "androidboot.hardware.gltransport";
+    std::string hwEglProp = "androidboot.hardwareegl";
     std::string qemuDrawFlushIntervalProp = "androidboot.qemu.gltransport.drawFlushInterval";
     std::string qemuOpenglesVersionProp = "androidboot.opengles.version";
     std::string qemuUirendererProp = "androidboot.debug.hwui.renderer";
@@ -89,17 +91,17 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     params.push_back({"qemu.logcat_filter", "*:V"});
     params.push_back({"androidboot.qemu", "1"});
     params.push_back({"androidboot.hardware", "ranchu"});
+
     if (!serialno.empty()) {
         params.push_back({"androidboot.serialno", serialno});
     }
 
-    //   if (opts->guest_angle) {
-    //     params.push_back({"androidboot.hardwareegl", "angle"});
-    //   }
+    if (opts.guest_angle) {
+        // Enable GuestAngle (ro.hardware.egl = angle).
+        params.push_back({hwEglProp, "angle"});
+    }
 
-    //   if (fc::isEnabled(fc::Vulkan)) {
-    //   params.push_back({"androidboot.hardware.vulkan", "ranchu"});
-    //   }
+    params.push_back({"androidboot.hardware.vulkan", "ranchu"});
 
     // Put our swiftshader version string there, which is currently
     // Vulkan 1.1 (0x402000)
@@ -301,7 +303,7 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     auto properties = getUserspaceBootProperties(
             hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel, real_console_tty_prefix,
-            verifiedBootParameters, hw);
+            verifiedBootParameters, hw, emulator.opts());
     // Ok.. let's create it
     LOG(INFO) << "Creating initrd from " << hw.disk_ramdisk_path << " -> " << init_rd;
     if (::goldfish::createRamdiskWithBootconfig(hw.disk_ramdisk_path.c_str(),

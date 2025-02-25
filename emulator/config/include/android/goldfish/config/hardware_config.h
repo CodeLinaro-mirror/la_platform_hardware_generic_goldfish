@@ -31,7 +31,8 @@ class HardwareConfig {
     HardwareConfig();
     ~HardwareConfig() = default;
 
-    void load(Avd* avd, IniFile* ini);
+    void applyDefaults(Avd* avd);
+    void load(IniFile* ini);
 
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
 #define HWCFG_INT(n, s, d, a, t) int n;

@@ -39,6 +39,7 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/keys.h"
+#include "host-common/constants.h"
 #include "host-common/hw-config.h"
 
 /* technical note on how all of this is supposed to work:
@@ -353,7 +354,21 @@ FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> tar
       mTarget(std::move(target)),
       mConfig(std::move(config)),
       mSysdirOverride(std::move(sysdir_override)) {
-    mHwCfg.load(this, mConfig.get());
+    mHwCfg.load(mConfig.get());
+
+    // TODO also load skin hardware.ini if present?
+
+    // TODO this probably needs to be updated when snapshots are supported.
+    auto hw_path = mContentPath / CORE_HARDWARE_INI;
+    if (auto* sys = System::get(); sys->pathExists(hw_path) && sys->pathCanRead(hw_path)) {
+        auto hw_config = std::make_unique<IniFile>(hw_path);
+        if (hw_config->read()) {
+            // TODO load without defaults.
+            mHwCfg.load(hw_config.get());
+        }
+    }
+
+    mHwCfg.applyDefaults(this);
 }
 
 // static

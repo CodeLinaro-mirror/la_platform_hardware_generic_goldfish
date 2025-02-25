@@ -34,7 +34,7 @@ HardwareConfig::HardwareConfig() {
 #include "host-common/hw-config-defs.h"
 }
 
-void HardwareConfig::load(Avd* avd, IniFile* ini) {
+void HardwareConfig::load(IniFile* ini) {
     /* use the magic of macros to implement the hardware configuration loaded */
 #define HWCFG_BOOL(n, s, d, a, t) (n) = ini->getBool(s, d);
 #define HWCFG_INT(n, s, d, a, t) (n) = ini->getInt(s, d);
@@ -45,6 +45,10 @@ void HardwareConfig::load(Avd* avd, IniFile* ini) {
 #include "host-common/hw-config-defs.h"
 
     hw_sdCard = ini->getDiskSize("sdcard.size", 0) > 0;
+    hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
+}
+
+void HardwareConfig::applyDefaults(Avd* avd) {
     if (android_sdk_root.empty()) {
         android_sdk_root = ConfigDirs::getSdkRootDirectory().string();
     }
@@ -113,7 +117,8 @@ void HardwareConfig::load(Avd* avd, IniFile* ini) {
                 (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::CACHE)).string();
     }
 
-    hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
+    // If minigbm (always the case for this version of the emulator).
+    hw_gltransport = "virtio-gpu-pipe";
 }
 
 }  // namespace android::goldfish
