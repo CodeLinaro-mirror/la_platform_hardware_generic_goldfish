@@ -17,6 +17,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 
 #include "absl/base/thread_annotations.h"
@@ -99,37 +100,44 @@ class EventWaiter {
 };
 
 /**
- * @brief A generic event waiter class that allows waiting for events with sequence numbers.
+ * @brief A generic event waiter class that allows waiting for events from multiple
+ * EventChangeSupport instances of different types.
  *
- * This class provides a mechanism to wait for new events of type T arriving through an
- * EventChangeSupport, ensuring that events are processed in sequence.  It manages an internal event
- * sequence counter.
+ * This class provides a mechanism to wait for new events arriving through multiple
+ * EventChangeSupport instances of potentially different types. It manages a single
+ * internal event sequence counter. Any event arriving on any listener will unblock
+ * the wait and increment the counter.
  *
- * @tparam T The type of the events to be handled.
+ * @tparam Ts... The types of the events to be handled.
  */
-template <typename T>
-class GenericEventWaiter {
+template <typename... Ts>
+class GenericMultiEventWaiter {
   private:
-    class InnerEventListener : public GenericEventHandler<T> {
+    template <typename V>
+    class InnerEventListener : public GenericEventHandler<V> {
       public:
-        InnerEventListener(GenericEventWaiter<T>* waiter, EventChangeSupport<T>* listener)
-            : GenericEventHandler<T>(listener), mWaiter(waiter) {}
-        ~InnerEventListener() {}
-        void eventArrived(const T event) override { mWaiter->onEventArrived(); }
+        InnerEventListener(GenericMultiEventWaiter* waiter, EventChangeSupport<V>* listener)
+            : GenericEventHandler<V>(listener), mWaiter(waiter) {}
+        ~InnerEventListener() = default;
+        void eventArrived(const V event) override { mWaiter->onEventArrived(); }
 
       private:
-        GenericEventWaiter<T>* mWaiter;
+        GenericMultiEventWaiter* mWaiter;
     };
+
+    std::tuple<std::unique_ptr<InnerEventListener<Ts>>...> mInnerListeners;
 
   public:
     /**
-     * @brief Constructs a GenericEventWaiter.
+     * @brief Constructs a GenericMultiEventWaiter.
      *
-     * @param listener A pointer to the EventChangeSupport that this waiter will listen to.
+     * @param listeners A tuple of pointers to the EventChangeSupport instances.
      */
-    GenericEventWaiter(EventChangeSupport<T>* listener) : mInnerListener(this, listener) {}
+    explicit GenericMultiEventWaiter(EventChangeSupport<Ts>*... listeners)
+        : mInnerListeners(
+                  std::make_tuple(std::make_unique<InnerEventListener<Ts>>(this, listeners)...)) {}
 
-    ~GenericEventWaiter() = default;
+    ~GenericMultiEventWaiter() = default;
 
     /**
      * @brief Waits for a new event with a sequence number greater than the given one.
@@ -196,8 +204,17 @@ class GenericEventWaiter {
     uint64_t mEventSequence ABSL_GUARDED_BY(mEventSequenceMutex) = 0;
     /// Mutex for protecting access to |mEventSequence|.
     mutable absl::Mutex mEventSequenceMutex;
-    InnerEventListener mInnerListener;
 };
+
+// A waiter for a single event of type T.
+//
+// This is a type alias that simplifies the creation of a GenericMultiEventWaiter
+// specifically designed to listen for events of a single type.
+// It effectively treats a single-type event scenario as a special case of
+// multiple-type event handling.  Using GenericEventWaiter<T> is equivalent to
+// using GenericMultiEventWaiter<T>.
+template <typename T>
+using GenericEventWaiter = GenericMultiEventWaiter<T>;
 
 }  // namespace control
 }  // namespace emulation

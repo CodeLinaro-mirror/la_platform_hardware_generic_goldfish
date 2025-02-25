@@ -159,10 +159,10 @@
             // binary. If you want to debug BUILD target
             // `//path/to:my_test`, the path to your binary will be
             // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/sensors/sensors_unittests",
+            "program": "${workspaceFolder}/bazel-bin//hardware/generic/goldfish/android/event-support/event-support-test",
             // Set any program arguments here.
             "args": [
-                "--gtest_filter=SensorDeviceTest.*",
+                // "--gtest_filter=SensorDeviceTest.*",
             ],
             // Set any environment values here, not you would likely want to keep at least these
             "env": [
@@ -171,7 +171,7 @@
                 "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
                 // Asan configuration.
                 "ASAN_OPTIONS=detect_odr_violation=0",
-                "LSAN_OPTIONS=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
                 // On darwin: ${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r536225/bin/llvm-symbolizer
                 "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer",
                 // Disable crash reporting, the debugger could start tracking the crashpad-handler, which is usually not

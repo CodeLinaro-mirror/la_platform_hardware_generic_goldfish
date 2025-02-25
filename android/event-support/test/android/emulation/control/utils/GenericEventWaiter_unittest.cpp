@@ -26,6 +26,14 @@ struct TestEvent {
     int value;
 };
 
+struct TestEvent2 {
+    float value;
+};
+
+struct TestEvent3 {
+    bool value;
+};
+
 template <typename T>
 struct TestEventPolicy {};
 
@@ -135,6 +143,156 @@ TEST(GenericEventWaiterTest, MultithreadedEventSequenceWait) {
     EXPECT_TRUE(thread3Finished);
 
     EXPECT_EQ(waiter.getEventSequence(), 2);  // Verify the events where processed
+}
+TEST(GenericMultiEventWaiterTest, WaitForAnyEvent) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+
+    support1.fireEvent({.value = 123});
+
+    EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(10), 0));
+}
+
+TEST(GenericMultiEventWaiterTest, WaitForAnyEventFromSecond) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+
+    support2.fireEvent({.value = 1.0f});
+
+    EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(10), 0));
+}
+
+TEST(GenericMultiEventWaiterTest, WaitForAnyEventTimeout) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+
+    EXPECT_FALSE(waiter.waitForNextEvent(absl::Milliseconds(10)));
+}
+
+TEST(GenericMultiEventWaiterTest, GetSequence) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+    support1.fireEvent({.value = 123});
+    waiter.waitForNextEvent(absl::Milliseconds(10));
+
+    EXPECT_EQ(waiter.getEventSequence(), 1);
+    support2.fireEvent({.value = 1.0f});
+    waiter.waitForNextEvent(absl::Milliseconds(10));
+    EXPECT_EQ(waiter.getEventSequence(), 2);
+}
+
+TEST(GenericMultiEventWaiterTest, MultithreadedEventWait) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+
+    std::atomic<bool> thread1Finished(false);
+    std::atomic<bool> thread2Finished(false);
+
+    std::thread thread1([&]() {
+        EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(500)));
+        thread1Finished = true;
+    });
+
+    std::thread thread2([&]() {
+        TestEvent event = {.value = 456};
+        absl::SleepFor(absl::Milliseconds(100));
+        support1.fireEvent(event);
+        thread2Finished = true;
+    });
+
+    thread1.join();
+    thread2.join();
+
+    EXPECT_TRUE(thread1Finished);
+    EXPECT_TRUE(thread2Finished);
+    EXPECT_EQ(waiter.getEventSequence(), 1);
+}
+
+TEST(GenericMultiEventWaiterTest, MultithreadedEventSequenceWait) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    GenericMultiEventWaiter<TestEvent, TestEvent2> waiter(&support1, &support2);
+    std::atomic<bool> thread1Finished(false);
+    std::atomic<bool> thread2Finished(false);
+    std::atomic<bool> thread3Finished(false);
+    std::thread thread1([&]() {
+        EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(100), 0));
+        thread1Finished = true;
+    });
+
+    std::thread thread2([&]() {
+        TestEvent event1 = {.value = 1};
+        absl::SleepFor(absl::Milliseconds(20));
+        support1.fireEvent(event1);
+
+        TestEvent2 event2 = {.value = 2};
+        support2.fireEvent(event2);
+
+        thread2Finished = true;
+    });
+
+    std::thread thread3([&]() {
+        EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(100), 1));
+        thread3Finished = true;
+    });
+
+    thread1.join();
+    thread2.join();
+    thread3.join();
+
+    EXPECT_TRUE(thread1Finished);
+    EXPECT_TRUE(thread2Finished);
+    EXPECT_TRUE(thread3Finished);
+
+    EXPECT_EQ(waiter.getEventSequence(), 2);
+}
+TEST(GenericMultiEventWaiterTest, MultithreadedManyEventSequenceWait) {
+    EventChangeSupport<TestEvent> support1;
+    EventChangeSupport<TestEvent2> support2;
+    EventChangeSupport<TestEvent3> support3;
+    GenericMultiEventWaiter<TestEvent, TestEvent2, TestEvent3> waiter(&support1, &support2,
+                                                                      &support3);
+    std::atomic<bool> thread1Finished(false);
+    std::atomic<bool> thread2Finished(false);
+    std::atomic<bool> thread3Finished(false);
+    std::thread thread1([&]() {
+        EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(100), 0));
+        thread1Finished = true;
+    });
+
+    std::thread thread2([&]() {
+        TestEvent event1 = {.value = 1};
+        absl::SleepFor(absl::Milliseconds(20));
+        support1.fireEvent(event1);
+
+        TestEvent2 event2 = {.value = 2};
+        support2.fireEvent(event2);
+
+        TestEvent3 event3 = {.value = true};
+        support3.fireEvent(event3);
+
+        thread2Finished = true;
+    });
+
+    std::thread thread3([&]() {
+        EXPECT_TRUE(waiter.waitForNextEvent(absl::Milliseconds(100), 2));
+        thread3Finished = true;
+    });
+
+    thread1.join();
+    thread2.join();
+    thread3.join();
+
+    EXPECT_TRUE(thread1Finished);
+    EXPECT_TRUE(thread2Finished);
+    EXPECT_TRUE(thread3Finished);
+
+    EXPECT_EQ(waiter.getEventSequence(), 3);
 }
 
 }  // namespace control

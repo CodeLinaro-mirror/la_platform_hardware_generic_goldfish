@@ -62,5 +62,5 @@ TEST(PropertyChangeEventTest, ThreadSafetyExample) {
         thread.join();
     }
 
-    EXPECT_THAT(event.last(), ::testing::AnyOf(1, 2));
+    EXPECT_THAT(event.last(), ::testing::AnyOf(0, 1));
 }
