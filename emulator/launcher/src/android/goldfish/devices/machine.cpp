@@ -58,6 +58,24 @@ static std::string qemu_exe(const Avd& avd) {
     return inBazel ? absl::StrCat(baseName, bazelPostfix) : baseName;
 }
 
+namespace {
+absl::StatusOr<std::string> machine(const Avd& avd) {
+    switch (auto a = avd.detectArchitecture(); a) {
+        case Avd::CpuArchitecture::kArm: {
+            return absl::StrJoin({"goldfish-arm", "highmem=off"}, ",");
+        }
+        case Avd::CpuArchitecture::kX86:
+            return absl::StrJoin(
+                    {"goldfish", "vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/vendor",
+                     "system=/dev/block/pci/pci0000:00/0000:00:03.0/by-name/system"},
+                    ",");
+        case Avd::CpuArchitecture::kRiscV:
+        default:
+            return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
+    }
+}
+}  // namespace
+
 absl::Status Machine::initialize(const Emulator& emulator) {
     const Avd& avd = emulator.avd();
     auto qemu = qemu_exe(avd);
@@ -66,14 +84,18 @@ absl::Status Machine::initialize(const Emulator& emulator) {
     if (mBinary.empty()) {
         return absl::NotFoundError(absl::StrCat("Could not find the qemu binary: ", qemu));
     }
-    return absl::OkStatus();
+
+    if (auto m = machine(avd); m.ok()) {
+        mMachine = *m;
+        return absl::OkStatus();
+    } else {
+        return m.status();
+    }
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
 std::vector<std::string> Machine::getQemuParameters(const Emulator& emulator) const {
-    return {"-machine",
-            "goldfish,vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/"
-            "vendor,system=/dev/block/pci/pci0000:00/0000:00:03.0/by-name/system"};
+    return {"-machine", mMachine};
 }
 
 }  // namespace android::goldfish

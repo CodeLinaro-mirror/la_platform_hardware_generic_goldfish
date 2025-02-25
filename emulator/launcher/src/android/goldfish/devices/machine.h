@@ -34,5 +34,6 @@ class Machine : public Device {
 
   private:
     fs::path mBinary;
+    std::string mMachine;
 };
 }  // namespace android::goldfish
