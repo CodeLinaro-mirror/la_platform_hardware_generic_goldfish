@@ -4,6 +4,7 @@ cc_library(
     name = "mock_avd",
     testonly = True,
     hdrs = ["mock_avd.h"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
