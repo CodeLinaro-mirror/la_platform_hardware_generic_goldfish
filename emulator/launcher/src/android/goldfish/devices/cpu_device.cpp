@@ -14,6 +14,7 @@
 #include "cpu_device.h"
 
 #include <initializer_list>
+#include <string>
 #include <string_view>
 
 #include "absl/log/log.h"
@@ -34,34 +35,82 @@ absl::Status CpuDevice::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
+namespace {
+Avd::CpuArchitecture the_forced_arch = Avd::CpuArchitecture::kUnknown;
+
+Avd::CpuArchitecture getHostArch() {
+    if (the_forced_arch != Avd::CpuArchitecture::kUnknown) {
+        return the_forced_arch;
+    }
+
+#if defined(__arm64__)
+    return Avd::CpuArchitecture::kArm;
+#elif defined(__x86_64__)
+    return Avd::CpuArchitecture::kX86;
+#else
+    return Avd::CpuArchitecture::kUnknown;
+#endif
+}
+}  // namespace
+
+// static
+void CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture arch) {
+    the_forced_arch = arch;
+}
+
 std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) const {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
 
-    auto supported = GetCurrentCpuAccelerator();
-    auto aarch = avd.detectArchitecture();
+    std::vector<std::string> params;
+    params.insert(params.end(), {"-smp", std::to_string(hw.hw_cpu_ncore)});
 
-    std::string accel = "tcg";
-    std::string cpu = "host";
-#ifdef __arm64__
+    auto target_arch = avd.detectArchitecture();
+    {
+        std::string cpu = "host";
+        switch (target_arch) {
+            case Avd::CpuArchitecture::kArm:
+                cpu = "cortex-a53";
+                break;
+            case Avd::CpuArchitecture::kX86:
+                cpu = "Snowridge";
+                break;
+            case Avd::CpuArchitecture::kRiscV:
+            case Avd::CpuArchitecture::kUnknown:
+            default:
+                break;
+        }
+        params.insert(params.end(), {"-cpu", cpu});
+    }
 
-    if (aarch == Avd::CpuArchitecture::kArm && supported != CPU_ACCELERATOR_NONE) {
-        accel = CpuAcceleratorToString(supported);
-        cpu = "cortex-a57";
-    } else {
-        LOG(WARNING) << "Using TCG, which is not going to be fast!";
-        cpu = "Snowridge";
+    {
+        auto supported = GetCurrentCpuAccelerator();
+        if (emulator.opts().no_accel) {
+            LOG(WARNING) << "-no-accel option passed so forcing TCG. This will "
+                         << "result in a very slow emulator!";
+            supported = CPU_ACCELERATOR_NONE;
+        }
+        if (char* accel = emulator.opts().accel; accel && std::string(accel) == "off") {
+            LOG(WARNING) << "-accel off option passed so forcing TCG. This will "
+                         << "result in a very slow emulator!";
+            supported = CPU_ACCELERATOR_NONE;
+        }
+        if (target_arch != getHostArch()) {
+            LOG(WARNING) << "target arch does not match host arch so forcing TCG. "
+                         << "This will result in a very slow emulator!";
+            supported = CPU_ACCELERATOR_NONE;
+        }
+
+        std::string accel = "tcg";
+        if (supported != CPU_ACCELERATOR_NONE) {
+            accel = CpuAcceleratorToString(supported);
+        } else {
+            LOG(WARNING) << "Using TCG, which is not going to be fast!";
+        }
+        params.insert(params.end(), {"-accel", accel});
     }
-#else
-    if (aarch == Avd::CpuArchitecture::kX86 && supported != CPU_ACCELERATOR_NONE) {
-        accel = CpuAcceleratorToString(supported);
-        cpu = "Snowridge";
-    } else {
-        LOG(WARNING) << "Using TCG, which is not going to be fast!";
-        cpu = "cortex-a57";
-    }
-#endif
-    return {"-smp", std::to_string(hw.hw_cpu_ncore), "-accel", accel, "-cpu", cpu};
+
+    return params;
 }
 
 }  // namespace android::goldfish

@@ -35,6 +35,21 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "cpu_device_test",
+    srcs = ["cpu_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cpu_device",
+        ":mock_avd",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "gpu_device",
     srcs = ["gpu.cpp"],

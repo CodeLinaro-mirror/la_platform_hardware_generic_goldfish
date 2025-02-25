@@ -26,5 +26,7 @@ class CpuDevice : public Device {
 
     absl::Status initialize(const Emulator& emulator) override;
     std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+
+    static void forceHostArch_TestOnly(Avd::CpuArchitecture arch);
 };
 }  // namespace android::goldfish
