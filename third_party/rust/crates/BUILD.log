@@ -30,30 +30,22 @@ license_kind(
     url = "",
 )
 
-CRATE_FEATURES = [
-    "std",
- ]
-
 rust_library(
     name = "log",
-    srcs = [
-        "src/lib.rs",
-        "src/serde.rs",
-        "src/macros.rs",
+    srcs = glob(
+        include = ["**/*.rs"],
+        exclude = [
+            "benches/value.rs",
+        ],
+    ),
+    crate_features = [
+        "std",
     ],
-    crate_features = CRATE_FEATURES,
     edition = "2021",
-    deps = [
-        ":log_build_script",
-        "@cfg-if"
+    rustc_flags = [
+        "--cap-lints=allow",
     ],
-)
-
-cargo_build_script(
-    name = "log_build_script",
-    srcs = glob(["**/*.rs"]),
-    crate_features = CRATE_FEATURES,
-    crate_root = "build.rs",
-    edition = "2021",
-    visibility = ["//visibility:private"],
+    visibility = [
+        "//visibility:public",
+    ],
 )

@@ -35,8 +35,11 @@ rust_library(
     crate_features = [
         "byteorder",
         "derive",
-	    "simd",
+        "dep:byteorder",
+        "dep:zerocopy-derive",
+        "simd",
         "zerocopy-derive",
+        "alloc",
     ],
     edition = "2021",
     proc_macro_deps = [
