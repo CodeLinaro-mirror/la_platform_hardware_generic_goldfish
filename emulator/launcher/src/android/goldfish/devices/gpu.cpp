@@ -19,7 +19,7 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-#include "android/goldfish/devices/gpu_device.h"
+#include "gpu_device.h"
 
 namespace android::goldfish {
 absl::Status GpuDevice::initialize(const Emulator& emulator) {
@@ -28,8 +28,8 @@ absl::Status GpuDevice::initialize(const Emulator& emulator) {
 
 std::vector<std::string> GpuDevice::getQemuParameters(const Emulator& emulator) const {
     return {"-device",
-            "virtio-gpu-rutabaga,x-gfxstream-gles=on,gfxstream-vulkan=on,x-"
-            "gfxstream-composer=on,hostmem=256M,id=gpu0,xres=280,yres=280"};
+            "virtio-gpu-rutabaga,x-gfxstream-gles=on,gfxstream-vulkan=on,"
+            "x-gfxstream-composer=on,hostmem=256M,id=gpu0,xres=280,yres=280"};
 }
 
 }  // namespace android::goldfish

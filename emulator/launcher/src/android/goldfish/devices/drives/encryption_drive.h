@@ -16,7 +16,7 @@
 #pragma once
 #include "absl/status/status.h"
 
-#include "android/goldfish/devices/drives/disk_drive.h"
+#include "disk_drive.h"
 
 namespace android::goldfish {
 

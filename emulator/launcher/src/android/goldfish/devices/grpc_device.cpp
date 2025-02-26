@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/devices/grpc_device.h"
+#include "grpc_device.h"
 
 #include <filesystem>
 #include <initializer_list>
