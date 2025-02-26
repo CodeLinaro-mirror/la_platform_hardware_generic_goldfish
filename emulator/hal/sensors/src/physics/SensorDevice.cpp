@@ -747,4 +747,27 @@ void ISensorDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Loope
             });
 }
 
+SensorObserver::SensorObserver(std::shared_ptr<ISensorDevice> device, AndroidSensor id)
+    : mDevice(std::move(device)) {
+    mCallbackId = mDevice->addCallback([id, this](const AndroidSensor sensor) {
+        if (sensor != id) {
+            return;
+        }
+
+        auto data = mDevice->getSensorData(sensor);
+        if (!data.ok()) {
+            return;
+        }
+
+        if (mOld != data.value()) {
+            mOld = data.value();
+            fireEvent(mOld);
+        }
+    });
+}
+
+SensorObserver::~SensorObserver() {
+    mDevice->removeCallback(mCallbackId);
+}
+
 }  // namespace goldfish::devices::sensor
