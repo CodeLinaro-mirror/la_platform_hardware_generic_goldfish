@@ -1,0 +1,47 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "keyboard",
+    srcs = [
+        "src/KeyConversion.cpp",
+        "src/KeyEventSender.cpp",
+        "src/dom_key.h",
+        "src/dom_key_data.inc",
+        "src/keycode_converter_data.inc",
+    ],
+    hdrs = [
+        "include/android/emulation/control/keyboard/KeyEventSender.h",
+        "include/android/emulation/control/keyboard/key_conversion.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "keyboard_unittests",
+    srcs = ["test/key_converter_unittest.cpp"],
+    deps = [
+        ":keyboard",
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/server:emulator-service",
+        # "//external/qemu:libcommon",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

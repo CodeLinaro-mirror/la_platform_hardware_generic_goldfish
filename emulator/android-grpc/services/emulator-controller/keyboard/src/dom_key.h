@@ -1,0 +1,242 @@
+// Copyright 2014 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+#pragma once
+#include <stdint.h>
+
+#include <string>
+
+namespace android {
+namespace emulation {
+namespace control {
+namespace keyboard {
+
+// Integer representation of UI Events KeyboardEvent.key value.
+//
+// The semantics follow the web string form[1]: the value is either a
+// Unicode character or one of a defined set of additional values[2].
+// There is one notable difference from the UI Events string key: for
+// the 'Dead' key, this type provides a whole range of values that also
+// encode the associated combining character. (They are not quite the
+// same thing: a dead key is a non-printing operator that modifies a
+// subsequent printing character, whereas a Unicode combining character
+// is a printable character in its own right that attaches to a preceding
+// character in a string.) This allows the interpretation of any keystroke
+// to be carried as a single integer value.
+//
+// DomKey::NONE is a sentinel used to indicate an error or undefined value.
+// It is not the same as Unicode code point 0 (ASCII NUL) or the valid DOM
+// key 'Unidentified'.
+//
+// References:
+// [1] http://www.w3.org/TR/uievents/#widl-KeyboardEvent-key
+// [2] http://www.w3.org/TR/DOM-Level-3-Events-key/
+//
+class DomKey {
+  public:
+    using Base = int32_t;
+
+  private:
+    // Integer representation of DomKey. This is arranged so that DomKey encoded
+    // values are distinct from Unicode code points, so that we can dynamically
+    // verify that they are not accidentally conflated.
+    //
+    // 31             24              16              8               0
+    // |       |       |       |       |       |       |       |       |
+    // | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
+    // |        z        |c|s|                    v                    |
+    //
+    //  From low to high:
+    //  - |v| is a value whose interpretation depends on the kind of key:
+    //    - for a Unicode value, it is the code point (0 <= v <= 0x10FFFF);
+    //    - for a dead key, the code point of the associated combining
+    //    character;
+    //    - for others, an arbitrary distinct value.
+    //  - |s| is set for a valid symbolic key (i.e. not a Unicode character).
+    //  - |c| is set if |v| holds a code point (for either a Unicode character
+    //        directly, or a dead-key combining character).
+    //  - |z| is reserved and always zero.
+    //
+    //  As consequences of this representation,
+    //  - all valid DomKey encodings have at least one of |c| or |s| set, so
+    //    they can't be confused with raw Unicode characters (where both are 0).
+    //  - integer 0 is not a valid encoding, and can be used for DomKey::NONE.
+    //
+    enum { VALUE_BITS = 21 };
+    enum Type : Base {
+        VALUE_MASK = (1L << VALUE_BITS) - 1,
+        TF_SYMBOLIC = (1L << VALUE_BITS),
+        TF_CODEPOINT = (1L << (VALUE_BITS + 1)),
+        TYPE_MASK = TF_CODEPOINT | TF_SYMBOLIC,
+        TYPE_UNICODE = TF_CODEPOINT,
+        TYPE_NON_UNICODE = TF_SYMBOLIC,
+        TYPE_DEAD = TF_CODEPOINT | TF_SYMBOLIC,
+    };
+    static_assert(TYPE_UNICODE != 0 && TYPE_NON_UNICODE != 0 && TYPE_DEAD != 0,
+                  "suspicious representation change");
+
+  public:
+    enum InvalidKey : Base { NONE = 0 };
+// |dom_key_data.inc| describes the non-printable DomKey values, and is
+// included here to create constants for them in the DomKey:: scope.
+#define DOM_KEY_MAP_DECLARATION enum Key : Base
+#define DOM_KEY_UNI(key, id, value) id = (TYPE_UNICODE | (value))
+#define DOM_KEY_MAP(key, id, value) id = (TYPE_NON_UNICODE | (value))
+#include "dom_key_data.inc"
+#undef DOM_KEY_MAP_DECLARATION
+#undef DOM_KEY_MAP
+#undef DOM_KEY_UNI
+
+    // Create a DomKey, with the undefined-value sentinel DomKey::NONE.
+    DomKey() : value_(NONE) {}
+
+    // Create a DomKey from an encoded integer value. This is implicit so
+    // that DomKey::NAME constants don't need to be explicitly converted
+    // to DomKey.
+    DomKey(Base value) : value_(value) {
+        // DCHECK(value == 0 || IsValid()) << value;
+    }
+
+    // Obtain the encoded integer representation of the DomKey.
+    operator Base() const { return value_; }
+
+    // True if the value is a valid DomKey (which excludes DomKey::NONE and
+    // integers not following the DomKey format).
+    bool IsValid() const { return IsValidValue(value_); }
+
+    // True if the value is a Unicode code point.
+    bool IsCharacter() const { return (value_ & TYPE_MASK) == TYPE_UNICODE; }
+
+    // True if the value is a dead key.
+    bool IsDeadKey() const { return (value_ & TYPE_MASK) == TYPE_DEAD; }
+
+    // Returns the Unicode code point for a Unicode key.
+    // It is incorrect to call this for other kinds of key.
+    int32_t ToCharacter() const {
+        // DCHECK(IsCharacter()) << value_;
+        return value_ & VALUE_MASK;
+    }
+
+    std::string ToUtf8() {
+        int32_t codepoint = ToCharacter();
+
+        if (codepoint <= 0x7F) {
+            return std::string(1, static_cast<char>(codepoint));
+        }
+
+        std::string result;
+        if (codepoint <= 0x7FF) {
+            result.resize(2);
+            result[0] = static_cast<char>(0xC0 | (codepoint >> 6));
+            result[1] = static_cast<char>(0x80 | (codepoint & 0x3F));
+        } else if (codepoint <= 0xFFFF) {
+            result.resize(3);
+            result[0] = static_cast<char>(0xE0 | (codepoint >> 12));
+            result[1] = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+            result[2] = static_cast<char>(0x80 | (codepoint & 0x3F));
+        } else {
+            result.resize(4);
+            result[0] = static_cast<char>(0xF0 | (codepoint >> 18));
+            result[1] = static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+            result[2] = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+            result[3] = static_cast<char>(0x80 | (codepoint & 0x3F));
+        }
+
+        return result;
+    }
+
+    // Returns the associated combining code point for a dead key.
+    // It is incorrect to call this for other kinds of key.
+    int32_t ToDeadKeyCombiningCharacter() const {
+        // DCHECK(IsDeadKey()) << value_;
+        return value_ & VALUE_MASK;
+    }
+
+    // Returns a DomKey for the given Unicode character.
+    static DomKey FromCharacter(int32_t character) {
+        // DCHECK(character >= 0 && character <= 0x10FFFF);
+        return DomKey(TYPE_UNICODE | character);
+    }
+
+    static DomKey FromCharacter(const std::string& ch) {
+        if (ch.empty()) {
+            return DomKey::NONE;
+        }
+
+        uint8_t firstByte = static_cast<uint8_t>(ch[0]);
+        uint32_t codepoint = 0;
+        int numContinuationBytes = 0;
+
+        if (firstByte < 0x80) {  // 0xxxxxxx
+            codepoint = firstByte;
+        } else if ((firstByte & 0xE0) == 0xC0) {  // 110xxxxx
+            numContinuationBytes = 1;
+            codepoint = firstByte & 0x1F;
+        } else if ((firstByte & 0xF0) == 0xE0) {  // 1110xxxx
+            numContinuationBytes = 2;
+            codepoint = firstByte & 0x0F;
+        } else if ((firstByte & 0xF8) == 0xF0) {  // 11110xxx
+            numContinuationBytes = 3;
+            codepoint = firstByte & 0x07;
+        } else if ((firstByte & 0xFC) == 0xF8) {  // 111110xx
+            numContinuationBytes = 4;
+            codepoint = firstByte & 0x03;
+        } else if ((firstByte & 0xFE) == 0xFC) {  // 1111110x
+            numContinuationBytes = 5;
+            codepoint = firstByte & 0x01;
+        } else {
+            return DomKey::NONE;
+        }
+
+        if (ch.length() != static_cast<size_t>(numContinuationBytes + 1)) {
+            // "Incomplete UTF-8 sequence"
+            return DomKey::NONE;
+        }
+
+        for (int i = 0; i < numContinuationBytes; ++i) {
+            uint8_t continuationByte = static_cast<uint8_t>(ch[i + 1]);
+            if ((continuationByte & 0xC0) != 0x80) {
+                // "Invalid UTF-8 continuation byte"
+                return DomKey::NONE;
+            }
+            codepoint = (codepoint << 6) | (continuationByte & 0x3F);
+        }
+
+        return FromCharacter(codepoint);
+    }
+
+    // Returns a dead-key DomKey for the given combining character.
+    static DomKey DeadKeyFromCombiningCharacter(int32_t combining_character) {
+        // DCHECK(combining_character >= 0 && combining_character <= 0x10FFFF);
+        return DomKey(TYPE_DEAD | combining_character);
+    }
+
+    // Provide means to generate constant DomKey::Base values, primarily to
+    // allow conversion tables to be constant, without startup construction.
+    // In the future (cue the theremin) this can be replaced with constexpr
+    // functions.
+    template <Base C>
+    struct Constant {
+        enum : Base {
+            Character = TYPE_UNICODE | C,
+            Dead = TYPE_DEAD | C,
+        };
+    };
+
+  private:
+    static bool IsValidValue(Base value) { return (value & TYPE_MASK) != 0; }
+
+    Base value_;
+};
+
+// DomCode enum values, slighlty different than the ones above.
+#define USB_KEYMAP(usb, evdev, xkb, win, mac, code, id) id = usb
+#define USB_KEYMAP_DECLARATION enum class DomCode
+#include "keycode_converter_data.inc"
+#undef USB_KEYMAP
+#undef USB_KEYMAP_DECLARATION
+
+}  // namespace keyboard
+}  // namespace control
+}  // namespace emulation
+}  // namespace android

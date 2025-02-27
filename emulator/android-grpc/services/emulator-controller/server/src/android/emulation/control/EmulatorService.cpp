@@ -16,6 +16,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include <chrono>
+#include <memory>
 
 #include "absl/log/log.h"
 
@@ -24,8 +25,14 @@
 #include "android/emulation/control/DisplayService.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
+#include "android/emulation/control/display/DisplayChangeListener.h"
+#include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 #include "host-common/vm_operations.h"
+
+extern "C" {
+QemuConsole* qemu_console_lookup_by_index(unsigned int index);
+}
 
 namespace android {
 namespace emulation {
@@ -38,7 +45,11 @@ using grpc::Status;
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
-    : public EmulatorController::WithCallbackMethod_streamClipboard<EmulatorController::Service> {
+    : public EmulatorController::WithCallbackMethod_streamClipboard<
+              EmulatorController::WithCallbackMethod_streamScreenshot<
+                      EmulatorController::WithCallbackMethod_streamInputEvent<
+                              EmulatorController::WithCallbackMethod_streamClipboard<
+                                      EmulatorController::Service>>>> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
@@ -46,7 +57,8 @@ class EmulatorControllerImpl final
           mSensorService(connectorRegistry),
           mClipboardService(connectorRegistry),
           mDisplayService(multidisplay, connectorRegistry),
-          mStatusService(connectorRegistry, avd) {}
+          mStatusService(connectorRegistry, avd),
+          mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
@@ -148,6 +160,44 @@ class EmulatorControllerImpl final
         return mClipboardService.streamClipboard(context, request);
     }
 
+    Status sendKey(ServerContext* context, const KeyboardEvent* request,
+                   ::google::protobuf::Empty* reply) override {
+        mKeyEventSender->send(*request);
+        return Status::OK;
+    }
+
+    virtual ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
+            ::grpc::CallbackServerContext* /*context*/,
+            ::google::protobuf::Empty* /*response*/) override {
+        SimpleServerLambdaReader<InputEvent>* eventReader =
+                new SimpleServerLambdaReader<InputEvent>([this, &eventReader](auto request) {
+                    VLOG(1) << "InputEvent:" << request->ShortDebugString();
+                    if (request->has_key_event()) {
+                        mKeyEventSender->send(request->key_event());
+                    } else if (request->has_mouse_event()) {
+                        // TODO(jansene): Not yet implemented.
+                    } else if (request->has_touch_event()) {
+                        // TODO(jansene): Not yet implemented.
+                    } else if (request->has_android_event()) {
+                        // TODO(jansene): Not yet implemented.
+                    } else if (request->has_pen_event()) {
+                        // TODO(jansene): Not yet implemented.
+                    } else if (request->has_wheel_event()) {
+                        // TODO(jansene): Not yet implemented.
+                    } else {
+                        // Mark the stream as completed, this will
+                        // result in setting that status and scheduling
+                        // of a completion (onDone) event the async
+                        // queue.
+                        eventReader->Finish(Status(::grpc::StatusCode::INVALID_ARGUMENT,
+                                                   "Unknown event, is the emulator out of date?."));
+                    }
+                });
+        // Note that the event reader will delete itself on completion of
+        // the request.
+        return eventReader;
+    }
+
     Status getClipboard(ServerContext* context, const ::google::protobuf::Empty* request,
                         ClipData* reply) override {
         return mClipboardService.getClipboard(context, request, reply);
@@ -174,6 +224,7 @@ class EmulatorControllerImpl final
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
     StatusServiceImpl mStatusService;
+    std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
