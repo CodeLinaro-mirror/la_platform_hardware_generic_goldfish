@@ -1,0 +1,131 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "audio_device",
+    srcs = ["audio_device.cpp"],
+    hdrs = ["audio_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "cpu_device",
+    srcs = ["cpu_device.cpp"],
+    hdrs = ["cpu_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/cpu",
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "gpu_device",
+    srcs = ["gpu.cpp"],
+    hdrs = ["gpu_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "grpc_device",
+    srcs = ["grpc_device.cpp"],
+    hdrs = ["grpc_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "initrd_device",
+    srcs = ["initrd_device.cpp"],
+    hdrs = ["initrd_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/adb/secrets",
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:bootconfig",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:disk_drive",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "kernel_device",
+    srcs = ["kernel_device.cpp"],
+    hdrs = ["kernel_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "machine",
+    srcs = ["machine.cpp"],
+    hdrs = ["machine.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "memory_device",
+    srcs = ["memory_device.cpp"],
+    hdrs = ["memory_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "parameter_list",
+    srcs = ["parameter_list.cpp"],
+    hdrs = ["parameter_list.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "//hardware/google/aemu/base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)

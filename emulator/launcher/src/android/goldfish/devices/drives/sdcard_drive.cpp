@@ -13,7 +13,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/devices/drives/sdcard_drive.h"
+#include "sdcard_drive.h"
 
 #include <filesystem>
 
@@ -21,7 +21,6 @@
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
-#include "android/goldfish/devices/drives/disk_drive.h"
 
 namespace android::goldfish {
 absl::Status SDCardDrive::initialize(const Emulator& emulator) {

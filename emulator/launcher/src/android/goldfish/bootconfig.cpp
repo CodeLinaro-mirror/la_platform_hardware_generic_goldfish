@@ -1,4 +1,4 @@
-#include "android/goldfish/bootconfig.h"
+#include "bootconfig.h"
 
 #include <stdio.h>
 

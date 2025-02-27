@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/devices/initrd_device.h"
+#include "initrd_device.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -30,7 +30,7 @@
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-#include "android/goldfish/devices/drives/disk_drive.h"
+#include "drives/disk_drive.h"
 
 namespace android::goldfish {
 
