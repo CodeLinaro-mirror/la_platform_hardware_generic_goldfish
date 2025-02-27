@@ -43,8 +43,11 @@ cc_test(
 )
 
 cc_library(
-    name = "setup",
+    name = "emulator",
     srcs = ["src/android/goldfish/emulator.cpp"],
+    # Qemu roms needed for unittests - Emulator check that it is available.
+    data = ["//external/qemu:qemu-roms"],
+    visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
@@ -78,7 +81,7 @@ cc_library(
 )
 
 test_suite(
-    name = "setup_unittests",
+    name = "emulator_unittests",
     tests = [
         ":bootconfig_test",
     ],
@@ -145,7 +148,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        ":setup",
+        ":emulator",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/cpu",
         "//hardware/generic/goldfish/android/filesystems",

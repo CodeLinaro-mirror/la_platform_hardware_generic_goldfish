@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
             if (!a.status().ok()) {
                 std::cout << name << "is not valid: " << a.status().message();
             } else {
-                std::cout << a->details(opts.verbose) << '\n';
+                std::cout << (*a)->details(opts.verbose) << '\n';
             }
         }
         return 0;

@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "android/goldfish/config/emulator.h"
 
+#include <android/goldfish/config/hardware_config.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -57,20 +58,21 @@ using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(std::move(opts)) {
+Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
+    : mAvd(std::move(avd)), mOpts(std::move(opts)) {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
+    const HardwareConfig& hw = mAvd->hw();
 
     absl::LogSeverityAtLeast logLevel =
             opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
 
     std::string vmodules = opts.vmodule ? opts.vmodule : "";
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
-    auto ini_path = System::pathAsString(mAvd.getIniFile());
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-name", absl::StrFormat("%s,debug-threads=on", mAvd.name())});
+            "-name", absl::StrFormat("%s,debug-threads=on", mAvd->name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -79,12 +81,13 @@ Emulator::Emulator(Avd avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(s
     addDevice<GpuDevice>();
     addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
     addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
-    addDevice<UserDataDrive>(mAvd.hw());
-    addDevice<EncryptionDrive>(mAvd.hw());
-    addDevice<CacheDrive>(mAvd.hw());
-    addDevice<SDCardDrive>(mAvd.hw());
+    addDevice<UserDataDrive>(hw);
+    addDevice<EncryptionDrive>(hw);
+    addDevice<CacheDrive>(hw);
+    addDevice<SDCardDrive>(hw);
     addDevice<AudioDevice>("09.0");
 
+    auto ini_path = System::pathAsString(mAvd->getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
                                        vmodules, logLevel)});
@@ -184,7 +187,7 @@ std::vector<std::string> Emulator::getCmdline() const {
 }
 
 absl::Status Emulator::launch() {
-    ABSL_LOG(INFO) << "Preparing " << mAvd.details(true);
+    ABSL_LOG(INFO) << "Preparing " << mAvd->details(true);
     auto status = initialize();
     if (!status.ok()) {
         ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();
