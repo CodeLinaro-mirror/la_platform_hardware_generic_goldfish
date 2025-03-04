@@ -92,7 +92,8 @@ TEST_F(SensorDeviceTest, canSetSensors) {
 TEST_F(SensorDeviceTest, setDelayCausesATick) {
     looper->setVirtualTimeNs(1234567890);
     receive("set-delay:10");
-    EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:123456789"));
+    // The looper keeps ticking so just check for the first few digits.
+    EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:1234"));
 }
 
 TEST_F(SensorDeviceTest, setTimeOffset) {

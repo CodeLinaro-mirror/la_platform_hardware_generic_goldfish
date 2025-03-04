@@ -14,6 +14,7 @@
 // limitations under the License.
 #pragma once
 
+#include <android/emulation/control/utils/EventSupport.h>
 #include <goldfish/devices/cable/cable.h>
 
 #include <functional>
@@ -24,15 +25,20 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "aemu/base/Compiler.h"
+#include "android/emulation/control/utils/CallbackEventSupport.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 
 namespace goldfish {
 namespace devices {
 
+using android::emulation::control::EventChangeSupport;
+using android::emulation::control::EventListener;
+using android::emulation::control::WithCallbacks;
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
+using DeviceName = std::string;
 
-struct IConnectorRegistry {
+struct IConnectorRegistry : public WithCallbacks<EventChangeSupport, DeviceName> {
     virtual ~IConnectorRegistry() = default;
 
     /**
@@ -186,5 +192,104 @@ class ConnectorRegistry : public IConnectorRegistry {
     absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
     std::vector<Connector::DeviceEntry> mDevices;
 };
+
+template <class IDevice>
+using DeviceRegistrationCallbacks = WithCallbacks<EventChangeSupport, std::weak_ptr<IDevice>>;
+
+/**
+ * @brief Listens for the registration of a specific device type within the ConnectorRegistry.
+ *
+ * This class allows you to register callbacks or listeners that are invoked when a new device
+ * of a specific type is registered with the `ConnectorRegistry`.
+ *
+ * **Event Firing:**
+ * - Upon the successful registration of a device matching the specified type, the
+ *   `DeviceRegistrationListener` will trigger all of its registered callbacks, providing them
+ *   with a `std::weak_ptr` to the newly created device.
+ * - If a device of the specified type is already active when a new callback or listener is
+ *   added, an event will be fired immediately for that callback or listener.
+ * - It is possible for a callback or listener to receive the same event twice: once when it is
+ *   added if the device is already present, and again when the device is created if it is not
+ *   already present.
+ *
+ * This `weak_ptr` allows you to safely access the device if it is still alive. If the device is
+ * destroyed before the `weak_ptr` is locked, then `weak.lock()` will return null.
+ *
+ * **Key Use Cases:**
+ *
+ * - **Device Availability Notification:** Be notified when a particular device, such as a
+ *   sensor or a virtual hardware component, becomes available in the guest.
+ * - **Dynamic Device Handling:** Respond dynamically to the availability of devices,
+ *   allowing your code to adapt to changes in the emulator's configuration.
+ * - **Delayed Device Access:** Obtain a `weak_ptr` to a device, allowing you to access it
+ *   safely at a later time, even if its lifetime is managed elsewhere.
+ *
+ * **Example Usage:**
+ *
+ * The following example demonstrates how to use `DeviceRegistrationListener` to be notified
+ * when an `ISensorDevice` becomes available and then read the accelerometer sensor data:
+ *
+ * ```cpp
+ * ConnectorRegistry* registry;
+ * DeviceRegistrationListener<ISensorDevice> listener(registry);
+ *
+ * listener.addCallback([&](std::weak_ptr<ISensorDevice> weak) {
+ *   if (auto sensor = weak.lock()) {
+ *     auto statusOrData = sensor->getSensorData(AndroidSensor::ANDROID_SENSOR_ACCELEROMETER);
+ *     // Do something with the data..
+ *   }
+ * });
+ * ```
+ *
+ * **Template Parameter:**
+ *
+ * @tparam IDevice The type of device to listen for. This type must meet the following requirements:
+ *   - It must have a static member called `serviceName` of type `std::string_view` or a type that
+ *     is convertible to  `std::string_view`.
+ *   - `serviceName` holds the name under which the device was registered in the
+ *     `ConnectorRegistry`.
+ */
+template <class IDevice>
+class DeviceRegistrationListener : public DeviceRegistrationCallbacks<IDevice> {
+  public:
+    using RegistrationCallbackId = DeviceRegistrationCallbacks<IDevice>::CallbackId;
+    using RegistrationEventCallback = DeviceRegistrationCallbacks<IDevice>::EventCallback;
+
+    DeviceRegistrationListener(ConnectorRegistry* registry) : mRegistry(registry) {
+        mCallbackId = registry->addCallback([this](const std::string& name) {
+            if (name == IDevice::serviceName) {
+                DeviceRegistrationListener::fireEvent(mRegistry->activeDevice<IDevice>());
+            }
+        });
+    }
+
+    RegistrationCallbackId addCallback(RegistrationEventCallback callback) override {
+        auto id = DeviceRegistrationCallbacks<IDevice>::addCallback(callback);
+        // If a device becomes alive right now, we will see 2 events..
+        auto device = mRegistry->activeDevice<IDevice>();
+        // Only fire an event if the device is not expired (i.e. it exists).
+        if (!device.expired()) {
+            DeviceRegistrationListener::fireEvent(device);
+        }
+        return id;
+    }
+
+    void addListener(EventListener<std::weak_ptr<IDevice>>* listener) override {
+        EventChangeSupport<std::weak_ptr<IDevice>>::addListener(listener);
+        // If a device becomes alive right now, we will see 2 events..
+        auto device = mRegistry->activeDevice<IDevice>();
+        // Only fire an event if the device is not expired (i.e. it exists).
+        if (!device.expired()) {
+            DeviceRegistrationListener::fireEvent(device);
+        }
+    }
+
+    ~DeviceRegistrationListener() { mRegistry->removeCallback(mCallbackId); }
+
+  private:
+    ConnectorRegistry::CallbackId mCallbackId;
+    ConnectorRegistry* mRegistry;
+};
+
 }  // namespace devices
 }  // namespace goldfish

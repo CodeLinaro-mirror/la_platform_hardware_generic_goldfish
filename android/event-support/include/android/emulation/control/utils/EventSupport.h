@@ -85,7 +85,7 @@ class EventChangeSupport {
      *
      * @param listener A pointer to the listener object to add.
      */
-    void addListener(EventListener<T>* listener) {
+    virtual void addListener(EventListener<T>* listener) {
         const std::lock_guard<std::mutex> lock(mListenerLock);
         DD_EVT("Adding %p", listener);
         mListeners.insert(listener);

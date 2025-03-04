@@ -46,7 +46,7 @@ class WithCallbacks : public Base<T> {
      * @param callback The function to call when an event occurs.
      * @return CallbackId A unique identifier for the callback registration.
      */
-    CallbackId addCallback(EventCallback callback) {
+    virtual CallbackId addCallback(EventCallback callback) {
         const std::lock_guard<std::mutex> lock(mCallbackLock);
         CallbackId id = mNextId++;
         mCallbacks[id] = std::move(callback);

@@ -18,6 +18,7 @@
 #include <goldfish/devices/cable/cable.h>
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <memory>
 
 namespace goldfish {
@@ -26,6 +27,7 @@ using devices::cable::IPlug;
 using devices::cable::ISocket;
 using devices::cable::PlugPtr;
 using devices::cable::SocketPtr;
+using namespace std::string_view_literals;
 
 namespace {
 struct TestDevice : public IPlug {
@@ -33,6 +35,8 @@ struct TestDevice : public IPlug {
         : mSocket(std::move(socket)),
           mIsQemud(isQemud),
           mArgs(std::string(args.begin(), args.end())) {}
+
+    static constexpr std::string_view serviceName = "TestDevice"sv;
 
     SocketPtr onUnplug() override { return std::move(mSocket); }
 
@@ -201,6 +205,118 @@ TEST_F(ConnectorRegistryTest, RegisteredQemuDeviceIsAvailable) {
     EXPECT_TRUE(gTestSocket->send("vice:args\0"sv));
     EXPECT_TRUE(qemuDeviceCreated);
     EXPECT_FALSE(standardDeviceCreated);
+}
+
+TEST_F(ConnectorRegistryTest, EventFiredOnDeviceCreation) {
+    using namespace std::literals;
+
+    bool eventFired = false;
+    std::string eventName;
+
+    registry.registerDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                              std::string_view args) {
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+
+    registry.addCallback([&](const std::string& name) {
+        eventFired = true;
+        eventName = name;
+    });
+
+    registry.listen(1234);  // Call listen first
+    EXPECT_TRUE(gTestSocket->send("pipe:TestDevice:args\0"sv));
+    EXPECT_TRUE(eventFired);
+    EXPECT_EQ(eventName, "TestDevice");
+}
+
+TEST_F(ConnectorRegistryTest, DeviceRegistrationListenerTest) {
+    using namespace std::literals;
+    int eventFired = 0;
+    std::weak_ptr<TestDevice> weakDevice;
+
+    registry.registerDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                              std::string_view args) {
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+
+    // The device is not yet live, so no event will be fired immediately.
+    DeviceRegistrationListener<TestDevice> listener(&registry);
+    listener.addCallback([&](std::weak_ptr<TestDevice> device) {
+        eventFired++;
+        weakDevice = device;
+    });
+
+    registry.listen(1234);
+    EXPECT_TRUE(gTestSocket->send("pipe:TestDevice:args\0"sv));
+    EXPECT_EQ(eventFired, 1);
+    EXPECT_FALSE(weakDevice.expired());
+}
+
+TEST_F(ConnectorRegistryTest, DeviceRegistrationListenerFiresWhenPresentTest) {
+    using namespace std::literals;
+    int eventFired = 0;
+    std::weak_ptr<TestDevice> weakDevice;
+
+    registry.registerDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                              std::string_view args) {
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+
+    registry.listen(1234);
+    EXPECT_TRUE(gTestSocket->send("pipe:TestDevice:args\0"sv));
+    EXPECT_FALSE(registry.activeDevice<TestDevice>().expired());
+
+    // The device already exists, an event should be fired immediately
+    DeviceRegistrationListener<TestDevice> listener(&registry);
+    listener.addCallback([&](std::weak_ptr<TestDevice> device) {
+        eventFired++;
+        weakDevice = device;
+    });
+    EXPECT_EQ(eventFired, 1);
+    EXPECT_FALSE(weakDevice.expired());
+}
+
+TEST_F(ConnectorRegistryTest, DeviceRegistrationListenerFiresWhenPresentWithEventListenerTest) {
+    using namespace std::literals;
+    int eventFired = 0;
+    std::weak_ptr<TestDevice> weakDevice;
+
+    registry.registerDevice(
+            "TestDevice2", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                               std::string_view args) {
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+
+    registry.listen(1234);
+    EXPECT_TRUE(gTestSocket->send("pipe:TestDevice2:args\0"sv));
+}
+
+TEST_F(ConnectorRegistryTest, DeviceRegistrationListenerFiltersIrrelevantDevicesTest) {
+    using namespace std::literals;
+    int eventFired = 0;
+    std::weak_ptr<TestDevice> weakDevice;
+
+    DeviceRegistrationListener<TestDevice> listener(&registry);
+    listener.addCallback([&](std::weak_ptr<TestDevice> device) {
+        eventFired++;
+        weakDevice = device;
+    });
+
+    registry.registerDevice(
+            "TestDevice2", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                               std::string_view args) {
+                return std::make_shared<TestDevice>(std::move(socket), false, args);
+            });
+
+    registry.listen(1234);
+    EXPECT_TRUE(gTestSocket->send("pipe:TestDevice2:args\0"sv));
+
+    // We should never get an event as we are listening for TestDevice
+    EXPECT_EQ(eventFired, 0);
+    EXPECT_TRUE(weakDevice.expired());
 }
 
 }  // namespace devices
