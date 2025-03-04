@@ -634,7 +634,7 @@ message Touch {
         NEVER_EXPIRE = 1;
     }
 
-    EventExpiration expiration = 7;
+    EventExpiration expiration = 7 [deprecated = true]; // We always expire events after 120s
 
     // The orientation of the contact, if any.
     int32 orientation = 8;

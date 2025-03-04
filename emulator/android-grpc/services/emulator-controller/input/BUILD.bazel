@@ -5,12 +5,20 @@ cc_library(
     srcs = [
         "src/AndroidEventSender.cpp",
         "src/MouseEventSender.cpp",
+        "src/PenEventSender.cpp",
+        "src/PointerEventDispatcher.cpp",
+        "src/SlotRegistry.cpp",
+        "src/TouchEventSender.cpp",
         "src/WheelEventSender.cpp",
     ],
     hdrs = [
         "include/android/emulation/control/input/AndroidEventSender.h",
         "include/android/emulation/control/input/EventSender.h",
         "include/android/emulation/control/input/MouseEventSender.h",
+        "include/android/emulation/control/input/PenEventSender.h",
+        "include/android/emulation/control/input/PointerEventDispatcher.h",
+        "include/android/emulation/control/input/SlotRegistry.h",
+        "include/android/emulation/control/input/TouchEventSender.h",
         "include/android/emulation/control/input/WheelEventSender.h",
     ],
     includes = [

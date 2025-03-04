@@ -29,6 +29,8 @@
 #include "android/emulation/control/display/DisplayChangeListener.h"
 #include "android/emulation/control/input/AndroidEventSender.h"
 #include "android/emulation/control/input/MouseEventSender.h"
+#include "android/emulation/control/input/PenEventSender.h"
+#include "android/emulation/control/input/TouchEventSender.h"
 #include "android/emulation/control/input/WheelEventSender.h"
 #include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
@@ -68,6 +70,8 @@ class EmulatorControllerImpl final
           mGpsService(connectorRegistry),
           mAndroidEventSender(multidisplay),
           mMouseEventSender(multidisplay),
+          mPenEventSender(multidisplay, &mPointerEventDispatcher),
+          mTouchEventSender(multidisplay, &mPointerEventDispatcher),
           mWheelEventSender(multidisplay) {}
 
     Status getDisplayConfigurations(ServerContext* context,
@@ -189,6 +193,11 @@ class EmulatorControllerImpl final
         return abslStatusToGrpcStatus(mMouseEventSender.send(*request));
     }
 
+    Status sendTouch(ServerContext* context, const TouchEvent* request,
+                     ::google::protobuf::Empty* reply) override {
+        return abslStatusToGrpcStatus(mTouchEventSender.send(*request));
+    }
+
     ::grpc::ServerReadReactor<WheelEvent>* injectWheel(
             ::grpc::CallbackServerContext* /*context*/,
             ::google::protobuf::Empty* /*response*/) override {
@@ -208,11 +217,11 @@ class EmulatorControllerImpl final
                     } else if (request->has_mouse_event()) {
                         status = mMouseEventSender.send(request->mouse_event());
                     } else if (request->has_touch_event()) {
-                        // TODO(jansene): Implement
+                        status = mTouchEventSender.send(request->touch_event());
                     } else if (request->has_android_event()) {
                         status = mAndroidEventSender.send(request->android_event());
                     } else if (request->has_pen_event()) {
-                        // TODO(jansene): Implement
+                        status = mPenEventSender.send(request->pen_event());
                     } else if (request->has_wheel_event()) {
                         status = mWheelEventSender.send(request->wheel_event());
                     } else {
@@ -254,6 +263,7 @@ class EmulatorControllerImpl final
 
   private:
     const QAndroidVmOperations* mVm;
+    PointerEventDispatcher mPointerEventDispatcher;
     SensorServiceImpl mSensorService;
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
@@ -262,6 +272,8 @@ class EmulatorControllerImpl final
     GpsServiceImpl mGpsService;
     AndroidEventSender mAndroidEventSender;
     MouseEventSender mMouseEventSender;
+    PenEventSender mPenEventSender;
+    TouchEventSender mTouchEventSender;
     WheelEventSender mWheelEventSender;
 };
 
