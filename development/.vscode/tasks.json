@@ -85,7 +85,7 @@
         {
             "label": "aemu: Run emulator test suite",
             "type": "shell",
-            "command": "bazel test --config asan --compilation_mode=dbg --test_output=errors //hardware/generic/goldfish/emulator:emulator_unit_tests",
+            "command": "bazel test --compilation_mode=dbg --test_output=errors //hardware/generic/goldfish/emulator:emulator_unit_tests",
             "group": {
                 "kind": "test",
                 "isDefault": true
@@ -142,7 +142,7 @@
         {
             "label": "aemu: Build emulator test suite",
             "type": "shell",
-            "command": "bazel build --config asan --compilation_mode=dbg --test_output=errors //hardware/generic/goldfish/emulator:emulator_unit_tests",
+            "command": "bazel build --compilation_mode=dbg --test_output=errors //hardware/generic/goldfish/emulator:emulator_unit_tests",
             "group": {
                 "kind": "test",
                 "isDefault": true
