@@ -40,7 +40,6 @@ static const DisplayChangeListenerOps dcl_ops = {
         .dpy_name = "grpc-display",
         .dpy_gfx_update = grpc_dpy_gfx_update,
         .dpy_gfx_switch = grpc_dpy_gfx_switch,
-        .dpy_refresh = grpc_dpy_gfx_refresh,
 };
 
 static DisplayChangeListener dcl = {

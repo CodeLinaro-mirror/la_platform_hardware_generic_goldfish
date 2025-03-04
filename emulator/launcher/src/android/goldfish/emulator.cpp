@@ -97,7 +97,6 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
                                        vmodules, logLevel)});
-    addDevice<GrpcDevice>();
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-nodefaults", "-no-reboot",
@@ -159,6 +158,10 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
         addDevice<ParameterList>(
                 std::initializer_list<std::string>{"-L", System::pathAsString(bios_path)});
     }
+
+    // Make sure we have our other devices available before we setup the gRPC device, the gRPC
+    // device depends on the virtio devices for input event delivery.
+    addDevice<GrpcDevice>();
 
     // This should always be the last device, as it will finalize android emulator initialization
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});

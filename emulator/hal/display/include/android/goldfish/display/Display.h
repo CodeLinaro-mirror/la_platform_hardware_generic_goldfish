@@ -181,6 +181,11 @@ class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo> {
      */
     virtual void sendMouseEvent(int x, int y, int button_mask) = 0;
 
+    /**
+     * Sends a raw evdev event to the proper display.
+     */
+    virtual void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) = 0;
+
     // True if it is active (i.e. connected)
     virtual bool active() const { return mActive; }
 

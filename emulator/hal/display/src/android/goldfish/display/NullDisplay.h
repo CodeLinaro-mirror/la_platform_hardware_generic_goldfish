@@ -28,6 +28,8 @@ class NullDisplay : public IDisplay {
 
     void sendMouseEvent(int x, int y, int button_mask) override {};
 
+    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {};
+
     std::string string() const override { return "NullDisplay"; }
 };
 }  // namespace android::goldfish

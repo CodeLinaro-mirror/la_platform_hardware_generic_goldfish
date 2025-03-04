@@ -19,6 +19,7 @@
 #include "absl/log/log.h"
 
 #include "android/goldfish/display/NullDisplay.h"
+#include "qemu/atomic.hpp"
 
 extern "C" {
 // clang-format off
@@ -28,6 +29,8 @@ extern "C" {
 #include "ui/surface.h"
 #include "pixman.h"
 #include "qapi/error.h"
+#include "qom/object.h"
+#include "android/goldfish/display/virtio-bridge.h"
 // IWYU pragma: end_keep
 // clang-format on
 }
@@ -83,8 +86,19 @@ SharedDisplay IDisplay::nullDisplay() {
 DefaultDisplay::DefaultDisplay(QemuConsole* console, DisplaySurface* ds, int id)
     : IDisplay(id, 0, 0), mConsole(console) {
     if (!mConsole) {
-        LOG(INFO) << "Display: " << id << " is using the default <null> console";
+        mConsole = qemu_console_lookup_by_index(0);
+        LOG(INFO) << "Display: " << id << " is using the default (0) console";
     }
+
+    const char* gpu = "gpu0";
+    VirtioDeviceInfo deviceInfo{.display = gpu, .head = id};
+    Object* objs = container_get(object_get_root(), "/machine");
+    if (!object_child_foreach_recursive(objs, ::find_virtio_device, &deviceInfo)) {
+        LOG(FATAL) << "Unable to find a virtio device for head: " << deviceInfo.head
+                   << " attached to display: " << deviceInfo.display;
+    }
+    mVhid = deviceInfo.vhid;
+
     replaceSurface(ds);
 }
 
@@ -188,6 +202,10 @@ void DefaultDisplay::sendMouseEvent(int x, int y, int button_mask) {
     qemu_input_queue_abs(mConsole, INPUT_AXIS_X, x, 0, mWidth);
     qemu_input_queue_abs(mConsole, INPUT_AXIS_Y, y, 0, mHeight);
     qemu_input_event_sync();
+}
+
+void DefaultDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
+    virtio_input_send_evdev(mVhid, type, code, value);
 }
 
 void DefaultDisplay::updateSurface(int x, int y, int width, int height) {

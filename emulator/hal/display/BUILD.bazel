@@ -23,6 +23,8 @@ cc_library(
         "src/android/goldfish/display/DefaultDisplay.h",
         "src/android/goldfish/display/MultiDisplay.cpp",
         "src/android/goldfish/display/NullDisplay.h",
+        "src/android/goldfish/display/virtio-bridge.c",
+        "src/android/goldfish/display/virtio-bridge.h",
     ],
     includes = ["src"],
     linkstatic = False,

@@ -19,6 +19,8 @@ extern "C" {
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
+
+typedef struct VirtIOInputHID VirtIOInputHID;
 }
 
 namespace android::goldfish {
@@ -33,11 +35,14 @@ class DefaultDisplay : public IDisplay {
     void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void sendMouseEvent(int x, int y, int button_mask) override;
     void updateSurface(int x, int y, int width, int height);
+    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
 
   private:
     mutable absl::Mutex mDisplayAccess;
     DisplaySurface* mDisplaySurface;
     QemuConsole* mConsole;
+
+    ::VirtIOInputHID* mVhid;
     int mlast_bmask{0};
     struct touch_slot mTouchSlots[INPUT_EVENT_SLOTS_MAX];
 };
