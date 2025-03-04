@@ -16,12 +16,13 @@
 #include <iostream>
 #include <memory>
 
-#include "absl/status/status_matchers.h"
 #include "absl/log/globals.h"
+#include "absl/status/status_matchers.h"
 
 #include "aemu/base/ArraySize.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/memory/ScopedPtr.h"
+#include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/goldfish/config/config_dirs.h"
@@ -64,11 +65,8 @@ TEST(Avd, apiLevel) {
 
     createTestAvd(sys, tmp, "android-30");
 
-    auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
-    ASSERT_TRUE(avdResult.ok());
-    Avd avd = std::move(avdResult.value());
-
-    EXPECT_EQ(avd.apiLevel(), 30);
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("test_avd"));
+    EXPECT_EQ(avd->apiLevel(), 30);
 }
 
 TEST(Avd, dessert) {
@@ -79,11 +77,8 @@ TEST(Avd, dessert) {
 
     createTestAvd(sys, tmp, "android-30");
 
-    auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
-    ASSERT_TRUE(avdResult.ok());
-    Avd avd = std::move(avdResult.value());
-
-    EXPECT_EQ(avd.dessert(), "R");
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("test_avd"));
+    EXPECT_EQ(avd->dessert(), "R");
 }
 
 TEST(Avd, unknownApiLevel) {
@@ -94,12 +89,9 @@ TEST(Avd, unknownApiLevel) {
 
     createTestAvd(sys, tmp, "android-1");  // API level 1 doesn't have a dessert name
 
-    auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
-    ASSERT_TRUE(avdResult.ok());
-    Avd avd = std::move(avdResult.value());
-
-    EXPECT_EQ(avd.apiLevel(), 3);  // Should default to API level 3
-    EXPECT_EQ(avd.dessert(), "");  // No dessert name for API level 1
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("test_avd"));
+    EXPECT_EQ(avd->apiLevel(), 3);  // Should default to API level 3
+    EXPECT_EQ(avd->dessert(), "");  // No dessert name for API level 1
 }
 
 TEST(Avd, invalidTargetFormat) {
@@ -110,12 +102,9 @@ TEST(Avd, invalidTargetFormat) {
 
     createTestAvd(sys, tmp, "invalid-target-format");
 
-    auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
-    ASSERT_TRUE(avdResult.ok());
-    Avd avd = std::move(avdResult.value());
-
-    EXPECT_EQ(avd.apiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
-    EXPECT_EQ(avd.dessert(), "");                      // No dessert name for invalid API level
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("test_avd"));
+    EXPECT_EQ(avd->apiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
+    EXPECT_EQ(avd->dessert(), "");                      // No dessert name for invalid API level
 }
 
 TEST(Avd, path_getAvdSystemPath) {
@@ -174,10 +163,8 @@ TEST(Avd, path_getAvdSystemImage) {
     auto expectedPath = tmp->path() / "android_home" / "sysimg" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    auto avdResult = Avd::fromName("q", /*sysdir_override=*/std::string());
-    ASSERT_THAT(avdResult, IsOk());
-    auto p = avdResult->getImageFilePath(Avd::ImageType::INITSYSTEM);
-    ASSERT_THAT(p, IsOkAndHolds(expectedPath));
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("q"));
+    EXPECT_THAT(avd->getImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
 
     std::remove(expectedPath.string().c_str());
 
@@ -185,10 +172,8 @@ TEST(Avd, path_getAvdSystemImage) {
     expectedPath = tmp->path() / "nothome" / "blah" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    auto avdResult2 = Avd::fromName("q", tmp->path() / "nothome" / "blah");
-    ASSERT_THAT(avdResult2, IsOk());
-    auto p2 = avdResult2->getImageFilePath(Avd::ImageType::INITSYSTEM);
-    ASSERT_THAT(p2, IsOkAndHolds(expectedPath));
+    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::fromName("q", tmp->path() / "nothome" / "blah"));
+    EXPECT_THAT(avd2->getImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
 }
 
 }  // namespace android::goldfish::avd

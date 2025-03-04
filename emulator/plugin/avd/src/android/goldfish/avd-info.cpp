@@ -91,16 +91,17 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
     UpdateVModule(avd_info->vmodule);
 
-    auto status = Avd::parse(avd_info->ini_path, /*sysdir_override=*/std::string());
-    if (!status.ok()) {
+    auto avd_status = android::goldfish::FileBackedAvd::parse(avd_info->ini_path,
+                                                              /*sysdir_override=*/std::string());
+    if (!avd_status.ok()) {
         LOG(FATAL) << "Unable to load: " << avd_info->ini_path
-                   << " due to: " << status.status().message();
+                   << " due to: " << avd_status.status().message();
         return;
     }
 
     VLOG(1) << "Device configuration, avd_info: " << *avd_info;
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
-    gAvd = std::make_unique<Avd>(std::move(status.value()));
+    gAvd = std::move(avd_status.value());
 
     auto looper = android::goldfish::qemuLooper();
     auto avd = gAvd.get();

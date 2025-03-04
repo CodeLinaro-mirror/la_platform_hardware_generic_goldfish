@@ -75,36 +75,27 @@ class Avd {
         kUnknown,
     };
 
-    ~Avd() = default;
-    Avd(Avd&& other) noexcept;
+    virtual ~Avd() = default;
 
     // A detailed string describing this avd
-    std::string details(bool verbose) const;
+    virtual std::string details(bool verbose) const = 0;
 
     /**
      * @brief Returns the human-readable name of the AVD. This name corresponds to
      * the filename of the AVD's configuration file (without the ".ini"
      * extension).
      */
-    std::string name() const { return mName; }
+    virtual std::string name() const = 0;
 
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
-    DeviceType getDeviceType() const;
+    virtual DeviceType getDeviceType() const = 0;
 
     /**
      * @brief Returns the path to the AVD's content directory. This is typically
      * ~/.android/avd/<name()>.
      */
-    fs::path getContentPath() const { return mContentPath; };
-
-    /**
-     * @brief Retrieves the filename associated with the given AVD image type.
-     *
-     * @param imgType The AVD image type for which to retrieve the filename.
-     * @return fs::path The corresponding image filename.
-     */
-    fs::path getImageFilename(Avd::ImageType imgType) const;
+    virtual fs::path getContentPath() const = 0;
 
     /**
      * @brief Retrieves an AVD image file path, favoring the content directory.
@@ -120,7 +111,7 @@ class Avd {
      * @see Avd::ImageType
      * @see getSystemImagePath
      */
-    absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const;
+    virtual absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const = 0;
 
     /**
      * @brief Retrieves the file path of a system image associated with an Android
@@ -138,7 +129,7 @@ class Avd {
      * @see Avd::ImageType
      * @see ConfigDirs::getSdkRootDirectory
      */
-    absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const;
+    virtual absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const = 0;
 
     /**
      * @brief Checks if the AVD supports encryption.
@@ -148,7 +139,7 @@ class Avd {
      *
      * @return True if the encryption key image is found, false otherwise.
      */
-    bool hasEncryptionKey() const;
+    virtual bool hasEncryptionKey() const = 0;
 
     /**
      * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
@@ -162,10 +153,10 @@ class Avd {
      *
      * @return The detected CpuArchitecture or kUnknown if it cannot be detected.
      */
-    CpuArchitecture detectArchitecture() const;
+    virtual CpuArchitecture detectArchitecture() const = 0;
 
-    const HardwareConfig& hw() const { return mHwCfg; }
-    bool playstore() const { return false; }
+    virtual const HardwareConfig& hw() const = 0;
+    virtual bool playstore() const = 0;
 
     /**
      * @brief Retrieves the API level of the AVD.
@@ -181,7 +172,7 @@ class Avd {
      * @return The API level as an integer. Returns `kUnknownApiLevel` if the
      *         API level cannot be determined.
      */
-    int apiLevel() const;
+    virtual int apiLevel() const = 0;
 
     /**
      * @brief Retrieves the dessert name associated with the AVD's API level.
@@ -192,7 +183,7 @@ class Avd {
      * @return The dessert name as a string, or an empty string if the API level
      *         does not have a corresponding dessert name.
      */
-    std::string dessert() const;
+    virtual std::string dessert() const = 0;
 
     /**
      * @brief Retrieves a descriptive string for the AVD's API level.
@@ -203,7 +194,34 @@ class Avd {
      *
      * @return The API description string.
      */
-    std::string apiDescription() const;
+    virtual std::string apiDescription() const = 0;
+
+    /**
+     * @brief Returns the path to the AVD's configuration file.
+     *
+     * This method returns the path to the AVD's configuration file, which is
+     * typically located in ~/.android/avd/
+     *
+     * @return Path to the avd configuration file
+     */
+    virtual fs::path getIniFile() const = 0;
+
+    /**
+     * @brief Returns the AVD's display name if set, otherwise the name.
+     *
+     * @return The displayname if set, otherwise the name.
+     *         is not found.
+     */
+    virtual std::string display_name() const = 0;
+
+    /**
+     * @brief Retrieves the filename associated with the given AVD image type.
+     *
+     * @param imgType The AVD image type for which to retrieve the filename.
+     * @return fs::path The corresponding image filename.
+     */
+    static fs::path getImageFilename(Avd::ImageType imgType);
+
     /**
      * @brief Lists the names of available Android Virtual Devices (AVDs).
      *
@@ -216,16 +234,6 @@ class Avd {
     static std::vector<std::string> list();
 
     /**
-     * @brief Returns the path to the AVD's configuration file.
-     *
-     * This method returns the path to the AVD's configuration file, which is
-     * typically located in ~/.android/avd/
-     *
-     * @return Path to the avd configuration file
-     */
-    fs::path getIniFile() const { return mTarget->getBackingFile(); }
-
-    /**
      * @brief Constructs an AVD object from its name.
      *
      * @param name The name of the AVD.
@@ -234,33 +242,42 @@ class Avd {
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<Avd> fromName(std::string name, std::string sysdir_override = "");
-
-    /**
-     * @brief Retrieves the value of the specified property from the AVD's
-     * configuration file (`config.ini`).
-     *
-     * This method attempts to read the value of the given property from the
-     * AVD's configuration file. If the property is not found, the default value
-     * is returned.
-     *
-     * @param property The name of the property to retrieve.
-     * @param def The default value to return if the property is not found.
-     * @return The value of the property, or the default value if the property
-     *         is not found.
-     */
-    template <class T>
-    T get(std::string property, T def = T()) {
-        return mConfig->get<T>(property, def);
-    };
-
-    static absl::StatusOr<Avd> parse(fs::path ini_file, std::string sysdir_override = "");
+    static absl::StatusOr<std::unique_ptr<Avd>> fromName(std::string name,
+                                                         std::string sysdir_override = "");
 
     static constexpr int kUnknownApiLevel = 1000;
 
+  protected:
+    Avd() = default;
+};
+
+class FileBackedAvd : public Avd {
+  public:
+    std::string details(bool verbose) const override;
+
+    std::string name() const override { return mName; }
+    DeviceType getDeviceType() const override;
+    fs::path getContentPath() const override { return mContentPath; };
+    absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const override;
+    absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const override;
+    bool hasEncryptionKey() const override;
+    CpuArchitecture detectArchitecture() const override;
+    const HardwareConfig& hw() const override { return mHwCfg; }
+    bool playstore() const override { return false; }
+    int apiLevel() const override;
+    std::string dessert() const override;
+    std::string apiDescription() const override;
+    fs::path getIniFile() const override { return mTarget->getBackingFile(); }
+    std::string display_name() const override {
+        return mConfig->getString("avd.ini.displayname", name());
+    }
+
+    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(fs::path ini_file,
+                                                                std::string sysdir_override = "");
+
   private:
-    Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
-        std::string name, std::string sysdir_override);
+    FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
+                  std::unique_ptr<IniFile> config, std::string name, std::string sysdir_override);
 
     std::string mName;
     fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/

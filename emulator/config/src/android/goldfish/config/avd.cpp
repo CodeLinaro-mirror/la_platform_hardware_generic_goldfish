@@ -77,7 +77,9 @@ using android::base::System;
 using PropertyList = const std::array<std::string, 3>;
 using DeviceType = Avd::DeviceType;
 
-static const std::string_view _imageFileNames[static_cast<int>(Avd::ImageType::AVD_IMAGE_MAX)] = {
+namespace {
+
+const std::string_view _imageFileNames[static_cast<int>(Avd::ImageType::AVD_IMAGE_MAX)] = {
 #define _AVD_IMG(x, y, z) y,
         AVD_IMAGE_LIST
 #undef _AVD_IMG
@@ -195,7 +197,7 @@ int getApiLevel(std::string_view target) {
     return level;
 }
 
-static std::string getIconForDeviceType(DeviceType flavor) {
+std::string getIconForDeviceType(DeviceType flavor) {
     switch (flavor) {
         case DeviceType::kPhone:
             return "📱";  // 📱 (Smartphone)
@@ -212,7 +214,9 @@ static std::string getIconForDeviceType(DeviceType flavor) {
     }
 }
 
-Avd::CpuArchitecture Avd::detectArchitecture() const {
+}  // namespace
+
+Avd::CpuArchitecture FileBackedAvd::detectArchitecture() const {
     auto abi = mConfig->getString("abi.type", "unknown");
     if (absl::StrContains(abi, "x86")) {
         return CpuArchitecture::kX86;
@@ -225,36 +229,23 @@ Avd::CpuArchitecture Avd::detectArchitecture() const {
     return CpuArchitecture::kUnknown;
 }
 
-int Avd::apiLevel() const {
+int FileBackedAvd::apiLevel() const {
     return getApiLevel(mConfig->getString("target", ""));
 }
 
-std::string Avd::dessert() const {
+std::string FileBackedAvd::dessert() const {
     return std::string(getApiDessertName(apiLevel()));
 }
 
-std::string Avd::apiDescription() const {
+std::string FileBackedAvd::apiDescription() const {
     return getFullApiName(apiLevel());
 }
 
-Avd::Avd(Avd&& other) noexcept
-    : mName(std::move(other.mName)),
-      mContentPath(std::move(other.mContentPath)),
-      mTarget(std::move(other.mTarget)),
-      mConfig(std::move(other.mConfig)),
-      mHwCfg(std::move(other.mHwCfg)),
-      mSysdirOverride(std::move(other.mSysdirOverride)) {}
-
-bool Avd::hasEncryptionKey() const {
+bool FileBackedAvd::hasEncryptionKey() const {
     return getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).ok();
 }
 
-absl::StatusOr<Avd> Avd::fromName(std::string name, std::string sysdir_override) {
-    auto directory_path = ConfigDirs::getAvdRootDirectory();
-    return Avd::parse(directory_path / (name + ".ini"), std::move(sysdir_override));
-}
-
-DeviceType Avd::getDeviceType() const {
+DeviceType FileBackedAvd::getDeviceType() const {
     DeviceType res = DeviceType::kUnknown;
 
     const std::unordered_map<std::string, DeviceType> labelMap{
@@ -296,11 +287,7 @@ DeviceType Avd::getDeviceType() const {
     return res;
 }
 
-fs::path Avd::getImageFilename(Avd::ImageType imgType) const {
-    return _imageFileNames[static_cast<uint8_t>(imgType)];
-}
-
-absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
+absl::StatusOr<fs::path> FileBackedAvd::getImageFilePath(Avd::ImageType imgType) const {
     fs::path possible = mContentPath / _imageFileNames[static_cast<uint8_t>(imgType)];
     if (System::get()->pathIsFile(possible) && System::get()->pathCanRead(possible)) {
         return possible;
@@ -310,7 +297,7 @@ absl::StatusOr<fs::path> Avd::getImageFilePath(Avd::ImageType imgType) const {
     return getSystemImageFilePath(imgType);
 }
 
-absl::StatusOr<fs::path> Avd::getSystemImageFilePath(Avd::ImageType imgType) const {
+absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType imgType) const {
     auto make_path = [imgType](const fs::path& p) {
         return p / _imageFileNames[static_cast<uint8_t>(imgType)];
     };
@@ -348,7 +335,7 @@ absl::StatusOr<fs::path> Avd::getSystemImageFilePath(Avd::ImageType imgType) con
                                                key));
 }
 
-std::string Avd::details(const bool verbose) const {
+std::string FileBackedAvd::details(const bool verbose) const {
     if (verbose) {
         auto icon = getIconForDeviceType(getDeviceType());
         return absl::StrFormat("%-45s  - (%4dx%4d) %s", mName, mHwCfg.hw_lcd_width,
@@ -358,8 +345,9 @@ std::string Avd::details(const bool verbose) const {
     }
 }
 
-Avd::Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr<IniFile> config,
-         std::string name, std::string sysdir_override)
+FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
+                             std::unique_ptr<IniFile> config, std::string name,
+                             std::string sysdir_override)
     : mName(name),
       mContentPath(content_path),
       mTarget(std::move(target)),
@@ -368,8 +356,10 @@ Avd::Avd(fs::path content_path, std::unique_ptr<IniFile> target, std::unique_ptr
     mHwCfg.load(this, mConfig.get());
 }
 
-absl::StatusOr<Avd> Avd::parse(fs::path ini_file, std::string sysdir_override) {
-    auto sys = System::get();
+// static
+absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini_file,
+                                                                    std::string sysdir_override) {
+    auto* sys = System::get();
     if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", System::pathAsString(ini_file)));
     }
@@ -399,18 +389,22 @@ absl::StatusOr<Avd> Avd::parse(fs::path ini_file, std::string sysdir_override) {
     if (!config->read()) {
         return absl::InternalError("Unable to parse ini file: " + cfg_ini.string());
     }
-    return Avd(content_path, std::move(ini), std::move(config), name, std::move(sysdir_override));
+    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(
+            content_path, std::move(ini), std::move(config), name, std::move(sysdir_override)));
 }
 
+namespace {
 // Check that an AVD name is valid.
-static bool _checkAvdName(const std::string& name) {
+bool _checkAvdName(const std::string& name) {
     int len = strspn(name.c_str(),
                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                      "abcdefghijklmnopqrstuvwxyz"
                      "0123456789_.-");
     return (name.size() == len);
 }
+}  // namespace
 
+// static
 std::vector<std::string> Avd::list() {
     std::vector<std::string> avds;
     auto pattern = std::regex(".*.ini");
@@ -429,6 +423,17 @@ std::vector<std::string> Avd::list() {
         }
     }
     return avds;
+}
+
+// static
+absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, std::string sysdir_override) {
+    auto directory_path = ConfigDirs::getAvdRootDirectory();
+    return FileBackedAvd::parse(directory_path / (name + ".ini"), std::move(sysdir_override));
+}
+
+// static
+fs::path Avd::getImageFilename(Avd::ImageType imgType) {
+    return _imageFileNames[static_cast<uint8_t>(imgType)];
 }
 
 }  // namespace android::goldfish

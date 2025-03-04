@@ -46,6 +46,7 @@ cc_library(
 
 cc_library(
     name = "avd-test",
+    testonly = True,
     hdrs = ["test/android/goldfish/config/avd-test.h"],
     includes = ["test"],
     visibility = ["//visibility:public"],
@@ -53,6 +54,7 @@ cc_library(
         ":config",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest",
     ],
 )

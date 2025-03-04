@@ -86,7 +86,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
             {"emulator.version", "50.0.0"},
             {"port.adb", "5555"},
             {"avd.name", avd->name()},
-            {"avd.id", avd->get("avd.ini.displayname", avd->name())},
+            {"avd.id", avd->display_name()},
             {"avd.dir", System ::pathAsString(avd->getContentPath())},
             {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
     auto emulator = android::emulation::control::getEmulatorController(

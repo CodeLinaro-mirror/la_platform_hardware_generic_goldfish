@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 
+#include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/goldfish/config/avd.h"
@@ -34,8 +35,7 @@ class AvdTest : public ::testing::Test {
         tmp->makeSubDir(pj("android_home", "avd"));
         createTestAvd(sys, tmp, "android-30");
 
-        auto avdResult = Avd::fromName("test_avd", /*sysdir_override=*/std::string());
-        mAvd = std::make_unique<Avd>(std::move(avdResult.value()));
+        ASSERT_OK_AND_ASSIGN(mAvd, Avd::fromName("test_avd"));
     }
 
     Avd* avd() { return mAvd.get(); }
