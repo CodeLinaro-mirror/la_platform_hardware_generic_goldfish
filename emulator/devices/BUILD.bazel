@@ -188,6 +188,8 @@ cc_library(
     ],
     deps = [
         ":cable",
+        ":connector_registry_impl",
+        ":devices",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/sockets",
     ],

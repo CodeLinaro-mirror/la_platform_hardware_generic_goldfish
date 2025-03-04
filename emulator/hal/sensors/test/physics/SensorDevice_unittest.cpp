@@ -20,6 +20,7 @@
 #include "android/physics/Sensors.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
+
 namespace goldfish::devices::sensor {
 
 using android::base::TestSystem;
@@ -194,8 +195,7 @@ class MockSensorCallback {
 
 TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
     // Create a SensorObserver for the accelerometer
-    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
-    SensorObserver observer(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observer(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
 
     // Create a mock callback
     MockSensorCallback mockCallback;
@@ -216,8 +216,7 @@ TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
 
 TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
     // Create a SensorObserver for the accelerometer
-    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
-    SensorObserver observer(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observer(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
 
     // Create mock callbacks
     MockSensorCallback mockCallback1;
@@ -239,9 +238,9 @@ TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
 
 TEST_F(SensorDeviceTest, SensorObserverDifferentSensors) {
     // Create a SensorObserver for the accelerometer and proximity
-    std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
-    SensorObserver observerAcceleration(sharedDevice, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
-    SensorObserver observerProximity(sharedDevice, AndroidSensor::ANDROID_SENSOR_PROXIMITY);
+    // std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
+    SensorObserver observerAcceleration(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observerProximity(&registry, AndroidSensor::ANDROID_SENSOR_PROXIMITY);
 
     // Create mock callbacks
     MockSensorCallback mockCallbackAcceleration;

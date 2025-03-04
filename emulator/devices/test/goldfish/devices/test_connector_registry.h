@@ -87,9 +87,10 @@ using cable::SocketPtr;
  * the complexities of setting up a real vsock connection and allows for
  * deterministic testing of device behavior.
  */
-class TestConnectorRegistry : public IConnectorRegistry {
+class TestConnectorRegistry : public ConnectorRegistry {
   public:
     TestConnectorRegistry() {}
+    ~TestConnectorRegistry() = default;
 
     bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override {
         mFactory = std::move(factory);
@@ -106,6 +107,7 @@ class TestConnectorRegistry : public IConnectorRegistry {
         auto socket = goldfish::devices::fakeConnection(&mLooper);
         mSocket = static_cast<TestSocket*>(socket.get());
         mPlug = mFactory(std::move(socket), std::make_shared<PingTopic>(), "");
+        registerInternal(std::string(T::serviceName), mPlug);
         return reinterpret_cast<T*>(mPlug.get());
     }
 

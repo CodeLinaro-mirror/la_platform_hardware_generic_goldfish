@@ -96,6 +96,13 @@ class NullConnectorRegistry : public IConnectorRegistry {
  * during the QEMU launch phase, the `listen` call can be made to activate these
  * registered devices and make them accessible to the guest system.
  *
+ * **Important:** Each device type is unique within the registry. This means
+ * that only one device of a given type (e.g., SensorDevice, GPSDevice) can be
+ * registered at any time. If a device of the same type is registered again,
+ * it will replace the previously registered device. Devices are typically
+ * registered early in the boot process, but they can also be registered again
+ * after a reboot.
+ *
  * @see goldfish/devices/Connector.h for details on the underlying protocol.
  */
 class ConnectorRegistry : public IConnectorRegistry {
@@ -113,6 +120,7 @@ class ConnectorRegistry : public IConnectorRegistry {
      */
 
     ConnectorRegistry();
+    virtual ~ConnectorRegistry() = default;
 
     DISALLOW_COPY_AND_ASSIGN(ConnectorRegistry);
 
@@ -182,6 +190,21 @@ class ConnectorRegistry : public IConnectorRegistry {
         }
         return std::weak_ptr<T>();
     }
+
+  protected:
+    /**
+     * @brief Registers an active device internally.
+     *
+     * This method is called when a new device is created and connected. It stores
+     * a weak pointer to the device's plug in the internal active device map and
+     * fires an event to notify any listeners that a new device has been registered.
+     *
+     * @param registryName The name under which the device was registered.
+     * @param plug A weak pointer to the device's plug.
+     *
+     * @protected This method is protected to allow access from test classes.
+     */
+    void registerInternal(std::string registryName, std::weak_ptr<cable::IPlug> plug);
 
   private:
     std::shared_ptr<PingTopic> mPingTopic;

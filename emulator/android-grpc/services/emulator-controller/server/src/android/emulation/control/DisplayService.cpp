@@ -118,7 +118,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
         return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
     }
 
-    SensorObserver accObserver(sensor, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver accObserver(mRegistry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
     GenericMultiEventWaiter<FrameInfo, SensorData> frameOrSensorEvent(display.get(), &accObserver);
 
     // TODO(jansene): Bring back metrics.

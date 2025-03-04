@@ -34,6 +34,7 @@
 #include "android/physics/Sensors.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud.h"
 
 using android::base::Looper;
@@ -747,27 +748,44 @@ void ISensorDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Loope
             });
 }
 
-SensorObserver::SensorObserver(std::shared_ptr<ISensorDevice> device, AndroidSensor id)
-    : mDevice(std::move(device)) {
-    mCallbackId = mDevice->addCallback([id, this](const AndroidSensor sensor) {
-        if (sensor != id) {
-            return;
-        }
+SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)
+    : mDeviceListener(registry), mId(id) {
+    mDeviceListener.addCallback(
+            [this](std::weak_ptr<ISensorDevice> device) { registerDevice(device); });
+}
 
-        auto data = mDevice->getSensorData(sensor);
-        if (!data.ok()) {
-            return;
-        }
+void SensorObserver::registerDevice(std::weak_ptr<ISensorDevice> device) {
+    mDevice = device;
+    auto sensor = device.lock();
+    if (sensor) {
+        mCallbackId =
+                sensor->addCallback([this](AndroidSensor sensorId) { forwardEvent(sensorId); });
+    }
+}
 
-        if (mOld != data.value()) {
-            mOld = data.value();
-            fireEvent(mOld);
-        }
-    });
+void SensorObserver::forwardEvent(const AndroidSensor sensorId) {
+    if (sensorId != mId) {
+        return;
+    }
+    auto device = mDevice.lock();
+    if (!device) {
+        return;
+    }
+    auto data = device->getSensorData(sensorId);
+    if (!data.ok()) {
+        return;
+    }
+
+    if (mOld != data.value()) {
+        mOld = data.value();
+        SensorObserver::fireEvent(mOld);
+    }
 }
 
 SensorObserver::~SensorObserver() {
-    mDevice->removeCallback(mCallbackId);
+    if (auto sensor = mDevice.lock()) {
+        sensor->removeCallback(mCallbackId);
+    }
 }
 
 }  // namespace goldfish::devices::sensor

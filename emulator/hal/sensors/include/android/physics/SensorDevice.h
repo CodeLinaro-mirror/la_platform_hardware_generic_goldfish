@@ -160,15 +160,20 @@ class SensorObserver : public WithCallbacks<EventChangeSupport, SensorData> {
     /**
      * @brief Constructs a SensorObserver for a specific sensor.
      *
-     * @param device A shared pointer to the ISensorDevice to observe.
+     * @param registry Registry used to fetch the ISensorDevice
      * @param id The AndroidSensor ID to observe.
      */
-    SensorObserver(std::shared_ptr<ISensorDevice> device, AndroidSensor id);
+    SensorObserver(ConnectorRegistry* registry, AndroidSensor id);
     ~SensorObserver();
 
   private:
-    SensorData mOld;                               ///< The previously observed sensor data.
-    const std::shared_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
+    void registerDevice(std::weak_ptr<ISensorDevice> device);
+    void forwardEvent(const AndroidSensor sensorId);
+    SensorData mOld;  ///< The previously observed sensor data.
+    DeviceRegistrationListener<ISensorDevice>
+            mDeviceListener;               ///< Listener for device registration events.
+    std::weak_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
+    AndroidSensor mId;
     CallbackId mCallbackId;  ///< The ID of the registered callback in the ISensorDevice.
 };
 

@@ -48,12 +48,7 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
                                                                  auto args) {
             auto connector = value(std::move(socket), std::move(ping), args);
             auto registryName = key.substr(1);
-            {
-                std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-                VLOG(1) << "Registering device: " << registryName;
-                mActivePlugs[registryName] = connector;
-            }
-            fireEvent(registryName);
+            registerInternal(registryName, connector);
             return connector;
         };
         mDevices.push_back({key.c_str(), std::move(registerfn)});
@@ -62,6 +57,16 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
         return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
                                            mDevices.size());
     });
+}
+
+void ConnectorRegistry::registerInternal(std::string registryName,
+                                         std::weak_ptr<cable::IPlug> plug) {
+    {
+        std::lock_guard<std::mutex> lock(mActivePlugsMutex);
+        VLOG(1) << "Registering device: " << registryName;
+        mActivePlugs[registryName] = plug;
+    }
+    fireEvent(registryName);
 }
 
 bool ConnectorRegistry::registerQemuDevice(std::string name, Connector::DeviceFactory factory) {

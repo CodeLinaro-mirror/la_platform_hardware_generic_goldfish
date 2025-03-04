@@ -17,8 +17,17 @@
 #include <chrono>
 
 #include "aemu/base/testing/TestLooper.h"
+#include "goldfish/vsock/listen.h"
 
 namespace goldfish {
+
+// Empty unused implementation.
+namespace vsock {
+bool listen(const uint32_t hostPort, HostPortListener listener) {
+    return false;
+}
+}  // namespace vsock
+
 namespace devices {
 using android::base::TestLooper;
 
