@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "cache_drive",
@@ -27,6 +27,21 @@ cc_library(
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "disk_drive_test",
+    srcs = ["disk_drive_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":disk_drive",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:mock_avd",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

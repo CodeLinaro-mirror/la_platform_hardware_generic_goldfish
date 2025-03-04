@@ -21,7 +21,6 @@
 #include <string_view>
 
 #include "absl/log/absl_log.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -41,6 +40,22 @@ using android::base::System;
 using android::base::operator""_MiB;
 using android::base::operator""_TiB;
 
+namespace {
+std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_view addr) {
+    switch (avd.detectArchitecture()) {
+        case Avd::CpuArchitecture::kArm:
+            // Note that this isn't actually a pci device, oh well.
+            return absl::StrFormat("virtio-blk-device,drive=%s,num-queues=4", diskId);
+        case Avd::CpuArchitecture::kX86:
+            return absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr, diskId);
+        case Avd::CpuArchitecture::kRiscV:
+        case Avd::CpuArchitecture::kUnknown:
+        default:
+            return {};
+    }
+}
+}  // namespace
+
 absl::Status RawDrive::initialize(const Emulator& emulator) {
     return emulator.avd().getSystemImageFilePath(mImage).status();
 };
@@ -49,8 +64,7 @@ std::vector<std::string> RawDrive::getQemuParameters(const Emulator& emulator) c
     const Avd& avd = emulator.avd();
     auto diskImage = avd.getSystemImageFilePath(mImage);
     auto diskId = diskImage->filename().string();
-    return {"-device", absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr(), diskId),
-            "-blockdev",
+    return {"-device", getDeviceParam(avd, diskId, addr()), "-blockdev",
             absl::StrFormat("driver=raw,node-name=%s,read-only=on,driver="
                             "file,filename=%s",
                             diskId, diskImage->string())};
@@ -68,8 +82,7 @@ std::vector<std::string> MutableDiskDrive::getQemuParameters(const Emulator& emu
     // For example run an individual iothread per drive
     //  "-object",  "iothread,id=disk-iothread" per drive..
     // and setup proper caching.
-    return {"-device", absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr(), mDiskId),
-            "-blockdev",
+    return {"-device", getDeviceParam(emulator.avd(), mDiskId, addr()), "-blockdev",
             absl::StrFormat("driver=qcow2,node-name=%s,file.driver=file,file.filename=%s", mDiskId,
                             mDiskImage.string())};
 }
