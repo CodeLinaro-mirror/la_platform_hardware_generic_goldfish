@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
+#include "android/base/system/System.h"
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/bootconfig.h"
 #include "android/goldfish/config/avd.h"
@@ -249,16 +250,12 @@ static std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
 
     assert(arch == Avd::CpuArchitecture::kArm);
 
-    // TODO(jansene): We should get this from the emulator.
+    // TODO(jansene): We need should determine device id from the order they were
+    // added to emulator.
     // "a003e00", "a003c00", "a003a00", "a003800", "a003600", "a003400",
-
-    // TODO(jansene): We need to determine device id.
-    if (drive) {
-        return absl::StrFormat("/dev/block/platform/%s.virtio_mmio/by-name/%s", drive->addr(),
-                               "system");
-    }
-
-    return "";
+    // system is currently first - "a0003e00".
+    // 3c must be encrypt (metadata)
+    return "a003e00.virtio_mmio";
 }
 
 static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
@@ -279,9 +276,9 @@ static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) 
     //         &verified_boot_params);
     //   }
     //   //   if (feature_is_enabled(kFeature_DynamicPartition)) {
-    //   std::string boot_dev = absl::StrCat("androidboot.boot_devices=",
-    //                                       getDynamicPartitionBootDevice(emulator));
-    //   verified_boot_params.push_back(boot_dev);
+    std::string boot_dev =
+            absl::StrCat("androidboot.boot_devices=", getDynamicPartitionBootDevice(emulator));
+    verified_boot_params.push_back(boot_dev);
     // }
     // if (android_op_writable_system) {
     // unlocked state
@@ -322,6 +319,6 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
 std::vector<std::string> Initrd::getQemuParameters(const Emulator& emulator) const {
     const Avd& avd = emulator.avd();
-    return {"-initrd", (avd.getContentPath() / "initrd").string()};
+    return {"-initrd", android::base::System::pathAsString(avd.getContentPath() / "initrd")};
 }
 }  // namespace android::goldfish

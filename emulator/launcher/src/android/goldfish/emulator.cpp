@@ -79,12 +79,18 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<KernelDevice>();
     addDevice<Initrd>();
     addDevice<GpuDevice>();
+
+    // Currently this must be the first drive on ARM to match the androidboot.boot_devices parameter
+    // set in initrd_device.cpp.
     addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
+    // Encryption must be second for ARM - to have path
+    // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
+    addDevice<EncryptionDrive>(hw);
     addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
     addDevice<UserDataDrive>(hw);
-    addDevice<EncryptionDrive>(hw);
     addDevice<CacheDrive>(hw);
     addDevice<SDCardDrive>(hw);
+
     addDevice<AudioDevice>("09.0");
 
     auto ini_path = System::pathAsString(mAvd->getIniFile());
