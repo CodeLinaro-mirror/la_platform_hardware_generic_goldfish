@@ -292,10 +292,6 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
     auto hw = avd.hw();
 
     auto init_rd = avd.getContentPath() / "initrd";
-    // Use the one provided by hardware config if available
-    if (fs::exists(init_rd)) {
-        return absl::OkStatus();
-    }
 
     int gles_major_version = 2;
     int gles_minor_version = 0;
