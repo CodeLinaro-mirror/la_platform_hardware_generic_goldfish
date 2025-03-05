@@ -48,10 +48,9 @@ using grpc::Status;
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
     : public EmulatorController::WithCallbackMethod_streamClipboard<
-              EmulatorController::WithCallbackMethod_streamScreenshot<
-                      EmulatorController::WithCallbackMethod_streamInputEvent<
-                              EmulatorController::WithCallbackMethod_streamClipboard<
-                                      EmulatorController::Service>>>> {
+              EmulatorController::WithCallbackMethod_streamInputEvent<
+                      EmulatorController::WithCallbackMethod_streamClipboard<
+                              EmulatorController::Service>>> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay)

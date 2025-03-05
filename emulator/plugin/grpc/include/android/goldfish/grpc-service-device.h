@@ -32,5 +32,4 @@ void finalize(GrpcDeviceConfiguration* device);
 
 // UI related callbacks
 void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h);
-void grpc_dpy_gfx_refresh(struct DisplayChangeListener* dcl);
 void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);

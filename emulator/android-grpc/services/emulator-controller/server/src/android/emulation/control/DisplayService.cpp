@@ -113,11 +113,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                       "Invalid display: " + std::to_string(request->display()), "");
     }
 
-    auto sensor = mRegistry->activeDevice<ISensorDevice>().lock();
-    if (!sensor) {
-        return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
-    }
-
     SensorObserver accObserver(mRegistry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
     GenericMultiEventWaiter<FrameInfo, SensorData> frameOrSensorEvent(display.get(), &accObserver);
 

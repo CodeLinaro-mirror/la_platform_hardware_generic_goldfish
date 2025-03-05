@@ -37,7 +37,7 @@ using grpc::Status;
 class DisplayServiceImpl {
   public:
     DisplayServiceImpl(IMultiDisplay* display, ConnectorRegistry* connectorRegistry)
-        : mMultiDisplay(display) {};
+        : mMultiDisplay(display), mRegistry(connectorRegistry) {};
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer);
