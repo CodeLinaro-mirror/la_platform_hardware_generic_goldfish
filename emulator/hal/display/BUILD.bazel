@@ -43,6 +43,18 @@ cc_library(
     alwayslink = True,
 )
 
+cc_library(
+    name = "test-display",
+    srcs = [
+        "test/MockDisplay.h",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":headers",
+    ],
+)
+
 cc_test(
     name = "display_unittests",
     srcs = [
