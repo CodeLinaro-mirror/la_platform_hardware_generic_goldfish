@@ -13,13 +13,16 @@
 // limitations under the License.
 
 // clang-format off
+#include <time.h>
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
 #include "pixman.h"
 #include "qapi/error.h"
+#include "hw/virtio/virtio-input.h"
 // clang-format on
 
+// A set of stubs for qemu methods we do not have.
 int getMinLogLevel() {
     return 0;
 }
@@ -32,6 +35,31 @@ int qemu_console_get_index(QemuConsole* con) {
     return 0;
 }
 
+Object* object_get_root(void) {
+    return NULL;
+}
+Object* object_dynamic_cast_assert(Object* obj, const char* type_name, const char* file, int line,
+                                   const char* func) {
+    return NULL;
+}
+
+QemuConsole* qemu_console_lookup_by_index(unsigned int index) {
+    return NULL;
+}
+Object* object_dynamic_cast(Object* obj, const char* type_name) {
+    return NULL;
+}
+
+int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* opaque),
+                                   void* opaque) {
+    return 0;
+}
+
+Object* container_get(Object* root, const char* path) {
+    return NULL;
+}
+
+void virtio_input_send(VirtIOInput* vinput, virtio_input_event* event) {}
 void console_handle_touch_event(QemuConsole* con,
                                 struct touch_slot touch_slots[INPUT_EVENT_SLOTS_MAX],
                                 uint64_t num_slot, int width, int height, double x, double y,

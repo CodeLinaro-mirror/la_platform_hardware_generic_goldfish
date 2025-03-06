@@ -36,7 +36,7 @@ class TestDisplay : public IDisplay {
 
     void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override {}
     void sendMouseEvent(int x, int y, int button_mask) override {}
-
+    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {}
     void setSeq(uint64_t seq) {
         absl::MutexLock lock(&mSeqAccess);
         mSeq.sequenceNumber = seq;

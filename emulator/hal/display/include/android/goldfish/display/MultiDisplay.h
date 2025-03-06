@@ -19,6 +19,8 @@
 
 namespace android::goldfish {
 
+using DisplayId = unsigned;
+
 /**
  * @class MultiDisplay
  * @brief Singleton class managing a collection of IDisplay objects.
@@ -45,7 +47,7 @@ class IMultiDisplay {
      *
      * TODO(jansene): This is to be called from the UI to create an addition display in the device.
      */
-    virtual absl::StatusOr<DisplayPtr> createDisplay(uint8_t displayId, uint32_t width,
+    virtual absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
                                                      uint32_t height) = 0;
 
     /**
@@ -60,7 +62,7 @@ class IMultiDisplay {
      * @param displayId The unique identifier of the display to retrieve.
      * @return Raw IDisplay* pointer if the display with the given ID is found, nullptr otherwise.
      */
-    virtual absl::StatusOr<DisplayPtr> getDisplay(uint8_t displayId) const = 0;
+    virtual absl::StatusOr<DisplayPtr> getDisplay(DisplayId displayId) const = 0;
 
     /**
      * @brief Erases an IDisplay object from the managed collection and destroys it.
@@ -77,14 +79,28 @@ class IMultiDisplay {
      * the default display)
      *         - absl::InternalError on internal errors.
      */
-    virtual absl::Status eraseDisplay(uint8_t displayId) = 0;
+    virtual absl::Status eraseDisplay(DisplayId displayId) = 0;
 
     /* Snapshot of all the active displays */
     virtual std::vector<DisplayPtr> displays() const = 0;
 
-    // The main display of your android device, this usually exists as it gets
-    // created very early on and is usually the same as displayId == 0
-    DisplayPtr defaultDisplay() const;
+    /**
+     * @brief Retrieves the default display of the Android device.
+     *
+     * This method returns the main display of the Android device, which is typically
+     * created very early during the device's initialization. The default display
+     * is always associated with `displayId == 0`.
+     *
+     * @return absl::StatusOr<DisplayPtr> An `absl::StatusOr` containing:
+     *         - A `DisplayPtr` to the default display on success.
+     *         - An error `absl::Status` if the default display (displayId 0) is not found.
+     *
+     * @note The default display is guaranteed to exist in a properly initialized
+     *       Android device. If this method returns an error, it indicates a
+     *       critical issue with the display system.
+     * @note This is equivalent to calling `getDisplay(0)`.
+     */
+    absl::StatusOr<DisplayPtr> defaultDisplay() const { return getDisplay(0); }
 };
 
 }  // namespace android::goldfish

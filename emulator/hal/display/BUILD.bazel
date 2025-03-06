@@ -5,6 +5,7 @@ cc_library(
     hdrs = [
         "include/android/goldfish/display/Display.h",
         "include/android/goldfish/display/MultiDisplay.h",
+        "include/android/goldfish/display/PixmanDisplay.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -19,10 +20,11 @@ cc_library(
 cc_library(
     name = "display",
     srcs = [
-        "src/android/goldfish/display/DefaultDisplay.cpp",
-        "src/android/goldfish/display/DefaultDisplay.h",
         "src/android/goldfish/display/MultiDisplay.cpp",
         "src/android/goldfish/display/NullDisplay.h",
+        "src/android/goldfish/display/PixmanDisplay.cpp",
+        "src/android/goldfish/display/QemuDisplay.cpp",
+        "src/android/goldfish/display/QemuDisplay.h",
         "src/android/goldfish/display/virtio-bridge.c",
         "src/android/goldfish/display/virtio-bridge.h",
     ],
@@ -45,13 +47,28 @@ cc_library(
 
 cc_library(
     name = "test-display",
+    testonly = True,
     srcs = [
+        "test/FakeMultiDisplay.cpp",
+        "test/FakePixmanDisplay.cpp",
+        "test/PixmanImageGenerator.cpp",
+        "test/QemuStubs.c",
+    ],
+    hdrs = [
+        "test/FakeMultiDisplay.h",
+        "test/FakePixmanDisplay.h",
         "test/MockDisplay.h",
+        "test/PixmanImageGenerator.h",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
+        ":display",
         ":headers",
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+        "@pixman//:pixman-1",
+        "@pixman//:pixman_simd",
     ],
 )
 
@@ -59,11 +76,14 @@ cc_test(
     name = "display_unittests",
     srcs = [
         "test/DisplayTest.cpp",
-        "test/QemuStubs.c",
+        "test/FakeMultiDisplayTest.cpp",
+        "test/FakePixmanDisplayTest.cpp",
+        "test/PixmanImageGeneratorTest.cpp",
     ],
     includes = ["test"],
     deps = [
         ":display",
-        "@com_google_googletest//:gtest_main",
+        ":test-display",
+        "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

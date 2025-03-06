@@ -30,8 +30,8 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-#include "android/goldfish/display/DefaultDisplay.h"
 #include "android/goldfish/display/Display.h"
+#include "android/goldfish/display/QemuDisplay.h"
 #include "android/physics/SensorDevice.h"
 
 extern "C" {
@@ -52,13 +52,13 @@ using DeviceSkinRotation = ::goldfish::devices::sensor::SkinRotation;
 
 namespace android::goldfish {
 
-using SharedDisplayImpl = std::shared_ptr<DefaultDisplay>;
-using WeakDisplayImpl = std::weak_ptr<DefaultDisplay>;
-using QemuDisplayMap = std::unordered_map<uint8_t, SharedDisplayImpl>;
+using SharedDisplayImpl = std::shared_ptr<QemuDisplay>;
+using WeakDisplayImpl = std::weak_ptr<QemuDisplay>;
+using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
-    absl::StatusOr<DisplayPtr> createDisplay(uint8_t displayId, uint32_t width,
+    absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
                                              uint32_t height) override {
         // TODO(jansene): Port multidisplay creation.
         return absl::UnimplementedError("MultiDisplayImpl::createDisplay is not yet supported.");
@@ -67,18 +67,22 @@ class MultiDisplayImpl : public IMultiDisplay {
     absl::StatusOr<DisplayPtr> createDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
                                                      uint8_t id) {
         absl::MutexLock lock(&mDisplayAccess);
-        assert(mDisplays.find(id) == mDisplays.end());
-        auto display = std::make_shared<DefaultDisplay>(console, ds, id);
-        mDisplays[id] = display;
+        auto display = std::make_shared<QemuDisplay>(console, ds, id);
+
+        auto [it, inserted] = mDisplays.insert({id, display});
+        if (!inserted) {
+            return absl::AlreadyExistsError(
+                    absl::StrFormat("Display with id %d already exists.", id));
+        }
         return display;
     }
 
-    absl::StatusOr<DisplayPtr> getDisplay(uint8_t displayId) const override {
+    absl::StatusOr<DisplayPtr> getDisplay(DisplayId displayId) const override {
         auto display = getDisplayWeak(displayId);
         return display;
     }
 
-    absl::StatusOr<WeakDisplayImpl> getDisplayWeak(uint8_t displayId) const {
+    absl::StatusOr<WeakDisplayImpl> getDisplayWeak(DisplayId displayId) const {
         absl::MutexLock lock(&mDisplayAccess);
         auto it = mDisplays.find(displayId);
         if (it == mDisplays.end()) {
@@ -87,7 +91,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         return it->second;
     }
 
-    absl::Status eraseDisplay(uint8_t displayId) override {
+    absl::Status eraseDisplay(DisplayId displayId) override {
         absl::MutexLock lock(&mDisplayAccess);
         auto it = mDisplays.find(displayId);
         if (it == mDisplays.end()) {
@@ -141,7 +145,6 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     }
 
     if (auto display = device->lock()) {
-        // auto displayImpl = static_cast<DefaultDisplay*>(display.get());
         display->updateSurface(x, y, w, h);
     } else {
         LOG_EVERY_N(ERROR, 60) << "Display with " << index << " is no longer active.";
@@ -164,7 +167,7 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
     }
 
     if (auto display = device->lock()) {
-        display->replaceSurface(new_surface);
+        display->updateSourceImage(new_surface->image);
     }
 }
 
