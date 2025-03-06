@@ -27,7 +27,11 @@
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
+#include "android/emulation/control/input/AndroidEventSender.h"
+#include "android/emulation/control/input/MouseEventSender.h"
+#include "android/emulation/control/input/WheelEventSender.h"
 #include "android/emulation/control/keyboard/KeyEventSender.h"
+#include "android/grpc/utils/AbslStatusTranslate.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 #include "host-common/vm_operations.h"
 
@@ -50,7 +54,8 @@ class EmulatorControllerImpl final
     : public EmulatorController::WithCallbackMethod_streamClipboard<
               EmulatorController::WithCallbackMethod_streamInputEvent<
                       EmulatorController::WithCallbackMethod_streamClipboard<
-                              EmulatorController::Service>>> {
+                              EmulatorController::WithCallbackMethod_injectWheel<
+                                      EmulatorController::Service>>>> {
   public:
     EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
@@ -60,7 +65,10 @@ class EmulatorControllerImpl final
           mDisplayService(multidisplay, connectorRegistry),
           mStatusService(connectorRegistry, avd),
           mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))),
-          mGpsService(connectorRegistry) {}
+          mGpsService(connectorRegistry),
+          mAndroidEventSender(multidisplay),
+          mMouseEventSender(multidisplay),
+          mWheelEventSender(multidisplay) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
@@ -176,24 +184,37 @@ class EmulatorControllerImpl final
         return Status::OK;
     }
 
-    virtual ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
+    Status sendMouse(ServerContext* context, const MouseEvent* request,
+                     ::google::protobuf::Empty* reply) override {
+        return abslStatusToGrpcStatus(mMouseEventSender.send(*request));
+    }
+
+    ::grpc::ServerReadReactor<WheelEvent>* injectWheel(
+            ::grpc::CallbackServerContext* /*context*/,
+            ::google::protobuf::Empty* /*response*/) override {
+        return new SimpleServerLambdaReader<WheelEvent>(
+                [this](auto request) { (void)mWheelEventSender.send(*request); });
+    }
+
+    ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
             ::grpc::CallbackServerContext* /*context*/,
             ::google::protobuf::Empty* /*response*/) override {
         SimpleServerLambdaReader<InputEvent>* eventReader =
                 new SimpleServerLambdaReader<InputEvent>([this, &eventReader](auto request) {
                     VLOG(1) << "InputEvent:" << request->ShortDebugString();
+                    absl::Status status = absl::OkStatus();
                     if (request->has_key_event()) {
                         mKeyEventSender->send(request->key_event());
                     } else if (request->has_mouse_event()) {
-                        // TODO(jansene): Not yet implemented.
+                        status = mMouseEventSender.send(request->mouse_event());
                     } else if (request->has_touch_event()) {
-                        // TODO(jansene): Not yet implemented.
+                        // TODO(jansene): Implement
                     } else if (request->has_android_event()) {
-                        // TODO(jansene): Not yet implemented.
+                        status = mAndroidEventSender.send(request->android_event());
                     } else if (request->has_pen_event()) {
-                        // TODO(jansene): Not yet implemented.
+                        // TODO(jansene): Implement
                     } else if (request->has_wheel_event()) {
-                        // TODO(jansene): Not yet implemented.
+                        status = mWheelEventSender.send(request->wheel_event());
                     } else {
                         // Mark the stream as completed, this will
                         // result in setting that status and scheduling
@@ -201,6 +222,9 @@ class EmulatorControllerImpl final
                         // queue.
                         eventReader->Finish(Status(::grpc::StatusCode::INVALID_ARGUMENT,
                                                    "Unknown event, is the emulator out of date?."));
+                    }
+                    if (!status.ok()) {
+                        eventReader->Finish(abslStatusToGrpcStatus(status));
                     }
                 });
         // Note that the event reader will delete itself on completion of
@@ -236,6 +260,9 @@ class EmulatorControllerImpl final
     StatusServiceImpl mStatusService;
     std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
     GpsServiceImpl mGpsService;
+    AndroidEventSender mAndroidEventSender;
+    MouseEventSender mMouseEventSender;
+    WheelEventSender mWheelEventSender;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
