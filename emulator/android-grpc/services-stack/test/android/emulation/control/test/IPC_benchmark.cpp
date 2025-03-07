@@ -32,7 +32,6 @@
 #include "grpcpp/support/channel_arguments.h"  // for ChannelArguments
 
 #include "aemu/base/files/PathUtils.h"               // for PathUtils
-#include "aemu/base/memory/LazyInstance.h"           // for LazyInstance
 #include "aemu/base/memory/SharedMemory.h"           // for SharedMemory
 #include "aemu/base/sockets/ScopedSocket.h"          // for ScopedSocket
 #include "aemu/base/sockets/SocketUtils.h"           // for socketRecvAll
@@ -149,7 +148,10 @@ class GrpcDriver {
 };
 
 // We only need one driver.
-android::base::LazyInstance<GrpcDriver> sGrpcDriver = LAZY_INSTANCE_INIT;
+GrpcDriver* sGrpcDriver() {
+    static GrpcDriver instance;
+    return &instance;
+}
 
 // This is the base class for every individual ipc based perfmTest.
 // you will probably want to subclass this and implement the
@@ -174,7 +176,7 @@ class PerfTest {
     // Configure the remote process for the upcoming test
     virtual void setup(uint64_t size) {
         mTest.set_size(size);
-        mConfig = sGrpcDriver->prepare(mTest);
+        mConfig = sGrpcDriver()->prepare(mTest);
     }
 
   protected:

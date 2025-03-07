@@ -11,7 +11,7 @@
 
 #include "aemu/base/memory/MemoryTracker.h"
 
-#include "aemu/base/memory/LazyInstance.h"
+#include <misc.h>
 
 #ifndef AEMU_TCMALLOC_ENABLED
 #error "Need to know whether we enabled TCMalloc!"
@@ -30,8 +30,6 @@
 #endif
 
 #include "absl/log/log.h"
-
-using android::base::LazyInstance;
 
 namespace android {
 namespace base {
@@ -249,12 +247,15 @@ std::unique_ptr<MemoryTracker::MallocStats> MemoryTracker::getUsage(const std::s
     return mImpl->getUsage(group);
 }
 
-static LazyInstance<MemoryTracker> sMemoryTracker = LAZY_INSTANCE_INIT;
+MemoryTracker* memoryTrackerInstance() {
+    static MemoryTracker instance;
+    return &instance;
+}
 
 // static
 MemoryTracker* MemoryTracker::get() {
 #if defined(__linux__)
-    return sMemoryTracker.ptr();
+    return memoryTrackerInstance()->get();
 #else
     return nullptr;
 #endif

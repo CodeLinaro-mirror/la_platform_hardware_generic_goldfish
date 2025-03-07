@@ -14,9 +14,6 @@
 
 #include "aemu/base/threads/ThreadStore.h"
 
-#ifdef _WIN32
-#include "aemu/base/memory/LazyInstance.h"
-#endif
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -188,39 +185,41 @@ class GlobalState {
     ThreadStoreBase::Destructor* mDestructors[kMaxTlsSlots];
 };
 
-LazyInstance<GlobalState> gGlobalState = LAZY_INSTANCE_INIT;
+GlobalState& gGlobalState() {
+    static GlobalState instance;
+    return instance;
+}
 
 }  // namespace
 
 ThreadStoreBase::ThreadStoreBase(Destructor* destroy) {
     D("Entering this=%p destroy=%p\n", this, destroy);
-    mKey = gGlobalState->registerKey(destroy);
+    mKey = gGlobalState().registerKey(destroy);
     D("Exiting this=%p key=%d\n", this, mKey);
 }
 
 ThreadStoreBase::~ThreadStoreBase() {
     D("Entering this=%p\n", this);
-    GlobalState* state = gGlobalState.ptr();
-    state->unregisterKey(mKey);
+    gGlobalState().unregisterKey(mKey);
     D("Exiting this=%p\n", this);
 }
 
 void* ThreadStoreBase::get() const {
     D("Entering this=%p\n", this);
-    void* ret = gGlobalState->getValue(mKey);
+    void* ret = gGlobalState().getValue(mKey);
     D("Exiting this=%p value=%p\n", this, ret);
     return ret;
 }
 
 void ThreadStoreBase::set(void* value) {
     D("Entering this=%p value=%p\n", this, value);
-    gGlobalState->setValue(mKey, value);
+    gGlobalState().setValue(mKey, value);
     D("Exiting this=%p\n", this);
 }
 
 // static
 void ThreadStoreBase::OnThreadExit() {
-    gGlobalState->leaveCurrentThread();
+    gGlobalState().leaveCurrentThread();
 }
 
 #else  // !_WIN32

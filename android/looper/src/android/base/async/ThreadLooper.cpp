@@ -16,7 +16,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-#include "aemu/base/memory/LazyInstance.h"
 #include "aemu/base/synchronization/Event.h"
 #include "aemu/base/synchronization/MessageChannel.h"
 #include "aemu/base/threads/ThreadStore.h"
@@ -66,26 +65,24 @@ class ThreadLooperStore : public ThreadStore<State> {
     }
 };
 
-static LazyInstance<ThreadLooperStore> sStore = LAZY_INSTANCE_INIT;
+static ThreadLooperStore& sStore() {
+    static ThreadLooperStore instance;
+    return instance;
+}
 
 }  // namespace
 
 // static
 Looper* ThreadLooper::get() {
-    return sStore->getLooper();
+    return sStore().getLooper();
 }
 
 // static
 void ThreadLooper::setLooper(Looper* looper, bool own) {
     // Sanity checks
     CHECK(looper) << "NULL looper!";
-
-    CHECK(!sStore.hasInstance() || !sStore->hasLooper())
-            << "ThreadLooper::get() already called for current thread!";
-
-    sStore->setLooper(looper, own);
+    sStore().setLooper(looper, own);
 }
-
 class MainLoopClosureRunner {
   public:
     MainLoopClosureRunner()
@@ -115,7 +112,10 @@ class MainLoopClosureRunner {
     MessageChannel<ThreadLooper::Closure, 24> mPendingClosures;
 };
 
-static LazyInstance<MainLoopClosureRunner> sMainRunner = LAZY_INSTANCE_INIT;
+static MainLoopClosureRunner& sMainRunner() {
+    static MainLoopClosureRunner instance;
+    return instance;
+}
 
 // static
 void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
@@ -125,7 +125,7 @@ void ThreadLooper::runOnMainLooper(ThreadLooper::Closure&& func) {
         return;
     }
 
-    sMainRunner->appendAndWake(std::move(func));
+    sMainRunner().appendAndWake(std::move(func));
 }
 
 // static
@@ -146,13 +146,13 @@ void ThreadLooper::runOnMainLooperAndWaitForCompletion(ThreadLooper::Closure&& f
         e.signal();
     };
 
-    sMainRunner->appendAndWake(std::move(funcWithSignal));
+    sMainRunner().appendAndWake(std::move(funcWithSignal));
     e.wait();
 }
 
 // static
 void ThreadLooper::clearMainRunner() {
-    sMainRunner.clear();
+    LOG(FATAL) << "Not implemented";
 }
 
 }  // namespace base

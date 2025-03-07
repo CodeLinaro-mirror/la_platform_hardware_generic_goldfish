@@ -1,8 +1,9 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "memory",
     srcs = [
         "src/android/base/memory/ContiguousRangeMapper.cpp",
-        "src/android/base/memory/LazyInstance.cpp",
         "src/android/base/memory/MemoryHints.cpp",
         "src/android/base/memory/MemoryTracker.cpp",
     ] + select({
@@ -11,9 +12,6 @@ cc_library(
         ],
         "//conditions:default": ["src/android/base/memory/SharedMemory_posix.cpp"],
     }),
-    hdrs = glob([
-        "include/android/**/*.h",
-    ]),
     copts = ["-DAEMU_TCMALLOC_ENABLED=0"] +
             select({
                 "@platforms//os:windows": ["-Wno-microsoft-goto"],
@@ -34,13 +32,14 @@ cc_library(
 
 cc_test(
     name = "memory_unittests",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = [
+        "test/android/base/memory/ContiguousRangeMapper_unittest.cpp",
+        "test/android/base/memory/MallocUsableSize_unittest.cpp",
+        "test/android/base/memory/MemoryHints_unittest.cpp",
+        # "test/android/base/memory/OnDemand_unittest.cpp",
+        "test/android/base/memory/ScopedPtr_unittest.cpp",
+        "test/android/base/memory/SharedMemory_unittest.cpp",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

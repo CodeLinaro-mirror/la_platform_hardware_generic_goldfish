@@ -22,7 +22,6 @@
 #include <vector>      // for vector
 
 #include "aemu/base/memory/ContiguousRangeMapper.h"  // for ContiguousRan...
-#include "aemu/base/memory/LazyInstance.h"           // for LazyInstance
 
 #ifndef _WIN32
 #include <sys/mman.h>  // for mprotect, mad...
@@ -36,8 +35,6 @@
 #else
 #define DISABLE_DONTNEED 0
 #endif
-
-using android::base::LazyInstance;
 
 namespace android {
 namespace base {
@@ -62,7 +59,10 @@ class MemoryTouchBuffer {
     std::vector<uint8_t> mBuffer;
 };
 
-static LazyInstance<MemoryTouchBuffer> sTouchBuffer = LAZY_INSTANCE_INIT;
+static MemoryTouchBuffer* instance() {
+    static MemoryTouchBuffer instance;
+    return &instance;
+}
 
 // Function to touch memory (make sure it is paged in).
 // The method is to explicitly copy the memory to a staging buffer.
@@ -76,7 +76,7 @@ static LazyInstance<MemoryTouchBuffer> sTouchBuffer = LAZY_INSTANCE_INIT;
 static void rewriteMemory(void* toRewrite, uint64_t length) {
     ContiguousRangeMapper rewriter(
             [](uintptr_t start, uintptr_t size) {
-                volatile uint8_t* staging = sTouchBuffer->ptr();
+                volatile uint8_t* staging = instance()->ptr();
                 *staging = *(uint8_t*)start;
             },
             kPageSize);
