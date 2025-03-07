@@ -34,18 +34,18 @@ using grpc::Status;
 /**
  * @brief Implements the display & multidisplay gRPC APIs.
  */
-class DisplayServiceImpl {
+class DisplayServiceImpl : public EmulatorController::Service {
   public:
     DisplayServiceImpl(IMultiDisplay* display, ConnectorRegistry* connectorRegistry)
         : mMultiDisplay(display), mRegistry(connectorRegistry) {};
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
-                            grpc::ServerWriter<Image>* writer);
+                            grpc::ServerWriter<Image>* writer) override;
 
-    Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply);
+    Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply) override;
 
     Status getDisplayConfigurations(ServerContext* context, const Empty* request,
-                                    DisplayConfigurations* reply);
+                                    DisplayConfigurations* reply) override;
 
   private:
     IMultiDisplay* mMultiDisplay;
