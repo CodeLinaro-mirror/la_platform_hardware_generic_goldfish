@@ -12,22 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include "android/emulation/control/input/EventSender.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
-// Class that sends Mouse events on the current looper.
-class WheelEventSender : public EventSender<WheelEvent> {
-  public:
-    WheelEventSender(IMultiDisplay* multidisplay) : EventSender<WheelEvent>(multidisplay) {};
-    ~WheelEventSender() = default;
+struct EvDevEvent {
+    uint16_t type;
+    uint16_t code;
+    uint32_t value;
 
-  protected:
-    absl::Status doSend(IDisplay& display, const WheelEvent& event) override;
+    bool operator==(const EvDevEvent& other) const {
+        return type == other.type && code == other.code && value == other.value;
+    }
 };
-
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

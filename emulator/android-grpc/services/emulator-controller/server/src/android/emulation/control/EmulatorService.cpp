@@ -27,11 +27,7 @@
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/display/DisplayChangeListener.h"
-#include "android/emulation/control/input/AndroidEventSender.h"
-#include "android/emulation/control/input/MouseEventSender.h"
-#include "android/emulation/control/input/PenEventSender.h"
-#include "android/emulation/control/input/TouchEventSender.h"
-#include "android/emulation/control/input/WheelEventSender.h"
+#include "android/emulation/control/input/EventSender.h"
 #include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
@@ -68,11 +64,7 @@ class EmulatorControllerImpl final
           mStatusService(connectorRegistry, avd),
           mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))),
           mGpsService(connectorRegistry),
-          mAndroidEventSender(multidisplay),
-          mMouseEventSender(multidisplay),
-          mPenEventSender(multidisplay, &mPointerEventDispatcher),
-          mTouchEventSender(multidisplay, &mPointerEventDispatcher),
-          mWheelEventSender(multidisplay) {}
+          mInputEventSender(multidisplay) {}
 
     Status getDisplayConfigurations(ServerContext* context,
                                     const ::google::protobuf::Empty* request,
@@ -190,19 +182,19 @@ class EmulatorControllerImpl final
 
     Status sendMouse(ServerContext* context, const MouseEvent* request,
                      ::google::protobuf::Empty* reply) override {
-        return abslStatusToGrpcStatus(mMouseEventSender.send(*request));
+        return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
     Status sendTouch(ServerContext* context, const TouchEvent* request,
                      ::google::protobuf::Empty* reply) override {
-        return abslStatusToGrpcStatus(mTouchEventSender.send(*request));
+        return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
     ::grpc::ServerReadReactor<WheelEvent>* injectWheel(
             ::grpc::CallbackServerContext* /*context*/,
             ::google::protobuf::Empty* /*response*/) override {
         return new SimpleServerLambdaReader<WheelEvent>(
-                [this](auto request) { (void)mWheelEventSender.send(*request); });
+                [this](auto request) { (void)mInputEventSender.send(*request); });
     }
 
     ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
@@ -215,15 +207,15 @@ class EmulatorControllerImpl final
                     if (request->has_key_event()) {
                         mKeyEventSender->send(request->key_event());
                     } else if (request->has_mouse_event()) {
-                        status = mMouseEventSender.send(request->mouse_event());
+                        status = mInputEventSender.send(request->mouse_event());
                     } else if (request->has_touch_event()) {
-                        status = mTouchEventSender.send(request->touch_event());
+                        status = mInputEventSender.send(request->touch_event());
                     } else if (request->has_android_event()) {
-                        status = mAndroidEventSender.send(request->android_event());
+                        status = mInputEventSender.send(request->android_event());
                     } else if (request->has_pen_event()) {
-                        status = mPenEventSender.send(request->pen_event());
+                        status = mInputEventSender.send(request->pen_event());
                     } else if (request->has_wheel_event()) {
-                        status = mWheelEventSender.send(request->wheel_event());
+                        status = mInputEventSender.send(request->wheel_event());
                     } else {
                         // Mark the stream as completed, this will
                         // result in setting that status and scheduling
@@ -263,18 +255,13 @@ class EmulatorControllerImpl final
 
   private:
     const QAndroidVmOperations* mVm;
-    PointerEventDispatcher mPointerEventDispatcher;
     SensorServiceImpl mSensorService;
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
     StatusServiceImpl mStatusService;
     std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
     GpsServiceImpl mGpsService;
-    AndroidEventSender mAndroidEventSender;
-    MouseEventSender mMouseEventSender;
-    PenEventSender mPenEventSender;
-    TouchEventSender mTouchEventSender;
-    WheelEventSender mWheelEventSender;
+    InputEventSender mInputEventSender;
 };
 
 grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,

@@ -16,8 +16,10 @@
 #include <memory>
 #include <vector>
 
-#include "android/emulation/control/input/EventSender.h"
+#include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/SlotRegistry.h"
+#include "android/goldfish/display/Display.h"
+#include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {
@@ -124,6 +126,10 @@ class PointerEventDispatcher {
     /**
      * @brief Sends a MultiTouchEvent to the emulator.
      *
+     * This method iterates through the touch points in the MultiTouchEvent and
+     * dispatches the corresponding evdev events to the specified display.
+     * It also manages the internal state of used slots in the SlotRegistry.
+     *
      * @param display The display to send the events to.
      * @param event The MultiTouchEvent to send.
      */
@@ -131,6 +137,10 @@ class PointerEventDispatcher {
 
     /**
      * @brief Sends a PenTouchEvent to the emulator.
+     *
+     * This method iterates through the touch points in the PenTouchEvent and
+     * dispatches the corresponding evdev events to the specified display.
+     * It also manages the internal state of used slots in the SlotRegistry.
      *
      * @param display The display to send the events to.
      * @param event The PenTouchEvent to send.
