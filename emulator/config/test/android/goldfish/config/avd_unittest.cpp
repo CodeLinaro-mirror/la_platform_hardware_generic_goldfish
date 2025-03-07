@@ -26,9 +26,10 @@
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/config/fake-avd.h"
 
-using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using android::base::ScopedCPtr;
 using android::base::TestSystem;
 using android::base::TestTempDir;
@@ -174,6 +175,63 @@ TEST(Avd, path_getAvdSystemImage) {
 
     ASSERT_OK_AND_ASSIGN(auto avd2, Avd::fromName("q", tmp->path() / "nothome" / "blah"));
     EXPECT_THAT(avd2->getImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
+}
+
+TEST(FakeAvdTest, DefaultValues) {
+    FakeAvd avd;
+
+    EXPECT_EQ(avd.name(), "default_fake_avd");
+    EXPECT_EQ(avd.getContentPath(), "/tmp/fake_avd");
+    EXPECT_EQ(avd.apiLevel(), 35);
+    EXPECT_EQ(avd.dessert(), "V");
+    EXPECT_EQ(avd.apiDescription(), "15.0 (V) - API 35");
+    EXPECT_TRUE(avd.playstore());
+    EXPECT_EQ(avd.getDeviceType(), Avd::DeviceType::kPhone);
+    EXPECT_EQ(avd.detectArchitecture(), Avd::CpuArchitecture::kArm);
+
+    // Check some HardwareConfig values
+    EXPECT_EQ(avd.hw().hw_cpu_arch, "arm64");
+    EXPECT_EQ(avd.hw().hw_cpu_ncore, 4);
+    EXPECT_EQ(avd.hw().hw_ramSize, 2048);
+    EXPECT_EQ(avd.hw().hw_lcd_width, 1080);
+    EXPECT_EQ(avd.hw().hw_lcd_height, 2424);
+    EXPECT_EQ(avd.hw().hw_lcd_density, 420);
+    EXPECT_EQ(avd.hw().disk_dataPartition_size, 6_GiB);
+    EXPECT_TRUE(avd.hw().PlayStore_enabled);
+}
+
+TEST(FakeAvdTest, SettersAndGetters) {
+    FakeAvd avd;
+
+    avd.setName("test_avd");
+    EXPECT_EQ(avd.name(), "test_avd");
+
+    avd.setContentPath("/new/path");
+    EXPECT_EQ(avd.getContentPath(), "/new/path");
+
+    avd.setApiLevel(30);
+    EXPECT_EQ(avd.apiLevel(), 30);
+
+    avd.setDessert("Q");
+    EXPECT_EQ(avd.dessert(), "Q");
+
+    avd.setApiDescription("10.0 (Q) - API 30");
+    EXPECT_EQ(avd.apiDescription(), "10.0 (Q) - API 30");
+
+    avd.setPlaystore(false);
+    EXPECT_FALSE(avd.playstore());
+
+    avd.setDeviceType(Avd::DeviceType::kTv);
+    EXPECT_EQ(avd.getDeviceType(), Avd::DeviceType::kTv);
+
+    avd.setCpuArchitecture(Avd::CpuArchitecture::kX86);
+    EXPECT_EQ(avd.detectArchitecture(), Avd::CpuArchitecture::kX86);
+
+    avd.setHasEncryptionKey(true);
+    EXPECT_TRUE(avd.hasEncryptionKey());
+
+    avd.setDisplayName("My Display Name");
+    EXPECT_EQ(avd.display_name(), "My Display Name");
 }
 
 }  // namespace android::goldfish::avd
