@@ -18,10 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/CLog.h"
+#include "android/base/logging/AbseilLogBridge.h"
 #include "android/utils/stralloc.h"
 
-#define E(...) derror(__VA_ARGS__)
+#define E(...) ALOGE(__VA_ARGS__)
 
 extern void print_tabular(const char** strings, int count, const char* prefix, int width) {
     int nrows, ncols, r, c, n, maxw = 0;
@@ -94,8 +94,7 @@ extern char* tempstr_get(int size) {
     if (t->size < size) {
         t->buffer = realloc(t->buffer, size);
         if (t->buffer == NULL) {
-            derror("%s: could not allocate %d bytes", __FUNCTION__, size);
-            exit(1);
+            ALOGF("%s: could not allocate %d bytes", __FUNCTION__, size);
         }
         t->size = size;
     }

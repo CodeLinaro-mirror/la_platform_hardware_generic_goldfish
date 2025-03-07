@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/CLog.h"
+#include "android/base/logging/AbseilLogBridge.h"
 #include "android/utils/path.h"
 
 #ifdef _WIN32

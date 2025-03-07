@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 # It's an older code sir but it checks out
 cc_library(
     name = "files",
@@ -44,6 +46,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/process",
         "//hardware/generic/goldfish/android/system",
         "//hardware/google/aemu/base:aemu-base",
