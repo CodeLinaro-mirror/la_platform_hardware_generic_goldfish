@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <stdexcept>
 #include <string>
 
 #include "absl/strings/match.h"

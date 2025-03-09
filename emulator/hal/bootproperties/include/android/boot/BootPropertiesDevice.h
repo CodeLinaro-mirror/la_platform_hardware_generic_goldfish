@@ -112,7 +112,7 @@ class IBootPropertiesDevice : public IPlug,
     // A string of max 32 chars that does not contain
     using PropertyName = BootPropertyString<IBootPropertiesDevice::PROPERTY_MAX_NAME>;
     using PropertyValue = LimitedString<IBootPropertiesDevice::PROPERTY_MAX_VALUE>;
-    using Properties = std::unordered_map<PropertyName, PropertyValue>;
+    using Properties = absl::flat_hash_map<PropertyName, PropertyValue>;
 
     typedef void QEMUResetHandler(void* opaque);
 

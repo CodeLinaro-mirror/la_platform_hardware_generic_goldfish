@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 
 #include "aemu/base/logging/LogSeverity.h"
+#include "android/boot/BootPropertiesDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/avd.h"
@@ -83,6 +84,8 @@ static void UpdateVModule(const std::string& vmodule) {
     }
 }
 
+static void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
+
 static void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
@@ -114,6 +117,14 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
                                                                         qemu_register_reset);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry);
     goldfish::devices::gps::IGpsDevice::registerDevice(registry);
+
+    using namespace std::string_literals;
+    goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
+            registry,
+            {
+                    {"qemu.sf.lcd_density"s, "420"s},
+            },
+            &DummyRegisterEmulatorReset);
 }
 
 static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

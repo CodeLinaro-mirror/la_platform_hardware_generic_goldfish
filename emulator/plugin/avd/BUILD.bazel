@@ -69,6 +69,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
+        "//hardware/generic/goldfish/emulator/hal/bootproperties",
         "//hardware/generic/goldfish/emulator/hal/clipboard",
         "//hardware/generic/goldfish/emulator/hal/fingerprint",
         "//hardware/generic/goldfish/emulator/hal/gps",
