@@ -1,0 +1,27 @@
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    package_name = "equivalent",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+)
+
+rust_library(
+    name = "equivalent",
+    srcs = glob(
+        include = ["**/*.rs"],
+        exclude = [
+        ],
+    ),
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    version = "1.0.2",
+)
