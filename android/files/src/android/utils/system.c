@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "aemu/base/logging/CLog.h"
+#include "android/base/logging/AbseilLogBridge.h"
 #include "android/utils/assert.h"
 #ifdef _WIN32
 #include <windows.h> /* for Sleep */
@@ -45,7 +45,7 @@ void* android_alloc(size_t size) {
     block = malloc(size);
     if (block != NULL) return block;
 
-    dfatal("PANIC: not enough memory");
+    ALOGF("PANIC: not enough memory");
     exit(1);
     return NULL;
 }
@@ -58,7 +58,7 @@ void* android_alloc0(size_t size) {
     block = calloc(1, size);
     if (block != NULL) return block;
 
-    dfatal("PANIC: not enough memory");
+    ALOGF("PANIC: not enough memory");
     exit(1);
     return NULL;
 }
@@ -73,7 +73,7 @@ void* android_realloc(void* block, size_t size) {
     block2 = realloc(block, size);
     if (block2 != NULL) return block2;
 
-    dfatal("PANIC: not enough memory to reallocate %u bytes", (unsigned)size);
+    ALOGF("PANIC: not enough memory to reallocate %u bytes", (unsigned)size);
     exit(1);
     return NULL;
 }

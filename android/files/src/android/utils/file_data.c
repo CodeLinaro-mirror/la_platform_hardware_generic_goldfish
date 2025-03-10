@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/CLog.h"
 #include "android/base/file/file_io.h"
+#include "android/base/logging/AbseilLogBridge.h"
 
 // Use a magic value in the |flags| field to indicate that a FileData
 // value was properly initialized. Helps catch errors at runtime.
@@ -101,7 +101,7 @@ int fileData_initFromFile(FileData* data, const char* filePath) {
 
 int fileData_initFrom(FileData* data, const FileData* other) {
     if (!other || !fileData_isValid(other)) {
-        dfatal("Trying to copy an uninitialized FileData instance\n");
+        ALOGF("Trying to copy an uninitialized FileData instance\n");
     }
     if (other->size == 0) {
         fileData_initEmpty(data);
@@ -126,7 +126,7 @@ int fileData_initFromMemory(FileData* data, const void* input, size_t inputLen) 
 
 void fileData_swap(FileData* data, FileData* other) {
     if (!fileData_isValid(data) || !fileData_isValid(data))
-        dfatal("Trying to swap un-initialized FileData instance\n");
+        ALOGF("Trying to swap un-initialized FileData instance\n");
 
     uint8_t* buffer = data->data;
     data->data = other->data;
@@ -139,7 +139,7 @@ void fileData_swap(FileData* data, FileData* other) {
 
 void fileData_done(FileData* data) {
     if (!fileData_isValid(data)) {
-        dfatal("Trying to finalize an un-initialized FileData instance\n");
+        ALOGF("Trying to finalize an un-initialized FileData instance\n");
     }
 
     free(data->data);

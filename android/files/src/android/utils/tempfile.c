@@ -17,8 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/CLog.h"
 #include "android/base/file/file_io.h"
+#include "android/base/logging/AbseilLogBridge.h"
 #include "android/utils/bufprint.h"
 
 #ifdef _WIN32
@@ -32,7 +32,7 @@
 #endif
 
 // #define D(...) ((void)0)
-#define D(...) dinfo(__VA_ARGS__)
+#define D(...) ALOGI(__VA_ARGS__)
 /** TEMP FILE SUPPORT
  **
  ** simple interface to create an empty temporary file on the system.
@@ -94,10 +94,10 @@ TempFile* tempfile_create_with_ext(const char* ext) {
         strncat(temp_namebuff, ext, strlen(ext));
         D("Moving %s -> %s", temp_oldnamebuff, temp_namebuff);
         // if (!PathFileExistsA(temp_oldnamebuff)) {
-        //   derror("%s does not exist.", temp_oldnamebuff);
+        //   ALOGE("%s does not exist.", temp_oldnamebuff);
         // }
         if (!MoveFileExA(temp_oldnamebuff, temp_namebuff, MOVEFILE_REPLACE_EXISTING)) {
-            derror("Failed to move file, err: %d", GetLastError());
+            ALOGE("Failed to move file, err: %d", GetLastError());
         }
     }
 
@@ -158,11 +158,11 @@ void tempfile_close(TempFile* tempfile) {
 
 void tempfile_unref_and_close(const char* filename) {
     if (!filename) {
-        dwarning("tring to close null file name.\n");
+        ALOGW("tring to close null file name.\n");
         return;
     }
     if (!_all_tempfiles) {
-        dwarning("%s not referenced, skip deletion", filename);
+        ALOGW("%s not referenced, skip deletion", filename);
         return;
     }
     if (!strcmp(_all_tempfiles->name, filename)) {
@@ -183,7 +183,7 @@ void tempfile_unref_and_close(const char* filename) {
         }
         prev = tempfile;
     }
-    dwarning("%s not referenced, skip deletion", filename);
+    ALOGW("%s not referenced, skip deletion", filename);
     return;
 }
 
@@ -207,8 +207,8 @@ static void atexit_fds_add(AtExitFds* t, int fd) {
     if (t->count < MAX_ATEXIT_FDS)
         t->fds[t->count++] = fd;
     else {
-        dwarning("%s: over %d calls. Program exit may not cleanup all temporary files",
-                 __FUNCTION__, MAX_ATEXIT_FDS);
+        ALOGW("%s: over %d calls. Program exit may not cleanup all temporary files", __FUNCTION__,
+              MAX_ATEXIT_FDS);
     }
 }
 

@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aemu/base/logging/CLog.h"
+#include "android/base/logging/AbseilLogBridge.h"
 #include "android/utils/misc.h"
 
 extern void stralloc_tabular(stralloc_t* out, const char** strings, int count, const char* prefix,
@@ -67,8 +67,7 @@ extern void stralloc_ready(stralloc_t* s, unsigned int len) {
 
     s->s = realloc(s->s, new_max);
     if (s->s == NULL) {
-        derror("%s: not enough memory to reallocate %u bytes", __FUNCTION__, new_max);
-        exit(1);
+        ALOGF("%s: not enough memory to reallocate %u bytes", __FUNCTION__, new_max);
     }
     s->a = new_max;
 }
@@ -77,8 +76,7 @@ extern void stralloc_readyplus(stralloc_t* s, unsigned int len) {
     unsigned len2 = s->n + len;
 
     if (len2 < s->n) { /* overflow ? */
-        derror("%s: trying to grow by too many bytes: %u", __FUNCTION__, len);
-        exit(1);
+        ALOGF("%s: trying to grow by too many bytes: %u", __FUNCTION__, len);
     }
     stralloc_ready(s, len2);
 }
