@@ -15,6 +15,8 @@
 #include <string_view>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -27,9 +29,13 @@ absl::Status GpuDevice::initialize(const Emulator& emulator) {
 }
 
 std::vector<std::string> GpuDevice::getQemuParameters(const Emulator& emulator) const {
+    const auto& hw = emulator.avd().hw();
     return {"-device",
-            "virtio-gpu-rutabaga,x-gfxstream-gles=on,gfxstream-vulkan=on,"
-            "x-gfxstream-composer=on,hostmem=256M,id=gpu0,xres=280,yres=280"};
+            absl::StrJoin({"virtio-gpu-rutabaga", "x-gfxstream-gles=on", "gfxstream-vulkan=on",
+                           "x-gfxstream-composer=on", "hostmem=256M", "id=gpu0",
+                           absl::StrCat("xres=", hw.hw_lcd_width),
+                           absl::StrCat("yres=", hw.hw_lcd_height)},
+                          ",")};
 }
 
 }  // namespace android::goldfish
