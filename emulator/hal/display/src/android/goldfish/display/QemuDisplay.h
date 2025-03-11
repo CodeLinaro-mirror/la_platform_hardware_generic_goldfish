@@ -13,9 +13,11 @@
 // limitations under the License.
 #pragma once
 
-#include "android/goldfish/display/Display.h"  // Include the IDisplay definition
+#include "android/goldfish/display/Display.h"
+#include "android/goldfish/display/PixmanDisplay.h"
 
 extern "C" {
+#include "pixman.h"
 #include "qemu/osdep.h"
 #include "ui/console.h"
 #include "ui/surface.h"
@@ -25,23 +27,15 @@ typedef struct VirtIOInputHID VirtIOInputHID;
 
 namespace android::goldfish {
 
-class DefaultDisplay : public IDisplay {
+class QemuDisplay : public PixmanDisplay {
   public:
-    DefaultDisplay(QemuConsole* console, DisplaySurface* ds, int id);
-    void replaceSurface(DisplaySurface* newSurface);
-    absl::StatusOr<FrameInfo> getPixels(PixelFormat format, int newWidth, int newHeight,
-                                        int rotation, uint8_t* pixels,
-                                        size_t* cPixels) const override;
+    QemuDisplay(QemuConsole* console, DisplaySurface* ds, int id);
     void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void sendMouseEvent(int x, int y, int button_mask) override;
-    void updateSurface(int x, int y, int width, int height);
     void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
 
   private:
-    mutable absl::Mutex mDisplayAccess;
-    DisplaySurface* mDisplaySurface;
     QemuConsole* mConsole;
-
     ::VirtIOInputHID* mVhid;
     int mlast_bmask{0};
     struct touch_slot mTouchSlots[INPUT_EVENT_SLOTS_MAX];
