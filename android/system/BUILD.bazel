@@ -1,14 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
-copts = select({
-    "@platforms//os:windows": [
-        "/std:c++20",
-    ],
-    "//conditions:default": [
-        "-std=c++20",
-    ],
-})
-
 cc_library(
     name = "system",
     srcs = [
@@ -28,7 +19,6 @@ cc_library(
         "include/android/base/system/storage_capacity.h",
         "include/android/utils/compiler.h",
     ],
-    copts = copts,
     includes = ["include"],
     linkopts = select({
         "@platforms//os:windows": [
@@ -95,7 +85,6 @@ cc_library(
     name = "googletest_main",
     testonly = True,
     srcs = ["test/android/base/gtest_main.cpp"],
-    copts = copts,
     visibility = ["//visibility:public"],
     deps = [
         ":system",

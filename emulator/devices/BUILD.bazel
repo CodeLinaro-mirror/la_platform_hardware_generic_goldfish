@@ -1,14 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
-copts = select({
-    "@platforms//os:windows": [
-        "/std:c++20",
-    ],
-    "//conditions:default": [
-        "-std=c++20",
-    ],
-})
-
 cc_library(
     name = "cable",
     srcs = [
@@ -18,7 +9,6 @@ cc_library(
         "include/goldfish/devices/cable/cable.h",
         "include/goldfish/devices/cable/saveload.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -37,7 +27,6 @@ cc_library(
     hdrs = [
         "include/goldfish/devices/qemud.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -53,7 +42,6 @@ cc_library(
     hdrs = [
         "include/goldfish/devices/PingTopic.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -72,7 +60,6 @@ cc_library(
     hdrs = [
         "include/goldfish/devices/Connector.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -93,7 +80,6 @@ cc_library(
     hdrs = [
         "include/goldfish/devices/connection_awaiter.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -109,7 +95,6 @@ cc_library(
     hdrs = [
         "include/goldfish/devices/connector_registry.h",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -129,7 +114,6 @@ cc_library(
     srcs = [
         "connector_registry.cpp",
     ],
-    copts = copts,
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -155,7 +139,6 @@ cc_test(
         "test/datasniffer_unittests.cpp",
         "test/qemud_unittests.cpp",
     ],
-    copts = copts,
     deps = [
         ":connection_awaiter",
         ":connector_registry_hdrs",
@@ -178,7 +161,6 @@ cc_library(
         "test/goldfish/devices/test_connector_registry.h",
         "test/goldfish/devices/test_socket.h",
     ],
-    copts = copts,
     includes = [
         "include",
         "test",
