@@ -74,7 +74,6 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
         ASSERT_TRUE(allPixelsMatch) << "Image " << i << " has incorrect color.";
         ASSERT_EQ(pixman_image_get_width(listener.images[i]), width);
         ASSERT_EQ(pixman_image_get_height(listener.images[i]), height);
-        pixman_image_unref(listener.images[i]);
     }
 }
 

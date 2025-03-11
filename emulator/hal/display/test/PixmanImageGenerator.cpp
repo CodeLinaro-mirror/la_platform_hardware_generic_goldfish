@@ -58,6 +58,7 @@ void PixmanImageGenerator::stop() {
     if (mThread && mThread->joinable()) {
         mThread->join();
     }
+    fprintf(stderr, "Clearing out thread\n");
     mThread.reset();
 }
 
@@ -78,7 +79,7 @@ void PixmanImageGenerator::generateImagesLoop() {
     while (mRunning) {
         auto start = std::chrono::steady_clock::now();
 
-        pixman_image_t* image = nullptr;
+        ::pixman_image_t* image;
         switch (frameCount % 3) {
             case 0:
                 image = generateImage(Color::Red);
@@ -93,6 +94,7 @@ void PixmanImageGenerator::generateImagesLoop() {
 
         if (image) {
             fireEvent(image);
+            pixman_image_unref(image);
         }
 
         frameCount++;

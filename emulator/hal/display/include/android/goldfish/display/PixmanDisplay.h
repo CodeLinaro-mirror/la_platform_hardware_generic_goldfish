@@ -24,17 +24,31 @@ extern "C" {
 
 namespace android::goldfish {
 
-// Custom deleter for pixman_image_t* to use with std::unique_ptr
-struct PixmanImageDeleter {
-    void operator()(::pixman_image_t* image) const {
-        if (image) {
-            ::pixman_image_unref(image);
-        }
-    }
-};
+/**
+ * @brief A smart pointer class for managing pixman_image_t* objects.
+ *
+ * This class provides automatic reference counting for pixman_image_t*
+ * objects using `pixman_image_ref` and `pixman_image_unref`. It ensures
+ * that the reference count is properly managed, preventing memory leaks
+ * and double-frees.
+ *
+ * The class is designed to be used as a replacement for raw
+ * pixman_image_t* pointers, providing RAII (Resource Acquisition Is
+ * Initialization) semantics.
+ */
+class PixmanImagePtr {
+  public:
+    PixmanImagePtr(::pixman_image_t* image = nullptr);
+    ~PixmanImagePtr();
+    PixmanImagePtr(PixmanImagePtr&& other) noexcept;
+    PixmanImagePtr& operator=(PixmanImagePtr&& other) noexcept;
 
-// Type alias for a unique_ptr that manages a pixman_image_t*
-using PixmanImagePtr = std::unique_ptr<::pixman_image_t, PixmanImageDeleter>;
+    ::pixman_image_t* get() const;
+    ::pixman_image_t* operator->() const;
+
+  private:
+    ::pixman_image_t* mImage;
+};
 
 class PixmanDisplay : public IDisplay {
   public:

@@ -45,6 +45,41 @@ static pixman_format_code_t pixmanFormat(const ::android::goldfish::PixelFormat&
 
 namespace android::goldfish {
 
+PixmanImagePtr::PixmanImagePtr(::pixman_image_t* image) : mImage(image) {
+    if (image) {
+        ::pixman_image_ref(image);
+    }
+}
+
+PixmanImagePtr::~PixmanImagePtr() {
+    if (mImage) {
+        ::pixman_image_unref(mImage);
+    }
+}
+
+PixmanImagePtr::PixmanImagePtr(PixmanImagePtr&& other) noexcept : mImage(other.mImage) {
+    other.mImage = nullptr;
+}
+
+PixmanImagePtr& PixmanImagePtr::operator=(PixmanImagePtr&& other) noexcept {
+    if (this != &other) {
+        if (mImage) {
+            ::pixman_image_unref(mImage);
+        }
+        mImage = other.mImage;
+        other.mImage = nullptr;
+    }
+    return *this;
+}
+
+::pixman_image_t* PixmanImagePtr::get() const {
+    return mImage;
+}
+
+::pixman_image_t* PixmanImagePtr::operator->() const {
+    return mImage;
+}
+
 PixmanDisplay::PixmanDisplay(int id, ::pixman_image_t* image)
     : IDisplay(id, pixman_image_get_width(image), pixman_image_get_height(image)) {
     updateSourceImage(image);

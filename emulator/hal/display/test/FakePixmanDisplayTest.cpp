@@ -18,6 +18,125 @@ extern "C" {
 namespace android::goldfish {
 using android::emulation::control::EventListener;
 
+// Test case for default constructor (nullptr)
+TEST(PixmanImagePtr, DefaultConstructor) {
+    PixmanImagePtr ptr;
+    ASSERT_EQ(ptr.get(), nullptr);
+}
+
+::pixman_image_t* generateImage(int w, int h) {
+    uint32_t* pixels = new uint32_t[w * h];
+    uint32_t colorValue = 0xFFFF0000;  // RED
+    for (int i = 0; i < w * h; ++i) {
+        pixels[i] = colorValue;
+    }
+    return pixman_image_create_bits(PIXMAN_a8r8g8b8, w, h, pixels, h * sizeof(uint32_t));
+}
+
+// Test case for constructor with a valid pixman_image_t*, use asan to validate!
+TEST(PixmanImagePtr, ValidImageConstructor) {
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    {
+        // Create a PixmanImagePtr
+        PixmanImagePtr ptr(image);
+        ASSERT_EQ(ptr.get(), image);
+    }
+    ASSERT_TRUE(pixman_image_unref(image));
+}
+
+// Test case for destructor (unref) use asan to validate refcounts!
+TEST(PixmanImagePtr, Destructor) {
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    // Create a PixmanImagePtr
+    {
+        PixmanImagePtr ptr(image);
+        ASSERT_EQ(ptr.get(), image);
+    }
+    pixman_image_unref(image);
+}
+
+TEST(PixmanImagePtr, ArrowOperator) {
+    // Test case for -> operator
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    // Create a PixmanImagePtr
+    PixmanImagePtr ptr(image);
+    ASSERT_EQ(ptr.get(), image);
+
+    // Clean up (implicitly done by ptr destructor)
+    pixman_image_unref(image);
+}
+
+TEST(PixmanImagePtr, GetMethod) {
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    // Create a PixmanImagePtr
+    PixmanImagePtr ptr(image);
+    ASSERT_EQ(ptr.get(), image);
+
+    // Clean up (implicitly done by ptr destructor)
+    pixman_image_unref(image);
+}
+
+// Test case for multiple PixmanImagePtrs referencing the same image
+TEST(PixmanImagePtr, MultipleReferences) {
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    // Create a PixmanImagePtr
+    PixmanImagePtr ptr1(image);
+    PixmanImagePtr ptr2(image);
+    {
+        PixmanImagePtr ptr3(image);
+    }
+
+    // Clean up (implicitly done by ptr destructors)
+    pixman_image_unref(image);
+}
+
+TEST(PixmanImagePtr, MoveConstructor) {
+    ::pixman_image_t* image = generateImage(32, 20);
+    ASSERT_NE(image, nullptr);
+
+    // Create a PixmanImagePtr
+    PixmanImagePtr ptr1(image);
+
+    // Move construct
+    PixmanImagePtr ptr2(std::move(ptr1));
+
+    // Verify ptr1 is null
+    ASSERT_EQ(ptr1.get(), nullptr);
+    ASSERT_EQ(ptr2.get(), image);
+    pixman_image_unref(image);
+}
+
+TEST(PixmanImagePtr, MoveAssignmentOperator) {
+    ::pixman_image_t* image1 = generateImage(32, 20);
+    ASSERT_NE(image1, nullptr);
+    ::pixman_image_t* image2 = generateImage(32, 20);
+    ASSERT_NE(image2, nullptr);
+
+    // Create PixmanImagePtr
+    PixmanImagePtr ptr1(image1);
+    PixmanImagePtr ptr2(image2);
+
+    // Move assign
+    ptr2 = std::move(ptr1);
+
+    // Verify ptr1 is null and ptr2 holds the image
+    ASSERT_EQ(ptr1.get(), nullptr);
+    ASSERT_EQ(ptr2.get(), image1);
+
+    pixman_image_unref(image1);
+    pixman_image_unref(image2);
+}
+
 TEST(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     int fps = 10;
     int width = 100;
