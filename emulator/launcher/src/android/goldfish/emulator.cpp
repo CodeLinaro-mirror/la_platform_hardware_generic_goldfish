@@ -222,6 +222,8 @@ absl::Status Emulator::launch() {
     handler << android::crashreport::CrashReporter::handlerExe();
     System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
     System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
+    System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+                                          System::pathAsString(qemu_module_dir));
     System::get()->addLibrarySearchDir(qemu_module_dir);
 
     ABSL_LOG(INFO) << "Using crashpad handler: " << handler.str();
