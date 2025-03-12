@@ -53,8 +53,7 @@ using android::goldfish::Avd;
 using android::goldfish::EmulatorAdvertisement;
 using android::goldfish::EmulatorProperties;
 using android::goldfish::IMultiDisplay;
-
-extern "C" const QAndroidVmOperations* const gQAndroidVmOperations;
+using android::goldfish::VmOperations;
 
 // Generates a secure base64 encoded token of
 // |cnt| bytes.
@@ -90,7 +89,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
             {"avd.dir", System ::pathAsString(avd->getContentPath())},
             {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            gQAndroidVmOperations, registry, avd, IMultiDisplay::instance());
+            VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)

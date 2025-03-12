@@ -16,14 +16,14 @@
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
+#include "android/goldfish/vm/VmInterface.h"
 #include "goldfish/devices/connector_registry.h"
-#include "host-common/vm_operations.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
+grpc::Service* getEmulatorController(android::goldfish::VmOperations* vmInterface,
                                      ::goldfish::devices::ConnectorRegistry* connectorRegistry,
                                      android::goldfish::Avd* avd,
                                      android::goldfish::IMultiDisplay* multiDisplay);
