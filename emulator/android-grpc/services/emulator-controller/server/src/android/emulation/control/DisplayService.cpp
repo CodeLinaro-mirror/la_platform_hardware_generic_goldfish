@@ -236,8 +236,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
 
     // Note that we will never scale above the device width and height.
-    width = std::min<uint32_t>(desiredWidth, width);
-    height = std::min<uint32_t>(desiredHeight, height);
+    desiredWidth = std::min<uint32_t>(desiredWidth, width);
+    desiredHeight = std::min<uint32_t>(desiredHeight, height);
 
     // Calculate width and height, keeping aspect ratio in mind.
     int newWidth, newHeight;

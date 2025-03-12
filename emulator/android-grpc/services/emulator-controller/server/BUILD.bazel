@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
 
@@ -42,5 +42,24 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/sensors:headers",
         "//hardware/google/aemu/base:aemu-base",
         "@glib//:glib-static",
+    ],
+)
+
+cc_test(
+    name = "emulator-service_unittests",
+    srcs = [
+        "src/android/emulation/control/DisplayService.h",
+        "test/DisplayServiceTest.cpp",
+        "test/GrpcServiceTest.h",
+        "test/QemuStubs.c",
+    ],
+    includes = ["test"],
+    deps = [
+        ":emulator-service",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/config:avd-test",
+        "//hardware/generic/goldfish/emulator/devices:test-socket",
+        "//hardware/generic/goldfish/emulator/hal/display:test-display",
+        "//hardware/generic/goldfish/emulator/hal/sensors",
     ],
 )
