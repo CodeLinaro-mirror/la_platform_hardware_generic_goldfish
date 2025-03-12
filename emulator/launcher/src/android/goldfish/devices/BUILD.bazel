@@ -53,7 +53,7 @@ cc_test(
 
 cc_library(
     name = "gpu_device",
-    srcs = ["gpu.cpp"],
+    srcs = ["gpu_device.cpp"],
     hdrs = ["gpu_device.h"],
     visibility = ["//visibility:public"],
     deps = [
