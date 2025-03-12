@@ -25,7 +25,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/logging/LogSeverity.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"

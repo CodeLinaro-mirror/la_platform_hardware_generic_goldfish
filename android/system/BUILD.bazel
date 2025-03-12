@@ -47,6 +47,7 @@ cc_library(
 
 cc_library(
     name = "test-headers",
+    testonly = True,
     srcs = ["test/android/base/system/test_file_util_bazel.cc"],
     hdrs = glob(["test-headers/**/*.h"]),
     includes = ["test-headers"],

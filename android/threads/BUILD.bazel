@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "threads",
     srcs = [
@@ -21,7 +23,6 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
         "//hardware/google/aemu/base:aemu-base",
         "@com_google_absl//absl/log",

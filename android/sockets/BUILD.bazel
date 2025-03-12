@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "sockets",
     srcs =
@@ -46,7 +48,6 @@ cc_library(
     deps =
         [
             "//hardware/generic/goldfish/android/files",
-            "//hardware/generic/goldfish/android/logging:backend",
             "//hardware/generic/goldfish/android/looper",
             "//hardware/generic/goldfish/android/memory",
             "//hardware/generic/goldfish/android/system",
