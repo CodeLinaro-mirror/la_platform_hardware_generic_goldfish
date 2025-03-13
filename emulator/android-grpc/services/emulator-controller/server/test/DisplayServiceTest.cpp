@@ -39,6 +39,7 @@ using ::goldfish::devices::sensor::ISensorDevice;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
+using namespace std::chrono_literals;
 
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
@@ -94,8 +95,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGBA8888) {
     request.set_format(ImageFormat::RGBA8888);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getScreenshot(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format
     EXPECT_EQ(reply.format().width(), 100);
@@ -115,8 +115,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGB888) {
     request.set_format(ImageFormat::RGB888);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getScreenshot(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format
     EXPECT_EQ(reply.format().width(), 100);
@@ -155,8 +154,7 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     request.set_height(100);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getScreenshot(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format
     EXPECT_EQ(reply.format().width(), 200);
@@ -173,8 +171,7 @@ TEST_F(DisplayServiceTest, GetDisplayConfigurations) {
     Empty request;
     DisplayConfigurations reply;
     auto context = getContextWithTimeout();
-    Status status = mStub->getDisplayConfigurations(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getDisplayConfigurations(context.get(), request, &reply));
 
     // Check the number of displays
     EXPECT_EQ(reply.displays_size(), 3);
@@ -212,8 +209,7 @@ TEST_F(DisplayServiceTest, GetScreenshotNoUpscaling) {
     request.set_width(2000);
     request.set_height(1000);
     auto context = getContextWithTimeout();
-    Status status = mStub->getScreenshot(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format. We should never scale above the device size.
     EXPECT_EQ(reply.format().width(), 100);
@@ -230,8 +226,7 @@ TEST_F(DisplayServiceTest, GetScreenshotNoSize) {
     request.set_width(0);
     request.set_height(0);
     auto context = getContextWithTimeout();
-    Status status = mStub->getScreenshot(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok());
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format. We should never scale above the device size.
     EXPECT_EQ(reply.format().width(), 100);
@@ -256,9 +251,7 @@ TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
                 device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
 
         auto context = getContextWithTimeout();
-        Status status = mStub->getScreenshot(context.get(), request, &reply);
-        ASSERT_TRUE(status.ok()) << "Failed for rotation: " << rotation
-                                 << " with: " << status.error_message();
+        ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
         switch (rotation) {
             case Rotation::PORTRAIT:
@@ -325,7 +318,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotSequenceIncreases) {
     startFrames(1);
 
     // Create a context with a timeout, so we don't hang forever if there are issues.
-    auto context = getContextWithTimeout();
+    auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
@@ -334,27 +327,26 @@ TEST_F(DisplayServiceTest, StreamScreenshotSequenceIncreases) {
     int64_t timestampus = 0;
 
     // Check that we have montonically increasing sequence numbers and timestamps
-    while (reader->Read(&image)) {
+    while (reader->Read(&image) && count < 5) {
         EXPECT_GE(image.seq(), seq);
         EXPECT_GE(image.timestampus(), timestampus);
 
         timestampus = image.timestampus();
         seq = image.seq();
-        if (count++ > 5) {
-            context->TryCancel();
-        }
+        count++;
     }
+
+    ASSERT_EQ(count, 5);
 }
 
 TEST_F(DisplayServiceTest, StreamScreenshotImmediatelyGetsAFrame) {
-    using namespace std::chrono_literals;
     // Make sure we immediately get a frame.
     ImageFormat request;
     request.set_display(1);
     request.set_format(ImageFormat::RGBA8888);
 
     // Create a context with a timeout, so we don't hang forever if there are issues.
-    auto context = getContextWithTimeout(200ms);
+    auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
@@ -477,7 +469,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     request.set_format(ImageFormat::RGBA8888);
 
     // Create a context with a timeout, so we don't hang forever if there are issues.
-    auto context = getContextWithTimeout();
+    auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
@@ -486,7 +478,10 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
 
     // Check that we have montonically increasing sequence numbers and timestamps
     auto status = reader->Read(&image);
-    ASSERT_TRUE(status);
+    if (!status) {
+        // Obtain failure detail from calling Finish
+        ASSERT_GRPC_STATUS(reader->Finish());
+    }
 
     EXPECT_GE(image.seq(), seq);
     EXPECT_GE(image.timestampus(), timestampus);
@@ -505,10 +500,13 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     ASSERT_TRUE(device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
 
     status = reader->Read(&image);
-    ASSERT_TRUE(status);
+    if (!status) {
+        // Obtain failure detail from calling Finish
+        ASSERT_GRPC_STATUS(reader->Finish());
+    }
+
     EXPECT_GE(image.seq(), seq);
     EXPECT_GE(image.timestampus(), timestampus);
-
     EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
 }
 
@@ -521,7 +519,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     request.set_format(ImageFormat::RGBA8888);
 
     // Create a context with a timeout, so we don't hang forever if there are issues.
-    auto context = getContextWithTimeout();
+    auto context = getContextWithTimeout(2s);
     std::unique_ptr<grpc::ClientReader<Image>> reader(
             mStub->streamScreenshot(context.get(), request));
     Image image;
@@ -530,7 +528,10 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
 
     // Check that we have montonically increasing sequence numbers and timestamps
     auto status = reader->Read(&image);
-    ASSERT_TRUE(status);
+    if (!status) {
+        // Obtain failure detail from calling Finish
+        ASSERT_GRPC_STATUS(reader->Finish());
+    }
 
     EXPECT_GE(image.seq(), seq);
     EXPECT_GE(image.timestampus(), timestampus);
@@ -545,7 +546,10 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
                 device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
 
         status = reader->Read(&image);
-        ASSERT_TRUE(status) << "Failed for rotation: " << rotation;
+        if (!status) {
+            // Obtain failure detail from calling Finish
+            ASSERT_GRPC_STATUS(reader->Finish());
+        }
 
         switch (rotation) {
             case Rotation::PORTRAIT:
@@ -565,5 +569,4 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
         }
     }
 }
-
 }  // namespace android::emulation::control

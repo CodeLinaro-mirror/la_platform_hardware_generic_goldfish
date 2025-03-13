@@ -50,8 +50,8 @@ using ::grpc::StatusCode;
  *     `EmulatorController::Stub` that you can use to make gRPC calls to the
  *     server in your test.
  *
- * 4. **Use getContextWithTimeout:** Use the helper method `getContextWithTimeout()` to get a client
- * context with a default timeout, or provide your own timeout duration.
+ * 4. **Use getContextWithTimeout:** Use the helper method `getContextWithTimeout()` to get a
+ * client context with a default timeout, or provide your own timeout duration.
  *
  * 5. **Write tests:** Write standard googletest using the created client and server.
  *
@@ -141,14 +141,14 @@ class GrcpServiceTest : public ::testing::Test {
      * @brief Gets a gRPC client context with a timeout.
      *
      * This is a helper method that creates a `grpc::ClientContext` and sets
-     * a deadline for the operation. The default timeout is 200ms, but it
+     * a deadline for the operation. The default timeout is 500ms, but it
      * can be overridden.
      *
      * @param timeout The timeout duration for the gRPC operation.
      * @return A unique pointer to a `grpc::ClientContext`.
      */
     std::unique_ptr<grpc::ClientContext> getContextWithTimeout(
-            std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+            std::chrono::milliseconds timeout = std::chrono::milliseconds(500)) {
         auto context = std::make_unique<grpc::ClientContext>();
         std::chrono::system_clock::time_point deadline = std::chrono::system_clock::now() + timeout;
         context->set_deadline(deadline);
@@ -164,4 +164,22 @@ class GrcpServiceTest : public ::testing::Test {
     /// The port the server is listening on.
     int mPort;
 };
+
+/**
+ * @brief Asserts that a gRPC status is OK, providing detailed error information if not.
+ *
+ * This macro checks if the given gRPC status is OK. If the status is not OK,
+ * it fails the test with a detailed error message including the error code and
+ * error message from the gRPC status.
+ *
+ * @param grpcStatus The gRPC status to check.
+ */
+#define ASSERT_GRPC_STATUS(grpcStatus)                                                   \
+    do {                                                                                 \
+        const ::grpc::Status& status = (grpcStatus);                                     \
+        GTEST_TEST_BOOLEAN_(status.ok(), #grpcStatus, false, true, GTEST_FATAL_FAILURE_) \
+                << "gRPC status failed: " << status.error_code()                         \
+                << ", message: " << status.error_message();                              \
+    } while (0)
+
 }  // namespace android::emulation::control

@@ -76,8 +76,7 @@ TEST_F(VmServiceTest, SetVmStateReset) {
     request.set_state(VmRunState::RESET);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateShutdown) {
@@ -88,8 +87,7 @@ TEST_F(VmServiceTest, SetVmStateShutdown) {
     request.set_state(VmRunState::SHUTDOWN);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateTerminate) {
@@ -111,8 +109,7 @@ TEST_F(VmServiceTest, SetVmStatePaused) {
     request.set_state(VmRunState::PAUSED);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateRunning) {
@@ -123,8 +120,7 @@ TEST_F(VmServiceTest, SetVmStateRunning) {
     request.set_state(VmRunState::RUNNING);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateRestart) {
@@ -135,8 +131,7 @@ TEST_F(VmServiceTest, SetVmStateRestart) {
     request.set_state(VmRunState::RESTART);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateStart) {
@@ -147,8 +142,7 @@ TEST_F(VmServiceTest, SetVmStateStart) {
     request.set_state(VmRunState::START);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, SetVmStateStop) {
@@ -159,8 +153,7 @@ TEST_F(VmServiceTest, SetVmStateStop) {
     request.set_state(VmRunState::STOP);
 
     auto context = getContextWithTimeout();
-    Status status = mStub->setVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
 }
 
 TEST_F(VmServiceTest, GetVmStatePaused) {
@@ -170,8 +163,7 @@ TEST_F(VmServiceTest, GetVmStatePaused) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
@@ -182,8 +174,7 @@ TEST_F(VmServiceTest, GetVmStateSuspended) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
@@ -194,8 +185,7 @@ TEST_F(VmServiceTest, GetVmStateRestoreVm) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
@@ -206,8 +196,7 @@ TEST_F(VmServiceTest, GetVmStateRunning) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::RUNNING);
 }
 
@@ -218,8 +207,7 @@ TEST_F(VmServiceTest, GetVmStateSaveVm) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::SAVE_VM);
 }
 
@@ -230,8 +218,7 @@ TEST_F(VmServiceTest, GetVmStateShutdown) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::SHUTDOWN);
 }
 
@@ -242,20 +229,17 @@ TEST_F(VmServiceTest, GetVmStateInternalError) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::InternalError));
     context = getContextWithTimeout();
-    status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::IoError));
     context = getContextWithTimeout();
-    status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 }
 
@@ -266,8 +250,7 @@ TEST_F(VmServiceTest, GetVmStateDebug) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
@@ -278,8 +261,7 @@ TEST_F(VmServiceTest, GetVmStateInMigrate) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
@@ -290,8 +272,7 @@ TEST_F(VmServiceTest, GetVmStatePostMigrate) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
@@ -302,8 +283,7 @@ TEST_F(VmServiceTest, GetVmStatePreLaunch) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
@@ -314,8 +294,7 @@ TEST_F(VmServiceTest, GetVmStateFinishMigrate) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
@@ -326,8 +305,7 @@ TEST_F(VmServiceTest, GetVmStateWatchdog) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
@@ -338,8 +316,7 @@ TEST_F(VmServiceTest, GetVmStateColo) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
@@ -350,8 +327,7 @@ TEST_F(VmServiceTest, GetVmStateDefault) {
     VmRunState reply;
 
     auto context = getContextWithTimeout();
-    Status status = mStub->getVmState(context.get(), request, &reply);
-    ASSERT_TRUE(status.ok()) << status.error_code() << ", msg: " << status.error_message();
+    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
