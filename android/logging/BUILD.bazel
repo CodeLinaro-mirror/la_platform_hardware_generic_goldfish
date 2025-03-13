@@ -24,6 +24,7 @@ cc_library(
 
 cc_library(
     name = "backend",
+    testonly = True,
     srcs = [
         "src/android/base/logging/AbseilLogBridge.cpp",
         "src/android/base/logging/ColorLogSink.cpp",

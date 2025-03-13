@@ -23,7 +23,6 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/files/Stream.h"          // for Stream
-#include "aemu/base/logging/LogSeverity.h"   // for EMULATOR_LOG_FATAL
 #include "aemu/base/sockets/SocketWaiter.h"  // for SocketWaiter
 #include "android/base/system/System.h"      // for System
 
