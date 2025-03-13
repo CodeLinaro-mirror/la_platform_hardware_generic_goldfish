@@ -64,7 +64,7 @@ class DisplayServiceTest : public GrcpServiceTest {
         reinterpret_cast<goldfish::ActiveFakePixmanDisplay*>(display.get())->start();
     }
 
-    EmulatorController::Service* getService() { return mDisplayService.get(); }
+    EmulatorController::Service* getService() override { return mDisplayService.get(); }
 
   protected:
     void setRotation(ISensorDevice* device, Rotation_SkinRotation rotation) {
