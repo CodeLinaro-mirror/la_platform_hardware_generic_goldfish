@@ -1,3 +1,4 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("plugins.bzl", "collect_plugins")
 load("version_info.bzl", "version_info_header")
@@ -91,6 +92,22 @@ test_suite(
     ],
 )
 
+selects.config_setting_group(
+    name = "darwin_aarch64",
+    match_all = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "darwin_x86_64",
+    match_all = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
 collect_plugins(
     name = "plugins",
     output_dir = "plugins",
@@ -109,7 +126,14 @@ collect_plugins(
         "@platforms//os:windows": [
             "//external/qemu:accel-tcg-x86_64",
         ],
-        "@platforms//os:macos": [
+        "darwin_aarch64": [
+            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
+            "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
+            "//external/qemu:hw-display-virtio-gpu-rutabaga",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+            "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
+        ],
+        "darwin_x86_64": [
             "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
@@ -125,6 +149,17 @@ collect_plugins(
     }),
 )
 
+collect_plugins(
+    name = "vulkan_icds",
+    output_dir = "plugins/lib64/vulkan",
+    plugins = select({
+        "darwin_aarch64": [
+            "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 cc_binary(
     name = "goldfish",
     srcs = [
@@ -133,6 +168,7 @@ cc_binary(
     ],
     data = [
         ":plugins",
+        ":vulkan_icds",
         "//external/qemu:qemu-img",
         "//external/qemu:qemu-keymaps",
         "//external/qemu:qemu-roms",
