@@ -19,7 +19,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/time/time.h"
 
-#include "android/emulation/control/input/EventSender.h"
+#include "android/emulation/control/input/EvDevEvent.h"
 
 namespace android {
 namespace emulation {

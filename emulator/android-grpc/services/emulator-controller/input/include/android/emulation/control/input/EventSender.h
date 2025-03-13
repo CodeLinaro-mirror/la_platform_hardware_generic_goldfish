@@ -17,56 +17,81 @@
 
 #include "absl/status/status.h"
 
+#include "android/emulation/control/input/EvDevEvent.h"
+#include "android/emulation/control/input/PointerEventDispatcher.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "goldfish/devices/connector_registry.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 using android::goldfish::IDisplay;
 using android::goldfish::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
 
-struct EvDevEvent {
-    uint16_t type;
-    uint16_t code;
-    uint32_t value;
-
-    bool operator==(const EvDevEvent& other) const {
-        return type == other.type && code == other.code && value == other.value;
-    }
-};
-
-template <typename T>
-class EventSender {
+/**
+ * @brief Sends input events to the emulator's displays.
+ *
+ * This class is responsible for receiving high-level input events (mouse,
+ * evdev, touch, pen, wheel) and dispatching them to the appropriate
+ * display within the emulator. It handles display locking and error
+ * checking to ensure that events are sent correctly.
+ */
+class InputEventSender {
   public:
-    EventSender(IMultiDisplay* multidisplay) : mMultiDisplay(multidisplay) {}
-    virtual ~EventSender() = default;
+    /**
+     * @brief Constructs an InputEventSender.
+     *
+     * @param multidisplay The IMultiDisplay instance used to manage multiple displays.
+     */
+    InputEventSender(IMultiDisplay* multidisplay);
 
-    // Sends the current event to the emulator over the UI thread.
-    absl::Status send(const T& event) {
-        auto screen = mMultiDisplay->getDisplay(event.display());
-        if (!screen.ok()) {
-            return absl::InvalidArgumentError(
-                    absl::StrFormat("Invalid display: %d", event.display()));
-        }
-        auto display = screen->lock();
-        if (!display) {
-            return absl::InvalidArgumentError(
-                    absl::StrFormat("Invalid display: %d", event.display()));
-        }
+    /**
+     * @brief Sends a mouse event to the emulator.
+     *
+     * @param event The MouseEvent to send.
+     * @return An absl::Status indicating success or failure.
+     */
+    absl::Status send(const MouseEvent& event) const;
 
-        return doSend(*display.get(), event);
-    }
+    /**
+     * @brief Sends a generic Android event (a raw evdev event) to the emulator.
+     *
+     * @param event The AndroidEvent to send.
+     * @return An absl::Status indicating success or failure.
+     */
+    absl::Status send(const AndroidEvent& event) const;
 
-  protected:
-    virtual absl::Status doSend(IDisplay& display, const T& event) = 0;
+    /**
+     * @brief Sends a wheel event to the emulator.
+     *
+     * @param event The WheelEvent to send.
+     * @return An absl::Status indicating success or failure.
+     * @note Wheel events are currently not supported.
+     */
+    absl::Status send(const WheelEvent& event) const;
 
-    IMultiDisplay* mMultiDisplay;
+    /**
+     * @brief Sends a touch event to the emulator.
+     *
+     * @param touch The TouchEvent to send.
+     * @return An absl::Status indicating success or failure.
+     * @note This method will update the internal state of used slots in the SlotRegistry.
+     */
+    absl::Status send(const TouchEvent& touch);
+
+    /**
+     * @brief Sends a pen event to the emulator.
+     *
+     * @param event The PenEvent to send.
+     * @return An absl::Status indicating success or failure.
+     * @note This method will update the internal state of used slots in the SlotRegistry.
+     */
+    absl::Status send(const PenEvent& event);
+
+  private:
+    PointerEventDispatcher mPointerDispatcher;  ///< The dispatcher for pointer events (touch, pen).
+    IMultiDisplay* mMultiDisplay;               ///< The multi-display manager.
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
