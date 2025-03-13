@@ -118,7 +118,11 @@ class GrcpServiceTest : public ::testing::Test {
      * - Waits for the server to finish.
      */
     void TearDown() override {
-        mServer->Shutdown();
+        // Note: We only give the server 50ms to shutdown to make sure we do not have
+        // to block and wait for server shutdown. We should be safely to do so as we do
+        // not expect there to be any ongoing requests.
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(50);
+        mServer->Shutdown(deadline);
         mServer->Wait();
     }
 

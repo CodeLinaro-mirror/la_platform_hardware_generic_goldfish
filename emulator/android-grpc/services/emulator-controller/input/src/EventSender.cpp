@@ -66,6 +66,9 @@ absl::Status InputEventSender::send(const TouchEvent& event) {
     mPointerDispatcher.sendEvents(*display, internal::MultiTouchEvent::fromProto(event));
     return absl::OkStatus();
 }
+
+InputEventSender::InputEventSender(IMultiDisplay* multidisplay) : mMultiDisplay(multidisplay) {}
+
 }  // namespace control
 }  // namespace emulation
 }  // namespace android
