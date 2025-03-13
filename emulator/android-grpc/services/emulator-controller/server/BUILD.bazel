@@ -16,6 +16,8 @@ cc_library(
         "src/android/emulation/control/SensorService.h",
         "src/android/emulation/control/StatusService.cpp",
         "src/android/emulation/control/StatusService.h",
+        "src/android/emulation/control/VmService.cpp",
+        "src/android/emulation/control/VmService.h",
     ],
     hdrs = [
         "include/android/emulation/control/EmulatorService.h",
@@ -26,7 +28,6 @@ cc_library(
         "src",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/absl:translate",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
         "//hardware/generic/goldfish/emulator/android-grpc/event-stream",
@@ -40,6 +41,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
         "//hardware/generic/goldfish/emulator/hal/sensors:headers",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:headers",
         "//hardware/google/aemu/base:aemu-base",
         "@glib//:glib-static",
     ],
@@ -49,9 +51,11 @@ cc_test(
     name = "emulator-service_unittests",
     srcs = [
         "src/android/emulation/control/DisplayService.h",
+        "src/android/emulation/control/VmService.h",
         "test/DisplayServiceTest.cpp",
         "test/GrpcServiceTest.h",
         "test/QemuStubs.c",
+        "test/VmServiceTest.cpp",
     ],
     includes = ["test"],
     deps = [
@@ -61,5 +65,7 @@ cc_test(
         "//hardware/generic/goldfish/emulator/devices:test-socket",
         "//hardware/generic/goldfish/emulator/hal/display:test-display",
         "//hardware/generic/goldfish/emulator/hal/sensors",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface-test",
     ],
 )

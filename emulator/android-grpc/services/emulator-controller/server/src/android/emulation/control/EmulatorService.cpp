@@ -20,18 +20,17 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/process/Process.h"
 #include "android/emulation/control/ClipboardService.h"
 #include "android/emulation/control/DisplayService.h"
 #include "android/emulation/control/GpsService.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
-#include "android/emulation/control/display/DisplayChangeListener.h"
+#include "android/emulation/control/VmService.h"
 #include "android/emulation/control/input/EventSender.h"
 #include "android/emulation/control/keyboard/KeyEventSender.h"
+#include "android/goldfish/vm/VmInterface.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
-#include "host-common/vm_operations.h"
 
 extern "C" {
 QemuConsole* qemu_console_lookup_by_index(unsigned int index);
@@ -55,9 +54,9 @@ class EmulatorControllerImpl final
                               EmulatorController::WithCallbackMethod_injectWheel<
                                       EmulatorController::Service>>>> {
   public:
-    EmulatorControllerImpl(const QAndroidVmOperations* vm, ConnectorRegistry* connectorRegistry,
+    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
-        : mVm(vm),
+        : mVmService(vm),
           mSensorService(connectorRegistry),
           mClipboardService(connectorRegistry),
           mDisplayService(multidisplay, connectorRegistry),
@@ -80,74 +79,12 @@ class EmulatorControllerImpl final
 
     Status setVmState(ServerContext* context, const VmRunState* request,
                       ::google::protobuf::Empty* reply) override {
-        const std::chrono::milliseconds kWaitToDie = std::chrono::seconds(60);
-
-        // These need to happen on the qemu looper as these transitions
-        // will require io locks.
-        auto state = request->state();
-        switch (state) {
-            case VmRunState::RESET:
-                mVm->vmReset();
-                break;
-            case VmRunState::SHUTDOWN:
-                mVm->vmShutdown();
-                break;
-            case VmRunState::TERMINATE: {
-                LOG(INFO) << "Terminating the emulator.";
-                android::base::Process::me()->terminate();
-            }; break;
-            case VmRunState::PAUSED:
-                mVm->vmPause();
-                break;
-            case VmRunState::RUNNING:
-                mVm->vmResume();
-                break;
-            case VmRunState::RESTART:
-                mVm->vmReset();
-                break;
-            case VmRunState::START:
-                mVm->vmStart();
-                break;
-            case VmRunState::STOP:
-                mVm->vmStop();
-                break;
-            default:
-                break;
-        };
-
-        return Status::OK;
+        return mVmService.setVmState(context, request, reply);
     }
 
     Status getVmState(ServerContext* context, const ::google::protobuf::Empty* request,
                       VmRunState* reply) override {
-        switch (mVm->getRunState()) {
-            case QEMU_RUN_STATE_PAUSED:
-            case QEMU_RUN_STATE_SUSPENDED:
-                reply->set_state(VmRunState::PAUSED);
-                break;
-            case QEMU_RUN_STATE_RESTORE_VM:
-                reply->set_state(VmRunState::RESTORE_VM);
-                break;
-            case QEMU_RUN_STATE_RUNNING:
-                reply->set_state(VmRunState::RUNNING);
-                break;
-            case QEMU_RUN_STATE_SAVE_VM:
-                reply->set_state(VmRunState::SAVE_VM);
-                break;
-            case QEMU_RUN_STATE_SHUTDOWN:
-                reply->set_state(VmRunState::SHUTDOWN);
-                break;
-            case QEMU_RUN_STATE_GUEST_PANICKED:
-            case QEMU_RUN_STATE_INTERNAL_ERROR:
-            case QEMU_RUN_STATE_IO_ERROR:
-                reply->set_state(VmRunState::INTERNAL_ERROR);
-                break;
-            default:
-                reply->set_state(VmRunState::UNKNOWN);
-                break;
-        };
-
-        return Status::OK;
+        return mVmService.getVmState(context, request, reply);
     }
 
     Status getGps(ServerContext* context, const Empty* request, GpsState* reply) {
@@ -254,7 +191,7 @@ class EmulatorControllerImpl final
     }
 
   private:
-    const QAndroidVmOperations* mVm;
+    VmServiceImpl mVmService;
     SensorServiceImpl mSensorService;
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
@@ -264,8 +201,7 @@ class EmulatorControllerImpl final
     InputEventSender mInputEventSender;
 };
 
-grpc::Service* getEmulatorController(const QAndroidVmOperations* vm,
-                                     ConnectorRegistry* connectorRegistry,
+grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry,
                                      android::goldfish::Avd* avd, IMultiDisplay* multidisplay) {
     return new EmulatorControllerImpl(vm, connectorRegistry, avd, multidisplay);
 }

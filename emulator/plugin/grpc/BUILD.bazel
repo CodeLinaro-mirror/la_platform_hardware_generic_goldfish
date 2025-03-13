@@ -22,16 +22,10 @@ cc_library(
     srcs = [
         "src/android/goldfish/EmulatorAdvertisement.cpp",
         "src/android/goldfish/EmulatorAdvertisement.h",
-        "src/android/goldfish/agents/qemu-vm-operations-impl.c",
         "src/android/goldfish/display/QemuDisplayTransformer.cpp",
         "src/android/goldfish/display/SharedMemoryLibrary.cpp",
         "src/android/goldfish/grpc-service-device.c",
         "src/android/goldfish/grpc-service-impl.cpp",
-    ],
-    hdrs = [
-        "include/android/goldfish/display/QemuDisplayTransformer.h",
-        "include/android/goldfish/display/SharedMemoryLibrary.h",
-        "include/android/goldfish/grpc-service-device.h",
     ],
     includes = [
         "include",
@@ -42,12 +36,14 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        ":headers",
         "//external/crosvm/rutabaga_gfx",
         "//external/qemu:libmodule-common",
         "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/android-grpc/event-stream",
         "//hardware/generic/goldfish/emulator/android-grpc/services-stack",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",  # TODO(jansene): Use cpu based version..
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "@com_google_absl//absl/strings",
         "@pixman//:pixman-1",
