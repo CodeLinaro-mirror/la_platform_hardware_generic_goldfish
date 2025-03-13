@@ -36,7 +36,7 @@ cc_library(
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/google/aemu/base:aemu-base",
+        "//hardware/google/aemu/base:aemu-base-logging",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:absl_log",
         "@com_google_absl//absl/log:globals",

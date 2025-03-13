@@ -24,7 +24,8 @@
 #include <string>
 #include <vector>
 
-#include "aemu//base/logging/CLog.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/ArraySize.h"
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/files/PathUtils.h"
@@ -395,8 +396,8 @@ APosixStatus path_copy_file_impl(const char* dest, const char* source) {
             if (HANDLE_EINTR(write(fd, buf, n)) != n) {
                 /* write failed. Make it return -1 so that an
                  * empty file be created. */
-                D("Failed to copy '%s' to '%s': %s (%d)", source, dest, strerror(errno), errno);
-                result = -1;
+                VLOG(1) << "Failed to copy '" << source << "' to '" << dest
+                        << "': " << strerror(errno);
                 break;
             }
         }
@@ -418,7 +419,7 @@ APosixStatus path_copy_file(const char* dest, const char* source) {
         return status;
     }
     if (android_access(source, R_OK) < 0) {
-        D("%s: source file is un-readable: %s\n", __FUNCTION__, source);
+        VLOG(1) << "source file is un-readable: " << source;
 
         // If the |source| exists but unreadable, create empty |dest| before
         // failing.
@@ -431,13 +432,14 @@ APosixStatus path_copy_file(const char* dest, const char* source) {
 
 #ifdef _WIN32
     if (!::CopyFileW(Win32UnicodeString(source).c_str(), Win32UnicodeString(dest).c_str(), false)) {
-        D("Failed to copy '%s' to '%s': %u", source, dest, ::GetLastError());
+        VLOG(1) << "Failed to copy '" << source << "' to '" << dest << "': " << ::GetLastError();
         return -1;
     }
     return 0;
 #elif defined(__APPLE__)
     if (copyfile(source, dest, nullptr, COPYFILE_DATA) != 0) {
-        D("Failed to copy '%s' to '%s': %s (%d)", source, dest, strerror(errno), errno);
+        VLOG(1) << "Failed to copy '" << source << "' to '" << dest << "': " << strerror(errno)
+                << " errno: " << errno;
         return -1;
     }
     return 0;
