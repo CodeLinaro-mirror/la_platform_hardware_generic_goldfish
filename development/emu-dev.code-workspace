@@ -4,29 +4,38 @@
 			"path": "../../../.."
 		},
 		{
-			"path": "../../../../build/bazel",
 			"name": "Bazel Configuration",
+			"path": "../../../../build/bazel"
 		},
 		{
-			"path": "../../../../tools/buildSrc/servers",
-			"name": "Build Bot Configuration"
+			"name": "Build Bot Configuration",
+			"path": "../../../../tools/buildSrc/servers"
 		}
 	],
 	"settings": {
+		"[cpp]": {
+			"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+		},
+		/// bsv.bazel plugin does not support ${workspaceFolder}
+		// "bsv.bazel.executable": "${workspaceFolder}/prebuilts/tools/bazel/bazel",
+		"C_Cpp.clang_format_fallbackStyle": "Google",
+		"C_Cpp.codeAnalysis.clangTidy.enabled": true,
+		"C_Cpp.codeAnalysis.clangTidy.path": "${workspaceFolder}/prebuilts/tools/clang/clang-r530567/bin/clang-tidy",
+		"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+		"C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
+		"clangd.path": "${workspaceFolder}/prebuilts/tools/clang/clang-r530567/bin/clangd",
 		"files.exclude": {
-			"**/.git": true, // this is a default value
-			"**/.DS_Store": true, // this is a default value
-			"external/qemu/build": true,
-			"**/bazel-*": true,
+			"../../..cache": true,
 			"../../..repo": true,
 			"**/.cache": true,
-			"../../..cache": true,
+			"**/.DS_Store": true, // this is a default value
+			"**/.git": true, // this is a default value
+			"**/bazel-*": true,
+			"external/qemu/build": true,
 			"prebuilts": true,
-			"tools": true,
+			"tools": true
 		},
-		"workbench.colorTheme": "Eva Dark Italic",
-		"C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
 		"mesonbuild.selectRootDir": false,
-		"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+		"workbench.colorTheme": "Eva Dark Italic"
 	}
 }

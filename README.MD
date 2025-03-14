@@ -125,59 +125,7 @@ bazel run --config asan //hardware/generic/goldfish/emulator/launcher:goldfish  
 
 ## Using Visual Studio Code
 
-Visual Studio Code is a versatile code editor developed by Microsoft, designed to streamline coding for various languages and frameworks. It offers features that enhance productivity and efficiency.
-
-You can obtain Visual Studio Code here:
-
-- Within Google: [go/vscode/install](http://go/vscode/install), make sure to follow all the instructions. Make sure you also install `sudo apt install google-lldb-vscode`, so you have the lldb debug adapter installed.
-- Directly from Microsoft: [https://code.visualstudio.com/](https://code.visualstudio.com/).
-
-Once you have installed Visual Studio Code, open the following workspace: [development/emu-dev.code-workspace](development/emu-dev.code-workspace). Install the set of recommended extensions to improve your development experience.
-
-Additional steps:
-
-- For MacOs:
-  - Update the lldb-dap settings: `lldb-dap.executable-path` (Use the key combo `⌘,` and type `lldb-dap.executable-path`) to point to `/usr/local/bin/lldb-debug-adapter`.
-- For Google Linux (glinux):
-  - Install the google lldb vscode extension: `sudo apt install google-lldb-vscode`.
-
-### Enable IntelliSense
-
-In order for IntelliSense to work you will need to create a JSON compilation database. This can be done by running the `aemu: Update compile commands database` task.  Issue the following command: `ctrl-P Tasks: Run Task` ( `⌘P Tasks: Run Task` on macOS). Next select `aemu: Update compile commands database`. This will create the compilation database that is used by IntelliSense.  Once you have run this, you should have code completion, code navigation, etc., available to you.
-
-*Note: You will have to re-run the `aemu: Update compile commands database` task for each change to a Bazel BUILD file*.
-
-### Building targets
-
-You can build targets in various ways:
-
-- By running `ctrl-P Bazel: Build Target` ( `⌘P Bazel: Build Target` on macOS) command.
-- You can build the asan version of the emulator by running the `aemu: Build emulator with asan` task.  `ctrl-P Tasks: Run Task` ( `⌘P Tasks: Run Task` on macOS), after which you can select it. Or use the quick shortcut `ctrl-B` (`⌘B` on macOS).
-- By opening the BUILD file of interrest, and clicking the highlighted build minilink provided by the bazel plugin.
-
-*Note: You can create custom tasks by modifying [tasks.json](development/.vscode/tasks.json), learn more about that [here](https://code.visualstudio.com/docs/editor/tasks)*.
-
-### Debugging the Emulator
-
-There is a default task to compile the emulator, which can be run with `ctrl-B` (`⌘B` on macOS). After that, you can debug the emulator from the debug menu `ctrl-D` (`⌘D` on macOS). You can select `Debug Goldfish` from the menu.  You can create additional launch targets by modifying [launch.json](development/.vscode/launch.json).
-
-### Running unit tests
-
-You have the following options when running tests:
-
-- Run the whole test suite.  Issue the following command: `ctrl-P Tasks: Run Test Task` ( `⌘P Tasks: Run Test Task` on macOS).
-- Run individual tests *(Only works for tests under //hardware/..., and is very slow!)*.
-  - You can open op the unittest.cpp file of interrest. You should see a run button next to the test definition to run the test. See [ColorLogSink_unittest.cpp](android/logging/test/android/base/logging/ColorLogSink_unittest.cpp) for example.
-  - You should have a test runner icon (looks like a flask, on hover it should say testing) in the [Activity Bar](https://code.visualstudio.com/docs/getstarted/userinterface). Click on that, which should change the Primary Side bar to the Testing panel, which shows all individual tests.
-
-*Note: Debugging individual tests only seems to work on linux*.
-
-### Known Issues
-
-- ***Linux***:
-  - You might have to remove the  `prebuilts/clang/host/linux-x86/BUILD.bazel` file. This bazel file has some issues, causing failures when trying to discover all available tests by [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin.
-- ***MacOs***
-  - The [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin will not debug individual tests.
+You can find details on getting started [here](development/README.MD)
 
 ## Creating a JSON Compilation Database with Bazel
 
