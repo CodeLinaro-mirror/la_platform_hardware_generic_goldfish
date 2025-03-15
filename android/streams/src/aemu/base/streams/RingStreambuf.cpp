@@ -43,7 +43,6 @@ std::streamsize RingStreambuf::xsputn(const char* s, std::streamsize n) {
     // Usually n >> 1..
     mLock.lock();
     std::streamsize capacity = mRingbuffer.capacity();
-    std::streamsize maxWrite = std::max(n, capacity);
 
     if (mClosed) {
         mLock.unlock();
