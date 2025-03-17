@@ -23,7 +23,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/hal/display:headers",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

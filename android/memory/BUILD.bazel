@@ -25,7 +25,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
     ],
 )
 
@@ -52,7 +52,7 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/android/threads",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_googletest//:gtest_main",
     ],
 )

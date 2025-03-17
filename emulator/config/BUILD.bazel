@@ -37,7 +37,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:absl_log",

@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "headers",
     hdrs = [
@@ -28,7 +30,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:qemud",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -49,10 +51,10 @@ cc_test(
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/config:avd-test",
         "//hardware/generic/goldfish/emulator/devices:test-socket",
-        "//hardware/google/aemu:aemu-host-common-test-headers",
-        "//hardware/google/aemu/base:aemu-base",
-        "//hardware/google/aemu/base:aemu-base-headers",
-        "//hardware/google/aemu/base:test-matchers",
+        "@aemu//:aemu-host-common-test-headers",
+        "@aemu//base:aemu-base",
+        "@aemu//base:aemu-base-headers",
+        "@aemu//base:test-matchers",
         "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],

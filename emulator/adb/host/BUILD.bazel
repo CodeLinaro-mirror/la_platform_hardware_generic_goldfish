@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "host",
     srcs = ["src/AdbHostServer.cpp"],
@@ -7,7 +9,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -20,8 +22,8 @@ cc_test(
     deps = [
         ":host",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/google/aemu:aemu-host-common-test-headers",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//:aemu-host-common-test-headers",
+        "@aemu//base:aemu-base",
         "@com_google_googletest//:gtest_main",
     ],
 )

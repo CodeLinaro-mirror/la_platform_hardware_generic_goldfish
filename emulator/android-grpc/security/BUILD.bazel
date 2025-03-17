@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
@@ -31,7 +32,7 @@ cc_library(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
         "//hardware/generic/goldfish/third_party/json",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_github_grpc_grpc//:grpc++",
         "@com_googlesource_code_re2//:re2",
         "@tink_cc//tink:tink_cc",
