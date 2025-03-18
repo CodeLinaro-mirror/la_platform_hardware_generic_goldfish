@@ -27,6 +27,7 @@
 // Use ABSL_LOG to avoid conflict with crashpadh logging
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
@@ -98,14 +99,24 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
             "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
                                        vmodules, logLevel)});
 
+    int adbPort = 5555;
+    if (opts.port) {
+        if (!absl::SimpleAtoi(opts.port, &adbPort)) {
+            ABSL_LOG(WARNING) << "Failed to parse port number: '" << opts.port
+                              << "'. Using default port: 5555";
+            adbPort = 5555;
+        }
+        adbPort += 1;
+    }
+
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-nodefaults", "-no-reboot",
             // Debug monitor
             "-monitor", "telnet::15454,server,nowait",
             // our virtio-vsock
             "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
-            // // TODO(jansene): host_port should be dynamic..
-            "-device", "virtio-goldfish-adb,host_port=5555",
+            // Setup adb
+            "-device", absl::StrFormat("virtio-goldfish-adb,host_port=%d", adbPort),
             // Keyboard
             "-device", "virtio-keyboard-pci,head=0,display=gpu0",
             // Series of simple devices that don't need configuring

@@ -15,8 +15,10 @@
             "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
             // Set any program arguments here.
             "args": [
-                "-avd",
-                "V",
+                "@V",
+                "-verbose",
+                "-vmodule",
+                "*=1",
             ],
             // Set any environment values here, not you would likely want to keep at least these
             "env": [

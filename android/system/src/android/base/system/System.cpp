@@ -309,6 +309,7 @@ class HostSystem : public System {
                            "variable";
             }
         }
+        VLOG(1) << "Derived launcher directory: " << mLauncherDir;
         return mLauncherDir;
     }
 
