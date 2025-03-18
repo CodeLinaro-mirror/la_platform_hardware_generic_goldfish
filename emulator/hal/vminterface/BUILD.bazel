@@ -125,7 +125,6 @@ cc_test(
         "//hardware/generic/goldfish/android/system:test-headers",
         "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base-headers",
-        "@aemu//base:test-matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
