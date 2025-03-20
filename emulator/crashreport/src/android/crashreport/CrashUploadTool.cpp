@@ -98,13 +98,8 @@ using google_breakpad::SimpleSymbolSupplier;
 #define CRASHURL "https://clients2.google.com/cr/staging_report"
 #endif
 
-#ifdef _WIN32
-#define standard_out std::wcout
-#define standard_err std::wcerr
-#else
 #define standard_out std::cout
 #define standard_err std::cerr
-#endif
 
 // Translate vector to hex string.
 std::string vectorToHexString(const std::vector<uint8_t>& data) {
@@ -234,9 +229,9 @@ static void Usage(int argc, const char* argv[], bool error) {
             argv[0]);
 
     if (error) {
-        standard_err << dir.value();
+        standard_err << dir;
     } else {
-        standard_out << dir.value();
+        standard_out << dir;
     }
 
     fprintf(error ? stderr : stdout,
@@ -251,7 +246,8 @@ static void Usage(int argc, const char* argv[], bool error) {
             "  -e                                      Erase local crash "
             "report(s)\n"
             "  -d  <minidump-file> [symbol-path ...]   Process the given "
-            "minidump file\n"
+            "minidump file, use 'latest' for the latest minidump"
+            "\n"
             "  -m (implies -d)                         Output in "
             "machine-readable format\n"
             "  -s (implies -d)                         Output stack "
@@ -286,7 +282,10 @@ static bool ListCrashReports(std::shared_ptr<CrashReportDatabase> crashDatabase)
     reports.insert(reports.end(), pendingReports.begin(), pendingReports.end());
 
     for (const auto& report : reports) {
-        standard_out << report.file_path.value() << std::endl;
+        absl::Time now_absl = absl::FromTimeT(report.creation_time);
+        std::string formatted_time =
+                absl::FormatTime("%Y-%m-%d %H:%M:%S %Z", now_absl, absl::LocalTimeZone());
+        standard_out << formatted_time << " | " << report.file_path << std::endl;
     }
 
     return true;
@@ -331,7 +330,7 @@ static bool UploadCrashReports(std::shared_ptr<CrashReportDatabase> crashDatabas
                    "available\n",
                    report.uuid.ToString().c_str());
             printf("Please preserve the minidump found here: ");
-            standard_out << report.file_path.value() << std::endl;
+            standard_out << report.file_path << std::endl;
         } else {
             printf("Report %s is available remotely as: %s\n", report.uuid.ToString().c_str(),
                    report.id.c_str());
@@ -391,7 +390,7 @@ static void SetupOptions(int argc, const char* argv[], Options* options) {
 
     if (optind + 1 == argc) {
         // Let's add the developer default path for symbols.
-        options->symbol_paths.push_back("objs/build/symbols");
+        options->symbol_paths.push_back("/tmp/symbols");
     }
 
     for (int argi = optind + 1; argi < argc; ++argi) options->symbol_paths.push_back(argv[argi]);
