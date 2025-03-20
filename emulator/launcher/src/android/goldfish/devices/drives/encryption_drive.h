@@ -22,11 +22,10 @@ namespace android::goldfish {
 
 class EncryptionDrive : public MutableDiskDrive {
   public:
-    explicit EncryptionDrive(const HardwareConfig& hw) : MutableDiskDrive("encrypt", "06.0") {
+    explicit EncryptionDrive() : MutableDiskDrive("encrypt", "06.0") {
         mDiskId = "encrypt";
-        mDiskImage = fs::path(hw.disk_encryptionKeyPartition_path);
-        mDiskImage.replace_extension(".img.qcow2");
     }
     absl::Status initialize(const Emulator& emulator) override;
 };
+
 }  // namespace android::goldfish

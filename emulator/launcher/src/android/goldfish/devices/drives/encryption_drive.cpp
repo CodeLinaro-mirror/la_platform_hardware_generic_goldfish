@@ -25,6 +25,7 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
+#include "aemu/base/utils/status_macros.h"
 
 namespace android::goldfish {
 absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
@@ -68,7 +69,12 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
                                                    hw.disk_encryptionKeyPartition_path));
     }
 
-    return convertImgToQcow2(hw.disk_encryptionKeyPartition_path);
+    RETURN_IF_ERROR(convertImgToQcow2(hw.disk_encryptionKeyPartition_path));
+
+    mDiskImage = fs::path(hw.disk_encryptionKeyPartition_path);
+    mDiskImage.replace_extension(".img.qcow2");
+
+    return absl::OkStatus();
 }
 
 }  // namespace android::goldfish
