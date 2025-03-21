@@ -46,7 +46,7 @@ static bool sSkipTimerOps = false;
 static Notifier sLooperShutdown = {
         .notify =
                 [](Notifier* notifier, void* data) {
-                    LOG(INFO) << "Stopping qemu timer due to shutdown signal.";
+                    VLOG(1) << "Stopping qemu timer due to shutdown signal.";
                     sSkipTimerOps = true;
                 },
         .node = {}};
