@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "agents",
     srcs = [
@@ -64,7 +66,7 @@ cc_test(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_googletest//:gtest_main",
     ] + select({
         "@platforms//os:windows": [

@@ -49,7 +49,7 @@ cc_library(
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/process",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -78,7 +78,7 @@ cc_test(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest",
     ] + select({

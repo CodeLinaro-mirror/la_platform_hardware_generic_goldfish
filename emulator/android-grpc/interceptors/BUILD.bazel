@@ -19,7 +19,7 @@ cc_library(
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/threads",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_github_grpc_grpc//:grpc++",
     ],
 )

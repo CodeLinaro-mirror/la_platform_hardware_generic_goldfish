@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc:__subpackages__"])
 
 cc_library(
@@ -9,6 +11,6 @@ cc_library(
         "//hardware/generic/goldfish/emulator/adb/secrets",
         "//hardware/generic/goldfish/emulator/android-grpc/async",
         "//hardware/generic/goldfish/emulator/android-grpc/services/adb/proto:adb_service_cc_grpc",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
     ],
 )

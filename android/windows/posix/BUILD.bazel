@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
 cc_library(
     name = "compat",
     srcs = [
@@ -15,7 +17,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/system",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
     ],
 )
 

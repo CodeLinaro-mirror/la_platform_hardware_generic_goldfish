@@ -86,7 +86,7 @@ cc_library(
     ],
     deps = [
         "//hardware/generic/goldfish/emulator/devices:cable",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
     ],
 )
 
@@ -102,7 +102,7 @@ cc_library(
     deps = [
         ":devices",
         "//hardware/generic/goldfish/android/event-support",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
@@ -122,7 +122,7 @@ cc_library(
         ":connector_registry_hdrs",
         ":devices",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
-        "//hardware/google/aemu/base:aemu-base",
+        "@aemu//base:aemu-base",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
