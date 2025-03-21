@@ -242,7 +242,14 @@ struct GoldfishVirtioVsockDevice {
 
     GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
 
-    ~GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
+    ~GoldfishVirtioVsockDevice() {
+        DEBUG_MSG("this=%p", this);
+        for (const VsockStream& stream : mStreams) {
+            if (stream.plug) {
+                stream.plug->onUnplug().release();
+            }
+        }
+    }
 
     void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
         DEBUG_MSG("this=%p", this);
