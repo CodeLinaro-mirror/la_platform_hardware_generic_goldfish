@@ -40,10 +40,10 @@ extern "C" {
 #include "android/base/system/System.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/GrpcServices.h"
-#include "android/goldfish/EmulatorAdvertisement.h"
 #include "android/goldfish/avd-info.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
 
 namespace fs = std::filesystem;
