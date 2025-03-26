@@ -16,7 +16,7 @@
 
 #include "gmock/gmock.h"
 
-#include "android/goldfish/config/avd-test.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
@@ -28,7 +28,7 @@ using ::testing::Gt;
 using ::testing::HasSubstr;
 using ::testing::MatchesRegex;
 
-class GpsDeviceTest : public android::goldfish::AvdTest {
+class GpsDeviceTest : public ::testing::Test {
     void SetUp() override {
         IGpsDevice::registerDevice(&registry);
         device = registry.constructDevice<IGpsDevice>();

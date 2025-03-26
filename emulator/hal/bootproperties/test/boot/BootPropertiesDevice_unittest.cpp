@@ -16,7 +16,7 @@
 
 #include "gmock/gmock.h"
 
-#include "android/goldfish/config/avd-test.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 

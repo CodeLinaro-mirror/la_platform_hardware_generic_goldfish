@@ -20,8 +20,8 @@
 #include <memory>
 
 #include "android/emulation/control/utils/CallbackEventSupport.h"
-#include "android/goldfish/config/avd-test.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/physics/InertialModel.h"
 
@@ -38,11 +38,14 @@ static constexpr vec3 kDefaultMagnetometer = {0.0f, 5.9f, -48.4f};
     EXPECT_NEAR(e.y, a.y, d);     \
     EXPECT_NEAR(e.z, a.z, d);
 
-class PhysicalModelTest : public android::goldfish::AvdTest {
+class PhysicalModelTest : public ::testing::Test {
   protected:
     void SetUp() override { model = std::make_unique<PhysicalModel>(avd()); }
 
+    Avd* avd() { return &mAvd; }
+
     std::unique_ptr<PhysicalModel> model;
+    android::goldfish::FakeAvd mAvd;
 };
 
 TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {

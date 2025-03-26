@@ -16,7 +16,7 @@
 #include "absl/strings/str_format.h"
 
 #include "android/base/testing/TestSystem.h"
-#include "android/goldfish/config/avd-test.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "android/physics/Sensors.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
@@ -41,9 +41,9 @@ int countOccurrences(const std::string& text, const std::string& target) {
     return count;
 }
 
-class SensorDeviceTest : public android::goldfish::AvdTest {
+class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        ISensorDevice::registerDevice(&registry, avd(), registry.getLooper());
+        ISensorDevice::registerDevice(&registry, &mAvd, registry.getLooper());
         device = registry.constructDevice<ISensorDevice>();
         test_socket = registry.getSocket();
         looper = registry.getLooper();
@@ -69,6 +69,7 @@ class SensorDeviceTest : public android::goldfish::AvdTest {
     TestConnectorRegistry registry;
     TestSocket* test_socket;
     ISensorDevice* device;
+    android::goldfish::FakeAvd mAvd;
 };
 
 TEST_F(SensorDeviceTest, canCreateDevice) {
