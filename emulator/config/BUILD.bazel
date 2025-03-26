@@ -20,12 +20,14 @@ cc_library(
     srcs = [
         "src/android/goldfish/config/avd.cpp",
         "src/android/goldfish/config/config_dirs.cpp",
+        "src/android/goldfish/config/emulator_advertisement.cpp",
         "src/android/goldfish/config/hardware_config.cpp",
         "src/android/goldfish/config/keys.h",
     ],
     hdrs = [
         "include/android/goldfish/config/avd.h",
         "include/android/goldfish/config/config_dirs.h",
+        "include/android/goldfish/config/emulator_advertisment.h",
         "include/android/goldfish/config/hardware_config.h",
         "include/android/goldfish/config/image_list.h",
     ],
@@ -36,6 +38,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/container:flat_hash_map",

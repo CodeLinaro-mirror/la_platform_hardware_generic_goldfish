@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/EmulatorAdvertisement.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -33,6 +31,7 @@
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/config/emulator_advertisment.h"
 #include "android/utils/path.h"
 
 namespace android {
@@ -167,7 +166,7 @@ bool PidChecker::isAlive(std::string myFile, std::string discoveryFile) const {
 EmulatorAdvertisement::EmulatorAdvertisement(
         EmulatorProperties&& config, std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
     : mStudioConfig(config), mLivenessChecker(std::move(livenessChecker)) {
-    mSharedDirectory = goldfish::ConfigDirs::getDiscoveryDirectory();
+    mSharedDirectory = System::pathAsString(goldfish::ConfigDirs::getDiscoveryDirectory());
     if (!System::get()->pathExists(mSharedDirectory)) {
         LOG(WARNING) << "Discovery directory: " << mSharedDirectory << ", does not exist. creating";
         path_mkdir_if_needed(mSharedDirectory.data(), 0700);
@@ -196,7 +195,8 @@ int EmulatorAdvertisement::garbageCollect() const {
     auto start = std::chrono::high_resolution_clock::now();
     DD("Starting garbage collection of advertisement.");
     int collected = 0;
-    for (const auto& entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
+    for (const auto& fname : System::get()->scanDirEntries(mSharedDirectory, true)) {
+        std::string entry = System::pathAsString(fname);
         DD("Checking: %s", entry.c_str());
         if (!mLivenessChecker->isAlive(location(), entry)) {
             DD("Deleting %s", entry.c_str());
@@ -219,7 +219,8 @@ int EmulatorAdvertisement::garbageCollect() const {
 std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() {
     DD("Scanning %s", mSharedDirectory.c_str());
     std::vector<std::string> discovered;
-    for (const auto& entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
+    for (const auto& fname : System::get()->scanDirEntries(mSharedDirectory, true)) {
+        std::string entry = System::pathAsString(fname);
         if (entry != location() && mLivenessChecker->isAlive(location(), entry)) {
             discovered.push_back(entry);
         }
@@ -261,7 +262,8 @@ std::string EmulatorAdvertisement::location() const {
 // True if a advertisement exists for the given pid.
 bool EmulatorAdvertisement::exists(base::Pid pid) {
     std::string pidfile = android::base::StringFormat(location_format, pid);
-    std::string pidPath = android::base::pj(goldfish::ConfigDirs::getDiscoveryDirectory(), pidfile);
+    std::string pidPath = android::base::pj(
+            System::pathAsString(goldfish::ConfigDirs::getDiscoveryDirectory()), pidfile);
     return System::get()->pathIsFile(pidPath);
 }
 
