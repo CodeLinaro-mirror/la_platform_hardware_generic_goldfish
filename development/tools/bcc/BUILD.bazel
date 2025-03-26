@@ -1,5 +1,6 @@
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 package(
     default_applicable_licenses = [":license"],
@@ -23,7 +24,18 @@ license_kind(
 
 py_binary(
     name = "extract-cc",
-    srcs = glob(["src/**/*.py"]),
+    srcs = [
+        "src/aemu/converter/apple_converter.py",
+        "src/aemu/converter/clang_converter.py",
+        "src/aemu/converter/compiler_converter.py",
+        "src/aemu/converter/converter.py",
+        "src/aemu/filters/argument_filter.py",
+        "src/aemu/filters/normalizer.py",
+        "src/aemu/log.py",
+        "src/aemu/process/bazel.py",
+        "src/aemu/process/runner.py",
+        "src/extract.py",
+    ],
     main = "extract.py",
     visibility = ["//visibility:public"],
 )

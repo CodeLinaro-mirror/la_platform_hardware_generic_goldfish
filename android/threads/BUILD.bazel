@@ -9,18 +9,12 @@ cc_library(
         "src/android/base/threads/internal/ParallelTaskBase.cpp",
         "src/android/base/threads/internal/ParallelTaskBase.h",
     ],
-    hdrs = glob([
-        "include/android/utils/*.h",
-    ]),
     copts =
         select({
             "@platforms//os:windows": ["-Wno-microsoft-goto"],
             "//conditions:default": [],
         }),
-    includes = [
-        "include",
-        "src",
-    ],
+    includes = ["src"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/system",
@@ -35,13 +29,13 @@ cc_library(
 
 cc_test(
     name = "threads_unittests",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = [
+        "test/android/base/threads/Async_unittest.cpp",
+        "test/android/base/threads/FunctorThread_unittest.cpp",
+        "test/android/base/threads/ParallelTask_unittest.cpp",
+        "test/android/base/threads/ThreadStore_unittest.cpp",
+        "test/android/base/threads/Thread_unittest.cpp",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

@@ -2,19 +2,22 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "cpu",
-    srcs = glob([
-        "src/android/goldfish/cpu/*.cpp",
-        "src/android/goldfish/cpu/*.h",
-    ]) + select({
+    srcs = [
+        "src/android/goldfish/cpu/AppleCpuAccelerator.h",
+        "src/android/goldfish/cpu/CpuAccelerator.cpp",
+        "src/android/goldfish/cpu/x86_cpuid.cpp",
+        "src/android/goldfish/cpu/x86_cpuid.h",
+    ] + select({
         "@platforms//os:windows": [
             "src/android/windows_installer.cpp",
             "src/android/windows_installer.h",
         ],
         "//conditions:default": [],
     }),
-    hdrs = glob([
-        "include/android/goldfish/cpu/*.h",
-    ]),
+    hdrs = [
+        "include/android/goldfish/cpu/CpuAccelerator.h",
+        "include/android/goldfish/cpu/cpu_accelerator.h",
+    ],
     copts =
         select({
             "@platforms//os:windows": ["-Wno-microsoft-goto"],
@@ -36,13 +39,7 @@ cc_library(
 
 cc_test(
     name = "cpu_unittests",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = ["test/android/goldfish/cpu/x86_cpuid_unittest.cpp"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

@@ -32,7 +32,11 @@ cc_library(
         "src/android/base/logging/LogConfiguration.cpp",
         "src/android/base/logging/LogFormatter.cpp",
     ],
-    hdrs = glob(["include/android/base/logging/*.h"]),
+    hdrs = [
+        "include/android/base/logging/AbseilLogBridge.h",
+        "include/android/base/logging/ColorLogSink.h",
+        "include/android/base/logging/LoggingApi.h",
+    ],
     includes = ["include"],
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],

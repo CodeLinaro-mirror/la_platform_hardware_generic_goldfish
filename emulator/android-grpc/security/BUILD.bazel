@@ -24,8 +24,22 @@ filegroup(
 
 cc_library(
     name = "security",
-    srcs = glob(["src/android/emulation/control/secure/*.cpp"]),
-    hdrs = glob(["include/android/emulation/control/secure/*.h"]),
+    srcs = [
+        "src/android/emulation/control/secure/AllowList.cpp",
+        "src/android/emulation/control/secure/AuthErrorFactory.cpp",
+        "src/android/emulation/control/secure/BasicTokenAuth.cpp",
+        "src/android/emulation/control/secure/JwkDirectoryObserver.cpp",
+        "src/android/emulation/control/secure/JwkKeyLoader.cpp",
+        "src/android/emulation/control/secure/JwtTokenAuth.cpp",
+    ],
+    hdrs = [
+        "include/android/emulation/control/secure/AllowList.h",
+        "include/android/emulation/control/secure/AuthErrorFactory.h",
+        "include/android/emulation/control/secure/BasicTokenAuth.h",
+        "include/android/emulation/control/secure/JwkDirectoryObserver.h",
+        "include/android/emulation/control/secure/JwkKeyLoader.h",
+        "include/android/emulation/control/secure/JwtTokenAuth.h",
+    ],
     includes = ["include"],
     deps = [
         "//hardware/generic/goldfish/android/files",
@@ -46,7 +60,13 @@ cc_test(
     name = "security-test",
     size = "small",
     timeout = "short",
-    srcs = glob(["test/**/*.cpp"]),
+    srcs = [
+        "test/android/emulation/control/secure/AllowList_unittest.cpp",
+        "test/android/emulation/control/secure/AuthErrorFactory_unittest.cpp",
+        "test/android/emulation/control/secure/JwkDirectoryObserver_unittest.cpp",
+        "test/android/emulation/control/secure/JwkKeyLoader_unittest.cpp",
+        "test/android/emulation/control/secure/JwtTokenAuth_unittest.cpp",
+    ],
     copts = ["-Wno-deprecated-declarations"],
     data = ["src/android/emulation/control/secure/emulator_access.json"],
     linkopts = ["-undefined,dynamic_lookup"],

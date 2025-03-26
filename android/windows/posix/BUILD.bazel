@@ -14,6 +14,9 @@ cc_library(
     linkopts = [
         "-DEFAULTLIB:Advapi32.lib",
     ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/system",
@@ -23,12 +26,13 @@ cc_library(
 
 cc_test(
     name = "compat_unittests",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-        ],
-    ),
+    srcs = [
+        "test/android/base/Win32UnicodeString_unittest.cpp",
+        "test/android/base/Win32Utils_unittest.cpp",
+    ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+    ],
     deps = [
         ":compat",
         "//hardware/generic/goldfish/android/system:test-headers",

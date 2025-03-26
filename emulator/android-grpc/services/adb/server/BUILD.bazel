@@ -5,7 +5,7 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/android-grpc
 cc_library(
     name = "adb-service",
     srcs = ["src/android/emulation/control/adb/AdbService.cpp"],
-    hdrs = glob(["include/android/emulation/control/adb/*.h"]),
+    hdrs = ["include/android/emulation/control/adb/AdbService.h"],
     includes = ["include"],
     deps = [
         "//hardware/generic/goldfish/emulator/adb/secrets",
