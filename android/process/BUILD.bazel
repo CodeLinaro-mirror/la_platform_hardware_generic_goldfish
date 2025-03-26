@@ -47,13 +47,7 @@ cc_binary(
 
 cc_test(
     name = "process_unittests",
-    srcs = glob(
-        [
-            "test/**/*_unittest.cpp",
-            "test/include/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = ["test/android/base/process/Command_unittest.cpp"],
     data = [":sleep_emu"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

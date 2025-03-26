@@ -36,13 +36,7 @@ cc_library(
 
 cc_test(
     name = "looper_unittests",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = ["test/android/utils/Looper_unittest.cpp"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

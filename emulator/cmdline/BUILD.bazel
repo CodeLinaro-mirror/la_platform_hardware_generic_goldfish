@@ -3,12 +3,26 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 # This is quite an old c-style command line parsing library written around 2008
 cc_library(
     name = "cmdline",
-    srcs = glob([
-        "src/**/*",
-    ]),
-    hdrs = glob([
-        "include/**/*",
-    ]),
+    srcs = [
+        "src/android/cmdline-option.cpp",
+        "src/android/emulation/bufprint_config_dirs.cpp",
+        "src/android/help.cpp",
+        "src/android/main-help.cpp",
+        "src/android/network/constants.c",
+        "src/android/utils/misc.cpp",
+        "src/android/utils/stralloc.cpp",
+    ],
+    hdrs = [
+        "include/android/cmdline-definitions.h",
+        "include/android/cmdline-option.h",
+        "include/android/cmdline-options.h",
+        "include/android/emulation/bufprint_config_dirs.h",
+        "include/android/help.h",
+        "include/android/main-help.h",
+        "include/android/network/constants.h",
+        "include/android/utils/misc.h",
+        "include/android/utils/stralloc.h",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -20,9 +34,12 @@ cc_library(
 
 cc_test(
     name = "cmdline_unittests",
-    srcs = glob([
-        "test/**/*",
-    ]),
+    srcs = [
+        "test/android/cmdline-option_unittest.cpp",
+        "test/android/emulation/bufprint_config_dirs_unittest.cpp",
+        "test/android/emulation/testing/TemporaryCommandLineOptions.h",
+        "test/android/network/constants_unittest.cpp",
+    ],
     includes = ["test"],
     deps = [
         ":cmdline",

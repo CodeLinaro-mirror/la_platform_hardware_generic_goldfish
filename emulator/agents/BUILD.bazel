@@ -49,13 +49,7 @@ cc_library(
 cc_test(
     name = "agents_unittests",
     size = "small",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-            "src/**/*.h",
-        ],
-    ),
+    srcs = ["test/android/emulation/control/LineConsumer_unittest.cpp"],
     includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

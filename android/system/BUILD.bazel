@@ -49,7 +49,18 @@ cc_library(
     name = "test-headers",
     testonly = True,
     srcs = ["test/android/base/system/test_file_util_bazel.cc"],
-    hdrs = glob(["test-headers/**/*.h"]),
+    hdrs = [
+        "test-headers/android/base/testing/MockUtils.h",
+        "test-headers/android/base/testing/ResultMatchers.h",
+        "test-headers/android/base/testing/TestEvent.h",
+        "test-headers/android/base/testing/TestLooper.h",
+        "test-headers/android/base/testing/TestMemoryOutputStream.h",
+        "test-headers/android/base/testing/TestSystem.h",
+        "test-headers/android/base/testing/TestTempDir.h",
+        "test-headers/android/base/testing/TestThread.h",
+        "test-headers/android/base/testing/Utils.h",
+        "test-headers/android/base/testing/test_file_util.h",
+    ],
     includes = ["test-headers"],
     visibility = ["//visibility:public"],
     deps = [
@@ -64,14 +75,15 @@ cc_library(
 
 cc_test(
     name = "system-unittests",
-    srcs = glob(
-        [
-            "test/**/*_unittest.cpp",
-            "test/**/*.h",
+    srcs = [
+        "test/android/base/Version_unittest.cpp",
+        "test/android/base/bazel/bazel_info_unittest.cpp",
+        "test/android/base/system/System_unittest.cpp",
+        "test/android/base/system/storage_capacity_unittest.cpp",
+    ] + select({
+        "@platforms//os:windows": [
+            "test/android/base/system/Win32UnicodeString_unittest.cpp",
         ],
-        exclude = ["test/**/Win32*"],
-    ) + select({
-        "@platforms//os:windows": glob(["test/**/Win32*"]),
         "//conditions:default": [],
     }),
     data = ["test/android/base/bazel/info.txt"],

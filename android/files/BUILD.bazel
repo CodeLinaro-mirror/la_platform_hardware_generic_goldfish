@@ -61,13 +61,18 @@ cc_library(
 cc_test(
     name = "files_unittests",
     size = "small",
-    srcs = glob(
-        [
-            "test/**/*.cpp",
-            "test/**/*.h",
-            "src/**/*.h",
-        ],
-    ),
+    srcs = [
+        "test/aemu/base/files/FileShareOpen_unittest.cpp",
+        "test/aemu/base/files/IniFile_unittest.cpp",
+        "test/android/utils/bufprint_system.cpp",
+        "test/android/utils/bufprint_unittest.cpp",
+        "test/android/utils/custom_gmain.cpp",
+        "test/android/utils/dirscanner_unittest.cpp",
+        "test/android/utils/file_data_unittest.cpp",
+        "test/android/utils/filelock_test.h",
+        "test/android/utils/filelock_unittest.cpp",
+        "test/android/utils/tempfile_unittest.cpp",
+    ],
     includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

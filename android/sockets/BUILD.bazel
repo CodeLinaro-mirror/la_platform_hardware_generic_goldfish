@@ -22,9 +22,6 @@ cc_library(
             "src/android/utils/stralloc.c",
             "src/android/utils/stralloc.h",
         ],
-    hdrs = glob([
-        "include/android/**/*.h",
-    ]),
     copts = select({
         "@platforms//os:windows": [
             "-Wno-microsoft-goto",
@@ -65,7 +62,12 @@ cc_library(
         "test/android/base/sockets/SimpleTestServer.cpp",
         "test/android/base/sockets/SimpleThreadLooper.cpp",
     ],
-    hdrs = glob(["test/include/android/**/*.h"]),
+    hdrs = [
+        "test/include/android/base/sockets/ChecksumCalculator.h",
+        "test/include/android/base/sockets/ChecksumSocket.h",
+        "test/include/android/base/sockets/SimpleTestServer.h",
+        "test/include/android/base/sockets/SimpleThreadLooper.h",
+    ],
     includes = ["test/include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -77,13 +79,19 @@ cc_library(
 
 cc_test(
     name = "sockets_unittests",
-    srcs = glob(
-        [
-            "test/**/*test.cpp",
-            "test/**/*.h",
-        ],
-        exclude = ["test/**/Win32"],
-    ),
+    srcs = [
+        "test/android/base/sockets/AsyncSocketServer_unittest.cpp",
+        "test/android/base/sockets/AsyncSocket_unittest.cpp",
+        "test/android/base/sockets/ChecksumSocket.cpp",
+        "test/android/base/sockets/ScopedSocketWatch_unittest.cpp",
+        "test/android/base/sockets/ScopedSocket_unittest.cpp",
+        "test/android/base/sockets/SimpleTestServer.cpp",
+        "test/android/base/sockets/SimpleThreadLooper.cpp",
+        "test/android/base/sockets/SocketDrainer_unittest.cpp",
+        "test/android/base/sockets/SocketUtils_unittest.cpp",
+        "test/android/base/sockets/SocketWaiter_unittest.cpp",
+        "test/android/utils/eintr_wrapper_unittest.cpp",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
@@ -108,9 +116,7 @@ cc_test(
 cc_test(
     name = "async_socket_perf",
     size = "small",
-    srcs = ["test/android/base/sockets/AsyncSocket_perf.cpp"] + glob([
-        "test/**/*.h",
-    ]),
+    srcs = ["test/android/base/sockets/AsyncSocket_perf.cpp"],
     copts = ["-Wno-deprecated-declarations"],
     includes = ["test"],
     deps = [
