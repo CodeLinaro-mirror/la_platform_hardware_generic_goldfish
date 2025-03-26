@@ -23,7 +23,6 @@ cc_library(
     includes = ["src"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/streams",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
