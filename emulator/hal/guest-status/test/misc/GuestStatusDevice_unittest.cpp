@@ -19,7 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "android/goldfish/config/avd-test.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
@@ -43,7 +43,7 @@ void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
 }
 }  // namespace
 
-class GuestStatusDeviceTest : public android::goldfish::AvdTest {
+class GuestStatusDeviceTest : public ::testing::Test {
     void SetUp() override {
         IGuestStatusDevice::registerDevice(&registry, qemu_register_reset);
         device = registry.constructDevice<IGuestStatusDevice>();

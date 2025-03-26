@@ -16,7 +16,7 @@
 
 #include "gmock/gmock.h"
 
-#include "android/goldfish/config/avd-test.h"
+#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
@@ -27,9 +27,10 @@ using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 
-class ClipboardDeviceTest : public android::goldfish::AvdTest {
+class ClipboardDeviceTest : public ::testing::Test {
     void SetUp() override {
-        IClipboardDevice::registerDevice(&registry, avd(), registry.getLooper());
+        android::goldfish::FakeAvd avd;
+        IClipboardDevice::registerDevice(&registry, &avd, registry.getLooper());
         device = registry.constructDevice<IClipboardDevice>();
         test_socket = registry.getSocket();
         looper = registry.getLooper();

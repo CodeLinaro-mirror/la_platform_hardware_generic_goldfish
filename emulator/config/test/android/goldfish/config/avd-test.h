@@ -19,14 +19,15 @@
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/goldfish/config/avd.h"
-
+#include "android/goldfish/config/fake-avd.h"
 namespace android::goldfish {
 
 using android::base::System;
 using android::base::TestSystem;
 using android::base::TestTempDir;
 
-class AvdTest : public ::testing::Test {
+class [[deprecated("This class is deprecated, use FakeAvd instead")]] AvdTest
+    : public ::testing::Test {
   public:
     AvdTest() {
         TestSystem sys("/home", "/");
