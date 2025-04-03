@@ -34,7 +34,7 @@ license_kind(
 rust_proc_macro(
     name = "zerocopy-derive",
     srcs = glob(["**/*.rs"]),
-    edition = "2018",
+    edition = "2021",
     deps = [
         # This should map to repo checked out from Android third party project
         # "platform/external/rust/crates/proc-macro2". Similar for the rest of the dependencies
