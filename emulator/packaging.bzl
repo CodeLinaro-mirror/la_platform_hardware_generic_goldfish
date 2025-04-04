@@ -1,115 +1,97 @@
-"""Bazel rules for extracting and packaging debug symbols."""
+"""Bazel rules and macros for packaging."""
 
 load("@//build/bazel/rules/native:native_binaries.bzl", "native_symbols")
-load("@//build/bazel/toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
-load("@bazel_skylib//lib:paths.bzl", "paths")
-load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load(":breakpad_symbols.bzl", "breakpad_symbols")
 
-def windows_path(p):
-    # type: (string) -> string
-    return p.replace("/", "\\")
+visibility("//hardware/generic/goldfish/emulator/...")
 
-def _breakpad_symbols_impl(ctx):
-    """Extracts symbols from binaries using dump_syms.
+def _aemu_naming_impl(ctx):
+    """Implementation function for the `aemu_naming` rule.
 
-    This function iterates over a list of binaries, uses `dump_syms` to
-    generate a `.sym` file for each binary, and returns a `DefaultInfo` provider
-    containing the generated symbol files.
+    This function collects relevant information about the build target and
+    its environment to create a structured set of variables. These variables
+    can be used to dynamically generate package names or other artifacts.
 
     Args:
-        ctx: The rule context.
+        ctx: The rule context object, providing access to attributes,
+            configuration, and build environment information.
 
     Returns:
-        A `DefaultInfo` provider containing the generated symbol files.
+        PackageVariablesInfo: A provider object containing a dictionary of
+            variables relevant for naming.
     """
-    output_files = []
+    values = {}
 
-    # Iterate over binaries and generate `.sym` files
-    for binary_target in ctx.attr.binaries:
-        owner_label = binary_target.label
-        split_symbol_args = []  # type: list[string]
-        split_symbol_files = []  # type: list[File]
-        if AppleDsymInfo in binary_target:
-            split_symbol_args.extend(["-g", binary_target[AppleDsymInfo].dsym_bundle.path])
-            split_symbol_files.append(binary_target[AppleDsymInfo].dsym_bundle)
-            binary_files = [binary_target[AppleDsymInfo].executable_file]  # type: list[File]
-        elif OutputGroupInfo in binary_target and hasattr(binary_target[OutputGroupInfo], "pdb_file"):
-            split_symbol_files = binary_target[OutputGroupInfo].pdb_file.to_list()  # type: list[File]
-            binary_files = [binary_target.files_to_run.executable or binary_target.files.to_list()[0]]
-        elif DebugPackageInfo in binary_target and binary_target[DebugPackageInfo].dwp_file:
-            split_symbol_files.append(binary_target[DebugPackageInfo].dwp_file)
-            binary_files = [binary_target[DebugPackageInfo].unstripped_file]
-        else:
-            binary_files = binary_target.files.to_list()  # type: list[File]
-        for binary in binary_files:
-            output_name = "/".join([
-                owner_label.package,
-                paths.replace_extension(binary.basename, ".sym"),
-            ])
-            if owner_label.repo_name:
-                output_name = "_" + owner_label.repo_name + "/" + output_name
-            output_file = ctx.actions.declare_file(output_name)
-            output_files.append(output_file)
+    # Copy attributes from the rule to the provider
+    values["product_name"] = ctx.attr.product_name
+    values["version"] = ctx.attr.version
+    values["revision"] = ctx.attr.revision
+    values["platform"] = ctx.attr.platform
 
-            if ctx.target_platform_has_constraint(
-                ctx.attr._target_windows[platform_common.ConstraintValueInfo],
-            ):
-                ctx.actions.run(
-                    mnemonic = "ExtractBreakpadSymbols",
-                    outputs = [output_file],
-                    inputs = [binary] + split_symbol_files,
-                    # dump_syms writes to stdout on Windows - capture and redirect to a file with cmd.
-                    executable = "cmd.exe",
-                    tools = [ctx.executable._dump_syms],
-                    arguments = [
-                        "/Q",  # Quiet
-                        "/D",  # No autorun commands
-                        "/C",  # Run command
-                        windows_path(ctx.executable._dump_syms.path) +
-                        " --i " +  # Generate INLINE/INLINE_ORIGIN records
-                        windows_path(binary.path) +
-                        " > " +
-                        windows_path(output_file.path),
-                    ],
-                )
-            else:
-                ctx.actions.run(
-                    mnemonic = "ExtractBreakpadSymbols",
-                    outputs = [output_file],
-                    inputs = [binary] + split_symbol_files,  # Simplified: directly use binary
-                    executable = ctx.executable._dump_syms,
-                    arguments = split_symbol_args + [
-                        "-d",  # Generate INLINE/INLINE_ORIGIN records
-                        "-m",  # Handle multiple symbols at same address, if any.
-                        "-f",  # Output to:
-                        output_file.path,
-                        binary.path,
-                    ],
-                )
+    # Add some well known variables from the rule context.
+    values["target_cpu"] = ctx.var.get("TARGET_CPU")
+    values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
 
-    return DefaultInfo(files = depset(output_files))
+    build_id_dep = ctx.attr.build_id_dep[PackageVariablesInfo]
+    values["build_id"] = build_id_dep.values["build_id"]
+    return PackageVariablesInfo(values = values)
 
-# Define the rule
-breakpad_symbols = rule(
-    implementation = _breakpad_symbols_impl,
+#
+# A rule to inject variables from the build file into package names.
+#
+aemu_naming = rule(
+    implementation = _aemu_naming_impl,
+    # build_setting = config.string(flag = True),
     attrs = {
-        "binaries": attr.label_list(
-            allow_files = True,
-            mandatory = True,
-            doc = "The list of binaries to extract symbols from.",
-            aspects = [gen_dsym_aspect],
+        "product_name": attr.string(
+            default = "Android Emulator",
+            doc = "Placeholder for our final product name.",
         ),
-        "_dump_syms": attr.label(
-            default = Label("@com_google_breakpad//:dump_syms"),
-            allow_single_file = True,
-            executable = True,
-            cfg = "exec",
-            doc = "The dump_syms executable. Defaults to @com_google_breakpad//:dump_syms.",
+        "revision": attr.string(
+            doc = "Placeholder for our release revision.",
         ),
-        "_target_windows": attr.label(default = "@platforms//os:windows"),
+        "version": attr.string(
+            default = "99.1.1",
+            doc = "Placeholder for our release version.",
+        ),
+        "platform": attr.string(
+            doc = "The target operating system of this release",
+        ),
+        "build_id_dep": attr.label(
+            providers = [PackageVariablesInfo],
+        ),
+        "build_id": attr.string(
+            doc = "The build id of this release",
+        ),
     },
+)
+
+def _build_id_from_cmdline_impl(ctx):
+    """Implementation function for the `build_id_from_command_line` rule.
+
+    This function simply packages the build ID provided on the command line
+    as a `PackageVariablesInfo` provider.
+
+    Args:
+        ctx: The rule context object, providing access to the build setting
+            value.
+
+    Returns:
+        PackageVariablesInfo: A provider containing the build ID value.
+    """
+    values = {"build_id": ctx.build_setting_value}
+
+    # Just pass the value from the command line through. An implementation
+    # could also perform validation, such as done in
+    # https://github.com/bazelbuild/bazel-skylib/blob/master/rules/common_settings.bzl
+    return PackageVariablesInfo(values = values)
+
+build_id_from_command_line = rule(
+    implementation = _build_id_from_cmdline_impl,
+    # Note that the default value comes from the rule instantiation.
+    build_setting = config.string(flag = True),
 )
 
 def substitute_package_variables(ctx, attribute_value):

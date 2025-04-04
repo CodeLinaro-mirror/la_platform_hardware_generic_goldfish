@@ -4,8 +4,13 @@ load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load("@rules_python//python:defs.bzl", "py_binary")
-load(":release_package_name.bzl", "aemu_naming", "build_id_from_command_line")
-load(":symbol_extraction.bzl", "breakpad_symbols_pkg", "native_symbols_pkg")
+load(
+    ":packaging.bzl",
+    "aemu_naming",
+    "breakpad_symbols_pkg",
+    "build_id_from_command_line",
+    "native_symbols_pkg",
+)
 
 package(
     default_applicable_licenses = [":license"],
