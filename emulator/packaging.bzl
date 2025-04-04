@@ -1,7 +1,9 @@
 """Bazel rules and macros for packaging."""
 
-load("@//build/bazel/rules/native:native_binaries.bzl", "native_symbols")
-load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
+load("@//build/bazel/rules/native:native_binaries.bzl", "TransformedFilesInfo", "native_symbols")
+load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo", "PackageVariablesInfo")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(":breakpad_symbols.bzl", "breakpad_symbols")
 
@@ -232,7 +234,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables):
         package_variables = package_variables,
     )
 
-def native_symbols_pkg(name, binaries, package_file_name, package_variables):
+def native_symbols_pkg(name, binaries, package_file_name, package_variables, layout_templates = {}):
     """Creates a zip file with native symbols.
 
     This function first extracts symbols from the given binaries using the
@@ -242,8 +244,11 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables):
     Args:
         name: The name of the rule.
         binaries: A list of labels representing the binaries for which to
-            include PDB files.  These labels should correspond to targets
-            that produce PDB files as part of their build process.
+            include native symbols. These labels should correspond to targets
+            that produce native symbols as part of their build process or the
+            attached aspects.
+        layout_templates: A dict from layout names to pkg_files targets served
+            as templates for package layout. This is an optional argument.
         package_file_name: The name of the output zip file.
         package_variables: A dictionary of variables to be expanded in the
                            package template.
@@ -253,11 +258,166 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables):
         name = extract,
         srcs = binaries,
     )
+    pkg_files = []
+    for layout_name, template in layout_templates.items():
+        remap_name = name + "_layout_" + layout_name
+        pkg_files.append(remap_name)
+        remapped_pkg_files(
+            name = remap_name,
+            src = template,
+            transform = extract,
+            keep_transformed_only = True,
+            attributes = pkg_attributes(
+                mode = "0644",
+            ),
+        )
+    if not layout_templates:
+        pkg_files.append(extract)
     pkg_zip(
         name = name,
-        srcs = [
-            extract,
-        ],
+        srcs = pkg_files,
         package_file_name = package_file_name,
         package_variables = package_variables,
     )
+
+def _stem_and_extensions(filename):
+    # type: (string) -> tuple[string, list[string]]
+    segs = filename.split(".")
+    stem = segs[0]
+    exts = segs[1:]
+    if filename.startswith("."):
+        stem = "." + segs[1]
+        exts = segs[2:]
+    return stem, exts
+
+def _prefix_and_suffix(from_str, to_str):
+    # type: (string, string) -> tuple[string, string]
+    pos = to_str.find(from_str)
+    if pos != -1:
+        return to_str[:pos], to_str[pos + len(from_str):]
+    return "", ""
+
+# TODO(b/397510455) add test
+def _find_filename_changes(from_name, to_name):
+    # type: (string, string) -> struct
+    from_stem, from_exts = _stem_and_extensions(from_name)
+    to_stem, to_exts = _stem_and_extensions(to_name)
+
+    add_stem_prefix, add_stem_suffix = _prefix_and_suffix(from_stem, to_stem)
+    rm_stem_prefix, rm_stem_suffix = _prefix_and_suffix(to_stem, from_stem)
+    if not any([add_stem_prefix, add_stem_suffix, rm_stem_prefix, rm_stem_suffix]) and from_stem != to_stem:
+        fail("Cannot find changes between", from_stem, "and", to_stem, ": they seem distinct")
+
+    for pos in range(min([len(from_exts), len(to_exts)])):
+        if from_exts[pos] == to_exts[pos]:
+            from_exts.pop(0)
+            to_exts.pop(0)
+    rm_extensions = from_exts
+    add_extensions = to_exts
+
+    changes = struct(
+        add_stem_prefix = add_stem_prefix,
+        add_stem_suffix = add_stem_suffix,
+        rm_stem_prefix = rm_stem_prefix,
+        rm_stem_suffix = rm_stem_suffix,
+        rm_extensions = rm_extensions,
+        add_extensions = add_extensions,
+    )
+    return changes
+
+# TODO(b/397510455) add test
+def _apply_filename_changes(changes, path):
+    directory = paths.dirname(path)
+    basename = paths.basename(path)
+
+    stem, exts = _stem_and_extensions(basename)
+    stem = stem.removeprefix(changes.rm_stem_prefix).removesuffix(changes.rm_stem_suffix)
+    stem = changes.add_stem_prefix + stem + changes.add_stem_suffix
+
+    for ext in reversed(changes.rm_extensions):
+        if exts and exts[-1] == ext:
+            exts.pop()
+        else:
+            fail("Cannot remove extensions", changes.rm_extensions, "from file", path)
+    exts.extend(changes.add_extensions)
+    basename = ".".join([stem] + exts)
+    return paths.join(directory, basename)
+
+def _remapped_pkg_files_impl(ctx):
+    dest_src_map = ctx.attr.src[PackageFilesInfo].dest_src_map  # type: dict[string, File]
+    transform = ctx.attr.transform[TransformedFilesInfo].mapping  # type: dict[File, list[File]]
+    transform_original = ctx.attr.transform[TransformedFilesInfo].original or {}  # type: dict[File, File]
+    transformed_map = {}  # type: dict[string, File]
+    for dest_path, src_file in dest_src_map.items():
+        if src_file in transform:
+            for transformed_file in transform[src_file]:
+                name_change = _find_filename_changes(
+                    transform_original.get(transformed_file, src_file).basename,
+                    transformed_file.basename,
+                )
+                transformed_dest = _apply_filename_changes(name_change, dest_path)
+                transformed_map[transformed_dest] = transformed_file
+        elif not ctx.attr.keep_transformed_only:
+            transformed_map[dest_path] = src_file
+
+    attributes = dict(ctx.attr.src[PackageFilesInfo].attributes)
+    if ctx.attr.attributes:
+        attributes.update(json.decode(ctx.attr.attributes))
+
+    return [
+        PackageFilesInfo(
+            dest_src_map = transformed_map,
+            attributes = attributes,
+        ),
+        DefaultInfo(
+            files = depset(transformed_map.values()),
+        ),
+    ]
+
+remapped_pkg_files = rule(
+    implementation = _remapped_pkg_files_impl,
+    doc = """Remap pkg_files by applying transformations.
+
+    For a pkg_files target with the following mapping:
+
+      a -> release/a.out
+      b.exe -> test/c.exe
+
+    And suppose we have transformed files "a" and "b.exe":
+
+      a -> a.signed, a.wrapper
+      b.exe -> b.pdb, libb.dll
+
+    This rule creates a pkg_files-compatible mapping with the following contents:
+
+      a.signed -> release/a.out.signed
+      a.wrapper -> release/a.out.wrapper
+      b.pdb -> test/c.pdb
+      libb.dll -> test/libc.dll
+
+    Specifically, this rule handles the following filename changes during the
+    transformation:
+
+      * Remove extension
+      * Add extension
+      * Add prefix / suffix to stem OR remove prefix / suffix from stem
+    """,
+    attrs = {
+        "src": attr.label(
+            doc = "A pkg_files target to remap.",
+            mandatory = True,
+            providers = [PackageFilesInfo],
+        ),
+        "transform": attr.label(
+            doc = "Transformation to apply. This is a target that returns TransformedFilesInfo",
+            mandatory = True,
+            providers = [TransformedFilesInfo],
+        ),
+        "keep_transformed_only": attr.bool(
+            doc = "Remove map entries that are not transformed. Otherwise they are copied over from src.",
+        ),
+        "attributes": attr.string(
+            doc = "Override attributes from src. See https://bazelbuild.github.io/rules_pkg/latest.html#pkg_files-attributes.",
+        ),
+    },
+)
