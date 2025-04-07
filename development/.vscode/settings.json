@@ -1,0 +1,4 @@
+{
+    "bazel.buildifierExecutable": "@buildifier_prebuilt//:buildifier",
+    "bazel.buildifierFixOnFormat": true
+}
