@@ -32,6 +32,7 @@ rust_library(
         "derive",
         "rc",
         "serde_derive",
+        "std",
     ],
     edition = "2018",
     proc_macro_deps = [
