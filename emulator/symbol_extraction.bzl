@@ -1,5 +1,6 @@
 """Bazel rules for extracting and packaging debug symbols."""
 
+load("@//build/bazel/rules/native:native_binaries.bzl", "native_symbols")
 load("@//build/bazel/toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
@@ -248,12 +249,12 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables):
         package_variables = package_variables,
     )
 
-def package_windows_pdbs(name, binaries, package_file_name, package_variables):
-    """Packages Windows PDB files into a zip file.
+def native_symbols_pkg(name, binaries, package_file_name, package_variables):
+    """Creates a zip file with native symbols.
 
-    This function creates a filegroup containing the PDB files associated with the
-    specified binaries and then packages them into a zip archive using `pkg_zip`.
-    It leverages the `pdb_file` output group to collect the PDB files.
+    This function first extracts symbols from the given binaries using the
+    `native_symbols` rule, and then packages them into a zip archive using
+    `pkg_zip`.
 
     Args:
         name: The name of the rule.
@@ -265,10 +266,9 @@ def package_windows_pdbs(name, binaries, package_file_name, package_variables):
                            package template.
     """
     extract = name + "_extract"
-    native.filegroup(
+    native_symbols(
         name = extract,
         srcs = binaries,
-        output_group = "pdb_file",
     )
     pkg_zip(
         name = name,
