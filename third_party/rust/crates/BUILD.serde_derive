@@ -21,6 +21,7 @@ rust_proc_macro(
         exclude = [
         ],
     ),
+    features = ["default"],
     edition = "2015",
     rustc_flags = [
         "--cap-lints=allow",
