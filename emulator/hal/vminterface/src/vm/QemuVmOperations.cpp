@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <array>
+
 #include "android/goldfish/vm/VmInterface.h"
 #include "host-common/VmLock.h"
 
@@ -23,6 +25,9 @@ extern "C" {
 }
 // IWYU pragma: end_keep
 // clang-format on
+
+// Remove leaked shutdown redefinition from external/qemu/include/sysemu/os-win32.h
+#undef shutdown
 
 namespace android {
 namespace goldfish {
