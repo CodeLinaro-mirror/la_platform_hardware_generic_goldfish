@@ -5,7 +5,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load("@rules_python//python:defs.bzl", "py_binary")
 load(":release_package_name.bzl", "aemu_naming", "build_id_from_command_line")
-load(":symbol_extraction.bzl", "breakpad_symbols_pkg", "package_windows_pdbs")
+load(":symbol_extraction.bzl", "breakpad_symbols_pkg", "native_symbols_pkg")
 
 package(
     default_applicable_licenses = [":license"],
@@ -178,10 +178,10 @@ breakpad_symbols_pkg(
     package_variables = ":aemu_version_info",
 )
 
-package_windows_pdbs(
-    name = "package_goldfish_pdbs",
+native_symbols_pkg(
+    name = "package_goldfish_native_symbols",
     binaries = all_binaries,
-    package_file_name = "sdk-repo-{platform}-{product_name}-pdbs-{build_id}.zip",
+    package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
     package_variables = ":aemu_version_info",
 )
 
