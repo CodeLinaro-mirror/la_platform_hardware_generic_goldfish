@@ -36,7 +36,8 @@ def _breakpad_symbols_impl(ctx):
             split_symbol_files.append(binary_target[AppleDsymInfo].dsym_bundle)
             binary_files = [binary_target[AppleDsymInfo].executable_file]  # type: list[File]
         elif OutputGroupInfo in binary_target and hasattr(binary_target[OutputGroupInfo], "pdb_file"):
-            binary_files = binary_target[OutputGroupInfo].pdb_file.to_list()  # type: list[File]
+            split_symbol_files = binary_target[OutputGroupInfo].pdb_file.to_list()  # type: list[File]
+            binary_files = [binary_target.files_to_run.executable or binary_target.files.to_list()[0]]
         elif DebugPackageInfo in binary_target and binary_target[DebugPackageInfo].dwp_file:
             split_symbol_files.append(binary_target[DebugPackageInfo].dwp_file)
             binary_files = [binary_target[DebugPackageInfo].unstripped_file]
@@ -58,7 +59,7 @@ def _breakpad_symbols_impl(ctx):
                 ctx.actions.run(
                     mnemonic = "ExtractBreakpadSymbols",
                     outputs = [output_file],
-                    inputs = [binary],
+                    inputs = [binary] + split_symbol_files,
                     # dump_syms writes to stdout on Windows - capture and redirect to a file with cmd.
                     executable = "cmd.exe",
                     tools = [ctx.executable._dump_syms],
