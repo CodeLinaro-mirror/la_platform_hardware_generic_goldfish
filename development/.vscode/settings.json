@@ -1,4 +1,17 @@
 {
     "bazel.buildifierExecutable": "@buildifier_prebuilt//:buildifier",
-    "bazel.buildifierFixOnFormat": true
+    "bazel.buildifierFixOnFormat": true,
+    "mise.configureExtensionsUseSymLinks": true,
+    "mise.updateOpenTerminalsEnvAutomatically": true,
+    "commit-message-formatter.subjectMode": "split-ellipses",
+    "commit-message-formatter.protectedPatterns": [
+        "#",
+        "Signed-off-by:",
+        "Co-authored-by:",
+        "Change-Id:",
+        "Test:",
+        "Fixes:",
+        "Bug:"
+    ],
+    "commit-message-formatter.collapseMultipleEmptyLines": true
 }

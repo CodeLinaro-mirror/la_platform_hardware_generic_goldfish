@@ -1,0 +1,5 @@
+[env]
+'_'.path = [
+    "{{config_root}}/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
+    "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin"
+]

@@ -17,6 +17,7 @@
 		"ms-vscode.cpptools-themes",
 		"ms-vscode.cpptools",
 		"zxh404.vscode-proto3",
+		"hverlin.mise-vscode",
 	],
 	// List of extensions recommended by VS Code that should not be recommended for users of this workspace.
 	"unwantedRecommendations": [
