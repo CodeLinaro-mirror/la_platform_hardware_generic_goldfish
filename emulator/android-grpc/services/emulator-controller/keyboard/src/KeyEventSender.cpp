@@ -59,6 +59,9 @@ struct DomKeyMapEntry {
 #undef DOM_KEY_MAP
 #undef DOM_KEY_UNI
 
+// Necessary on Windows.
+#undef send
+
 // From
 // https://cs.chromium.org/chromium/src/ui/events/keycodes/dom_us_layout_data.h
 const struct NonPrintableCodeEntry {

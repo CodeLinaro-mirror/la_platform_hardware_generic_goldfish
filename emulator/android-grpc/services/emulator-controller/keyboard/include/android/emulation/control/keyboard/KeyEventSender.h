@@ -18,6 +18,9 @@
 
 #include "hardware/generic/goldfish/emulator/android-grpc/services/emulator-controller/proto/emulator_controller.grpc.pb.h"
 
+// Necessary on Windows.
+#undef send
+
 extern "C" {
 typedef struct QemuConsole QemuConsole;
 }

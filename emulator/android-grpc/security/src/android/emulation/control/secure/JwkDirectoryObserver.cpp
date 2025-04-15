@@ -75,7 +75,8 @@ bool JwkDirectoryObserver::start() {
 void JwkDirectoryObserver::scanJwkPath() {
     mLoadedKeys.clear();
     LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
-    for (auto strPath : System::get()->scanDirEntries(mJwkPath.c_str(), true)) {
+    for (auto path : System::get()->scanDirEntries(mJwkPath.c_str(), true)) {
+	std::string strPath = path.string();
         auto status = mLoadedKeys.add(strPath);
         if (!status.ok()) {
             LOG(WARNING) << "Failed add jwk key: " << strPath << ", due to: " << status

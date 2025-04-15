@@ -114,9 +114,9 @@ bool initialize(GrpcDeviceConfiguration* device) {
     }
 
     auto jwkLoadedFile = jwkDir / "active.jwk";
-    props["grpc.jwks"] = jwkDir;
-    props["grpc.jwk_active"] = jwkLoadedFile;
-    builder.withJwtAuthDiscoveryDir(jwkDir, jwkLoadedFile);
+    props["grpc.jwks"] = jwkDir.string();
+    props["grpc.jwk_active"] = jwkLoadedFile.string();
+    builder.withJwtAuthDiscoveryDir(jwkDir.string(), jwkLoadedFile.string());
 
     int port = -1;
     grpcService = builder.build();
