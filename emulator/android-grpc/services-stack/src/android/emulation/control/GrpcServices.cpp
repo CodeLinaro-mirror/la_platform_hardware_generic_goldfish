@@ -131,7 +131,7 @@ std::string Builder::readSecrets(const char* fname) {
 
 Builder::Builder() {
     mEmulatorAccessPath =
-            pj({System::get()->getLauncherDirectory(), "lib", "emulator_access.json"});
+            (std::filesystem::path(System::get()->getLauncherDirectory()) / "lib" / "emulator_access.json").string();
 };
 
 int Builder::port() {

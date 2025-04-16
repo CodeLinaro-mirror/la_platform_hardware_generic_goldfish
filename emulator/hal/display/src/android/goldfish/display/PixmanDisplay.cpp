@@ -11,6 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// This must be first to get M_PI.
+#define _USE_MATH_DEFINES
+#include <cmath>
+
 #include "android/goldfish/display/PixmanDisplay.h"
 
 #include <cstddef>

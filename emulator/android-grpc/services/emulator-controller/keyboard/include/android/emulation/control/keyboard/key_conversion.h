@@ -31,6 +31,9 @@ typedef struct QKbdState QKbdState;
 
 #include "dom_key.h"
 
+// Necessary on Windows.
+#undef send
+
 namespace android {
 namespace emulation {
 namespace control {
