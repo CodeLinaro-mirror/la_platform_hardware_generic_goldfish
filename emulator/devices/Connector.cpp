@@ -16,22 +16,15 @@
 #include <cassert>
 #include <cstring>
 
+#include "goldfish/devices/cable/ErrorPlug.h"
+
 namespace goldfish {
 namespace devices {
+using cable::ErrorPlug;
 using cable::PlugPtr;
 using cable::SocketPtr;
 
 namespace {
-struct ErrorPlug : public cable::IPlug {
-    ErrorPlug(cable::SocketPtr socket) : mSocket(std::move(socket)) {}
-
-    cable::SocketPtr onUnplug() override { return std::move(mSocket); }
-
-    bool onReceive(const void*, size_t) override { return false; }
-
-    cable::SocketPtr mSocket;
-};
-
 bool qnameEquals(const char q, const std::string_view name, const char* qname) {
     return (q == *qname) && (0 == strncmp(name.data(), qname + 1, name.size())) &&
            (0 == qname[name.size() + 1]);

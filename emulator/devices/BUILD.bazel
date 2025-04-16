@@ -6,6 +6,7 @@ cc_library(
         "cable.cpp",
     ],
     hdrs = [
+        "include/goldfish/devices/cable/ErrorPlug.h",
         "include/goldfish/devices/cable/cable.h",
         "include/goldfish/devices/cable/saveload.h",
     ],
