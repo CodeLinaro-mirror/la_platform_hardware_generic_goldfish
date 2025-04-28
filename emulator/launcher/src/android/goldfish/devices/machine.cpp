@@ -35,8 +35,10 @@ static std::string qemu_exe(const Avd& avd) {
     const bool inBazel = Bazel::inBazel();
     std::string baseName;
 
+    // Note that this behaviour is currently defined here:
+    // https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
 #ifdef __APPLE__
-    constexpr std::string_view bazelPostfix = "_signed";
+    constexpr std::string_view bazelPostfix = ".signed";
 #else
     constexpr std::string_view bazelPostfix = "_std";
 #endif

@@ -36,7 +36,7 @@ using ::absl_testing::IsOkAndHolds;
 namespace android::goldfish::test {
 
 #ifdef __APPLE__
-constexpr std::string_view bazelPostfix = "_signed";
+constexpr std::string_view bazelPostfix = ".signed";
 #else
 constexpr std::string_view bazelPostfix = "_std";
 #endif
