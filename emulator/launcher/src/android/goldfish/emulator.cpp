@@ -35,8 +35,6 @@
 #include "aemu/base/process/Process.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
-#include "android/base/system/storage_capacity.h"
-#include "android/crashreport/CrashReporter.h"
 #include "android/goldfish/config/avd.h"
 #include "devices/audio_device.h"
 #include "devices/cpu_device.h"
@@ -216,32 +214,8 @@ absl::Status Emulator::launch() {
 
     auto args = getCmdline();
 
-    // Setup the library search dirs.
-    fs::path qemu_module_dir;
-    if (Bazel::inBazel()) {
-        // We are running in the bazel environment, make sure the plugins can be
-        // found.
-        qemu_module_dir = fs::path(
-                Bazel::runfilesPath("_main/hardware/generic/goldfish/emulator/launcher/plugins"));
-        assert(fs::exists(qemu_module_dir));
-    } else {
-        qemu_module_dir = System::get()->getProgramDirectory() / "lib" / "qemu";
-    }
-
-    // Make sure the child process is using the same crashpad handler as we are using.
-    std::stringstream handler;
-    handler << android::crashreport::CrashReporter::handlerExe();
-    System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
-    System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
-    System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                          System::pathAsString(qemu_module_dir));
-    System::get()->addLibrarySearchDir(qemu_module_dir);
-
-    ABSL_LOG(INFO) << "Using crashpad handler: " << handler.str();
-    ABSL_LOG(INFO) << "Using module dir: " << qemu_module_dir;
     ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
-
-    auto proc = android::base::Command::create(getCmdline()).replace().execute();
+    auto proc = android::base::Command::create(args).replace().execute();
     // We only get here if we failed to launch the application
     return absl::InternalError(absl::StrFormat("Failed to launch emulator, error code: %d", errno));
 }

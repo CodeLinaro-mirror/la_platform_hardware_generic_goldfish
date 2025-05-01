@@ -22,13 +22,16 @@
 
 #include "aemu_version.h"
 #include "android/base/bazel/bazel_info.h"
+#include "android/base/system/System.h"
 #include "android/cmdline-option.h"
 #include "android/crashreport/crash-initializer.h"
+#include "android/crashreport/CrashReporter.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/main-help.h"
 
 using android::base::Bazel;
+using android::base::System;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
@@ -93,6 +96,7 @@ int main(int argc, char** argv) {
     if (android_parse_options(&argc, &argv, &opts) < 0) {
         return 1;
     }
+
     configureLogging(opts);
 
     if (opts.list_avds) {
@@ -113,6 +117,30 @@ int main(int argc, char** argv) {
     if (!crashhandler_init(argc, argv)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
+
+    // Setup the library search dirs.
+    android::goldfish::fs::path qemu_module_dir;
+    if (Bazel::inBazel()) {
+        // We are running in the bazel environment, make sure the plugins can be
+        // found.
+        qemu_module_dir = android::goldfish::fs::path(
+                Bazel::runfilesPath("_main/hardware/generic/goldfish/emulator/launcher/plugins"));
+        assert(android::goldfish::fs::exists(qemu_module_dir));
+    } else {
+        qemu_module_dir = System::get()->getProgramDirectory() / "lib" / "qemu";
+    }
+
+    // Make sure the child process is using the same crashpad handler as we are using.
+    std::stringstream handler;
+    handler << android::crashreport::CrashReporter::handlerExe();
+    System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
+    System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
+    System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+                                          System::pathAsString(qemu_module_dir));
+    System::get()->addLibrarySearchDir(qemu_module_dir);
+
+    LOG(INFO) << "Using crashpad handler: " << handler.str();
+    LOG(INFO) << "Using module dir: " << qemu_module_dir;
 
     auto name = opts.avd;
     auto avd = Avd::fromName(name, opts.sysdir ? opts.sysdir : "");
