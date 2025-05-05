@@ -142,6 +142,12 @@ int main(int argc, char** argv) {
     LOG(INFO) << "Using crashpad handler: " << handler.str();
     LOG(INFO) << "Using module dir: " << qemu_module_dir;
 
+    if (!opts.avd) {
+        LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
+                      "'foo'";
+        return -1;
+    }
+
     auto name = opts.avd;
     auto avd = Avd::fromName(name, opts.sysdir ? opts.sysdir : "");
     if (!avd.ok()) {
