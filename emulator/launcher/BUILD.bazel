@@ -125,19 +125,19 @@ collect_plugins(
             "//external/qemu:accel-tcg-x86_64",
         ],
         "darwin_aarch64": [
-            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
+            "@crosvm//:rutabaga_ffi",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
             "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
         ],
         "darwin_x86_64": [
-            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
+            "@crosvm//:rutabaga_ffi",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
             "//external/qemu:hw-display-virtio-gpu-rutabaga",
         ],
         "@platforms//os:linux": [
-            "//external/crosvm/rutabaga_gfx/ffi:rutabaga_ffi",
+            "@crosvm//:rutabaga_ffi",
             "//external/qemu:accel-tcg-x86_64",
             "//external/qemu:audio-pa",
             "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
