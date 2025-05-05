@@ -3,8 +3,6 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 cc_library(
     name = "headers",
     hdrs = [
-        "include/android/goldfish/display/QemuDisplayTransformer.h",
-        "include/android/goldfish/display/SharedMemoryLibrary.h",
         "include/android/goldfish/grpc-service-device.h",
     ],
     includes = ["include"],
@@ -20,8 +18,6 @@ cc_library(
 cc_library(
     name = "grpc_device_impl",
     srcs = [
-        "src/android/goldfish/display/QemuDisplayTransformer.cpp",
-        "src/android/goldfish/display/SharedMemoryLibrary.cpp",
         "src/android/goldfish/grpc-service-device.c",
         "src/android/goldfish/grpc-service-impl.cpp",
     ],
