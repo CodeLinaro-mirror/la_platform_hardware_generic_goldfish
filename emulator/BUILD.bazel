@@ -254,6 +254,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/input:input_unittests",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service_unittests",
         "//hardware/generic/goldfish/emulator/hal/bootproperties:bootproperties_unittests",
+        "//hardware/generic/goldfish/emulator/hal/camera:camera_unittests",
         "//hardware/generic/goldfish/emulator/hal/clipboard:clipboard_unittests",
         "//hardware/generic/goldfish/emulator/hal/display:display_unittests",
         "//hardware/generic/goldfish/emulator/hal/gps:gps_unittests",

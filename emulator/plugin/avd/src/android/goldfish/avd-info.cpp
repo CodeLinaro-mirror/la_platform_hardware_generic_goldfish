@@ -26,6 +26,7 @@
 #include "absl/strings/string_view.h"
 
 #include "android/boot/BootPropertiesDevice.h"
+#include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/avd.h"
@@ -85,6 +86,18 @@ static void UpdateVModule(const std::string& vmodule) {
 
 static void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
+namespace {
+// TODO(b/420964652): move this elsewhere
+struct NoopGpuDetails : public goldfish::devices::camera::IGpuDetails {
+    uint32_t aFormatToFourCC(const uint32_t androidFormat) const override { return 42; }
+
+    int imageSink(const CameraImageProviderStreamConfig& cfg, std::string_view handleStr,
+                  const void* framebufferData, size_t framebufferDataSize) const override {
+        return 0;
+    }
+};
+}  // namespace
+
 static void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
@@ -117,11 +130,16 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry);
     goldfish::devices::gps::IGpsDevice::registerDevice(registry);
 
+    std::string emulatedCameraProp;
+    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, *avd,
+                                              std::make_shared<NoopGpuDetails>());
+
     using namespace std::string_literals;
     goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
             registry,
             {
-                    {"qemu.sf.lcd_density"s, "420"s},
+                {"qemu.sf.fake_camera"s, emulatedCameraProp},
+                {"qemu.sf.lcd_density"s, "420"s},
             },
             &DummyRegisterEmulatorReset);
 }

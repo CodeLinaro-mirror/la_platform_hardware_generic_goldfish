@@ -3,5 +3,6 @@ test_suite(
     tests = [
         "//hardware/generic/goldfish/emulator/libs/archive:archive_unittests",
         "//hardware/generic/goldfish/emulator/libs/broadcasting:broadcasting_unittests",
+        "//hardware/generic/goldfish/emulator/libs/parsing:parsing_unittests",
     ],
 )

@@ -1,0 +1,35 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "parsing",
+    srcs = [
+        "getKeyValueStr.cpp",
+        "split2.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/parsing/fromChars.h",
+        "include/goldfish/parsing/getKeyValueStr.h",
+        "include/goldfish/parsing/split2.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "parsing_unittests",
+    size = "small",
+    srcs = [
+        "test/getKeyValueStr_test.cpp",
+        "test/split2_test.cpp",
+    ],
+    deps = [
+        ":parsing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

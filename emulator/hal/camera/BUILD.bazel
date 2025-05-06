@@ -1,0 +1,62 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "camera",
+    srcs = [
+        "CameraDevice.cpp",
+        "CameraDeviceBase.cpp",
+        "CameraDeviceEnumerator.cpp",
+        "CameraImageProviderInfoCpp.cpp",
+        "CameraImageProviderRegistry.cpp",
+        "CameraProtocolBase.cpp",
+        "ImagefileImageProvider.cpp",
+        "QueryParser.cpp",
+        "VideofileImageProvider.cpp",
+        "VirtualsceneImageProvider.cpp",
+        "WebcamImageProvider.cpp",
+        "registerDevice.cpp",
+    ],
+    hdrs = [
+        "include/android/camera/CameraDevice.h",
+        "include/android/camera/CameraDeviceBase.h",
+        "include/android/camera/CameraDeviceEnumerator.h",
+        "include/android/camera/CameraImageProvider.h",
+        "include/android/camera/CameraImageProviderInfoCpp.h",
+        "include/android/camera/CameraImageProviderRegistry.h",
+        "include/android/camera/CameraProtocolBase.h",
+        "include/android/camera/GpuDetails.h",
+        "include/android/camera/ImagefileImageProvider.h",
+        "include/android/camera/QueryParser.h",
+        "include/android/camera/VideofileImageProvider.h",
+        "include/android/camera/VirtualsceneImageProvider.h",
+        "include/android/camera/WebcamImageProvider.h",
+        "include/android/camera/registerDevice.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/devices:PingTopic",
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/libs/parsing",
+        "@com_google_absl//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "camera_unittests",
+    srcs = [
+        "test/CameraDeviceEnumerator_test.cpp",
+        "test/CameraDevice_test.cpp",
+        "test/CameraImageProviderRegistry_test.cpp",
+        "test/CameraProtocolBase_test.cpp",
+        "test/QueryParser_test.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":camera",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
