@@ -7,11 +7,17 @@ Standard: Latest
 
 # We will take the android approach of using 4 spaces, and
 # we will never allow tabs.
-IndentWidth: 4
 TabWidth: 4
-ContinuationIndentWidth: 8
 UseTab: Never
+IndentWidth: 4
+BreakBeforeBraces: Attach
+ContinuationIndentWidth: 8
+ConstructorInitializerIndentWidth: 8
+BracedInitializerIndentWidth: 4
+BreakConstructorInitializers: BeforeComma
 AccessModifierOffset: -2
+IndentCaseLabels: false
+IndentGotoLabels: false
 AllowShortFunctionsOnASingleLine: Inline
 
 # Most monitors can easily display more than 80 chars.
