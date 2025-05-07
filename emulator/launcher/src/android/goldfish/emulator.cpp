@@ -212,6 +212,29 @@ absl::Status Emulator::launch() {
         return status;
     }
 
+    // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
+    // Graphics default to software rendering (with swangle) for now.
+    // Always indirect EGL.
+    System::get()->setEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
+    // moltenvk or swiftshader or lavapipe.
+    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "swiftshader");
+    // host, guest, swiftshader, swiftshader_indirect, angle, angle_indirect, swangle, swangle_indirect.
+    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "angle_indirect");
+    // metal, vulkan or swiftshader
+    System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "swiftshader");
+
+    if (bool gpu_host = mOpts.gpu && std::string(mOpts.gpu) == "host"; gpu_host) {
+      // System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "host");
+      System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+#if defined(__APPLE__)
+      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
+#elif defined(__linux__)
+      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
+#else
+    // TODO windows
+#endif
+    }
+
     auto args = getCmdline();
 
     ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
