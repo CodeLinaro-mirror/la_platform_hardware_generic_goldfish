@@ -226,89 +226,6 @@ build_test(
 )
 
 test_suite(
-    name = "protobuf_unit_tests",
-    tests = [
-        "@com_google_protobuf//src/google/protobuf:any_test",
-        "@com_google_protobuf//src/google/protobuf:arena_align_test",
-        "@com_google_protobuf//src/google/protobuf:arena_unittest",
-        "@com_google_protobuf//src/google/protobuf:arenastring_unittest",
-        "@com_google_protobuf//src/google/protobuf:arenaz_sampler_test",
-        "@com_google_protobuf//src/google/protobuf:descriptor_database_unittest",
-        "@com_google_protobuf//src/google/protobuf:descriptor_unittest",
-        "@com_google_protobuf//src/google/protobuf:descriptor_visitor_test",
-        "@com_google_protobuf//src/google/protobuf:drop_unknown_fields_test",
-        "@com_google_protobuf//src/google/protobuf:dynamic_message_unittest",
-        "@com_google_protobuf//src/google/protobuf:extension_set_unittest",
-        "@com_google_protobuf//src/google/protobuf:feature_resolver_test",
-        "@com_google_protobuf//src/google/protobuf:generated_enum_util_test",
-        "@com_google_protobuf//src/google/protobuf:generated_message_reflection_unittest",
-        "@com_google_protobuf//src/google/protobuf:generated_message_tctable_lite_test",
-        "@com_google_protobuf//src/google/protobuf:has_bits_test",
-        "@com_google_protobuf//src/google/protobuf:inlined_string_field_unittest",
-        "@com_google_protobuf//src/google/protobuf:lite_arena_unittest",
-        "@com_google_protobuf//src/google/protobuf:lite_unittest",
-        "@com_google_protobuf//src/google/protobuf:map_field_test",
-        # "@com_google_protobuf//src/google/protobuf:map_test", # needs access to source code
-        # "@com_google_protobuf//src/google/protobuf:message_unittest", # needs access to source code
-        "@com_google_protobuf//src/google/protobuf:no_field_presence_test",
-        "@com_google_protobuf//src/google/protobuf:port_test",
-        "@com_google_protobuf//src/google/protobuf:preserve_unknown_enum_test",
-        "@com_google_protobuf//src/google/protobuf:proto3_arena_lite_unittest",
-        "@com_google_protobuf//src/google/protobuf:proto3_arena_unittest",
-        "@com_google_protobuf//src/google/protobuf:proto3_lite_unittest",
-        "@com_google_protobuf//src/google/protobuf:reflection_mode_test",
-        "@com_google_protobuf//src/google/protobuf:reflection_ops_unittest",
-        "@com_google_protobuf//src/google/protobuf:repeated_field_reflection_unittest",
-        "@com_google_protobuf//src/google/protobuf:repeated_field_unittest",
-        "@com_google_protobuf//src/google/protobuf:retention_test",
-        "@com_google_protobuf//src/google/protobuf:string_block_test",
-        # "@com_google_protobuf//src/google/protobuf:text_format_unittest", # Needs access to source
-        # "@com_google_protobuf//src/google/protobuf:unknown_field_set_unittest",# Needs access to source
-        "@com_google_protobuf//src/google/protobuf:unredacted_debug_format_for_test_test",
-        "@com_google_protobuf//src/google/protobuf:varint_shuffle_test",
-        "@com_google_protobuf//src/google/protobuf:well_known_types_unittest",
-        "@com_google_protobuf//src/google/protobuf:wire_format_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler:code_generator_unittest",
-        # "@com_google_protobuf//src/google/protobuf/compiler:command_line_interface_unittest",  # Needs access to source
-        "@com_google_protobuf//src/google/protobuf/compiler:importer_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler:parser_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler:retention_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler:versions_test",
-        "@com_google_protobuf//src/google/protobuf/compiler/allowlists:allowlist_test",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:arena_ctor_visibility_test",
-        # "@com_google_protobuf//src/google/protobuf/compiler/cpp:bootstrap_unittest", # Needs access to source
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:copy_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:file_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:generator_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:message_size_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:metadata_test",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:move_unittest",
-        "@com_google_protobuf//src/google/protobuf/compiler/cpp:plugin_unittest",
-        # "@com_google_protobuf//src/google/protobuf/compiler/cpp:unittest", # Needs access to source
-        "@com_google_protobuf//src/google/protobuf/editions:defaults_test",
-        "@com_google_protobuf//src/google/protobuf/editions:generated_files_test",
-        "@com_google_protobuf//src/google/protobuf/editions:generated_reflection_test",
-        # "@com_google_protobuf//src/google/protobuf/io:io_test", # Needs access to source.
-        "@com_google_protobuf//src/google/protobuf/io:test_zero_copy_stream_test",
-        # "@com_google_protobuf//src/google/protobuf/io:win32_test",# Needs access to source.
-        "@com_google_protobuf//src/google/protobuf/io:zero_copy_sink_test",
-        "@com_google_protobuf//src/google/protobuf/json:json_test",
-        "@com_google_protobuf//src/google/protobuf/json:lexer_test",
-        "@com_google_protobuf//src/google/protobuf/json:zero_copy_buffered_stream_test",
-        "@com_google_protobuf//src/google/protobuf/stubs:stubs_test",
-        "@com_google_protobuf//src/google/protobuf/util:delimited_message_util_test",
-        "@com_google_protobuf//src/google/protobuf/util:field_comparator_test",
-        "@com_google_protobuf//src/google/protobuf/util:field_mask_util_test",
-        "@com_google_protobuf//src/google/protobuf/util:message_differencer_unittest",
-        "@com_google_protobuf//src/google/protobuf/util:time_util_test",
-        "@com_google_protobuf//src/google/protobuf/util:type_resolver_util_test",
-        "@com_google_protobuf//protos:protos_extension_lock_test",
-        "@com_google_protobuf//protos:protos_internal_test",
-        "@com_google_protobuf//protos:repeated_field_iterator_test",
-    ],
-)
-
-test_suite(
     # Test suite for boring ssl, note that this brings in all the jdks and go toolchain.
     # So we do not run this by default.
     name = "boringssl_unit_tests",
@@ -325,7 +242,6 @@ test_suite(
 test_suite(
     name = "emulator_unit_tests",
     tests = [
-        ":protobuf_unit_tests",
         "//hardware/generic/goldfish/android:emulator_android_tests",
         "//hardware/generic/goldfish/android/event-support:event-support-test",
         "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
