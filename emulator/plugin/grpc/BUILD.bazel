@@ -39,7 +39,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",  # TODO(jansene): Use cpu based version..
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "@aemu//host-common:aemu-host-common",
-        "@com_github_grpc_grpc//:grpc++_reflection",
+        #"@com_github_grpc_grpc//:grpc++_reflection",
         "@com_google_absl//absl/strings",
         "@crosvm//:rutabaga_gfx",
         "@pixman//:pixman-1",
