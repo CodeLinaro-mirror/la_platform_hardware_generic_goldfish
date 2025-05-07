@@ -39,7 +39,6 @@
 #include "android/emulation/control/secure/AllowList.h"
 #include "android/emulation/control/secure/BasicTokenAuth.h"
 #include "android/emulation/control/secure/JwtTokenAuth.h"
-#include "android/emulation/control/utils/GrpcAndroidLogAdapter.h"
 
 namespace android {
 namespace emulation {
@@ -194,11 +193,6 @@ Builder& Builder::withCertAndKey(const char* certfile, const char* privateKeyFil
     return *this;
 }
 
-Builder& Builder::withVerboseLogging(bool verbose) {
-    mVerbose = verbose;
-    return *this;
-}
-
 Builder& Builder::withAddress(std::string address) {
     mBindAddress = address;
     return *this;
@@ -277,13 +271,6 @@ std::unique_ptr<AllowList> loadAllowlist(std::string path) {
 }
 
 std::unique_ptr<EmulatorControllerService> Builder::build() {
-    // Setup a log redirector.
-    if (mVerbose) {
-        gpr_set_log_function(&gpr_log_to_android_log);
-    } else {
-        gpr_set_log_function(&gpr_null_logger);
-    }
-
     if (mPort == -1) {
         // No agents, or no port was found.
         LOG(INFO) << "No agents, or valid port was found";

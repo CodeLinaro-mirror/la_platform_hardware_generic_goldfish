@@ -4,16 +4,9 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpa
 
 cc_library(
     name = "services-stack",
-    srcs = [
-        "src/android/emulation/control/GrpcServices.cpp",
-        "src/android/emulation/control/utils/GrpcAndroidLogAdapter.cpp",
-        "src/android/emulation/control/utils/GrpcAndroidLogAdapter.h",
-    ],
+    srcs = ["src/android/emulation/control/GrpcServices.cpp"],
     hdrs = ["include/android/emulation/control/GrpcServices.h"],
-    includes = [
-        "include",
-        "src",
-    ],
+    includes = ["include"],
     visibility = ["//hardware/generic/goldfish/emulator/plugin/grpc:__subpackages__"],
     deps = [
         "//hardware/generic/goldfish/emulator/adb/secrets",
