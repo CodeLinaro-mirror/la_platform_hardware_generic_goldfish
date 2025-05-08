@@ -79,11 +79,11 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     EmulatorControllerServiceImpl(int port, std::vector<std::shared_ptr<Service>> services,
                                   std::unique_ptr<AllowList> allowlist, grpc::Server* server,
                                   remote::Endpoint description)
-        : mPort(port),
-          mRegisteredServices(services),
-          mAllowList(std::move(allowlist)),
-          mServer(server),
-          mEndpoint(description) {}
+            : mServer(server)
+            , mAllowList(std::move(allowlist))
+            , mRegisteredServices(services)
+            , mEndpoint(description)
+            , mPort(port) {}
 
     int port() const override { return mPort; }
 
@@ -92,11 +92,11 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     const remote::Endpoint& description() const override { return mEndpoint; }
 
   private:
-    std::unique_ptr<grpc::Server> mServer;
-    std::unique_ptr<AllowList> mAllowList;
-    std::vector<std::shared_ptr<Service>> mRegisteredServices;
-    remote::Endpoint mEndpoint;
-    int mPort;
+    const std::unique_ptr<grpc::Server> mServer;
+    const std::unique_ptr<AllowList> mAllowList;
+    const std::vector<std::shared_ptr<Service>> mRegisteredServices;
+    const remote::Endpoint mEndpoint;
+    const int mPort;
 };
 
 // Returns the whole file contents, or empty if the file could not be read
