@@ -1,0 +1,27 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+
+cc_library(
+    name = "async",
+    hdrs = [
+        "include/android/emulation/control/utils/GenericCallbackFunctions.h",
+        "include/android/emulation/control/utils/Library.h",
+        "include/android/grpc/utils/EnumTranslate.h",
+        "include/android/grpc/utils/SimpleAsyncGrpc.h",
+        "include/android/grpc/utils/SyncToAsyncAdapter.h",
+    ],
+    includes = ["include"],
+    deps = ["@com_github_grpc_grpc//:grpc++"],
+)
+
+cc_test(
+    name = "async_library_test",
+    srcs = ["test/android/emulation/control/utils/LibraryTest.cpp"],
+    deps = [
+        ":async",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

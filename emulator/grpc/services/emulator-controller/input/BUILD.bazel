@@ -1,0 +1,50 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "input",
+    srcs = [
+        "src/EventSender.cpp",
+        "src/PointerEventDispatcher.cpp",
+        "src/SlotRegistry.cpp",
+    ],
+    hdrs = [
+        "include/android/emulation/control/input/EvDevEvent.h",
+        "include/android/emulation/control/input/EventSender.h",
+        "include/android/emulation/control/input/PointerEventDispatcher.h",
+        "include/android/emulation/control/input/SlotRegistry.h",
+    ],
+    includes = [
+        "include",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//external/qemu:libmodule-common",
+        "//external/qemu:qemu-headers",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/hal/display:headers",
+        "@aemu//base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "input_unittests",
+    srcs = [
+        "test/PointerEventDispatcher-unittest.cpp",
+        "test/SlotRegistry-unittest.cpp",
+    ],
+    deps = [
+        ":input",
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/hal/display:test-display",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

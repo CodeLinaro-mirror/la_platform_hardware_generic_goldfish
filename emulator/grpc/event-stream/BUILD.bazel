@@ -1,0 +1,15 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+
+cc_library(
+    name = "event-stream",
+    hdrs = ["include/android/emulation/control/utils/GrpcEventStreamSupport.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/event-support",
+        "//hardware/generic/goldfish/emulator/grpc/async",
+        "@com_github_grpc_grpc//:grpc++",
+    ],
+)

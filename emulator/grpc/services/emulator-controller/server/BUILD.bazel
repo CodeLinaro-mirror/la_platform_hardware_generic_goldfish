@@ -1,0 +1,71 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+
+cc_library(
+    name = "emulator-service",
+    srcs = [
+        "src/android/emulation/control/ClipboardService.cpp",
+        "src/android/emulation/control/ClipboardService.h",
+        "src/android/emulation/control/DisplayService.cpp",
+        "src/android/emulation/control/DisplayService.h",
+        "src/android/emulation/control/EmulatorService.cpp",
+        "src/android/emulation/control/GpsService.cpp",
+        "src/android/emulation/control/GpsService.h",
+        "src/android/emulation/control/SensorService.cpp",
+        "src/android/emulation/control/SensorService.h",
+        "src/android/emulation/control/StatusService.cpp",
+        "src/android/emulation/control/StatusService.h",
+        "src/android/emulation/control/VmService.cpp",
+        "src/android/emulation/control/VmService.h",
+    ],
+    hdrs = [
+        "include/android/emulation/control/EmulatorService.h",
+        "include/android/emulation/control/display/DisplayChangeListener.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/grpc/absl:translate",
+        "//hardware/generic/goldfish/emulator/grpc/async",
+        "//hardware/generic/goldfish/emulator/grpc/event-stream",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/input",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/keyboard",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/hal/clipboard:headers",
+        "//hardware/generic/goldfish/emulator/hal/display",
+        "//hardware/generic/goldfish/emulator/hal/gps",
+        "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
+        "//hardware/generic/goldfish/emulator/hal/sensors:headers",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:headers",
+        "@aemu//base:aemu-base",
+        "@glib//:glib-static",
+    ],
+)
+
+cc_test(
+    name = "emulator-service_unittests",
+    srcs = [
+        "src/android/emulation/control/DisplayService.h",
+        "src/android/emulation/control/VmService.h",
+        "test/DisplayServiceTest.cpp",
+        "test/GrpcServiceTest.h",
+        "test/QemuStubs.c",
+        "test/VmServiceTest.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":emulator-service",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/config:avd-test",
+        "//hardware/generic/goldfish/emulator/devices:test-socket",
+        "//hardware/generic/goldfish/emulator/hal/display:test-display",
+        "//hardware/generic/goldfish/emulator/hal/sensors",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",
+        "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface-test",
+    ],
+)

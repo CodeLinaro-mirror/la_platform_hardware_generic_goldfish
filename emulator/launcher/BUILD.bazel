@@ -173,7 +173,7 @@ cc_binary(
         "//external/qemu:qemu-system-aarch64",
         "//external/qemu:qemu-system-riscv64",
         "//external/qemu:qemu-system-x86_64",
-        "//hardware/generic/goldfish/emulator/android-grpc/security:unsecure-emulator-access",
+        "//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access",
     ],
     includes = [
         ".",

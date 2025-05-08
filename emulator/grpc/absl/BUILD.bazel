@@ -1,0 +1,29 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+
+cc_library(
+    name = "translate",
+    srcs = [
+        "src/AbslStatusTranslate.cpp",
+    ],
+    hdrs = [
+        "include/android/grpc/utils/AbslStatusTranslate.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "translate_test",
+    srcs = ["test/AbslStatusTranslateTest.cpp"],
+    deps = [
+        ":translate",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

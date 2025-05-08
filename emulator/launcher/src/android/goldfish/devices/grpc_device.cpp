@@ -43,7 +43,7 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const Emulator& emulator)
     if (Bazel::inBazel()) {
         // Development environment, allow access to the emulator.
         allowlist = fs::path(Bazel::runfilesPath(
-                "_main/hardware/generic/goldfish/emulator/android-grpc/security/test/"
+                "_main/hardware/generic/goldfish/emulator/grpc/security/test/"
                 "android/emulation/control/secure/test_allow_list.json"));
         assert(fs::exists(allowlist));
         LOG(WARNING) << "** Using development allow list, do not use in production **";
