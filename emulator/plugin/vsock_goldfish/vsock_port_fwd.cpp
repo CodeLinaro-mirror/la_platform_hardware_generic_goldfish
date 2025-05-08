@@ -64,17 +64,17 @@ namespace {
 class HostToGuestConnection : public IPlug {
   public:
     HostToGuestConnection(int fd, int guestPort)
-        : mLooper(android::goldfish::qemuLooper()),
-          mAsyncSocket(mLooper, android::base::ScopedSocket(fd)),
-          mGuestPort(guestPort),
-          mHostSocket(
-                  &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
-                  [this]() { closeHost(); }) {
-        mLooper->registerQemuThread();
+            : mLooper(*android::goldfish::qemuLooper())
+            , mAsyncSocket(&mLooper, android::base::ScopedSocket(fd))
+            , mHostSocket(
+                      &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
+                      [this]() { closeHost(); })
+            , mGuestPort(guestPort) {
+        mLooper.registerQemuThread();
     }
 
     ~HostToGuestConnection() {
-        mLooper->registerQemuThread();
+        mLooper.registerQemuThread();
         closeHost();
         VLOG(VLOG_DBG) << "Connection to " << mGuestPort << " is finalized.";
     }
@@ -102,7 +102,7 @@ class HostToGuestConnection : public IPlug {
 
         // Make sure we clean up any outstanding events.
         if (!mDisposing) {
-            mLooper->registerQemuThread();
+            mLooper.registerQemuThread();
             mHostSocket.dispose();
             mDisposing = true;
             VLOG(VLOG_DBG) << "The host is closing the connection, unplugging.";
@@ -140,7 +140,7 @@ class HostToGuestConnection : public IPlug {
         static int total = 0;
         VLOG(VLOG_TRACE) << "Forwarding from guest (" << mGuestPort << "): " << size
                          << ", total: " << (total += size);
-        mLooper->registerQemuThread();
+        mLooper.registerQemuThread();
         return mHostSocket.send((char*)data, size) == size;
     }
 
@@ -149,24 +149,23 @@ class HostToGuestConnection : public IPlug {
         VLOG(VLOG_DBG) << "The guest has unplugged, closing socket.";
         if (!mDisposing) {
             mDisposing = true;
-            mLooper->registerQemuThread();
+            mLooper.registerQemuThread();
             mHostSocket.dispose();
         }
         return std::move(mGuestSocket);
     }
 
   private:
-    bool mDisposing{false};
-    int mGuestPort;
-    std::recursive_mutex mClosing;
-    android::goldfish::QemuLooper* mLooper;
-    SocketPtr mGuestSocket;
+    android::goldfish::QemuLooper& mLooper;
     AsyncSocket mAsyncSocket;
     SimpleAsyncSocket mHostSocket;
-
-    bool mConnected{false};
-    std::mutex mConnectedMutex;
+    SocketPtr mGuestSocket;
     std::string mPreConnectedBuffer;
+    std::mutex mConnectedMutex;
+    std::recursive_mutex mClosing;
+    const int mGuestPort;
+    bool mDisposing{false};
+    bool mConnected{false};
 };
 
 /**
