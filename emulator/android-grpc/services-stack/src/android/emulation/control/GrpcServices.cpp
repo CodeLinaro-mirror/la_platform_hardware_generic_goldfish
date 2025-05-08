@@ -97,7 +97,6 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     std::vector<std::shared_ptr<Service>> mRegisteredServices;
     remote::Endpoint mEndpoint;
     int mPort;
-    std::string mCert;
 };
 
 // Returns the whole file contents, or empty if the file could not be read
