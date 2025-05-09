@@ -93,7 +93,6 @@ bool initialize(GrpcDeviceConfiguration* device) {
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)
-                           .withVerboseLogging(true)
                            .withAllowList(device->allowlist)
                            .withPortRange(device->port, device->port + 1)
                            .withIdleTimeout(std::chrono::seconds(device->idle_timeout))
