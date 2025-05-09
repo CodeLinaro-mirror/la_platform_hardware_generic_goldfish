@@ -22,7 +22,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@gfxstream//third-party/glm",
+        "@gfxstream//third_party/glm",
     ],
 )
 
@@ -52,7 +52,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@gfxstream//third-party/glm",
+        "@gfxstream//third_party/glm",
     ],
     alwayslink = True,
 )
