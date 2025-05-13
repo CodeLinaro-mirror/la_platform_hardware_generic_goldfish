@@ -14,7 +14,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/grpc/interceptors",
         "//hardware/generic/goldfish/emulator/grpc/security",
         "//hardware/generic/goldfish/emulator/grpc/services/adb/server:adb-service",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/server:emulator-service",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service",
         "@aemu//base:aemu-base",
     ],
 )

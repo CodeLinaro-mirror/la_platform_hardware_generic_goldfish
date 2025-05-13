@@ -33,7 +33,7 @@ cc_test(
         }),
     deps = [
         ":interceptors",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/proto:emulator_controller_cc_proto",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_proto",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],

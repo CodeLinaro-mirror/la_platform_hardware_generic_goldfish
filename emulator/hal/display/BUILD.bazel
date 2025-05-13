@@ -11,7 +11,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/grpc/event-stream",
-        # "//hardware/generic/goldfish/emulator/grpc/services/emulator-controller/proto:emulator_controller_cc_grpc",
+        # "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
     ],
