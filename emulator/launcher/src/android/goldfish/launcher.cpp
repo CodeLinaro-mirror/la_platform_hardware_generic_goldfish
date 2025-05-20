@@ -43,10 +43,10 @@ using android::goldfish::Emulator;
  * @param opts The AndroidOptions struct containing the command-line options.
  */
 static void configureLogging(const AndroidOptions& opts) {
-    absl::LogSeverityAtLeast logLevel =
+    absl::LogSeverityAtLeast launcherLogLevel =
             opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(logLevel);
+    absl::SetMinLogLevel(launcherLogLevel);
 
     if (!opts.vmodule) {
         return;
