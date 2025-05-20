@@ -392,6 +392,8 @@ OPT_PARAM(android_serialno, "<android serialno>",
           "“^[a-zA-Z0-9._-,]+$”.")
 OPT_PARAM(vmodule, "<vmodules>", "per-module log verbosity level.")
 
+OPT_PARAM(qemu_telnet, "<qemu telnet>", "enable qemu telnet monitor")
+
 #undef CFG_FLAG
 #undef CFG_PARAM
 #undef OPT_FLAG

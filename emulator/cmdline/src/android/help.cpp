@@ -1842,6 +1842,8 @@ static void help_vmodule(stralloc_t* out) {
 #define help_no_nested_warnings NULL
 #define help_dump_audio NULL
 
+#define help_qemu_telnet NULL
+
 typedef struct {
     const char* name;
     const char* tmplate;

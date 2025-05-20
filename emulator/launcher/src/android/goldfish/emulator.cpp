@@ -97,6 +97,13 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
             "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
                                        vmodules, pluginLogLevel)});
 
+    if (mOpts.qemu_telnet) {
+      // Debug monitor
+      addDevice<ParameterList>(std::initializer_list < std::string > {
+          "-monitor", "telnet::15454,server,nowait",
+      });
+    }
+
     int adbPort = 5555;
     if (mOpts.port) {
         if (!absl::SimpleAtoi(mOpts.port, &adbPort)) {
@@ -109,8 +116,6 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-nodefaults", "-no-reboot",
-            // Debug monitor
-            "-monitor", "telnet::15454,server,nowait",
             // our virtio-vsock
             "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
             // Setup adb
