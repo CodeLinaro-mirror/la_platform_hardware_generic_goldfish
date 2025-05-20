@@ -64,10 +64,10 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     // -device A -device B ...
     const HardwareConfig& hw = mAvd->hw();
 
-    absl::LogSeverityAtLeast logLevel =
-            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+    absl::LogSeverityAtLeast pluginLogLevel =
+            mOpts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
 
-    std::string vmodules = opts.vmodule ? opts.vmodule : "";
+    std::string vmodules = mOpts.vmodule ? mOpts.vmodule : "";
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
@@ -95,12 +95,12 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     auto ini_path = System::pathAsString(mAvd->getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{
             "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
-                                       vmodules, logLevel)});
+                                       vmodules, pluginLogLevel)});
 
     int adbPort = 5555;
-    if (opts.port) {
-        if (!absl::SimpleAtoi(opts.port, &adbPort)) {
-            ABSL_LOG(WARNING) << "Failed to parse port number: '" << opts.port
+    if (mOpts.port) {
+        if (!absl::SimpleAtoi(mOpts.port, &adbPort)) {
+            ABSL_LOG(WARNING) << "Failed to parse port number: '" << mOpts.port
                               << "'. Using default port: 5555";
             adbPort = 5555;
         }
@@ -148,16 +148,16 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
                       "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
 #endif
 
-    if (opts.logcat_output) {
+    if (mOpts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         addDevice<ParameterList>(std::initializer_list<std::string>{
                 "-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
                 // Actual logcat location.
                 "-device", "virtconsole,chardev=forhvc1", "-chardev",
-                absl::StrCat("file,id=forhvc1,path=", opts.logcat_output)});
+                absl::StrCat("file,id=forhvc1,path=", mOpts.logcat_output)});
     }
 
-    if (opts.show_kernel) {
+    if (mOpts.show_kernel) {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
     }
     if (Bazel::inBazel()) {
