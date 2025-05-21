@@ -43,7 +43,7 @@ rust_library(
     ],
     deps = [
         "@cfg-if",
-        "@gfxstream//host:gfxstream_backend_shared",
+        "@gfxstream//host:gfxstream_backend",
         "@libc",
         "@log",
         "@serde",
