@@ -18,11 +18,11 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
         "//hardware/generic/goldfish/emulator/hal/display:headers",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",

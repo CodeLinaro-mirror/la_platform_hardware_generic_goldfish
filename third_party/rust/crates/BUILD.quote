@@ -39,7 +39,7 @@ rust_library(
     edition = "2018",
     deps = [
         # This should map to repo checked out from Android third party project
-        # "platform/external/rust/crates/proc-macro2".
+        # "platform/third_party/rust/crates/proc-macro2".
         "@proc-macro2",
     ],
 )

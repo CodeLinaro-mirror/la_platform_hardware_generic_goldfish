@@ -35,12 +35,12 @@ rust_proc_macro(
     edition = "2021",
     deps = [
         # This should map to repo checked out from Android third party project
-        # "platform/external/rust/crates/proc-macro2". Similar for the rest of the dependencies
+        # "platform/third_party/rust/crates/proc-macro2". Similar for the rest of the dependencies
         # below.
         "@proc-macro2",
-        # Map to project repo "platform/external/rust/crates/quote".
+        # Map to project repo "platform/third_party/rust/crates/quote".
         "@quote",
-        # Map to project repo "platform/external/rust/crates/syn".
+        # Map to project repo "platform/third_party/rust/crates/syn".
         "@syn",
     ],
 )

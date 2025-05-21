@@ -31,8 +31,8 @@ cc_library(
     ],
     deps = [
         ":headers",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/grpc/event-stream",
         "//hardware/generic/goldfish/emulator/grpc/services-stack",
@@ -57,7 +57,7 @@ cc_binary(
     deps = [":grpc_device_impl"] +
            select({
                "@platforms//os:windows": [
-                   "//external/qemu:qemu-system-x86_64.if",
+                   "//third_party/qemu:qemu-system-x86_64.if",
                ],
                "//conditions:default": [],
            }),

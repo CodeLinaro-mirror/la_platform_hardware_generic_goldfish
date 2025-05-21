@@ -1,3 +1,6 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 cc_library(
     name = "goldfish_vsock_hdrs",
     hdrs = [
@@ -30,8 +33,6 @@ cc_library(
     ],
     deps = [
         ":goldfish_vsock_hdrs",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/sockets",
@@ -41,6 +42,8 @@ cc_library(
         "//hardware/generic/goldfish/emulator/libs/debug",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//hardware/generic/goldfish/emulator/plugin/avd:qemu-looper",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
     ],
     alwayslink = True,
 ) for arch in [
@@ -58,7 +61,7 @@ cc_library(
     deps = [":virtio-vsock-goldfish-impl-" + arch] +
            select({
                "@platforms//os:windows": [
-                   "//external/qemu:qemu-system-" + arch + ".if",
+                   "//third_party/qemu:qemu-system-" + arch + ".if",
                ],
                "//conditions:default": [],
            }),

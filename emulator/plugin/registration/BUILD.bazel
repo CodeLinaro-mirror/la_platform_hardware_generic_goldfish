@@ -1,3 +1,5 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 # Create implementations for each target.
 [cc_library(
     name = arch,
@@ -14,8 +16,8 @@
         "//visibility:public",
     ],
     deps = [
-        "//external/qemu:libhwcore",
-        "//external/qemu:qemu-headers",
+        "//third_party/qemu:libhwcore",
+        "//third_party/qemu:qemu-headers",
     ],
 ) for arch in [
     "riscv64",

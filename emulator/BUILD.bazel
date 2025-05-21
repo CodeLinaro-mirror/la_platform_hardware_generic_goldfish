@@ -82,22 +82,22 @@ crashreporting_binaries = [
 ]
 
 qemu_binaries = [
-    "//external/qemu:qemu-img",
-    "//external/qemu:qemu-system-x86_64",
+    "//third_party/qemu:qemu-img",
+    "//third_party/qemu:qemu-system-x86_64",
     "//hardware/generic/goldfish/third_party/sparse:img2simg",
 ] + select({
     "@platforms//os:windows": [],
     "//conditions:default": [
-        "//external/qemu:qemu-system-aarch64",
-        "//external/qemu:qemu-system-riscv64",
+        "//third_party/qemu:qemu-system-aarch64",
+        "//third_party/qemu:qemu-system-riscv64",
     ],
 })
 
 plugin_binaries = [
-    "//external/qemu:hw-display-virtio-gpu",
-    "//external/qemu:hw-display-virtio-gpu-pci",
-    "//external/qemu:hw-display-virtio-vga",
-    "//external/qemu:hw-display-virtio-vga-gl",
+    "//third_party/qemu:hw-display-virtio-gpu",
+    "//third_party/qemu:hw-display-virtio-gpu-pci",
+    "//third_party/qemu:hw-display-virtio-vga",
+    "//third_party/qemu:hw-display-virtio-vga-gl",
     "//hardware/generic/goldfish/emulator/plugin/avd",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-riscv64",
@@ -106,16 +106,16 @@ plugin_binaries = [
     "@platforms//os:windows": [],
     "@platforms//os:macos": [
         "@crosvm//:rutabaga_ffi",
-        "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
-        "//external/qemu:hw-display-virtio-gpu-rutabaga",
+        "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
+        "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],
     "@platforms//os:linux": [
         "@crosvm//:rutabaga_ffi",
-        "//external/qemu:accel-tcg-x86_64",
-        "//external/qemu:audio-pa",
-        "//external/qemu:hw-display-virtio-gpu-pci-rutabaga",
-        "//external/qemu:hw-display-virtio-gpu-rutabaga",
+        "//third_party/qemu:accel-tcg-x86_64",
+        "//third_party/qemu:audio-pa",
+        "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
+        "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],
     "//conditions:default": [],
@@ -153,12 +153,12 @@ pkg_files(
     prefix = "bin",
     renames = select({
         "@platforms//os:windows": {
-            "//external/qemu:qemu-system-x86_64_std": "qemu-system-x86_64.exe",
+            "//third_party/qemu:qemu-system-x86_64_std": "qemu-system-x86_64.exe",
         },
         "//conditions:default": {
-            "//external/qemu:qemu-system-x86_64": "qemu-system-x86_64",
-            "//external/qemu:qemu-system-aarch64": "qemu-system-aarch64",
-            "//external/qemu:qemu-system-riscv64": "qemu-system-riscv64",
+            "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64",
+            "//third_party/qemu:qemu-system-aarch64": "qemu-system-aarch64",
+            "//third_party/qemu:qemu-system-riscv64": "qemu-system-riscv64",
         },
     }),
 )
@@ -187,9 +187,9 @@ pkg_zip(
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-binaries_stripped",
-        "//external/qemu:qemu-keymaps",
-        "//external/qemu:qemu-roms",
         "//hardware/generic/goldfish/emulator/grpc/security:emulator-access",
+        "//third_party/qemu:qemu-keymaps",
+        "//third_party/qemu:qemu-roms",
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables =

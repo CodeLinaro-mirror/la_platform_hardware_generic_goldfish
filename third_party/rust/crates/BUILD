@@ -1,6 +1,6 @@
 # This directory contains a set of bazel build files
 # that enable the compilation of packages that are found
-# in /external/rust/crates/...
+# in /third_party/rust/crates/...
 #
 # Here is the rationale behind the bazel build files living here:
 #

@@ -31,7 +31,7 @@
 			"**/.DS_Store": true, // this is a default value
 			"**/.git": true, // this is a default value
 			"**/bazel-*": true,
-			"external/qemu/build": true,
+			"third_party/qemu/build": true,
 			"prebuilts": true,
 			"tools": true
 		},

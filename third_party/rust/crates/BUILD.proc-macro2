@@ -44,7 +44,7 @@ rust_library(
     deps = [
         ":proc-macro2_build_script",
         # This should map to repo checked out from Android third party project
-        # "platform/external/rust/crates/unicode-ident".
+        # "platform/third_party/rust/crates/unicode-ident".
         "@unicode-ident",
     ],
 )

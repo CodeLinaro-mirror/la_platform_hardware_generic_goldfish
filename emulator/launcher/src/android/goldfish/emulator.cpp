@@ -167,7 +167,7 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     }
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.
-        fs::path bios_path = fs::path(Bazel::runfilesPath("_main/external/qemu/pc-bios"));
+        fs::path bios_path = fs::path(Bazel::runfilesPath("_main/third_party/qemu/pc-bios"));
         assert(fs::exists(bios_path));
         addDevice<ParameterList>(
                 std::initializer_list<std::string>{"-L", System::pathAsString(bios_path)});

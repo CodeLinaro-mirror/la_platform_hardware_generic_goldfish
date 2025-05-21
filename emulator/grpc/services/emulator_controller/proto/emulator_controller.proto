@@ -324,7 +324,7 @@ message PhysicalModelValue {
     // Details on the sensors documentation can be found here:
     // https://developer.android.com/reference/android/hardware/Sensor.html#TYPE_
     // The types must follow the order defined in
-    // "external/qemu/android/hw-sensors.h"
+    // "third_party/qemu/android/hw-sensors.h"
     enum PhysicalType {
         POSITION = 0;
 
@@ -1363,7 +1363,7 @@ message Velocity {
     float z = 3;  // z axis is the view direction
 }
 
-// Must follow the definition in "external/qemu/android/hw-sensors.h"
+// Must follow the definition in "third_party/qemu/android/hw-sensors.h"
 message Posture {
     enum PostureValue {
         POSTURE_UNKNOWN = 0;

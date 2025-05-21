@@ -53,7 +53,7 @@ cc_library(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/third_party/sparse",
     ] + select({
-        "@platforms//os:windows": ["//external/qemu/google/compat/windows:compat"],
+        "@platforms//os:windows": ["//third_party/qemu/google/compat/windows:compat"],
         "//conditions:default": ["//hardware/generic/goldfish/third_party/libselinux:selinux"],
     }),
 )

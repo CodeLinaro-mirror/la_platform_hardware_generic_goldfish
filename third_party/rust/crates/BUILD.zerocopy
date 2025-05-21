@@ -44,11 +44,11 @@ rust_library(
     edition = "2021",
     proc_macro_deps = [
         # This should map to repo checked out from Android third party project
-        # "platform/external/rust/crates/zerocopy-derive".
+        # "platform/third_party/rust/crates/zerocopy-derive".
         "@zerocopy-derive",
     ],
     deps = [
-        # Map to project repo "platform/external/rust/crates/byteorder".
+        # Map to project repo "platform/third_party/rust/crates/byteorder".
         "@byteorder",
     ],
 )

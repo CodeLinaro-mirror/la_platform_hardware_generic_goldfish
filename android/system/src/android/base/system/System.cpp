@@ -1790,7 +1790,7 @@ fs::path System::findBundledExecutable(std::string_view programName) {
 
     VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << workspace;
     fs::path root = workspace;
-    std::vector<fs::path> bazel_search{"bazel-bin/external/qemu",
+    std::vector<fs::path> bazel_search{"bazel-bin/third_party/qemu",
                                        "bazel-bin/hardware/generic/goldfish/third_party/sparse"};
 
     for (const auto& option : bazel_search) {

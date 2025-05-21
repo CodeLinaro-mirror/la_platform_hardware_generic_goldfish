@@ -42,31 +42,31 @@
                 // not be found.
                 [
                     "../com_google_absl",
-                    "${workspaceFolder}/external/abseil-cpp"
+                    "${workspaceFolder}/third_party/abseil-cpp"
                 ],
                 [
                     "../com_google_googletest",
-                    "${workspaceFolder}/external/googletest"
+                    "${workspaceFolder}/third_party/googletest"
                 ],
                 [
                     "../tink_cc",
-                    "${workspaceFolder}/external/tink"
+                    "${workspaceFolder}/third_party/tink"
                 ],
                 [
                     "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
+                    "${workspaceFolder}/third_party/protobuf"
                 ],
                 [
                     "../boringssl",
-                    "${workspaceFolder}/external/boringssl/src"
+                    "${workspaceFolder}/third_party/boringssl/src"
                 ],
                 [
                     "../zlib",
-                    "${workspaceFolder}/external/zlib"
+                    "${workspaceFolder}/third_party/zlib"
                 ],
                 [
                     "../glib",
-                    "${workspaceFolder}/external/glib"
+                    "${workspaceFolder}/third_party/glib"
                 ],
             ],
             "preLaunchTask": "aemu: Build debug emulator",
@@ -118,31 +118,31 @@
                 // not be found.
                 [
                     "../com_google_absl",
-                    "${workspaceFolder}/external/abseil-cpp"
+                    "${workspaceFolder}/third_party/abseil-cpp"
                 ],
                 [
                     "../com_google_googletest",
-                    "${workspaceFolder}/external/googletest"
+                    "${workspaceFolder}/third_party/googletest"
                 ],
                 [
                     "../tink_cc",
-                    "${workspaceFolder}/external/tink"
+                    "${workspaceFolder}/third_party/tink"
                 ],
                 [
                     "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
+                    "${workspaceFolder}/third_party/protobuf"
                 ],
                 [
                     "../boringssl",
-                    "${workspaceFolder}/external/boringssl/src"
+                    "${workspaceFolder}/third_party/boringssl/src"
                 ],
                 [
                     "../zlib",
-                    "${workspaceFolder}/external/zlib"
+                    "${workspaceFolder}/third_party/zlib"
                 ],
                 [
                     "../glib",
-                    "${workspaceFolder}/external/glib"
+                    "${workspaceFolder}/third_party/glib"
                 ],
             ],
             "preLaunchTask": "aemu: Build emulator with asan",
@@ -193,31 +193,31 @@
                 // not be found.
                 [
                     "../com_google_absl",
-                    "${workspaceFolder}/external/abseil-cpp"
+                    "${workspaceFolder}/third_party/abseil-cpp"
                 ],
                 [
                     "../com_google_googletest",
-                    "${workspaceFolder}/external/googletest"
+                    "${workspaceFolder}/third_party/googletest"
                 ],
                 [
                     "../tink_cc",
-                    "${workspaceFolder}/external/tink"
+                    "${workspaceFolder}/third_party/tink"
                 ],
                 [
                     "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
+                    "${workspaceFolder}/third_party/protobuf"
                 ],
                 [
                     "../boringssl",
-                    "${workspaceFolder}/external/boringssl/src"
+                    "${workspaceFolder}/third_party/boringssl/src"
                 ],
                 [
                     "../zlib",
-                    "${workspaceFolder}/external/zlib"
+                    "${workspaceFolder}/third_party/zlib"
                 ],
                 [
                     "../glib",
-                    "${workspaceFolder}/external/glib"
+                    "${workspaceFolder}/third_party/glib"
                 ],
             ],
             "preLaunchTask": "aemu: Build emulator test suite",
@@ -244,31 +244,31 @@
                 // not be found.
                 [
                     "../com_google_absl",
-                    "${workspaceFolder}/external/abseil-cpp"
+                    "${workspaceFolder}/third_party/abseil-cpp"
                 ],
                 [
                     "../com_google_googletest",
-                    "${workspaceFolder}/external/googletest"
+                    "${workspaceFolder}/third_party/googletest"
                 ],
                 [
                     "../tink_cc",
-                    "${workspaceFolder}/external/tink"
+                    "${workspaceFolder}/third_party/tink"
                 ],
                 [
                     "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
+                    "${workspaceFolder}/third_party/protobuf"
                 ],
                 [
                     "../boringssl",
-                    "${workspaceFolder}/external/boringssl/src"
+                    "${workspaceFolder}/third_party/boringssl/src"
                 ],
                 [
                     "../zlib",
-                    "${workspaceFolder}/external/zlib"
+                    "${workspaceFolder}/third_party/zlib"
                 ],
                 [
                     "../glib",
-                    "${workspaceFolder}/external/glib"
+                    "${workspaceFolder}/third_party/glib"
                 ],
             ],
             "initCommands": [
@@ -296,31 +296,31 @@
                 // not be found.
                 [
                     "../com_google_absl",
-                    "${workspaceFolder}/external/abseil-cpp"
+                    "${workspaceFolder}/third_party/abseil-cpp"
                 ],
                 [
                     "../com_google_googletest",
-                    "${workspaceFolder}/external/googletest"
+                    "${workspaceFolder}/third_party/googletest"
                 ],
                 [
                     "../tink_cc",
-                    "${workspaceFolder}/external/tink"
+                    "${workspaceFolder}/third_party/tink"
                 ],
                 [
                     "../com_google_protobuf",
-                    "${workspaceFolder}/external/protobuf"
+                    "${workspaceFolder}/third_party/protobuf"
                 ],
                 [
                     "../boringssl",
-                    "${workspaceFolder}/external/boringssl/src"
+                    "${workspaceFolder}/third_party/boringssl/src"
                 ],
                 [
                     "../zlib",
-                    "${workspaceFolder}/external/zlib"
+                    "${workspaceFolder}/third_party/zlib"
                 ],
                 [
                     "../glib",
-                    "${workspaceFolder}/external/glib"
+                    "${workspaceFolder}/third_party/glib"
                 ],
             ],
             "initCommands": [

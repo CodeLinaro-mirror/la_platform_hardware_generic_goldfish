@@ -8,9 +8,9 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@pixman//:pixman-1",
     ],
     alwayslink = True,

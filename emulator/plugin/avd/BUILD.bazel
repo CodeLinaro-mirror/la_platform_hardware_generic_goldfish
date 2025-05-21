@@ -29,14 +29,14 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/threads",
         "//hardware/generic/goldfish/emulator/adb/logger",
         "//hardware/generic/goldfish/emulator/config",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:globals",
@@ -60,8 +60,6 @@ cc_library(
     deps = [
         ":avd_hdrs",
         ":qemu-looper",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/sockets",
@@ -78,6 +76,8 @@ cc_library(
         "//hardware/generic/goldfish/emulator/plugin/battery",
         "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:globals",
@@ -96,8 +96,8 @@ cc_binary(
     deps = [":avd_impl"] +
            select({
                "@platforms//os:windows": [
-                   "//external/qemu:qemu-system-x86_64.if",
                    "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-impl-x86_64",
+                   "//third_party/qemu:qemu-system-x86_64.if",
                ],
                "//conditions:default": [],
            }),

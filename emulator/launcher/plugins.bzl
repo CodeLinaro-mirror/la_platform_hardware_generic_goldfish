@@ -13,12 +13,12 @@ def _collect_plugins_impl(ctx):
     For example:
 
     The plugins:
-        "//external/qemu:hw-display-virtio-vga",
+        "//third_party/qemu:hw-display-virtio-vga",
         "//hardware/generic/goldfish/emulator/plugin/sample",
 
     And output directory "plugins" will create the links:
 
-    plugins/hw-display-virtio-vga-> //external/qemu:hw-display-virtio-vga
+    plugins/hw-display-virtio-vga-> //third_party/qemu:hw-display-virtio-vga
     plugins/sample -> //hardware/generic/goldfish/emulator/plugin/sample
 
     Args:
@@ -67,12 +67,12 @@ collect_plugins = rule(
     For example:
 
     The plugins:
-        "//external/qemu:hw-display-virtio-vga",
+        "//third_party/qemu:hw-display-virtio-vga",
         "//hardware/generic/goldfish/emulator/plugin/sample",
 
     And output directory "plugins" will create the links:
 
-    plugins/hw-display-virtio-vga-> //external/qemu:hw-display-virtio-vga
+    plugins/hw-display-virtio-vga-> //third_party/qemu:hw-display-virtio-vga
     plugins/sample -> //hardware/generic/goldfish/emulator/plugin/sample
     """,
 )

@@ -23,8 +23,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
@@ -41,8 +41,8 @@ cc_library(
     deps = [
         ":headers",
         ":vm",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
     ],
 )
 
@@ -64,8 +64,8 @@ cc_library(
     ],
     deps = [
         ":headers",
-        "//external/qemu:libmodule-common",
-        "//external/qemu:qemu-headers",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
     ],
@@ -85,7 +85,7 @@ cc_library(
     deps = [":vm-goldfish-cpu-info-" + arch] +
            select({
                "@platforms//os:windows": [
-                   "//external/qemu:qemu-system-" + arch + ".if",
+                   "//third_party/qemu:qemu-system-" + arch + ".if",
                ],
                "//conditions:default": [],
            }),
