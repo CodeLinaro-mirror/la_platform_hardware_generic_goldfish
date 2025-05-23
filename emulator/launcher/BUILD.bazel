@@ -123,6 +123,8 @@ collect_plugins(
     ] + select({
         "@platforms//os:windows": [
             "//external/qemu:accel-tcg-x86_64",
+            # Rutabaga currently doesn't build on Windows but let's make sure gfxstream keeps building.
+            "@gfxstream//host:gfxstream_backend_shared",
         ],
         "darwin_aarch64": [
             "@crosvm//:rutabaga_ffi",
