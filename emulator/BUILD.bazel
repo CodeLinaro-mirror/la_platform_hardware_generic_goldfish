@@ -96,26 +96,26 @@ qemu_binaries = [
 plugin_binaries = [
     "//third_party/qemu:hw-display-virtio-gpu",
     "//third_party/qemu:hw-display-virtio-gpu-pci",
+    "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
+    "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
     "//third_party/qemu:hw-display-virtio-vga",
     "//third_party/qemu:hw-display-virtio-vga-gl",
     "//hardware/generic/goldfish/emulator/plugin/avd",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-riscv64",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-x86_64",
+    "@crosvm//:rutabaga_ffi",
 ] + select({
-    "@platforms//os:windows": [],
+    "@platforms//os:windows": [
+        # TODO(b/410075886): Enable grpc plugin on windows.
+        # "//hardware/generic/goldfish/emulator/plugin/grpc",
+    ],
     "@platforms//os:macos": [
-        "@crosvm//:rutabaga_ffi",
-        "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
-        "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],
     "@platforms//os:linux": [
-        "@crosvm//:rutabaga_ffi",
         "//third_party/qemu:accel-tcg-x86_64",
         "//third_party/qemu:audio-pa",
-        "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
-        "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],
     "//conditions:default": [],

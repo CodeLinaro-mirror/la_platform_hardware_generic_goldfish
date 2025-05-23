@@ -40,6 +40,15 @@ def _breakpad_symbols_impl(ctx):
         elif DebugPackageInfo in binary_target and binary_target[DebugPackageInfo].dwp_file:
             split_symbol_files.append(binary_target[DebugPackageInfo].dwp_file)
             binary_files = [binary_target[DebugPackageInfo].unstripped_file]
+        elif ctx.target_platform_has_constraint(
+            ctx.attr._target_windows[platform_common.ConstraintValueInfo],
+        ):
+            # On Windows with --config=release, for Rutabaga, this produces .../rutabaga_ffi.dll and
+            # .../rutabaga_ffi.dll.lib. We can't get symbols from .lib so we just take the first element.
+            #binary_files = [binary_target.files.to_list()[0]]  # type: list[File]
+            # Skipping Rust binaries for now as there seem to be other issues on buildbots.
+            # TODO(b/421925658): Re-enable this.
+            binary_files = []
         else:
             binary_files = binary_target.files.to_list()  # type: list[File]
         for binary in binary_files:
