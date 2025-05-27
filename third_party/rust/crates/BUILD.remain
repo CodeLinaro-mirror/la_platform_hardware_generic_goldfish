@@ -1,8 +1,6 @@
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
-# Using wrapped version of rust_proc_macro is required when running x64 rustc on mac-arm64 thru Rosetta
-# Otherwise, replace with "load("@rules_rust//rust:defs.bzl", "rust_proc_macro")"
-load("@//build/bazel/rules:rust_proc_macro.bzl", "rust_proc_macro")
+load("@rules_rust//rust:defs.bzl", "rust_proc_macro")
 
 package(
     default_applicable_licenses = [":license"],
