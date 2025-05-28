@@ -681,7 +681,7 @@ struct GoldfishVirtioVsockDevice {
             mOrphanPackets.push_back(packet);
         }
 
-        bool need_notify = false;
+        bool needNotify = false;
         mStreams.clear();
         for (size_t n = getUnsigned(reader); n > 0; --n) {
             const uint32_t guestPort = getUnsigned(reader);
@@ -719,11 +719,14 @@ struct GoldfishVirtioVsockDevice {
                 // a snapshot, send RST to the guest
                 queueOrphanPacketLocked(preparePacketHeaderLocked(
                         hostPort, guestPort, VIRTIO_VSOCK_OP_RST, hostFwdCnt, 0));
-                need_notify = true;
+                needNotify = true;
             }
         }
 
-        sendPacketsAndNotifyLocked();
+        if (needNotify) {
+            sendPacketsAndNotifyLocked();
+        }
+
         return 0;
     }
 
