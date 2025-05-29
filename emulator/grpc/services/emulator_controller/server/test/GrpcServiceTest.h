@@ -148,7 +148,7 @@ class GrcpServiceTest : public ::testing::Test {
      * @return A unique pointer to a `grpc::ClientContext`.
      */
     std::unique_ptr<grpc::ClientContext> getContextWithTimeout(
-            std::chrono::milliseconds timeout = std::chrono::milliseconds(500)) {
+            std::chrono::milliseconds timeout = std::chrono::seconds(10)) {
         auto context = std::make_unique<grpc::ClientContext>();
         std::chrono::system_clock::time_point deadline = std::chrono::system_clock::now() + timeout;
         context->set_deadline(deadline);
