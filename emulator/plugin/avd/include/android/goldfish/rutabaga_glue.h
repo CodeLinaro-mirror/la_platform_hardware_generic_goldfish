@@ -15,15 +15,12 @@
 
 #pragma once
 
-#include <string>
+#include <stdint.h>
 
-#include "android/camera/GrallocDetails.h"
-#include "android/goldfish/config/avd.h"
-#include "goldfish/devices/connector_registry.h"
+struct rutabaga;
 
-namespace goldfish::devices::camera {
+struct rutabaga* rutabagaGetInstance();
 
-void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GrallocDetailsPtr grallocDetails);
-
-}  // namespace goldfish::devices::camera
+int32_t rutabagaImageTransfer(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
+                              uint32_t height, uint32_t stride, const void* framebuffer,
+                              uint32_t framebufferSize);

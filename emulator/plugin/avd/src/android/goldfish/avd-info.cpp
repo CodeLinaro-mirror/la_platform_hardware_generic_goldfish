@@ -29,6 +29,7 @@
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
+#include "android/goldfish/GrallocImpl.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/qemu-looper.h"
 #include "android/gps/GpsDevice.h"
@@ -48,8 +49,10 @@ extern "C" {
 // clang-format on
 
 using android::goldfish::Avd;
+using android::goldfish::avd_info::getGrallocImpl;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
+using goldfish::devices::camera::GrallocDetailsPtr;
 
 static std::unique_ptr<Avd> gAvd;
 
@@ -86,18 +89,6 @@ static void UpdateVModule(const std::string& vmodule) {
 
 static void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
-namespace {
-// TODO(b/420964652): move this elsewhere
-struct NoopGpuDetails : public goldfish::devices::camera::IGpuDetails {
-    uint32_t aFormatToFourCC(const uint32_t androidFormat) const override { return 42; }
-
-    int imageSink(const CameraImageProviderStreamConfig& cfg, std::string_view handleStr,
-                  const void* framebufferData, size_t framebufferDataSize) const override {
-        return 0;
-    }
-};
-}  // namespace
-
 static void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
@@ -123,6 +114,8 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
     auto avd = gAvd.get();
     auto registry = &android::goldfish::avd_info::deviceRegistry();
 
+    GrallocDetailsPtr gralloc = getGrallocImpl();
+
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd, looper);
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
@@ -132,7 +125,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
 
     std::string emulatedCameraProp;
     goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, *avd,
-                                              std::make_shared<NoopGpuDetails>());
+                                              std::move(gralloc));
 
     using namespace std::string_literals;
     goldfish::devices::boot::IBootPropertiesDevice::registerDevice(

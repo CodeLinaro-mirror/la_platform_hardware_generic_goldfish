@@ -1,6 +1,16 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "gralloc_details",
+    hdrs = [
+        "include/android/camera/GrallocDetails.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    alwayslink = True,
+)
+
+cc_library(
     name = "camera",
     srcs = [
         "CameraDevice.cpp",
@@ -24,7 +34,6 @@ cc_library(
         "include/android/camera/CameraImageProviderInfoCpp.h",
         "include/android/camera/CameraImageProviderRegistry.h",
         "include/android/camera/CameraProtocolBase.h",
-        "include/android/camera/GpuDetails.h",
         "include/android/camera/ImagefileImageProvider.h",
         "include/android/camera/QueryParser.h",
         "include/android/camera/VideofileImageProvider.h",
@@ -35,6 +44,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":gralloc_details",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",

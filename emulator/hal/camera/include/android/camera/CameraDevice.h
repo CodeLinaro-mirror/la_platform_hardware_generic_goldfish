@@ -16,13 +16,13 @@
 #pragma once
 
 #include "android/camera/CameraDeviceBase.h"
-#include "android/camera/GpuDetails.h"
+#include "android/camera/GrallocDetails.h"
 
 namespace goldfish::devices::camera {
 
 struct CameraDevice : public CameraDeviceBase {
     CameraDevice(SocketPtr socket, void* imageProvider, const CameraImageProviderVtbl* vtbl,
-                 GpuDetailsPtr gpuDetails);
+                 GrallocDetailsPtr grallocDetails);
 
   protected:
     using StreamCfgs = std::vector<CameraImageProviderStreamConfig>;

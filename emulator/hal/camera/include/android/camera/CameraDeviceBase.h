@@ -17,13 +17,13 @@
 
 #include "android/camera/CameraImageProvider.h"
 #include "android/camera/CameraProtocolBase.h"
-#include "android/camera/GpuDetails.h"
+#include "android/camera/GrallocDetails.h"
 
 namespace goldfish::devices::camera {
 
 struct CameraDeviceBase : public CameraProtocolBase {
     CameraDeviceBase(SocketPtr socket, void* imageProvider, const CameraImageProviderVtbl& vtbl,
-                     GpuDetailsPtr gpuDetails);
+                     GrallocDetailsPtr grallocDetails);
 
     ~CameraDeviceBase() override;
 
@@ -43,7 +43,7 @@ struct CameraDeviceBase : public CameraProtocolBase {
 
     void* const mImageProvider;
     const CameraImageProviderVtbl& mImageProviderVtbl;
-    const GpuDetailsPtr mGpuDetails;
+    const GrallocDetailsPtr mGrallocDetails;
 };
 
 }  // namespace goldfish::devices::camera

@@ -20,11 +20,12 @@
 namespace goldfish::devices::camera {
 
 CameraDeviceBase::CameraDeviceBase(SocketPtr socket, void* imageProvider,
-                                   const CameraImageProviderVtbl& vtbl, GpuDetailsPtr gpuDetails)
+                                   const CameraImageProviderVtbl& vtbl,
+                                   GrallocDetailsPtr grallocDetails)
         : CameraProtocolBase(std::move(socket))
         , mImageProvider(imageProvider)
         , mImageProviderVtbl(vtbl)
-        , mGpuDetails(std::move(gpuDetails)) {}
+        , mGrallocDetails(std::move(grallocDetails)) {}
 
 CameraDeviceBase::~CameraDeviceBase() {
     (mImageProviderVtbl.dctor)(mImageProvider);
@@ -60,13 +61,16 @@ void CameraDeviceBase::stopCapturingImpl() const {
 }
 
 uint32_t CameraDeviceBase::aFormatToFourCC(uint32_t androidFormat) const {
-    return mGpuDetails->aFormatToFourCC(androidFormat);
+    return mGrallocDetails->aFormatToFourCC(androidFormat);
 }
 
 int CameraDeviceBase::imageSink(const CameraImageProviderStreamCaptureInfo& sci,
                                 const void* framebufferPtr, const size_t framebufferSize) const {
-    return mGpuDetails->imageSink(*sci.cfg, *static_cast<const std::string_view*>(sci.bufOpaque),
-                                  framebufferPtr, framebufferSize);
+    const CameraImageProviderStreamConfig& cfg = *sci.cfg;
+
+    return mGrallocDetails->transfer(*static_cast<const std::string_view*>(sci.bufOpaque),
+                                     cfg.format, cfg.size.width, cfg.size.height, framebufferPtr,
+                                     framebufferSize);
 }
 
 int CameraDeviceBase::imageSinkStatic(void* that, const CameraImageProviderStreamCaptureInfo* sci,

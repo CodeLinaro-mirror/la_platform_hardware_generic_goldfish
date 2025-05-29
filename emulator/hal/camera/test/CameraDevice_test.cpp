@@ -39,26 +39,30 @@ bool operator==(const CameraImageProviderStreamConfig& lhs,
 }
 
 namespace {
-struct TestGpu : public IGpuDetails {
+struct TestGralloc : public IGrallocDetails {
     struct ImageTransfer {
-        CameraImageProviderStreamConfig cfg;
         std::string handle;
         size_t framebufferSize;
+        uint32_t format;
+        uint32_t width;
+        uint32_t height;
 
         bool operator==(const ImageTransfer& rhs) const {
-            return (cfg == rhs.cfg) && (handle == rhs.handle) &&
-                   (framebufferSize == rhs.framebufferSize);
+            return (handle == rhs.handle) && (framebufferSize == rhs.framebufferSize) &&
+                   (format == rhs.format) && (width == rhs.width) && (height == rhs.height);
         }
     };
 
     uint32_t aFormatToFourCC(uint32_t androidFormat) const override { return 2 * androidFormat; }
 
-    int imageSink(const CameraImageProviderStreamConfig& cfg, std::string_view handleStr,
-                  const void* framebuffer, size_t framebufferSize) const override {
+    int transfer(std::string_view handleStr, uint32_t format, uint32_t width, uint32_t height,
+                 const void* framebuffer, size_t framebufferSize) const override {
         ImageTransfer transfer = {
-            .cfg = cfg,
             .handle = std::string(handleStr),
             .framebufferSize = framebufferSize,
+            .format = format,
+            .width = width,
+            .height = height,
         };
 
         mTransfers.push_back(std::move(transfer));
@@ -128,15 +132,15 @@ struct CameraDeviceTest : public ::testing::Test {
             .dctor = [](void* that) { static_cast<Impl*>(that)->dctor(); },
         };
 
-        mGpuDetailsPtr = std::make_shared<TestGpu>();
+        mTestGrallocPtr = std::make_shared<TestGralloc>();
         mCameraDevice = std::make_shared<CameraDevice>(SocketPtr(&mTestSocket), this, &vtbl,
-                                                       mGpuDetailsPtr);
+                                                       mTestGrallocPtr);
         mTestSocket.plug = mCameraDevice;
     }
 
     void TearDown() override { mTestSocket.plug->onUnplug(); }
 
-    std::shared_ptr<TestGpu> mGpuDetailsPtr;
+    std::shared_ptr<TestGralloc> mTestGrallocPtr;
     TestSocket mTestSocket;
     std::shared_ptr<CameraDevice> mCameraDevice;
     std::vector<CameraImageProviderStreamConfig> mStreamConfigs;
@@ -186,36 +190,22 @@ TEST_F(CameraDeviceTest, capture) {
     EXPECT_TRUE(mTestSocket.plug->onReceive(configureQuery, sizeof(configureQuery)));
     EXPECT_TRUE(mTestSocket.plug->onReceive(captureQuery, sizeof(captureQuery)));
 
-    static const TestGpu::ImageTransfer kTransfers[] = {
+    static const TestGralloc::ImageTransfer kTransfers[] = {
         {
-            .cfg =
-                    {
-                        .id = 0,
-                        .format = 2,
-                        .size =
-                                {
-                                    .width = 640,
-                                    .height = 480,
-                                },
-                    },
             .handle = "abc"s,
             .framebufferSize = 2,
+            .format = 2,
+            .width = 640,
+            .height = 480,
         },
         {
-            .cfg =
-                    {
-                        .id = 1,
-                        .format = 4,
-                        .size =
-                                {
-                                    .width = 320,
-                                    .height = 240,
-                                },
-                    },
             .handle = "xyz"s,
             .framebufferSize = 1,
+            .format = 4,
+            .width = 320,
+            .height = 240,
         },
     };
 
-    EXPECT_THAT(mGpuDetailsPtr->mTransfers, ElementsAreArray(kTransfers));
+    EXPECT_THAT(mTestGrallocPtr->mTransfers, ElementsAreArray(kTransfers));
 }

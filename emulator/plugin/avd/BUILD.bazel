@@ -16,6 +16,32 @@ cc_library(
 )
 
 cc_library(
+    name = "gralloc_impl",
+    srcs = [
+        "src/android/goldfish/GrallocImpl.cpp",
+        "src/android/goldfish/rutabaga_glue.c",
+    ],
+    hdrs = [
+        "include/android/goldfish/GrallocImpl.h",
+        "include/android/goldfish/rutabaga_glue.h",
+    ],
+    copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/hal/camera:gralloc_details",
+        "//hardware/generic/goldfish/emulator/libs/parsing",
+        "//third_party/qemu:libmodule-common",
+        "//third_party/qemu:qemu-headers",
+        "@crosvm//:rutabaga_c_ffi",
+        "@pixman//:pixman-1",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "qemu-looper",
     srcs = [
         "src/android/goldfish/qemu-looper.cpp",
@@ -59,6 +85,7 @@ cc_library(
     ],
     deps = [
         ":avd_hdrs",
+        ":gralloc_impl",
         ":qemu-looper",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/memory",

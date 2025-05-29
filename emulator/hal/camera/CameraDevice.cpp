@@ -32,8 +32,8 @@ using parsing::getKeyValueStr;
 using parsing::split2;
 
 CameraDevice::CameraDevice(SocketPtr socket, void* imageProvider,
-                           const CameraImageProviderVtbl* vtbl, GpuDetailsPtr gpuDetails)
-        : CameraDeviceBase(std::move(socket), imageProvider, *vtbl, std::move(gpuDetails)) {}
+                           const CameraImageProviderVtbl* vtbl, GrallocDetailsPtr grallocDetails)
+        : CameraDeviceBase(std::move(socket), imageProvider, *vtbl, std::move(grallocDetails)) {}
 
 bool CameraDevice::processQuery(const std::string_view query, const std::string_view params) {
     if (query == "capture"sv) {

@@ -18,32 +18,31 @@
 #include <memory>
 #include <string_view>
 
-#include "android/camera/CameraImageProvider.h"
-
 namespace goldfish::devices::camera {
 
 /*
- * Interface to abstract GPU-specific details for the camera device.
- * It allows to decouple camera device from a specific GPU implementation.
+ * Interface to abstract gralloc-specific details for the camera device.
+ * It allows to decouple camera device from a specific gralloc implementation.
  */
-struct IGpuDetails {
-    virtual ~IGpuDetails() = default;
+struct IGrallocDetails {
+    virtual ~IGrallocDetails() = default;
 
     /*
-     * Returns the GPU specific fourcc format for PixelFormat in Android.
+     * Returns the gralloc specific fourcc format for PixelFormat in Android.
      */
     virtual uint32_t aFormatToFourCC(uint32_t androidFormat) const = 0;
 
     /*
-     * Sends an image represented by `cfg`, `framebuffer` and `framebufferSize`
-     * into the GPU using the handle stored in `handleStr`.
+     * Transfers an image represented by `format`, `width`, `height`, `framebuffer`
+     * and `framebufferSize` into the gralloc using the handle stored in `handleStr`.
      *
      * Returns non-zero if an error.
      */
-    virtual int imageSink(const CameraImageProviderStreamConfig& cfg, std::string_view handleStr,
-                          const void* framebuffer, size_t framebufferSize) const = 0;
+    virtual int transfer(std::string_view handleStr, uint32_t format, uint32_t width,
+                         uint32_t height, const void* framebuffer,
+                         size_t framebufferSize) const = 0;
 };
 
-using GpuDetailsPtr = std::shared_ptr<IGpuDetails>;
+using GrallocDetailsPtr = std::shared_ptr<IGrallocDetails>;
 
 }  // namespace goldfish::devices::camera

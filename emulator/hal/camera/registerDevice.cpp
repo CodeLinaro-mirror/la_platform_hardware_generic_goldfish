@@ -24,7 +24,6 @@
 #include "android/camera/CameraDevice.h"
 #include "android/camera/CameraDeviceEnumerator.h"
 #include "android/camera/CameraImageProviderRegistry.h"
-#include "android/camera/GpuDetails.h"
 #include "android/camera/ImagefileImageProvider.h"
 #include "android/camera/VideofileImageProvider.h"
 #include "android/camera/VirtualsceneImageProvider.h"
@@ -86,7 +85,7 @@ std::string getGuestEmulatedCameraProperty(const CameraImageSource front,
 
 PlugPtr createCameraDevice(SocketPtr socket, const std::string_view params,
                            const CameraImageProviderRegistry& registry,
-                           const GpuDetailsPtr& gpuDetails) {
+                           const GrallocDetailsPtr& grallocDetails) {
     constexpr std::string_view kParamName = "name"sv;
 
     const std::optional<std::string_view> maybeIndexStr = getKeyValueStr(params, kParamName);
@@ -118,7 +117,7 @@ err:
         goto err;
     }
 
-    return std::make_shared<CameraDevice>(std::move(socket), imageProvider, vtbl, gpuDetails);
+    return std::make_shared<CameraDevice>(std::move(socket), imageProvider, vtbl, grallocDetails);
 }
 
 bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
@@ -172,50 +171,58 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
 }  // namespace
 
 void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GpuDetailsPtr gpuDetails) {
-    const auto [frontCameraId, frontCameraParams] = split2(avd.hw().hw_camera_front, ':');
-    CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
+                    const android::goldfish::Avd& avd, GrallocDetailsPtr grallocDetails) {
+    CameraImageSource frontCameraSource;
+    CameraImageSource backCameraSource;
 
-    const auto [backCameraId, backCameraParams] = split2(avd.hw().hw_camera_back, ':');
-    CameraImageSource backCameraSource = getCameraImageSourceFromName(backCameraId);
+    if (grallocDetails) {
+        const auto [frontCameraId, frontCameraParams] = split2(avd.hw().hw_camera_front, ':');
+        frontCameraSource = getCameraImageSourceFromName(frontCameraId);
 
-    CameraImageProviderRegistry webcamRegistry;
-    if ((frontCameraSource == CameraImageSource::WEBCAM) ||
-        (backCameraSource == CameraImageSource::WEBCAM)) {
-        if (enumerateWebcamImageProviders(&CameraImageProviderRegistry::addStatic,
-                                          &webcamRegistry)) {
-            webcamRegistry.clear();  // something went wrong
+        const auto [backCameraId, backCameraParams] = split2(avd.hw().hw_camera_back, ':');
+        backCameraSource = getCameraImageSourceFromName(backCameraId);
+
+        CameraImageProviderRegistry webcamRegistry;
+        if ((frontCameraSource == CameraImageSource::WEBCAM) ||
+            (backCameraSource == CameraImageSource::WEBCAM)) {
+            if (enumerateWebcamImageProviders(&CameraImageProviderRegistry::addStatic,
+                                              &webcamRegistry)) {
+                webcamRegistry.clear();  // something went wrong
+            }
         }
-    }
 
-    auto imageProvidersRegistry = std::make_shared<CameraImageProviderRegistry>();
+        auto imageProvidersRegistry = std::make_shared<CameraImageProviderRegistry>();
 
-    if (!addImageProviderInfo(*imageProvidersRegistry, frontCameraSource, frontCameraId,
-                              frontCameraParams, false, webcamRegistry)) {
+        if (!addImageProviderInfo(*imageProvidersRegistry, frontCameraSource, frontCameraId,
+                                  frontCameraParams, false, webcamRegistry)) {
+            frontCameraSource = CameraImageSource::EMULATED;
+        }
+
+        if (!addImageProviderInfo(*imageProvidersRegistry, backCameraSource, backCameraId,
+                                  backCameraParams, true, webcamRegistry)) {
+            backCameraSource = CameraImageSource::EMULATED;
+        }
+
+        registry->registerQemuDevice("camera"s,
+                                     [imageProvidersRegistry = std::move(imageProvidersRegistry),
+                                      grallocDetails = std::move(grallocDetails)](
+                                             SocketPtr socket, const std::shared_ptr<PingTopic>&,
+                                             const std::string_view params) -> PlugPtr {
+                                         if (params.empty()) {
+                                             return std::make_shared<CameraDeviceEnumerator>(
+                                                     std::move(socket), imageProvidersRegistry);
+                                         } else {
+                                             return createCameraDevice(std::move(socket), params,
+                                                                       *imageProvidersRegistry,
+                                                                       grallocDetails);
+                                         }
+                                     });
+    } else {
         frontCameraSource = CameraImageSource::EMULATED;
-    }
-
-    if (!addImageProviderInfo(*imageProvidersRegistry, backCameraSource, backCameraId,
-                              backCameraParams, true, webcamRegistry)) {
         backCameraSource = CameraImageSource::EMULATED;
     }
 
     *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraSource, backCameraSource);
-
-    registry->registerQemuDevice("camera"s,
-                                 [imageProvidersRegistry = std::move(imageProvidersRegistry),
-                                  gpuDetails = std::move(gpuDetails)](
-                                         SocketPtr socket, const std::shared_ptr<PingTopic>&,
-                                         const std::string_view params) -> PlugPtr {
-                                     if (params.empty()) {
-                                         return std::make_shared<CameraDeviceEnumerator>(
-                                                 std::move(socket), imageProvidersRegistry);
-                                     } else {
-                                         return createCameraDevice(std::move(socket), params,
-                                                                   *imageProvidersRegistry,
-                                                                   gpuDetails);
-                                     }
-                                 });
 }
 
 }  // namespace goldfish::devices::camera

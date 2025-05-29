@@ -13,17 +13,10 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <string>
-
 #include "android/camera/GrallocDetails.h"
-#include "android/goldfish/config/avd.h"
-#include "goldfish/devices/connector_registry.h"
 
-namespace goldfish::devices::camera {
+namespace android::goldfish::avd_info {
 
-void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GrallocDetailsPtr grallocDetails);
+::goldfish::devices::camera::GrallocDetailsPtr getGrallocImpl();
 
-}  // namespace goldfish::devices::camera
+}  // namespace android::goldfish::avd_info
