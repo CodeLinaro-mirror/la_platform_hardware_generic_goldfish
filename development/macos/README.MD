@@ -6,6 +6,7 @@ This guide will help you set up your MacOs machine to build and contribute to th
 
 *   **A supported Mac:**  An Apple Mac with Apple sillicon and macOS Ventura 13.0 or later.
 *   **Superuser (sudo) Privileges:** You'll need privileges to install system-wide packages.
+*.  **For googlers:** Make sure to run `glogin` before you get started.
 
 ## Setup Steps
 
@@ -34,7 +35,7 @@ This guide will help you set up your MacOs machine to build and contribute to th
 
         ```bash
         mkdir $HOME/bin
-        curl [http://commondatastorage.googleapis.com/git-repo-downloads/repo](http://commondatastorage.googleapis.com/git-repo-downloads/repo) > $HOME/bin/repo
+        curl http://commondatastorage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
         chmod 700 $HOME/bin/repo
         ```
 
@@ -54,10 +55,14 @@ This guide will help you set up your MacOs machine to build and contribute to th
     *   **Initialize the Repository:**
 
         ```bash
-        mkdir -p $HOME/src/emu-dev && cd $HOME/src/emu-dev
-        repo init -u [https://android.googlesource.com/platform/manifest](https://android.googlesource.com/platform/manifest) -b emu-dev
+        mkdir -p $HOME/src/main-emu-dev-next && cd $HOME/src/main-emu-dev-next
+        repo init -u https://android.googlesource.com/platform/manifest -b main-emu-dev-next
         ```
-        This creates a directory for the emulator source code and initializes a `repo` workspace using the `emu-dev` branch of the Android Emulator manifest.
+
+        This creates a directory for the emulator source code and initializes a `repo` workspace using the `main-emu-dev-next` branch of the Android Emulator manifest.
+
+       **Note:** For Googlers, please use the internal development branch.
+
 
     *   **Download the Code:**
 
@@ -71,7 +76,7 @@ This guide will help you set up your MacOs machine to build and contribute to th
 Once the setup is complete and the source code is downloaded, you can build the emulator. Refer to the Android Emulator project's internal documentation for the exact build command, which might look similar to the following.
 
 ```bash
-    cd $HOME/src/emu-dev
+    cd $HOME/src/main-emu-dev-next
     ./prebuilts/bazel/darwin-x86_64/bazel build //hardware/generic/goldfish/emulator:release
 ```
 

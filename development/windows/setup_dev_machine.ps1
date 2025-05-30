@@ -3,7 +3,7 @@
 # This script will install all the dependencies needed to
 # build the emulator. Once this is completed you should be
 # able to run
-# C:\src\emu-dev\tools\buildSrc\servers\build.py --dist \tmp --build-id P123 --target windows_x64
+# C:\src\main-emu-dev-next\tools\buildSrc\servers\build.py --dist \tmp --build-id P123 --target windows_x64
 #
 # You will have to run this script using an elevated prompt
 
@@ -58,6 +58,9 @@ Write-Host 'Installing NTFSSecurity module...'
 Install-Module -Name NTFSSecurity
 # Done installing PowerShell modules, set PSGallery back to Untrusted.
 Set-PSRepository -Name 'PSGallery' -InstallationPolicy Untrusted
+
+# Note: This will fail on non google machines.
+& googet -noconfirm install git-google
 
 ## Install Chocolatey
 Write-Host 'Installing Chocolatey...'
@@ -145,22 +148,23 @@ if (-not (Test-Path $repo_root)) {
   New-Item -ItemType Directory -Path $repo_root
 }
 
-# Change to the source directory and create/change to emu-dev
+# Change to the source directory and create/change to main-emu-dev-next
 cd $repo_root
-if (-not (Test-Path emu-dev)) {
-  New-Item -ItemType Directory -Path emu-dev
+if (-not (Test-Path main-emu-dev-next)) {
+  New-Item -ItemType Directory -Path main-emu-dev-next
 }
-cd emu-dev
+cd main-emu-dev-next
 
 # Initialize and sync the repo.
-repo init -u https://android.googlesource.com/platform/manifest -b emu-master-dev
+# Change this line if you need to use a different repository.
+repo init -c -u https://android.googlesource.com/platform/manifest -b main-emu-next-dev
 repo sync
 
 
-$newPath = "C:\src\emu-dev\prebuilts\bazel\windows-x86_64\;$Env:Path"
+$newPath = "C:\src\main-emu-dev-next\prebuilts\bazel\windows-x86_64\;$Env:Path"
 [Environment]::SetEnvironmentVariable("PATH", $newPath, "Machine")  # Or "User" for user-specific
 $Env:Path = [Environment]::GetEnvironmentVariable("PATH", "Machine") # Or "User"
-Write-Host "Added C:\src\emu-dev\prebuilts\bazel\windows-x86_64\ to PATH"
+Write-Host "Added C:\src\main-emu-dev-next\prebuilts\bazel\windows-x86_64\ to PATH"
 
 Write-Host 'All done, you might have to launch visual studio once to complete.'
 Write-Host 'bazel build //hardware/generic/goldfish/emulator:release'

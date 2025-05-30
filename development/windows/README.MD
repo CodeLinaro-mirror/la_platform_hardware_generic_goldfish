@@ -6,6 +6,7 @@ This guide will help you set up your Windows machine to build and contribute to 
 
 *   **Windows 10 or 11 (64-bit):** Make sure you are running a 64-bit version of Windows.
 *   **Administrator Privileges:** You'll need to run the setup script as an administrator.
+*.  **For googlers:** Make sure to run `glogin` before you get started.
 
 ## Setup Steps
 
@@ -17,6 +18,9 @@ This guide will help you set up your Windows machine to build and contribute to 
 
 3.  **Run the Script:**
     *   Navigate to the directory where you saved `setup_dev_machine.ps1` using the `cd` command. For example:
+
+
+    **Note:** For Googlers, please use the internal development branch.
 
         ```powershell
         cd C:\Path\To\Where\You\Saved\The\Script

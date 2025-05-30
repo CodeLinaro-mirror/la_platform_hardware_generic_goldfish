@@ -6,6 +6,7 @@ This guide will help you set up your Linux machine to build and contribute to th
 
 *   **A supported Linux Distribution (e.g., Ubuntu, Debian):**  This guide assumes you are using a Debian-based distribution. You'll need to adapt the package installation commands for other distributions.
 *   **Superuser (sudo) Privileges:** You'll need privileges to install system-wide packages.
+*.  **For googlers:** Make sure to run `glogin` before you get started.
 
 ## Setup Steps
 
@@ -48,11 +49,14 @@ This guide will help you set up your Linux machine to build and contribute to th
 
     *   **Initialize the Repository:**
 
-        ```bash
-        mkdir -p $HOME/src/emu-dev && cd $HOME/src/emu-dev
-        repo init -u [https://android.googlesource.com/platform/manifest](https://android.googlesource.com/platform/manifest) -b emu-dev
-        ```
-        This creates a directory for the emulator source code and initializes a `repo` workspace using the `emu-dev` branch of the Android Emulator manifest.
+    ```bash
+        mkdir -p $HOME/src/main-emu-dev-next && cd $HOME/src/main-emu-dev-next
+        repo init -u https://android.googlesource.com/platform/manifest  -b main-emu-dev-next
+    ```
+
+    This creates a directory for the emulator source code and initializes a `repo` workspace using the `main-emu-dev-next` branch of the Android Emulator manifest.
+
+    **Note:** For Googlers, please use the internal development branch.
 
     *   **Download the Code:**
 
@@ -66,7 +70,7 @@ This guide will help you set up your Linux machine to build and contribute to th
 Once the setup is complete and the source code is downloaded, you can build the emulator. Refer to the Android Emulator project's internal documentation for the exact build command, which might look similar to the following.
 
 ```bash
-    cd $HOME/src/emu-dev
+    cd $HOME/src/main-emu-dev-next
     ./prebuilts/bazel/linux-x86_64/bazel build //hardware/generic/goldfish/emulator:release
 ```
 
