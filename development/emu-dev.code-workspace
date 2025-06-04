@@ -20,10 +20,10 @@
 		// "bsv.bazel.executable": "${workspaceFolder}/prebuilts/tools/bazel/bazel",
 		"C_Cpp.clang_format_fallbackStyle": "Google",
 		"C_Cpp.codeAnalysis.clangTidy.enabled": true,
-		"C_Cpp.codeAnalysis.clangTidy.path": "${workspaceFolder}/prebuilts/tools/clang/clang-r530567/bin/clang-tidy",
+		"C_Cpp.codeAnalysis.clangTidy.path": "clang-tidy",
 		"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
 		"C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
-		"clangd.path": "${workspaceFolder}/prebuilts/tools/clang/clang-r530567/bin/clangd",
+		"clangd.path": "clangd",
 		"files.exclude": {
 			"../../..cache": true,
 			"../../..repo": true,
