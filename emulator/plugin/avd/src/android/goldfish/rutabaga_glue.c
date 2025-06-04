@@ -23,7 +23,7 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include <rutabaga_gfx/rutabaga_gfx_ffi.h>
+#include <rutabaga_gfx/rutabaga_gfx_ffi_goldfish.h>
 
 struct rutabaga* rutabagaGetInstance() {
     Object* obj = object_resolve_path_type("", TYPE_VIRTIO_GPU_RUTABAGA, NULL);
@@ -37,13 +37,6 @@ struct rutabaga* rutabagaGetInstance() {
     }
 
     return vr->rutabaga;
-}
-
-static int32_t rutabaga_resource_transfer_write_from_iov(struct rutabaga* instance, uint32_t ctx_id,
-                                                         uint32_t resourceId,
-                                                         const struct rutabaga_transfer* transfer,
-                                                         const struct rutabaga_iovecs* iovecs) {
-    return 0;  // b/420964652
 }
 
 int32_t rutabagaImageTransfer(struct rutabaga* instance, const uint32_t resourceId,
@@ -61,15 +54,10 @@ int32_t rutabagaImageTransfer(struct rutabaga* instance, const uint32_t resource
         .offset = 0,
     };
 
-    struct iovec framebufferVec = {
+    struct iovec iov = {
         .iov_base = (uint8_t*)framebuffer,
         .iov_len = framebufferSize,
     };
 
-    struct rutabaga_iovecs riov = {
-        .iovecs = &framebufferVec,
-        .num_iovecs = 1,
-    };
-
-    return rutabaga_resource_transfer_write_from_iov(instance, 0, resourceId, &transfer, &riov);
+    return rutabaga_resource_transfer_write_goldfish(instance, 0, resourceId, &transfer, &iov);
 }

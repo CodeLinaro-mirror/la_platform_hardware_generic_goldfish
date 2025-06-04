@@ -60,14 +60,13 @@ rust_library(
     }),
 )
 
-CRATE_FEATURES = [
-    "rutabaga_gfx/gfxstream",
-]
-
 rust_shared_library(
     name = "rutabaga_ffi",
     srcs = ["rutabaga_gfx/ffi/src/lib.rs"],
-    crate_features = CRATE_FEATURES,
+    crate_features = [
+        "goldfish",
+        "rutabaga_gfx/gfxstream",
+    ],
     edition = "2021",
     deps = [
         ":rutabaga_gfx",
@@ -84,7 +83,10 @@ rust_shared_library(
 
 cc_library(
     name = "rutabaga_c_ffi",
-    hdrs = ["rutabaga_gfx/ffi/src/include/rutabaga_gfx_ffi.h"],
+    hdrs = [
+        "rutabaga_gfx/ffi/src/include/rutabaga_gfx_ffi.h",
+        "rutabaga_gfx/ffi/src/include/rutabaga_gfx_ffi_goldfish.h",
+    ],
     include_prefix = "rutabaga_gfx",
     linkopts = select({
         "@platforms//os:windows": ["/DEFAULTLIB:Ntdll.lib"],
