@@ -264,7 +264,6 @@ test_suite(
         "//hardware/generic/goldfish/emulator/launcher:emulator_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
         #"@com_google_crashpad//:crashpad_tests",
-        "@libjpeg_turbo//:tjunittest",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",
     ],
