@@ -73,7 +73,7 @@ class FastPathResolver(object):
 
         # Optimization: Check for 'escape' from root with ".." and
         # validate the subdirectory
-        if len(path) > 3 and path.startswith(".."):
+        if len(path) > 3 and (path.startswith("..") or path.startswith("external")):
             if len(entries) < 2 or entries[1] not in self.l1:
                 return None
             possible = self.root.joinpath(*entries[1:])
