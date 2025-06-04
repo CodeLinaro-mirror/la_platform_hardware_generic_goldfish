@@ -39,13 +39,28 @@ struct VirtualsceneImageProvider {
     int capture(const CameraImageProviderCaptureOpts& opts,
                 const CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
                 const CameraImageProviderStreamCaptureInfo* sci, unsigned scin) {
-        VLOG(1) << getId() << ":  capture {";
         for (; scin > 0; --scin, ++sci) {
-            const CameraImageProviderStreamConfig* s = sci->cfg;
-            VLOG(1) << "    { id=" << s->id << " format=" << s->format << " size=" << s->size.width
-                    << "x" << s->size.height << " }";
+            const CameraImageProviderStreamConfig& cfg = *sci->cfg;
+            if (cfg.format == 1) {
+                const size_t width = cfg.size.width;
+                const size_t height = cfg.size.height;
+                std::vector<uint32_t> bitmap(width * height);
+
+                uint32_t* p = bitmap.data();
+                /*
+                 * Produce a checkerboadr pattern of FF00FF00U and FF600060
+                 * RGBA colors (the highest FF bits are the A component) with
+                 * quares of (1 << 7) pixels: ((x >> 7) & 1) ^ ((y >> 7) & 1).
+                 */
+                for (size_t y = 0; y < height; ++y) {
+                    for (size_t x = 0; x < width; ++x, ++p) {
+                        *p = (((x ^ y) >> 7) & 1) ? 0xFF00FF00U : 0xFF600060U;
+                    }
+                }
+
+                sink(sinkOpaque, sci, bitmap.data(), bitmap.size() * sizeof(uint32_t));
+            }
         }
-        VLOG(1) << "}";
 
         return 0;
     }

@@ -30,7 +30,7 @@ namespace {
 struct RutabagaImpl : public IGrallocDetails {
     explicit RutabagaImpl(struct rutabaga* r) : mRutabaga(r) {}
 
-    uint32_t aFormatToFourCC(const uint32_t androidFormat) const override { return 42; }
+    uint32_t aFormatToFourCC(const uint32_t androidFormat) const override { return androidFormat; }
 
     int transfer(const std::string_view handleStr, const uint32_t format, const uint32_t width,
                  const uint32_t height, const void* const framebuffer,
@@ -44,7 +44,9 @@ struct RutabagaImpl : public IGrallocDetails {
                                      getStride(format, width), framebuffer, framebufferSize);
     }
 
-    uint32_t getStride(const uint32_t format, const uint32_t width) const { return 0; }
+    uint32_t getStride(const uint32_t format, const uint32_t width) const {
+        return (format == 1) ? (width * 4U) : 0U;
+    }
 
     struct rutabaga* mRutabaga;
 };
