@@ -1,0 +1,18 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "webcam",
+    srcs = [
+        "webcam.cpp",
+    ],
+    hdrs = [
+        "include/android/camera/image_providers/webcam.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/hal/camera:image_provider_api",
+        "@com_google_absl//absl/log",
+    ],
+    alwayslink = True,
+)

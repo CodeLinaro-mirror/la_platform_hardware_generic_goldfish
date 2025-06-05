@@ -11,6 +11,16 @@ cc_library(
 )
 
 cc_library(
+    name = "image_provider_api",
+    hdrs = [
+        "include/android/camera/CameraImageProviderAPI.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    alwayslink = True,
+)
+
+cc_library(
     name = "camera",
     srcs = [
         "CameraDevice.cpp",
@@ -19,36 +29,32 @@ cc_library(
         "CameraImageProviderInfoCpp.cpp",
         "CameraImageProviderRegistry.cpp",
         "CameraProtocolBase.cpp",
-        "ImagefileImageProvider.cpp",
         "QueryParser.cpp",
-        "VideofileImageProvider.cpp",
-        "VirtualsceneImageProvider.cpp",
-        "WebcamImageProvider.cpp",
-        "registerDevice.cpp",
-    ],
-    hdrs = [
         "include/android/camera/CameraDevice.h",
         "include/android/camera/CameraDeviceBase.h",
         "include/android/camera/CameraDeviceEnumerator.h",
-        "include/android/camera/CameraImageProvider.h",
         "include/android/camera/CameraImageProviderInfoCpp.h",
         "include/android/camera/CameraImageProviderRegistry.h",
         "include/android/camera/CameraProtocolBase.h",
-        "include/android/camera/ImagefileImageProvider.h",
         "include/android/camera/QueryParser.h",
-        "include/android/camera/VideofileImageProvider.h",
-        "include/android/camera/VirtualsceneImageProvider.h",
-        "include/android/camera/WebcamImageProvider.h",
+        "registerDevice.cpp",
+    ],
+    hdrs = [
         "include/android/camera/registerDevice.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":gralloc_details",
+        ":image_provider_api",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/imagefile",
+        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/videofile",
+        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/virtualscene",
+        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/webcam",
         "//hardware/generic/goldfish/emulator/libs/parsing",
         "@com_google_absl//absl/log",
     ],

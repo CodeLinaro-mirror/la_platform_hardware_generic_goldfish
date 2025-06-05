@@ -24,10 +24,10 @@
 #include "android/camera/CameraDevice.h"
 #include "android/camera/CameraDeviceEnumerator.h"
 #include "android/camera/CameraImageProviderRegistry.h"
-#include "android/camera/ImagefileImageProvider.h"
-#include "android/camera/VideofileImageProvider.h"
-#include "android/camera/VirtualsceneImageProvider.h"
-#include "android/camera/WebcamImageProvider.h"
+#include "android/camera/image_providers/imagefile.h"
+#include "android/camera/image_providers/videofile.h"
+#include "android/camera/image_providers/virtualscene.h"
+#include "android/camera/image_providers/webcam.h"
 #include "goldfish/devices/cable/ErrorPlug.h"
 #include "goldfish/parsing/fromChars.h"
 #include "goldfish/parsing/getKeyValueStr.h"
@@ -66,6 +66,54 @@ CameraImageSource getCameraImageSourceFromName(const std::string_view name) {
     }
 
     return CameraImageSource::EMULATED;
+}
+
+bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
+                          const std::string_view id, const std::string_view params,
+                          const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry) {
+    CameraImageProviderInfo info;
+
+    switch (source) {
+    case CameraImageSource::EMULATED:
+        return true;
+
+    case CameraImageSource::WEBCAM:
+        //                                                                 skip "webcam" in `id`
+        if (const std::optional<size_t> maybeIndex = parsing::fromChars<size_t>(id.substr(6))) {
+            if (CameraImageProviderInfoCpp* const info = webcamRegistry[maybeIndex.value()]) {
+                info->setBackFacing(isBackFacing);
+                dst.add(std::move(*info));
+                return true;
+            }
+        }
+        return false;
+
+    case CameraImageSource::VIRTUALSCENE:
+        if (getVirtualsceneImageProviderInfo(&info, isBackFacing ? 1 : 0)) {
+            return false;
+        }
+        break;
+
+    case CameraImageSource::VIDEOFILE:
+        if (getVideofileImageProviderInfo(&info, isBackFacing ? 1 : 0,
+                                          std::string(params).c_str())) {
+            return false;
+        }
+        break;
+
+    case CameraImageSource::IMAGEFILE:
+        if (getImagefileImageProviderInfo(&info, isBackFacing ? 1 : 0,
+                                          std::string(params).c_str())) {
+            return false;
+        }
+        break;
+
+    default:
+        return false;
+    }
+
+    dst.add(info);
+    return true;
 }
 
 std::string getGuestEmulatedCameraProperty(const CameraImageSource front,
@@ -118,54 +166,6 @@ err:
     }
 
     return std::make_shared<CameraDevice>(std::move(socket), imageProvider, vtbl, grallocDetails);
-}
-
-bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
-                          const std::string_view id, const std::string_view params,
-                          const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry) {
-    CameraImageProviderInfo info;
-
-    switch (source) {
-    case CameraImageSource::EMULATED:
-        return true;
-
-    case CameraImageSource::WEBCAM:
-        //                                                                 skip "webcam" in `id`
-        if (const std::optional<size_t> maybeIndex = parsing::fromChars<size_t>(id.substr(6))) {
-            if (CameraImageProviderInfoCpp* const info = webcamRegistry[maybeIndex.value()]) {
-                info->setBackFacing(isBackFacing);
-                dst.add(std::move(*info));
-                return true;
-            }
-        }
-        return false;
-
-    case CameraImageSource::VIRTUALSCENE:
-        if (getVirtualsceneImageProviderInfo(&info, isBackFacing ? 1 : 0)) {
-            return false;
-        }
-        break;
-
-    case CameraImageSource::VIDEOFILE:
-        if (getVideofileImageProviderInfo(&info, isBackFacing ? 1 : 0,
-                                          std::string(params).c_str())) {
-            return false;
-        }
-        break;
-
-    case CameraImageSource::IMAGEFILE:
-        if (getImagefileImageProviderInfo(&info, isBackFacing ? 1 : 0,
-                                          std::string(params).c_str())) {
-            return false;
-        }
-        break;
-
-    default:
-        return false;
-    }
-
-    dst.add(info);
-    return true;
 }
 
 }  // namespace

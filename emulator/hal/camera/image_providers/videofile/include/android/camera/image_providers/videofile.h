@@ -15,13 +15,14 @@
 
 #pragma once
 
-#include "android/camera/CameraImageProvider.h"
+#include "android/camera/CameraImageProviderAPI.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int enumerateWebcamImageProviders(void (*sink)(void*, CameraImageProviderInfo*), void* opaque);
+int getVideofileImageProviderInfo(CameraImageProviderInfo* dst, unsigned isBackFacing,
+                                  const char* params);
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "android/camera/CameraImageProvider.h"
+#include "android/camera/CameraImageProviderAPI.h"
 
 namespace goldfish::devices::camera {
 

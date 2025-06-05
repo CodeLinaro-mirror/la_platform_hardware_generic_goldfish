@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "android/camera/VideofileImageProvider.h"
+#include "android/camera/image_providers/videofile.h"
 
 #include <cassert>
 #include <cstring>

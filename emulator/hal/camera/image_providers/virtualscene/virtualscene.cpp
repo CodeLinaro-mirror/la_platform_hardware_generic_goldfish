@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "android/camera/VirtualsceneImageProvider.h"
+#include "android/camera/image_providers/virtualscene.h"
 
 #include <cassert>
 

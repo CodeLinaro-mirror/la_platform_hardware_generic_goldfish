@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "android/camera/ImagefileImageProvider.h"
+#include "android/camera/image_providers/webcam.h"
 
 #include <cassert>
 #include <cstring>
@@ -25,11 +25,11 @@ namespace {
 
 std::string buildId(const CameraImageProviderInfo& info) {
     using namespace std::literals;
-    return "imagefile:"s + static_cast<const char*>(info.createArg);
+    return "webcam:"s + static_cast<const char*>(info.createArg);
 }
 
-struct ImagefileImageProvider {
-    ImagefileImageProvider(const CameraImageProviderInfo& info) : mId(buildId(info)) {}
+struct WebcamImageProvider {
+    WebcamImageProvider(const CameraImageProviderInfo& info) : mId(buildId(info)) {}
 
     const char* getId() const { return mId.c_str(); }
 
@@ -61,7 +61,7 @@ struct ImagefileImageProvider {
 
     static void* create(const CameraImageProviderInfo* info,
                         const CameraImageProviderVtbl** ppVtbl) {
-        using Impl = ImagefileImageProvider;
+        using Impl = WebcamImageProvider;
 
         static const CameraImageProviderVtbl vtbl = {
             .getId = [](const void* that) { return static_cast<const Impl*>(that)->getId(); },
@@ -85,14 +85,11 @@ struct ImagefileImageProvider {
     const std::string mId;
 };
 
-void createArgDctor(void* arg) {
-    ::free(arg);
-}
+void createArgDctor(void* arg) {}
 
 }  // namespace
 
-int getImagefileImageProviderInfo(CameraImageProviderInfo* dst, const unsigned isBackFacing,
-                                  const char* params) {
+int enumerateWebcamImageProviders(void (*sink)(void*, CameraImageProviderInfo*), void* opaque) {
     static const CameraImageProviderRect supportedFrameSizes[] = {
         {
             .width = 640,
@@ -121,18 +118,28 @@ int getImagefileImageProviderInfo(CameraImageProviderInfo* dst, const unsigned i
     };
 
     static const CameraImageProviderInfoVtbl vtbl = {
-        .create = &ImagefileImageProvider::create,
+        .create = &WebcamImageProvider::create,
         .createArgDctor = &createArgDctor,
     };
 
-    *dst = {
+    const CameraImageProviderInfo tmpl = {
         .vtbl = &vtbl,
         .supportedFrameSizes = supportedFrameSizes,
-        .createArg = ::strdup(params),
+        .createArg = nullptr,
         .supportedFrameSizesNum = sizeof(supportedFrameSizes) / sizeof(supportedFrameSizes[0]),
-        .isBackFacing = static_cast<uint8_t>(isBackFacing),
+        .isBackFacing = 0,
         .needFreeSupportedSizes = 0,
     };
+
+    CameraImageProviderInfo toAdd;
+
+    toAdd = tmpl;
+    toAdd.createArg = "abc:42";
+    (*sink)(opaque, &toAdd);
+
+    toAdd = tmpl;
+    toAdd.createArg = "1/2/3";
+    (*sink)(opaque, &toAdd);
 
     return 0;
 }

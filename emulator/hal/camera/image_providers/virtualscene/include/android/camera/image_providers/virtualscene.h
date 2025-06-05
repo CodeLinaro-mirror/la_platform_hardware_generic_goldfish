@@ -15,14 +15,13 @@
 
 #pragma once
 
-#include "android/camera/CameraImageProvider.h"
+#include "android/camera/CameraImageProviderAPI.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int getVideofileImageProviderInfo(CameraImageProviderInfo* dst, unsigned isBackFacing,
-                                  const char* params);
+int getVirtualsceneImageProviderInfo(CameraImageProviderInfo* dst, unsigned isBackFacing);
 
 #ifdef __cplusplus
 } /* extern "C" */
