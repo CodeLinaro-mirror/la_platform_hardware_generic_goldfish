@@ -164,8 +164,8 @@ bool PidChecker::isAlive(std::string myFile, std::string discoveryFile) const {
 }
 
 EmulatorAdvertisement::EmulatorAdvertisement(
-        EmulatorProperties&& config, std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
-    : mStudioConfig(config), mLivenessChecker(std::move(livenessChecker)) {
+        EmulatorProperties config, std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
+        : mStudioConfig(std::move(config)), mLivenessChecker(std::move(livenessChecker)) {
     mSharedDirectory = System::pathAsString(goldfish::ConfigDirs::getDiscoveryDirectory());
     if (!System::get()->pathExists(mSharedDirectory)) {
         LOG(WARNING) << "Discovery directory: " << mSharedDirectory << ", does not exist. creating";
@@ -175,11 +175,11 @@ EmulatorAdvertisement::EmulatorAdvertisement(
 }
 
 EmulatorAdvertisement::EmulatorAdvertisement(
-        EmulatorProperties&& config, std::string sharedDirectory,
+        EmulatorProperties config, std::string sharedDirectory,
         std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
-    : mStudioConfig(config),
-      mSharedDirectory(sharedDirectory),
-      mLivenessChecker(std::move(livenessChecker)) {
+        : mStudioConfig(std::move(config))
+        , mSharedDirectory(sharedDirectory)
+        , mLivenessChecker(std::move(livenessChecker)) {
     if (!System::get()->pathExists(mSharedDirectory)) {
         LOG(WARNING) << "Discovery directory: " << mSharedDirectory << ", does not exist. creating";
         path_mkdir_if_needed(mSharedDirectory.data(), 0700);
@@ -216,7 +216,7 @@ int EmulatorAdvertisement::garbageCollect() const {
     return collected;
 }
 
-std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() {
+std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() const {
     DD("Scanning %s", mSharedDirectory.c_str());
     std::vector<std::string> discovered;
     for (const auto& fname : System::get()->scanDirEntries(mSharedDirectory, true)) {
@@ -228,13 +228,15 @@ std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() {
 
     return discovered;
 }
-std::string EmulatorAdvertisement::discoverEmulatorWithProperties(EmulatorProperties props) {
+
+std::string EmulatorAdvertisement::discoverEmulatorWithProperties(
+        const EmulatorProperties& props) const {
     for (const auto& discoveryFile : discoverRunningEmulators()) {
         IniFile ini(discoveryFile);
         if (!ini.read()) continue;
 
         bool match = true;
-        for (const auto [key, val] : props) {
+        for (const auto& [key, val] : props) {
             match = match && ini.hasKey(key) && ini.getString(key, "") == val;
         }
         if (match) return discoveryFile;

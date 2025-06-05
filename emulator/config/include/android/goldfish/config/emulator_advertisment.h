@@ -74,10 +74,10 @@ class PidChecker : public EmulatorLivenessStrategy {
 // the process id of the emulator.
 class EmulatorAdvertisement {
   public:
-    explicit EmulatorAdvertisement(EmulatorProperties&& config,
+    explicit EmulatorAdvertisement(EmulatorProperties config,
                                    std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
                                            std::make_unique<PidChecker>());
-    EmulatorAdvertisement(EmulatorProperties&& config, std::string sharedDirectory,
+    EmulatorAdvertisement(EmulatorProperties config, std::string sharedDirectory,
                           std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
                                   std::make_unique<PidChecker>());
     ~EmulatorAdvertisement();
@@ -101,11 +101,11 @@ class EmulatorAdvertisement {
     int garbageCollect() const;
 
     // Discovers all the advertisement files of active emulators, excluding us.
-    std::vector<std::string> discoverRunningEmulators();
+    std::vector<std::string> discoverRunningEmulators() const;
 
     // Discovers the first advertisment file of active emulators that
     // has the set of props available.
-    std::string discoverEmulatorWithProperties(EmulatorProperties props);
+    std::string discoverEmulatorWithProperties(const EmulatorProperties& props) const;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(EmulatorAdvertisement);
