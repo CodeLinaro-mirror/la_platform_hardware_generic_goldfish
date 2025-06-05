@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <pixman.h>
 extern "C" {
 #include "android/goldfish/grpc-service-device.h"
 
@@ -72,7 +71,6 @@ static std::string generateToken(int cnt) {
 
 static std::unique_ptr<EmulatorAdvertisement> advertiser;
 static std::unique_ptr<EmulatorControllerService> grpcService;
-static pixman_image_t* g_image;
 
 bool initialize(GrpcDeviceConfiguration* device) {
     auto avd = android::goldfish::avd_info::get_avd();
@@ -151,10 +149,5 @@ void finalize(GrpcDeviceConfiguration* device) {
 
     if (advertiser) {
         advertiser->remove();
-    }
-
-    if (g_image) {
-        pixman_image_unref(g_image);
-        g_image = nullptr;
     }
 }
