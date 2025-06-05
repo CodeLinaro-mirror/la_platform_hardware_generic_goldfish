@@ -107,9 +107,12 @@ class EmulatorAdvertisement {
     // has the set of props available.
     std::string discoverEmulatorWithProperties(const EmulatorProperties& props) const;
 
-  private:
-    DISALLOW_COPY_AND_ASSIGN(EmulatorAdvertisement);
+    EmulatorAdvertisement(EmulatorAdvertisement&&) = default;
+    EmulatorAdvertisement& operator=(EmulatorAdvertisement&&) = default;
+    EmulatorAdvertisement(const EmulatorAdvertisement&) = delete;
+    EmulatorAdvertisement& operator=(const EmulatorAdvertisement&) = delete;
 
+  private:
     EmulatorProperties mStudioConfig;
     std::string mSharedDirectory;
     std::unique_ptr<EmulatorLivenessStrategy> mLivenessChecker;

@@ -13,9 +13,12 @@
 // limitations under the License.
 #include <stdbool.h>
 
+struct GrpcDeviceConfigurationCpp;
+
 typedef struct DisplayChangeListener;
 typedef struct DisplaySurface;
 typedef struct GrpcDeviceConfiguration {
+    struct GrpcDeviceConfigurationCpp* cppState;
     char* addr;
     char* tls_cer;
     char* tls_key;

@@ -54,6 +54,29 @@ using android::goldfish::EmulatorProperties;
 using android::goldfish::IMultiDisplay;
 using android::goldfish::VmOperations;
 
+struct GrpcDeviceConfigurationCpp {
+    GrpcDeviceConfigurationCpp(std::unique_ptr<EmulatorControllerService> grpc,
+                               EmulatorProperties props)
+            : grpcService(std::move(grpc)), advertiser(std::move(props)) {
+        advertiser.garbageCollect();
+        advertiser.write();
+    }
+
+    ~GrpcDeviceConfigurationCpp() {
+        advertiser.remove();
+
+        if (grpcService) {
+            // Explicitly cleanup resources. We do not want to do this at
+            // program exit as we may be holding on to loopers, which threads
+            // have likely been destroyed at that point.
+            grpcService->stop();
+        }
+    }
+
+    const std::unique_ptr<EmulatorControllerService> grpcService;
+    EmulatorAdvertisement advertiser;
+};
+
 // Generates a secure base64 encoded token of
 // |cnt| bytes.
 static std::string generateToken(int cnt) {
@@ -68,9 +91,6 @@ static std::string generateToken(int cnt) {
     absl::Base64Escape(buf, &encoded);
     return encoded;
 }
-
-static std::unique_ptr<EmulatorAdvertisement> advertiser;
-static std::unique_ptr<EmulatorControllerService> grpcService;
 
 bool initialize(GrpcDeviceConfiguration* device) {
     auto avd = android::goldfish::avd_info::get_avd();
@@ -115,12 +135,9 @@ bool initialize(GrpcDeviceConfiguration* device) {
     props["grpc.jwk_active"] = jwkLoadedFile.string();
     builder.withJwtAuthDiscoveryDir(jwkDir.string(), jwkLoadedFile.string());
 
-    int port = -1;
-    grpcService = builder.build();
-
+    std::unique_ptr<EmulatorControllerService> grpcService = builder.build();
     if (grpcService) {
-        port = grpcService->port();
-        props["grpc.port"] = std::to_string(port);
+        props["grpc.port"] = std::to_string(grpcService->port());
         props["grpc.allowlist"] = builder.allowlist();
         if (device->tls_cer) {
             props["grpc.server_cert"] = device->tls_cer;
@@ -130,24 +147,12 @@ bool initialize(GrpcDeviceConfiguration* device) {
         }
     }
 
-    advertiser = std::make_unique<EmulatorAdvertisement>(std::move(props));
-    advertiser->garbageCollect();
-    advertiser->write();
-
+    device->cppState = new GrpcDeviceConfigurationCpp(std::move(grpcService), std::move(props));
     return true;
 }
 
 void finalize(GrpcDeviceConfiguration* device) {
     VLOG(1) << "Finalizing gRPC endpoint";
-    if (grpcService) {
-        // Explicitly cleanup resources. We do not want to do this at
-        // program exit as we may be holding on to loopers, which threads
-        // have likely been destroyed at that point.
-        grpcService->stop();
-        grpcService = nullptr;
-    }
-
-    if (advertiser) {
-        advertiser->remove();
-    }
+    delete device->cppState;
+    device->cppState = nullptr;
 }
