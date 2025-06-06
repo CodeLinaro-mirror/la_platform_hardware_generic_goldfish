@@ -23,17 +23,11 @@
 
 namespace android::base {
 
-void initlogging() {
-    static bool mInitialized = false;
-    if (!mInitialized) absl::InitializeLog();
-    mInitialized = true;
-}
-
 enum class Console { NO_TTY = 0, TTY = 1 };
 
 class LogSinkTest : public ::testing::TestWithParam<Console> {
   public:
-    LogSinkTest() : mColorSink(&mStr, (int)GetParam()) { initlogging(); }
+    LogSinkTest() : mColorSink(&mStr, (int)GetParam()) {}
     void SetUp() override {
         mStr.clear();
         absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(-2));

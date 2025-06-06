@@ -104,12 +104,12 @@ cc_test(
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/android/threads",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:absl_check",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

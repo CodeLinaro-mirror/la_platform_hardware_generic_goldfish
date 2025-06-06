@@ -35,7 +35,7 @@ cc_test(
     ],
     deps = [
         ":compat",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@com_google_googletest//:gtest_main",
     ],
 )

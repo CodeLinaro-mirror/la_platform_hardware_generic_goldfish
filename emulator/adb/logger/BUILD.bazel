@@ -19,7 +19,7 @@ cc_test(
     srcs = ["test/AdbMessageLogger_unittest.cpp"],
     deps = [
         ":logger",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@com_google_googletest//:gtest_main",
     ],
 )

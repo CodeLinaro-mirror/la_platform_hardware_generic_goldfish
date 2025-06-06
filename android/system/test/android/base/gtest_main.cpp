@@ -8,9 +8,9 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/log/log.h"
 #include "gtest/gtest.h"
 
 #include "android/base/bazel/bazel_info.h"
@@ -22,10 +22,14 @@ int main(int argc, char* argv[]) {
         Bazel::storeCommandLineArgs(argc, argv);
     }
 
-    absl::InitializeLog();
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+    // Parse abseil logging configuration.
+    std::vector<char*> positional_args;
+    std::vector<absl::UnrecognizedFlag> unrecognized_flags;
+    absl::ParseAbseilFlagsOnly(argc, argv, positional_args, unrecognized_flags);
 
+    absl::InitializeLog();
+
+    // Note: Google Test will ignore all the abseil flags
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

@@ -122,9 +122,9 @@ cc_test(
     }),
     deps = [
         ":vminterface-test",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base-headers",
-        "@com_google_googletest//:gtest_main",
     ],
 )

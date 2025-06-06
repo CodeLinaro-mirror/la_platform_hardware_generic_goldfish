@@ -21,9 +21,9 @@ cc_test(
     srcs = ["test/AdbHostServer_unittest.cpp"],
     deps = [
         ":host",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base",
-        "@com_google_googletest//:gtest_main",
     ],
 )

@@ -46,7 +46,7 @@ cc_test(
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@com_google_googletest//:gtest_main",
     ],
 )

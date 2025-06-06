@@ -147,8 +147,8 @@ cc_test(
         ":devices",
         "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/sockets",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

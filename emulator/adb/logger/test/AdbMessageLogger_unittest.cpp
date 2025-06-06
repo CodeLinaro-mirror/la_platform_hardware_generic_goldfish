@@ -17,9 +17,7 @@
 #include <thread>
 #include <vector>
 
-#include "absl/base/call_once.h"
 #include "absl/log/globals.h"
-#include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/strings/str_format.h"
@@ -106,17 +104,9 @@ struct CaptureLogSink : public absl::LogSink {
     std::string captured_log_;
 };
 
-void initlogs_once() {
-    static bool mInitialized = false;
-    if (!mInitialized) absl::InitializeLog();
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
-    mInitialized = true;
-}
-
-static absl::once_flag initlogs;
 class AdbMessageLoggerTest : public ::testing::Test {
   protected:
-    AdbMessageLoggerTest() { absl::call_once(initlogs, initlogs_once); }
+    AdbMessageLoggerTest() {}
     void SetUp() override {
         // Add the CaptureLogSink
         log_sink_ = std::make_unique<CaptureLogSink>();

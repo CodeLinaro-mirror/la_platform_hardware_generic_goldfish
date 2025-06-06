@@ -37,8 +37,8 @@ cc_test(
     deps = [
         ":bootconfig",
         "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

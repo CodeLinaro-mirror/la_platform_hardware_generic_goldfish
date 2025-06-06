@@ -73,6 +73,6 @@ cc_test(
     includes = ["test"],
     deps = [
         ":camera",
-        "@com_google_googletest//:gtest_main",
+        "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

@@ -80,8 +80,8 @@ cc_test(
         ":avd-test",
         ":config",
         "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest_main",
     ],
 )

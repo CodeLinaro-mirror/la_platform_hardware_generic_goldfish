@@ -50,13 +50,13 @@ cc_test(
     includes = ["test"],
     deps = [
         ":clipboard",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/config:avd-test",
         "//hardware/generic/goldfish/emulator/devices:test-socket",
         "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base",
         "@aemu//base:aemu-base-headers",
-        "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
 )

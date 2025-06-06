@@ -36,12 +36,12 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":disk_drive",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:mock_avd",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

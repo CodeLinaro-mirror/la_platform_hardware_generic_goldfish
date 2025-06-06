@@ -59,9 +59,9 @@ cc_test(
         ":agents",
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "@aemu//base:aemu-base",
-        "@com_google_googletest//:gtest_main",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",

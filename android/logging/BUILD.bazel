@@ -76,8 +76,8 @@ cc_test(
     deps = [
         ":absl-c-bridge",
         ":backend",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "@aemu//base:aemu-base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 

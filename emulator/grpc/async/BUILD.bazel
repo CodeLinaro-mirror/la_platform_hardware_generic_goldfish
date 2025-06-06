@@ -21,7 +21,7 @@ cc_test(
     srcs = ["test/android/emulation/control/utils/LibraryTest.cpp"],
     deps = [
         ":async",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
     ],
 )

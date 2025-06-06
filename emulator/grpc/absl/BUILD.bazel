@@ -23,7 +23,7 @@ cc_test(
     srcs = ["test/AbslStatusTranslateTest.cpp"],
     deps = [
         ":translate",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
     ],
 )
