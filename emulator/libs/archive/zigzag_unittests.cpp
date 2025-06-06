@@ -22,9 +22,12 @@ TEST(zigzag, encdec) {
     EXPECT_EQ(encdec(0), 0);
     EXPECT_EQ(encdec(INT64_MIN), INT64_MIN);
 
-    static const z::signed_t values[] = {1,          127,        128,       255,
-                                         256,        32767,      32768,     65535,
-                                         65536,      -INT32_MIN, INT32_MAX, (UINT32_MAX - 1),
+    static const z::signed_t values[] = {1,          127,
+                                         128,        255,
+                                         256,        32767,
+                                         32768,      65535,
+                                         65536,      -z::signed_t(INT32_MIN),
+                                         INT32_MAX,  (UINT32_MAX - 1),
                                          UINT32_MAX, INT64_MAX};
 
     for (const auto x : values) {
