@@ -114,7 +114,7 @@ vm.heapSize = 256
     ctx.file("BUILD.bazel", content = build_file_content)
     ctx.file("WORKSPACE", content = "")
     ctx.file("phone.ini", content = phone_content)
-    ctx.file("avd/config.ini", content = phone_config_ini)
+    ctx.file("phone.avd/config.ini", content = phone_config_ini)
 
 system_image_repository = repository_rule(
     implementation = _system_image_repository_impl,

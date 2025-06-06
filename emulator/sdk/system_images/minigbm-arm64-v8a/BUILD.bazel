@@ -1,0 +1,9 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "minigbm",
+    srcs = [
+        "phone.avd/config.ini",
+        "phone.ini",
+    ],
+)
