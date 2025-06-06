@@ -1,5 +1,6 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_python//python:defs.bzl", "py_test")
 load("plugins.bzl", "collect_plugins")
 load("version_info.bzl", "version_info_header")
 
@@ -203,6 +204,37 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",
     ],
+)
+
+py_test(
+    name = "can_launch_kernel_with_minigbm",
+    size = "medium",
+    timeout = "short",
+    srcs = ["src/launch_kernel.py"],
+    args = select({
+        "@platforms//os:macos": [
+            "--abi",
+            "arm64-v8a",
+        ],
+        "//conditions:default": [
+            "--abi",
+            "x86_64",
+        ],  # Default or for other platforms
+    }),
+    data = [
+        ":goldfish",
+    ] + select({
+        "@platforms//os:macos": [
+            "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+            "@android_minigbm-arm64-v8a//:system_image",
+        ],
+        "//conditions:default": [
+            "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-x86_64:minigbm",
+            "@android_minigbm-x86_64//:system_image",
+        ],
+    }),
+    main = "src/launch_kernel.py",
+    deps = ["@rules_python//python/runfiles"],
 )
 
 version_info_header(
