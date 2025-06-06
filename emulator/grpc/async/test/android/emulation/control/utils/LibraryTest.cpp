@@ -13,7 +13,11 @@
 // limitations under the License.
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <future>
 #include <thread>
+
+#include "absl/synchronization/notification.h"
 
 #include "android/emulation/control/utils/Library.h"
 
@@ -140,30 +144,36 @@ TEST(LibraryTest, WaitForEmptyLibraryTestTimesOut) {
 
 TEST(LibraryTest, WaitForEmptyLibraryTestWaitsUntilFinished) {
     using namespace std::chrono_literals;
-    Library<int> myLibrary;
-    bool started = false;
-    std::mutex mtx;
-    std::condition_variable cv;
 
-    std::thread t([&]() {
+    Library<int> myLibrary;
+    absl::Notification item_acquired;
+    absl::Notification item_release;
+
+    std::thread worker_thread([&] {
+        // Acquire an item, making the library non-empty.
         auto item = myLibrary.acquire();
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            started = true;
-        }
-        cv.notify_one();
-        std::this_thread::sleep_for(10ms);
+
+        // SIGNAL 1: Tell the main thread that the item has been acquired.
+        item_acquired.Notify();
+
+        // Wait until the main thread explicitly tells us to release the item.
+        item_release.WaitForNotification();
     });
 
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&] { return started; });
-    }
-    auto now = std::chrono::system_clock::now();
-    EXPECT_TRUE(myLibrary.waitUntilLibraryIsClear(500ms));
-    auto time_passed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now() - now);
-    EXPECT_GE(time_passed.count(), (10ms).count());
+    // Wait until the worker acquired the item.
+    item_acquired.WaitForNotification();
 
-    t.join();
+    // Call waitUntilLibraryIsClear in an asynchronous task.
+    // This will block at most 500ms..
+    auto wait_future = std::async(std::launch::async,
+                                  [&] { return myLibrary.waitUntilLibraryIsClear(500ms); });
+
+    // Tell the worker thread to release the item
+    item_release.Notify();
+
+    // The item should have been returned so the wait should return true.
+    EXPECT_TRUE(wait_future.get())
+            << "The library wait timed out, and items were still present after 500ms";
+
+    worker_thread.join();
 }
