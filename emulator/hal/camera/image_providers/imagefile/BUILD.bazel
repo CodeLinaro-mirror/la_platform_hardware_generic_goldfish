@@ -1,4 +1,4 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "imagefile",
@@ -15,4 +15,15 @@ cc_library(
         "@com_google_absl//absl/log",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "imagefile_unittests",
+    srcs = [
+        "test/todo.cpp",
+    ],
+    deps = [
+        ":imagefile",
+        "@com_google_googletest//:gtest_main",
+    ],
 )

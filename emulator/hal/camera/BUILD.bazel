@@ -62,7 +62,7 @@ cc_library(
 )
 
 cc_test(
-    name = "camera_unittests",
+    name = "camera_impl_unittests",
     srcs = [
         "test/CameraDeviceEnumerator_test.cpp",
         "test/CameraDevice_test.cpp",
@@ -70,9 +70,16 @@ cc_test(
         "test/CameraProtocolBase_test.cpp",
         "test/QueryParser_test.cpp",
     ],
-    includes = ["test"],
     deps = [
         ":camera",
         "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)
+
+test_suite(
+    name = "camera_unittests",
+    tests = [
+        ":camera_impl_unittests",
+        "//hardware/generic/goldfish/emulator/hal/camera/image_providers:image_providers_unittests",
     ],
 )
