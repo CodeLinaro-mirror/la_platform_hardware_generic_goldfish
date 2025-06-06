@@ -43,6 +43,7 @@
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/system/System.h"
+#include "android/base/bazel/bazel_info.h"
 #include "android/base/system/CStrWrapper.h"
 #include "android/base/system/storage_capacity.h"
 
@@ -1782,19 +1783,17 @@ fs::path System::findBundledExecutable(std::string_view programName) {
     }
 
     // We might be running in a bazel dev environment.. Make that work for now
-    auto workspace = system->envGet("BUILD_WORKSPACE_DIRECTORY");
-    if (workspace.empty()) {
-        VLOG(1) << "Unable to find: " << programName << " and not running in a bazel workspace.";
+    if (!Bazel::inBazel()) {
         return "";
-    }
+    };
 
-    VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << workspace;
-    fs::path root = workspace;
-    std::vector<fs::path> bazel_search{"bazel-bin/third_party/qemu",
-                                       "bazel-bin/hardware/generic/goldfish/third_party/sparse"};
+    std::vector<fs::path> bazel_search{"_main/third_party/qemu",
+                                       "_main/hardware/generic/goldfish/third_party/sparse"
+                                       ""};
 
     for (const auto& option : bazel_search) {
-        auto possible_exe = root / option / executableName;
+        auto possible_exe =
+                fs::path(Bazel::runfilesPath(System::pathAsString(option / executableName)));
         VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << possible_exe;
         if (system->pathIsFile(possible_exe)) {
             return possible_exe;
@@ -1973,14 +1972,14 @@ System::WallDuration System::getSystemTimeUs() {
 
 std::string toString(OsType osType) {
     switch (osType) {
-        case OsType::Windows:
-            return "Windows";
-        case OsType::Linux:
-            return "Linux";
-        case OsType::Mac:
-            return "Mac";
-        default:
-            return "Unknown";
+    case OsType::Windows:
+        return "Windows";
+    case OsType::Linux:
+        return "Linux";
+    case OsType::Mac:
+        return "Mac";
+    default:
+        return "Unknown";
     }
 }
 
