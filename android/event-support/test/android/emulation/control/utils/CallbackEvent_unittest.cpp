@@ -116,28 +116,35 @@ TEST_F(CallbackTests, ThreadSafety) {
     constexpr int NUM_THREADS = 10;
     constexpr int OPERATIONS_PER_THREAD = 100;
 
-    std::vector<std::thread> threads;
     std::atomic<int> totalCallbacks{0};
 
-    // Launch threads that add and remove callbacks
-    for (int i = 0; i < NUM_THREADS; ++i) {
-        threads.emplace_back([this, &totalCallbacks]() {
-            for (int j = 0; j < OPERATIONS_PER_THREAD; ++j) {
-                auto id = events.addCallback([&totalCallbacks](const int&) { totalCallbacks++; });
-                events.triggerEvent(j);
-                events.removeCallback(id);
-            }
-        });
+    {
+        std::vector<std::thread> threads;
+        // Launch threads that add and remove callbacks
+        for (int i = 0; i < NUM_THREADS; ++i) {
+            threads.emplace_back([this, &totalCallbacks]() {
+                for (int j = 0; j < OPERATIONS_PER_THREAD; ++j) {
+                    auto id =
+                            events.addCallback([&totalCallbacks](const int&) { ++totalCallbacks; });
+                    events.triggerEvent(j);
+                    events.removeCallback(id);
+                }
+            });
+        }
+
+        // Join all threads
+        for (auto& thread : threads) {
+            thread.join();
+        }
     }
 
-    // Join all threads
-    for (auto& thread : threads) {
-        thread.join();
-    }
-
-    // Verify final state
+    // Verify final state:
+    // all calbacks are moved
     EXPECT_EQ(events.callbackCount(), 0);
-    EXPECT_GT(totalCallbacks, NUM_THREADS * OPERATIONS_PER_THREAD);
+    // We will get exactly (NUM_THREADS * OPERATIONS_PER_THREAD) if
+    // addCallback/triggerEvent/removeCallback don't interleave and greater otherwise
+    // i.e. triggerEvent triggers callbacks added (but not yet removed) by other threads.
+    EXPECT_GE(totalCallbacks, NUM_THREADS * OPERATIONS_PER_THREAD);
 }
 
 // Integration with traditional EventListener interface
