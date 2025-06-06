@@ -264,6 +264,7 @@ test_suite(
         "//hardware/generic/goldfish/emulator/launcher:emulator_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
         #"@com_google_crashpad//:crashpad_tests",
+        "//hardware/generic/goldfish/emulator/launcher:can_launch_kernel_with_minigbm",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",
     ],
