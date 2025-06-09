@@ -24,6 +24,8 @@
 #include "android/camera/CameraDevice.h"
 #include "android/camera/CameraDeviceEnumerator.h"
 #include "android/camera/CameraImageProviderRegistry.h"
+#include "android/camera/CameraImageSource.h"
+#include "android/camera/getGuestEmulatedCameraProperty.h"
 #include "android/camera/image_providers/imagefile.h"
 #include "android/camera/image_providers/videofile.h"
 #include "android/camera/image_providers/virtualscene.h"
@@ -44,36 +46,13 @@ using goldfish::parsing::getKeyValueStr;
 using goldfish::parsing::split2;
 
 namespace {
-enum class CameraImageSource {
-    EMULATED,
-    WEBCAM,
-    VIRTUALSCENE,
-    VIDEOFILE,
-    IMAGEFILE,
-};
-
-CameraImageSource getCameraImageSourceFromName(const std::string_view name) {
-    if (name.starts_with("webcam"sv)) {
-        return CameraImageSource::WEBCAM;
-    } else if (name == "virtualscene"sv) {
-        return CameraImageSource::VIRTUALSCENE;
-    } else if (name == "videofile"s) {
-        return CameraImageSource::VIDEOFILE;
-    } else if (name == "imagefile"s) {
-        return CameraImageSource::IMAGEFILE;
-    } else if ((name != "emulated"sv) && !name.empty()) {
-        LOG(WARNING) << "camera: unexpected camera source: '" << name << "'";
-    }
-
-    return CameraImageSource::EMULATED;
-}
-
 bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
                           const std::string_view id, const std::string_view params,
                           const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry) {
     CameraImageProviderInfo info;
 
     switch (source) {
+    case CameraImageSource::NONE:
     case CameraImageSource::EMULATED:
         return true;
 
@@ -114,21 +93,6 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
 
     dst.add(info);
     return true;
-}
-
-std::string getGuestEmulatedCameraProperty(const CameraImageSource front,
-                                           const CameraImageSource back) {
-    if (front == CameraImageSource::EMULATED) {
-        if (back == CameraImageSource::EMULATED) {
-            return "both"s;
-        } else {
-            return "front"s;
-        }
-    } else if (back == CameraImageSource::EMULATED) {
-        return "back"s;
-    } else {
-        return "none"s;
-    }
 }
 
 PlugPtr createCameraDevice(SocketPtr socket, const std::string_view params,
@@ -172,16 +136,13 @@ err:
 
 void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
                     const android::goldfish::Avd& avd, GrallocDetailsPtr grallocDetails) {
-    CameraImageSource frontCameraSource;
-    CameraImageSource backCameraSource;
+    const auto [frontCameraId, frontCameraParams] = split2(avd.hw().hw_camera_front, ':');
+    CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
+
+    const auto [backCameraId, backCameraParams] = split2(avd.hw().hw_camera_back, ':');
+    CameraImageSource backCameraSource = getCameraImageSourceFromName(backCameraId);
 
     if (grallocDetails) {
-        const auto [frontCameraId, frontCameraParams] = split2(avd.hw().hw_camera_front, ':');
-        frontCameraSource = getCameraImageSourceFromName(frontCameraId);
-
-        const auto [backCameraId, backCameraParams] = split2(avd.hw().hw_camera_back, ':');
-        backCameraSource = getCameraImageSourceFromName(backCameraId);
-
         CameraImageProviderRegistry webcamRegistry;
         if ((frontCameraSource == CameraImageSource::WEBCAM) ||
             (backCameraSource == CameraImageSource::WEBCAM)) {
@@ -218,8 +179,13 @@ void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraPro
                                          }
                                      });
     } else {
-        frontCameraSource = CameraImageSource::EMULATED;
-        backCameraSource = CameraImageSource::EMULATED;
+        if (frontCameraSource != CameraImageSource::NONE) {
+            frontCameraSource = CameraImageSource::EMULATED;
+        }
+
+        if (backCameraSource != CameraImageSource::NONE) {
+            backCameraSource = CameraImageSource::EMULATED;
+        }
     }
 
     *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraSource, backCameraSource);
