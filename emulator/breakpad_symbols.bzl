@@ -68,18 +68,12 @@ def _breakpad_symbols_impl(ctx):
                     mnemonic = "ExtractBreakpadSymbols",
                     outputs = [output_file],
                     inputs = [binary] + split_symbol_files,
-                    # dump_syms writes to stdout on Windows - capture and redirect to a file with cmd.
-                    executable = "cmd.exe",
-                    tools = [ctx.executable._dump_syms],
+                    executable = ctx.executable._dump_syms,
                     arguments = [
-                        "/Q",  # Quiet
-                        "/D",  # No autorun commands
-                        "/C",  # Run command
-                        windows_path(ctx.executable._dump_syms.path) +
-                        " --i " +  # Generate INLINE/INLINE_ORIGIN records
-                        windows_path(binary.path) +
-                        " > " +
+                        "--i",  # Generate INLINE/INLINE_ORIGIN records
+                        "--f",  # Output to:
                         windows_path(output_file.path),
+                        windows_path(binary.path),
                     ],
                 )
             else:
