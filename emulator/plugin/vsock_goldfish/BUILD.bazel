@@ -38,6 +38,7 @@ cc_library(
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:connection_awaiter",
+        "//hardware/generic/goldfish/emulator/libs/UniqueIdAllocator",
         "//hardware/generic/goldfish/emulator/libs/archive:QEMUFileArchive",
         "//hardware/generic/goldfish/emulator/libs/debug",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",

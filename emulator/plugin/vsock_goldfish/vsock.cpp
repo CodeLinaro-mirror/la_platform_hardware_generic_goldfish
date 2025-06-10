@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "goldfish/UniqueIdAllocator.h"
 #include "goldfish/archive/QEMUFileReader.h"
 #include "goldfish/archive/QEMUFileWriter.h"
 #include "goldfish/debug.h"
@@ -45,64 +46,6 @@ using goldfish::devices::cable::SocketPtr;
 using goldfish::vsock::HostPortListener;
 
 constexpr uint32_t kDynamicPortsStart = 1U << 31;
-
-struct UniqueIdAllocator {
-    uint32_t get() {
-        auto i = mReturnedIds.end();
-        if (i != mReturnedIds.begin()) {
-            --i;
-            const uint32_t id = *i;
-            mReturnedIds.erase(i);
-            return id;
-        } else {
-            return ++mLastId;
-        }
-    }
-
-    void put(const uint32_t id) {
-        if (id == mLastId) {
-            --mLastId;
-
-            while (true) {
-                const auto i = mReturnedIds.begin();
-                if (i != mReturnedIds.end() && *i == mLastId) {
-                    --mLastId;
-                    mReturnedIds.erase(i);
-                } else {
-                    break;
-                }
-            }
-        } else {
-            assert(id < mLastId);
-            mReturnedIds.insert(id);
-        }
-    }
-
-    void reset() {
-        mLastId = 0;
-        mReturnedIds.clear();
-    }
-
-    void saveToSnapshot(IWriter& writer) const {
-        writer << mLastId << mReturnedIds.size();
-        for (const uint32_t id : mReturnedIds) {
-            writer << id;
-        }
-    }
-
-    int loadFromSnapshot(IReader& reader) {
-        mLastId = getUnsigned(reader);
-        mReturnedIds.clear();
-        for (size_t n = getUnsigned(reader); n > 0; --n) {
-            mReturnedIds.insert(getUnsigned(reader));
-        }
-
-        return 0;
-    }
-
-    uint32_t mLastId = 0;
-    std::set<uint32_t, std::greater<uint32_t>> mReturnedIds;
-};
 
 struct SocketBuffer {
     void append(const void* data, size_t size) {
@@ -768,7 +711,7 @@ struct GoldfishVirtioVsockDevice {
     std::unordered_map<uint32_t, HostPortListener> mHostPortListeners;
 
     // Everything below is snapshotted
-    UniqueIdAllocator mSrcPortAllocator;
+    goldfish::UniqueIdAllocator mSrcPortAllocator;
     std::deque<struct virtio_vsock_hdr> mOrphanPackets;
     std::deque<struct virtio_vsock_event> mHostEvents;
     Streams mStreams;
