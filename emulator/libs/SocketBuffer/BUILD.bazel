@@ -1,0 +1,36 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "SocketBuffer",
+    srcs = [
+        "SocketBuffer.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/SocketBuffer.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/archive",
+        "//hardware/generic/goldfish/emulator/libs/debug",
+    ],
+)
+
+cc_test(
+    name = "SocketBuffer_unittests",
+    size = "small",
+    srcs = [
+        "SocketBuffer_unittests.cpp",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":SocketBuffer",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
+    ],
+)
