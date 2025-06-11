@@ -7,6 +7,9 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/imaging",
+    ],
     alwayslink = True,
 )
 
@@ -17,6 +20,9 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/imaging",
+    ],
     alwayslink = True,
 )
 

@@ -29,6 +29,9 @@ using namespace goldfish::devices::camera;
 using goldfish::devices::cable::ISocket;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
+using goldfish::imaging::AndroidPixelFormat;
+using goldfish::imaging::ImageFormat;
+using goldfish::imaging::ImageRef;
 
 using ::testing::ElementsAreArray;
 
@@ -43,7 +46,7 @@ struct TestGralloc : public IGrallocDetails {
     struct ImageTransfer {
         std::string handle;
         size_t framebufferSize;
-        uint32_t format;
+        ImageFormat format;
         uint32_t width;
         uint32_t height;
 
@@ -53,16 +56,26 @@ struct TestGralloc : public IGrallocDetails {
         }
     };
 
-    uint32_t aFormatToFourCC(uint32_t androidFormat) const override { return 2 * androidFormat; }
+    ImageFormat getImageFormat(const AndroidPixelFormat apf) const override {
+        switch (apf) {
+        case AndroidPixelFormat::RGBA_8888:
+            return ImageFormat::RGBA_8888;
 
-    int transfer(std::string_view handleStr, uint32_t format, uint32_t width, uint32_t height,
-                 const void* framebuffer, size_t framebufferSize) const override {
+        case AndroidPixelFormat::YCBCR_420_888:
+            return ImageFormat::YUV420_NV12;
+
+        default:
+            return ImageFormat::NONE;
+        }
+    }
+
+    int transfer(const std::string_view handleStr, const ImageRef& img) const override {
         ImageTransfer transfer = {
             .handle = std::string(handleStr),
-            .framebufferSize = framebufferSize,
-            .format = format,
-            .width = width,
-            .height = height,
+            .framebufferSize = img.getData().second,
+            .format = img.getFormat(),
+            .width = img.getSize().width,
+            .height = img.getSize().height,
         };
 
         mTransfers.push_back(std::move(transfer));
@@ -151,12 +164,12 @@ struct CameraDeviceTest : public ::testing::Test {
 }  // namespace
 
 TEST_F(CameraDeviceTest, configure) {
-    static const char configureQuery[] = "configure streams=42:640x480@A,3:320x240@7";
+    static const char configureQuery[] = "configure streams=42:640x480@1,3:320x240@23";
 
     static const CameraImageProviderStreamConfig kExpectedConfigs[] = {
         {
             .id = 42,
-            .format = 0xAU * 2U,
+            .format = GOLDFISH_IMAGE_FORMAT_RGBA_8888,
             .size =
                     {
                         .width = 640,
@@ -165,7 +178,7 @@ TEST_F(CameraDeviceTest, configure) {
         },
         {
             .id = 3,
-            .format = 0x7U * 2U,
+            .format = GOLDFISH_IMAGE_FORMAT_YUV420_NV12,
             .size =
                     {
                         .width = 320,
@@ -184,7 +197,7 @@ TEST_F(CameraDeviceTest, configure) {
 }
 
 TEST_F(CameraDeviceTest, capture) {
-    static const char configureQuery[] = "configure streams=0:640x480@1,1:320x240@2";
+    static const char configureQuery[] = "configure streams=0:640x480@1,1:320x240@23";
     static const char captureQuery[] = "capture bufs=0:abc,1:xyz";
 
     EXPECT_TRUE(mTestSocket.plug->onReceive(configureQuery, sizeof(configureQuery)));
@@ -194,14 +207,14 @@ TEST_F(CameraDeviceTest, capture) {
         {
             .handle = "abc"s,
             .framebufferSize = 2,
-            .format = 2,
+            .format = ImageFormat::RGBA_8888,
             .width = 640,
             .height = 480,
         },
         {
             .handle = "xyz"s,
             .framebufferSize = 1,
-            .format = 4,
+            .format = ImageFormat::YUV420_NV12,
             .width = 320,
             .height = 240,
         },

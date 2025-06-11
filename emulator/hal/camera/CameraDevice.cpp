@@ -48,6 +48,9 @@ bool CameraDevice::processQuery(const std::string_view query, const std::string_
 }
 
 void CameraDevice::configure(const std::string_view params) {
+    using imaging::AndroidPixelFormat;
+    using imaging::ImageFormat;
+
     const std::optional<std::string_view> maybeStreams = getKeyValueStr(params, "streams"sv);
     if (!maybeStreams) {
         sendResponse(false, "missing 'streams' parameter"sv);
@@ -74,15 +77,16 @@ void CameraDevice::configure(const std::string_view params) {
             return;
         }
 
-        const uint32_t fourCC = aFormatToFourCC(aformat);
-        if (!fourCC) {
+        const ImageFormat imageFormat =
+                getImageFormatFromAndroid(static_cast<AndroidPixelFormat>(aformat));
+        if (imageFormat == ImageFormat::NONE) {
             sendResponse(false, "unsupported format"sv);
             return;
         }
 
         streamCfgs.push_back({
             .id = id,
-            .format = fourCC,
+            .format = static_cast<GOLDFISH_IMAGE_FORMAT>(imageFormat),
             .size =
                     {
                         .width = static_cast<uint16_t>(width),

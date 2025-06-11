@@ -1,0 +1,32 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "imaging",
+    srcs = [
+        "getStride.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/imaging/AndroidPixelFormat.h",
+        "include/goldfish/imaging/ImageFormat.h",
+        "include/goldfish/imaging/ImageRef.h",
+        "include/goldfish/imaging/Rect.h",
+        "include/goldfish/imaging/getStride.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "imaging_unittests",
+    srcs = [
+        "test/getStride_unittests.cpp",
+    ],
+    deps = [
+        ":imaging",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)

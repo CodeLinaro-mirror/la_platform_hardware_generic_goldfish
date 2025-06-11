@@ -18,6 +18,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "goldfish/imaging/ImageFormat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,7 +43,7 @@ typedef struct CameraImageProviderInfo {
 
 typedef struct CameraImageProviderStreamConfig {
     int32_t id;
-    uint32_t format; /* fourCC */
+    GOLDFISH_IMAGE_FORMAT format;
     CameraImageProviderRect size;
 } CameraImageProviderStreamConfig;
 

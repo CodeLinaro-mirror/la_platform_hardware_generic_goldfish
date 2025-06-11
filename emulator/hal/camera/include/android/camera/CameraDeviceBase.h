@@ -21,6 +21,9 @@
 
 namespace goldfish::devices::camera {
 
+using imaging::AndroidPixelFormat;
+using imaging::ImageFormat;
+
 struct CameraDeviceBase : public CameraProtocolBase {
     CameraDeviceBase(SocketPtr socket, void* imageProvider, const CameraImageProviderVtbl& vtbl,
                      GrallocDetailsPtr grallocDetails);
@@ -33,9 +36,9 @@ struct CameraDeviceBase : public CameraProtocolBase {
     bool captureImpl(const CameraImageProviderCaptureOpts& opts,
                      const CameraImageProviderStreamCaptureInfo* scis, const size_t scisSize);
     void stopCapturingImpl() const;
-    uint32_t aFormatToFourCC(uint32_t androidFormat) const;
+    ImageFormat getImageFormatFromAndroid(AndroidPixelFormat) const;
 
-  private:
+   private:
     int imageSink(const CameraImageProviderStreamCaptureInfo& sci, const void* framebufferPtr,
                   const size_t framebufferSize) const;
     static int imageSinkStatic(void* that, const CameraImageProviderStreamCaptureInfo* sci,
