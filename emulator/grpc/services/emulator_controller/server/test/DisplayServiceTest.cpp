@@ -71,7 +71,7 @@ class DisplayServiceTest : public GrcpServiceTest {
     void setRotation(ISensorDevice* device, Rotation_SkinRotation rotation) {
         auto [x, y, z] = mRotationMap[rotation];
         ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
+                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
     }
 
     FakeMultiDisplay* mMultiDisplay;
@@ -248,7 +248,7 @@ TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
         ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
+                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
 
         auto context = getContextWithTimeout();
         ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
@@ -497,7 +497,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     float y = 0;
     float z = 0;
 
-    ASSERT_TRUE(device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
+    ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
 
     status = reader->Read(&image);
     if (!status) {
@@ -543,7 +543,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
         ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z}).ok());
+                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
 
         status = reader->Read(&image);
         if (!status) {

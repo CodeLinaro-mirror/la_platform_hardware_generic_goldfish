@@ -45,7 +45,7 @@ class BodyModel {
      */
     void setHeartRate(float bpm, PhysicalInterpolation mode);
 
-    float getHeartRate(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+    float getHeartRate(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
   private:
     /* BPM */

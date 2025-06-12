@@ -133,14 +133,14 @@ float FoldableModel::getHingeAngle(uint32_t hingeIndex,
                                    ParameterValueType parameterValueType) const {
     if (hingeIndex >= ANDROID_FOLDABLE_MAX_HINGES) return 0.0f;
     if (hingeIndex >= mState.config.numHinges) return 0.0f;
-    return parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT
+    return parameterValueType == ParameterValueType::DEFAULT
                    ? mState.config.hingeParams[hingeIndex].defaultDegrees
                    : mState.currentHingeDegrees[hingeIndex];
 }
 
 float FoldableModel::getPosture(ParameterValueType parameterValueType) const {
-    return parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT ? (float)POSTURE_UNKNOWN
-                                                              : (float)mState.currentPosture;
+    return parameterValueType == ParameterValueType::DEFAULT ? (float)POSTURE_UNKNOWN
+                                                             : (float)mState.currentPosture;
 }
 
 void FoldableModel::sendPostureToSystem(enum FoldablePostures p) {
@@ -151,7 +151,7 @@ float FoldableModel::getRollable(uint32_t index, ParameterValueType parameterVal
     if (index >= ANDROID_FOLDABLE_MAX_ROLLS) return 0.0f;
     if (index >= mState.config.numRolls) return 0.0f;
 
-    return parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT
+    return parameterValueType == ParameterValueType::DEFAULT
                    ? mState.config.rollableParams[index].defaultRolledPercent
                    : mState.currentRolledPercent[index];
 }

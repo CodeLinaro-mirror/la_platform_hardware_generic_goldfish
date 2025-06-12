@@ -28,10 +28,10 @@ TEST(BodyModel, DefaultParameters) {
     BodyModel bodyModel;
 
     constexpr ParameterValueType valueTypes[] = {
-            PARAMETER_VALUE_TYPE_TARGET, PARAMETER_VALUE_TYPE_CURRENT,
-            PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION, PARAMETER_VALUE_TYPE_DEFAULT};
+            ParameterValueType::TARGET, ParameterValueType::CURRENT,
+            ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
     for (auto valueType : valueTypes) {
-        SCOPED_TRACE(testing::Message() << "valueType=" << valueType);
+        SCOPED_TRACE(testing::Message() << "valueType=" << static_cast<int>(valueType));
 
         EXPECT_EQ(0.f, bodyModel.getHeartRate(valueType));
     }
@@ -42,6 +42,6 @@ TEST(BodyModel, SetHeartRate) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     BodyModel bodyModel;
-    bodyModel.setHeartRate(100.f, PHYSICAL_INTERPOLATION_STEP);
+    bodyModel.setHeartRate(100.f, PhysicalInterpolation::STEP);
     EXPECT_EQ(100.f, bodyModel.getHeartRate());
 }

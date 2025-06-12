@@ -164,51 +164,51 @@ class SensorDevice : public ISensorDevice {
           mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual)) {
         // Initialize sensors based on AVD configuration
         if (avd->hw().hw_accelerometer) {
-            mSensors[ANDROID_SENSOR_ACCELERATION].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
         }
         if (avd->hw().hw_accelerometer_uncalibrated) {
-            mSensors[ANDROID_SENSOR_ACCELERATION_UNCALIBRATED].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION_UNCALIBRATED)].enabled = true;
         }
         if (avd->hw().hw_gyroscope) {
-            mSensors[ANDROID_SENSOR_GYROSCOPE].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE)].enabled = true;
         }
         if (avd->hw().hw_sensors_proximity) {
-            mSensors[ANDROID_SENSOR_PROXIMITY].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::PROXIMITY)].enabled = true;
         }
         if (avd->hw().hw_sensors_magnetic_field) {
-            mSensors[ANDROID_SENSOR_MAGNETIC_FIELD].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
         }
         if (avd->hw().hw_sensors_magnetic_field_uncalibrated) {
-            mSensors[ANDROID_SENSOR_MAGNETIC_FIELD_UNCALIBRATED].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled = true;
         }
         if (avd->hw().hw_sensors_gyroscope_uncalibrated) {
-            mSensors[ANDROID_SENSOR_GYROSCOPE_UNCALIBRATED].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
         }
         if (avd->hw().hw_sensors_orientation) {
-            mSensors[ANDROID_SENSOR_ORIENTATION].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::ORIENTATION)].enabled = true;
         }
         if (avd->hw().hw_sensors_temperature) {
-            mSensors[ANDROID_SENSOR_TEMPERATURE].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::TEMPERATURE)].enabled = true;
         }
         if (avd->hw().hw_sensors_light) {
-            mSensors[ANDROID_SENSOR_LIGHT].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::LIGHT)].enabled = true;
         }
         if (avd->hw().hw_sensors_pressure) {
-            mSensors[ANDROID_SENSOR_PRESSURE].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::PRESSURE)].enabled = true;
         }
         if (avd->hw().hw_sensors_humidity) {
-            mSensors[ANDROID_SENSOR_HUMIDITY].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::HUMIDITY)].enabled = true;
         }
         if (avd->hw().hw_sensors_rgbclight) {
-            mSensors[ANDROID_SENSOR_RGBC_LIGHT].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::RGBC_LIGHT)].enabled = true;
         }
         if (avd->hw().hw_sensor_hinge) {
-            mSensors[ANDROID_SENSOR_HINGE_ANGLE0].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE0)].enabled = true;
             switch (avd->hw().hw_sensor_hinge_count) {
                 case 3:
-                    mSensors[ANDROID_SENSOR_HINGE_ANGLE2].enabled = true;
+                    mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
                 case 2:
-                    mSensors[ANDROID_SENSOR_HINGE_ANGLE1].enabled = true;
+                    mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE1)].enabled = true;
                 default:;
             }
         }
@@ -217,11 +217,11 @@ class SensorDevice : public ISensorDevice {
                 avd->getDeviceType() == Avd::DeviceType::kWear && avd->apiLevel() >= 28;
 
         if (avd->hw().hw_sensors_heart_rate || modernWearDevice) {
-            mSensors[ANDROID_SENSOR_HEART_RATE].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
         }
 
         if (avd->hw().hw_sensors_wrist_tilt || modernWearDevice) {
-            mSensors[ANDROID_SENSOR_WRIST_TILT].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
         }
 
         /* XXX: TODO: Add other tests when we add the corresponding
@@ -229,15 +229,15 @@ class SensorDevice : public ISensorDevice {
 
         // Initialize physical parameters
         const float kPressure = 1013.25F;
-        setPhysicalParameterValue(PHYSICAL_PARAMETER_PRESSURE, &kPressure, 1u,
-                                  PHYSICAL_INTERPOLATION_SMOOTH);  // One "standard atmosphere"
+        setPhysicalParameterValue(PhysicalParameter::PRESSURE, &kPressure, 1u,
+                                  PhysicalInterpolation::SMOOTH);  // One "standard atmosphere"
 
         const float kProximity = 1.F;
-        setPhysicalParameterValue(PHYSICAL_PARAMETER_PROXIMITY, &kProximity, 1u,
-                                  PHYSICAL_INTERPOLATION_STEP);
+        setPhysicalParameterValue(PhysicalParameter::PROXIMITY, &kProximity, 1u,
+                                  PhysicalInterpolation::STEP);
 
         mEnabledMask = 0;
-        for (int nn = 0; nn < MAX_SENSORS; nn++) {
+        for (size_t nn = 0; nn < static_cast<size_t>(AndroidSensor::MAX_SENSORS); nn++) {
             if (mSensors[nn].enabled) {
                 mEnabledMask |= (1 << nn);
             }
@@ -331,7 +331,7 @@ class SensorDevice : public ISensorDevice {
             }
 
             int id = sensorIdFromName(parts[0]);
-            if (id < 0 || id >= MAX_SENSORS) {
+            if (id < 0 || id >= static_cast<int>(AndroidSensor::MAX_SENSORS)) {
                 VLOG(1) << "ignore unknown sensor name: '" << parts[0] << "'";
                 return true;
             }
@@ -376,29 +376,31 @@ class SensorDevice : public ISensorDevice {
     }
 
     absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) override {
-        if (sensor_id < 0 || sensor_id >= MAX_SENSORS) {
+        if (sensor_id >= AndroidSensor::MAX_SENSORS) {
             return absl::InvalidArgumentError(
-                    absl::StrFormat("SensorId: %d, out of range (max:%d)", sensor_id, MAX_SENSORS));
+                    absl::StrFormat("SensorId: %zu, out of range (max:%zu)",
+                                    static_cast<size_t>(sensor_id),
+                                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
         }
 
-        if (!mSensors[sensor_id].enabled) {
+        if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
             return absl::UnavailableError("The sensor is disabled");
         }
 
         switch (sensor_id) {
-            case ANDROID_SENSOR_HINGE_ANGLE0:
-                setPhysicalParameterValue(PHYSICAL_PARAMETER_HINGE_ANGLE0, data.data(), data.size(),
-                                          PHYSICAL_INTERPOLATION_SMOOTH);
+            case AndroidSensor::HINGE_ANGLE0:
+                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, data.data(), data.size(),
+                                          PhysicalInterpolation::SMOOTH);
 
                 break;
-            case ANDROID_SENSOR_HINGE_ANGLE1:
-                setPhysicalParameterValue(PHYSICAL_PARAMETER_HINGE_ANGLE1, data.data(), data.size(),
-                                          PHYSICAL_INTERPOLATION_SMOOTH);
+            case AndroidSensor::HINGE_ANGLE1:
+                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, data.data(), data.size(),
+                                          PhysicalInterpolation::SMOOTH);
 
                 break;
-            case ANDROID_SENSOR_HINGE_ANGLE2:
-                setPhysicalParameterValue(PHYSICAL_PARAMETER_HINGE_ANGLE2, data.data(), data.size(),
-                                          PHYSICAL_INTERPOLATION_SMOOTH);
+            case AndroidSensor::HINGE_ANGLE2:
+                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, data.data(), data.size(),
+                                          PhysicalInterpolation::SMOOTH);
 
                 break;
             default:
@@ -411,12 +413,14 @@ class SensorDevice : public ISensorDevice {
     }
 
     absl::StatusOr<SensorData> getSensorData(AndroidSensor sensor_id) override {
-        if (sensor_id < 0 || sensor_id >= MAX_SENSORS) {
+        if (sensor_id >= AndroidSensor::MAX_SENSORS) {
             return absl::InvalidArgumentError(
-                    absl::StrFormat("SensorId: %d, out of range (max:%d)", sensor_id, MAX_SENSORS));
+                    absl::StrFormat("SensorId: %zu, out of range (max:%zu)",
+                                    static_cast<size_t>(sensor_id),
+                                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
         }
 
-        if (!mSensors[sensor_id].enabled) {
+        if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
             return absl::UnavailableError("The sensor is disabled");
         }
 
@@ -433,9 +437,9 @@ class SensorDevice : public ISensorDevice {
     }
 
     bool isSensorEnabled(AndroidSensor sensor_id) override {
-        if (sensor_id < 0 || sensor_id >= MAX_SENSORS) return false;
+        if (sensor_id >= AndroidSensor::MAX_SENSORS) return false;
 
-        return mSensors[sensor_id].enabled;
+        return mSensors[static_cast<size_t>(sensor_id)].enabled;
     }
 
     std::chrono::microseconds getSensorTimeOffset() override {
@@ -447,7 +451,7 @@ class SensorDevice : public ISensorDevice {
     }
 
     absl::StatusOr<Rotation> getDeviceRotation() override {
-        auto out = getSensorData(AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+        auto out = getSensorData(AndroidSensor::ACCELERATION);
         if (!out.ok()) {
             return out.status();
         }
@@ -477,7 +481,7 @@ class SensorDevice : public ISensorDevice {
   private:
     // Helper functions to get sensor/parameter ID from name
     int sensorIdFromName(std::string_view name) const {
-        for (int i = 0; i < MAX_SENSORS; i++) {
+        for (int i = 0; i < static_cast<int>(AndroidSensor::MAX_SENSORS); i++) {
             if (kSensors[i].name == name) {
                 return i;
             }
@@ -490,7 +494,7 @@ class SensorDevice : public ISensorDevice {
         long measurement_id = -1L;
 
         switch (sensor_id) {
-#define ENUM_NAME(x) ANDROID_SENSOR_##x
+#define ENUM_NAME(x) AndroidSensor::x
 #define GET_FUNCTION_NAME(x) get##x
 #define SERIALIZE_VALUE_NAME(x) serializeValue
 #define SENSOR_(x, y, z, v, w)                                                         \
@@ -542,7 +546,7 @@ class SensorDevice : public ISensorDevice {
         switch (sensor_id) {
 #define OVERRIDE_FUNCTION_NAME(x) override##x
 #define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
-#define ENUM_NAME(x) ANDROID_SENSOR_##x
+#define ENUM_NAME(x) AndroidSensor::x
 #define SENSOR_(x, y, z, v, w)                                                                  \
     case ENUM_NAME(x):                                                                          \
         mPhysicalModel->OVERRIDE_FUNCTION_NAME(z)(GET_TYPE_VALUE_FUNCTION_NAME(v)(val, count)); \
@@ -563,7 +567,7 @@ class SensorDevice : public ISensorDevice {
         switch (sensor_id) {
 #define GET_FUNCTION_NAME(x) mPhysicalModel->get##x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
-#define ENUM_NAME(x) ANDROID_SENSOR_##x
+#define ENUM_NAME(x) AndroidSensor::x
 #define SENSOR_(x, y, z, v, w)                               \
     case ENUM_NAME(x):                                       \
         TYPE_GET_VALUES_FUNCTION_NAME(v)                     \
@@ -584,7 +588,7 @@ class SensorDevice : public ISensorDevice {
         switch (sensor_id) {
 #define GET_FUNCTION_NAME(x) physicalModel_get##x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
-#define ENUM_NAME(x) ANDROID_SENSOR_##x
+#define ENUM_NAME(x) AndroidSensor::x
 #define SENSOR_(x, y, z, v, w)           \
     case ENUM_NAME(x):                   \
         TYPE_GET_VALUES_FUNCTION_NAME(v) \
@@ -602,16 +606,16 @@ class SensorDevice : public ISensorDevice {
     }
 
     // Helper functions for physical parameters
-    void setPhysicalParameterValue(int parameter_id, const float* val, const size_t count,
-                                   int interpolation_mode) {
-        switch (parameter_id) {
-#define ENUM_NAME(x) PHYSICAL_PARAMETER_##x
+    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val, const size_t count,
+                                   PhysicalInterpolation interpolation_mode) {
+        switch (parameter) {
+#define ENUM_NAME(x) PhysicalParameter::x
 #define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
 #define SET_TARGET_FUNCTION_NAME(x) mPhysicalModel->setTarget##x
 #define PHYSICAL_PARAMETER_(x, y, z, w)                                                           \
     case ENUM_NAME(x):                                                                            \
         SET_TARGET_FUNCTION_NAME(z)                                                               \
-        (GET_TYPE_VALUE_FUNCTION_NAME(w)(val, count), (PhysicalInterpolation)interpolation_mode); \
+        (GET_TYPE_VALUE_FUNCTION_NAME(w)(val, count), interpolation_mode); \
         break;
             PHYSICAL_PARAMETERS_LIST
 #undef PHYSICAL_PARAMETER_
@@ -626,10 +630,10 @@ class SensorDevice : public ISensorDevice {
         // TODO(jansene): (fire sensor change event)
     }
 
-    void getPhysicalParameterValue(int parameter_id, float* const* out, const size_t count,
+    void getPhysicalParameterValue(PhysicalParameter parameter_id, float* const* out, const size_t count,
                                    ParameterValueType parameter_value_type) {
         switch (parameter_id) {
-#define ENUM_NAME(x) PHYSICAL_PARAMETER_##x
+#define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
 #define GET_PARAMETER_FUNCTION_NAME(x) mPhysicalModel->getParameter##x
 #define PHYSICAL_PARAMETER_(x, y, z, w)                                     \
@@ -648,9 +652,9 @@ class SensorDevice : public ISensorDevice {
         }
     }
 
-    void getPhysicalParameterValueSize(int parameter_id, size_t* size) const {
+    void getPhysicalParameterValueSize(PhysicalParameter parameter_id, size_t* size) const {
         switch (parameter_id) {
-#define ENUM_NAME(x) PHYSICAL_PARAMETER_##x
+#define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
 #define PHYSICAL_PARAMETER_(x, y, z, w)  \
     case ENUM_NAME(x):                   \
@@ -676,7 +680,7 @@ class SensorDevice : public ISensorDevice {
         // other code may also rely on it.
         auto now_ns = mLooper->nowNs(Looper::ClockType::kVirtual);
         mPhysicalModel->setCurrentTime(now_ns);
-        for (size_t sensor_id = 0; sensor_id < MAX_SENSORS; ++sensor_id) {
+        for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS); ++sensor_id) {
             if (!enabled(sensor_id)) {
                 continue;
             }
@@ -722,7 +726,7 @@ class SensorDevice : public ISensorDevice {
     }
 
     SocketPtr mSocket;
-    Sensor mSensors[static_cast<int>(AndroidSensor::MAX_SENSORS)];
+    Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
     std::unique_ptr<PhysicalModel> mPhysicalModel;
     int64_t mTimeOffsetNs;
     Looper* mLooper;
@@ -731,8 +735,8 @@ class SensorDevice : public ISensorDevice {
     int32_t mDelayMs{800};
 
     // Sensor and Physical Parameter information arrays
-    static constexpr SensorInfo kSensors[static_cast<int>(AndroidSensor::MAX_SENSORS)] = {
-#define SENSOR_(x, y, z, v, w) {y, ANDROID_SENSOR_##x},
+    static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
+#define SENSOR_(x, y, z, v, w) {y, static_cast<int>(AndroidSensor::x)},
             SENSORS_LIST
 #undef SENSOR_
     };

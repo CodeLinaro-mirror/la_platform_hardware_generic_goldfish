@@ -23,7 +23,7 @@ constexpr glm::vec3 AmbientEnvironment::kDefaultMagneticField;
 constexpr glm::vec3 AmbientEnvironment::kDefaultGravity;
 
 AmbientState AmbientEnvironment::setCurrentTime(uint64_t time_ns) {
-    return AMBIENT_STATE_STABLE;
+    return AmbientState::STABLE;
 }
 
 void AmbientEnvironment::setMagneticField(float north, float east, float vertical,
@@ -60,35 +60,35 @@ void AmbientEnvironment::setRgbcLight(glm::vec4 light, PhysicalInterpolation mod
 }
 
 glm::vec3 AmbientEnvironment::getMagneticField(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultMagneticField : mMagneticField;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultMagneticField : mMagneticField;
 }
 
 glm::vec3 AmbientEnvironment::getGravity(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultGravity : mGravity;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultGravity : mGravity;
 }
 
 float AmbientEnvironment::getTemperature(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultTemperature : mTemperature;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultTemperature : mTemperature;
 }
 
 float AmbientEnvironment::getProximity(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultProximity : mProximity;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultProximity : mProximity;
 }
 
 float AmbientEnvironment::getLight(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultLight : mLight;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultLight : mLight;
 }
 
 float AmbientEnvironment::getPressure(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultPressure : mPressure;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultPressure : mPressure;
 }
 
 float AmbientEnvironment::getHumidity(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultHumidity : mHumidity;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultHumidity : mHumidity;
 }
 
 glm::vec4 AmbientEnvironment::getRgbcLight(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultRgbcLight : mRgbcLight;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultRgbcLight : mRgbcLight;
 }
 
 }  // namespace physics

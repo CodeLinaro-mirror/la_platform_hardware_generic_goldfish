@@ -101,12 +101,13 @@ enum class SensorStatus {
     SENSOR_(WRIST_TILT, "wrist-tilt", WristTilt, float, "wrist-tilt:%g")                          \
     SENSOR_(ACCELERATION_UNCALIBRATED, "acceleration-uncalibrated", AccelerometerUncalibrated,    \
             vec3, "acceleration-uncalibrated:%g:%g:%g")
-typedef enum {
-#define SENSOR_(x, y, z, v, w) ANDROID_SENSOR_##x,
+
+enum class AndroidSensor {
+#define SENSOR_(x, y, z, v, w) x,
     SENSORS_LIST
 #undef SENSOR_
             MAX_SENSORS /* do not remove */
-} AndroidSensor;
+};
 
 /* NOTE: Physical parameters Error definition, It will be used in the Physics
  *       Command part in console.c. Details:
@@ -148,12 +149,13 @@ enum class PhysicalParameterStatus {
     PHYSICAL_PARAMETER_(WRIST_TILT, "wrist-tilt", WristTilt, float)                                \
     PHYSICAL_PARAMETER_(ROTATION_UNCALIBRATED, "rotation-uncalibrated", AccelerometerUncalibrated, \
                         vec3)
-typedef enum {
-#define PHYSICAL_PARAMETER_(x, y, z, w) PHYSICAL_PARAMETER_##x,
+
+enum class PhysicalParameter {
+#define PHYSICAL_PARAMETER_(x, y, z, w) x,
     PHYSICAL_PARAMETERS_LIST
 #undef PHYSICAL_PARAMETER_
             MAX_PHYSICAL_PARAMETERS
-} PhysicalParameter;
+};
 
 /* COARSE ORIENTATION VALUES */
 enum class AndroidCoarseOrientation {

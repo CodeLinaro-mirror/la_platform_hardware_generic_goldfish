@@ -100,9 +100,9 @@ void PhysicalModel::setCurrentTime(int64_t time_ns) {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
         mModelTimeNs = time_ns;
         const bool isInertialModelStable =
-                mInertialModel.setCurrentTime(time_ns) == INERTIAL_STATE_STABLE;
+                mInertialModel.setCurrentTime(time_ns) == InertialState::STABLE;
         const bool isAmbientModelStable =
-                mAmbientEnvironment.setCurrentTime(time_ns) == AMBIENT_STATE_STABLE;
+                mAmbientEnvironment.setCurrentTime(time_ns) == AmbientState::STABLE;
         const bool isBodyModelStable = mBodyModel.setCurrentTime(time_ns) == BodyState::STABLE;
         stateStabilized = (isInertialModelStable && isAmbientModelStable && isBodyModelStable &&
                            mIsPhysicalStateChanging);
@@ -114,7 +114,7 @@ void PhysicalModel::setCurrentTime(int64_t time_ns) {
 }
 
 void PhysicalModel::setGravity(float x, float y, float z) {
-    mAmbientEnvironment.setGravity(glm::vec3(x, y, z), PHYSICAL_INTERPOLATION_STEP);
+    mAmbientEnvironment.setGravity(glm::vec3(x, y, z), PhysicalInterpolation::STEP);
 }
 
 void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolation mode) {
@@ -394,7 +394,7 @@ float PhysicalModel::getParameterWristTilt(ParameterValueType parameterValueType
 #define GET_FUNCTION_NAME(x) get##x
 #define OVERRIDE_FUNCTION_NAME(x) override##x
 #define OVERRIDE_NAME(x) m##x##Override
-#define SENSOR_NAME(x) ANDROID_SENSOR_##x
+#define SENSOR_NAME(x) AndroidSensor::x
 #define PHYSICAL_NAME(x) getPhysical##x
 
 // Implement sensor overrides.
@@ -494,11 +494,11 @@ void PhysicalModel::getTransform(float* out_translation_x, float* out_translatio
                                  int64_t* out_timestamp) {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
 
-    const vec3 position = getParameterPosition(PARAMETER_VALUE_TYPE_CURRENT);
+    const vec3 position = getParameterPosition(ParameterValueType::CURRENT);
     *out_translation_x = position.x;
     *out_translation_y = position.y;
     *out_translation_z = position.z;
-    const vec3 rotation = getParameterRotation(PARAMETER_VALUE_TYPE_CURRENT);
+    const vec3 rotation = getParameterRotation(ParameterValueType::CURRENT);
     *out_rotation_x = rotation.x;
     *out_rotation_y = rotation.y;
     *out_rotation_z = rotation.z;
@@ -565,7 +565,7 @@ void PhysicalModel::physicalStateStabilized() {
 
         // Increment all of the measurement ids because the physical state has
         // stabilized.
-        for (size_t i = 0; i < MAX_SENSORS; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(AndroidSensor::MAX_SENSORS); i++) {
             mMeasurementId[i]++;
         }
         mIsPhysicalStateChanging = false;
@@ -582,7 +582,7 @@ void PhysicalModel::targetStateChanged() {
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
         // When target state changes we reset all sensor overrides.
-        for (size_t i = 0; i < MAX_SENSORS; ++i) {
+        for (size_t i = 0; i < static_cast<size_t>(AndroidSensor::MAX_SENSORS); ++i) {
             mUseOverride[i] = false;
         }
     }

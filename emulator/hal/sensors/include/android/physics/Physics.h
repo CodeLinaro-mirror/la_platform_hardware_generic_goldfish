@@ -16,20 +16,14 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
+enum class PhysicalInterpolation {
+    SMOOTH = 0,
+    STEP = 1,
+};
 
-ANDROID_BEGIN_HEADER
-
-typedef enum {
-    PHYSICAL_INTERPOLATION_SMOOTH = 0,
-    PHYSICAL_INTERPOLATION_STEP = 1,
-} PhysicalInterpolation;
-
-typedef enum {
-    PARAMETER_VALUE_TYPE_TARGET = 0,
-    PARAMETER_VALUE_TYPE_CURRENT = 1,
-    PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION = 2,
-    PARAMETER_VALUE_TYPE_DEFAULT = 3,
-} ParameterValueType;
-
-ANDROID_END_HEADER
+enum class ParameterValueType {
+    TARGET = 0,
+    CURRENT = 1,
+    CURRENT_NO_AMBIENT_MOTION = 2,
+    DEFAULT = 3,
+};

@@ -43,10 +43,10 @@ const float kAmbientFrequency = 0.5f;
 const glm::vec3 kAmbientFrequencyVec =
         glm::vec3(1.f, 1.f / sqrt(2.f), 1.f / sqrt(3.f)) * kAmbientFrequency * 2.f * 3.14159265f;
 
-typedef enum {
-    INERTIAL_STATE_CHANGING = 0,
-    INERTIAL_STATE_STABLE = 1,
-} InertialState;
+enum class InertialState {
+    CHANGING = 0,
+    STABLE = 1,
+};
 
 /*
  * Implements a model of inertial motion of a rigid body such that smooth
@@ -102,25 +102,25 @@ class InertialModel {
      * the most recently set current time (from setCurrentTime).
      */
     glm::vec3 getPosition(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     glm::vec3 getVelocity(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     glm::vec3 getAcceleration(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
-    glm::vec3 getJerk(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    glm::vec3 getJerk(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     glm::quat getRotation(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     // rotational velocity as rotation around (x, y, z) axis in rad/s
     glm::vec3 getRotationalVelocity(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
     /*
      * Gets half the width of the ambient motion bounding box.
      */
     float getAmbientMotion(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
-    float getWristTilt(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+    float getWristTilt(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
   private:
     void updateRotations();
