@@ -23,7 +23,6 @@
 #include "android/goldfish/config/avd.h"
 #include "android/physics/Foldable.h"
 #include "android/physics/Physics.h"
-#include "android/physics/Sensors.h"
 
 namespace android {
 namespace physics {

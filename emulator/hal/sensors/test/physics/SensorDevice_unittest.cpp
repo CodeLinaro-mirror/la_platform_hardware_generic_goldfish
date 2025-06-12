@@ -17,7 +17,6 @@
 
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
-#include "android/physics/Sensors.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
