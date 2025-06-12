@@ -60,17 +60,21 @@ void CameraDeviceBase::stopCapturingImpl() const {
     (mImageProviderVtbl.stop)(mImageProvider);
 }
 
-uint32_t CameraDeviceBase::aFormatToFourCC(uint32_t androidFormat) const {
-    return mGrallocDetails->aFormatToFourCC(androidFormat);
+ImageFormat CameraDeviceBase::getImageFormatFromAndroid(AndroidPixelFormat fmt) const {
+    return mGrallocDetails->getImageFormat(fmt);
 }
 
 int CameraDeviceBase::imageSink(const CameraImageProviderStreamCaptureInfo& sci,
                                 const void* framebufferPtr, const size_t framebufferSize) const {
+    using imaging::ImageRef;
+    using imaging::Rect;
+
     const CameraImageProviderStreamConfig& cfg = *sci.cfg;
 
     return mGrallocDetails->transfer(*static_cast<const std::string_view*>(sci.bufOpaque),
-                                     cfg.format, cfg.size.width, cfg.size.height, framebufferPtr,
-                                     framebufferSize);
+                                     ImageRef(static_cast<ImageFormat>(cfg.format),
+                                              Rect<uint32_t>(cfg.size.width, cfg.size.height),
+                                              framebufferPtr, framebufferSize));
 }
 
 int CameraDeviceBase::imageSinkStatic(void* that, const CameraImageProviderStreamCaptureInfo* sci,

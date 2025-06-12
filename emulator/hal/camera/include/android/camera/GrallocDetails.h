@@ -18,6 +18,9 @@
 #include <memory>
 #include <string_view>
 
+#include "goldfish/imaging/AndroidPixelFormat.h"
+#include "goldfish/imaging/ImageRef.h"
+
 namespace goldfish::devices::camera {
 
 /*
@@ -28,19 +31,16 @@ struct IGrallocDetails {
     virtual ~IGrallocDetails() = default;
 
     /*
-     * Returns the gralloc specific fourcc format for PixelFormat in Android.
+     * Returns the gralloc specific format for PixelFormat in Android.
      */
-    virtual uint32_t aFormatToFourCC(uint32_t androidFormat) const = 0;
+    virtual imaging::ImageFormat getImageFormat(imaging::AndroidPixelFormat) const = 0;
 
     /*
-     * Transfers an image represented by `format`, `width`, `height`, `framebuffer`
-     * and `framebufferSize` into the gralloc using the handle stored in `handleStr`.
+     * Transfers an image into the gralloc using the handle stored in `handleStr`.
      *
      * Returns non-zero if an error.
      */
-    virtual int transfer(std::string_view handleStr, uint32_t format, uint32_t width,
-                         uint32_t height, const void* framebuffer,
-                         size_t framebufferSize) const = 0;
+    virtual int transfer(std::string_view handleStr, const imaging::ImageRef& img) const = 0;
 };
 
 using GrallocDetailsPtr = std::shared_ptr<IGrallocDetails>;

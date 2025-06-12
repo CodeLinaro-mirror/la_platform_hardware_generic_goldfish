@@ -17,6 +17,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "goldfish/SocketBuffer.h"
+#include "goldfish/UniqueIdAllocator.h"
 #include "goldfish/archive/QEMUFileReader.h"
 #include "goldfish/archive/QEMUFileWriter.h"
 #include "goldfish/debug.h"
@@ -46,102 +48,6 @@ using goldfish::vsock::HostPortListener;
 
 constexpr uint32_t kDynamicPortsStart = 1U << 31;
 
-struct UniqueIdAllocator {
-    uint32_t get() {
-        auto i = mReturnedIds.end();
-        if (i != mReturnedIds.begin()) {
-            --i;
-            const uint32_t id = *i;
-            mReturnedIds.erase(i);
-            return id;
-        } else {
-            return ++mLastId;
-        }
-    }
-
-    void put(const uint32_t id) {
-        if (id == mLastId) {
-            --mLastId;
-
-            while (true) {
-                const auto i = mReturnedIds.begin();
-                if (i != mReturnedIds.end() && *i == mLastId) {
-                    --mLastId;
-                    mReturnedIds.erase(i);
-                } else {
-                    break;
-                }
-            }
-        } else {
-            assert(id < mLastId);
-            mReturnedIds.insert(id);
-        }
-    }
-
-    void reset() {
-        mLastId = 0;
-        mReturnedIds.clear();
-    }
-
-    void saveToSnapshot(IWriter& writer) const {
-        writer << mLastId << mReturnedIds.size();
-        for (const uint32_t id : mReturnedIds) {
-            writer << id;
-        }
-    }
-
-    int loadFromSnapshot(IReader& reader) {
-        mLastId = getUnsigned(reader);
-        mReturnedIds.clear();
-        for (size_t n = getUnsigned(reader); n > 0; --n) {
-            mReturnedIds.insert(getUnsigned(reader));
-        }
-
-        return 0;
-    }
-
-    uint32_t mLastId = 0;
-    std::set<uint32_t, std::greater<uint32_t>> mReturnedIds;
-};
-
-struct SocketBuffer {
-    void append(const void* data, size_t size) {
-        if (mConsumed > 0) {
-            mBuf.erase(mBuf.begin(), mBuf.begin() + mConsumed);
-            mConsumed = 0;
-        }
-
-        const uint8_t* data8 = static_cast<const uint8_t*>(NOT_NULL(data));
-        mBuf.insert(mBuf.end(), data8, data8 + size);
-    }
-
-    std::pair<const void*, size_t> peek() const {
-        assert(mConsumed <= mBuf.size());
-        return {mBuf.data() + mConsumed, mBuf.size() - mConsumed};
-    }
-
-    void consume(const size_t size) {
-        assert((mConsumed + size) <= mBuf.size());
-        mConsumed += size;
-    }
-
-    void saveToSnapshot(IWriter& writer) const {
-        const auto x = peek();
-        writer << x.second;
-        writer.write(x.first, x.second);
-    }
-
-    int loadFromSnapshot(IReader& reader) {
-        mConsumed = 0;
-        const uint32_t size = getUnsigned(reader);
-        mBuf.resize(size);
-        return (reader.read(mBuf.data(), size) == size) ? 0 : 1;
-    }
-
-    std::vector<uint8_t> mBuf;
-    size_t mConsumed = 0;
-};
-
 struct GoldfishVirtioVsockDevice;
 
 struct VsockStream : public goldfish::devices::cable::ISocket {
@@ -151,7 +57,7 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     GoldfishVirtioVsockDevice& vsockDev;
     PlugPtr plug;
     std::unique_ptr<IDataSniffer> dataSniffer;
-    SocketBuffer hostToGuestBuf;
+    goldfish::SocketBuffer hostToGuestBuf;
     const uint32_t guestPort;
     const uint32_t hostPort;
     uint32_t guestBufAlloc = 0;  // guest's buffer size
@@ -768,7 +674,7 @@ struct GoldfishVirtioVsockDevice {
     std::unordered_map<uint32_t, HostPortListener> mHostPortListeners;
 
     // Everything below is snapshotted
-    UniqueIdAllocator mSrcPortAllocator;
+    goldfish::UniqueIdAllocator mSrcPortAllocator;
     std::deque<struct virtio_vsock_hdr> mOrphanPackets;
     std::deque<struct virtio_vsock_event> mHostEvents;
     Streams mStreams;
