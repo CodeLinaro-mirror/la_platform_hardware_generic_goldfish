@@ -53,7 +53,11 @@ void AbslStringify(Sink& sink, AvdInfoDev dev) {
                  dev.ini_path, dev.log_level, dev.vmodule, dev.parent_class.fw_name,
                  dev.parent_class.desc);
 }
-namespace android::goldfish::avd_info {
-Avd* get_avd();
-::goldfish::devices::ConnectorRegistry& deviceRegistry();
-}  // namespace android::goldfish::avd_info
+
+namespace goldfish::avd_info {
+
+::android::goldfish::Avd* get_avd();
+
+devices::ConnectorRegistry& deviceRegistry();
+
+}  // namespace goldfish::avd_info

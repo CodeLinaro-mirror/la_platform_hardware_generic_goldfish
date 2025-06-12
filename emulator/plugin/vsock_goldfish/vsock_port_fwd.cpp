@@ -21,10 +21,11 @@
 #include "aemu/base/async/AsyncSocket.h"
 #include "aemu/base/async/AsyncSocketServer.h"
 #include "aemu/base/sockets/ScopedSocket.h"
-#include "android/goldfish/qemu-looper.h"
+#include "goldfish/avd/qemu-looper.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/vsock/connect.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/atomic.hpp"

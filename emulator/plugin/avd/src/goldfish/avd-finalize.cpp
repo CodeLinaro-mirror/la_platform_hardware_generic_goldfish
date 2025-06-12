@@ -11,9 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/avd-finalize.h"
 
-#include "android/goldfish/avd-info.h"
+#include "goldfish/avd/avd-finalize.h"
+
+#include "goldfish/avd/avd-info.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -33,7 +34,7 @@ extern "C" {
 // clang-format on
 
 static void avd_finalize_realize(DeviceState* dev, Error** errp) {
-    android::goldfish::avd_info::deviceRegistry().listen(5000);
+    goldfish::avd_info::deviceRegistry().listen(5000);
 }
 
 static void avd_finalize_class_init(ObjectClass* oc, void* data) {

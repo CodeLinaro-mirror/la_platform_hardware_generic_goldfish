@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "android/goldfish/rutabaga_glue.h"
+#include "goldfish/avd/rutabaga_glue.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

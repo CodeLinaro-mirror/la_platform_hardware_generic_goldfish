@@ -8,7 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "android/goldfish/qemu-looper.h"
+
+#include "goldfish/avd/qemu-looper.h"
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"

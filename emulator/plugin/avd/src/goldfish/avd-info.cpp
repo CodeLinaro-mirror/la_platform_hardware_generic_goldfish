@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/avd-info.h"
+
+#include "goldfish/avd/avd-info.h"
 
 #include <memory>
 
@@ -29,12 +30,12 @@
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
-#include "android/goldfish/GrallocImpl.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/qemu-looper.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
 #include "android/physics/SensorDevice.h"
+#include "goldfish/avd/GrallocImpl.h"
+#include "goldfish/avd/qemu-looper.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -49,14 +50,16 @@ extern "C" {
 // clang-format on
 
 using android::goldfish::Avd;
-using android::goldfish::avd_info::getGrallocImpl;
+using goldfish::avd_info::getGrallocImpl;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
 using goldfish::devices::camera::GrallocDetailsPtr;
 
 static std::unique_ptr<Avd> gAvd;
 
-namespace android::goldfish::avd_info {
+namespace goldfish::avd_info {
+using devices::ConnectorRegistry;
+
 android::goldfish::Avd* get_avd() {
     if (gAvd) {
         return gAvd.get();
@@ -64,11 +67,11 @@ android::goldfish::Avd* get_avd() {
     return nullptr;
 }
 
-using ::goldfish::devices::ConnectorRegistry;
 ConnectorRegistry& deviceRegistry() {
     return ConnectorRegistry::defaultRegistry();
 }
-}  // namespace android::goldfish::avd_info
+
+}  // namespace goldfish::avd_info
 
 static void UpdateVModule(const std::string& vmodule) {
     std::vector<std::pair<std::string_view, int>> glob_levels;
@@ -112,7 +115,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
 
     auto looper = android::goldfish::qemuLooper();
     auto avd = gAvd.get();
-    auto registry = &android::goldfish::avd_info::deviceRegistry();
+    auto registry = &goldfish::avd_info::deviceRegistry();
 
     GrallocDetailsPtr gralloc = getGrallocImpl();
 

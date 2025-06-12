@@ -13,16 +13,16 @@
  * limitations under the License.
  */
 
-#include "android/goldfish/GrallocImpl.h"
+#include "goldfish/avd/GrallocImpl.h"
 
 #include "goldfish/imaging/getStride.h"
 #include "goldfish/parsing/fromChars.h"
 
 extern "C" {
-#include "android/goldfish/rutabaga_glue.h"
+#include "goldfish/avd/rutabaga_glue.h"
 }  // extern "C"
 
-namespace android::goldfish::avd_info {
+namespace goldfish::avd_info {
 using ::goldfish::devices::camera::GrallocDetailsPtr;
 using ::goldfish::devices::camera::IGrallocDetails;
 using ::goldfish::imaging::AndroidPixelFormat;

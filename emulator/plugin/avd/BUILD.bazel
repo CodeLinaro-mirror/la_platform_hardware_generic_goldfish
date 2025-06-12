@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 cc_library(
     name = "avd_hdrs",
     hdrs = [
-        "include/android/goldfish/avd-finalize.h",
-        "include/android/goldfish/avd-info.h",
+        "include/goldfish/avd/avd-finalize.h",
+        "include/goldfish/avd/avd-info.h",
     ],
     includes = ["include"],
     visibility = [
@@ -18,12 +18,12 @@ cc_library(
 cc_library(
     name = "gralloc_impl",
     srcs = [
-        "src/android/goldfish/GrallocImpl.cpp",
-        "src/android/goldfish/rutabaga_glue.c",
+        "src/goldfish/GrallocImpl.cpp",
+        "src/goldfish/rutabaga_glue.c",
     ],
     hdrs = [
-        "include/android/goldfish/GrallocImpl.h",
-        "include/android/goldfish/rutabaga_glue.h",
+        "include/goldfish/avd/GrallocImpl.h",
+        "include/goldfish/avd/rutabaga_glue.h",
     ],
     copts = ["-Wno-extern-c-compat"],
     includes = ["include"],
@@ -44,10 +44,10 @@ cc_library(
 cc_library(
     name = "qemu-looper",
     srcs = [
-        "src/android/goldfish/qemu-looper.cpp",
+        "src/goldfish/qemu-looper.cpp",
     ],
     hdrs = [
-        "include/android/goldfish/qemu-looper.h",
+        "include/goldfish/avd/qemu-looper.h",
     ],
     copts = ["-Wno-extern-c-compat"],
     includes = ["include"],
@@ -75,9 +75,9 @@ cc_library(
 cc_library(
     name = "avd_impl",
     srcs = [
-        "src/android/goldfish/adb-device.cpp",
-        "src/android/goldfish/avd-finalize.cpp",
-        "src/android/goldfish/avd-info.cpp",
+        "src/goldfish/adb-device.cpp",
+        "src/goldfish/avd-finalize.cpp",
+        "src/goldfish/avd-info.cpp",
     ],
     copts = ["-Wno-extern-c-compat"],
     visibility = [

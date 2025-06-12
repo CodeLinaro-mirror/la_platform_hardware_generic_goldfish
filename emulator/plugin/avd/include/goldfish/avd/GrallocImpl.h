@@ -15,8 +15,8 @@
 
 #include "android/camera/GrallocDetails.h"
 
-namespace android::goldfish::avd_info {
+namespace goldfish::avd_info {
 
-::goldfish::devices::camera::GrallocDetailsPtr getGrallocImpl();
+devices::camera::GrallocDetailsPtr getGrallocImpl();
 
-}  // namespace android::goldfish::avd_info
+}  // namespace goldfish::avd_info
