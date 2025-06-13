@@ -29,25 +29,25 @@ InertialState InertialModel::setCurrentTime(uint64_t time_ns) {
     if (time_ns < mModelTimeNs) {
         // If time goes backwards, set the position and rotation immediately
         // to their targets.
-        glm::vec3 targetPosition = getPosition(PARAMETER_VALUE_TYPE_TARGET);
-        glm::quat targetRotation = getRotation(PARAMETER_VALUE_TYPE_TARGET);
+        glm::vec3 targetPosition = getPosition(ParameterValueType::TARGET);
+        glm::quat targetRotation = getRotation(ParameterValueType::TARGET);
         mModelTimeNs = time_ns;
-        setTargetPosition(targetPosition, PHYSICAL_INTERPOLATION_STEP);
-        setTargetRotation(targetRotation, PHYSICAL_INTERPOLATION_STEP);
+        setTargetPosition(targetPosition, PhysicalInterpolation::STEP);
+        setTargetRotation(targetRotation, PhysicalInterpolation::STEP);
     } else {
         mModelTimeNs = time_ns;
     }
 
     return (mZeroVelocityAfterEndTime && mModelTimeNs >= mPositionChangeEndTime &&
             mModelTimeNs >= mRotationChangeEndTime &&
-            getAmbientMotionBoundsValue(PARAMETER_VALUE_TYPE_CURRENT) < kEpsilon)
-                   ? INERTIAL_STATE_STABLE
-                   : INERTIAL_STATE_CHANGING;
+            getAmbientMotionBoundsValue(ParameterValueType::CURRENT) < kEpsilon)
+                   ? InertialState::STABLE
+                   : InertialState::CHANGING;
 }
 
 void InertialModel::setTargetPosition(glm::vec3 position, PhysicalInterpolation mode) {
     float transitionTime = kMinStateChangeTimeSeconds;
-    if (mode == PHYSICAL_INTERPOLATION_STEP) {
+    if (mode == PhysicalInterpolation::STEP) {
         transitionTime = 0.f;
         const float stateChangeTime1 = transitionTime;
         const float stateChangeTime2 = stateChangeTime1 * stateChangeTime1;
@@ -72,10 +72,10 @@ void InertialModel::setTargetPosition(glm::vec3 position, PhysicalInterpolation 
         // continuously interpolating from the current state.  Here, and
         // throughout, x is the position, v is the velocity, a is the
         // acceleration and j is the jerk.
-        const glm::vec3 x_init = getPosition(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 v_init = getVelocity(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 a_init = getAcceleration(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 j_init = getJerk(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 x_init = getPosition(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 v_init = getVelocity(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 a_init = getAcceleration(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 j_init = getJerk(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
         const glm::vec3 x_target = position;
 
         // Use the square root of distance as the basis for the transition time
@@ -192,7 +192,7 @@ void InertialModel::setTargetPosition(glm::vec3 position, PhysicalInterpolation 
 
 void InertialModel::setTargetVelocity(glm::vec3 velocity, PhysicalInterpolation mode) {
     float transitionTime = kMinStateChangeTimeSeconds;
-    if (mode == PHYSICAL_INTERPOLATION_STEP) {
+    if (mode == PhysicalInterpolation::STEP) {
         transitionTime = 0.f;
         const float stateChangeTime1 = transitionTime;
         const float stateChangeTime2 = stateChangeTime1 * stateChangeTime1;
@@ -211,17 +211,17 @@ void InertialModel::setTargetVelocity(glm::vec3 velocity, PhysicalInterpolation 
         // user at a given velocity starting from the current position.
         setInertialTransforms(glm::vec3(), glm::vec3(), glm::vec3(), glm::vec3(), glm::vec3(),
                               glm::vec3(), velocity,
-                              getPosition(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION),
+                              getPosition(ParameterValueType::CURRENT_NO_AMBIENT_MOTION),
                               hepticTimeVec, cubicTimeVec);
     } else {
         // We ensure that velocity, acceleration, jerk, and position are
         // continuously interpolating from the current state.  Here, and
         // throughout, x is the position, v is the velocity, a is the
         // acceleration and j is the jerk.
-        const glm::vec3 x_init = getPosition(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 v_init = getVelocity(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 a_init = getAcceleration(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
-        const glm::vec3 j_init = getJerk(PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 x_init = getPosition(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 v_init = getVelocity(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 a_init = getAcceleration(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
+        const glm::vec3 j_init = getJerk(ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
         const glm::vec3 v_target = velocity;
 
         // Use the velocity difference as the basis for the transition time
@@ -325,7 +325,7 @@ void InertialModel::setTargetVelocity(glm::vec3 velocity, PhysicalInterpolation 
 
 void InertialModel::setTargetRotation(glm::quat rotation, PhysicalInterpolation mode) {
     float transitionTime = kMinStateChangeTimeSeconds;
-    if (mode == PHYSICAL_INTERPOLATION_STEP) {
+    if (mode == PhysicalInterpolation::STEP) {
         transitionTime = 0.f;
         // For Step changes, we simply set the transform to immediately set the
         // rotation to the target, with zero rotational velocity.
@@ -384,15 +384,15 @@ void InertialModel::setTargetRotation(glm::quat rotation, PhysicalInterpolation 
 
         const glm::vec4 currentRotation =
                 calculateRotationalState(mRotationQuintic, mRotationCubic, mRotationAfterEndCubic,
-                                         PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
+                                         ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
 
         const glm::vec4 currentRotationalVelocity = calculateRotationalState(
                 mRotationalVelocityQuintic, mRotationalVelocityCubic, glm::mat4x4(0.f),
-                PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
+                ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
 
         const glm::vec4 currentRotationalAcceleration = calculateRotationalState(
                 mRotationalAccelerationQuintic, mRotationalAccelerationCubic, glm::mat4x4(0.f),
-                PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION);
+                ParameterValueType::CURRENT_NO_AMBIENT_MOTION);
 
         const float rotationLength = glm::length(currentRotation);
 
@@ -490,7 +490,7 @@ void InertialModel::setTargetRotation(glm::quat rotation, PhysicalInterpolation 
 }
 
 void InertialModel::setTargetAmbientMotion(float bounds, PhysicalInterpolation mode) {
-    if (mode == PHYSICAL_INTERPOLATION_STEP) {
+    if (mode == PhysicalInterpolation::STEP) {
         mAmbientMotionValueQuintic = glm::vec2(0.f);
         mAmbientMotionValueCubic = glm::vec4(0.f, 0.f, 0.f, bounds);
         mAmbientMotionFirstDerivQuintic = glm::vec2(0.f);
@@ -505,9 +505,9 @@ void InertialModel::setTargetAmbientMotion(float bounds, PhysicalInterpolation m
         // same polynomial computation as the quintic rotation above with the
         // same coefficients, but in one dimension instead of 4.
 
-        float x_init = getAmbientMotionBoundsValue(PARAMETER_VALUE_TYPE_CURRENT);
-        float v_init = getAmbientMotionBoundsDeriv(PARAMETER_VALUE_TYPE_CURRENT);
-        float a_init = getAmbientMotionBoundsSecondDeriv(PARAMETER_VALUE_TYPE_CURRENT);
+        float x_init = getAmbientMotionBoundsValue(ParameterValueType::CURRENT);
+        float v_init = getAmbientMotionBoundsDeriv(ParameterValueType::CURRENT);
+        float a_init = getAmbientMotionBoundsSecondDeriv(ParameterValueType::CURRENT);
         float x_target = bounds;
 
         constexpr float stateChangeTime1 = kMaxStateChangeTimeSeconds;
@@ -552,25 +552,25 @@ void InertialModel::setWristTilt(float value, PhysicalInterpolation mode) {
 }
 
 glm::vec3 InertialModel::getPosition(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::vec3();
     }
 
     glm::vec3 position = calculateInertialState(mPositionHeptic, mPositionCubic,
                                                 mPositionAfterEndCubic, parameterValueType);
-    if (parameterValueType == PARAMETER_VALUE_TYPE_CURRENT) {
+    if (parameterValueType == ParameterValueType::CURRENT) {
         double time = mModelTimeNs / 1000000000.0;
         glm::vec3 f =
                 glm::vec3(sin(kAmbientFrequencyVec.x * time), sin(kAmbientFrequencyVec.y * time),
                           sin(kAmbientFrequencyVec.z * time));
-        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(PARAMETER_VALUE_TYPE_CURRENT);
+        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(ParameterValueType::CURRENT);
         position += f * g;
     }
     return position;
 }
 
 glm::vec3 InertialModel::getVelocity(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::vec3();
     }
 
@@ -578,7 +578,7 @@ glm::vec3 InertialModel::getVelocity(ParameterValueType parameterValueType) cons
             mVelocityHeptic, mVelocityCubic,
             mZeroVelocityAfterEndTime ? glm::mat4x3(0.f) : mVelocityAfterEndCubic,
             parameterValueType);
-    if (parameterValueType == PARAMETER_VALUE_TYPE_CURRENT) {
+    if (parameterValueType == ParameterValueType::CURRENT) {
         double time = mModelTimeNs / 1000000000.0;
         glm::vec3 f =
                 glm::vec3(sin(kAmbientFrequencyVec.x * time), sin(kAmbientFrequencyVec.y * time),
@@ -588,8 +588,8 @@ glm::vec3 InertialModel::getVelocity(ParameterValueType parameterValueType) cons
                 glm::vec3(cos(kAmbientFrequencyVec.x * time), cos(kAmbientFrequencyVec.y * time),
                           cos(kAmbientFrequencyVec.z * time)) *
                 kAmbientFrequencyVec;
-        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(PARAMETER_VALUE_TYPE_CURRENT);
-        glm::vec3 dg = glm::vec3(1.f) * getAmbientMotionBoundsDeriv(PARAMETER_VALUE_TYPE_CURRENT);
+        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(ParameterValueType::CURRENT);
+        glm::vec3 dg = glm::vec3(1.f) * getAmbientMotionBoundsDeriv(ParameterValueType::CURRENT);
         // Apply the product rule.
         velocity += f * dg + df * g;
     }
@@ -597,13 +597,13 @@ glm::vec3 InertialModel::getVelocity(ParameterValueType parameterValueType) cons
 }
 
 glm::vec3 InertialModel::getAcceleration(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::vec3();
     }
 
     glm::vec3 acceleration = calculateInertialState(mAccelerationHeptic, mAccelerationCubic,
                                                     glm::mat4x3(0.f), parameterValueType);
-    if (parameterValueType == PARAMETER_VALUE_TYPE_CURRENT) {
+    if (parameterValueType == ParameterValueType::CURRENT) {
         double time = mModelTimeNs / 1000000000.0;
         glm::vec3 f =
                 glm::vec3(sin(kAmbientFrequencyVec.x * time), sin(kAmbientFrequencyVec.y * time),
@@ -618,10 +618,10 @@ glm::vec3 InertialModel::getAcceleration(ParameterValueType parameterValueType) 
                 glm::vec3(-sinf(kAmbientFrequencyVec.x * time), -sin(kAmbientFrequencyVec.y * time),
                           -sin(kAmbientFrequencyVec.z * time)) *
                 kAmbientFrequencyVec * kAmbientFrequencyVec;
-        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(PARAMETER_VALUE_TYPE_CURRENT);
-        glm::vec3 dg = glm::vec3(1.f) * getAmbientMotionBoundsDeriv(PARAMETER_VALUE_TYPE_CURRENT);
+        glm::vec3 g = glm::vec3(1.f) * getAmbientMotionBoundsValue(ParameterValueType::CURRENT);
+        glm::vec3 dg = glm::vec3(1.f) * getAmbientMotionBoundsDeriv(ParameterValueType::CURRENT);
         glm::vec3 d2g =
-                glm::vec3(1.f) * getAmbientMotionBoundsSecondDeriv(PARAMETER_VALUE_TYPE_CURRENT);
+                glm::vec3(1.f) * getAmbientMotionBoundsSecondDeriv(ParameterValueType::CURRENT);
         // Apply the product rule twice.
         acceleration += f * d2g + 2.f * df * dg + d2f * g;
     }
@@ -629,7 +629,7 @@ glm::vec3 InertialModel::getAcceleration(ParameterValueType parameterValueType) 
 }
 
 glm::vec3 InertialModel::getJerk(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::vec3();
     }
 
@@ -637,7 +637,7 @@ glm::vec3 InertialModel::getJerk(ParameterValueType parameterValueType) const {
 }
 
 glm::quat InertialModel::getRotation(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::quat();
     }
 
@@ -650,7 +650,7 @@ glm::quat InertialModel::getRotation(ParameterValueType parameterValueType) cons
 }
 
 glm::vec3 InertialModel::getRotationalVelocity(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return glm::vec3();
     }
 
@@ -735,7 +735,7 @@ glm::vec3 InertialModel::calculateInertialState(const glm::mat4x3& hepticTransfo
                                                 const glm::mat4x3& cubicTransform,
                                                 const glm::mat4x3& afterEndCubicTransform,
                                                 ParameterValueType parameterValueType) const {
-    const uint64_t requestedTimeNs = parameterValueType == PARAMETER_VALUE_TYPE_TARGET
+    const uint64_t requestedTimeNs = parameterValueType == ParameterValueType::TARGET
                                              ? mPositionChangeEndTime
                                              : mModelTimeNs;
 
@@ -760,7 +760,7 @@ glm::vec4 InertialModel::calculateRotationalState(const glm::mat2x4& quinticTran
                                                   const glm::mat4x4& cubicTransform,
                                                   const glm::mat4x4& afterEndCubicTransform,
                                                   ParameterValueType parameterValueType) const {
-    const uint64_t requestedTimeNs = parameterValueType == PARAMETER_VALUE_TYPE_TARGET
+    const uint64_t requestedTimeNs = parameterValueType == ParameterValueType::TARGET
                                              ? mRotationChangeEndTime
                                              : mModelTimeNs;
 
@@ -779,9 +779,9 @@ glm::vec4 InertialModel::calculateRotationalState(const glm::mat2x4& quinticTran
 }
 
 float InertialModel::getAmbientMotionBoundsValue(ParameterValueType parameterValueType) const {
-    if (parameterValueType == PARAMETER_VALUE_TYPE_DEFAULT) {
+    if (parameterValueType == ParameterValueType::DEFAULT) {
         return 0.f;
-    } else if (parameterValueType != PARAMETER_VALUE_TYPE_TARGET &&
+    } else if (parameterValueType != ParameterValueType::TARGET &&
                mModelTimeNs < mAmbientMotionChangeEndTime) {
         const float time1 = nsToSeconds(mModelTimeNs - mAmbientMotionChangeStartTime);
         const float time2 = time1 * time1;
@@ -798,7 +798,7 @@ float InertialModel::getAmbientMotionBoundsValue(ParameterValueType parameterVal
 }
 
 float InertialModel::getAmbientMotionBoundsDeriv(ParameterValueType parameterValueType) const {
-    if (parameterValueType != PARAMETER_VALUE_TYPE_TARGET &&
+    if (parameterValueType != ParameterValueType::TARGET &&
         mModelTimeNs < mAmbientMotionChangeEndTime) {
         const float time1 = nsToSeconds(mModelTimeNs - mAmbientMotionChangeStartTime);
         const float time2 = time1 * time1;
@@ -816,7 +816,7 @@ float InertialModel::getAmbientMotionBoundsDeriv(ParameterValueType parameterVal
 
 float InertialModel::getAmbientMotionBoundsSecondDeriv(
         ParameterValueType parameterValueType) const {
-    if (parameterValueType != PARAMETER_VALUE_TYPE_TARGET &&
+    if (parameterValueType != ParameterValueType::TARGET &&
         mModelTimeNs < mAmbientMotionChangeEndTime) {
         const float time1 = nsToSeconds(mModelTimeNs - mAmbientMotionChangeStartTime);
         const float time2 = time1 * time1;

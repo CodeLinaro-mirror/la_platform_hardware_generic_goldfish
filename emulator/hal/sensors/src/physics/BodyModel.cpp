@@ -28,7 +28,7 @@ void BodyModel::setHeartRate(float bpm, PhysicalInterpolation mode) {
 }
 
 float BodyModel::getHeartRate(ParameterValueType valueType) const {
-    return valueType == PARAMETER_VALUE_TYPE_DEFAULT ? kDefaultHeartRate : mHeartRate;
+    return valueType == ParameterValueType::DEFAULT ? kDefaultHeartRate : mHeartRate;
 }
 
 }  // namespace physics

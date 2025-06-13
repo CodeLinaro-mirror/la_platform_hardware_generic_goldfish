@@ -113,7 +113,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                       "Invalid display: " + std::to_string(request->display()), "");
     }
 
-    SensorObserver accObserver(mRegistry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver accObserver(mRegistry, AndroidSensor::ACCELERATION);
     GenericMultiEventWaiter<FrameInfo, SensorData> frameOrSensorEvent(display.get(), &accObserver);
 
     // TODO(jansene): Bring back metrics.

@@ -25,10 +25,10 @@
 namespace android {
 namespace physics {
 
-typedef enum {
-    AMBIENT_STATE_CHANGING = 0,
-    AMBIENT_STATE_STABLE = 1,
-} AmbientState;
+enum class AmbientState {
+    CHANGING = 0,
+    STABLE = 1,
+};
 
 /*
  * Implements a model of an ambient environment, within which sensor
@@ -96,17 +96,17 @@ class AmbientEnvironment {
      * Gets current simulated state of the ambient environment.
      */
     glm::vec3 getMagneticField(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     glm::vec3 getGravity(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     float getTemperature(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
-    float getProximity(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
-    float getLight(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
-    float getPressure(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
-    float getHumidity(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getProximity(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getLight(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getPressure(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getHumidity(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
     glm::vec4 getRgbcLight(
-            ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
   private:
     static constexpr glm::vec3 kDefaultMagneticField = glm::vec3(0.0f, 5.9f, -48.4f);

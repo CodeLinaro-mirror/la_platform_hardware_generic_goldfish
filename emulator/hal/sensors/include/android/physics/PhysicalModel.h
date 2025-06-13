@@ -205,12 +205,14 @@ class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChan
      * Helper for setting overrides.
      */
     template <class T>
-    void setOverride(AndroidSensor sensor, T* overrideMemberPointer, T overrideValue) {
+    void setOverride(const AndroidSensor sensor, T* overrideMemberPointer, T overrideValue) {
+        const size_t sensorIndex = static_cast<size_t>(sensor);
+
         physicalStateChanging();
         {
             std::lock_guard<std::recursive_mutex> lock(mMutex);
-            mUseOverride[sensor] = true;
-            mMeasurementId[sensor]++;
+            mUseOverride[sensorIndex] = true;
+            mMeasurementId[sensorIndex]++;
             *overrideMemberPointer = overrideValue;
         }
     }
@@ -219,17 +221,19 @@ class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChan
      * Helper for getting current sensor values.
      */
     template <class T>
-    T getSensorValue(AndroidSensor sensor, const T* overrideMemberPointer,
+    T getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
                      std::function<T()> physicalGetter, long* measurement_id) const {
+        const size_t sensorIndex = static_cast<size_t>(sensor);
+
         std::lock_guard<std::recursive_mutex> lock(mMutex);
-        if (mUseOverride[sensor]) {
-            *measurement_id = mMeasurementId[sensor];
+        if (mUseOverride[static_cast<size_t>(sensor)]) {
+            *measurement_id = mMeasurementId[sensorIndex];
             return *overrideMemberPointer;
         } else {
             if (mIsPhysicalStateChanging) {
-                mMeasurementId[sensor]++;
+                mMeasurementId[sensorIndex]++;
             }
-            *measurement_id = mMeasurementId[sensor];
+            *measurement_id = mMeasurementId[sensorIndex];
             return physicalGetter();
         }
     }
@@ -247,8 +251,8 @@ class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChan
 
     bool mIsPhysicalStateChanging{false};            ///< True if physical state is changing
     bool isLoadingSnapshot{false};                   ///< True if loading from snapshot
-    bool mUseOverride[MAX_SENSORS] = {false};        ///< Sensor override flags
-    mutable long mMeasurementId[MAX_SENSORS] = {0};  ///< Measurement IDs
+    bool mUseOverride[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {false};        ///< Sensor override flags
+    mutable long mMeasurementId[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {0};  ///< Measurement IDs
 
 #define OVERRIDE_NAME(x) m##x##Override
 #define SENSOR_(x, y, z, v, w) v OVERRIDE_NAME(z){0.f};

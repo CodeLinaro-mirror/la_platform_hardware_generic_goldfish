@@ -54,12 +54,12 @@ class SensorDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
     void setAcceleration(float x, float y, float z) {
-        auto status = device->overrideSensor(AndroidSensor::ANDROID_SENSOR_ACCELERATION, {x, y, z});
+        auto status = device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z});
         EXPECT_TRUE(status.ok());
     }
 
     void setProximity(float value) {
-        auto status = device->overrideSensor(AndroidSensor::ANDROID_SENSOR_PROXIMITY, {value});
+        auto status = device->overrideSensor(AndroidSensor::PROXIMITY, {value});
         EXPECT_TRUE(status.ok());
     }
 
@@ -195,7 +195,7 @@ class MockSensorCallback {
 
 TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
     // Create a SensorObserver for the accelerometer
-    SensorObserver observer(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observer(&registry, AndroidSensor::ACCELERATION);
 
     // Create a mock callback
     MockSensorCallback mockCallback;
@@ -216,7 +216,7 @@ TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
 
 TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
     // Create a SensorObserver for the accelerometer
-    SensorObserver observer(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
+    SensorObserver observer(&registry, AndroidSensor::ACCELERATION);
 
     // Create mock callbacks
     MockSensorCallback mockCallback1;
@@ -239,8 +239,8 @@ TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
 TEST_F(SensorDeviceTest, SensorObserverDifferentSensors) {
     // Create a SensorObserver for the accelerometer and proximity
     // std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
-    SensorObserver observerAcceleration(&registry, AndroidSensor::ANDROID_SENSOR_ACCELERATION);
-    SensorObserver observerProximity(&registry, AndroidSensor::ANDROID_SENSOR_PROXIMITY);
+    SensorObserver observerAcceleration(&registry, AndroidSensor::ACCELERATION);
+    SensorObserver observerProximity(&registry, AndroidSensor::PROXIMITY);
 
     // Create mock callbacks
     MockSensorCallback mockCallbackAcceleration;

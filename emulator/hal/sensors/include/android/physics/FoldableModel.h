@@ -49,11 +49,11 @@ class FoldableModel {
                      std::recursive_mutex& mutex);
 
     float getHingeAngle(uint32_t hingeIndex,
-                        ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+                        ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
     float getRollable(uint32_t index, ParameterValueType parameterValueType) const;
 
-    float getPosture(ParameterValueType parameterValueType = PARAMETER_VALUE_TYPE_CURRENT) const;
+    float getPosture(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
     FoldableState getFoldableState() { return mState; }  // structure copy
 
