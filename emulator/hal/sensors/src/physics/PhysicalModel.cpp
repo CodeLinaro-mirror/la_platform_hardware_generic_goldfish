@@ -95,7 +95,7 @@ static vec4 fromGlm(glm::vec4 input) {
     return value;
 }
 
-PhysicalModel::PhysicalModel(android::goldfish::Avd* avd) : mFoldableModel(avd) {}
+PhysicalModel::PhysicalModel(const android::goldfish::Avd& avd) : mFoldableModel(avd) {}
 
 void PhysicalModel::setCurrentTime(int64_t time_ns) {
     bool stateStabilized = false;

@@ -34,7 +34,7 @@ class FoldableModel {
     class PostureListener : public base::EventNotificationSupport<FoldablePostures> {
         friend class FoldableModel;
     };
-    FoldableModel(Avd* avd);
+    FoldableModel(const Avd& avd);
 
     // called by physical model to set hinge angle.
     // mutex passed from physical model
@@ -59,23 +59,16 @@ class FoldableModel {
 
     bool isFolded();
 
-    bool getFoldedArea(int* x, int* y, int* w, int* h);
-
-    static void sendPostureToSystem(enum FoldablePostures p);
+    bool getFoldedArea(int* x, int* y, int* w, int* h) const;
 
     PostureListener* getPostureListener() { return &mPostureListener; }
 
   private:
-    void initPostures();
-    void initFoldableHinge();
-    void initFoldableRoll();
-    enum FoldablePostures calculatePosture();
-    void updateFoldablePostureIndicator();
+   void initFoldableRoll(const Avd& avd);
 
-    FoldableState mState;
-    std::vector<struct AnglesToPosture> mAnglesToPostures;
-    Avd* mAvd;
-    PostureListener mPostureListener;
+   FoldableState mState;
+   std::vector<AnglesToPosture> mAnglesToPostures;
+   PostureListener mPostureListener;
 };
 
 }  // namespace physics

@@ -157,70 +157,70 @@ namespace goldfish::devices::sensor {
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(SocketPtr socket, android::goldfish::Avd* avd, android::base::Looper* looper)
-        : mSocket(std::move(socket)),
-          mPhysicalModel(new PhysicalModel(avd)),
-          mLooper(looper),
-          mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual)) {
+    SensorDevice(SocketPtr socket, const android::goldfish::Avd& avd, android::base::Looper* looper)
+            : mSocket(std::move(socket))
+            , mPhysicalModel(new PhysicalModel(avd))
+            , mLooper(looper)
+            , mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual)) {
         // Initialize sensors based on AVD configuration
-        if (avd->hw().hw_accelerometer) {
+        if (avd.hw().hw_accelerometer) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
         }
-        if (avd->hw().hw_accelerometer_uncalibrated) {
+        if (avd.hw().hw_accelerometer_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION_UNCALIBRATED)].enabled = true;
         }
-        if (avd->hw().hw_gyroscope) {
+        if (avd.hw().hw_gyroscope) {
             mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE)].enabled = true;
         }
-        if (avd->hw().hw_sensors_proximity) {
+        if (avd.hw().hw_sensors_proximity) {
             mSensors[static_cast<size_t>(AndroidSensor::PROXIMITY)].enabled = true;
         }
-        if (avd->hw().hw_sensors_magnetic_field) {
+        if (avd.hw().hw_sensors_magnetic_field) {
             mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
         }
-        if (avd->hw().hw_sensors_magnetic_field_uncalibrated) {
+        if (avd.hw().hw_sensors_magnetic_field_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled = true;
         }
-        if (avd->hw().hw_sensors_gyroscope_uncalibrated) {
+        if (avd.hw().hw_sensors_gyroscope_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
         }
-        if (avd->hw().hw_sensors_orientation) {
+        if (avd.hw().hw_sensors_orientation) {
             mSensors[static_cast<size_t>(AndroidSensor::ORIENTATION)].enabled = true;
         }
-        if (avd->hw().hw_sensors_temperature) {
+        if (avd.hw().hw_sensors_temperature) {
             mSensors[static_cast<size_t>(AndroidSensor::TEMPERATURE)].enabled = true;
         }
-        if (avd->hw().hw_sensors_light) {
+        if (avd.hw().hw_sensors_light) {
             mSensors[static_cast<size_t>(AndroidSensor::LIGHT)].enabled = true;
         }
-        if (avd->hw().hw_sensors_pressure) {
+        if (avd.hw().hw_sensors_pressure) {
             mSensors[static_cast<size_t>(AndroidSensor::PRESSURE)].enabled = true;
         }
-        if (avd->hw().hw_sensors_humidity) {
+        if (avd.hw().hw_sensors_humidity) {
             mSensors[static_cast<size_t>(AndroidSensor::HUMIDITY)].enabled = true;
         }
-        if (avd->hw().hw_sensors_rgbclight) {
+        if (avd.hw().hw_sensors_rgbclight) {
             mSensors[static_cast<size_t>(AndroidSensor::RGBC_LIGHT)].enabled = true;
         }
-        if (avd->hw().hw_sensor_hinge) {
+        if (avd.hw().hw_sensor_hinge) {
             mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE0)].enabled = true;
-            switch (avd->hw().hw_sensor_hinge_count) {
-                case 3:
-                    mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
-                case 2:
-                    mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE1)].enabled = true;
-                default:;
+            switch (avd.hw().hw_sensor_hinge_count) {
+            case 3:
+                mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
+            case 2:
+                mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE1)].enabled = true;
+            default:;
             }
         }
 
         bool modernWearDevice =
-                avd->getDeviceType() == Avd::DeviceType::kWear && avd->apiLevel() >= 28;
+                avd.getDeviceType() == Avd::DeviceType::kWear && avd.apiLevel() >= 28;
 
-        if (avd->hw().hw_sensors_heart_rate || modernWearDevice) {
+        if (avd.hw().hw_sensors_heart_rate || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
         }
 
-        if (avd->hw().hw_sensors_wrist_tilt || modernWearDevice) {
+        if (avd.hw().hw_sensors_wrist_tilt || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
         }
 
@@ -743,11 +743,11 @@ class SensorDevice : public ISensorDevice {
 };
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper) {
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper) {
     registry->registerQemuDevice(
             std::string(ISensorDevice::serviceName),
-            [avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                          std::string_view args) {
+            [&avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                           std::string_view args) {
                 return std::make_shared<SensorDevice>(std::move(socket), avd, looper);
             });
 }

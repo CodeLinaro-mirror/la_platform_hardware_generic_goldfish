@@ -79,30 +79,30 @@ struct PhysicalModelChangeEvent {
  */
 class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChangeEvent> {
   public:
-    PhysicalModel(android::goldfish::Avd* avd);
-    ~PhysicalModel() = default;
+   PhysicalModel(const android::goldfish::Avd& avd);
+   ~PhysicalModel() = default;
 
-    /**
-     * @brief Sets the current simulation time.
-     *
-     * This time is used for calculating sensor values and recording when target
-     * parameter changes occur. Time values should be monotonic (non-decreasing).
-     *
-     * @param time_ns The current time in nanoseconds.
-     */
-    void setCurrentTime(int64_t time_ns);
+   /**
+    * @brief Sets the current simulation time.
+    *
+    * This time is used for calculating sensor values and recording when target
+    * parameter changes occur. Time values should be monotonic (non-decreasing).
+    *
+    * @param time_ns The current time in nanoseconds.
+    */
+   void setCurrentTime(int64_t time_ns);
 
-    /**
-     * @brief Sets the gravity vector for the simulation.
-     * @param x X component of gravity vector
-     * @param y Y component of gravity vector
-     * @param z Z component of gravity vector
-     */
-    void setGravity(float x, float y, float z);
+   /**
+    * @brief Sets the gravity vector for the simulation.
+    * @param x X component of gravity vector
+    * @param y Y component of gravity vector
+    * @param z Z component of gravity vector
+    */
+   void setGravity(float x, float y, float z);
 
-    /*
-     * Target state setters and parameter getters
-     */
+   /*
+    * Target state setters and parameter getters
+    */
 #define SET_TARGET_FUNCTION_NAME(x) setTarget##x
 #define PHYSICAL_PARAMETER_(x, y, z, w) \
     void SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode);

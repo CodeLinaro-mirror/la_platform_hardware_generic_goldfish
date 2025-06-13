@@ -119,7 +119,7 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
 
     GrallocDetailsPtr gralloc = getGrallocImpl();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd, looper);
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, looper);
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
                                                                         qemu_register_reset);

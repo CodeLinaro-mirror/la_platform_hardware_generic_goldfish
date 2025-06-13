@@ -138,7 +138,7 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
      * the lifetime of the registry.  Their lifecycles should be managed
      * externally to ensure they outlive the registry.
      */
-    static void registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper);
+    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper);
 };
 
 /**

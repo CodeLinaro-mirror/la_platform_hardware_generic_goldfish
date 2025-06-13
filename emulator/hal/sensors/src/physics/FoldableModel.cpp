@@ -26,52 +26,41 @@
 namespace android {
 namespace physics {
 
-enum FoldablePostures FoldableModel::calculatePosture() {
-    return POSTURE_UNKNOWN;
-}
-
-static bool compareAnglesToPosture(AnglesToPosture v1, AnglesToPosture v2) {
-    return (v1.angles[0].left < v2.angles[0].left);
-}
-
-void FoldableModel::initFoldableHinge() {}
-
-void FoldableModel::initFoldableRoll() {
-    if (!mAvd->hw().hw_sensor_roll) {
+void FoldableModel::initFoldableRoll(const Avd& avd) {
+    if (!avd.hw().hw_sensor_roll) {
         mState.config.numRolls = 0;
         return;
     }
 
     struct FoldableConfig& config = mState.config;
-    // type
-    enum FoldableDisplayType type = (enum FoldableDisplayType)mAvd->hw().hw_sensor_hinge_type;
-    if (type < 0 || type >= ANDROID_FOLDABLE_TYPE_MAX) {
-        type = ANDROID_FOLDABLE_HORIZONTAL_ROLL;
+    FoldableDisplayType type = static_cast<FoldableDisplayType>(avd.hw().hw_sensor_hinge_type);
+    if (type >= FoldableDisplayType::TYPE_MAX) {
+        type = FoldableDisplayType::HORIZONTAL_ROLL;
     }
     config.type = type;
 
     // number
-    int numRolls = mAvd->hw().hw_sensor_roll_count;
+    int numRolls = avd.hw().hw_sensor_roll_count;
     if (numRolls < 0 || numRolls > ANDROID_FOLDABLE_MAX_ROLLS) {
         numRolls = 0;
-        LOG(WARNING) << "Incorrect roll count " << mAvd->hw().hw_sensor_roll_count
+        LOG(WARNING) << "Incorrect roll count " << avd.hw().hw_sensor_roll_count
                      << ", default to 0";
     }
     config.numRolls = numRolls;
 
     // resize at postures
     config.resizeAtPosture[0] =
-            (enum FoldablePostures)mAvd->hw().hw_sensor_roll_resize_to_displayRegion_0_1_at_posture;
+            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_1_at_posture;
     config.resizeAtPosture[1] =
-            (enum FoldablePostures)mAvd->hw().hw_sensor_roll_resize_to_displayRegion_0_2_at_posture;
+            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_2_at_posture;
     config.resizeAtPosture[2] =
-            (enum FoldablePostures)mAvd->hw().hw_sensor_roll_resize_to_displayRegion_0_3_at_posture;
+            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_3_at_posture;
 
     // hinge angle ranges and defaults
-    std::string rollRanges(mAvd->hw().hw_sensor_roll_ranges);
-    std::string rollDefaults(mAvd->hw().hw_sensor_roll_defaults);
-    std::string rollRadius(mAvd->hw().hw_sensor_roll_radius);
-    std::string rollDirection(mAvd->hw().hw_sensor_roll_direction);
+    std::string rollRanges(avd.hw().hw_sensor_roll_ranges);
+    std::string rollDefaults(avd.hw().hw_sensor_roll_defaults);
+    std::string rollRadius(avd.hw().hw_sensor_roll_radius);
+    std::string rollDirection(avd.hw().hw_sensor_roll_direction);
     std::vector<std::string> rollRangeTokens = absl::StrSplit(rollRanges, ",");
     std::vector<std::string> rollDefaultTokens = absl::StrSplit(rollDefaults, ",");
     std::vector<std::string> rollRadiusTokens = absl::StrSplit(rollRadius, ",");
@@ -105,12 +94,8 @@ void FoldableModel::initFoldableRoll() {
     }
 }
 
-void FoldableModel::initPostures() {}
-
-FoldableModel::FoldableModel(Avd* avd) : mAvd(avd) {
-    initFoldableHinge();
-    initFoldableRoll();
-    initPostures();
+FoldableModel::FoldableModel(const Avd& avd) {
+    initFoldableRoll(avd);
 }
 
 static const float kFloatValueEpsilon = 0.001f;
@@ -139,12 +124,8 @@ float FoldableModel::getHingeAngle(uint32_t hingeIndex,
 }
 
 float FoldableModel::getPosture(ParameterValueType parameterValueType) const {
-    return parameterValueType == ParameterValueType::DEFAULT ? (float)POSTURE_UNKNOWN
+    return parameterValueType == ParameterValueType::DEFAULT ? (float)FoldablePostures::UNKNOWN
                                                              : (float)mState.currentPosture;
-}
-
-void FoldableModel::sendPostureToSystem(enum FoldablePostures p) {
-    LOG(WARNING) << "Not yet implemented";
 }
 
 float FoldableModel::getRollable(uint32_t index, ParameterValueType parameterValueType) const {
@@ -156,18 +137,14 @@ float FoldableModel::getRollable(uint32_t index, ParameterValueType parameterVal
                    : mState.currentRolledPercent[index];
 }
 
+bool FoldableModel::getFoldedArea(int* x, int* y, int* w, int* h) const {
+    LOG(WARNING) << "Not yet implemented";
+    return false;
+}
+
 bool FoldableModel::isFolded() {
     LOG(WARNING) << "Not yet implemented";
     return false;
-}
-
-bool FoldableModel::getFoldedArea(int* x, int* y, int* w, int* h) {
-    LOG(WARNING) << "Not yet implemented";
-    return false;
-}
-
-void FoldableModel::updateFoldablePostureIndicator() {
-    LOG(WARNING) << "Not yet implemented";
 }
 
 }  // namespace physics

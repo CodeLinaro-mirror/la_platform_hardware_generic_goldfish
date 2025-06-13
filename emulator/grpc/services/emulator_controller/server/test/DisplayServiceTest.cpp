@@ -47,7 +47,7 @@ class DisplayServiceTest : public GrcpServiceTest {
         // Clear all displays except the default one before each test
         mMultiDisplay = reinterpret_cast<FakeMultiDisplay*>(FakeMultiDisplay::instance());
         mMultiDisplay->clear();
-        ISensorDevice::registerDevice(&mRegistry, &mAvd, mRegistry.getLooper());
+        ISensorDevice::registerDevice(&mRegistry, mAvd, mRegistry.getLooper());
         mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay, &mRegistry);
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());

@@ -43,9 +43,7 @@ static constexpr vec3 kDefaultMagnetometer = {0.0f, 5.9f, -48.4f};
 
 class PhysicalModelTest : public ::testing::Test {
   protected:
-    void SetUp() override { model = std::make_unique<PhysicalModel>(avd()); }
-
-    Avd* avd() { return &mAvd; }
+    void SetUp() override { model = std::make_unique<PhysicalModel>(mAvd); }
 
     std::unique_ptr<PhysicalModel> model;
     android::goldfish::FakeAvd mAvd;
@@ -122,10 +120,10 @@ TEST_F(PhysicalModelTest, SetTargetRotation) {
     EXPECT_VEC3_NEAR(targetRotation, currentRotation, 0.0001f);
 }
 
-typedef struct GravityTestCase_ {
+struct GravityTestCase {
     glm::vec3 target_rotation;
     glm::vec3 expected_acceleration;
-} GravityTestCase;
+};
 
 const GravityTestCase gravityTestCases[] = {
         {{0.0f, 0.0f, 0.0f}, {0.0f, 9.81f, 0.0f}},    {{90.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -9.81f}},
@@ -656,27 +654,27 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     // Foldable is not yet supported.
     using android::goldfish::HardwareConfig;
 
-    const_cast<HardwareConfig&>(avd()->hw()).hw_lcd_width = 1260;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_lcd_height = 2400;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge = true;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_count = 2;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_type = 0;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_sub_type = 1;
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_defaults = (char*)"180,90";
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_areas = (char*)"25-10, 50-10";
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
-    const_cast<HardwareConfig&>(avd()->hw()).hw_sensor_hinge_angles_posture_definitions =
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_width = 1260;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_height = 2400;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge = true;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_count = 2;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_type = 0;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_sub_type = 1;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_defaults = (char*)"180,90";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_areas = (char*)"25-10, 50-10";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_angles_posture_definitions =
             (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
 
     model->setCurrentTime(1000000000L);
 
-    struct FoldableState ret = model->getFoldableState();
+    FoldableState ret = model->getFoldableState();
     EXPECT_EQ(180, ret.currentHingeDegrees[0]);
     EXPECT_EQ(90, ret.currentHingeDegrees[1]);
     EXPECT_EQ(2, ret.config.numHinges);
-    EXPECT_EQ(ANDROID_FOLDABLE_HORIZONTAL_SPLIT, ret.config.type);
-    EXPECT_EQ(ANDROID_FOLDABLE_HINGE_HINGE, ret.config.hingesSubType);
+    EXPECT_EQ(FoldableDisplayType::HORIZONTAL_SPLIT, ret.config.type);
+    EXPECT_EQ(FoldableHingeSubType::HINGE, ret.config.hingesSubType);
     EXPECT_EQ(0, ret.config.hingeParams[0].displayId);
     EXPECT_EQ(0, ret.config.hingeParams[0].x);
     EXPECT_EQ(600, ret.config.hingeParams[0].y);
@@ -693,5 +691,5 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     EXPECT_EQ(180, ret.config.hingeParams[1].maxDegrees);
     EXPECT_EQ(180, ret.config.hingeParams[0].defaultDegrees);
     EXPECT_EQ(90, ret.config.hingeParams[1].defaultDegrees);
-    EXPECT_EQ(3, ret.currentPosture);
+    EXPECT_EQ(FoldablePostures::OPENED, ret.currentPosture);
 }

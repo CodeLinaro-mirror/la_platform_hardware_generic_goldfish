@@ -42,7 +42,7 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
 class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        ISensorDevice::registerDevice(&registry, &mAvd, registry.getLooper());
+        ISensorDevice::registerDevice(&registry, mAvd, registry.getLooper());
         device = registry.constructDevice<ISensorDevice>();
         test_socket = registry.getSocket();
         looper = registry.getLooper();
