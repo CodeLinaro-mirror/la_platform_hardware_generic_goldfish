@@ -235,9 +235,9 @@ build_test(
 )
 
 test_suite(
-    # Test suite for boring ssl, note that this brings in all the jdks and go toolchain.
-    # So we do not run this by default.
-    name = "boringssl_unit_tests",
+    # This contains all unit tests from external packages and dependencies
+    # These are not run by default.
+    name = "external_unit_tests",
     tags = [""],
     tests = [
         "@boringssl//:crypto_test",
@@ -245,6 +245,9 @@ test_suite(
         "@boringssl//:pki_test",
         "@boringssl//:ssl_test",
         "@boringssl//:urandom_test",
+        "@com_google_crashpad//:crashpad_tests",
+        "@libyuv//:libyuv_unittest",
+        "@pffft//:pffft_test",
     ],
 )
 
@@ -270,11 +273,8 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/guest-status:guest-status_unittests",
         "//hardware/generic/goldfish/emulator/hal/sensors:sensors_unittests",
         "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface_unittests",
+        "//hardware/generic/goldfish/emulator/launcher:can_launch_kernel_with_minigbm",
         "//hardware/generic/goldfish/emulator/launcher:emulator_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
-        #"@com_google_crashpad//:crashpad_tests",
-        "//hardware/generic/goldfish/emulator/launcher:can_launch_kernel_with_minigbm",
-        "@libyuv//:libyuv_unittest",
-        "@pffft//:pffft_test",
     ],
 )
