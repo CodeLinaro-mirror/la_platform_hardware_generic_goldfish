@@ -674,7 +674,6 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     EXPECT_EQ(90, ret.currentHingeDegrees[1]);
     EXPECT_EQ(2, ret.config.numHinges);
     EXPECT_EQ(FoldableDisplayType::HORIZONTAL_SPLIT, ret.config.type);
-    EXPECT_EQ(FoldableHingeSubType::HINGE, ret.config.hingesSubType);
     EXPECT_EQ(0, ret.config.hingeParams[0].displayId);
     EXPECT_EQ(0, ret.config.hingeParams[0].x);
     EXPECT_EQ(600, ret.config.hingeParams[0].y);

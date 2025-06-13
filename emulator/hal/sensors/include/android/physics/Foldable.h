@@ -77,8 +77,6 @@ enum class FoldableDisplayType {
   TYPE_MAX
 };
 
-enum class FoldableHingeSubType { FOLD = 0, HINGE = 1, SUB_TYPE_MAX };
-
 struct FoldableHingeParameters {
     int x, y, width, height;
     int displayId;
@@ -99,13 +97,12 @@ struct RollableParameters {
 
 struct FoldableConfig {
   FoldableDisplayType type;
-  FoldableHingeSubType hingesSubType;
-  bool supportedFoldablePostures[static_cast<size_t>(FoldablePostures::POSTURE_MAX)];
 
   // For hinges only
   int numHinges;
   FoldablePostures foldAtPosture;
   FoldableHingeParameters hingeParams[ANDROID_FOLDABLE_MAX_HINGES];
+
   // For rollables only
   int numRolls;
   FoldablePostures resizeAtPosture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
