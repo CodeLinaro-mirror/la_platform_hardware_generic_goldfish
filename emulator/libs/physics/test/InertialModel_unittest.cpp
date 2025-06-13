@@ -9,23 +9,28 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/physics/InertialModel.h"
+#include "goldfish/physics/InertialModel.h"
 
 #include <assert.h>
 #include <glm/gtx/euler_angles.hpp>
 #include <gtest/gtest.h>
 
-#include "aemu/base/testing/GlmTestHelpers.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
+#include "goldfish/physics/GlmTestHelpers.h"
 
 using android::base::System;
 using android::base::TestSystem;
-using android::physics::InertialModel;
+using goldfish::physics::InertialModel;
+using goldfish::physics::InertialState;
+using goldfish::physics::kMaxStateChangeTimeSeconds;
+using goldfish::physics::kMinStateChangeTimeSeconds;
+using goldfish::physics::nsToSeconds;
+using goldfish::physics::secondsToNs;
 
 constexpr ParameterValueType kValueTypes[] = {
-        ParameterValueType::TARGET, ParameterValueType::CURRENT,
-        ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
+    ParameterValueType::TARGET, ParameterValueType::CURRENT,
+    ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
 
 #define EXPECT_QUAT_NEAR(expected, actual, epsilon)         \
     {                                                       \
@@ -275,8 +280,7 @@ TEST(InertialModel, TargetPosition) {
     inertialModel.setTargetPosition(glm::vec3(0.f), PhysicalInterpolation::STEP);
     inertialModel.setTargetPosition(targetPosition, PhysicalInterpolation::SMOOTH);
 
-    const glm::vec3 retrievedTargetPosition =
-            inertialModel.getPosition(ParameterValueType::TARGET);
+    const glm::vec3 retrievedTargetPosition = inertialModel.getPosition(ParameterValueType::TARGET);
     EXPECT_NEAR(targetPosition.x, retrievedTargetPosition.x, 0.0001f);
     EXPECT_NEAR(targetPosition.y, retrievedTargetPosition.y, 0.0001f);
     EXPECT_NEAR(targetPosition.z, retrievedTargetPosition.z, 0.0001f);
@@ -395,9 +399,8 @@ TEST(InertialModel, IntermediateValuesDuringInterpolation) {
     glm::vec3 singleIntegratedPosition = initialPosition;
 
     constexpr uint64_t stepNs = 25000UL;
-    constexpr float timeIncrementSeconds = android::physics::nsToSeconds(stepNs);
-    constexpr uint64_t endTimeNs =
-            android::physics::secondsToNs(android::physics::kMaxStateChangeTimeSeconds);
+    constexpr float timeIncrementSeconds = nsToSeconds(stepNs);
+    constexpr uint64_t endTimeNs = secondsToNs(kMaxStateChangeTimeSeconds);
     constexpr float epsilon = 0.01f;
 
     for (uint64_t timeNs = stepNs >> 1; timeNs < endTimeNs; timeNs += stepNs) {
@@ -459,7 +462,7 @@ TEST(InertialModel, AmbientMotion) {
     glm::vec3 singleIntegratedPosition = initialPosition;
 
     constexpr uint64_t stepNs = 25000ULL;
-    constexpr float timeIncrementSeconds = android::physics::nsToSeconds(stepNs);
+    constexpr float timeIncrementSeconds = nsToSeconds(stepNs);
     constexpr float epsilon = 0.001f;
 
     bool foundNonZeroPosition = false;
@@ -467,7 +470,7 @@ TEST(InertialModel, AmbientMotion) {
 
     inertialModel.setTargetAmbientMotion(0.1f, PhysicalInterpolation::SMOOTH);
     for (uint64_t timeNs = startTimeNs + (stepNs >> 1); timeNs < endTimeNs; timeNs += stepNs) {
-        isLatestPositionStable = (inertialModel.setCurrentTime(timeNs) == android::physics::InertialState::STABLE);
+        isLatestPositionStable = (inertialModel.setCurrentTime(timeNs) == InertialState::STABLE);
         integratedVelocity += timeIncrementSeconds * inertialModel.getAcceleration();
         doubleIntegratedPosition += timeIncrementSeconds * integratedVelocity;
 
@@ -719,8 +722,7 @@ TEST(InertialModel, GyroscopeUseShortPath) {
     inertialModel.setTargetRotation(initialRotation, PhysicalInterpolation::STEP);
     inertialModel.setTargetRotation(targetRotation, PhysicalInterpolation::SMOOTH);
 
-    inertialModel.setCurrentTime(
-            android::physics::secondsToNs(android::physics::kMinStateChangeTimeSeconds / 2.f));
+    inertialModel.setCurrentTime(secondsToNs(kMinStateChangeTimeSeconds / 2.f));
 
     // Verify that we don't take the long way around even though glm::angle
     // would give us the long way as the default angle between the initial and
@@ -846,12 +848,12 @@ TEST(InertialModel, Gyroscope30HzRotationSet) {
     int rotationXAngleDegrees = 0;
     int rotationYAngleDegrees = 0;
     int rotationZAngleDegrees = 0;
-    android::physics::InertialState state = android::physics::InertialState::STABLE;
+    InertialState state = InertialState::STABLE;
     // time steps in 300ths of a second (so we can do 30 hz target sets and
     // 100hz polling gyroscope).
     int timeSteps = 0;
     glm::quat integratedRotation = initialRotation;
-    while (rotationZAngleDegrees > -180 || state != android::physics::InertialState::STABLE) {
+    while (rotationZAngleDegrees > -180 || state != InertialState::STABLE) {
         if (timeSteps % 10 == 0 && rotationZAngleDegrees > -180) {
             if (rotationXAngleDegrees < 300) {
                 rotationXAngleDegrees++;

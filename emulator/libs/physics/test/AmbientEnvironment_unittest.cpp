@@ -9,18 +9,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/physics/AmbientEnvironment.h"
+#include "goldfish/physics/AmbientEnvironment.h"
 
 #include <assert.h>
 #include <gtest/gtest.h>
 
-#include "aemu/base/testing/GlmTestHelpers.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
+#include "goldfish/physics/GlmTestHelpers.h"
 
 using android::base::System;
 using android::base::TestSystem;
-using android::physics::AmbientEnvironment;
+using goldfish::physics::AmbientEnvironment;
 
 TEST(AmbientEnvironment, DefaultParameters) {
     TestSystem mTestSystem("/");
@@ -30,8 +30,8 @@ TEST(AmbientEnvironment, DefaultParameters) {
     AmbientEnvironment ambientEnvironment;
 
     constexpr ParameterValueType valueTypes[] = {
-            ParameterValueType::TARGET, ParameterValueType::CURRENT,
-            ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
+        ParameterValueType::TARGET, ParameterValueType::CURRENT,
+        ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
     for (auto valueType : valueTypes) {
         SCOPED_TRACE(testing::Message() << "valueType=" << static_cast<int>(valueType));
 

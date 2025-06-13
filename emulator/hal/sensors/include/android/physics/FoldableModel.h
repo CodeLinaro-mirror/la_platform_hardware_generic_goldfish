@@ -22,7 +22,7 @@
 #include "aemu/base/EventNotificationSupport.h"  // for EventNotifi...
 #include "android/goldfish/config/avd.h"
 #include "android/physics/Foldable.h"
-#include "android/physics/Physics.h"
+#include "goldfish/physics/Physics.h"
 
 namespace android {
 namespace physics {

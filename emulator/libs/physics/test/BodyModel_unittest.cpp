@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/physics/BodyModel.h"
+#include "goldfish/physics/BodyModel.h"
 
 #include <assert.h>
 #include <gtest/gtest.h>
@@ -18,7 +18,7 @@
 
 using android::base::System;
 using android::base::TestSystem;
-using android::physics::BodyModel;
+using goldfish::physics::BodyModel;
 
 TEST(BodyModel, DefaultParameters) {
     TestSystem mTestSystem("/");
@@ -28,8 +28,8 @@ TEST(BodyModel, DefaultParameters) {
     BodyModel bodyModel;
 
     constexpr ParameterValueType valueTypes[] = {
-            ParameterValueType::TARGET, ParameterValueType::CURRENT,
-            ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
+        ParameterValueType::TARGET, ParameterValueType::CURRENT,
+        ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
     for (auto valueType : valueTypes) {
         SCOPED_TRACE(testing::Message() << "valueType=" << static_cast<int>(valueType));
 

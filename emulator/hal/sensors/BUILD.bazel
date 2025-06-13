@@ -1,44 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "headers",
-    hdrs = [
-        "include/android/physics/AmbientEnvironment.h",
-        "include/android/physics/BodyModel.h",
+    name = "sensors",
+    srcs = [
         "include/android/physics/Foldable.h",
         "include/android/physics/FoldableModel.h",
-        "include/android/physics/GlmHelpers.h",
-        "include/android/physics/InertialModel.h",
         "include/android/physics/PhysicalModel.h",
-        "include/android/physics/Physics.h",
         "include/android/physics/SensorDevice.h",
         "include/android/physics/Sensors.h",
+        "src/physics/FoldableModel.cpp",
+        "src/physics/PhysicalModel.cpp",
+        "src/physics/SensorDevice.cpp",
+    ],
+    hdrs = [
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@gfxstream//third_party/glm",
-    ],
-)
-
-cc_library(
-    name = "sensors",
-    srcs = [
-        "src/physics/AmbientEnvironment.cpp",
-        "src/physics/BodyModel.cpp",
-        "src/physics/FoldableModel.cpp",
-        "src/physics/InertialModel.cpp",
-        "src/physics/PhysicalModel.cpp",
-        "src/physics/SensorDevice.cpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
         "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/system",
@@ -46,7 +24,9 @@ cc_library(
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/devices:qemud",
+        "//hardware/generic/goldfish/emulator/libs/physics",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -60,9 +40,6 @@ cc_library(
 cc_test(
     name = "sensors_unittests",
     srcs = [
-        "test/physics/AmbientEnvironment_unittest.cpp",
-        "test/physics/BodyModel_unittest.cpp",
-        "test/physics/InertialModel_unittest.cpp",
         "test/physics/PhysicalModel_unittest.cpp",
         "test/physics/SensorDevice_unittest.cpp",
     ],

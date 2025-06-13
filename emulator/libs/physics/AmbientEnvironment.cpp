@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "android/physics/AmbientEnvironment.h"
+#include "goldfish/physics/AmbientEnvironment.h"
 
-namespace android {
+namespace goldfish {
 namespace physics {
 
 constexpr glm::vec3 AmbientEnvironment::kDefaultMagneticField;
@@ -92,4 +92,4 @@ glm::vec4 AmbientEnvironment::getRgbcLight(ParameterValueType valueType) const {
 }
 
 }  // namespace physics
-}  // namespace android
+}  // namespace goldfish

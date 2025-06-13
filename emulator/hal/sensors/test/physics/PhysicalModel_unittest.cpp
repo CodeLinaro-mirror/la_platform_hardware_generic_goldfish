@@ -23,11 +23,14 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/physics/InertialModel.h"
+#include "goldfish/physics/InertialModel.h"
 
 using android::goldfish::Avd;
 using android::physics::PhysicalModel;
 using android::physics::PhysicalModelChangeEvent;
+using goldfish::physics::kMinStateChangeTimeSeconds;
+using goldfish::physics::nsToSeconds;
+using goldfish::physics::secondsToNs;
 
 static constexpr float kDefaultProximity = 1.f;
 static constexpr vec3 kDefaultAccelerometer = {0.f, 9.81f, 0.f};
@@ -188,9 +191,7 @@ TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
     newRotation.z = 0.0f;
     model->setTargetRotation(newRotation, PhysicalInterpolation::SMOOTH);
 
-    model->setCurrentTime(
-            1000000000L +
-            android::physics::secondsToNs(android::physics::kMinStateChangeTimeSeconds / 2.f));
+    model->setCurrentTime(1000000000L + secondsToNs(kMinStateChangeTimeSeconds / 2.f));
 
     long measurement_id;
     vec3 currentGyro = model->getGyroscope(&measurement_id);
@@ -297,7 +298,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 
     uint64_t time = 500000000UL;
     const uint64_t stepNs = 1000UL;
-    const uint64_t maxConvergenceTimeNs = time + android::physics::secondsToNs(5.0f);
+    const uint64_t maxConvergenceTimeNs = time + secondsToNs(5.0f);
 
     const vec3 targetPosition{1.0f, 2.0f, 3.0f};
 
@@ -333,7 +334,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 
     glm::vec3 velocity(0.f);
     glm::vec3 position(initialPosition.x, initialPosition.y, initialPosition.z);
-    const float stepSeconds = android::physics::nsToSeconds(stepNs);
+    const float stepSeconds = nsToSeconds(stepNs);
     long prevMeasurementId = -1;
     time += stepNs / 2;
 
@@ -371,7 +372,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 
     uint64_t time = 0UL;
     const uint64_t stepNs = 5000UL;
-    const uint64_t maxConvergenceTimeNs = time + android::physics::secondsToNs(5.0f);
+    const uint64_t maxConvergenceTimeNs = time + secondsToNs(5.0f);
 
     vec3 targetRotation{-10.0f, 20.0f, 45.0f};
 
@@ -403,7 +404,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
     glm::quat rotation = glm::toQuat(glm::eulerAngleXYZ(glm::radians(initialRotation.x),
                                                         glm::radians(initialRotation.y),
                                                         glm::radians(initialRotation.z)));
-    const float stepSeconds = android::physics::nsToSeconds(stepNs);
+    const float stepSeconds = nsToSeconds(stepNs);
     long prevMeasurementId = -1;
     time += stepNs / 2;
     while (physicalStateChanging) {
@@ -448,7 +449,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 
     uint64_t time = 0UL;
     const uint64_t stepNs = 5000UL;
-    const uint64_t maxConvergenceTimeNs = time + android::physics::secondsToNs(5.0f);
+    const uint64_t maxConvergenceTimeNs = time + secondsToNs(5.0f);
 
     const vec3 targetPosition{1.0f, 2.0f, 3.0f};
     const vec3 targetRotation{-10.0f, 20.0f, 45.0f};
@@ -486,7 +487,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
     glm::vec3 velocity(0.f);
     glm::vec3 position(initialPosition.x, initialPosition.y, initialPosition.z);
 
-    const float stepSeconds = android::physics::nsToSeconds(stepNs);
+    const float stepSeconds = nsToSeconds(stepNs);
     long prevGyroMeasurementId = -1;
     long prevAccelMeasurementId = -1;
     time += stepNs / 2;
@@ -588,8 +589,8 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
     glm::vec3 velocity(0.f);
     glm::vec3 position(initialPosition.x, initialPosition.y, initialPosition.z);
 
-    const float stepSeconds = android::physics::nsToSeconds(stepNs);
-    const float maxConvergenceTimeNs = time + android::physics::secondsToNs(5.0f);
+    const float stepSeconds = nsToSeconds(stepNs);
+    const float maxConvergenceTimeNs = time + secondsToNs(5.0f);
     long prevGyroMeasurementId = -1;
     long prevAccelMeasurementId = -1;
     time += stepNs / 2;

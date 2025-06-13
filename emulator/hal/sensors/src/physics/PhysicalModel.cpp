@@ -32,16 +32,19 @@
 #include "android/base/system/System.h"
 #include "android/emulation/control/sensors_agent.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/AmbientEnvironment.h"
-#include "android/physics/BodyModel.h"
 #include "android/physics/FoldableModel.h"
-#include "android/physics/GlmHelpers.h"
-#include "android/physics/InertialModel.h"
 #include "android/physics/Sensors.h"
+#include "goldfish/physics/AmbientEnvironment.h"
+#include "goldfish/physics/BodyModel.h"
+#include "goldfish/physics/GlmHelpers.h"
+#include "goldfish/physics/InertialModel.h"
 
 using android::base::PathUtils;
 using android::base::StdioStream;
 using android::base::System;
+using goldfish::physics::AmbientState;
+using goldfish::physics::BodyState;
+using goldfish::physics::InertialState;
 
 namespace android {
 namespace physics {

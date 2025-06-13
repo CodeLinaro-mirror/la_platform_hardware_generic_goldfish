@@ -7,5 +7,6 @@ test_suite(
         "//hardware/generic/goldfish/emulator/libs/broadcasting:broadcasting_unittests",
         "//hardware/generic/goldfish/emulator/libs/imaging:imaging_unittests",
         "//hardware/generic/goldfish/emulator/libs/parsing:parsing_unittests",
+        "//hardware/generic/goldfish/emulator/libs/physics:physics_unittests",
     ],
 )

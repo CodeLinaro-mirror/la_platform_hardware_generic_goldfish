@@ -17,25 +17,29 @@
 
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
-
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
 #include "android/emulation/control/utils/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/AmbientEnvironment.h"
-#include "android/physics/BodyModel.h"
 #include "android/physics/Foldable.h"
 #include "android/physics/FoldableModel.h"
-#include "android/physics/InertialModel.h"
-#include "android/physics/Physics.h"
 #include "android/physics/Sensors.h"
+#include "goldfish/physics/AmbientEnvironment.h"
+#include "goldfish/physics/BodyModel.h"
+#include "goldfish/physics/InertialModel.h"
+#include "goldfish/physics/Physics.h"
 
 namespace android {
 namespace physics {
 
 using android::emulation::control::EventChangeSupport;
 using android::emulation::control::WithCallbacks;
+
+using ::goldfish::physics::AmbientEnvironment;
+using ::goldfish::physics::BodyModel;
+using ::goldfish::physics::InertialModel;
+
 class PhysicalModel;
 
 /**

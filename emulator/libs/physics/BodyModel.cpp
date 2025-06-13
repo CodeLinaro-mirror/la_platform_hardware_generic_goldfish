@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "android/physics/BodyModel.h"
+#include "goldfish/physics/BodyModel.h"
 
-namespace android {
+namespace goldfish {
 namespace physics {
 
 BodyState BodyModel::setCurrentTime(uint64_t time_ns) {
@@ -32,4 +32,4 @@ float BodyModel::getHeartRate(ParameterValueType valueType) const {
 }
 
 }  // namespace physics
-}  // namespace android
+}  // namespace goldfish

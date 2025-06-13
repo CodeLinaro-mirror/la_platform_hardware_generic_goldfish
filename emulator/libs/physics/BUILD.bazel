@@ -1,0 +1,55 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+# maybe move to aemu
+cc_library(
+    name = "glm_helpers",
+    hdrs = [
+        "include/goldfish/physics/GlmHelpers.h",
+        "include/goldfish/physics/GlmTestHelpers.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "@gfxstream//third_party/glm",
+    ],
+)
+
+cc_library(
+    name = "physics",
+    srcs = [
+        "AmbientEnvironment.cpp",
+        "BodyModel.cpp",
+        "InertialModel.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/physics/AmbientEnvironment.h",
+        "include/goldfish/physics/BodyModel.h",
+        "include/goldfish/physics/InertialModel.h",
+        "include/goldfish/physics/Physics.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":glm_helpers",
+    ],
+)
+
+cc_test(
+    name = "physics_unittests",
+    size = "small",
+    srcs = [
+        "test/AmbientEnvironment_unittest.cpp",
+        "test/BodyModel_unittest.cpp",
+        "test/InertialModel_unittest.cpp",
+    ],
+    deps = [
+        ":physics",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+    ],
+)

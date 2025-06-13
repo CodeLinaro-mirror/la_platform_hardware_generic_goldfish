@@ -40,7 +40,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/display",
         "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
-        "//hardware/generic/goldfish/emulator/hal/sensors:headers",
+        "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/hal/vminterface:headers",
         "@aemu//base:aemu-base",
         "@glib//:glib-static",

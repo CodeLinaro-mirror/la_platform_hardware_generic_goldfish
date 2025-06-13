@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "android/physics/InertialModel.h"
+#include "goldfish/physics/InertialModel.h"
 
 #include <glm/gtc/quaternion.hpp>
 
-#include "android/base/system/System.h"
+// #include "android/base/system/System.h"
 
-namespace android {
+namespace goldfish {
 namespace physics {
 
 constexpr float kEpsilon = 0.0000000001f;
@@ -833,4 +833,4 @@ float InertialModel::getAmbientMotionBoundsSecondDeriv(
 }
 
 }  // namespace physics
-}  // namespace android
+}  // namespace goldfish
