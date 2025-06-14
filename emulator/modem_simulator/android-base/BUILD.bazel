@@ -1,0 +1,21 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "android-base",
+    srcs = [
+        "logging.h",
+        "strings.h",
+    ],
+    hdrs = [
+        "logging.h",
+        "strings.h",
+    ],
+    copts = ["-std=c++17"],
+    include_prefix = "android-base",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@aemu//base:aemu-base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+    ],
+)

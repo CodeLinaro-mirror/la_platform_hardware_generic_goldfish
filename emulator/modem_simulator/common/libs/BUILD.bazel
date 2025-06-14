@@ -1,0 +1,22 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "common",
+    srcs = [
+        "fs/shared_fd.cpp",
+        "utils/files.cpp",
+    ],
+    hdrs = [
+        "fs/shared_buf.h",
+        "fs/shared_fd.h",
+        "fs/shared_select.h",
+        "utils/files.h",
+    ],
+    copts = ["-std=c++17"],
+    include_prefix = "common/libs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@aemu//base:aemu-base",
+        "@com_google_absl//absl/log",
+    ],
+)

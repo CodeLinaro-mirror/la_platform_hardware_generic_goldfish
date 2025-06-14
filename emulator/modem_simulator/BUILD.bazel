@@ -1,0 +1,20 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "goldfish_modem_simulator",
+    srcs = [
+        "ModemSimulator.cpp",
+        "android_modem_v2.cpp",
+        "emulator_config.cpp",
+    ],
+    hdrs = [
+        "ModemSimulator.h",
+        "android_modem_v2.h",
+        "dns.h",
+        "modem_main.h",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/modem_simulator/telephony",
+        "@modem_simulator//:modem_simulator_lib",
+    ],
+)
