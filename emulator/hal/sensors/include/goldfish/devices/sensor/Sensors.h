@@ -35,8 +35,6 @@ struct vec3 {
     bool operator!=(const vec3& rhs) const { return !(*this == rhs); }
 };
 
-typedef struct vec3 vec3;
-
 /* struct for use in sensor values */
 struct vec4 {
     float x;
@@ -55,21 +53,6 @@ struct vec4 {
     }
 
     bool operator!=(const vec4& rhs) const { return !(*this == rhs); }
-};
-
-typedef struct vec4 vec4;
-
-/* NOTE: Sensor status Error definition
- *       SENSOR_STATUS_NO_SERVICE: "sensors" qemud service is not available/initiated.
- *       SENSOR_STATUS_DISABLED: sensor is disabled.
- *       SENSOR_STATUS_UNKNOWN: wrong sensor name.
- *       SENSOR_STATUS_OK: Everything is OK to the current sensor.
- */
-enum class SensorStatus {
-    NO_SERVICE = -3,
-    DISABLED = -2,
-    UNKNOWN = -1,
-    OK = 0,
 };
 
 /* NOTE: this list must be the same that the one defined in
@@ -109,19 +92,6 @@ enum class AndroidSensor {
             MAX_SENSORS /* do not remove */
 };
 
-/* NOTE: Physical parameters Error definition, It will be used in the Physics
- *       Command part in console.c. Details:
- *       PHYSICAL_PARAMETER_STATUS_NO_SERVICE: no physical model present.
- *       PHYSICAL_PARAMETER_STATUS_UNKNOWN: wrong physical parameter name.
- *       PHYSICAL_PARAMETER_STATUS_OK: Everything is OK to the current physical
- *                                     param.
- */
-enum class PhysicalParameterStatus {
-    NO_SERVICE = -2,
-    UNKNOWN = -1,
-    OK = 0,
-};
-
 /*
  * Note: DO NOT CHANGE THE ORDER IN THIS LIST, UNLESS YOU INTEND
  *       TO BREAK SNAPSHOTS!
@@ -155,12 +125,4 @@ enum class PhysicalParameter {
     PHYSICAL_PARAMETERS_LIST
 #undef PHYSICAL_PARAMETER_
             MAX_PHYSICAL_PARAMETERS
-};
-
-/* COARSE ORIENTATION VALUES */
-enum class AndroidCoarseOrientation {
-    PORTRAIT,           // 0 degrees
-    REVERSE_LANDSCAPE,  // 90 degrees
-    REVERSE_PORTRAIT,   // 180 degrees
-    LANDSCAPE,          // 270 degrees
 };
