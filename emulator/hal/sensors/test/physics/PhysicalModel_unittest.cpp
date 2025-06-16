@@ -32,9 +32,7 @@ using goldfish::physics::kMinStateChangeTimeSeconds;
 using goldfish::physics::nsToSeconds;
 using goldfish::physics::secondsToNs;
 
-static constexpr float kDefaultProximity = 1.f;
 static constexpr vec3 kDefaultAccelerometer = {0.f, 9.81f, 0.f};
-static constexpr vec3 kDefaultMagnetometer = {0.0f, 5.9f, -48.4f};
 
 #define EXPECT_VEC3_NEAR(e, a, d) \
     EXPECT_NEAR(e.x, a.x, d);     \
@@ -249,35 +247,6 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
 
     EXPECT_NE(physical_measurement_id, override_measurement_id);
     EXPECT_NE(physical_measurement_id, initial_measurement_id);
-}
-
-static constexpr vec3 kVecZero = {0.f, 0.f, 0.f};
-static constexpr vec3 kAccelOverride = {1.f, 2.f, 3.f};
-static constexpr vec3 kAccelUncalibratedOverride = {1.f, 2.f, 3.f};
-static constexpr vec3 kGyroOverride = {4.f, 5.f, 6.f};
-static constexpr vec3 kMagnetometerOverride = {7.f, 8.f, 9.f};
-static constexpr vec3 kOrientationOverride = {10.f, 11.f, 12.f};
-static constexpr float kTemperatureOverride = 13.f;
-static constexpr float kProximityOverride = 14.f;
-static constexpr float kLightOverride = 15.f;
-static constexpr float kPressureOverride = 16.f;
-static constexpr float kHumidityOverride = 17.f;
-static constexpr vec3 kMagneticUncalibratedOverride = {18.f, 19.f, 20.f};
-static constexpr vec3 kGyroUncalibratedOverride = {21.f, 22.f, 23.f};
-
-static void applyOverrides(PhysicalModel* model) {
-    model->overrideAccelerometer(kAccelOverride);
-    model->overrideGyroscope(kGyroOverride);
-    model->overrideMagnetometer(kMagnetometerOverride);
-    model->overrideOrientation(kOrientationOverride);
-    model->overrideTemperature(kTemperatureOverride);
-    model->overrideProximity(kProximityOverride);
-    model->overrideLight(kLightOverride);
-    model->overridePressure(kPressureOverride);
-    model->overrideHumidity(kHumidityOverride);
-    model->overrideMagnetometerUncalibrated(kMagneticUncalibratedOverride);
-    model->overrideGyroscopeUncalibrated(kGyroUncalibratedOverride);
-    model->overrideAccelerometerUncalibrated(kAccelUncalibratedOverride);
 }
 
 TEST_F(PhysicalModelTest, SetRotatedIMUResults) {

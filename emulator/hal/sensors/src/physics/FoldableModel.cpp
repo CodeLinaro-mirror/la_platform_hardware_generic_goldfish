@@ -98,7 +98,6 @@ FoldableModel::FoldableModel(const Avd& avd) {
     initFoldableRoll(avd);
 }
 
-static const float kFloatValueEpsilon = 0.001f;
 void FoldableModel::setHingeAngle(uint32_t hingeIndex, float degrees, PhysicalInterpolation mode,
                                   std::recursive_mutex& mutex) {
     LOG(WARNING) << "Not yet implemented";
