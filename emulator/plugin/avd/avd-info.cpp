@@ -33,9 +33,9 @@
 #include "android/goldfish/config/avd.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
-#include "android/physics/SensorDevice.h"
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/qemu-looper.h"
+#include "goldfish/devices/sensor/SensorDevice.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

@@ -8,7 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "android/physics/SensorDevice.h"
+
+#include "goldfish/devices/sensor/SensorDevice.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -27,6 +28,7 @@ using ::testing::_;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
+using goldfish::physics::SkinRotation;
 
 int countOccurrences(const std::string& text, const std::string& target) {
     int count = 0;

@@ -21,17 +21,16 @@
 
 #include "aemu/base/EventNotificationSupport.h"  // for EventNotifi...
 #include "android/goldfish/config/avd.h"
-#include "android/physics/Foldable.h"
+#include "goldfish/devices/sensor/Foldable.h"
 #include "goldfish/physics/Physics.h"
 
-namespace android {
-namespace physics {
+namespace goldfish::devices::sensor {
 
-using android::goldfish::Avd;
+using ::android::goldfish::Avd;
 
 class FoldableModel {
   public:
-    class PostureListener : public base::EventNotificationSupport<FoldablePostures> {
+    class PostureListener : public ::android::base::EventNotificationSupport<FoldablePostures> {
         friend class FoldableModel;
     };
     FoldableModel(const Avd& avd);
@@ -71,5 +70,4 @@ class FoldableModel {
    PostureListener mPostureListener;
 };
 
-}  // namespace physics
-}  // namespace android
+}  // namespace goldfish::devices::sensor

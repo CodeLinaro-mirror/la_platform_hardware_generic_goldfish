@@ -32,7 +32,8 @@
 
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/QemuDisplay.h"
-#include "android/physics/SensorDevice.h"
+#include "goldfish/physics/Rotation.h"
+#include "goldfish/physics/SkinRotation.h"
 
 extern "C" {
 // clang-format off
@@ -46,9 +47,8 @@ extern "C" {
 // clang-format on
 }
 
-using ::goldfish::devices::sensor::ISensorDevice;
-using ::goldfish::devices::sensor::Rotation;
-using DeviceSkinRotation = ::goldfish::devices::sensor::SkinRotation;
+using ::goldfish::physics::Rotation;
+using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 
 namespace android::goldfish {
 

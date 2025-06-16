@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/physics/SensorDevice.h"
+
+#include "goldfish/devices/sensor/SensorDevice.h"
 
 #include <cassert>
 #include <cstdbool>
@@ -30,19 +31,22 @@
 
 #include "aemu/base/async/Looper.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/PhysicalModel.h"
-#include "android/physics/Sensors.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/sensor/PhysicalModel.h"
+#include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/devices/qemud.h"
+#include "goldfish/physics/SkinRotation.h"
+
+namespace goldfish::devices::sensor {
 
 using android::base::Looper;
 using android::goldfish::Avd;
-using android::physics::PhysicalModel;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
+using goldfish::physics::SkinRotation;
 
 namespace {  // Anonymous namespace for internal helpers
 
@@ -143,7 +147,7 @@ void getValues(const float value, float* const* out, const size_t count) {
  * a decimal point, but that would not be parsed correctly
  * within the guest.
  */
-static void _sanitizeSensorString(char* string, int maxlen) {
+void _sanitizeSensorString(char* string, int maxlen) {
     for (int i = 0; i < maxlen && string[i] != '\0'; i++) {
         if (string[i] == ',') {
             string[i] = '.';
@@ -152,8 +156,6 @@ static void _sanitizeSensorString(char* string, int maxlen) {
 }
 
 }  // anonymous namespace
-
-namespace goldfish::devices::sensor {
 
 class SensorDevice : public ISensorDevice {
   public:

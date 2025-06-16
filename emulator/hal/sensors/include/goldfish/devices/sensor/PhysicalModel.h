@@ -22,16 +22,15 @@
 #include "aemu/base/EventNotificationSupport.h"
 #include "android/emulation/control/utils/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/Foldable.h"
-#include "android/physics/FoldableModel.h"
-#include "android/physics/Sensors.h"
+#include "goldfish/devices/sensor/Foldable.h"
+#include "goldfish/devices/sensor/FoldableModel.h"
+#include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/physics/AmbientEnvironment.h"
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/InertialModel.h"
 #include "goldfish/physics/Physics.h"
 
-namespace android {
-namespace physics {
+namespace goldfish::devices::sensor {
 
 using android::emulation::control::EventChangeSupport;
 using android::emulation::control::WithCallbacks;
@@ -268,5 +267,4 @@ class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChan
     int64_t mModelTimeNs = 0L;  ///< Current model time in nanoseconds
 };
 
-}  // namespace physics
-}  // namespace android
+}  // namespace goldfish::devices::sensor

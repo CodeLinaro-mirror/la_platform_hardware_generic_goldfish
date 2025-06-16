@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "android/physics/FoldableModel.h"
+#include "goldfish/devices/sensor/FoldableModel.h"
 
 #include "absl/log/log.h"
 #include "absl/strings/str_split.h"
@@ -23,8 +23,7 @@
 #include "host-common/FeatureControl.h"
 #include "host-common/hw-config.h"
 
-namespace android {
-namespace physics {
+namespace goldfish::devices::sensor {
 
 void FoldableModel::initFoldableRoll(const Avd& avd) {
     if (!avd.hw().hw_sensor_roll) {
@@ -146,5 +145,4 @@ bool FoldableModel::isFolded() {
     return false;
 }
 
-}  // namespace physics
-}  // namespace android
+}  // namespace goldfish::devices::sensor

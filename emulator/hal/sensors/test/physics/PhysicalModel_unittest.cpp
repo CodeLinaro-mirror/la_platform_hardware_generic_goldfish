@@ -8,7 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "android/physics/PhysicalModel.h"
+
+#include "goldfish/devices/sensor/PhysicalModel.h"
 
 #include <assert.h>
 #include <glm/gtx/euler_angles.hpp>
@@ -23,11 +24,10 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "goldfish/physics/InertialModel.h"
+
+namespace goldfish::devices::sensor {
 
 using android::goldfish::Avd;
-using android::physics::PhysicalModel;
-using android::physics::PhysicalModelChangeEvent;
 using goldfish::physics::kMinStateChangeTimeSeconds;
 using goldfish::physics::nsToSeconds;
 using goldfish::physics::secondsToNs;
@@ -661,3 +661,5 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     EXPECT_EQ(90, ret.config.hingeParams[1].defaultDegrees);
     EXPECT_EQ(FoldablePostures::OPENED, ret.currentPosture);
 }
+
+}  // namespace goldfish::devices::sensor

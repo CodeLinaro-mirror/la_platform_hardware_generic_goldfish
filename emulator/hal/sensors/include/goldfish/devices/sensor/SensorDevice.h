@@ -21,9 +21,10 @@
 #include "aemu/base/async/Looper.h"
 #include "android/emulation/control/utils/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/Sensors.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/sensor/Sensors.h"
+#include "goldfish/physics/Rotation.h"
 
 namespace goldfish::devices::sensor {
 
@@ -34,24 +35,11 @@ using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
+using goldfish::physics::Rotation;
+
 using namespace std::string_view_literals;
 
 using SensorData = std::vector<float>;
-
-enum class SkinRotation {
-    PORTRAIT = 0,          ///< Portrait orientation (0 degrees).
-    LANDSCAPE = 1,         ///< Landscape orientation (90 degrees clockwise).
-    REVERSE_PORTRAIT = 2,  ///< Reverse portrait orientation (180 degrees or -180 degrees).
-    REVERSE_LANDSCAPE =
-            3,  ///< Reverse landscape orientation (270 degrees clockwise or -90 degrees).
-};
-struct Rotation {
-    SkinRotation rotation;
-
-    float xAxis;  ///< The x-axis acceleration value (in m/s^2).
-    float yAxis;  ///< The y-axis acceleration value (in m/s^2).
-    float zAxis;  ///< The z-axis acceleration value (in m/s^2).
-};
 
 // A Qemud based sensor emulator.
 class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, AndroidSensor> {

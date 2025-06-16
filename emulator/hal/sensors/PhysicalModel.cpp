@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "android/physics/PhysicalModel.h"
+#include "goldfish/devices/sensor/PhysicalModel.h"
 
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
@@ -32,8 +32,8 @@
 #include "android/base/system/System.h"
 #include "android/emulation/control/sensors_agent.h"
 #include "android/goldfish/config/avd.h"
-#include "android/physics/FoldableModel.h"
-#include "android/physics/Sensors.h"
+#include "goldfish/devices/sensor/FoldableModel.h"
+#include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/physics/AmbientEnvironment.h"
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/GlmHelpers.h"
@@ -46,8 +46,7 @@ using goldfish::physics::AmbientState;
 using goldfish::physics::BodyState;
 using goldfish::physics::InertialState;
 
-namespace android {
-namespace physics {
+namespace goldfish::devices::sensor {
 
 FoldableState PhysicalModel::getFoldableState() {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
@@ -597,5 +596,4 @@ void PhysicalModel::targetStateChanged() {
     fireEvent(event);
 }
 
-}  // namespace physics
-}  // namespace android
+}  // namespace goldfish::devices::sensor

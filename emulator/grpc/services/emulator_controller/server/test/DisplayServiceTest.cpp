@@ -25,7 +25,7 @@
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/display/PixmanDisplay.h"
-#include "android/physics/SensorDevice.h"
+#include "goldfish/devices/sensor/SensorDevice.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 

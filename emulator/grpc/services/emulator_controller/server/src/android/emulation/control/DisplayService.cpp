@@ -25,8 +25,7 @@
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
-#include "android/physics/SensorDevice.h"
-#include "android/physics/Sensors.h"
+#include "goldfish/devices/sensor/SensorDevice.h"
 
 namespace android {
 namespace emulation {
@@ -40,8 +39,8 @@ using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::SensorData;
 using ::goldfish::devices::sensor::SensorObserver;
 using ::grpc::Status;
-using DeviceRotation = ::goldfish::devices::sensor::Rotation;
-using DeviceSkinRotation = ::goldfish::devices::sensor::SkinRotation;
+using DeviceRotation = ::goldfish::physics::Rotation;
+using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
 
 std::tuple<int, int> resizeKeepAspectRatio(double width, double height, double desiredWidth,

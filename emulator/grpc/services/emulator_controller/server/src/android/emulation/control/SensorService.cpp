@@ -14,7 +14,7 @@
 #include "android/emulation/control/SensorService.h"
 
 #include "android/grpc/utils/AbslStatusTranslate.h"
-#include "android/physics/SensorDevice.h"
+#include "goldfish/devices/sensor/SensorDevice.h"
 
 namespace android {
 namespace emulation {

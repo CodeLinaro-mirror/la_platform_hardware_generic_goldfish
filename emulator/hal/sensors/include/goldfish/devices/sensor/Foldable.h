@@ -14,6 +14,8 @@
 
 #pragma once
 
+namespace goldfish::devices::sensor {
+
 #define ANDROID_FOLDABLE_MAX_HINGES 3
 #define ANDROID_FOLDABLE_MAX_ROLLS 2
 #if ANDROID_FOLDABLE_MAX_HINGES > ANDROID_FOLDABLE_MAX_ROLLS
@@ -115,3 +117,5 @@ struct FoldableState {
   float currentRolledPercent[ANDROID_FOLDABLE_MAX_ROLLS];
   FoldablePostures currentPosture;
 };
+
+}  // namespace goldfish::devices::sensor

@@ -29,6 +29,8 @@ cc_library(
         "include/goldfish/physics/BodyModel.h",
         "include/goldfish/physics/InertialModel.h",
         "include/goldfish/physics/Physics.h",
+        "include/goldfish/physics/Rotation.h",
+        "include/goldfish/physics/SkinRotation.h",
     ],
     includes = ["include"],
     visibility = [
