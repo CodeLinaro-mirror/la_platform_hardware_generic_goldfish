@@ -35,6 +35,7 @@ using ::android::goldfish::FakeMultiDisplay;
 using ::android::goldfish::IMultiDisplay;
 using ::android::goldfish::PixelFormat;
 using ::goldfish::devices::TestConnectorRegistry;
+using ::goldfish::devices::sensor::AndroidSensor;
 using ::goldfish::devices::sensor::ISensorDevice;
 using ::grpc::ServerContext;
 using ::grpc::Status;

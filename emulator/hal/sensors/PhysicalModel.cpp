@@ -400,24 +400,24 @@ float PhysicalModel::getParameterWristTilt(ParameterValueType parameterValueType
 #define PHYSICAL_NAME(x) getPhysical##x
 
 // Implement sensor overrides.
-#define SENSOR_(x, y, z, v, w)                                          \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                          \
     void PhysicalModel::OVERRIDE_FUNCTION_NAME(z)(v override_value) {   \
         setOverride(SENSOR_NAME(x), &OVERRIDE_NAME(z), override_value); \
     }
 
-SENSORS_LIST
-#undef SENSOR_
+GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 
 // Implement getters that respect overrides.
-#define SENSOR_(x, y, z, v, w)                                                      \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                          \
     v PhysicalModel::GET_FUNCTION_NAME(z)(long* measurement_id) const {             \
         return getSensorValue<v>(SENSOR_NAME(x), &OVERRIDE_NAME(z),                 \
                                  std::bind(&PhysicalModel::PHYSICAL_NAME(z), this), \
                                  measurement_id);                                   \
     }
 
-SENSORS_LIST
-#undef SENSOR_
+GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 
 #undef PHYSICAL_NAME
 #undef SENSOR_NAME
@@ -530,13 +530,13 @@ float PhysicalModel::getPhysicalWristTilt() const {
 #define SET_TARGET_FUNCTION_NAME(x) setTarget##x
 #define SET_TARGET_INTERNAL_FUNCTION_NAME(x) setTargetInternal##x
 #define PHYSICAL_PARAMETER_ENUM(x) PHYSICAL_PARAMETER_##x
-#define PHYSICAL_PARAMETER_(x, y, z, w)                                                    \
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                                        \
     void PhysicalModel::SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode) { \
         SET_TARGET_INTERNAL_FUNCTION_NAME(z)(value, mode);                                 \
     }
 
-PHYSICAL_PARAMETERS_LIST
-#undef PHYSICAL_PARAMETER_
+GOLDFISH_PHYSICAL_PARAMETERS_LIST
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
 #undef PHYSICAL_PARAMETER_ENUM
 #undef SET_TARGET_INTERNAL_FUNCTION_NAME
 #undef SET_TARGET_FUNCTION_NAME

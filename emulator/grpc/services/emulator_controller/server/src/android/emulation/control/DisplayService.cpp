@@ -35,6 +35,7 @@ using android::goldfish::FrameInfo;
 using android::goldfish::IDisplay;
 using android::goldfish::IMultiDisplay;
 using android::goldfish::PixelFormat;
+using ::goldfish::devices::sensor::AndroidSensor;
 using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::SensorData;
 using ::goldfish::devices::sensor::SensorObserver;

@@ -499,7 +499,7 @@ class SensorDevice : public ISensorDevice {
 #define ENUM_NAME(x) AndroidSensor::x
 #define GET_FUNCTION_NAME(x) get##x
 #define SERIALIZE_VALUE_NAME(x) serializeValue
-#define SENSOR_(x, y, z, v, w)                                                         \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                             \
     case ENUM_NAME(x): {                                                               \
         const v current_value = mPhysicalModel->GET_FUNCTION_NAME(z)(&measurement_id); \
         if (measurement_id != sensor.serialized.measurement_id) {                      \
@@ -508,8 +508,8 @@ class SensorDevice : public ISensorDevice {
         }                                                                              \
         break;                                                                         \
     }
-            SENSORS_LIST
-#undef SENSOR_
+            GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 #undef SERIALIZE_VALUE_NAME
 #undef GET_FUNCTION_NAME
 #undef ENUM_NAME
@@ -549,12 +549,12 @@ class SensorDevice : public ISensorDevice {
 #define OVERRIDE_FUNCTION_NAME(x) override##x
 #define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
 #define ENUM_NAME(x) AndroidSensor::x
-#define SENSOR_(x, y, z, v, w)                                                                  \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                                      \
     case ENUM_NAME(x):                                                                          \
         mPhysicalModel->OVERRIDE_FUNCTION_NAME(z)(GET_TYPE_VALUE_FUNCTION_NAME(v)(val, count)); \
         break;
-            SENSORS_LIST
-#undef SENSOR_
+            GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 #undef ENUM_NAME
 #undef GET_TYPE_VALUE_FUNCTION_NAME
 #undef OVERRIDE_FUNCTION_NAME
@@ -570,13 +570,13 @@ class SensorDevice : public ISensorDevice {
 #define GET_FUNCTION_NAME(x) mPhysicalModel->get##x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
 #define ENUM_NAME(x) AndroidSensor::x
-#define SENSOR_(x, y, z, v, w)                               \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                   \
     case ENUM_NAME(x):                                       \
         TYPE_GET_VALUES_FUNCTION_NAME(v)                     \
         (GET_FUNCTION_NAME(z)(&measurement_id), out, count); \
         break;
-            SENSORS_LIST
-#undef SENSOR_
+            GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 #undef ENUM_NAME
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
@@ -591,13 +591,13 @@ class SensorDevice : public ISensorDevice {
 #define GET_FUNCTION_NAME(x) physicalModel_get##x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
 #define ENUM_NAME(x) AndroidSensor::x
-#define SENSOR_(x, y, z, v, w)           \
-    case ENUM_NAME(x):                   \
-        TYPE_GET_VALUES_FUNCTION_NAME(v) \
-        (size);                          \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) \
+    case ENUM_NAME(x):                     \
+        TYPE_GET_VALUES_FUNCTION_NAME(v)   \
+        (size);                            \
         break;
-            SENSORS_LIST
-#undef SENSOR_
+            GOLDFISH_SENSORS_LIST
+#undef GOLDFISH_SENSOR_DEF
 #undef ENUM_NAME
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
@@ -614,13 +614,13 @@ class SensorDevice : public ISensorDevice {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
 #define SET_TARGET_FUNCTION_NAME(x) mPhysicalModel->setTarget##x
-#define PHYSICAL_PARAMETER_(x, y, z, w)                                                           \
-    case ENUM_NAME(x):                                                                            \
-        SET_TARGET_FUNCTION_NAME(z)                                                               \
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                        \
+    case ENUM_NAME(x):                                                     \
+        SET_TARGET_FUNCTION_NAME(z)                                        \
         (GET_TYPE_VALUE_FUNCTION_NAME(w)(val, count), interpolation_mode); \
         break;
-            PHYSICAL_PARAMETERS_LIST
-#undef PHYSICAL_PARAMETER_
+            GOLDFISH_PHYSICAL_PARAMETERS_LIST
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
 #undef SET_TARGET_FUNCTION_NAME
 #undef GET_TYPE_VALUE_FUNCTION_NAME
 #undef ENUM_NAME
@@ -638,16 +638,16 @@ class SensorDevice : public ISensorDevice {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
 #define GET_PARAMETER_FUNCTION_NAME(x) mPhysicalModel->getParameter##x
-#define PHYSICAL_PARAMETER_(x, y, z, w)                                     \
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                         \
     case ENUM_NAME(x):                                                      \
         TYPE_GET_VALUES_FUNCTION_NAME(w)                                    \
         (GET_PARAMETER_FUNCTION_NAME(z)(parameter_value_type), out, count); \
         break;
-            PHYSICAL_PARAMETERS_LIST
+            GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GET_PARAMETER_FUNCTION_NAME
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef ENUM_NAME
-#undef PHYSICAL_PARAMETER_
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
             default:
                 assert(false);  // should never happen
                 break;
@@ -658,13 +658,13 @@ class SensorDevice : public ISensorDevice {
         switch (parameter_id) {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
-#define PHYSICAL_PARAMETER_(x, y, z, w)  \
-    case ENUM_NAME(x):                   \
-        TYPE_GET_VALUES_FUNCTION_NAME(w) \
-        (size);                          \
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)  \
+    case ENUM_NAME(x):                               \
+        TYPE_GET_VALUES_FUNCTION_NAME(w)             \
+        (size);                                      \
         break;
-            PHYSICAL_PARAMETERS_LIST
-#undef PHYSICAL_PARAMETER_
+            GOLDFISH_PHYSICAL_PARAMETERS_LIST
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef ENUM_NAME
             default:
@@ -738,8 +738,8 @@ class SensorDevice : public ISensorDevice {
 
     // Sensor and Physical Parameter information arrays
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
-#define SENSOR_(x, y, z, v, w) {y, static_cast<int>(AndroidSensor::x)},
-            SENSORS_LIST
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) {y, static_cast<int>(AndroidSensor::x)},
+            GOLDFISH_SENSORS_LIST
 #undef SENSOR_
     };
 };

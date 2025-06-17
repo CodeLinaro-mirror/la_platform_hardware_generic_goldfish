@@ -22,6 +22,7 @@ namespace control {
 
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::sensor::ISensorDevice;
+using ::goldfish::devices::sensor::AndroidSensor;
 
 SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
     : mRegistry(connectorRegistry) {}
@@ -31,7 +32,7 @@ grpc::Status SensorServiceImpl::setSensor(ServerContext* context, const SensorVa
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
         std::vector<float> values(request->value().data().begin(), request->value().data().end());
-        auto status = sensor->overrideSensor((AndroidSensor)request->target(), values);
+        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request->target()), values);
         return abslStatusToGrpcStatus(status);
     }
     return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
@@ -41,7 +42,7 @@ grpc::Status SensorServiceImpl::getSensor(ServerContext* context, const SensorVa
                                           SensorValue* reply) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
-        auto statusOrData = sensor->getSensorData((AndroidSensor)request->target());
+        auto statusOrData = sensor->getSensorData(static_cast<AndroidSensor>(request->target()));
         if (!statusOrData.ok()) {
             return abslStatusToGrpcStatus(statusOrData.status());
         }
