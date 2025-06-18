@@ -175,6 +175,14 @@ pkg_files(
     prefix = "lib/qemu/",
 )
 
+pkg_files(
+    name = "data_virtualscene_Toren1BD",
+    srcs = [
+        "//prebuilts/android-emulator-build/common/virtualscene/Toren1BD",
+    ],
+    prefix = "data/virtualscene/Toren1BD/",
+)
+
 remapped_pkg_files(
     name = "plugins_stripped",
     src = ":plugins",
@@ -184,6 +192,7 @@ remapped_pkg_files(
 pkg_zip(
     name = "release",
     srcs = [
+        ":data_virtualscene_Toren1BD",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-binaries_stripped",
