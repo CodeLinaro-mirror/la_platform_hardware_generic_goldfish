@@ -21,6 +21,10 @@
 
 #include "absl/log/log.h"
 
+#include "android/camera/ImageProviderCppAdapter.h"
+
+using goldfish::devices::camera::ImageProviderCppAdapter;
+
 namespace {
 
 std::string buildId(const CameraImageProviderInfo& info) {
@@ -59,27 +63,8 @@ struct VideofileImageProvider {
 
     void stop() { VLOG(1) << getId() << ":  stop"; }
 
-    static void* create(const CameraImageProviderInfo* info,
-                        const CameraImageProviderVtbl** ppVtbl) {
-        using Impl = VideofileImageProvider;
-
-        static const CameraImageProviderVtbl vtbl = {
-            .getId = [](const void* that) { return static_cast<const Impl*>(that)->getId(); },
-            .start = [](void* that, const CameraImageProviderStreamConfig* s,
-                        unsigned n) { return static_cast<Impl*>(that)->start(s, n); },
-            .capture =
-                    [](void* that, const CameraImageProviderCaptureOpts* opts,
-                       CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
-                       const CameraImageProviderStreamCaptureInfo* sci, unsigned scin) {
-                        return static_cast<Impl*>(that)->capture(*opts, sink, sinkOpaque, sci,
-                                                                 scin);
-                    },
-            .stop = [](void* that) { static_cast<Impl*>(that)->stop(); },
-            .dctor = [](void* that) { delete static_cast<Impl*>(that); },
-        };
-
-        *ppVtbl = &vtbl;
-        return new Impl(*info);
+    static void* create(const CameraImageProviderInfo& info) {
+        return new VideofileImageProvider(info);
     }
 
     const std::string mId;
@@ -121,7 +106,7 @@ int getVideofileImageProviderInfo(CameraImageProviderInfo* dst, const unsigned i
     };
 
     static const CameraImageProviderInfoVtbl vtbl = {
-        .create = &VideofileImageProvider::create,
+        .create = &ImageProviderCppAdapter<VideofileImageProvider>::create,
         .createArgDctor = &createArgDctor,
     };
 
