@@ -47,7 +47,6 @@ cc_library(
             "//hardware/generic/goldfish/android/files",
             "//hardware/generic/goldfish/android/looper",
             "//hardware/generic/goldfish/android/memory",
-            "//hardware/generic/goldfish/android/system",
             "//hardware/generic/goldfish/android/threads",
             "@aemu//base:aemu-base",
             "@com_google_absl//absl/log",

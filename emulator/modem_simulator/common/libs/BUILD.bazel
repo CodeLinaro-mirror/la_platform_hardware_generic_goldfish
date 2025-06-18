@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "common",
@@ -17,6 +18,19 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@aemu//base:aemu-base",
+        "@aemu//base:aemu-base-socket-utils",
         "@com_google_absl//absl/log",
+    ],
+)
+
+cc_test(
+    name = "shared_fd_test",
+    srcs = [
+        "fs/shared_fd_test.cpp",
+        "utils/files_test.cpp",
+    ],
+    deps = [
+        ":common",
+        "@com_google_googletest//:gtest_main",
     ],
 )

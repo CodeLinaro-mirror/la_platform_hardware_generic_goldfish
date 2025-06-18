@@ -49,6 +49,7 @@ void FileInstance::Close() {
     if (fd_ == -1) {
         errno_ = EBADF;
     } else {
+        VLOG(1) << "FileInstance::Close(" << fd_ << ")";
         android::base::socketClose(fd_);
     }
     fd_ = -1;
@@ -68,7 +69,9 @@ int FileInstance::Write(const void* buf, size_t count) {
     return rval;
 }
 
-FileInstance::FileInstance(int fd, int in_errno) : fd_(fd), errno_(in_errno) {}
+FileInstance::FileInstance(int fd, int in_errno) : fd_(fd), errno_(in_errno) {
+    VLOG(1) << "FileInstance(" << fd << ", " << in_errno << ")";
+}
 
 bool FileInstance::IsSet(fd_set* in) const {
     if (IsOpen() && FD_ISSET(fd_, in)) {
@@ -301,6 +304,13 @@ void FileInstance::Set(fd_set* dest, int* max_index) const {
     FD_SET(fd_, dest);
 }
 
+int FileInstance::Connect(const struct sockaddr* addr, socklen_t addrlen) {
+    errno = 0;
+    int rval = connect(fd_, addr, addrlen);
+    errno_ = errno;
+    return rval;
+}
+
 bool SharedFD::Pipe(SharedFD* fd0, SharedFD* fd1) {
     int fds[2];
     if (android::base::socketCreatePair(&fds[0], &fds[1])) {
@@ -365,6 +375,7 @@ SharedFD SharedFD::SocketLocalServer(int port) {
 }
 
 std::shared_ptr<FileInstance> FileInstance::ClosedInstance() {
+    VLOG(1) << "Returning a closed instance";
     return std::shared_ptr<FileInstance>(new FileInstance(-1, EBADF));
 }
 

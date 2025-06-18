@@ -1,6 +1,5 @@
 package(default_visibility = ["//visibility:public"])
 
-
 # This is the build file for the cuttlefish modem_simulator
 # It lives here as we are using cuttlefish from android main, which will not
 # allow bazel build files.
@@ -26,7 +25,6 @@ cc_library(
         "sup_service.cpp",
         "thread_looper.cpp",
     ],
-    include_prefix = "host/commands/modem_simulator",
     hdrs = [
         "call_service.h",
         "channel_monitor.h",
@@ -50,33 +48,27 @@ cc_library(
         "-fexceptions",
         "-Wno-unused-const-variable",
     ],
-    # strip_include_prefix = "//cuttlefish",
+    include_prefix = "host/commands/modem_simulator",
     deps = [
         "@jsoncpp",
-        "@tinyxml2",
-        "@modem_simulator_common//:common",
         "@modem_simulator_android_base//:android-base",
+        "@modem_simulator_common//:common",
+        "@tinyxml2",
     ],
 )
-
 
 cc_library(
     name = "modem_simulator_test_lib",
-    hdrs = [
-        "unittest/iccfile.txt",
-    ],
-)
-
-cc_test(
-    name = "modem_simulator_test",
     srcs = [
         "unittest/command_parser_test.cpp",
         "unittest/pdu_parser_test.cpp",
     ],
+    hdrs = [
+        "unittest/iccfile.txt",
+    ],
     deps = [
         ":modem_simulator_lib",
-        ":modem_simulator_test_lib",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
         "@gflags",
     ],
 )

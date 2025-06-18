@@ -73,6 +73,12 @@ extern int sms_address_to_str(SmsAddress address, char* src, int srclen);
 /** SMS PROTOCOL DATA UNITS
  **/
 
+typedef struct SmsPDURec {
+    bytes_t base;
+    bytes_t end;
+    bytes_t tpdu;
+} SmsPDURec;
+
 typedef struct SmsPDURec* SmsPDU;
 
 extern SmsPDU* smspdu_create_deliver_utf8(const unsigned char* utf8, int utf8len,

@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "goldfish_modem_simulator",
@@ -6,6 +7,7 @@ cc_library(
         "ModemSimulator.cpp",
         "android_modem_v2.cpp",
         "emulator_config.cpp",
+        "modem_main.cpp",
     ],
     hdrs = [
         "ModemSimulator.h",
@@ -16,5 +18,23 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/modem_simulator/telephony",
         "@modem_simulator//:modem_simulator_lib",
+    ],
+)
+
+cc_test(
+    name = "modem_simulator_test",
+    copts = ["-Wl,--allow-shlib-undefined"],
+    deps = [
+        ":goldfish_modem_simulator",
+        "@com_google_googletest//:gtest_main",
+        "@modem_simulator//:modem_simulator_test_lib",
+    ],
+)
+
+test_suite(
+    name = "modem_tests",
+    tests = [
+        ":modem_simulator_test",
+        "@modem_simulator_common//:shared_fd_test",
     ],
 )

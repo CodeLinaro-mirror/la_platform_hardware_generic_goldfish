@@ -12,16 +12,10 @@
 #ifndef _modem_driver_h
 #define _modem_driver_h
 
-#include "android/emulation/serial_line.h"
 #include "android/telephony/modem.h"
 #include "sys/cdefs.h"
 
 __BEGIN_DECLS
-
-/** in android-qemu1-glue/telephony/modem_driver.c */
-/* this is the internal character driver used to communicate with the
- * emulated GSM modem. see qemu_chr_open() in vl.c */
-extern CSerialLine* android_modem_serial_line;
 
 /* the emulated GSM modem itself */
 extern AModem android_modem;

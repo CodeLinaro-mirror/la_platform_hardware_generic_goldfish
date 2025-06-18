@@ -18,9 +18,7 @@
 #include "aemu/base/msvc.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketErrors.h"
-#include "android/base/system/System.h"
 #include "android/utils/sockets.h"
-#include "android/utils/system.h"
 
 #ifdef _WIN32
 #include "aemu/base/sockets/Winsock.h"
