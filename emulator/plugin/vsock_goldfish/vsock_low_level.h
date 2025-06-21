@@ -16,6 +16,7 @@ struct virtio_vsock_event;
 struct virtio_vsock_hdr;
 typedef unsigned VirtIOVSockSendResult;
 
+#include <stdbool.h>
 #include "qemu/typedefs.h"
 #include "stddef.h"
 #include "stdint.h"

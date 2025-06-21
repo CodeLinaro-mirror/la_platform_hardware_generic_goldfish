@@ -21,12 +21,10 @@
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
-   void qemu_mutex_lock_iothread_impl(const char *file, int line);
-   void qemu_mutex_unlock_iothread(void);
-   int qemu_mutex_iothread_locked(void);
+#include "qemu/osdep.h"
+#include "qemu/main-loop.h"
 }
 
-#define qemu_mutex_lock_iothread() qemu_mutex_lock_iothread_impl(__FILE__, __LINE__)
 // IWYU pragma: end_keep
 // clang-format on
 
@@ -50,7 +48,7 @@ class QemuVmLock : public VmLock {
      */
     void lock() override {
         if (!isLockedBySelf()) {
-            qemu_mutex_lock_iothread();
+            bql_lock();
         }
     }
 
@@ -59,7 +57,7 @@ class QemuVmLock : public VmLock {
      */
     void unlock() override {
         if (isLockedBySelf()) {
-            qemu_mutex_unlock_iothread();
+            bql_unlock();
         }
     }
 
@@ -68,7 +66,7 @@ class QemuVmLock : public VmLock {
      *
      * @return True if the mutex is locked by the current thread, false otherwise.
      */
-    bool isLockedBySelf() const override { return qemu_mutex_iothread_locked(); }
+    bool isLockedBySelf() const override { return bql_locked(); }
 };
 
 }  // namespace

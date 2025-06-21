@@ -19,7 +19,6 @@
 #include "absl/log/log.h"
 
 #include "android/goldfish/display/NullDisplay.h"
-#include "qemu/atomic.hpp"
 
 extern "C" {
 // clang-format off
@@ -66,7 +65,7 @@ QemuDisplay::QemuDisplay(QemuConsole* console, DisplaySurface* ds, int id)
 
     const char* gpu = "gpu0";
     VirtioDeviceInfo deviceInfo{.display = gpu, .head = id};
-    Object* objs = container_get(object_get_root(), "/machine");
+    Object* objs = object_resolve_path_component(object_get_root(), "machine");
     if (!object_child_foreach_recursive(objs, ::find_virtio_device, &deviceInfo)) {
         LOG(FATAL) << "Unable to find a virtio device for head: " << deviceInfo.head
                    << " attached to display: " << deviceInfo.display;

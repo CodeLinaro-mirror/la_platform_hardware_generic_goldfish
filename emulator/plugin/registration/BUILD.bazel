@@ -7,7 +7,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
         "src/android/goldfish/qemu-plugin-registration.c",
     ],
     defines = [
-        "NEED_CPU_H",
+        "COMPILING_PER_TARGET",
         'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
         'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
     ],
@@ -15,10 +15,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
     visibility = [
         "//visibility:public",
     ],
-    deps = [
-        "//third_party/qemu:libhwcore",
-        "//third_party/qemu:qemu-headers",
-    ],
+    deps = ["//third_party/qemu:qemu-headers"],
+    alwayslink = 1,
 ) for arch in [
     "riscv64",
     "aarch64",

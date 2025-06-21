@@ -13,16 +13,17 @@
 // limitations under the License.
 #include "android/goldfish/grpc-service-device.h"
 
+#include <stdint.h>
 // clang-format off
 // IWYU pragma: begin_keep
 
+#include "qemu/typedefs.h"
 #include "qemu/osdep.h"
+
 #include "hw/qdev-core.h"
 #include "qom/object.h"
-#include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "ui/console.h"
-#include <qemu/typedefs.h>
 
 // IWYU pragma: end_keep
 // clang-format on

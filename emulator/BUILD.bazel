@@ -99,7 +99,6 @@ plugin_binaries = [
     "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
     "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
     "//third_party/qemu:hw-display-virtio-vga",
-    "//third_party/qemu:hw-display-virtio-vga-gl",
     "//hardware/generic/goldfish/emulator/plugin/avd",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
     "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-riscv64",
@@ -114,7 +113,6 @@ plugin_binaries = [
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],
     "@platforms//os:linux": [
-        "//third_party/qemu:accel-tcg-x86_64",
         "//third_party/qemu:audio-pa",
         "//hardware/generic/goldfish/emulator/plugin/grpc",
     ],

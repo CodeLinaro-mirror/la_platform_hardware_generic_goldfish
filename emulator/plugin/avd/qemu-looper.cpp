@@ -23,12 +23,11 @@
 // clang-format off
 // IWYU pragma: begin_keep
 
-#include "qemu/atomic.hpp"
 extern "C" {
 #include "qemu/osdep.h"
 #include "qemu/timer.h"
 #include "qemu/main-loop.h"
-#include "sysemu/runstate.h"
+#include "system/runstate.h"
 #include "block/aio.h"
 }
 

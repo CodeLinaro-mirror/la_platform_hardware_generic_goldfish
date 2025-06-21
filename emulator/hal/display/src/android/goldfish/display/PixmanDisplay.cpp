@@ -23,8 +23,6 @@
 
 #include "absl/log/log.h"
 
-#include "qemu/atomic.hpp"
-
 extern "C" {
 // clang-format off
 // IWYU pragma: begin_keep

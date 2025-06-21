@@ -14,7 +14,6 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-#include "qemu/atomic.hpp"
 
 extern "C" {
 #include "qemu/osdep.h"

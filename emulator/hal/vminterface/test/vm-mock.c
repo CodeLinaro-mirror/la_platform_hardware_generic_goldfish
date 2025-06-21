@@ -71,16 +71,16 @@ void qemu_system_shutdown_request(ShutdownCause reason) {
     mock_shutdown_cause_set(reason);
 }
 
-bool qemu_mutex_iothread_locked(void) {
+bool bql_locked(void) {
     return mock_iothread_locked_get();
 }
 
-void qemu_mutex_lock_iothread_impl(const char* file, int line) {
+void bql_lock_impl(const char* file, int line) {
     (void)file;
     (void)line;
     mock_iothread_locked_set(true);
 }
 
-void qemu_mutex_unlock_iothread(void) {
+void bql_unlock(void) {
     mock_iothread_locked_set(false);
 }

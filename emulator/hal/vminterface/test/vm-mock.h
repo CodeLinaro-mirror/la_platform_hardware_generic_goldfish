@@ -21,7 +21,7 @@ __BEGIN_DECLS
 
 // Include the QEMU headers for RunState and ShutdownCause
 #include "qemu/osdep.h"
-#include "sysemu/runstate.h"
+#include "system/runstate.h"
 
 // Getter and setter for RunState
 RunState runstate_get();
