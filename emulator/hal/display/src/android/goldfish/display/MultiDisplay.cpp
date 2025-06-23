@@ -135,8 +135,13 @@ IMultiDisplay* IMultiDisplay::instance() {
 
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
-    // to gp0, head:%d
-    auto index = qemu_console_get_index(dcl->con);
+    // to gpu0, head:%d
+    QemuConsole *con = dcl->con;
+    if (con == nullptr) {
+      LOG(INFO) << "grpc_dpy_gfx_update: Console is NULL, using default";
+      con = qemu_console_lookup_default();
+    }
+    auto index = qemu_console_get_index(con);
     auto device = MultiDisplayImpl::instance().getDisplayWeak(index);
     if (!device.ok()) {
         LOG_EVERY_N(ERROR, 60) << "Unable to find a display to handle gfx changes: "
@@ -157,11 +162,17 @@ extern "C" void grpc_dpy_gfz_refresh(DisplayChangeListener* dcl) {
 
 extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                                     struct DisplaySurface* new_surface) {
-    auto index = qemu_console_get_index(dcl->con);
+    QemuConsole *con = dcl->con;
+    if (con == nullptr) {
+      LOG(INFO) << "grpc_dpy_gfx_switch: Console is NULL, using default";
+      // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
+      con = qemu_console_lookup_default();
+    }
+    auto index = qemu_console_get_index(con);
     auto device = MultiDisplayImpl::instance().getDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
         auto status =
-                MultiDisplayImpl::instance().createDisplayFromQemu(dcl->con, new_surface, index);
+                MultiDisplayImpl::instance().createDisplayFromQemu(con, new_surface, index);
         LOG(INFO) << "Display creation state: " << status.status();
         return;
     }
