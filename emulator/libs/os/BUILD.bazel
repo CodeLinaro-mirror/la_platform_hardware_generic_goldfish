@@ -1,0 +1,29 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "os",
+    srcs = [
+        "DynamicLibrary.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/os/DynamicLibrary.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/base",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "os_unittests",
+    srcs = [
+        "test/todo.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":os",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)

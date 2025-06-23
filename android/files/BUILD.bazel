@@ -13,7 +13,6 @@ cc_library(
         "src/android/utils/bufprint_system.cpp",
         "src/android/utils/dirscanner.cpp",
         "src/android/utils/dirscanner.h",
-        "src/android/utils/dll.c",
         "src/android/utils/file_data.c",
         "src/android/utils/filelock.cpp",
         "src/android/utils/lock.cpp",
@@ -30,7 +29,6 @@ cc_library(
     }),
     hdrs = [
         "include/aemu/base/files/IniFile.h",
-        "include/android/utils/dll.h",
         "include/android/utils/file_data.h",
         "include/android/utils/filelock.h",
         "include/android/utils/system.h",

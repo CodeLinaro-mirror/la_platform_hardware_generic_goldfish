@@ -1,0 +1,23 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "base",
+    hdrs = [
+        "include/goldfish/base/UniqueHandle.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "base_unittests",
+    srcs = [
+        "test/UniqueHandle_test.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":base",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)
