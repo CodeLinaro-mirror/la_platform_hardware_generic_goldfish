@@ -33,8 +33,7 @@ const QemuModinfo qemu_modinfo[] = {
                 /* hw-display-virtio-gpu-rutabaga.modinfo */
                 .name = LIB_PREFIX "hw-display-virtio-gpu-rutabaga",
                 .objs = ((const char*[]){"virtio-gpu-rutabaga-device", NULL}),
-                .deps = ((const char*[]){LIB_PREFIX "rutabaga_ffi",
-                                         LIB_PREFIX "hw-display-virtio-gpu", NULL}),
+                .deps = ((const char*[]){LIB_PREFIX "hw-display-virtio-gpu", NULL}),
         },
         {
                 /* hw-display-virtio-gpu-pci.modinfo */
@@ -61,10 +60,8 @@ const QemuModinfo qemu_modinfo[] = {
                 /* hw-display-virtio-vga-rutabaga.modinfo */
                 .name = LIB_PREFIX "hw-display-virtio-vga-rutabaga",
                 .objs = ((const char*[]){"virtio-vga-rutabaga", NULL}),
-                .deps = ((const char*[]){LIB_PREFIX "rutabaga_ffi",
-                                         LIB_PREFIX "hw-display-virtio-vga", NULL}),
+                .deps = ((const char*[]){LIB_PREFIX "hw-display-virtio-vga", NULL}),
         },
-        {.name = LIB_PREFIX "rutabaga_ffi"},
         {
                 .name = LIB_PREFIX "avd",
                 .opts = ((const char*[]){"device", NULL}),
