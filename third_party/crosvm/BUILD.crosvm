@@ -70,8 +70,6 @@ rust_shared_library(
     edition = "2021",
     deps = [
         ":rutabaga_gfx",
-        "@//third_party/qemu:libmodule-common",
-        "@gfxstream//host:gfxstream_backend",
         "@libc",
         "@log",
         "@once_cell",
