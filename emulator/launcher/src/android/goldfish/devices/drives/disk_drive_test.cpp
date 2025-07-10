@@ -61,10 +61,14 @@ TEST(RawDrive, Basic_x86) {
 
     RawDrive dev("system", "abc", Avd::ImageType::INITSYSTEM);
     EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu), testing::ElementsAre(testing::Eq("-device"),
-                                                                 testing::Eq("virtio-blk,addr=abc,drive=disk-image,num-queues=4"),
-                                                                 testing::Eq("-blockdev"),
-                                                                 testing::Eq("driver=raw,node-name=disk-image,read-only=on,driver=file,filename=some/path/disk-image")));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu),
+            testing::ElementsAre(testing::Eq("-device"),
+                                 testing::Eq("virtio-blk-pci,addr=abc,drive=disk-image,num-queues="
+                                             "4,iothread=disk-iothread"),
+                                 testing::Eq("-blockdev"),
+                                 testing::Eq("driver=raw,node-name=disk-image,read-only=on,"
+                                             "driver=file,filename=some/path/disk-image")));
 }
 
 TEST(RawDrive, Basic_arm64) {
@@ -93,10 +97,14 @@ TEST(RawDrive, Basic_arm64) {
 
     RawDrive dev("system", "ignored", Avd::ImageType::INITSYSTEM);
     EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu), testing::ElementsAre(testing::Eq("-device"),
-                                                                 testing::Eq("virtio-blk-device,drive=disk-image,num-queues=4"),
-                                                                 testing::Eq("-blockdev"),
-                                                                 testing::Eq("driver=raw,node-name=disk-image,read-only=on,driver=file,filename=some/path/disk-image")));
+    EXPECT_THAT(dev.getQemuParameters(emu),
+                testing::ElementsAre(testing::Eq("-device"),
+                                     testing::Eq("virtio-blk-device,drive=disk-image,num-queues=4,"
+                                                 "iothread=disk-iothread"),
+                                     testing::Eq("-blockdev"),
+                                     testing::Eq("driver=raw,node-name=disk-image,read-only=on,"
+                                                 "driver=file,filename=some/path/"
+                                                 "disk-image")));
 }
 
 TEST(RawDrive, MissingImage) {

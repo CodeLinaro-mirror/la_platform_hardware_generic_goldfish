@@ -115,18 +115,20 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-nodefaults", "-no-reboot",
-            // our virtio-vsock
-            "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
-            // Setup adb
-            "-device", absl::StrFormat("virtio-goldfish-adb,host_port=%d", adbPort),
-            // Keyboard
-            "-device", "virtio-keyboard-pci,head=0,display=gpu0",
-            // Series of simple devices that don't need configuring
-            "-device", "virtio-serial-pci,ioeventfd=off",
-            // Hardware RNG device
-            "-device", "virtio-rng-pci",
-            // ...
+        "-nodefaults", "-no-reboot",
+        // our iothread
+        "-object", "iothread,id=disk-iothread",
+        // our virtio-vsock
+        "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
+        // Setup adb
+        "-device", absl::StrFormat("virtio-goldfish-adb,host_port=%d", adbPort),
+        // Keyboard
+        "-device", "virtio-keyboard-pci,head=0,display=gpu0",
+        // Series of simple devices that don't need configuring
+        "-device", "virtio-serial-pci,ioeventfd=off",
+        // Hardware RNG device
+        "-device", "virtio-rng-pci",
+        // ...
     });
 
     // Add our virtio devices, we connect them in QEMU to gpu0 and head=%d so qemu knows how to
