@@ -45,9 +45,12 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     switch (avd.detectArchitecture()) {
         case Avd::CpuArchitecture::kArm:
             // Note that this isn't actually a pci device, oh well.
-            return absl::StrFormat("virtio-blk-device,drive=%s,num-queues=4", diskId);
+            return absl::StrFormat("virtio-blk-device,drive=%s,num-queues=4,iothread=disk-iothread",
+                                   diskId);
         case Avd::CpuArchitecture::kX86:
-            return absl::StrFormat("virtio-blk,addr=%s,drive=%s,num-queues=4", addr, diskId);
+            return absl::StrFormat(
+                    "virtio-blk-pci,addr=%s,drive=%s,num-queues=4,iothread=disk-iothread", addr,
+                    diskId);
         case Avd::CpuArchitecture::kRiscV:
         case Avd::CpuArchitecture::kUnknown:
         default:
@@ -82,9 +85,13 @@ std::vector<std::string> MutableDiskDrive::getQemuParameters(const Emulator& emu
     // For example run an individual iothread per drive
     //  "-object",  "iothread,id=disk-iothread" per drive..
     // and setup proper caching.
-    return {"-device", getDeviceParam(emulator.avd(), mDiskId, addr()), "-blockdev",
-            absl::StrFormat("driver=qcow2,node-name=%s,file.driver=file,file.filename=%s", mDiskId,
-                            mDiskImage.string())};
+    return {"-device",
+            getDeviceParam(emulator.avd(), mDiskId, addr()) + std::string(",write-cache=on"),
+            "-blockdev",
+            absl::StrFormat(
+                    "driver=qcow2,node-name=%s,file.driver=file,file.filename=%s"
+                    ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576",
+                    mDiskId, mDiskImage.string())};
 }
 
 absl::Status MutableDiskDrive::createExt4Image(fs::path destination, StorageCapacity size,
