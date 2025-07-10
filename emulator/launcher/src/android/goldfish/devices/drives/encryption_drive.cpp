@@ -59,17 +59,18 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
         return absl::NotFoundError(absl::StrFormat("System encryption key image not found in: %s",
                                                    sysimage_dir.string()));
     }
-
-    fs::copy_options options = fs::copy_options::overwrite_existing;
-    fs::copy(init_encryptionkey_img_path, hw.disk_encryptionKeyPartition_path, options);
-
     if (!fs::exists(hw.disk_encryptionKeyPartition_path)) {
-        return absl::NotFoundError(absl::StrFormat("Failed to copy '%s' to '%s'",
-                                                   init_encryptionkey_img_path.string(),
-                                                   hw.disk_encryptionKeyPartition_path));
-    }
+        fs::copy_options options = fs::copy_options::overwrite_existing;
+        fs::copy(init_encryptionkey_img_path, hw.disk_encryptionKeyPartition_path, options);
 
-    RETURN_IF_ERROR(convertImgToQcow2(hw.disk_encryptionKeyPartition_path));
+        if (!fs::exists(hw.disk_encryptionKeyPartition_path)) {
+            return absl::NotFoundError(absl::StrFormat("Failed to copy '%s' to '%s'",
+                                                       init_encryptionkey_img_path.string(),
+                                                       hw.disk_encryptionKeyPartition_path));
+        }
+
+        RETURN_IF_ERROR(convertImgToQcow2(hw.disk_encryptionKeyPartition_path));
+    }
 
     mDiskImage = fs::path(hw.disk_encryptionKeyPartition_path);
     mDiskImage.replace_extension(".img.qcow2");
