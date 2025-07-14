@@ -53,10 +53,6 @@ const QemuModinfo qemu_modinfo[] = {
                 .objs = ((const char*[]){"virtio-vga-base", "virtio-vga", "vhost-user-vga", NULL}),
         },
         {
-                /* hw-display-virtio-vga-gl.modinfo */
-                .name = LIB_PREFIX "hw-display-virtio-vga-gl",
-        },
-        {
                 /* hw-display-virtio-vga-rutabaga.modinfo */
                 .name = LIB_PREFIX "hw-display-virtio-vga-rutabaga",
                 .objs = ((const char*[]){"virtio-vga-rutabaga", NULL}),

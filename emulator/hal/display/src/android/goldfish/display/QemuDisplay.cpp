@@ -19,7 +19,6 @@
 #include "absl/log/log.h"
 
 #include "android/goldfish/display/NullDisplay.h"
-#include "qemu/atomic.hpp"
 
 extern "C" {
 // clang-format off
@@ -57,16 +56,17 @@ static ::InputMultiTouchType translate_touch_type(MultiTouchType type) {
     }
 }
 
-QemuDisplay::QemuDisplay(QemuConsole* console, DisplaySurface* ds, int id)
-    : PixmanDisplay(id, ds->image), mConsole(console) {
+QemuDisplay::QemuDisplay(QemuConsole* con, DisplaySurface* ds, int index)
+    : PixmanDisplay(index, ds->image), mConsole(con) {
     if (!mConsole) {
-        mConsole = qemu_console_lookup_by_index(0);
-        LOG(INFO) << "Display: " << id << " is using the default (0) console";
+        LOG(FATAL) << "Display: " << index << " has nullptr console";
     }
 
     const char* gpu = "gpu0";
-    VirtioDeviceInfo deviceInfo{.display = gpu, .head = id};
-    Object* objs = container_get(object_get_root(), "/machine");
+    // Head will normally be 0 if this is the default console.
+    uint32_t head = qemu_console_get_head(mConsole);
+    VirtioDeviceInfo deviceInfo{.display = gpu, .head = head};
+    Object* objs = object_resolve_path_component(object_get_root(), "machine");
     if (!object_child_foreach_recursive(objs, ::find_virtio_device, &deviceInfo)) {
         LOG(FATAL) << "Unable to find a virtio device for head: " << deviceInfo.head
                    << " attached to display: " << deviceInfo.display;

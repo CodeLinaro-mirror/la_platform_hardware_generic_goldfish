@@ -20,7 +20,7 @@
 // IWYU pragma: begin_keep
 extern "C" {
 #include "qemu/osdep.h"
-#include "sysemu/runstate.h"
+#include "system/runstate.h"
 #include "vm/qemu-machine-info.h"
 }
 // IWYU pragma: end_keep

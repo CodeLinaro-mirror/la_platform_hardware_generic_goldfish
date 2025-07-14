@@ -28,7 +28,6 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-#include "qemu/atomic.hpp"
 
 extern "C" {
 #include "goldfish/vsock/vsock_port_fwd.h"

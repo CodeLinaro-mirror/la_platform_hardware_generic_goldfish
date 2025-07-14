@@ -44,7 +44,7 @@ extern "C" {
 #include "hw/qdev-core.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
-#include "sysemu/reset.h"
+#include "system/reset.h"
 }
 // IWYU pragma: end_keep
 // clang-format on

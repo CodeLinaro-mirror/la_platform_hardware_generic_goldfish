@@ -31,8 +31,14 @@ void warn_report_err(Error* err) {}
 void qemu_input_update_buttons(QemuConsole* src, uint32_t* button_map, uint32_t button_old,
                                uint32_t button_new) {}
 void qemu_input_queue_abs(QemuConsole* src, InputAxis axis, int value, int min_in, int max_in) {}
-int qemu_console_get_index(QemuConsole* con) {
-    return 0;
+
+QemuConsole *qemu_console_lookup_default() { return NULL; }
+uint32_t qemu_console_get_head(QemuConsole* con) { return 0; }
+int qemu_console_get_index(QemuConsole* con) { return 0; }
+QemuConsole* qemu_console_lookup_by_index(unsigned int index) { return NULL; }
+
+Object* object_property_get_link(Object*o, const char* type, Error **error_abort) {
+  return NULL;
 }
 
 Object* object_get_root(void) {
@@ -43,9 +49,6 @@ Object* object_dynamic_cast_assert(Object* obj, const char* type_name, const cha
     return NULL;
 }
 
-QemuConsole* qemu_console_lookup_by_index(unsigned int index) {
-    return NULL;
-}
 Object* object_dynamic_cast(Object* obj, const char* type_name) {
     return NULL;
 }
@@ -55,7 +58,7 @@ int object_child_foreach_recursive(Object* obj, int (*fn)(Object* child, void* o
     return 0;
 }
 
-Object* container_get(Object* root, const char* path) {
+Object* object_resolve_path_component(Object* root, const char* path) {
     return NULL;
 }
 

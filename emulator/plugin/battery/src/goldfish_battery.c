@@ -165,13 +165,13 @@ int goldfish_battery_read_prop(int property) {
 }
 
 static inline void safe_set_irq(qemu_irq irq, int level) {
-    bool locked = !qemu_mutex_iothread_locked();
+    bool locked = !bql_locked();
     if (locked) {
-        qemu_mutex_lock_iothread();
+        bql_lock();
     }
     qemu_set_irq(irq, level);
     if (locked) {
-        qemu_mutex_unlock_iothread();
+        bql_unlock();
     }
 }
 

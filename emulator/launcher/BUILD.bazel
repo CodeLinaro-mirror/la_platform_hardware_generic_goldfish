@@ -116,7 +116,6 @@ collect_plugins(
         "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
         "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//third_party/qemu:hw-display-virtio-vga",
-        "//third_party/qemu:hw-display-virtio-vga-gl",
         "//hardware/generic/goldfish/emulator/devices",
         "//hardware/generic/goldfish/emulator/plugin/avd",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
@@ -126,7 +125,6 @@ collect_plugins(
         "@crosvm//:rutabaga_ffi",
     ] + select({
         "@platforms//os:windows": [
-            "//third_party/qemu:accel-tcg-x86_64",
             #"//hardware/generic/goldfish/emulator/plugin/grpc",
         ],
         "darwin_aarch64": [
@@ -141,7 +139,6 @@ collect_plugins(
             "//hardware/generic/goldfish/emulator/plugin/grpc",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
             "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
-            "//third_party/qemu:accel-tcg-x86_64",
             "//third_party/qemu:audio-pa",
         ],
         "//conditions:default": [],

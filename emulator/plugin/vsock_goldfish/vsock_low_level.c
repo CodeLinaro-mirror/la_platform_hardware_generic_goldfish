@@ -312,7 +312,6 @@ static uint64_t virtio_vsock_device_get_features(VirtIODevice* const dev,
 /**********************************************************************/
 static const Property virtio_vsock_properties[] = {
         DEFINE_PROP_UINT64("guest-cid", VirtIOVSock, guest_cid, 0),
-        DEFINE_PROP_END_OF_LIST(),
 };
 
 static void virtio_vsock_set_status(VirtIODevice* const dev, const uint8_t status) {
@@ -365,7 +364,8 @@ static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
 
     DeviceClass* dc = DEVICE_CLASS(klass);
-    device_class_set_props(dc, (Property*)virtio_vsock_properties);
+    device_class_set_props_n(dc, virtio_vsock_properties,
+                             ARRAY_SIZE(virtio_vsock_properties));
     dc->vmsd = &vmstate_virtio_vsock;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     VirtioDeviceClass* vdc = VIRTIO_DEVICE_CLASS(klass);
@@ -396,7 +396,6 @@ DECLARE_INSTANCE_CHECKER(VirtioVsockPCI, VIRTIO_VSOCK_PCI, TYPE_VIRTIO_VSOCK_PCI
 
 static Property virtio_vsock_pci_properties[] = {
         DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
-        DEFINE_PROP_END_OF_LIST(),
 };
 
 static void virtio_vsock_pci_realize(VirtIOPCIProxy* vpci_dev, Error** errp) {
@@ -416,7 +415,8 @@ static void virtio_vsock_pci_class_init(ObjectClass* klass, void* data) {
     PCIDeviceClass* pcidev_k = PCI_DEVICE_CLASS(klass);
     k->realize = virtio_vsock_pci_realize;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
-    device_class_set_props(dc, virtio_vsock_pci_properties);
+    device_class_set_props_n(dc, virtio_vsock_pci_properties,
+                             ARRAY_SIZE(virtio_vsock_pci_properties));
     pcidev_k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
     pcidev_k->device_id = PCI_DEVICE_ID_VIRTIO_VSOCK;
     pcidev_k->revision = 0x00;

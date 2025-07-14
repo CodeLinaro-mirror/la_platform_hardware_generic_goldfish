@@ -24,7 +24,7 @@ cc_library(
         "vsock_port_fwd.cpp",
     ],
     defines = [
-        "NEED_CPU_H",
+        "COMPILING_PER_TARGET",
         'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
         'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
     ],
