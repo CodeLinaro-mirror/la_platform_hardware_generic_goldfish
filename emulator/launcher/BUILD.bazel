@@ -18,6 +18,36 @@ cc_library(
 )
 
 cc_library(
+    name = "logconfig",
+    srcs = [
+        "src/android/goldfish/logging.cpp",
+    ],
+    hdrs = [
+        "include/android/goldfish/logging.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/cmdline",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "logging_test",
+    srcs = ["test/android/goldfish/logging_unittest.cpp"],
+    deps = [
+        ":logconfig",
+        "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "bootconfig",
     srcs = [
         "src/android/goldfish/bootconfig.cpp",
@@ -188,6 +218,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator",
+        ":logconfig",
         "//hardware/generic/goldfish/android/cpu",
         "//hardware/generic/goldfish/android/filesystems",
         "//hardware/generic/goldfish/android/system",
@@ -240,6 +271,15 @@ version_info_header(
     template = "src/version_template.h.in",
     version_info = "//hardware/generic/goldfish/emulator:aemu_version_info",
     visibility = ["//visibility:public"],
+)
+
+test_suite(
+    name = "launcher_unittests",
+    tests = [
+        "//hardware/generic/goldfish/emulator/launcher:can_launch_kernel_with_minigbm",
+        "//hardware/generic/goldfish/emulator/launcher:emulator_unittests",
+        "//hardware/generic/goldfish/emulator/launcher:logging_test",
+    ],
 )
 
 cc_library(

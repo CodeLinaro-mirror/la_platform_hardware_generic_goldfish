@@ -24,49 +24,17 @@
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
-#include "android/crashreport/crash-initializer.h"
 #include "android/crashreport/CrashReporter.h"
+#include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
+#include "android/goldfish/logging.h"
 #include "android/main-help.h"
 
 using android::base::Bazel;
 using android::base::System;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
-
-/**
- * @brief Configures the logging behavior based on command-line options.
- *
- * Sets the minimum log level and handles per-module log level settings.
- *
- * @param opts The AndroidOptions struct containing the command-line options.
- */
-static void configureLogging(const AndroidOptions& opts) {
-    absl::LogSeverityAtLeast launcherLogLevel =
-            opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(launcherLogLevel);
-
-    if (!opts.vmodule) {
-        return;
-    }
-
-    std::vector<std::pair<std::string_view, int>> glob_levels;
-    for (absl::string_view glob_level : absl::StrSplit(opts.vmodule, '|')) {
-        const size_t eq = glob_level.rfind('=');
-        if (eq == glob_level.npos) continue;
-        const absl::string_view glob = glob_level.substr(0, eq);
-        int level;
-        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
-        glob_levels.emplace_back(glob, level);
-    }
-    for (const auto& it : glob_levels) {
-        const absl::string_view glob = it.first;
-        const int level = it.second;
-        absl::SetVLogLevel(glob, level);
-    }
-}
 
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
