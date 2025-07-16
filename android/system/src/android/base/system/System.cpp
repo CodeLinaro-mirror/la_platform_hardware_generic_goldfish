@@ -302,16 +302,16 @@ class HostSystem : public System {
     }
 
     const fs::path getLauncherDirectory() const override {
-        if (mLauncherDir.empty()) {
-            std::string launcherDirEnv = envGet("ANDROID_EMULATOR_LAUNCHER_DIR");
-            if (!launcherDirEnv.empty()) {
-                mLauncherDir = std::move(launcherDirEnv);
-                VLOG(1) << "Using launcher dir from ANDROID_EMULATOR_LAUNCHER_DIR environment "
-                           "variable";
-            }
+        std::string launcherDirEnv = envGet("ANDROID_EMULATOR_LAUNCHER_DIR");
+        if (!launcherDirEnv.empty()) {
+            VLOG(1) << "Using launcher dir from ANDROID_EMULATOR_LAUNCHER_DIR environment "
+                       "variable: "
+                    << launcherDirEnv;
+            return launcherDirEnv;
         }
-        VLOG(1) << "Derived launcher directory: " << mLauncherDir;
-        return mLauncherDir;
+        launcherDirEnv = getProgramDirectory();
+        VLOG(1) << "Derived launcher directory: " << launcherDirEnv;
+        return launcherDirEnv;
     }
 
     const fs::path getHomeDirectory() const override {
@@ -1046,7 +1046,6 @@ class HostSystem : public System {
     static void atexit_HostSystem();
 
     mutable fs::path mProgramDir;
-    mutable fs::path mLauncherDir;
     mutable fs::path mHomeDir;
     mutable fs::path mAppDataDir;
 };
