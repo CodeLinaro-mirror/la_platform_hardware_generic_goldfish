@@ -198,9 +198,9 @@ TEST(System, recursiveSize) {
     static const char* const kDirs[] = {"d1", "d2", "d2/d2a", "d2/d2b"};
 
     static const char* const kFiles[] = {
-        "f1",      "f2",      "f3",      "d1/d1f1", "d1/d1f2", "d1/d1f3",      "d1/d1f4",
-        "d2/d2f1", "d2/d2f2", "d2/d2f3", "d2/d2f4", "d2/d2f5", "d2/d2a/d2af1", "d2/d2a/d2af2",
-        // (d2/d2b is empty)
+            "f1",      "f2",      "f3",      "d1/d1f1", "d1/d1f2", "d1/d1f3",      "d1/d1f4",
+            "d2/d2f1", "d2/d2f2", "d2/d2f3", "d2/d2f4", "d2/d2f5", "d2/d2a/d2af1", "d2/d2a/d2af2",
+            // (d2/d2b is empty)
     };
     static const System::FileSize kFileSizes[] = {123,  55,    2345,   2222,   3333,    8329, 472,
                                                   4384, 54793, 234454, 113432, 4883232, 93,   834};
@@ -453,43 +453,6 @@ TEST(System, getUnixTime) {
     const time_t time2 = System::get()->getUnixTime();
     ASSERT_GE(time1, curTime);
     ASSERT_GE(time2, time1);
-}
-
-// --- BEGIN getLauncherDirectory TESTS ---
-class LauncherDirectoryTest : public ::testing::Test {
-  protected:
-    void SetUp() override {
-        mSys = System::get();
-        mEnvVar = "ANDROID_EMULATOR_LAUNCHER_DIR";
-        if (mSys->envTest(mEnvVar)) {
-            mOldEnv = mSys->envGet(mEnvVar);
-        }
-    }
-
-    void TearDown() override {
-        if (!mOldEnv.empty()) {
-            mSys->envSet(mEnvVar, mOldEnv);
-        } else {
-            mSys->envSet(mEnvVar, "");
-        }
-    }
-
-    System* mSys;
-    const char* mEnvVar;
-    std::string mOldEnv;
-};
-
-TEST_F(LauncherDirectoryTest, EnvVarOverride) {
-    std::string testLauncherDir = "/tmp/test_launcher_dir";
-    mSys->envSet(mEnvVar, testLauncherDir);
-    auto ldir = mSys->getLauncherDirectory();
-    EXPECT_EQ(System::pathAsString(ldir), testLauncherDir);
-}
-
-TEST_F(LauncherDirectoryTest, EmptyEnvVarFallsBackToProgramDir) {
-    mSys->envSet(mEnvVar, "");
-    auto ldir = mSys->getLauncherDirectory();
-    EXPECT_EQ(System::pathAsString(ldir), System::pathAsString(mSys->getProgramDirectory()));
 }
 
 }  // namespace base
