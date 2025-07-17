@@ -1,0 +1,17 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "telephony",
+    hdrs = [
+        "include/android/telephony/gsm.h",
+        "include/android/telephony/modem.h",
+        "include/android/telephony/modem_driver.h",
+        "include/android/telephony/phone_number.h",
+        "include/android/telephony/sim_card.h",
+        "include/android/telephony/sms.h",
+        "include/android/telephony/sysdeps.h",
+    ],
+    strip_include_prefix = "include",
+)
