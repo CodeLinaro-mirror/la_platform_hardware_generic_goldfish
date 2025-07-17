@@ -1769,17 +1769,23 @@ const std::string kExe = ".exe";
 fs::path System::findBundledExecutable(std::string_view programName) {
     System* const system = System::get();
     const std::string executableName = std::string(programName) + kExe;
-    fs::path executablePath = system->getLauncherDirectory() / executableName;
 
-    VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
-    if (system->pathIsFile(executablePath)) {
-        return executablePath;
+    // Note that launcher directory can differ from program directory, so we either
+    // consider 2, or 4 entries.
+    std::vector<fs::path> underConsideration = {
+        system->getLauncherDirectory() / executableName,
+        system->getLauncherDirectory() / "bin" / executableName};
+
+    if (system->getLauncherDirectory() != system->getProgramDirectory()) {
+        underConsideration.push_back(system->getProgramDirectory() / executableName);
+        underConsideration.push_back(system->getProgramDirectory() / "bin" / executableName);
     }
 
-    executablePath = system->getLauncherDirectory() / "bin" / executableName;
-    VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
-    if (system->pathIsFile(executablePath)) {
-        return executablePath;
+    for (fs::path executablePath : underConsideration) {
+        VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
+        if (system->pathIsFile(executablePath)) {
+            return executablePath;
+        }
     }
 
     // We might be running in a bazel dev environment.. Make that work for now
