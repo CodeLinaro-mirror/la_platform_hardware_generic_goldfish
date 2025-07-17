@@ -48,9 +48,8 @@ template <typename Sink>
 void AbslStringify(Sink& sink, AvdInfoDev dev) {
     absl::Format(&sink,
                  "AvdInfoDev: ini_path={%s}, log_level={%d}, vmodule={%s}, "
-                 "parent_class.fw_name={%s}, parent_class.desc={%s}, ",
-                 dev.ini_path, dev.log_level, dev.vmodule, dev.parent_class.fw_name,
-                 dev.parent_class.desc);
+                 "parent_class.fw_name={%s}",
+                 dev.ini_path, dev.log_level, dev.vmodule, dev.parent_class.fw_name);
 }
 
 namespace goldfish::avd_info {
