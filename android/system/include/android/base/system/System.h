@@ -292,10 +292,38 @@ class System {
     // result vector contains a full path.
     virtual std::vector<fs::path> scanDirEntries(fs::path dirPath, bool fullPath = false) const = 0;
 
-    // Find a bundled executable named |programName|, it must appear in the
-    // kBinSubDir of getLauncherDirectory(). The name should not include the
-    // executable extension (.exe) on Windows.
-    // Return an empty string if the file doesn't exist.
+    /**
+     * @brief Locates a bundled executable within the application's installation or development
+     * environment.
+     *
+     * This function systematically searches for the specified executable (`programName`) in several
+     * common locations, prioritizing the application's launcher directory before checking
+     * its main program directory. It automatically appends the correct platform-specific
+     * executable extension (e.g., `.exe` on Windows, no extension on Linux/macOS).
+     *
+     * The search order is as follows:
+     * 1. The launcher directory:
+     * - `[launcher_directory]/[programName]`
+     * - `[launcher_directory]/bin/[programName]`
+     * 2. The program's main installation directory:
+     * - `[program_directory]/[programName]`
+     * - `[program_directory]/bin/[programName]`
+     *
+     * If the executable isn't found in any of these standard locations and the application
+     * is running within a Bazel development environment, the search extends to specific
+     * Bazel-related paths to facilitate development workflows:
+     * - `_main/third_party/qemu/[programName]` within the Bazel runfiles.
+     * - `_main/hardware/generic/goldfish/third_party/sparse/[programName]` within the Bazel
+     * runfiles.
+     *
+     * @param programName A `std::string_view` representing the base name of the executable
+     * to find (e.g., "emulator", "adb"). The function handles appending
+     * the platform-specific executable extension automatically.
+     *
+     * @return A `fs::path` object representing the absolute path to the found executable.
+     * Returns an empty `fs::path` if the executable cannot be located in any of
+     * the searched directories. You can check for an empty path using `.empty()`.
+     */
     static fs::path findBundledExecutable(std::string_view programName);
 
     // Return the path of the current program's directory.
