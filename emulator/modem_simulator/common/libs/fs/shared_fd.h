@@ -68,6 +68,14 @@ class FileInstance {
 
     int getFd() const { return fd_; }
 
+    bool operator==(const FileInstance& rhs) const {
+        return fd_ == rhs.fd_ && errno_ == rhs.errno_;
+    }
+
+    bool operator!=(const FileInstance& rhs) const {
+        return fd_ != rhs.fd_ || errno_ != rhs.errno_;
+    }
+
   private:
     int fd_;
     int errno_;

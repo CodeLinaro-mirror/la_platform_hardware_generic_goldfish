@@ -72,10 +72,40 @@ void amodem_update_time(AModem modem) {
     s_modem->update_time();
 }
 
+static std::string parseAndValidatePhoneNumber(const std::string& input_phone_number) {
+    // Max possible MSISDN length as per E.164 recommendation
+    constexpr size_t kMaxMsisdnLength = 15;
+
+    std::string parsed_phone_number;
+    parsed_phone_number.reserve(kMaxMsisdnLength);
+
+    for (char c : input_phone_number) {
+        if (c == '-') {
+            continue;  // Ignore hyphens
+        }
+
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            LOG(ERROR) << "Phone number contains invalid character: '" << c
+                       << "'. Only digits and hyphens are allowed.";
+            return "";
+        }
+
+        // Check length *before* appending to ensure we don't exceed kMaxMsisdnLength
+        if (parsed_phone_number.length() == kMaxMsisdnLength) {
+            LOG(ERROR) << "Phone number exceeds maximum allowed length of " << kMaxMsisdnLength
+                       << " digits. Input was: '" << input_phone_number << "'";
+            return "";
+        }
+
+        parsed_phone_number.push_back(c);  // Append valid digit
+    }
+
+    return parsed_phone_number;
+}
+
 int amodem_update_phone_number(AModem modem, const char* number) {
-    char phone_number[16];
-    int ret = validate_and_parse_phone_number(number, phone_number);
-    if (ret) {
+    auto phone_number = parseAndValidatePhoneNumber(number);
+    if (phone_number.empty()) {
         LOG(WARNING) << "bad phone number format: " << number << ", use digits, # and + only";
         return -1;
     }
@@ -87,7 +117,7 @@ int amodem_update_phone_number(AModem modem, const char* number) {
     // LOG(WARNING) << "No adb binary found, cannot set the phone number.";
     // return -1;
     // }
-    int res = s_modem->set_phone_number(phone_number);
+    int res = s_modem->set_phone_number(phone_number.c_str());
     // adbInterface->enqueueCommand(
     //         {"shell", "cmd", "connectivity", "airplane-mode", "enable"});
     // adbInterface->enqueueCommand(

@@ -18,8 +18,13 @@
 
 #include "ModemSimulator.h"
 
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+#include "absl/log/log.h"
 
 #include "android/telephony/modem.h"
 #include "android/telephony/sms.h"
@@ -45,7 +50,28 @@ ACall ModemSimulator::call_by_index(int idx) {
 }
 
 void ModemSimulator::receive_sms(SmsPDU sms) {
-    cuttlefish::send_sms_msg(std::string(amodem_sms_to_string(nullptr, sms)));
+    if (!sms || !sms->base || sms->end < sms->base) {
+        LOG(ERROR) << "Unable to receive invalid SMS PDU";
+        return;
+    }
+
+    std::ostringstream oss;
+
+    // 1. Add the SMS unsolicited header
+    oss << "+CMT: 0\r";
+
+    // 2. Set up hex formatting for the PDU content
+    oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0');
+
+    // 3. Iterate through the PDU bytes and append their hex representation
+    for (bytes_t current_byte_ptr = sms->base; current_byte_ptr < sms->end; ++current_byte_ptr) {
+        oss << static_cast<int>(static_cast<unsigned char>(*current_byte_ptr));
+    }
+
+    oss << "\r";
+
+    // Send it!
+    cuttlefish::send_sms_msg(oss.str());
 }
 
 int ModemSimulator::add_inbound_call(const char* args) {

@@ -22,14 +22,11 @@
 
 #include <string>
 
-#include "aemu/base/Log.h"
+#include "absl/log/log.h"
+
 #include "aemu/base/sockets/SocketUtils.h"
 #include "aemu/base/synchronization/MessageChannel.h"
-#include "android/console.h"
 #include "android/telephony/modem.h"
-#include "android/utils/system.h"
-#include "android/utils/timezone.h"
-// from cuttlefish modem-simulator library
 #include "common/libs/fs/shared_select.h"
 #include "modem_simulator.h"
 
@@ -231,19 +228,23 @@ void set_radio_state(int state) {
 }
 
 void save_state(SysFile* file) {
-    int radio_power_state = isRadioOff() ? 0 : 1;
-    sys_file_put_byte(file, radio_power_state);
+    // TODO(jansene): Implement save/restore
+    LOG(ERROR) << "save_state is not yet implemented.";
+    // int radio_power_state = isRadioOff() ? 0 : 1;
+    // sys_file_put_byte(file, radio_power_state);
 }
 
 int load_state(SysFile* file, int version_id) {
-    (void)version_id;  // we don't use this
-    int radio_power_state = sys_file_get_byte(file);
-    if (radio_power_state == 1) {
-        set_radio_state(1);
-    } else if (radio_power_state == 0) {
-        set_radio_state(0);
-    }
-    return 0;
+    // TODO(jansene): Implement save/restore
+    LOG(ERROR) << "load_state is not yet implemented.";
+    return 1;
+    // (void)version_id;  // we don't use this
+    // int radio_power_state = 1; // sys_file_get_byte(file);
+    // if (radio_power_state == 1) {
+    //     set_radio_state(1);
+    // } else if (radio_power_state == 0) {
+    //     set_radio_state(0);
+    // }
 }
 
 static ModemCallback* s_notify_call_back = nullptr;  // The function
@@ -299,13 +300,10 @@ void start_calling_thread(std::string ss) {
 }
 
 void process_msgs() {
+    // Make sure to only start the pump once the guest has reached boot complete!
     while (true) {
         if (s_stop_requested) {
             break;
-        }
-        if (!getConsoleAgents()->settings->guest_boot_completed()) {
-            sleep_ms(100);
-            continue;
         }
         DD("waiting for new messages ...");
         ModemMessage msg;
@@ -404,7 +402,7 @@ int stop_android_modem_simulator() {
         auto monitor_sock = cuttlefish::SharedFD::SocketLocalClient(s_host_server_port);
         std::string msg("STOP");
         if (monitor_sock->IsOpen()) {
-            LOG(DEBUG) << "sending STOP to modem simulator host server";
+            VLOG(1) << "sending STOP to modem simulator host server";
             monitor_sock->Write(msg.data(), msg.size());
             s_stop_requested = true;
             return 0;
@@ -489,7 +487,7 @@ void main_host_thread() {
     }
 
     auto monitor_socket = modem_host_servers[0];
-    LOG(DEBUG) << "started modem simulator host server at port: " << s_host_server_port;
+    VLOG(1) << "started modem simulator host server at port: " << s_host_server_port;
     while (true) {
         DD("looping at main host server at %d", s_host_server_port);
         cuttlefish::SharedFDSet read_set;
@@ -508,7 +506,7 @@ void main_host_thread() {
                 continue;
             }
             if (buf == "STOP") {  // Exit request from parent process
-                LOG(DEBUG) << "received exit request from parent process";
+                VLOG(1) << "received exit request from parent process";
                 s_stop_requested = true;
                 break;
             } else if (buf.compare(0, 3, "REM") == 0) {  // REMO for modem id 0 ...
