@@ -22,18 +22,14 @@ import asyncio
 import argparse
 from pathlib import Path
 from python.runfiles import Runfiles
-
-# --- Configuration ---
-# The script will exit successfully when this log line is detected.
-TARGET_LOG_LINE = "Linux version 6.6.66-android15-8-gb66429556fb8-ab13070261"
-# Timeout in seconds to wait for the target log line.
-TIMEOUT_SECONDS = 30
+import re
 
 
 async def stream_output_and_find_log(stream, target_log):
     """
     Asynchronously reads from a stream, prints each line, and returns on finding the target.
     """
+    target_re = re.compile(target_log)
     while True:
         line_bytes = await stream.readline()
         if not line_bytes:
@@ -44,7 +40,7 @@ async def stream_output_and_find_log(stream, target_log):
         line = line_bytes.decode("utf-8", errors="replace").strip()
         print(line)  # Print emulator output in real-time
 
-        if target_log in line:
+        if target_re.search(line):
             logging.info("--- Target log line detected! ---")
             return True
 
@@ -103,7 +99,6 @@ async def main(args):
         "-vmodule",
         "*=1",
         "-show-kernel",
-        "-wipe-data",
     ]
 
     # Set required environment variables
@@ -117,7 +112,7 @@ async def main(args):
     logging.info(
         "--- Launching emulator for %s with a %d-second timeout... ---",
         args.abi,
-        TIMEOUT_SECONDS,
+        args.timeout_seconds,
     )
 
     process = None
@@ -132,8 +127,8 @@ async def main(args):
 
         # Wait for the log-finding task to complete, with a timeout
         await asyncio.wait_for(
-            stream_output_and_find_log(process.stdout, TARGET_LOG_LINE),
-            timeout=TIMEOUT_SECONDS,
+            stream_output_and_find_log(process.stdout, args.target_log_line),
+            timeout=args.timeout_seconds,
         )
 
         logging.info("--- Script finished successfully. ---")
@@ -141,7 +136,8 @@ async def main(args):
 
     except asyncio.TimeoutError:
         logging.error(
-            "--- FAILED: Did not see log line within %d seconds. ---", TIMEOUT_SECONDS
+            "--- FAILED: Did not see log line within %d seconds. ---",
+            args.timeout_seconds,
         )
         return 1  # Failure
     except Exception as e:
@@ -173,8 +169,26 @@ if __name__ == "__main__":
         default="x86_64",
         help="The ABI of the system image to run. Defaults to x86_64.",
     )
+    parser.add_argument(
+        "--target_log_line",
+        type=str,
+        default="Linux version 6\.6\.66-android15-8-gb66429556fb8-ab13070261",
+        help="The script will exit successfully when a log line matching this regex is detected.",
+    )
+    parser.add_argument(
+        "--timeout_seconds",
+        type=int,
+        default=30,
+        help="Timeout in seconds to wait for the target log line.",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=0,
+        help="Number of times to repeat this test.",
+    )
+
     args = parser.parse_args()
-    # Configure basic logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
@@ -183,6 +197,7 @@ if __name__ == "__main__":
 
     logging.info("--- Selected ABI: %s ---", args.abi)
 
-    # Run the main async function and exit with its return code
-    exit_code = asyncio.run(main(args))
-    sys.exit(exit_code)
+    for _ in range(args.repeat + 1):
+        exit_code = asyncio.run(main(args))
+        if exit_code != 0:
+            sys.exit(exit_code)
