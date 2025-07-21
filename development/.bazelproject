@@ -1,0 +1,16 @@
+directories:
+  hardware/generic/goldfish
+  tools/emulator
+
+workspace_type: java
+
+test_sources:
+  */unittests
+  */integrationtests
+  */testing/*src
+  */testSrc
+
+java_language_level: 17
+
+enable_code_analysis_on_sync: true
+
