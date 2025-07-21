@@ -10,7 +10,7 @@ This informs qemu to instantiate the device `sample`, with the parameter `messag
 
 ## Device Registration
 
-In order for QEMU to know about a plugin you must update [qemu-plugin-registration.c](registration/src/android/goldfish/qemu-plugin-registration.c). This contains information about which plugins are available to qemu. If you do not add your module to this file it will not be available to QEMU as it will not know that the plugin exists. See a short sample snippet here:
+In order for QEMU to know about a plugin you must update [aemu\_plugins.c](../../../../../third_party/qemu/google/system/aemu_plugins.c). This contains information about which plugins are available to qemu. If you do not add your module to this file it will not be available to QEMU as it will not know that the plugin exists. See a short sample snippet here:
 
 ```c
     {
@@ -26,7 +26,7 @@ In order for QEMU to know about a plugin you must update [qemu-plugin-registrati
 
 ```
 
-The snippet above informs QEMU that there is a module called `sample` available that offersw the objects `sample` that is a `device` object. The `.arch` field can be used to restrict the device to a specific architecture. Whenever QEMU encounters the `-device` flag it will resolve the shared library sample, load it into QEMU and perform the standard device registration. The `qemu-plugin-registration.c` contains all the device that we register, and contains some examples of dependencies as well.
+The snippet above informs QEMU that there is a module called `sample` available that offersw the objects `sample` that is a `device` object. The `.arch` field can be used to restrict the device to a specific architecture. Whenever QEMU encounters the `-device` flag it will resolve the shared library sample, load it into QEMU and perform the standard device registration. The `aemu_plugins.c` contains all the device that we register, and contains some examples of dependencies as well.
 
 Note that the sample device depends on the sample-base device. QEMU will make sure that if you use the `sample` device that the `sample-base` module will be loaded as well.
 
@@ -44,7 +44,7 @@ Will initialize create the `sample-base` device and initialize it before the `sa
 
 When you add a new plugin you must take care of the following things:
 
-- Register your plugin in [qemu-plugin-registration.c](registration/src/android/goldfish/qemu-plugin-registration.c).
+- Register your plugin in [aemu\_plugins.c](../../../../../third_party/qemu/google/system/aemu_plugins.c).
 - Distribute your plugin by adding it to `//hardware/generic/goldfish/emulator:plugins`
 - Make it available to `bazel run` by adding it to `//hardware/generic/goldfish/emulator/launcher:plugins`
 
@@ -55,7 +55,7 @@ For example if your device is arm64 only you will need to add the following set 
 
 ```python
    defines = [
-        "NEED_CPU_H",
+        "COMPILING_PER_TARGET",
         'CONFIG_TARGET=\\"aarch64-softmmu-config-target.h\\"',
         'CONFIG_DEVICES=\\"aarch64-softmmu-config-devices.h\\"',
     ]
