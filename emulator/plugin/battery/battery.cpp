@@ -15,7 +15,7 @@
 
 #include "android/battery/battery.h"
 
-#include "goldfish_battery.h"
+#include "goldfish/battery/goldfish_battery.h"
 
 namespace goldfish::devices::battery {
 class Battery : public IBattery {

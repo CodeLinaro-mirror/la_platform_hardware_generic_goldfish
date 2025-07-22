@@ -78,4 +78,11 @@ enum power_supply_property {
 int goldfish_battery_read_prop(int property);
 void goldfish_battery_set_prop(int ac, int property, int value);
 __END_DECLS
+
+#ifdef __cplusplus
+extern "C" void goldfish_battery_register_types(void);
+#else
+void goldfish_battery_register_types(void);
+#endif
+
 #endif /* _HW_GOLDFISH_BATTERY_H */

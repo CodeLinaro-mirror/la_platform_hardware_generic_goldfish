@@ -1,4 +1,3 @@
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
@@ -7,20 +6,18 @@ cc_library(
         "include/goldfish/vsock/connect.h",
         "include/goldfish/vsock/listen.h",
         "include/goldfish/vsock/snapshot.h",
+        "include/goldfish/vsock/vsock_low_level.h",
         "include/goldfish/vsock/vsock_port_fwd.h",
     ],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
 )
 
 [cc_library(
-    name = "virtio-vsock-goldfish-impl-" + arch,
+    name = "vsock_impl_" + arch,
     srcs = [
         "vsock.cpp",
         "vsock_low_level.c",
-        "vsock_low_level.h",
         "vsock_port_fwd.cpp",
     ],
     defines = [
@@ -28,9 +25,7 @@ cc_library(
         'CONFIG_TARGET=\\"' + arch + '-softmmu-config-target.h\\"',
         'CONFIG_DEVICES=\\"' + arch + '-softmmu-config-devices.h\\"',
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
         "//hardware/generic/goldfish/android/event-support",
@@ -48,27 +43,6 @@ cc_library(
         "//third_party/qemu:qemu-headers",
     ],
     alwayslink = True,
-) for arch in [
-    "riscv64",
-    "aarch64",
-    "x86_64",
-]]
-
-[cc_binary(
-    name = "virtio-vsock-goldfish-" + arch,
-    linkopts = select({
-        "@platforms//os:macos": ["-undefined dynamic_lookup"],
-        "//conditions:default": [],
-    }),
-    linkshared = True,
-    visibility = ["//visibility:public"],
-    deps = [":virtio-vsock-goldfish-impl-" + arch] +
-           select({
-               "@platforms//os:windows": [
-                   "//third_party/qemu:qemu-system-" + arch + ".if",
-               ],
-               "//conditions:default": [],
-           }),
 ) for arch in [
     "riscv64",
     "aarch64",

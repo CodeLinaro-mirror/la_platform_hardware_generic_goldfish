@@ -14,6 +14,11 @@
 #ifndef VIRTIO_INPUT_ANDROID_H
 #define VIRTIO_INPUT_ANDROID_H
 
+#include "qemu/osdep.h"
+#include "qom/object.h"
+#include "hw/virtio/virtio-input.h"
+#include "hw/virtio/virtio-pci.h"
+
 /**
  * @defgroup virtio-input-android Virtio Input Android Driver
  * @brief This driver provides a virtio-based input device tailored for Android guests.

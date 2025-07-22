@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "goldfish/input/virtio-input-android.h"
+#include "virtio-input-android-internal.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
@@ -28,7 +31,6 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include "virtio-input-android.h"
 
 #include "android/base/logging/AbseilLogBridge.h"
 
@@ -679,9 +681,8 @@ static const VirtioPCIDeviceTypeInfo virtio_android_pci_info = {
 
 /* ----------------------------------------------------------------- */
 
-static void virtio_register_types(void) {
+void virtio_input_android_register_types(void) {
     type_register_static(&virtio_android_info);
     virtio_pci_types_register(&virtio_android_pci_info);
 }
 
-type_init(virtio_register_types)

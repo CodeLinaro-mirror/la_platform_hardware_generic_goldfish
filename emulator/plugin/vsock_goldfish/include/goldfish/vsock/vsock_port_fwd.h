@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#pragma once
+
 #include "goldfish/devices/cable/cable.h"
 
 // clang-format off
@@ -37,6 +39,8 @@ struct VSockFwdDev {
     OnVsockHostConnectFn on_connect;
     OnVsockAcceptSocketFn on_accept;
 };
+
+extern "C" void vsock_port_fwd_register_types(void);
 
 #define TYPE_VSOCK_FWD "virtio-goldfish-hostfwd-socket"
 #define VSOCK_FWD_DEV(obj) OBJECT_CHECK(VSockFwdDev, (obj), TYPE_VSOCK_FWD)

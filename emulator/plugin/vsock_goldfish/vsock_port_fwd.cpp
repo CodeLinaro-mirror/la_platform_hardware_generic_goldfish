@@ -303,7 +303,6 @@ static const TypeInfo vsock_fwd_type_info = {
         .class_init = vsock_fwd_class_init,
 };
 
-static void register_types(void) {
+void vsock_port_fwd_register_types(void) {
     type_register_static(&vsock_fwd_type_info);
 }
-type_init(register_types);

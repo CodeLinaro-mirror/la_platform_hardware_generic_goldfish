@@ -146,27 +146,16 @@ collect_plugins(
         "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
         "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
         "//third_party/qemu:hw-display-virtio-vga",
-        "//hardware/generic/goldfish/emulator/devices",
-        "//hardware/generic/goldfish/emulator/plugin/avd",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-aarch64",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-riscv64",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-x86_64",
-        "@gfxstream//host:gfxstream_backend_shared",
+        "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
+        "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+        "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
         "@crosvm//:rutabaga_ffi",
     ] + select({
-        "@platforms//os:windows": [
-            #"//hardware/generic/goldfish/emulator/plugin/grpc",
-        ],
         "darwin_aarch64": [
-            "//hardware/generic/goldfish/emulator/plugin/grpc",
             "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
         ],
-        "darwin_x86_64": [
-            "//hardware/generic/goldfish/emulator/plugin/grpc",
-        ],
         "@platforms//os:linux": [
-            "//hardware/generic/goldfish/emulator/plugin/grpc",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
             "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
             "//third_party/qemu:audio-pa",

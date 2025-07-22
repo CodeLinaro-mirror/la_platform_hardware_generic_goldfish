@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+[cc_binary(
+    name = "goldfish_" + arch,
+    srcs = ["plugin.cpp"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined dynamic_lookup"],
+        "//conditions:default": [],
+    }),
+    linkshared = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/plugin/avd",
+        "//hardware/generic/goldfish/emulator/plugin/battery",
+        "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
+    ] + select({
+        "@platforms//os:windows": [
+            "//third_party/qemu:qemu-system-" + arch + ".if",
+            # TODO(b/410075886): Enable grpc plugin on windows.
+            # "//hardware/generic/goldfish/emulator/plugin/grpc",
+        ],
+        "@platforms//os:macos": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
+        "@platforms//os:linux": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
+        "//conditions:default": [],
+    }),
+) for arch in [
+    "riscv64",
+    "aarch64",
+    "x86_64",
+]]

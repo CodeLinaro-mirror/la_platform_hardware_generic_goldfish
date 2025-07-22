@@ -58,4 +58,6 @@ namespace goldfish::avd_info {
 
 devices::ConnectorRegistry& deviceRegistry();
 
+void avd_info_register_types(void);
+
 }  // namespace goldfish::avd_info

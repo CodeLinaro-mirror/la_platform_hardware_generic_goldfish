@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/grpc-service-device.h"
+#include "goldfish/grpc/grpc-service-device.h"
 
 #include <stdint.h>
 // clang-format off
@@ -171,4 +171,7 @@ static const TypeInfo grpc_type_info[] = {{
         .class_init = grpc_class_init,
 }};
 
-DEFINE_TYPES(grpc_type_info)
+void grpc_register_types(void) {
+    type_register_static(&grpc_type_info);
+}
+//DEFINE_TYPES(grpc_type_info)

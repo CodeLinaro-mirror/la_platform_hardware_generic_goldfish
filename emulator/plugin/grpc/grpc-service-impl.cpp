@@ -13,7 +13,7 @@
 // limitations under the License.
 
 extern "C" {
-#include "android/goldfish/grpc-service-device.h"
+#include "goldfish/grpc/grpc-service-device.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

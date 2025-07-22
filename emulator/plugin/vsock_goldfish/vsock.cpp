@@ -27,7 +27,7 @@
 #include "goldfish/vsock/connect.h"
 #include "goldfish/vsock/listen.h"
 #include "goldfish/vsock/snapshot.h"
-#include "vsock_low_level.h"
+#include "goldfish/vsock/vsock_low_level.h"
 
 extern "C" {
 #include "qemu/compiler.h"

@@ -1,8 +1,9 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "avd_hdrs",
     hdrs = [
+        "include/goldfish/avd/adb-device.h",
         "include/goldfish/avd/avd-finalize.h",
         "include/goldfish/avd/avd-info.h",
     ],
@@ -73,16 +74,14 @@ cc_library(
 )
 
 cc_library(
-    name = "avd_impl",
+    name = "avd",
     srcs = [
         "adb-device.cpp",
         "avd-finalize.cpp",
         "avd-info.cpp",
     ],
     copts = ["-Wno-extern-c-compat"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":avd_hdrs",
         ":gralloc_impl",
@@ -101,10 +100,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status",
         "//hardware/generic/goldfish/emulator/hal/sensors",
-        "//hardware/generic/goldfish/emulator/plugin/battery",
-        "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
-        "//third_party/qemu:libmodule-common",
         "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -113,22 +109,4 @@ cc_library(
         "@com_google_absl//absl/log:log_sink_registry",
     ],
     alwayslink = True,
-)
-
-cc_binary(
-    name = "avd",
-    linkopts = select({
-        "@platforms//os:macos": ["-undefined dynamic_lookup"],
-        "//conditions:default": [],
-    }),
-    linkshared = True,
-    visibility = ["//visibility:public"],
-    deps = [":avd_impl"] +
-           select({
-               "@platforms//os:windows": [
-                   "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:virtio-vsock-goldfish-impl-x86_64",
-                   "//third_party/qemu:qemu-system-x86_64.if",
-               ],
-               "//conditions:default": [],
-           }),
 )

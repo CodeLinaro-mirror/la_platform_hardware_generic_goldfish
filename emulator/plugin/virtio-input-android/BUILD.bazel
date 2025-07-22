@@ -3,9 +3,11 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "virtio-input-android",
     srcs = [
-        "src/virtio-input-android.c",
-        "src/virtio-input-android.h",
+        "virtio-input-android.c",
+        "virtio-input-android-internal.h",
     ],
+    hdrs = ["include/goldfish/input/virtio-input-android.h"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",

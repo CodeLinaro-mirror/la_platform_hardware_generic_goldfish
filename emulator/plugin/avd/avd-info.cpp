@@ -71,9 +71,8 @@ ConnectorRegistry& deviceRegistry() {
     return ConnectorRegistry::defaultRegistry();
 }
 
-}  // namespace goldfish::avd_info
-
-static void UpdateVModule(const std::string& vmodule) {
+namespace {
+void UpdateVModule(const std::string& vmodule) {
     std::vector<std::pair<std::string_view, int>> glob_levels;
     for (absl::string_view glob_level : absl::StrSplit(vmodule, '|')) {
         const size_t eq = glob_level.rfind('=');
@@ -90,9 +89,9 @@ static void UpdateVModule(const std::string& vmodule) {
     }
 }
 
-static void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
+void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
-static void avd_info_realize(DeviceState* dev, Error** errp) {
+void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
     // Configure logging.
@@ -140,17 +139,17 @@ static void avd_info_realize(DeviceState* dev, Error** errp) {
             &DummyRegisterEmulatorReset);
 }
 
-static void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
+void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     avd_info->ini_path = value;
 }
 
-static void avd_info_set_vmodule(Object* obj, const char* value, Error** errp) {
+void avd_info_set_vmodule(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     avd_info->vmodule = value;
 }
 
-static void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque,
+void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque,
                                    Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     uint32_t value;
@@ -171,7 +170,7 @@ static void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, vo
     avd_info->log_level = value;
 }
 
-static void avd_info_class_init(ObjectClass* oc, void* data) {
+void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
     object_class_property_set_description(oc, "ini_path",
                                           "the path to the AVD's configuration (.ini) file.");
@@ -189,15 +188,18 @@ static void avd_info_class_init(ObjectClass* oc, void* data) {
     dc->realize = avd_info_realize;
 }
 
-static const TypeInfo avd_info_type_info = {
+const TypeInfo avd_info_type_info = {
         .name = TYPE_AVD,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(AvdInfoDev),
         .class_init = avd_info_class_init,
 };
 
-static void register_types(void) {
+}  // namespace
+
+void avd_info_register_types(void) {
     type_register_static(&avd_info_type_info);
 }
 
-type_init(register_types);
+}  // namespace goldfish::avd_info
+

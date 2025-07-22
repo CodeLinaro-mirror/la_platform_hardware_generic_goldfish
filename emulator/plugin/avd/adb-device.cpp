@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#include "goldfish/avd/adb-device.h"
+
 #include <memory>
 
 #include "absl/log/log.h"
@@ -32,6 +35,7 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
+namespace goldfish::adb_device {
 // Define a subclass for the VSockFwdDevice, where we are going
 // to override the realize method, in the realize method we will
 // override the common properties
@@ -52,19 +56,20 @@ OBJECT_DECLARE_TYPE(AdbVSockDev, AdbDeviceClass, ADB_VSOCK_DEVICE)
 using android::emulation::AdbHostServer;
 using android::emulation::control::AdbLogger;
 
-static void adb_vsock_accept(VSockFwdDev* device, goldfish::devices::cable::ISocket* socket) {
+namespace {
+void adb_vsock_accept(VSockFwdDev* device, goldfish::devices::cable::ISocket* socket) {
     socket->setDataSniffer(std::make_unique<AdbLogger>(device->host_port, device->guest_port));
 }
 
 // QEMU device configuration logic
-static void adb_vsock_connected(VSockFwdDev* device) {
+void adb_vsock_connected(VSockFwdDev* device) {
     auto adb_server = AdbHostServer::getClientPort();
     LOG(INFO) << "Notifying adb server on port " << adb_server
               << " that adbd for is available on localhost:" << device->host_port;
     android::emulation::AdbHostServer::notify(device->host_port, adb_server);
 }
 
-static void adb_vsock_realize(DeviceState* dev, Error** errp) {
+void adb_vsock_realize(DeviceState* dev, Error** errp) {
     VSockFwdDev* vsock_fwd_dev = VSOCK_FWD_DEV(dev);
     auto adc = ADB_VSOCK_DEVICE_GET_CLASS(dev);
 
@@ -84,7 +89,7 @@ static void adb_vsock_realize(DeviceState* dev, Error** errp) {
     adc->vsock_port_fwd_realize(dev, errp);
 }
 
-static void adb_vsock_class_init(ObjectClass* oc, void* data) {
+void adb_vsock_class_init(ObjectClass* oc, void* data) {
     AdbDeviceClass* dc = ADB_VSOCK_DEVICE_CLASS(oc);
 
     // Re-direct the realize to us, and make sure we can call the parent.
@@ -92,15 +97,16 @@ static void adb_vsock_class_init(ObjectClass* oc, void* data) {
     dc->parent_class.realize = adb_vsock_realize;
 }
 
-static const TypeInfo adb_vsock_type_info = {
+const TypeInfo adb_vsock_type_info = {
         .name = TYPE_ADB_VSOCK_DEVICE,
         .parent = TYPE_VSOCK_FWD,
         .instance_size = sizeof(AdbVSockDev),
         .class_size = sizeof(AdbDeviceClass),
         .class_init = adb_vsock_class_init,
 };
+}  // namespace
 
-static void register_types(void) {
+void adb_device_register_types(void) {
     type_register_static(&adb_vsock_type_info);
 }
-type_init(register_types);
+}  // namespace goldfish::adb_device

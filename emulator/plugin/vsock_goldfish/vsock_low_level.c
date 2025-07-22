@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "vsock_low_level.h"
+#include "goldfish/vsock/vsock_low_level.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -438,10 +438,8 @@ static const VirtioPCIDeviceTypeInfo virtio_vsock_pci_typeinfo = {
         .class_init = virtio_vsock_pci_class_init,
 };
 
-static void register_types(void) {
+void vsock_low_level_register_types(void) {
     DEBUG_MSG("registering %s and %s", TYPE_VIRTIO_VSOCK, TYPE_VIRTIO_VSOCK_PCI_GENERIC);
     type_register_static(&virtio_vsock_typeinfo);
     virtio_pci_types_register(&virtio_vsock_pci_typeinfo);
 }
-
-type_init(register_types);

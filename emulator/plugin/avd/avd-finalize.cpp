@@ -33,24 +33,26 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-static void avd_finalize_realize(DeviceState* dev, Error** errp) {
+namespace goldfish::avd_finalize {
+namespace {
+void avd_finalize_realize(DeviceState* dev, Error** errp) {
     goldfish::avd_info::deviceRegistry().listen(5000);
 }
 
-static void avd_finalize_class_init(ObjectClass* oc, void* data) {
+void avd_finalize_class_init(ObjectClass* oc, void* data) {
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_finalize_realize;
 }
 
-static const TypeInfo avd_finalize_type_info = {
+const TypeInfo avd_finalize_type_info = {
         .name = TYPE_AVD_FINAL,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(AvdEndDev),
         .class_init = avd_finalize_class_init,
 };
+}  // namespace
 
-static void register_types(void) {
+void avd_finalize_register_types(void) {
     type_register_static(&avd_finalize_type_info);
 }
-
-type_init(register_types);
+}  // namespace goldfish::avd_finalize

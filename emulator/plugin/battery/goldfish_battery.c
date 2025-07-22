@@ -10,6 +10,8 @@
 ** GNU General Public License for more details.
 */
 
+#include "goldfish/battery/goldfish_battery.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
@@ -18,7 +20,6 @@
 #include "hw/sysbus.h"
 #include "monitor/monitor.h"
 #include "migration/vmstate.h"
-#include "goldfish_battery.h"
 // IWYU pragma: end_keep
 // clang-format on
 
@@ -367,8 +368,7 @@ static const TypeInfo goldfish_battery_info = {
         .class_init = goldfish_battery_class_init,
 };
 
-static void goldfish_battery_register(void) {
+void goldfish_battery_register_types(void) {
     type_register_static(&goldfish_battery_info);
 }
 
-type_init(goldfish_battery_register);

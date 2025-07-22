@@ -26,9 +26,13 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
+namespace goldfish::avd_finalize {
 struct AvdEndDev {
     DeviceClass parent_class;
 };
+
+void avd_finalize_register_types(void);
+}  // namespace goldfish::avd_finalize
 
 #define TYPE_AVD_FINAL "avdend"
 #define AVD_FINAL_INFO_DEV(obj) OBJECT_CHECK(AvdEndDev, (obj), TYPE_AVD_FINAL)

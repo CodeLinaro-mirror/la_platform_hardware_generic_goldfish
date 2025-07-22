@@ -73,6 +73,8 @@ extern int goldfish_virtio_vsock_handle_event_to_guest(void* impl);
 extern int goldfish_virtio_vsock_impl_save(const void* impl, QEMUFile* f);
 extern int goldfish_virtio_vsock_impl_load(void* impl, QEMUFile* f);
 
+void vsock_low_level_register_types(void);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

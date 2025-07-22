@@ -4,19 +4,17 @@ cc_library(
     name = "headers",
     hdrs = [
         "include/android/battery/battery.h",
+        "include/goldfish/battery/goldfish_battery.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = [
-    ],
 )
 
 cc_library(
     name = "battery",
     srcs = [
-        "src/battery.cpp",
-        "src/goldfish_battery.c",
-        "src/goldfish_battery.h",
+        "battery.cpp",
+        "goldfish_battery.c",
     ],
     visibility = ["//visibility:public"],
     deps = [
