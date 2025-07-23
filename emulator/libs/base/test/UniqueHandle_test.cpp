@@ -44,7 +44,7 @@ TEST(UniqueHandle, default_empty) {
 
 TEST(UniqueHandle, get_release) {
     UniqueHandleOfInt q(42);
-    EXPECT_TRUE(q.ok());
+    EXPECT_EQ(q.get(), 42);
 
     EXPECT_EQ(q.get(), 42);
     EXPECT_EQ(q.get(), 42);
@@ -59,11 +59,11 @@ TEST(UniqueHandle, get_release) {
 
 TEST(UniqueHandle, move_ctor) {
     UniqueHandleOfInt from(42);
-    EXPECT_TRUE(from.ok());
+    EXPECT_EQ(from.get(), 42);
 
     UniqueHandleOfInt to(std::move(from));
 
-    EXPECT_TRUE(to.ok());
+    EXPECT_EQ(to.get(), 42);
     EXPECT_FALSE(from.ok());
 }
 
@@ -75,8 +75,28 @@ TEST(UniqueHandle, move_assign) {
     EXPECT_FALSE(to.ok());
 
     to = std::move(from);
-    EXPECT_TRUE(to.ok());
+    EXPECT_EQ(to.get(), 42);
     EXPECT_FALSE(from.ok());
+}
+
+TEST(UniqueHandle, move_assign2) {
+    UniqueHandleOfInt from(42);
+    EXPECT_EQ(from.get(), 42);
+
+    UniqueHandleOfInt to(37);
+    EXPECT_EQ(to.get(), 37);
+
+    to = std::move(from);
+    EXPECT_EQ(to.get(), 42);
+    EXPECT_FALSE(from.ok());
+}
+
+TEST(UniqueHandle, move_assign_self) {
+    UniqueHandleOfInt a(42);
+    EXPECT_EQ(a.get(), 42);
+
+    a = std::move(a);
+    EXPECT_EQ(a.get(), 42);
 }
 
 TEST(UniqueHandle, swap) {
