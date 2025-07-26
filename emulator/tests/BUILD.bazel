@@ -1,0 +1,21 @@
+load("@rules_java//java:java_test.bzl", "java_test")
+
+java_test(
+    name = "boot_test",
+    data = [
+        "//hardware/generic/goldfish/emulator/launcher:goldfish",
+        "//prebuilts/android-emulator-build/sdkhome",
+        "@android_minigbm-x86_64//:system_image",
+    ],
+    jvm_flags = [
+        "-Demulator.test.system.image.files=\"$(locations @android_minigbm-x86_64//:system_image)\"",
+        "-Demulator.test.emulator.path=hardware/generic/goldfish/emulator/launcher/goldfish",
+        "-Demulator.test.sdk.path=prebuilts/android-emulator-build/sdkhome",
+    ],
+    tags = [
+        "manual",
+        "block-network",
+    ],
+    test_class = "com.android.tools.idea.EmulatorTest",
+    runtime_deps = ["//tools/emulator/tests:emulator.tests"],
+)
