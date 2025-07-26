@@ -22,7 +22,7 @@ using goldfish::devices::camera::ImageProviderCppAdapter;
 
 namespace goldfish::camera_image_providers::virtualscene {
 
-int getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing) {
+bool getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing) {
     static const CameraImageProviderRect supportedFrameSizes[] = {
         {
             .width = 640,
@@ -64,7 +64,7 @@ int getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing) 
         .needFreeSupportedSizes = 0,
     };
 
-    return 0;
+    return true;
 }
 
 }  // namespace goldfish::camera_image_providers::virtualscene

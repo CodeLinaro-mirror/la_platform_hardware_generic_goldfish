@@ -70,7 +70,7 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
         return false;
 
     case CameraImageSource::VIRTUALSCENE:
-        if (cip::virtualscene::getImageProviderInfo(&info, isBackFacing)) {
+        if (!cip::virtualscene::getImageProviderInfo(&info, isBackFacing)) {
             return false;
         }
         break;

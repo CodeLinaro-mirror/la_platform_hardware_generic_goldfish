@@ -19,6 +19,6 @@
 
 namespace goldfish::camera_image_providers::virtualscene {
 
-int getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing);
+bool getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing);
 
 }  // namespace goldfish::camera_image_providers::virtualscene
