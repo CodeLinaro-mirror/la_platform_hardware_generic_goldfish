@@ -49,6 +49,7 @@
 #include "devices/kernel_device.h"
 #include "devices/machine.h"
 #include "devices/memory_device.h"
+#include "devices/network_device.h"
 #include "devices/parameter_list.h"
 
 namespace android::goldfish {
@@ -91,6 +92,8 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<SDCardDrive>(hw);
 
     addDevice<AudioDevice>("09.0");
+
+    addDevice<NetworkDevice>("0a.0");
 
     auto ini_path = System::pathAsString(mAvd->getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{

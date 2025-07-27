@@ -169,6 +169,35 @@ cc_library(
 )
 
 cc_library(
+    name = "network_device",
+    srcs = ["network_device.cpp"],
+    hdrs = ["network_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@aemu//base:aemu-base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "network_device_test",
+    srcs = ["network_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mock_avd",
+        ":network_device",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "parameter_list",
     srcs = ["parameter_list.cpp"],
     hdrs = ["parameter_list.h"],
