@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/emulation/control/StatusService.h"
 
+#include "absl/log/log.h"
+
 #include "android/base/system/System.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
 #include "android/misc/GuestStatusDevice.h"

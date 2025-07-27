@@ -19,7 +19,7 @@
 #include <filesystem>
 #include <string_view>
 
-#include "absl/log/absl_log.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
 #include "aemu/base/Compiler.h"
@@ -109,7 +109,7 @@ class TestTempDir {
         if (!pathExists(path.string().c_str())) {
             LOG(WARNING) << "Created path (" << path << "/" << subdir << ") does not exist";
         }
-        ABSL_VLOG(1) << "Created " << path;
+        VLOG(1) << "Created " << path;
         return true;
     }
 
@@ -142,7 +142,7 @@ class TestTempDir {
             }
         }
 
-        ABSL_VLOG(1) << "Rmdir " << path;
+        VLOG(1) << "Rmdir " << path;
         android_rmdir(System::pathAsString(path).c_str());
     }
 

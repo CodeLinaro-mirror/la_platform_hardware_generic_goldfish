@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/goldfish/config/avd.h"
 
+#include "absl/log/log.h"
+
 #include <android/goldfish/config/hardware_config.h>
 
 #include <cctype>

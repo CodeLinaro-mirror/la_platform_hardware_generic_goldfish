@@ -26,8 +26,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/log.h"
-
 #include "aemu/base/Compiler.h"
 #include "aemu/base/CpuTime.h"
 #include "aemu/base/EnumFlags.h"

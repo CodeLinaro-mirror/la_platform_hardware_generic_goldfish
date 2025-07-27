@@ -17,7 +17,7 @@
 #include <iostream>
 #include <string_view>
 
-#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "absl/status/statusor.h"
 
 namespace android::base {
@@ -209,14 +209,7 @@ class StorageCapacity {
      * @param rhs The StorageCapacity object to subtract.
      * @return A reference to the modified StorageCapacity object (`*this`).
      */
-    StorageCapacity& operator-=(const StorageCapacity& rhs) {
-        // Handle potential underflow
-        if (mBytes < rhs.bytes()) {
-            LOG(WARNING) << "StorageCapacity cannot be negative";
-        }
-        mBytes -= rhs.bytes();
-        return *this;
-    }
+    StorageCapacity& operator-=(const StorageCapacity& rhs);
 
     /**
      * @brief Subtracts two StorageCapacity objects.
@@ -225,46 +218,19 @@ class StorageCapacity {
      * @return A new StorageCapacity object representing the difference between
      * the capacities.
      */
-    StorageCapacity operator-(const StorageCapacity& rhs) const {
-        // Handle potential underflow
-        if (mBytes < rhs.bytes()) {
-            LOG(WARNING) << "StorageCapacity cannot be negative";
-        }
-        unsigned long long differenceBytes = mBytes - rhs.bytes();
-        return StorageCapacity(differenceBytes);
-    }
+    StorageCapacity operator-(const StorageCapacity& rhs) const;
 
     // Conversion to int
-    explicit operator int() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into an int";
-        }
-        return static_cast<int>(mBytes);
-    }
+    explicit operator int() const;
 
     // Conversion to long
-    explicit operator long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into a long";
-        }
-        return static_cast<long>(mBytes);
-    }
+    explicit operator long() const;
 
     // Conversion to unsigned long
-    explicit operator unsigned long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into an unsigned long";
-        }
-        return static_cast<unsigned long>(mBytes);
-    }
+    explicit operator unsigned long() const;
 
     // Conversion to long long
-    explicit operator long long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
-        }
-        return static_cast<long long>(mBytes);
-    }
+    explicit operator long long() const;
 
     // Conversion to unsigned long long
     explicit operator unsigned long long() const { return mBytes; }

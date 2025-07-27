@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/emulation/control/ClipboardService.h"
 
+#include "absl/log/log.h"
+
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/emulation/control/utils/EventSupport.h"
 
