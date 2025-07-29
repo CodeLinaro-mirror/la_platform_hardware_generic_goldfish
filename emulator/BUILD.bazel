@@ -263,8 +263,6 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/guest-status:guest-status_unittests",
         "//hardware/generic/goldfish/emulator/hal/sensors:sensors_unittests",
         "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface_unittests",
-        "//hardware/generic/goldfish/emulator/launcher:can_launch_kernel_with_minigbm",
-        "//hardware/generic/goldfish/emulator/launcher:emulator_unittests",
         "//hardware/generic/goldfish/emulator/launcher:launcher_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
         "//hardware/generic/goldfish/emulator/modem_simulator:modem_tests",

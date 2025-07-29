@@ -23,6 +23,8 @@ import argparse
 from pathlib import Path
 from python.runfiles import Runfiles
 import re
+import random
+import tempfile
 
 
 async def stream_output_and_find_log(stream, target_log):
@@ -45,7 +47,7 @@ async def stream_output_and_find_log(stream, target_log):
             return True
 
 
-async def main(args):
+async def main(args, tmp_dir_for_images):
     r = Runfiles.Create()
     if not r:
         logging.error(
@@ -88,6 +90,9 @@ async def main(args):
         )
         return 1
 
+    adb = random.randint(10000, 20000)
+    grpc = random.randint(10000, 20000)
+
     # --- Prepare the command ---
     command_to_run = [
         str(goldfish_exec),
@@ -99,14 +104,21 @@ async def main(args):
         "-vmodule",
         "*=1",
         "-show-kernel",
+        "-no-vnc",
+        "-port", str(adb),
+        "-grpc", str(grpc),
+        "-read-only",
     ]
 
     # Set required environment variables
     avd_parent_dir = str(phone_ini_path.parent)
     env = {
         **os.environ,
+        "ANDROID_TMP": tmp_dir_for_images,
         "ANDROID_AVD_HOME": avd_parent_dir,
         "ANDROID_EMULATOR_HOME": avd_parent_dir,
+        # Disable crash reporting as it causes issues when tests run in parallel.
+        "ANDROID_EMU_ENABLE_CRASH_REPORTING": "NO",
     }
 
     logging.info(
@@ -126,10 +138,14 @@ async def main(args):
         )
 
         # Wait for the log-finding task to complete, with a timeout
-        await asyncio.wait_for(
+        status = await asyncio.wait_for(
             stream_output_and_find_log(process.stdout, args.target_log_line),
             timeout=args.timeout_seconds,
         )
+
+        if not status:
+            logging.info("--- Script failed with status: %s. ---", status)
+            return 1
 
         logging.info("--- Script finished successfully. ---")
         return 0  # Success
@@ -197,7 +213,8 @@ if __name__ == "__main__":
 
     logging.info("--- Selected ABI: %s ---", args.abi)
 
-    for _ in range(args.repeat + 1):
-        exit_code = asyncio.run(main(args))
-        if exit_code != 0:
-            sys.exit(exit_code)
+    with tempfile.TemporaryDirectory() as tmp_dir_for_images:
+        for _ in range(args.repeat + 1):
+            exit_code = asyncio.run(main(args, tmp_dir_for_images))
+            if exit_code != 0:
+                sys.exit(exit_code)
