@@ -20,26 +20,69 @@
 using goldfish::base::UniqueHandle;
 
 struct StatelessIntDeleter {
+    struct Empty {};
+    StatelessIntDeleter(Empty) {}
+    StatelessIntDeleter() = default;
     void operator()(int x) const {}
 };
 
-struct StatefullIntDeleter {
-    StatefullIntDeleter(int* sumIntoRef) : mSumIntoRef(sumIntoRef) {}
+struct StatefulIntDeleter {
+    struct Empty {};
+    StatefulIntDeleter(Empty) {}
+    StatefulIntDeleter(int* sumIntoRef) : mSumIntoRef(sumIntoRef) {}
 
-    void operator()(int x) const { *mSumIntoRef += x; }
+    StatefulIntDeleter(StatefulIntDeleter&& other) noexcept
+            : mSumIntoRef(std::exchange(other.mSumIntoRef, nullptr)) {}
 
-    int* mSumIntoRef;
+    StatefulIntDeleter& operator=(StatefulIntDeleter&& other) noexcept {
+        mSumIntoRef = std::exchange(other.mSumIntoRef, nullptr);
+        return *this;
+    }
+
+    void operator()(int x) const {
+        if (mSumIntoRef) {
+            *mSumIntoRef += x;
+        }
+    }
+
+    int* mSumIntoRef = nullptr;
+};
+
+struct NothrowMoveDeleter {
+    struct Empty {};
+    void operator()(int) const {}
+    NothrowMoveDeleter() = default;
+    NothrowMoveDeleter(Empty) {}
+    NothrowMoveDeleter(NothrowMoveDeleter&&) noexcept = default;
+    NothrowMoveDeleter& operator=(NothrowMoveDeleter&&) noexcept = default;
+};
+
+struct ThrowingMoveDeleter {
+    struct Empty {};
+    void operator()(int) const {}
+    ThrowingMoveDeleter() = default;
+    ThrowingMoveDeleter(Empty) {}
+    ThrowingMoveDeleter(ThrowingMoveDeleter&&) noexcept(false) {}
+    ThrowingMoveDeleter& operator=(ThrowingMoveDeleter&&) noexcept(false) { return *this; }
 };
 
 using UniqueHandleOfInt = UniqueHandle<int, -1, StatelessIntDeleter>;
-using UniqueHandleOfIntStatefullDeleter = UniqueHandle<int, -1, StatefullIntDeleter>;
+using UniqueHandleOfIntStatefulDeleter = UniqueHandle<int, -1, StatefulIntDeleter>;
 
 // Empty base optimization (https://en.cppreference.com/w/cpp/language/ebo.html)
 static_assert(sizeof(UniqueHandleOfInt) == sizeof(int));
 
+// noexcept correctness checks
+static_assert(std::is_nothrow_move_constructible_v<UniqueHandle<int, -1, NothrowMoveDeleter>>);
+static_assert(!std::is_nothrow_move_constructible_v<UniqueHandle<int, -1, ThrowingMoveDeleter>>);
+static_assert(noexcept(swap(std::declval<UniqueHandle<int, -1, NothrowMoveDeleter>&>(),
+                            std::declval<UniqueHandle<int, -1, NothrowMoveDeleter>&>())));
+
 TEST(UniqueHandle, default_empty) {
     UniqueHandleOfInt q;
-    EXPECT_FALSE(q.ok());
+    EXPECT_FALSE(q);
+    q.reset(42);
+    EXPECT_TRUE(q);
 }
 
 TEST(UniqueHandle, get_release) {
@@ -99,6 +142,24 @@ TEST(UniqueHandle, move_assign_self) {
     EXPECT_EQ(a.get(), 42);
 }
 
+TEST(UniqueHandle, move_assign_stateful) {
+    int sumIntoFrom = 0;
+    int sumIntoTo = 0;
+    {
+        UniqueHandleOfIntStatefulDeleter from(42, StatefulIntDeleter(&sumIntoFrom));
+        UniqueHandleOfIntStatefulDeleter to(10, StatefulIntDeleter(&sumIntoTo));
+
+        // After this, `from` will hold the original contents of `to`.
+        to = std::move(from);
+        EXPECT_FALSE(from.ok());
+        EXPECT_EQ(to.get(), 42);
+    }
+    // `from` (which now holds handle 10 and deleter with `sumIntoTo`) is destructed.
+    EXPECT_EQ(sumIntoTo, 10);
+    // `to` (which now holds handle 42 and deleter with `sumIntoFrom`) is destructed.
+    EXPECT_EQ(sumIntoFrom, 42);
+}
+
 TEST(UniqueHandle, swap) {
     UniqueHandleOfInt a(42);
     UniqueHandleOfInt b(5);
@@ -115,11 +176,11 @@ TEST(UniqueHandle, swap) {
 TEST(UniqueHandle, dctor) {
     int sumInto = 0;
     {
-        UniqueHandleOfIntStatefullDeleter q1(1, StatefullIntDeleter(&sumInto));
+        UniqueHandleOfIntStatefulDeleter q1(1, StatefulIntDeleter(&sumInto));
         {
-            UniqueHandleOfIntStatefullDeleter q2(2, StatefullIntDeleter(&sumInto));
+            UniqueHandleOfIntStatefulDeleter q2(2, StatefulIntDeleter(&sumInto));
             {
-                UniqueHandleOfIntStatefullDeleter q3(3, StatefullIntDeleter(&sumInto));
+                UniqueHandleOfIntStatefulDeleter q3(3, StatefulIntDeleter(&sumInto));
                 EXPECT_EQ(sumInto, 0);
             }
             EXPECT_EQ(sumInto, 3);
@@ -127,4 +188,51 @@ TEST(UniqueHandle, dctor) {
         EXPECT_EQ(sumInto, 3 + 2);
     }
     EXPECT_EQ(sumInto, 3 + 2 + 1);
+}
+
+TEST(UniqueHandle, swap_stateful) {
+    int sumA = 0;
+    int sumB = 0;
+
+    UniqueHandleOfIntStatefulDeleter a(10, StatefulIntDeleter(&sumA));
+    UniqueHandleOfIntStatefulDeleter b(20, StatefulIntDeleter(&sumB));
+
+    swap(a, b);
+
+    EXPECT_EQ(a.get(), 20);
+    EXPECT_EQ(b.get(), 10);
+
+    a.reset();
+    EXPECT_EQ(sumA, 0);
+    EXPECT_EQ(sumB, 20);
+
+    b.reset();
+    EXPECT_EQ(sumA, 10);
+    EXPECT_EQ(sumB, 20);
+}
+
+TEST(UniqueHandle, reset) {
+    int sumInto = 0;
+
+    UniqueHandleOfIntStatefulDeleter q(10, StatefulIntDeleter(&sumInto));
+    EXPECT_TRUE(q.ok());
+
+    q.reset();
+    EXPECT_FALSE(q.ok());
+    EXPECT_EQ(sumInto, 10);
+
+    q.reset(20);
+    EXPECT_TRUE(q.ok());
+    EXPECT_EQ(q.get(), 20);
+    EXPECT_EQ(sumInto, 10);
+
+    q.reset(30);
+    EXPECT_TRUE(q.ok());
+    EXPECT_EQ(q.get(), 30);
+    EXPECT_EQ(sumInto, 10 + 20);
+}
+
+TEST(UniqueHandle, default_constructor_stateful_deleter) {
+    UniqueHandleOfIntStatefulDeleter q;
+    EXPECT_FALSE(q.ok());
 }

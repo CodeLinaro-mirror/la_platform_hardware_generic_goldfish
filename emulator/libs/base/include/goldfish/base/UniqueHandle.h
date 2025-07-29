@@ -28,11 +28,9 @@ struct UniqueHandle : private Deleter {
     }
   }
 
-  UniqueHandle() = default;
+  UniqueHandle() : Deleter(typename Deleter::Empty()), mValue(kEmpty) {}
 
-  explicit UniqueHandle(Type value) : mValue(value) {}
-
-  UniqueHandle(Type value, Deleter d) : Deleter(std::move(d)), mValue(value) {}
+  explicit UniqueHandle(Type value, Deleter d = Deleter()) : Deleter(std::move(d)), mValue(value) {}
 
   UniqueHandle(UniqueHandle&& rhs) noexcept(std::is_nothrow_move_constructible_v<Deleter>)
       : Deleter(std::move(static_cast<Deleter&>(rhs))), mValue(rhs.release()) {}
