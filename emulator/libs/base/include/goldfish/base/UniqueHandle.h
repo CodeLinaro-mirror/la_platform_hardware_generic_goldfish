@@ -38,7 +38,8 @@ struct UniqueHandle : private Deleter {
       : Deleter(std::move(static_cast<Deleter&>(rhs))), mValue(rhs.release()) {}
 
   UniqueHandle& operator=(UniqueHandle&& rhs) noexcept(noexcept(swap(*this, rhs))) {
-    swap(*this, rhs);
+    UniqueHandle tmp(std::move(rhs));
+    swap(*this, tmp);
     return *this;
   }
 
