@@ -41,33 +41,37 @@
                 // you will have to add them here, or else symbols will
                 // not be found.
                 [
-                    "../com_google_absl",
-                    "${workspaceFolder}/third_party/abseil-cpp"
-                ],
-                [
-                    "../com_google_googletest",
-                    "${workspaceFolder}/third_party/googletest"
-                ],
-                [
-                    "../tink_cc",
-                    "${workspaceFolder}/third_party/tink"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/third_party/protobuf"
-                ],
-                [
-                    "../boringssl",
-                    "${workspaceFolder}/third_party/boringssl/src"
-                ],
-                [
-                    "../zlib",
-                    "${workspaceFolder}/third_party/zlib"
-                ],
-                [
-                    "../glib",
+                    "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
                 ],
+                [
+                    "external/gfxstream+",
+                    "${workspaceFolder}/hardware/google/gfxstream"
+                ],
+                [
+                    "external/+_repo_rules3+pixman",
+                    "${workspaceFolder}/third_party/pixman"
+                ],
+                [
+                    "external/+_repo_rules3+com_google_crashpad",
+                    "${workspaceFolder}/third_party/crashpad"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_android_base",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_common",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
+                ],
+                [
+                    "external/aemu+",
+                    "${workspaceFolder}/hardware/google/aemu"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator",
+                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
+                ]
             ],
             "preLaunchTask": "aemu: Build debug emulator",
             "stopOnEntry": false,
@@ -117,33 +121,37 @@
                 // you will have to add them here, or else symbols will
                 // not be found.
                 [
-                    "../com_google_absl",
-                    "${workspaceFolder}/third_party/abseil-cpp"
-                ],
-                [
-                    "../com_google_googletest",
-                    "${workspaceFolder}/third_party/googletest"
-                ],
-                [
-                    "../tink_cc",
-                    "${workspaceFolder}/third_party/tink"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/third_party/protobuf"
-                ],
-                [
-                    "../boringssl",
-                    "${workspaceFolder}/third_party/boringssl/src"
-                ],
-                [
-                    "../zlib",
-                    "${workspaceFolder}/third_party/zlib"
-                ],
-                [
-                    "../glib",
+                    "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
                 ],
+                [
+                    "external/gfxstream+",
+                    "${workspaceFolder}/hardware/google/gfxstream"
+                ],
+                [
+                    "external/+_repo_rules3+pixman",
+                    "${workspaceFolder}/third_party/pixman"
+                ],
+                [
+                    "external/+_repo_rules3+com_google_crashpad",
+                    "${workspaceFolder}/third_party/crashpad"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_android_base",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_common",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
+                ],
+                [
+                    "external/aemu+",
+                    "${workspaceFolder}/hardware/google/aemu"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator",
+                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
+                ]
             ],
             "preLaunchTask": "aemu: Build emulator with asan",
             "stopOnEntry": false,
@@ -161,7 +169,7 @@
             // binary. If you want to debug BUILD target
             // `//path/to:my_test`, the path to your binary will be
             // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin//hardware/generic/goldfish/android/event-support/event-support-test",
+            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/modem_simulator/goldfish_modem_simulator_unittest",
             // Set any program arguments here.
             "args": [
                 // "--gtest_filter=SensorDeviceTest.*",
@@ -192,35 +200,39 @@
                 // you will have to add them here, or else symbols will
                 // not be found.
                 [
-                    "../com_google_absl",
-                    "${workspaceFolder}/third_party/abseil-cpp"
-                ],
-                [
-                    "../com_google_googletest",
-                    "${workspaceFolder}/third_party/googletest"
-                ],
-                [
-                    "../tink_cc",
-                    "${workspaceFolder}/third_party/tink"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/third_party/protobuf"
-                ],
-                [
-                    "../boringssl",
-                    "${workspaceFolder}/third_party/boringssl/src"
-                ],
-                [
-                    "../zlib",
-                    "${workspaceFolder}/third_party/zlib"
-                ],
-                [
-                    "../glib",
+                    "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
                 ],
+                [
+                    "external/gfxstream+",
+                    "${workspaceFolder}/hardware/google/gfxstream"
+                ],
+                [
+                    "external/+_repo_rules3+pixman",
+                    "${workspaceFolder}/third_party/pixman"
+                ],
+                [
+                    "external/+_repo_rules3+com_google_crashpad",
+                    "${workspaceFolder}/third_party/crashpad"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_android_base",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_common",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
+                ],
+                [
+                    "external/aemu+",
+                    "${workspaceFolder}/hardware/google/aemu"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator",
+                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
+                ]
             ],
-            "preLaunchTask": "aemu: Build emulator test suite",
+            // "preLaunchTask": "aemu: Build emulator test suite",
             "stopOnEntry": false,
         },
         {
@@ -242,41 +254,14 @@
                 // that we are using. If new repositories are introduced
                 // you will have to add them here, or else symbols will
                 // not be found.
-                [
-                    "../com_google_absl",
-                    "${workspaceFolder}/third_party/abseil-cpp"
-                ],
-                [
-                    "../com_google_googletest",
-                    "${workspaceFolder}/third_party/googletest"
-                ],
-                [
-                    "../tink_cc",
-                    "${workspaceFolder}/third_party/tink"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/third_party/protobuf"
-                ],
-                [
-                    "../boringssl",
-                    "${workspaceFolder}/third_party/boringssl/src"
-                ],
-                [
-                    "../zlib",
-                    "${workspaceFolder}/third_party/zlib"
-                ],
-                [
-                    "../glib",
-                    "${workspaceFolder}/third_party/glib"
-                ],
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
                 "pro hand -p true -s false SIGUSR1",
                 "pro hand -p true -s false SIGUSR2"
             ]
-        },{
+        },
+        {
             "type": "lldb-dap",
             "request": "attach",
             "name": "Attach to next (goldfish)",
@@ -295,33 +280,37 @@
                 // you will have to add them here, or else symbols will
                 // not be found.
                 [
-                    "../com_google_absl",
-                    "${workspaceFolder}/third_party/abseil-cpp"
-                ],
-                [
-                    "../com_google_googletest",
-                    "${workspaceFolder}/third_party/googletest"
-                ],
-                [
-                    "../tink_cc",
-                    "${workspaceFolder}/third_party/tink"
-                ],
-                [
-                    "../com_google_protobuf",
-                    "${workspaceFolder}/third_party/protobuf"
-                ],
-                [
-                    "../boringssl",
-                    "${workspaceFolder}/third_party/boringssl/src"
-                ],
-                [
-                    "../zlib",
-                    "${workspaceFolder}/third_party/zlib"
-                ],
-                [
-                    "../glib",
+                    "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
                 ],
+                [
+                    "external/gfxstream+",
+                    "${workspaceFolder}/hardware/google/gfxstream"
+                ],
+                [
+                    "external/+_repo_rules3+pixman",
+                    "${workspaceFolder}/third_party/pixman"
+                ],
+                [
+                    "external/+_repo_rules3+com_google_crashpad",
+                    "${workspaceFolder}/third_party/crashpad"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_android_base",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_common",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
+                ],
+                [
+                    "external/aemu+",
+                    "${workspaceFolder}/hardware/google/aemu"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator",
+                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
+                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
