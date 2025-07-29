@@ -48,11 +48,17 @@ struct DynamicLibrary {
  private:
 #if defined(_WIN32)
   struct HandleDeleter {
+    struct Empty {};
+    HandleDeleter() = default;
+    HandleDeleter(Empty) {}
     void operator()(HMODULE) const;
   };
   using LibraryHandle = goldfish::base::UniqueHandle<HMODULE, nullptr, HandleDeleter>;
 #else
   struct HandleDeleter {
+    struct Empty {};
+    HandleDeleter() = default;
+    HandleDeleter(Empty) {}
     void operator()(void*) const;
   };
   using LibraryHandle = goldfish::base::UniqueHandle<void*, nullptr, HandleDeleter>;
