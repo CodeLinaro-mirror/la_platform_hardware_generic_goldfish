@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -272,21 +272,20 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
 
-    auto scoped = android::emulation::control::makeScopedCallback<PhysicalModel,
-                                                                  PhysicalModelChangeEvent>(
+    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                    case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
-                        physicalStateChanging = true;
-                        break;
-                    case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
-                        physicalStateChanging = false;
-                        break;
-                    case PhysicalModelChangeEvent::Type::TargetStateChanged:
-                        targetStateChanged = true;
-                        break;
-                    default:
-                        break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                    physicalStateChanging = true;
+                    break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                    physicalStateChanging = false;
+                    break;
+                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                    targetStateChanged = true;
+                    break;
+                default:
+                    break;
                 }
             });
 
@@ -345,21 +344,20 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::emulation::control::makeScopedCallback<PhysicalModel,
-                                                                  PhysicalModelChangeEvent>(
+    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                    case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
-                        physicalStateChanging = true;
-                        break;
-                    case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
-                        physicalStateChanging = false;
-                        break;
-                    case PhysicalModelChangeEvent::Type::TargetStateChanged:
-                        targetStateChanged = true;
-                        break;
-                    default:
-                        break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                    physicalStateChanging = true;
+                    break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                    physicalStateChanging = false;
+                    break;
+                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                    targetStateChanged = true;
+                    break;
+                default:
+                    break;
                 }
             });
 
@@ -423,21 +421,20 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::emulation::control::makeScopedCallback<PhysicalModel,
-                                                                  PhysicalModelChangeEvent>(
+    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                    case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
-                        physicalStateChanging = true;
-                        break;
-                    case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
-                        physicalStateChanging = false;
-                        break;
-                    case PhysicalModelChangeEvent::Type::TargetStateChanged:
-                        targetStateChanged = true;
-                        break;
-                    default:
-                        break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                    physicalStateChanging = true;
+                    break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                    physicalStateChanging = false;
+                    break;
+                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                    targetStateChanged = true;
+                    break;
+                default:
+                    break;
                 }
             });
 
@@ -525,21 +522,20 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
     bool targetStateChanged = false;
     bool physicalStateChanging = false;
-    auto scoped = android::emulation::control::makeScopedCallback<PhysicalModel,
-                                                                  PhysicalModelChangeEvent>(
+    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                    case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
-                        physicalStateChanging = true;
-                        break;
-                    case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
-                        physicalStateChanging = false;
-                        break;
-                    case PhysicalModelChangeEvent::Type::TargetStateChanged:
-                        targetStateChanged = true;
-                        break;
-                    default:
-                        break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                    physicalStateChanging = true;
+                    break;
+                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                    physicalStateChanging = false;
+                    break;
+                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                    targetStateChanged = true;
+                    break;
+                default:
+                    break;
                 }
             });
 

@@ -20,8 +20,8 @@
 #include "grpcpp/grpcpp.h"
 
 #include "aemu/base/Tracing.h"
+#include "aemu/base/events/EventWaiter.h"
 #include "android/base/system/System.h"
-#include "android/emulation/control/utils/EventWaiter.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
@@ -31,6 +31,8 @@ namespace android {
 namespace emulation {
 namespace control {
 
+using android::base::EventWaiter;
+using android::base::GenericMultiEventWaiter;
 using android::goldfish::FrameInfo;
 using android::goldfish::IDisplay;
 using android::goldfish::IMultiDisplay;
@@ -66,18 +68,18 @@ std::tuple<int, int> resizeKeepAspectRatio(double width, double height, double d
 ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     ProtoRotation protoRotation;
     switch (rotation.rotation) {
-        case DeviceSkinRotation::PORTRAIT:
-            protoRotation.set_rotation(ProtoRotation::PORTRAIT);
-            break;
-        case DeviceSkinRotation::LANDSCAPE:
-            protoRotation.set_rotation(ProtoRotation::LANDSCAPE);
-            break;
-        case DeviceSkinRotation::REVERSE_PORTRAIT:
-            protoRotation.set_rotation(ProtoRotation::REVERSE_PORTRAIT);
-            break;
-        case DeviceSkinRotation::REVERSE_LANDSCAPE:
-            protoRotation.set_rotation(ProtoRotation::REVERSE_LANDSCAPE);
-            break;
+    case DeviceSkinRotation::PORTRAIT:
+        protoRotation.set_rotation(ProtoRotation::PORTRAIT);
+        break;
+    case DeviceSkinRotation::LANDSCAPE:
+        protoRotation.set_rotation(ProtoRotation::LANDSCAPE);
+        break;
+    case DeviceSkinRotation::REVERSE_PORTRAIT:
+        protoRotation.set_rotation(ProtoRotation::REVERSE_PORTRAIT);
+        break;
+    case DeviceSkinRotation::REVERSE_LANDSCAPE:
+        protoRotation.set_rotation(ProtoRotation::REVERSE_LANDSCAPE);
+        break;
     }
 
     protoRotation.set_xaxis(static_cast<double>(rotation.xAxis));
@@ -165,14 +167,14 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
 PixelFormat fromProtobuf(const ImageFormat_ImgFormat format) {
     switch (format) {
-        case ImageFormat::RGB888:
-            return PixelFormat::RGB888;
-        case ImageFormat::RGBA8888:
-            return PixelFormat::RGBA8888;
-        case ImageFormat::PNG:
-            return PixelFormat::PNG;
-        default:
-            return PixelFormat::RGB888;
+    case ImageFormat::RGB888:
+        return PixelFormat::RGB888;
+    case ImageFormat::RGBA8888:
+        return PixelFormat::RGBA8888;
+    case ImageFormat::PNG:
+        return PixelFormat::PNG;
+    default:
+        return PixelFormat::RGB888;
     }
 }
 

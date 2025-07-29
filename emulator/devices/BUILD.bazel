@@ -102,8 +102,8 @@ cc_library(
     ],
     deps = [
         ":devices",
-        "//hardware/generic/goldfish/android/event-support",
         "@aemu//base:aemu-base",
+        "@aemu//base:event-support",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",

@@ -70,9 +70,8 @@ TEST_F(GuestStatusDeviceTest, canCreateDevice) {
 TEST_F(GuestStatusDeviceTest, heartbeatSendsAnEvent) {
     auto start = device->heartbeat();
     AndroidGuestStatus received;
-    auto scoped =
-            android::emulation::control::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
-                    *device, [&received](AndroidGuestStatus event) { received = event; });
+    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+            *device, [&received](AndroidGuestStatus event) { received = event; });
     receive("heartbeat");
     EXPECT_THAT(received.heartbeat(), Eq(start + 1));
 }
@@ -88,9 +87,8 @@ TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
 TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
     TestSystem test("/");
     AndroidGuestStatus received;
-    auto scoped =
-            android::emulation::control::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
-                    *device, [&received](AndroidGuestStatus event) { received = event; });
+    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+            *device, [&received](AndroidGuestStatus event) { received = event; });
 
     test.setProcessTimes({
             .userMs = 1,
@@ -129,9 +127,8 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
 TEST_F(GuestStatusDeviceTest, firesResetEvent) {
     AndroidGuestStatus received;
-    auto scoped =
-            android::emulation::control::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
-                    *device, [&received](AndroidGuestStatus event) { received = event; });
+    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+            *device, [&received](AndroidGuestStatus event) { received = event; });
 
     receive("bootcompleted");
 

@@ -17,14 +17,14 @@
 
 #include "absl/status/status.h"
 
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::gps {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;

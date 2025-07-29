@@ -240,7 +240,6 @@ test_suite(
     name = "emulator_unit_tests",
     tests = [
         "//hardware/generic/goldfish/android:emulator_android_tests",
-        "//hardware/generic/goldfish/android/event-support:event-support-test",
         "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
         "//hardware/generic/goldfish/emulator/adb/logger:logger_unitests",
         "//hardware/generic/goldfish/emulator/cmdline:cmdline_unittests",

@@ -17,15 +17,15 @@
 #include <unordered_map>
 
 #include "BootPropertyString.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/boot/BootPropertyString.h"
-#include "android/emulation/control/utils/CallbackEventSupport.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::boot {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
 using goldfish::devices::BootPropertyString;
 using goldfish::devices::LimitedString;
 using goldfish::devices::cable::IPlug;

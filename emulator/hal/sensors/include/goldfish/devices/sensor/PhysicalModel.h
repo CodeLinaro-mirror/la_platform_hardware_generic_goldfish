@@ -17,10 +17,11 @@
 
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
+
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/sensor/Foldable.h"
 #include "goldfish/devices/sensor/FoldableModel.h"
@@ -32,8 +33,8 @@
 
 namespace goldfish::devices::sensor {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
 
 using ::goldfish::physics::AmbientEnvironment;
 using ::goldfish::physics::BodyModel;

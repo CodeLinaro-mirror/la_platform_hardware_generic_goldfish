@@ -21,12 +21,12 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 
 namespace android::goldfish {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
 
 struct pixman_image_t;
 struct InputEvent;

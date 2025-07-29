@@ -15,8 +15,8 @@
 
 #include "absl/log/log.h"
 
+#include "aemu/base/events/EventSupport.h"
 #include "android/clipboard/ClipboardDevice.h"
-#include "android/emulation/control/utils/EventSupport.h"
 
 namespace android {
 namespace emulation {

@@ -19,7 +19,7 @@
 
 #include "google/protobuf/util/message_differencer.h"
 
-#include "android/emulation/control/utils/EventSupport.h"
+#include "aemu/base/events/EventSupport.h"
 #include "android/grpc/utils/SimpleAsyncGrpc.h"
 
 #define DEBUG_EVT 0
@@ -33,6 +33,10 @@
 namespace android {
 namespace emulation {
 namespace control {
+
+using android::base::EventChangeSupport;
+using android::base::EventListener;
+using android::base::GenericEventHandler;
 
 /**
  * BaseEventStreamWriter is a class for writing events of type T to a gRPC

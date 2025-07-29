@@ -21,10 +21,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:qemud",
+        "@aemu//base:event-support",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
     ],
