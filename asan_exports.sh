@@ -12,7 +12,9 @@ sourced_file_path="${BASH_SOURCE[0]:-${(%):-%x}}"
 sourced_dir=$(dirname $sourced_file_path)
 script_dir=$(realpath "$sourced_dir")
 
-suppressions=$(realpath $script_dir/leak_suppressions.txt)
+asan_suppressions=$(realpath $script_dir/leak_suppressions.txt)
+tsan_suppressions=$(realpath $script_dir/tsan_suppressions.txt)
+
 
 AOSP_ROOT=$(realpath $script_dir/../../../)
 
@@ -58,4 +60,5 @@ fi
 
 export ASAN_OPTIONS=detect_odr_violation=0
 export ASAN_SYMBOLIZER_PATH=$symbolizer
-export LSAN_OPTIONS=suppressions=$suppressions
+export LSAN_OPTIONS=suppressions=$asan_suppressions
+export TSAN_OPTIONS=second_deadlock_stack=1,suppressions=$tsan_suppressions
