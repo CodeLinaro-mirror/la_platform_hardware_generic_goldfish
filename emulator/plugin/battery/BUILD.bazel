@@ -19,7 +19,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//third_party/qemu:libmodule-common",
         "//third_party/qemu:qemu-headers",
     ],
     alwayslink = True,

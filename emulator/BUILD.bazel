@@ -94,18 +94,14 @@ qemu_binaries = [
 })
 
 plugin_binaries = [
-    "//third_party/qemu:hw-display-virtio-gpu",
-    "//third_party/qemu:hw-display-virtio-gpu-pci",
-    "//third_party/qemu:hw-display-virtio-gpu-pci-rutabaga",
-    "//third_party/qemu:hw-display-virtio-gpu-rutabaga",
-    "//third_party/qemu:hw-display-virtio-vga",
     "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
     "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
     "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
     "@crosvm//:rutabaga_ffi",
 ] + select({
     "@platforms//os:linux": [
-        "//third_party/qemu:audio-pa",
+        # TODO(b/434942959,whollins): Re-add this.
+        #"@gcc_lib//:libpulse",
     ],
     "//conditions:default": [],
 })

@@ -34,7 +34,6 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/hal/camera:gralloc_details",
         "//hardware/generic/goldfish/emulator/libs/parsing",
-        "//third_party/qemu:libmodule-common",
         "//third_party/qemu:qemu-headers",
         "@crosvm//:rutabaga_c_ffi",
         "@pixman//:pixman-1",
@@ -62,7 +61,6 @@ cc_library(
         "//hardware/generic/goldfish/android/threads",
         "//hardware/generic/goldfish/emulator/adb/logger",
         "//hardware/generic/goldfish/emulator/config",
-        "//third_party/qemu:libmodule-common",
         "//third_party/qemu:qemu-headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
