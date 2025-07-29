@@ -39,7 +39,6 @@ cc_library(
         "//hardware/generic/goldfish/emulator/libs/debug",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//hardware/generic/goldfish/emulator/plugin/avd:qemu-looper",
-        "//third_party/qemu:libmodule-common",
         "//third_party/qemu:qemu-headers",
     ],
     alwayslink = True,
