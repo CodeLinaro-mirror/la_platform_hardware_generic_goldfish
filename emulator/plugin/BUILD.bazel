@@ -13,9 +13,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         "//hardware/generic/goldfish/emulator/plugin/avd",
         "//hardware/generic/goldfish/emulator/plugin/battery",
         "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
+        "//third_party/qemu:aemu_func_defs",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
     ] + select({
         "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
             "//third_party/qemu:qemu-system-" + arch + ".if",
             # TODO(b/410075886): Enable grpc plugin on windows.
             # "//hardware/generic/goldfish/emulator/plugin/grpc",
@@ -23,7 +25,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         "@platforms//os:macos": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
         "@platforms//os:linux": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
         "//conditions:default": [],
-    }),
+    }) + [
+        # crashreport dep must go after the windows compat dep.
+        # buildifier: leave-alone
+        "//hardware/generic/goldfish/emulator/crashreport:init",
+    ],
 ) for arch in [
     "riscv64",
     "aarch64",

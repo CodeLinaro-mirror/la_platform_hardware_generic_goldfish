@@ -164,14 +164,13 @@ static void grpc_class_init(ObjectClass* oc, void* data) {
     dc->unrealize = grpc_unrealize;
 }
 
-static const TypeInfo grpc_type_info[] = {{
+static const TypeInfo grpc_type_info = {
         .name = TYPE_GRPC,
         .parent = TYPE_DEVICE,
         .instance_size = sizeof(GrpcDev),
         .class_init = grpc_class_init,
-}};
+};
 
 void grpc_register_types(void) {
     type_register_static(&grpc_type_info);
 }
-//DEFINE_TYPES(grpc_type_info)

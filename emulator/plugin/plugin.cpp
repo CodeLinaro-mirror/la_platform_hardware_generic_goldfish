@@ -24,7 +24,12 @@
 #include "goldfish/grpc/grpc-service-device.h"
 #endif
 
-extern "C" void goldfish_register_types(void) {
+ // library and initialize the crashpad crash engine upon launch.
+#include "android/crashreport/crash-initializer.h"
+
+#include "google/system/aemu_func_defs.h"
+
+extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish_battery_register_types();
     vsock_port_fwd_register_types();
     vsock_low_level_register_types();
@@ -35,4 +40,11 @@ extern "C" void goldfish_register_types(void) {
 #ifndef _WIN32
     grpc_register_types();
 #endif
+}
+
+extern "C" void GF_STARTUP_FUNC(int argc, char **argv) {
+  crashhandler_init(argc, argv);
+}
+
+extern "C" void GF_SHUTDOWN_FUNC(void) {
 }
