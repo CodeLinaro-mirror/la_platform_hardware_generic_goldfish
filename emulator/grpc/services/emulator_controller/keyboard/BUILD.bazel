@@ -35,12 +35,11 @@ cc_test(
         ":keyboard",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/logging:backend",
+        "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service",
-        # "//third_party/qemu:libcommon",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
-        "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

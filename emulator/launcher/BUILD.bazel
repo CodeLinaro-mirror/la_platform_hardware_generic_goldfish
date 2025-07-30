@@ -141,11 +141,15 @@ collect_plugins(
     name = "plugins",
     output_dir = "plugins",
     plugins = [
-        "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
-        "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
         "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
         "@crosvm//:rutabaga_ffi",
     ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
+            "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+        ],
+    }) + select({
         "darwin_aarch64": [
             "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
@@ -185,10 +189,14 @@ cc_binary(
         "//third_party/qemu:qemu-img",
         "//third_party/qemu:qemu-keymaps",
         "//third_party/qemu:qemu-roms",
-        "//third_party/qemu:qemu-system-aarch64",
-        "//third_party/qemu:qemu-system-riscv64",
         "//third_party/qemu:qemu-system-x86_64",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "//third_party/qemu:qemu-system-aarch64",
+            "//third_party/qemu:qemu-system-riscv64",
+        ],
+    }),
     includes = [
         ".",
         "include",
