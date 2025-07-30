@@ -20,15 +20,34 @@
                 "-vmodule",
                 "*=1",
             ],
-            // Set any environment values here, not you would likely want to keep at least these
-            "env": [
-                // We are pretending to be a bazel run..
-                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
-                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
-                // Disable crash reporting, the debugger will get very confused when we fork the crashpad_handler
-                // we want to debug qemu, not crashpad_handler.
-                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
-            ],
+            // OS specific settings
+            "osx": {
+                // Set any environment values here, not you would likely want to keep at least these
+                "env": [
+                    // We are pretending to be a bazel run..
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    // Asan configuration.
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r563880b/bin/llvm-symbolizer",
+                    // Disable crash reporting, the debugger could start tracking the crashpad-handler, which is usually not
+                    // what you want to debug.
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
+            "linux": {
+                "env": [
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r563880b/bin/llvm-symbolizer",
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
@@ -95,20 +114,28 @@
                 "-avd",
                 "V",
             ],
-            // Set any environment values here, not you would likely want to keep at least these
-            "env": [
-                // We are pretending to be a bazel run..
-                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
-                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
-                // Asan configuration.
-                "ASAN_OPTIONS=detect_odr_violation=0",
-                "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
-                // On darwin: ${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r536225/bin/llvm-symbolizer
-                "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer",
-                // Disable crash reporting, the debugger will get very confused when we fork the crashpad_handler
-                // we want to debug qemu, not crashpad_handler.
-                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
-            ],
+            "osx": {
+                "env": [
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r563880b/bin/llvm-symbolizer",
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
+            "linux": {
+                "env": [
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r563880b/bin/llvm-symbolizer",
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
@@ -116,10 +143,6 @@
                     "/proc/self/cwd",
                     "${workspaceFolder}",
                 ],
-                // Down below you will find all the "local_repositories"
-                // that we are using. If new repositories are introduced
-                // you will have to add them here, or else symbols will
-                // not be found.
                 [
                     "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
@@ -167,27 +190,36 @@
             "name": "Debug Unit Test",
             // Replace <path_to_your_binary> with the actual path to your
             // binary. If you want to debug BUILD target
-            // `//path/to:my_test`, the path to your binary will be
-            // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/modem_simulator/goldfish_modem_simulator_unittest",
+            // `//path/to:my_test`, you can run `bazel build //path/to:my_test`
+            // and bazel will report the location of your binary.
+            // `//path/to:my_test` is usually `${workspaceFolder}/bazel-bin/path/to/my_test`
+            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/hal/sensors/sensors_unittests",
             // Set any program arguments here.
             "args": [
                 // "--gtest_filter=SensorDeviceTest.*",
             ],
-            // Set any environment values here, not you would likely want to keep at least these
-            "env": [
-                // We are pretending to be a bazel run..
-                "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
-                "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
-                // Asan configuration.
-                "ASAN_OPTIONS=detect_odr_violation=0",
-                "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
-                // On darwin: ${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r536225/bin/llvm-symbolizer
-                "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r536225/bin/llvm-symbolizer",
-                // Disable crash reporting, the debugger could start tracking the crashpad-handler, which is usually not
-                // what you want to debug.
-                "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
-            ],
+            "osx": {
+                "env": [
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/darwin-x86/clang-r563880b/bin/llvm-symbolizer",
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
+            "linux": {
+                "env": [
+                    "BUILD_WORKSPACE_DIRECTORY=${workspaceFolder}",
+                    "BUILD_WORKING_DIRECTORY=${workspaceFolder}",
+                    "ASAN_OPTIONS=detect_odr_violation=0",
+                    "LSAN_OPTIONS=suppressions=${workspaceFolder}/hardware/generic/goldfish/leak_suppressions.txt",
+                    "TSAN_OPTIONS=second_deadlock_stack=1,suppressions=${workspaceFolder}/hardware/generic/goldfish/tsan_suppressions.txt",
+                    "ASAN_SYMBOLIZER_PATH=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-r563880b/bin/llvm-symbolizer",
+                    "ANDROID_EMU_ENABLE_CRASH_REPORTING=0"
+                ],
+            },
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
@@ -195,10 +227,6 @@
                     "/proc/self/cwd",
                     "${workspaceFolder}",
                 ],
-                // Down below you will find all the "local_repositories"
-                // that we are using. If new repositories are introduced
-                // you will have to add them here, or else symbols will
-                // not be found.
                 [
                     "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
@@ -250,10 +278,38 @@
                     "/proc/self/cwd",
                     "${workspaceFolder}",
                 ],
-                // Down below you will find all the "local_repositories"
-                // that we are using. If new repositories are introduced
-                // you will have to add them here, or else symbols will
-                // not be found.
+                [
+                    "external/+_repo_rules3+glib",
+                    "${workspaceFolder}/third_party/glib"
+                ],
+                [
+                    "external/gfxstream+",
+                    "${workspaceFolder}/hardware/google/gfxstream"
+                ],
+                [
+                    "external/+_repo_rules3+pixman",
+                    "${workspaceFolder}/third_party/pixman"
+                ],
+                [
+                    "external/+_repo_rules3+com_google_crashpad",
+                    "${workspaceFolder}/third_party/crashpad"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_android_base",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator_common",
+                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
+                ],
+                [
+                    "external/aemu+",
+                    "${workspaceFolder}/hardware/google/aemu"
+                ],
+                [
+                    "external/+_repo_rules2+modem_simulator",
+                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
+                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
@@ -275,10 +331,6 @@
                     "/proc/self/cwd",
                     "${workspaceFolder}",
                 ],
-                // Down below you will find all the "local_repositories"
-                // that we are using. If new repositories are introduced
-                // you will have to add them here, or else symbols will
-                // not be found.
                 [
                     "external/+_repo_rules3+glib",
                     "${workspaceFolder}/third_party/glib"
