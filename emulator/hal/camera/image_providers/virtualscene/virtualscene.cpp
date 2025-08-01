@@ -15,74 +15,14 @@
 
 #include "android/camera/image_providers/virtualscene.h"
 
-#include <cassert>
-
-#include "absl/log/log.h"
-
+#include "VirtualsceneImageProvider.h"
 #include "android/camera/ImageProviderCppAdapter.h"
 
 using goldfish::devices::camera::ImageProviderCppAdapter;
 
-namespace {
+namespace goldfish::camera_image_providers::virtualscene {
 
-struct VirtualsceneImageProvider {
-    VirtualsceneImageProvider(const CameraImageProviderInfo& info) {}
-
-    const char* getId() const { return "virtualscene"; }
-
-    int start(const CameraImageProviderStreamConfig* s, unsigned n) {
-        VLOG(1) << getId() << ":  start {";
-        for (; n > 0; --n, ++s) {
-            VLOG(1) << "    { id=" << s->id << " format=" << s->format << " size=" << s->size.width
-                    << "x" << s->size.height << " }";
-        }
-        VLOG(1) << "}";
-        return 0;
-    }
-
-    int capture(const CameraImageProviderCaptureOpts& opts,
-                const CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
-                const CameraImageProviderStreamCaptureInfo* sci, unsigned scin) {
-        for (; scin > 0; --scin, ++sci) {
-            const CameraImageProviderStreamConfig& cfg = *sci->cfg;
-            if (cfg.format == 1) {
-                const size_t width = cfg.size.width;
-                const size_t height = cfg.size.height;
-                std::vector<uint32_t> bitmap(width * height);
-
-                uint32_t* p = bitmap.data();
-                /*
-                 * Produce a checkerboadr pattern of FF00FF00U and FF600060
-                 * RGBA colors (the highest FF bits are the A component) with
-                 * quares of (1 << 7) pixels: ((x >> 7) & 1) ^ ((y >> 7) & 1).
-                 */
-                for (size_t y = 0; y < height; ++y) {
-                    for (size_t x = 0; x < width; ++x, ++p) {
-                        *p = (((x ^ y) >> 7) & 1) ? 0xFF00FF00U : 0xFF600060U;
-                    }
-                }
-
-                sink(sinkOpaque, sci, bitmap.data(), bitmap.size() * sizeof(uint32_t));
-            }
-        }
-
-        return 0;
-    }
-
-    void stop() { VLOG(1) << getId() << ":  stop"; }
-
-    static void* create(const CameraImageProviderInfo& info) {
-        return new VirtualsceneImageProvider(info);
-    }
-};
-
-}  // namespace
-
-void createArgDctor(void* arg) {
-    assert(!arg);
-}
-
-int getVirtualsceneImageProviderInfo(CameraImageProviderInfo* dst, const unsigned isBackFacing) {
+int getImageProviderInfo(CameraImageProviderInfo* dst, const bool isBackFacing) {
     static const CameraImageProviderRect supportedFrameSizes[] = {
         {
             .width = 640,
@@ -112,7 +52,7 @@ int getVirtualsceneImageProviderInfo(CameraImageProviderInfo* dst, const unsigne
 
     static const CameraImageProviderInfoVtbl vtbl = {
         .create = &ImageProviderCppAdapter<VirtualsceneImageProvider>::create,
-        .createArgDctor = &createArgDctor,
+        .createArgDctor = nullptr,
     };
 
     *dst = (CameraImageProviderInfo){
@@ -126,3 +66,5 @@ int getVirtualsceneImageProviderInfo(CameraImageProviderInfo* dst, const unsigne
 
     return 0;
 }
+
+}  // namespace goldfish::camera_image_providers::virtualscene

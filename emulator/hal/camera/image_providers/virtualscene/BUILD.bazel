@@ -3,6 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "virtualscene",
     srcs = [
+        "VirtualsceneImageProvider.cpp",
+        "VirtualsceneImageProvider.h",
         "virtualscene.cpp",
     ],
     hdrs = [

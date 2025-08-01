@@ -49,6 +49,8 @@ namespace {
 bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
                           const std::string_view id, const std::string_view params,
                           const bool isBackFacing, CameraImageProviderRegistry& webcamRegistry) {
+    namespace cip = goldfish::camera_image_providers;
+
     CameraImageProviderInfo info;
 
     switch (source) {
@@ -68,7 +70,7 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
         return false;
 
     case CameraImageSource::VIRTUALSCENE:
-        if (getVirtualsceneImageProviderInfo(&info, isBackFacing ? 1 : 0)) {
+        if (cip::virtualscene::getImageProviderInfo(&info, isBackFacing)) {
             return false;
         }
         break;

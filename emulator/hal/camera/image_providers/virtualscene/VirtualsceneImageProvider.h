@@ -19,6 +19,17 @@
 
 namespace goldfish::camera_image_providers::virtualscene {
 
-int getImageProviderInfo(CameraImageProviderInfo* dst, bool isBackFacing);
+struct VirtualsceneImageProvider {
+  VirtualsceneImageProvider() = default;
+
+  const char* getId() const;
+  int start(const CameraImageProviderStreamConfig* s, unsigned n);
+  int capture(const CameraImageProviderCaptureOpts& opts,
+              const CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
+              const CameraImageProviderStreamCaptureInfo* sci, unsigned scin);
+  void stop();
+
+  static void* create(const CameraImageProviderInfo& info);
+};
 
 }  // namespace goldfish::camera_image_providers::virtualscene
