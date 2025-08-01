@@ -15,9 +15,6 @@
 
 #include <android/base/system/storage_capacity.h>
 
-#include "absl/status/status.h"
-#include "absl/strings/match.h"
-
 #include "aemu/base/files/IniFile.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
@@ -54,11 +51,6 @@ void HardwareConfig::applyDefaults(Avd* avd) {
     }
     if (android_avd_home.empty()) {
         android_avd_home = ConfigDirs::getAvdRootDirectory().string();
-    }
-
-    auto img = avd->getImageFilePath(Avd::ImageType::ENCRYPTIONKEY);
-    if (disk_encryptionKeyPartition_path.empty() && img.ok()) {
-        disk_encryptionKeyPartition_path = img->string();
     }
 
     /* Bug: 307296354
@@ -102,8 +94,9 @@ void HardwareConfig::applyDefaults(Avd* avd) {
             avd->getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).value_or(fs::path()).string();
 
     if (disk_encryptionKeyPartition_path.empty() && !disk_dataPartition_path.empty()) {
-        disk_encryptionKeyPartition_path =
-                (fs::path(disk_dataPartition_path).parent_path() / "encryptionkey.img").string();
+        disk_encryptionKeyPartition_path = (fs::path(disk_dataPartition_path).parent_path() /
+                                            Avd::getImageFilename(Avd::ImageType::ENCRYPTIONKEY))
+                                                   .string();
     }
 
     hw_sdCard_path =

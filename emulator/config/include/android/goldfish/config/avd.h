@@ -243,7 +243,8 @@ class Avd {
      *         constructed AVD. On failure, contains an error status.
      */
     static absl::StatusOr<std::unique_ptr<Avd>> fromName(std::string name,
-                                                         std::string sysdir_override = "");
+                                                         std::string sysdir_override = "",
+                                                         bool read_only = false);
 
     static constexpr int kUnknownApiLevel = 1000;
 
@@ -273,11 +274,13 @@ class FileBackedAvd : public Avd {
     }
 
     static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(fs::path ini_file,
-                                                                std::string sysdir_override = "");
+                                                                std::string sysdir_override = "",
+                                                                bool read_only = false);
 
-  private:
+   private:
     FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
-                  std::unique_ptr<IniFile> config, std::string name, std::string sysdir_override);
+                  std::unique_ptr<IniFile> config, std::string name, std::string sysdir_override,
+                  bool read_only);
 
     std::string mName;
     fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/

@@ -23,19 +23,18 @@
 #include "android/goldfish/config/emulator.h"
 
 namespace android::goldfish {
+
 absl::Status SDCardDrive::initialize(const Emulator& emulator) {
     if (exists()) {
         return absl::OkStatus();
     }
 
     auto hw = emulator.avd().hw();
-
-    if (!fs::exists(hw.hw_sdCard_path)) {
-        auto status = createExt4Image(hw.hw_sdCard_path, hw.hw_sdCard_size, "sdcard");
-        if (!status.ok()) {
-            return status;
-        }
+    auto status = createExt4Image(hw.hw_sdCard_path, hw.hw_sdCard_size, "sdcard");
+    if (!status.ok()) {
+        return status;
     }
     return convertImgToQcow2(hw.hw_sdCard_path);
 }
+
 }  // namespace android::goldfish

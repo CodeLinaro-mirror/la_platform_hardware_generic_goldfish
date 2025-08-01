@@ -15,17 +15,18 @@
 // limitations under the License.
 #pragma once
 #include "absl/status/status.h"
-
+#include "absl/strings/str_cat.h"
 #include "disk_drive.h"
 
 namespace android::goldfish {
 
 class EncryptionDrive : public MutableDiskDrive {
   public:
-    explicit EncryptionDrive() : MutableDiskDrive("encrypt", "06.0") {
-        mDiskId = "encrypt";
-    }
-    absl::Status initialize(const Emulator& emulator) override;
+   explicit EncryptionDrive(const HardwareConfig& hw) : MutableDiskDrive("encrypt", "06.0") {
+     mDiskId = "encrypt";
+     mDiskImage = fs::path(hw.disk_encryptionKeyPartition_path).concat(".qcow2");
+   }
+   absl::Status initialize(const Emulator& emulator) override;
 };
 
 }  // namespace android::goldfish

@@ -16,49 +16,26 @@
 #include "encryption_drive.h"
 
 #include <filesystem>
-#include <string_view>
 
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
+#include "aemu/base/utils/status_macros.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "aemu/base/utils/status_macros.h"
 
 namespace android::goldfish {
+
 absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
     if (exists()) {
         return absl::OkStatus();
     }
 
+    ASSIGN_OR_RETURN(auto init_encryptionkey_img_path,
+                     emulator.avd().getSystemImageFilePath(Avd::ImageType::ENCRYPTIONKEY));
+
     auto hw = emulator.avd().hw();
-
-    fs::path userdata_dir = fs::path(hw.disk_dataPartition_path).parent_path();
-    if (!fs::exists(userdata_dir)) {
-        return absl::NotFoundError(
-                "No user data directory was found. Make sure you are configuring the "
-                "encryption drive after setting up the user data drive.");
-    }
-
-    hw.disk_encryptionKeyPartition_path = (userdata_dir / "encryptionkey.img").string();
-    if (!fs::exists(hw.disk_systemPartition_initPath)) {
-        return absl::NotFoundError(
-                absl::StrFormat("Init path '%s' not found", hw.disk_systemPartition_initPath));
-    }
-
-    auto sysimage_dir = fs::path(hw.disk_systemPartition_initPath).parent_path();
-    if (!fs::exists(sysimage_dir)) {
-        return absl::NotFoundError(
-                absl::StrCat("System image directory not found: ", sysimage_dir.string()));
-    }
-
-    auto init_encryptionkey_img_path = sysimage_dir / "encryptionkey.img";
-    if (!fs::exists(init_encryptionkey_img_path)) {
-        return absl::NotFoundError(absl::StrFormat("System encryption key image not found in: %s",
-                                                   sysimage_dir.string()));
-    }
     if (!fs::exists(hw.disk_encryptionKeyPartition_path)) {
         fs::copy_options options = fs::copy_options::overwrite_existing;
         fs::copy(init_encryptionkey_img_path, hw.disk_encryptionKeyPartition_path, options);
@@ -68,14 +45,9 @@ absl::Status EncryptionDrive::initialize(const Emulator& emulator) {
                                                        init_encryptionkey_img_path.string(),
                                                        hw.disk_encryptionKeyPartition_path));
         }
-
-        RETURN_IF_ERROR(convertImgToQcow2(hw.disk_encryptionKeyPartition_path));
     }
 
-    mDiskImage = fs::path(hw.disk_encryptionKeyPartition_path);
-    mDiskImage.replace_extension(".img.qcow2");
-
-    return absl::OkStatus();
+    return convertImgToQcow2(hw.disk_encryptionKeyPartition_path);
 }
 
 }  // namespace android::goldfish

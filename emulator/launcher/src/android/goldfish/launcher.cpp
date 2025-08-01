@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     }
 
     auto name = opts.avd;
-    auto avd = Avd::fromName(name, opts.sysdir ? opts.sysdir : "");
+    auto avd = Avd::fromName(name, opts.sysdir ? opts.sysdir : "", opts.read_only);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return -1;
