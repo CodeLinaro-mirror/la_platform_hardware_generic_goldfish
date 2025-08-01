@@ -116,6 +116,7 @@ test_suite(
     tests = [
         ":bootconfig_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:cpu_device_test",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:grpc_device_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:kernel_device_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:machine_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:network_device_test",

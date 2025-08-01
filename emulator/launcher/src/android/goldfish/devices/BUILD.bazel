@@ -69,12 +69,28 @@ cc_library(
     name = "grpc_device",
     srcs = ["grpc_device.cpp"],
     hdrs = ["grpc_device.h"],
+    data = ["//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "grpc_device_test",
+    srcs = ["grpc_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":grpc_device",
+        ":mock_avd",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",
     ],
 )

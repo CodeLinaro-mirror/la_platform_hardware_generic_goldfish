@@ -30,6 +30,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
@@ -101,10 +102,36 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
                                        vmodules, pluginLogLevel)});
 
     if (mOpts.qemu_telnet) {
-      // Debug monitor
-      addDevice<ParameterList>(std::initializer_list < std::string > {
-          "-monitor", "telnet::15454,server,nowait",
-      });
+        // Debug monitor
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-monitor",
+            "telnet::15454,server,nowait",
+        });
+    }
+
+    if (mOpts.no_vnc) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            // Or it could be "-display none"?
+            "-display",
+            "vnc=none,display=gpu0,head=0",
+        });
+    } else {
+#if defined(__linux__) || defined(__APPLE__)
+        // This ensures that only users on local box with read/write access to that path can access
+        // the VNC server. Ports can be forwarded with ssh.
+        // TODO(jansene):  we technically should force display=gpu0,head=0, to use proper qemu
+        // console routing. However it seems that the gpu0 is not yet ready at time of vnc
+        // registration.
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-display",
+            "vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0",
+        });
+        ABSL_LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
+        ABSL_LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc "
+                          "<remote-host>``";
+        ABSL_LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
+                          "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
+#endif
     }
 
     int adbPort = 5555;
@@ -142,22 +169,6 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
                 "-device", absl::StrFormat("virtio-input-android-pci,display=gpu0,head=%d", id)});
     }
 
-#if defined(__linux__) || defined(__APPLE__)
-    // This ensures that only users on local box with read/write access to that path can access the
-    // VNC server. Ports can be forwarded with ssh.
-    // TODO(jansene):  we technically should force display=gpu0,head=0, to use proper qemu console
-    // routing. However it seems that the gpu0 is not yet ready at time of vnc registration.
-    addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-display",
-            "vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0",
-    });
-    ABSL_LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
-    ABSL_LOG(INFO)
-            << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc <remote-host>``";
-    ABSL_LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
-                      "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
-#endif
-
     if (mOpts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         addDevice<ParameterList>(std::initializer_list<std::string>{
@@ -184,6 +195,10 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
 
     // This should always be the last device, as it will finalize android emulator initialization
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
+
+    if (mOpts.qemu) {
+        addDevice<ParameterList>(absl::StrSplit(mOpts.qemu, ' '));
+    }
 }
 
 void Emulator::clear() {

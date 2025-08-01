@@ -15,24 +15,32 @@
 
 #include <filesystem>
 #include <initializer_list>
-#include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
-#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
 
 using android::base::Bazel;
 using android::base::System;
-namespace fs = std::filesystem;
 
 namespace android::goldfish {
+
 absl::Status GrpcDevice::initialize(const Emulator& emulator) {
+    if (char* grpc = emulator.opts().grpc) {
+        if (int grpcPort; absl::SimpleAtoi(grpc, &grpcPort)) {
+            mPort = grpcPort;
+        } else {
+            LOG(WARNING) << "Failed to parse grpc port number: '" << grpc
+                         << "'. Using default port: " << mPort;
+        }
+    }
+
     return absl::OkStatus();
 }
 
@@ -49,8 +57,8 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const Emulator& emulator)
         LOG(WARNING) << "** Using development allow list, do not use in production **";
     }
 
-    std::string grpc_device = absl::StrFormat("grpc,port=%d,token=true,allowlist=%s", 8556,
-                                              System::pathAsString(allowlist));
+    std::string grpc_device =
+            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string());
 
     return {"-device", grpc_device, "-trace", "module_*"};
 }

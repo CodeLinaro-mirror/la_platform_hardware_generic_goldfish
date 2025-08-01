@@ -20,17 +20,16 @@
 #include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
-namespace fs = std::filesystem;
 
 // Configures the kernel for qemu.
 class GrpcDevice : public Device {
   public:
-    explicit GrpcDevice() : Device("grpc") {}
+   explicit GrpcDevice() : Device("grpc"), mPort(8556) {}
 
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+   absl::Status initialize(const Emulator& emulator) override;
+   std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
   private:
-    absl::StatusOr<fs::path> mDiskImage;
+   uint16_t mPort;
 };
 }  // namespace android::goldfish
