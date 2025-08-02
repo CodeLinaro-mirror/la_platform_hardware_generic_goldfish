@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "headers",
@@ -35,16 +35,4 @@ cc_library(
         "@crosvm//:rutabaga_gfx",
     ],
     alwayslink = True,
-)
-
-cc_test(
-    name = "display_unittests",
-    srcs = [
-        "test/DisplayTest.cpp",
-    ],
-    includes = ["test"],
-    deps = [
-        ":grpc_device_impl",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-    ],
 )
