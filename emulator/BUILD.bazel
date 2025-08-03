@@ -245,6 +245,8 @@ test_suite(
     name = "emulator_unit_tests",
     tests = [
         "//hardware/generic/goldfish/android:emulator_android_tests",
+        "//hardware/generic/goldfish/android/async:eventloop_unittests",
+        "//hardware/generic/goldfish/android/async:sockets_unittests",
         "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
         "//hardware/generic/goldfish/emulator/adb/logger:logger_unitests",
         "//hardware/generic/goldfish/emulator/cmdline:cmdline_unittests",

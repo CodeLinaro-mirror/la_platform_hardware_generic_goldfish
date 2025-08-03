@@ -1,4 +1,5 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "async_api",
@@ -9,6 +10,7 @@ cc_library(
         "include/goldfish/async/async_socket_utils.h",
         "include/goldfish/async/event_loop.h",
         "include/goldfish/async/scoped_async_resource.h",
+        "include/goldfish/async/threaded_event_loop.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -49,5 +51,91 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@libuv",
+    ],
+)
+
+cc_library(
+    name = "libuv_event_loop",
+    srcs = [
+        "src/libuv_event_loop.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/libuv_event_loop.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        ":async_impl",
+        ":uv_to_absl",
+        "@libuv",
+    ],
+)
+
+cc_test(
+    name = "eventloop_unittests",
+    size = "small",
+    srcs = [
+        "test/event_loop_test.cpp",
+    ],
+    copts = ["-Wno-unused-result"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":libuv_event_loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "libuv_sockets",
+    srcs = [
+        "src/libuv_impl.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/libuv_socket_factory.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        ":libuv_event_loop",
+        ":uv_to_absl",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@libuv",
+    ],
+)
+
+cc_test(
+    name = "sockets_unittests",
+    size = "small",
+    srcs = [
+        "test/async_socket_test.cpp",
+    ],
+    copts = ["-Wno-unused-result"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":libuv_sockets",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)
+
+cc_binary(
+    name = "sockets_perf",
+    srcs = ["test/bm_libuv_sockets.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-result",
+    ],
+    deps = [
+        ":libuv_sockets",
+        "@com_github_google_benchmark//:benchmark",
     ],
 )
