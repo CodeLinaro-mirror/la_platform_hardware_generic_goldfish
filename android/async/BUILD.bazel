@@ -1,0 +1,35 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "async_api",
+    hdrs = [
+        "include/goldfish/async/async_socket.h",
+        "include/goldfish/async/async_socket_factory.h",
+        "include/goldfish/async/async_socket_server.h",
+        "include/goldfish/async/async_socket_utils.h",
+        "include/goldfish/async/event_loop.h",
+        "include/goldfish/async/scoped_async_resource.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "async_impl",
+    srcs = [
+        "src/threaded_event_loop.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/threaded_event_loop.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
