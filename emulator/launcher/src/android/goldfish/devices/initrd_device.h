@@ -20,20 +20,23 @@
 
 namespace android::goldfish {
 
+// Exposed for testing.
+std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulator& emulator);
+
 /**
  * @brief Represents the initial RAM disk (initrd) used by the kernel.
  *
  * This class manages configuring the initial ramdisk and providing the
  * configuration properties necessary for the emulator to boot.
  */
-class Initrd : public Device {
-  public:
-    explicit Initrd() : Device("initrd") {}
+class InitrdDevice : public Device {
+ public:
+  explicit InitrdDevice() : Device("initrd") {}
 
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+  absl::Status initialize(const Emulator& emulator) override;
+  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
-  private:
-    std::vector<std::pair<std::string, std::string>> mUserspaceBootOpts;
+ private:
 };
+
 }  // namespace android::goldfish

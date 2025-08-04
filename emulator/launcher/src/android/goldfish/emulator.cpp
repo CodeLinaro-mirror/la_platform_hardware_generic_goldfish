@@ -78,7 +78,7 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
     addDevice<KernelDevice>();
-    addDevice<Initrd>();
+    addDevice<InitrdDevice>();
     addDevice<GpuDevice>();
 
     // Currently this must be the first drive on ARM to match the androidboot.boot_devices parameter
