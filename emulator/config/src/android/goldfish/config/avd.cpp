@@ -350,12 +350,12 @@ std::string FileBackedAvd::details(const bool verbose) const {
 
 FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
                              std::unique_ptr<IniFile> config, std::string name,
-                             std::string sysdir_override)
-    : mName(name),
-      mContentPath(content_path),
-      mTarget(std::move(target)),
-      mConfig(std::move(config)),
-      mSysdirOverride(std::move(sysdir_override)) {
+                             std::string sysdir_override, bool read_only)
+        : mName(name)
+        , mContentPath(content_path)
+        , mTarget(std::move(target))
+        , mConfig(std::move(config))
+        , mSysdirOverride(std::move(sysdir_override)) {
     mHwCfg.load(mConfig.get());
 
     // TODO also load skin hardware.ini if present?
@@ -371,11 +371,26 @@ FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> tar
     }
 
     mHwCfg.applyDefaults(this);
+
+    // maybe move this into HardwareConfig?
+    if (read_only) {
+        auto tmp = System::get()->getTempDir();
+        mHwCfg.disk_encryptionKeyPartition_path = (tmp / "encryptionkey.img").string();
+        mHwCfg.disk_dataPartition_path = (tmp / "userdata-qemu.img").string();
+        mHwCfg.disk_cachePartition_path = (tmp / "cache.img").string();
+        mHwCfg.hw_sdCard_path = (tmp / "sdcard.img").string();
+
+        VLOG(1) << "Temporary encryption path set to: " << mHwCfg.disk_encryptionKeyPartition_path;
+        VLOG(1) << "Temporary user data path set to: " << mHwCfg.disk_dataPartition_path;
+        VLOG(1) << "Temporary cache path set to: " << mHwCfg.disk_cachePartition_path;
+        VLOG(1) << "Temporary sdcard path set to: " << mHwCfg.hw_sdCard_path;
+    }
 }
 
 // static
 absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini_file,
-                                                                    std::string sysdir_override) {
+                                                                    std::string sysdir_override,
+                                                                    bool read_only) {
     auto* sys = System::get();
     if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", System::pathAsString(ini_file)));
@@ -406,8 +421,9 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini
     if (!config->read()) {
         return absl::InternalError("Unable to parse ini file: " + cfg_ini.string());
     }
-    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(
-            content_path, std::move(ini), std::move(config), name, std::move(sysdir_override)));
+    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(content_path, std::move(ini),
+                                                            std::move(config), name,
+                                                            std::move(sysdir_override), read_only));
 }
 
 namespace {
@@ -443,9 +459,11 @@ std::vector<std::string> Avd::list() {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, std::string sysdir_override) {
+absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, std::string sysdir_override,
+                                                   bool read_only) {
     auto directory_path = ConfigDirs::getAvdRootDirectory();
-    return FileBackedAvd::parse(directory_path / (name + ".ini"), std::move(sysdir_override));
+    return FileBackedAvd::parse(directory_path / (name + ".ini"), std::move(sysdir_override),
+                                read_only);
 }
 
 // static

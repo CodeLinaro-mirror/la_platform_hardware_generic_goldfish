@@ -25,7 +25,6 @@
 #include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
-#include "android/filesystems/ext4_resize.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator.h"
@@ -293,4 +292,5 @@ absl::Status UserDataDrive::initialize(const Emulator& emulator) {
     fs::path data_path = emulator.avd().getContentPath() / "data";
     return createUserData(emulator, data_path, bShouldConvertToQcow2);
 }
+
 }  // namespace android::goldfish

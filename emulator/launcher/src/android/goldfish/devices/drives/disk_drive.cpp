@@ -160,15 +160,16 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
                 "The bundled executable qemu-img cannot be "
                 "found, please check you installation.");
     }
-    std::string qcow2 = ext4_image.string();
-    qcow2 += ".qcow2";
+    fs::path qcow2 = ext4_image;
+    qcow2.concat(".qcow2");
+
     auto img_proc = base::Command::create({qemu_img.string(), "convert", "-O", "qcow2",
-                                           ext4_image.string(), qcow2})
+                                           ext4_image.string(), qcow2.string()})
                             .execute();
     if (img_proc->wait_for(kQemuImgTimeout) == std::future_status::timeout) {
         return absl::DeadlineExceededError(
                 absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image.string(),
-                                qcow2, kQemuImgTimeout.count()));
+                                qcow2.string(), kQemuImgTimeout.count()));
     }
     if (!System::get()->pathIsQcow2(qcow2)) {
         return absl::DataLossError(

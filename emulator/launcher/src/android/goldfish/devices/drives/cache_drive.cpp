@@ -19,12 +19,12 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_format.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 
 namespace android::goldfish {
+
 absl::Status CacheDrive::initialize(const Emulator& emulator) {
     if (exists()) {
         return absl::OkStatus();
@@ -37,7 +37,6 @@ absl::Status CacheDrive::initialize(const Emulator& emulator) {
     if (!status.ok()) {
         return status;
     }
-
     return convertImgToQcow2(hw.disk_cachePartition_path);
 }
 

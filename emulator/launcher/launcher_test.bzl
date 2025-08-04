@@ -48,4 +48,9 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
         }),
         main = "src/launch_kernel.py",
         deps = ["@rules_python//python/runfiles"],
+        target_compatible_with = [
+            # Currently launch and boot tests fail on Mac.
+            # TODO(b/435653752): Fix and re-enable for other platforms.
+            "@platforms//os:linux",
+        ],
     )

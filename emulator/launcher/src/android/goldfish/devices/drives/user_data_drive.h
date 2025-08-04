@@ -27,7 +27,7 @@ class UserDataDrive : public MutableDiskDrive {
   public:
     explicit UserDataDrive(const HardwareConfig& hw) : MutableDiskDrive("userdata", "05.0") {
         mDiskId = "userdata";
-        mDiskImage = fs::path(absl::StrCat(hw.disk_dataPartition_path, ".qcow2"));
+        mDiskImage = fs::path(hw.disk_dataPartition_path).concat(".qcow2");
     }
 
     absl::Status initialize(const Emulator& emulator) override;
@@ -37,4 +37,5 @@ class UserDataDrive : public MutableDiskDrive {
     absl::Status createImage(const HardwareConfig& hw, const fs::path data_path);
     absl::Status createUserData(const Emulator& emulator, const fs::path data_path, bool asQcow2);
 };
+
 }  // namespace android::goldfish

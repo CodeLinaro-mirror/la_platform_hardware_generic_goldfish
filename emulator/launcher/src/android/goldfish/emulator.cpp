@@ -86,7 +86,7 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
     // Encryption must be second for ARM - to have path
     // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
-    addDevice<EncryptionDrive>();
+    addDevice<EncryptionDrive>(hw);
     addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
     addDevice<UserDataDrive>(hw);
     addDevice<CacheDrive>(hw);
