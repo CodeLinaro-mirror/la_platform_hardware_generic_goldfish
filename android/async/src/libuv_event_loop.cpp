@@ -23,21 +23,9 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
+#include "goldfish/async/scoped_async_timer.h"
+
 namespace goldfish::async {
-
-struct TimerWrapper : public EventLoop::Timer {
-    explicit TimerWrapper(std::shared_ptr<EventLoop::Timer> timer) : mInner(std::move(timer)) {}
-
-    // The destructor ensures RAII cancellation,
-    // this will make sure we can fulfill the contract
-    // of cancellation when going out of scope.
-    ~TimerWrapper() override { mInner->cancel(); }
-
-    void cancel() override { mInner->cancel(); }
-
-  private:
-    std::shared_ptr<EventLoop::Timer> mInner;
-};
 
 // The timer now inherits from std::enable_shared_from_this to safely manage
 // its lifecycle across the user handle and async callbacks.
@@ -371,14 +359,14 @@ std::shared_ptr<EventLoop::Timer> LibuvEventLoop::scheduleDelayed(Task task,
                                                                   std::chrono::milliseconds delay) {
     auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/false);
     timer->start(delay.count(), 0);
-    return std::make_shared<TimerWrapper>(timer);
+    return std::make_shared<ScopedTimer>(timer);
 }
 
 std::shared_ptr<EventLoop::Timer> LibuvEventLoop::scheduleRepeating(
         Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
     auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/true);
     timer->start(initial_delay.count(), interval.count());
-    return std::make_shared<TimerWrapper>(timer);
+    return std::make_shared<ScopedTimer>(timer);
 }
 
 void* LibuvEventLoop::getRawLoop() const {
