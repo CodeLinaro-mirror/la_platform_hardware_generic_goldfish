@@ -19,7 +19,7 @@
 #include "absl/status/statusor.h"
 
 #include "aemu/base/async/Looper.h"
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
@@ -28,9 +28,9 @@
 
 namespace goldfish::devices::sensor {
 
+using android::base::EventChangeSupport;
 using android::base::Looper;
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::WithCallbacks;
 using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;

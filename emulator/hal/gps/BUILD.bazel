@@ -8,8 +8,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
+        "@aemu//base:event-support",
         "@com_google_absl//absl/status",
     ],
 )

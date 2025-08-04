@@ -20,8 +20,8 @@
 
 #include "FakeMultiDisplay.h"
 #include "FakePixmanDisplay.h"
+#include "aemu/base/events/EventWaiter.h"
 #include "android/emulation/control/DisplayService.h"
-#include "android/emulation/control/utils/EventWaiter.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/display/PixmanDisplay.h"
@@ -71,8 +71,7 @@ class DisplayServiceTest : public GrcpServiceTest {
   protected:
     void setRotation(ISensorDevice* device, Rotation_SkinRotation rotation) {
         auto [x, y, z] = mRotationMap[rotation];
-        ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
+        ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
     }
 
     FakeMultiDisplay* mMultiDisplay;
@@ -82,10 +81,10 @@ class DisplayServiceTest : public GrcpServiceTest {
 
     // Maps rotation -> accelerometer values.
     absl::flat_hash_map<Rotation_SkinRotation, std::array<float, 3>> mRotationMap = {
-            {Rotation::PORTRAIT, {0.0, 1.0, 0.0}},
-            {Rotation::LANDSCAPE, {1.0, 0.0, 0.0}},
-            {Rotation::REVERSE_PORTRAIT, {0.0, -1.0, 0.0}},
-            {Rotation::REVERSE_LANDSCAPE, {-1.0, 0.0, 0.0}}};
+        {Rotation::PORTRAIT, {0.0, 1.0, 0.0}},
+        {Rotation::LANDSCAPE, {1.0, 0.0, 0.0}},
+        {Rotation::REVERSE_PORTRAIT, {0.0, -1.0, 0.0}},
+        {Rotation::REVERSE_LANDSCAPE, {-1.0, 0.0, 0.0}}};
 };
 
 TEST_F(DisplayServiceTest, GetScreenshotRGBA8888) {
@@ -248,27 +247,26 @@ TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
 
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
-        ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
+        ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
 
         auto context = getContextWithTimeout();
         ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
         switch (rotation) {
-            case Rotation::PORTRAIT:
-                EXPECT_EQ(reply.format().rotation().rotation(), Rotation::PORTRAIT);
-                break;
-            case Rotation::LANDSCAPE:
-                EXPECT_EQ(reply.format().rotation().rotation(), Rotation::LANDSCAPE);
-                break;
-            case Rotation::REVERSE_PORTRAIT:
-                EXPECT_EQ(reply.format().rotation().rotation(), Rotation::REVERSE_PORTRAIT);
-                break;
-            case Rotation::REVERSE_LANDSCAPE:
-                EXPECT_EQ(reply.format().rotation().rotation(), Rotation::REVERSE_LANDSCAPE);
-                break;
-            default:
-                FAIL() << "Unexpected rotation value";
+        case Rotation::PORTRAIT:
+            EXPECT_EQ(reply.format().rotation().rotation(), Rotation::PORTRAIT);
+            break;
+        case Rotation::LANDSCAPE:
+            EXPECT_EQ(reply.format().rotation().rotation(), Rotation::LANDSCAPE);
+            break;
+        case Rotation::REVERSE_PORTRAIT:
+            EXPECT_EQ(reply.format().rotation().rotation(), Rotation::REVERSE_PORTRAIT);
+            break;
+        case Rotation::REVERSE_LANDSCAPE:
+            EXPECT_EQ(reply.format().rotation().rotation(), Rotation::REVERSE_LANDSCAPE);
+            break;
+        default:
+            FAIL() << "Unexpected rotation value";
         }
     }
 }
@@ -543,8 +541,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
 
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
-        ASSERT_TRUE(
-                device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
+        ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
 
         status = reader->Read(&image);
         if (!status) {
@@ -553,20 +550,20 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
         }
 
         switch (rotation) {
-            case Rotation::PORTRAIT:
-                EXPECT_EQ(image.format().rotation().rotation(), Rotation::PORTRAIT);
-                break;
-            case Rotation::LANDSCAPE:
-                EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
-                break;
-            case Rotation::REVERSE_PORTRAIT:
-                EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_PORTRAIT);
-                break;
-            case Rotation::REVERSE_LANDSCAPE:
-                EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_LANDSCAPE);
-                break;
-            default:
-                FAIL() << "Unexpected rotation value";
+        case Rotation::PORTRAIT:
+            EXPECT_EQ(image.format().rotation().rotation(), Rotation::PORTRAIT);
+            break;
+        case Rotation::LANDSCAPE:
+            EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
+            break;
+        case Rotation::REVERSE_PORTRAIT:
+            EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_PORTRAIT);
+            break;
+        case Rotation::REVERSE_LANDSCAPE:
+            EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_LANDSCAPE);
+            break;
+        default:
+            FAIL() << "Unexpected rotation value";
         }
     }
 }

@@ -16,7 +16,7 @@
 #include <memory>
 
 #include "PixmanImageGenerator.h"
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/PixmanDisplay.h"
 
@@ -176,9 +176,8 @@ struct FakePixmanDisplay : public PixmanDisplay {
  * This class combines a FakePixmanDisplay with a PixmanImageGenerator to create a display that
  * continuously updates its image.
  */
-class ActiveFakePixmanDisplay
-    : public FakePixmanDisplay,
-      public android::emulation::control::EventListener<::pixman_image_t*> {
+class ActiveFakePixmanDisplay : public FakePixmanDisplay,
+                                public android::base::EventListener<::pixman_image_t*> {
   public:
     /**
      * @brief Destroys the ActiveFakePixmanDisplay.

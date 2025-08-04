@@ -14,7 +14,7 @@
 // limitations under the License.
 #pragma once
 
-#include <android/emulation/control/utils/EventSupport.h>
+#include <aemu/base/events/EventSupport.h>
 #include <goldfish/devices/cable/cable.h>
 
 #include <functional>
@@ -25,16 +25,16 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "aemu/base/Compiler.h"
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 
 namespace goldfish {
 namespace devices {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::EventListener;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::EventListener;
+using android::base::WithCallbacks;
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 using DeviceName = std::string;
 

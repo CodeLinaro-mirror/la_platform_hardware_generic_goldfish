@@ -28,7 +28,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
-        "//hardware/generic/goldfish/android/event-support",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/devices:cable",
@@ -40,6 +39,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//hardware/generic/goldfish/emulator/plugin/avd:qemu-looper",
         "//third_party/qemu:qemu-headers",
+        "@aemu//base:event-support",
     ],
     alwayslink = True,
 ) for arch in [

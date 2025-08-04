@@ -19,12 +19,12 @@ extern "C" {
 
 #include <thread>
 
-#include "android/emulation/control/utils/CallbackEventSupport.h"
+#include "aemu/base/events/CallbackEventSupport.h"
 
 namespace android::goldfish {
 
-using android::emulation::control::EventChangeSupport;
-using android::emulation::control::WithCallbacks;
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
 
 enum class Color { Red, Green, Blue };
 

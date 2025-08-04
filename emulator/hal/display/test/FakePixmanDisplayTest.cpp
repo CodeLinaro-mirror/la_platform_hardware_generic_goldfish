@@ -9,14 +9,14 @@
 #include "FakePixmanDisplay.h"
 #include "MockDisplay.h"
 #include "PixmanImageGenerator.h"
-#include "android/emulation/control/utils/EventSupport.h"
+#include "aemu/base/events/EventSupport.h"
 
 extern "C" {
 #include "pixman.h"
 }
 
 namespace android::goldfish {
-using android::emulation::control::EventListener;
+using android::base::EventListener;
 
 // Test case for default constructor (nullptr)
 TEST(PixmanImagePtr, DefaultConstructor) {
