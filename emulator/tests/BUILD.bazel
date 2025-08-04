@@ -13,8 +13,8 @@ java_test(
         "-Demulator.test.sdk.path=prebuilts/android-emulator-build/sdkhome",
     ],
     tags = [
-        "manual",
         "block-network",
+        "manual",
     ],
     test_class = "com.android.tools.idea.EmulatorTest",
     runtime_deps = ["//tools/emulator/tests:emulator.tests"],
