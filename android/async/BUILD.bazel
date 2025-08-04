@@ -33,3 +33,21 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "uv_to_absl",
+    srcs = [
+        "src/uv_to_absl.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/uv_to_absl.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@libuv",
+    ],
+)
