@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
+#include <chrono>
 #include <functional>
 #include <future>
+#include <memory>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -32,12 +35,28 @@ class EventLoop {
      */
     using Task = std::function<void()>;
 
+    /**
+     * @brief An opaque handle to a scheduled task.
+     *
+     * Allows for the cancellation of a pending delayed or repeating task.
+     * The timer is automatically cancelled when this object is destroyed.
+     */
+    class Timer {
+      public:
+        virtual ~Timer() = default;
+        /**
+         * @brief Cancels the scheduled task.
+         * If the task has already run or been cancelled, this is a no-op.
+         */
+        virtual void cancel() = 0;
+    };
+
     virtual ~EventLoop() = default;
 
     /**
      * @brief Runs the event loop, blocking until stop() is called.
      */
-    virtual void run() = 0;
+    virtual absl::Status run() = 0;
 
     /**
      * @brief Stops a running event loop. This method is thread-safe.
@@ -45,33 +64,73 @@ class EventLoop {
     virtual void stop() = 0;
 
     /**
+     * @brief Initiates a graceful shutdown of the event loop.
+     *
+     * This method schedules the closing of all internal handles. It returns
+     * a future that will be fulfilled when all cleanup tasks are complete.
+     * This should be called before stop() to ensure a clean exit.
+     *
+     * Note: that this will cancel all outstanding timers and posted callbacks
+     * once this returns no new timers are callbacks can be scheduled.
+     *
+     * @param timeout Max time to wait before graceful shutdown
+     */
+    virtual std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) = 0;
+
+    /**
      * @brief Checks if the current thread is the one running this event loop.
      * @return true if the caller is on the event loop's thread, false otherwise.
      */
-    virtual bool isOnLoopThread() = 0;
+    virtual bool isOnLoopThread() const = 0;
+
+    // --- Fire-and-Forget Methods ---
 
     /**
-     * @brief Posts a task to be invoked on the EventLoop's thread.
-     *
-     * This method is thread-safe and can be called from any thread to
-     * delegate work to the event loop.
-     *
+     * @brief Posts a task for immediate execution (fire-and-forget).
      * @param task The function to be executed.
-     * @return absl::OkStatus() if the task was successfully posted, or an
-     * error status on immediate failure.
+     * @return absl::OkStatus() if the task was successfully posted.
      */
     virtual absl::Status post(Task task) = 0;
+
+    /**
+     * @brief Posts a task for delayed execution (fire-and-forget).
+     *
+     * The task cannot be cancelled once posted.
+     *
+     * @param task The task to execute.
+     * @param delay The duration to wait before executing the task.
+     * @return absl::OkStatus() if the task was successfully posted.
+     */
+    virtual absl::Status post(Task task, std::chrono::milliseconds delay) = 0;
+
+    // --- Cancellable Scheduling Methods ---
+
+    /**
+     * @brief Schedules a cancellable task to be executed once after a delay.
+     * @param task The task to execute.
+     * @param delay The duration to wait before executing the task.
+     * @return A shared pointer to a Timer handle for cancellation.
+     */
+    virtual std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) = 0;
+
+    /**
+     * @brief Schedules a cancellable task to be executed repeatedly.
+     * @param task The task to execute.
+     * @param initial_delay The delay before the first execution.
+     * @param interval The time between subsequent executions.
+     * @return A shared pointer to a Timer handle for cancellation.
+     */
+    virtual std::shared_ptr<Timer> scheduleRepeating(Task task,
+                                                     std::chrono::milliseconds initial_delay,
+                                                     std::chrono::milliseconds interval) = 0;
 
     /**
      * @brief Posts a task to the event loop and blocks the calling thread
      * until the task is complete.
      *
-     * @tparam F The type of the callable task.
-     * @param task The task to execute.
-     * @return The value returned by the task.
-     *
      * @warning This method MUST NOT be called from the event loop's own
-     * thread, as it will cause an immediate deadlock.
+     * thread, as it will cause an immediate deadlock. The application
+     * will immediately exit with a FATAL warning.
      */
     template <typename F>
     auto postAndWait(F&& task) -> decltype(task()) {
@@ -84,7 +143,6 @@ class EventLoop {
         auto future = promise->get_future();
 
         post([promise, task = std::forward<F>(task)]() mutable {
-            // Handle tasks that return void vs. a value
             if constexpr (std::is_same_v<ResultType, void>) {
                 task();
                 promise->set_value();

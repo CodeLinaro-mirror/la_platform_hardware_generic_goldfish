@@ -193,7 +193,7 @@
             // `//path/to:my_test`, you can run `bazel build //path/to:my_test`
             // and bazel will report the location of your binary.
             // `//path/to:my_test` is usually `${workspaceFolder}/bazel-bin/path/to/my_test`
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/hal/sensors/sensors_unittests",
+            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/android/async/eventloop_unittests",
             // Set any program arguments here.
             "args": [
                 // "--gtest_filter=SensorDeviceTest.*",
