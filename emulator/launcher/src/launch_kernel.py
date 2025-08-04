@@ -103,6 +103,7 @@ async def main(args, tmp_dir_for_images):
         "-verbose",
         "-vmodule",
         "*=1",
+        "-no-boot-anim",
         "-show-kernel",
         "-no-vnc",
         "-port", str(adb),

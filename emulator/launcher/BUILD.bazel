@@ -251,14 +251,14 @@ create_launch_emulator_test(
 
 create_launch_emulator_test(
     name = "can_boot_with_minigbm",
-    target_log_line = "'Completed booting in: \\d+ ms.'",
+    target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 180,
 )
 
 create_launch_emulator_test(
     name = "can_boot_with_minigbm_2x",
     repeat = 1,
-    target_log_line = "'Completed booting in: \\d+ ms.'",
+    target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 180,
 )
 

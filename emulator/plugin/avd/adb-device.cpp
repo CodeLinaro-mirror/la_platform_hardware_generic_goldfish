@@ -36,6 +36,7 @@ extern "C" {
 // clang-format on
 
 namespace goldfish::adb_device {
+
 // Define a subclass for the VSockFwdDevice, where we are going
 // to override the realize method, in the realize method we will
 // override the common properties
@@ -67,6 +68,10 @@ void adb_vsock_connected(VSockFwdDev* device) {
     LOG(INFO) << "Notifying adb server on port " << adb_server
               << " that adbd for is available on localhost:" << device->host_port;
     android::emulation::AdbHostServer::notify(device->host_port, adb_server);
+    // Make it easier for tests to find us.
+    // Note that this format is implemented in adb here:
+    // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
+    LOG(INFO) << "Expected adb serial number: emulator-" << (device->host_port - 1);
 }
 
 void adb_vsock_realize(DeviceState* dev, Error** errp) {
@@ -109,4 +114,5 @@ const TypeInfo adb_vsock_type_info = {
 void adb_device_register_types(void) {
     type_register_static(&adb_vsock_type_info);
 }
+
 }  // namespace goldfish::adb_device
