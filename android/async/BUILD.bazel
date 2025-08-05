@@ -62,12 +62,14 @@ cc_library(
     hdrs = [
         "include/goldfish/async/libuv_event_loop.h",
     ],
+    copts = ["-Wno-unused-result"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":async_api",
         ":async_impl",
         ":uv_to_absl",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@libuv",
     ],
 )

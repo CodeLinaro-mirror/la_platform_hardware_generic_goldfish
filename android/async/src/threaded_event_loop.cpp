@@ -13,8 +13,13 @@
 // limitations under the License.
 #include "goldfish/async/threaded_event_loop.h"
 
+#include <future>
 #include <memory>
 #include <thread>
+
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/time/time.h"
 
 namespace goldfish::async {
 
@@ -23,24 +28,33 @@ ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop) : mLoop(st
 }
 
 ThreadedEventLoop::~ThreadedEventLoop() {
+    VLOG(1) << "~ThreadedEventLoop";
+    auto future = shutdown(getTimeout());
+    auto wait = future.wait_for(getTimeout());
+    if (wait == std::future_status::ready) {
+        auto status = future.get();
+        if (!status.ok()) {
+            LOG(ERROR) << "Failed to shutdown event loop: " << status;
+        }
+    } else {
+        LOG(ERROR) << "Did not complete shutdown within: " << absl::FromChrono(getTimeout());
+    }
+
     stop();
 }
 
-ThreadedEventLoop::ThreadedEventLoop(ThreadedEventLoop&& other) noexcept
-        : mRunner(std::move(other.mRunner)), mLoop(std::move(other.mLoop)) {}
-
-ThreadedEventLoop& ThreadedEventLoop::operator=(ThreadedEventLoop&& other) noexcept {
-    if (this != &other) {
-        // Stop the current thread before moving new resources in.
-        stop();
-        mRunner = std::move(other.mRunner);
-        mLoop = std::move(other.mLoop);
-    }
-    return *this;
+absl::Status ThreadedEventLoop::run() {
+    mRunner = std::thread([this] {
+        auto status = mLoop->run();
+        if (!status.ok()) {
+            LOG(WARNING) << "Event loop exited with: " << status;
+        }
+    });
+    return absl::OkStatus();
 }
 
-void ThreadedEventLoop::run() {
-    mRunner = std::thread([this] { mLoop->run(); });
+std::future<absl::Status> ThreadedEventLoop::shutdown(std::chrono::milliseconds timeout) {
+    return mLoop->shutdown(timeout);
 }
 
 void ThreadedEventLoop::stop() {
@@ -50,12 +64,26 @@ void ThreadedEventLoop::stop() {
     }
 }
 
-bool ThreadedEventLoop::isOnLoopThread() {
+bool ThreadedEventLoop::isOnLoopThread() const {
     return mLoop->isOnLoopThread();
 }
 
 absl::Status ThreadedEventLoop::post(Task fn) {
     return mLoop->post(std::move(fn));
+}
+
+absl::Status ThreadedEventLoop::post(Task task, std::chrono::milliseconds delay) {
+    return mLoop->post(std::move(task), delay);
+}
+
+std::shared_ptr<EventLoop::Timer> ThreadedEventLoop::scheduleDelayed(
+        Task task, std::chrono::milliseconds delay) {
+    return mLoop->scheduleDelayed(std::move(task), delay);
+}
+
+std::shared_ptr<EventLoop::Timer> ThreadedEventLoop::scheduleRepeating(
+        Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
+    return mLoop->scheduleRepeating(std::move(task), initial_delay, interval);
 }
 
 }  // namespace goldfish::async

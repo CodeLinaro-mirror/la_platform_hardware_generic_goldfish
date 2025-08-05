@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <functional>
-#include <memory>
+#include <chrono>
 #include <thread>
 
 #include "absl/status/status.h"
@@ -34,7 +33,7 @@ class ThreadedEventLoop : public EventLoop {
   public:
     /**
      * @brief Constructs a ThreadedEventLoop.
-     * @param loop A unique_ptr to the underlying EventLoop implementation that
+     * @param loop A shared_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
     explicit ThreadedEventLoop(std::unique_ptr<EventLoop> loop);
@@ -44,15 +43,15 @@ class ThreadedEventLoop : public EventLoop {
     ThreadedEventLoop(const ThreadedEventLoop&) = delete;
     ThreadedEventLoop& operator=(const ThreadedEventLoop&) = delete;
 
-    // --- Enable Moving ---
-    ThreadedEventLoop(ThreadedEventLoop&& other) noexcept;
-    ThreadedEventLoop& operator=(ThreadedEventLoop&& other) noexcept;
+    // --- Prevent Moving ---
+    ThreadedEventLoop(ThreadedEventLoop&& other) noexcept = delete;
+    ThreadedEventLoop& operator=(ThreadedEventLoop&& other) noexcept = delete;
 
     /**
      * @brief Starts the background thread and begins executing the underlying
      * event loop's run() method within it. This method returns immediately.
      */
-    void run() override;
+    absl::Status run() override;
 
     /**
      * @brief Stops the underlying event loop and waits for the background
@@ -60,11 +59,13 @@ class ThreadedEventLoop : public EventLoop {
      */
     void stop() override;
 
+    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
+
     /**
      * @brief Checks if the caller is on the background event loop thread.
      * @return Delegates the call to the underlying EventLoop.
      */
-    bool isOnLoopThread() override;
+    bool isOnLoopThread() const override;
 
     /**
      * @brief Posts a task to the underlying event loop to be executed on its
@@ -74,7 +75,21 @@ class ThreadedEventLoop : public EventLoop {
      */
     absl::Status post(Task task) override;
 
+    absl::Status post(Task task, std::chrono::milliseconds delay) override;
+
+    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
+
+    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+                                             std::chrono::milliseconds interval) override;
+
     void* getRawLoop() const override { return mLoop->getRawLoop(); }
+
+    // Timeout used when calling shutdown, the destructor will
+    // wait at most this amount before terminating...
+    // Note: that is usually not a good thing.
+    static constexpr std::chrono::milliseconds getTimeout() {
+        return std::chrono::milliseconds(500);
+    }
 
   private:
     std::thread mRunner;
