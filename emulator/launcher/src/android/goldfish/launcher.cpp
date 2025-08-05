@@ -103,8 +103,11 @@ int main(int argc, char** argv) {
     handler << android::crashreport::CrashReporter::handlerExe();
     System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
     System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
-    System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                          System::pathAsString(qemu_module_dir));
+    if (System::get()->getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR").empty()) {
+        // Only set this if it wasn't already set as some integrators set it externally.
+        System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+                                              System::pathAsString(qemu_module_dir));
+    }
     System::get()->addLibrarySearchDir(qemu_module_dir);
 
     LOG(INFO) << "Using crashpad handler: " << handler.str();
