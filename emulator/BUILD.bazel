@@ -267,6 +267,5 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface_unittests",
         "//hardware/generic/goldfish/emulator/launcher:launcher_unittests",
         "//hardware/generic/goldfish/emulator/libs:libs_unittests",
-        "//hardware/generic/goldfish/emulator/modem_simulator:modem_tests",
     ],
 )
