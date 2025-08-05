@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 
 #include "android/base/system/System.h"
 #include "android/emulation/control/adb/adbkey.h"
@@ -31,9 +32,9 @@
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
-#include "drives/disk_drive.h"
 
 namespace android::goldfish {
+namespace {
 
 // Note: The ACPI _HID that follows devices/ must match the one defined in the
 // ACPI tables (hw/i386/acpi_build.c)
@@ -44,7 +45,7 @@ constexpr std::string_view kSysfsAndroidDtDirDtb = "/proc/device-tree/firmware/a
 // using android::base::splitTokens;
 // using android::base::absl::StrFormat;
 
-static std::string getDeviceStateString(const HardwareConfig& hw) {
+std::string getDeviceStateString(const HardwareConfig& hw) {
     // TODO(jansene): Foldable support.
     return "";
 }
@@ -88,9 +89,14 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string qemuExternalDisplays = "androidboot.qemu.external.displays";
     std::vector<std::pair<std::string, std::string>> params;
 
-    params.push_back({"qemu.logcat_filter", "*:V"});
+    params.push_back({"qemu.logcat_filter", "*:S"});
     params.push_back({"androidboot.qemu", "1"});
     params.push_back({"androidboot.hardware", "ranchu"});
+
+    if (opts.no_boot_anim) {
+        params.push_back({bootanimProp, "1"});
+        params.push_back({"android.bootanim", "0"});
+    }
 
     if (!serialno.empty()) {
         params.push_back({"androidboot.serialno", serialno});
@@ -127,7 +133,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     params.push_back({qemuOpenglesVersionProp, absl::StrFormat("%d", bootPropOpenglesVersion)});
 
     params.push_back({qemuUirendererProp, "skiagl"});
-    params.push_back({androidbootLogcatProp, "*:V"});
+    params.push_back({androidbootLogcatProp,
+                      opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
 
     // Send adb public key to device
     auto privkey = getPrivateAdbKeyPath();
@@ -241,10 +248,10 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     return params;
 }
 
-static std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
+std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
     const Avd& avd = emulator.avd();
     auto arch = avd.detectArchitecture();
-    auto drive = emulator.get<PciDevice>("system");
+    // auto drive = emulator.get<PciDevice>("system");
 
     if (arch == Avd::CpuArchitecture::kX86) {
         return "pci0000:00/0000:00:03.0";
@@ -260,7 +267,7 @@ static std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
     return "a003e00.virtio_mmio";
 }
 
-static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
+std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
     // Get verified boot kernel parameters, if they exist.
     // If this is not a playstore image, then -writable_system will
     // disable verified boot
@@ -289,11 +296,11 @@ static std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) 
     return verified_boot_params;
 }
 
-absl::Status Initrd::initialize(const Emulator& emulator) {
+}  // namespace
+
+std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulator& emulator) {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
-
-    auto init_rd = avd.getContentPath() / "initrd";
 
     int gles_major_version = 2;
     int gles_minor_version = 0;
@@ -301,9 +308,18 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
     std::string real_console_tty_prefix = "hvc";
     int apiLevel = 202504;
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
-    auto properties = getUserspaceBootProperties(
-            hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel, real_console_tty_prefix,
-            verifiedBootParameters, hw, emulator.opts());
+    return getUserspaceBootProperties(hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel,
+                                      real_console_tty_prefix, verifiedBootParameters, hw,
+                                      emulator.opts());
+}
+
+absl::Status InitrdDevice::initialize(const Emulator& emulator) {
+    auto properties = getBootProperties(emulator);
+
+    const Avd& avd = emulator.avd();
+    auto hw = avd.hw();
+    auto init_rd = avd.getContentPath() / "initrd";
+
     // Ok.. let's create it
     LOG(INFO) << "Creating initrd from " << hw.disk_ramdisk_path << " -> " << init_rd;
     if (::goldfish::createRamdiskWithBootconfig(hw.disk_ramdisk_path.c_str(),
@@ -315,8 +331,9 @@ absl::Status Initrd::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
-std::vector<std::string> Initrd::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> InitrdDevice::getQemuParameters(const Emulator& emulator) const {
     const Avd& avd = emulator.avd();
     return {"-initrd", android::base::System::pathAsString(avd.getContentPath() / "initrd")};
 }
+
 }  // namespace android::goldfish

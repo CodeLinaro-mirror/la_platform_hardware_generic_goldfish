@@ -112,6 +112,21 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "initrd_device_test",
+    srcs = ["initrd_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":initrd_device",
+        ":mock_avd",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_library(
     name = "kernel_device",
     srcs = ["kernel_device.cpp"],
