@@ -17,7 +17,6 @@
 
 #include <initializer_list>
 #include <string>
-#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -62,16 +61,17 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
 
 absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
     // Note the parameters need to be within '
-    std::string cl = "'no_timer_check 8250.nr_uarts=1 loop.max_part=7 ";
+    std::string cl = "'no_timer_check 8250.nr_uarts=1 loop.max_part=7";
+
     switch (auto a = avd.detectArchitecture(); a) {
         case Avd::CpuArchitecture::kArm:
-            absl::StrAppend(&cl, absl::StrJoin({"console=ttyAMA0,38400", "keep_bootcon",
+            absl::StrAppend(&cl, absl::StrJoin({" console=ttyAMA0,38400", "keep_bootcon",
                                                 "earlyprintk=ttyAMA0", "ndns=3"},
                                                " "));
             break;
         case Avd::CpuArchitecture::kX86:
             absl::StrAppend(&cl,
-                            "clocksource=pit console=0 cma=296M@0-4G "
+                            " clocksource=pit console=0 cma=296M@0-4G "
                             "memmap=0x10000$0xff018000");
             break;
         case Avd::CpuArchitecture::kRiscV:
@@ -82,7 +82,13 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     if (opts.shell || opts.shell_serial || opts.show_kernel) {
         absl::StrAppend(&cl, " printk.devkmsg=on");
     }
-    absl::StrAppend(&cl, " bootconfig'");
+    absl::StrAppend(&cl, " bootconfig");
+
+    for (auto *a = opts.append; a != nullptr; a = a->next) {
+        absl::StrAppend(&cl, " ", a->param);
+    }
+
+    absl::StrAppend(&cl, "'");
     return cl;
 }
 }  // namespace

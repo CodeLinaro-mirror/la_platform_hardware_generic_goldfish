@@ -24,6 +24,7 @@
 #include "gpu_device.h"
 
 namespace android::goldfish {
+
 absl::Status GpuDevice::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
@@ -32,7 +33,7 @@ std::vector<std::string> GpuDevice::getQemuParameters(const Emulator& emulator) 
     const auto& hw = emulator.avd().hw();
     return {"-device",
             absl::StrJoin({"virtio-gpu-rutabaga", "x-gfxstream-gles=on", "gfxstream-vulkan=on",
-                           "x-gfxstream-composer=on", "hostmem=256M", "id=gpu0",
+                           "x-gfxstream-composer=on", "hostmem=256M", absl::StrCat("id=", mGpuName),
                            absl::StrCat("xres=", hw.hw_lcd_width),
                            absl::StrCat("yres=", hw.hw_lcd_height)},
                           ",")};

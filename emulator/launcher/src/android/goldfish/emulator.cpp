@@ -18,16 +18,13 @@
 
 #include <algorithm>
 #include <initializer_list>
-#include <istream>
 #include <memory>
-#include <sstream>
 #include <string_view>
 #include <vector>
 
 // Use ABSL_LOG to avoid conflict with crashpadh logging
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -37,8 +34,10 @@
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
+#include "devices/adb_device.h"
 #include "devices/audio_device.h"
 #include "devices/cpu_device.h"
+#include "devices/display_device.h"
 #include "devices/drives/cache_drive.h"
 #include "devices/drives/disk_drive.h"
 #include "devices/drives/encryption_drive.h"
@@ -73,13 +72,19 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     std::replace(vmodules.begin(), vmodules.end(), ',', '|');
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-nodefaults",
+        "-no-reboot",
+        // our iothread
+        "-object", "iothread,id=disk-iothread",
+    });
+
+    addDevice<ParameterList>(std::initializer_list<std::string>{
             "-name", absl::StrFormat("%s,debug-threads=on", mAvd->name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
     addDevice<KernelDevice>();
     addDevice<InitrdDevice>();
-    addDevice<GpuDevice>();
 
     // Currently this must be the first drive on ARM to match the androidboot.boot_devices parameter
     // set in initrd_device.cpp.
@@ -96,91 +101,55 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
 
     addDevice<NetworkDevice>("0a.0");
 
-    auto ini_path = System::pathAsString(mAvd->getIniFile());
+    // Hardware RNG device
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
-                                       vmodules, pluginLogLevel)});
-
-    if (mOpts.qemu_telnet) {
-        // Debug monitor
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-monitor",
-            "telnet::15454,server,nowait",
-        });
-    }
-
-    if (mOpts.no_vnc) {
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            // Or it could be "-display none"?
-            "-display",
-            "vnc=none,display=gpu0,head=0",
-        });
-    } else {
-#if defined(__linux__) || defined(__APPLE__)
-        // This ensures that only users on local box with read/write access to that path can access
-        // the VNC server. Ports can be forwarded with ssh.
-        // TODO(jansene):  we technically should force display=gpu0,head=0, to use proper qemu
-        // console routing. However it seems that the gpu0 is not yet ready at time of vnc
-        // registration.
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-display",
-            "vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0",
-        });
-        ABSL_LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
-        ABSL_LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc "
-                          "<remote-host>``";
-        ABSL_LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
-                          "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
-#endif
-    }
-
-    int adbPort = 5555;
-    if (mOpts.port) {
-        if (!absl::SimpleAtoi(mOpts.port, &adbPort)) {
-            ABSL_LOG(WARNING) << "Failed to parse port number: '" << mOpts.port
-                              << "'. Using default port: 5555";
-            adbPort = 5555;
-        }
-        adbPort += 1;
-    }
-
-    addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-nodefaults", "-no-reboot",
-        // our iothread
-        "-object", "iothread,id=disk-iothread",
-        // our virtio-vsock
-        "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
-        // Setup adb
-        "-device", absl::StrFormat("virtio-goldfish-adb,host_port=%d", adbPort),
-        // Keyboard
-        "-device", "virtio-keyboard-pci,head=0,display=gpu0",
-        // Series of simple devices that don't need configuring
-        "-device", "virtio-serial-pci,ioeventfd=off",
-        // Hardware RNG device
         "-device", "virtio-rng-pci",
-        // ...
     });
 
-    // Add our virtio devices, we connect them in QEMU to gpu0 and head=%d so qemu knows how to
-    // route input events for a given display to the proper device.
-    constexpr int VIRTIO_INPUT_MAX_NUM = 11;
-    for (int id = 0; id < VIRTIO_INPUT_MAX_NUM; id++) {
-        addDevice<ParameterList>(std::initializer_list<std::string>{
-                "-device", absl::StrFormat("virtio-input-android-pci,display=gpu0,head=%d", id)});
-    }
+    // This is needed for virtconsole (logcat).
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-device", "virtio-serial-pci,ioeventfd=off",
+    });
 
     if (mOpts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         addDevice<ParameterList>(std::initializer_list<std::string>{
-                "-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
-                // Actual logcat location.
-                "-device", "virtconsole,chardev=forhvc1", "-chardev",
-                absl::StrCat("file,id=forhvc1,path=", mOpts.logcat_output)});
+            "-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
+            // Actual logcat location.
+            "-device", "virtconsole,chardev=forhvc1", "-chardev",
+            absl::StrCat("file,id=forhvc1,path=", mOpts.logcat_output)});
     }
 
     if (mOpts.show_kernel) {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
     }
+
+    auto ini_path = System::pathAsString(mAvd->getIniFile());
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
+                                       vmodules, pluginLogLevel)});
+
+    std::string gpu_name = "gpu0";
+    addDevice<GpuDevice>(gpu_name);
+
+    // Also includes input devices for the display.
+    addDevice<DisplayDevice>(gpu_name);
+
+    // Our virtio-vsock.
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-device", "virtio-goldfish-vsock-pci,guest-cid=3",
+    });
+
+    // Must come after vsock.
+    addDevice<AdbDevice>();
+
+    // Make sure we have our other devices available before we setup the gRPC device, the gRPC
+    // device depends on the virtio devices for input event delivery.
+    addDevice<GrpcDevice>();
+
+    // This should always be the last device, as it will finalize android emulator initialization.
+    addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
+
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.
         fs::path bios_path = fs::path(Bazel::runfilesPath("_main/third_party/qemu/pc-bios"));
@@ -189,12 +158,12 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
                 std::initializer_list<std::string>{"-L", System::pathAsString(bios_path)});
     }
 
-    // Make sure we have our other devices available before we setup the gRPC device, the gRPC
-    // device depends on the virtio devices for input event delivery.
-    addDevice<GrpcDevice>();
-
-    // This should always be the last device, as it will finalize android emulator initialization
-    addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
+    if (mOpts.qemu_telnet) {
+        // Debug monitor
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-monitor", "telnet::15454,server,nowait",
+        });
+    }
 
     if (mOpts.qemu) {
         addDevice<ParameterList>(absl::StrSplit(mOpts.qemu, ' '));

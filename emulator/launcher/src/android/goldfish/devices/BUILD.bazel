@@ -22,6 +22,33 @@ cc_library(
 )
 
 cc_library(
+    name = "adb_device",
+    srcs = ["adb_device.cpp"],
+    hdrs = ["adb_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "adb_device_test",
+    srcs = ["adb_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":adb_device",
+        ":mock_avd",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "cpu_device",
     srcs = ["cpu_device.cpp"],
     hdrs = ["cpu_device.h"],
@@ -42,6 +69,33 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":cpu_device",
+        ":mock_avd",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "display_device",
+    srcs = ["display_device.cpp"],
+    hdrs = ["display_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "display_device_test",
+    srcs = ["display_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":display_device",
         ":mock_avd",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",

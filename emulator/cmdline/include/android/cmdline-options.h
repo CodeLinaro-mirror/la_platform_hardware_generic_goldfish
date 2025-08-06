@@ -79,6 +79,7 @@ OPT_PARAM(cache_size, "<size>", "cache partition size in MBs")
 CFG_FLAG(no_cache, "disable the cache partition")
 CFG_FLAG(nocache, "same as -no-cache")
 OPT_PARAM(sdcard, "<file>", "SD card image (default <datadir>/sdcard.img")
+OPT_LIST(append, "<append>", "append extra kernel command line parameters")
 CFG_PARAM(quit_after_boot, "<timeout>",
           "quit emulator after guest boots completely, or after timeout in seconds")
 CFG_PARAM(qemu_top_dir, "<dir>",
@@ -394,7 +395,10 @@ OPT_PARAM(vmodule, "<vmodules>", "per-module log verbosity level.")
 
 OPT_FLAG(qemu_telnet, "enable qemu telnet monitor")
 
+// This flag is ignored now - remove once no one supplies it.
 OPT_FLAG(no_vnc, "disable qemu vnc")
+
+OPT_FLAG(enable_vnc, "enable vnc debug display")
 
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
