@@ -18,7 +18,7 @@
                 "@V",
                 "-verbose",
                 "-vmodule",
-                "*=1",
+                "*ispla*=1",
             ],
             // OS specific settings
             "osx": {
@@ -76,28 +76,16 @@
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
-                    "external/+_repo_rules2+modem_simulator_android_base",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
-                ],
-                [
-                    "external/+_repo_rules2+modem_simulator_common",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
-                ],
-                [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
                 ],
-                [
-                    "external/+_repo_rules2+modem_simulator",
-                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
-                ]
             ],
             "preLaunchTask": "aemu: Build debug emulator",
             "stopOnEntry": false,
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
-                "pro hand -p true -s false SIGUSR1",
-                "pro hand -p true -s false SIGUSR2"
+                "process handle SIGUSR1 --pass true --stop false",
+                "process handle SIGUSR2 --pass true --stop false"
             ]
         },
         {
@@ -160,28 +148,16 @@
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
-                    "external/+_repo_rules2+modem_simulator_android_base",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
-                ],
-                [
-                    "external/+_repo_rules2+modem_simulator_common",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
-                ],
-                [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
                 ],
-                [
-                    "external/+_repo_rules2+modem_simulator",
-                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
-                ]
             ],
             "preLaunchTask": "aemu: Build emulator with asan",
             "stopOnEntry": false,
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
-                "pro hand -p true -s false SIGUSR1",
-                "pro hand -p true -s false SIGUSR2"
+                "process handle SIGUSR1 --pass true --stop false",
+                "process handle SIGUSR2 --pass true --stop false"
             ]
         },
         {
@@ -244,21 +220,9 @@
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
-                    "external/+_repo_rules2+modem_simulator_android_base",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
-                ],
-                [
-                    "external/+_repo_rules2+modem_simulator_common",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
-                ],
-                [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
                 ],
-                [
-                    "external/+_repo_rules2+modem_simulator",
-                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
-                ]
             ],
             // "preLaunchTask": "aemu: Build emulator test suite",
             "stopOnEntry": false,
@@ -271,7 +235,7 @@
             // binary. If you want to debug BUILD target
             "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
             // Set the pid here
-            "pid": 1493761,
+            "pid": 954478,
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
                 [
@@ -295,26 +259,14 @@
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
-                    "external/+_repo_rules2+modem_simulator_android_base",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
-                ],
-                [
-                    "external/+_repo_rules2+modem_simulator_common",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
-                ],
-                [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
                 ],
-                [
-                    "external/+_repo_rules2+modem_simulator",
-                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
-                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
-                "pro hand -p true -s false SIGUSR1",
-                "pro hand -p true -s false SIGUSR2"
+                "process handle SIGUSR1 --pass true --stop false",
+                "process handle SIGUSR2 --pass true --stop false"
             ]
         },
         {
@@ -348,26 +300,14 @@
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
-                    "external/+_repo_rules2+modem_simulator_android_base",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/android-base"
-                ],
-                [
-                    "external/+_repo_rules2+modem_simulator_common",
-                    "${workspaceFolder}/hardware/generic/goldfish/emulator/modem_simulator/common/libs/"
-                ],
-                [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
                 ],
-                [
-                    "external/+_repo_rules2+modem_simulator",
-                    "${workspaceFolder}/device/google/cuttlefish/host/commands/modem_simulator",
-                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
-                "pro hand -p true -s false SIGUSR1",
-                "pro hand -p true -s false SIGUSR2"
+                "process handle SIGUSR1 --pass true --stop false",
+                "process handle SIGUSR2 --pass true --stop false"
             ]
         },
     ]

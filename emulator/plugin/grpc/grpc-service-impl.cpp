@@ -98,14 +98,15 @@ bool initialize(GrpcDeviceConfiguration* device) {
 
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{
-            {"port.serial", "5554"},
-            {"emulator.build", "standalone-0"},
-            {"emulator.version", "50.0.0"},
-            {"port.adb", "5555"},
-            {"avd.name", avd->name()},
-            {"avd.id", avd->display_name()},
-            {"avd.dir", System ::pathAsString(avd->getContentPath())},
-            {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\""}};
+        {"port.serial", "5554"},
+        {"emulator.build", "standalone-0"},
+        {"emulator.version", "50.0.0"},
+        {"port.adb", "5555"},
+        {"avd.name", avd->name()},
+        {"avd.id", avd->display_name()},
+        {"avd.dir", System ::pathAsString(avd->getContentPath())},
+        // TODO(jansene):
+        {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" \"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance());
     auto builder = EmulatorControllerService::Builder()
