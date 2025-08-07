@@ -37,20 +37,46 @@ typedef struct GrpcDev {
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
 #define GRPC_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(GrpcDev, obj, TYPE_GRPC)
 
+// TODO(jansene): These are currently externs on Multidisplay.cpp, and should
+// be injected, not linked against!
 static const DisplayChangeListenerOps dcl_ops = {
-        .dpy_name = "grpc-display",
-        .dpy_gfx_update = grpc_dpy_gfx_update,
-        .dpy_gfx_switch = grpc_dpy_gfx_switch,
+    .dpy_name = "grpc-display",
+    .dpy_gfx_update = grpc_dpy_gfx_update,
+    .dpy_gfx_switch = grpc_dpy_gfx_switch,
 };
 
 static DisplayChangeListener dcl = {
-        .ops = &dcl_ops,
+    .ops = &dcl_ops,
+};
+
+static void android_display_init(struct DisplayState* ds, struct DisplayOptions* o) {
+    //  android_display_init has been called! Time t
+    QemuConsole* con;
+    for (int idx = 0;; idx++) {
+        con = qemu_console_lookup_by_index(idx);
+        if (!con || !qemu_console_is_graphic(con)) {
+            break;
+        }
+
+        // Note we expect our gRPC handler to do figure out
+        // console --> display mapping.
+        register_displaychangelistener(&dcl);
+    }
+}
+
+static void android_display_early_init(struct DisplayOptions* o) {
+    // Very early on, we likely do not care about this
+}
+
+static QemuDisplay qemu_display_android = {
+    .type = DISPLAY_TYPE_ANDROID,
+    .early_init = android_display_early_init,
+    .init = android_display_init,
 };
 
 static void grpc_realize(DeviceState* dev, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
     initialize(&grpc_device->config);
-    register_displaychangelistener(&dcl);
 }
 
 static void grpc_unrealize(DeviceState* dev) {
@@ -159,16 +185,18 @@ static void grpc_class_init(ObjectClass* oc, void* data) {
     object_class_property_set_description(oc, "token",
                                           "Require an authorization header with "
                                           "a valid token for every grpc call.");
+
+    qemu_display_register(&qemu_display_android);
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = grpc_realize;
     dc->unrealize = grpc_unrealize;
 }
 
 static const TypeInfo grpc_type_info = {
-        .name = TYPE_GRPC,
-        .parent = TYPE_DEVICE,
-        .instance_size = sizeof(GrpcDev),
-        .class_init = grpc_class_init,
+    .name = TYPE_GRPC,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(GrpcDev),
+    .class_init = grpc_class_init,
 };
 
 void grpc_register_types(void) {

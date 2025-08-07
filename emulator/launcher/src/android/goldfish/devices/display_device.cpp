@@ -31,8 +31,7 @@ std::vector<std::string> DisplayDevice::getQemuParameters(const Emulator& emulat
         LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
                           "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
     } else {
-        // Or it could be "-display none"?
-        params.push_back(absl::StrCat("vnc=none,display=", mGpuName, ",head=0"));
+        params.push_back("android");
     }
 
     // Keyboard
