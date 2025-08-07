@@ -32,8 +32,8 @@
 			"**/.git": true, // this is a default value
 			"**/bazel-*": true,
 			"third_party/qemu/build": true,
-			"prebuilts": true,
-			"tools": true
+			"prebuilts": false,
+			"tools": false
 		},
 		"mesonbuild.selectRootDir": false,
 		"workbench.colorTheme": "Eva Dark Italic"
