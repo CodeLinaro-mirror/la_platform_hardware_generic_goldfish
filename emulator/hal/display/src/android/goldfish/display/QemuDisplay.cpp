@@ -43,21 +43,21 @@ SharedDisplay IDisplay::nullDisplay() {
 
 static ::InputMultiTouchType translate_touch_type(MultiTouchType type) {
     switch (type) {
-        case MultiTouchType::BEGIN:
-            return INPUT_MULTI_TOUCH_TYPE_BEGIN;
-        case MultiTouchType::UPDATE:
-            return INPUT_MULTI_TOUCH_TYPE_UPDATE;
-        case MultiTouchType::END:
-            return INPUT_MULTI_TOUCH_TYPE_END;
-        case MultiTouchType::CANCEL:
-            return INPUT_MULTI_TOUCH_TYPE_CANCEL;
-        case MultiTouchType::DATA:
-            return INPUT_MULTI_TOUCH_TYPE_DATA;
+    case MultiTouchType::BEGIN:
+        return INPUT_MULTI_TOUCH_TYPE_BEGIN;
+    case MultiTouchType::UPDATE:
+        return INPUT_MULTI_TOUCH_TYPE_UPDATE;
+    case MultiTouchType::END:
+        return INPUT_MULTI_TOUCH_TYPE_END;
+    case MultiTouchType::CANCEL:
+        return INPUT_MULTI_TOUCH_TYPE_CANCEL;
+    case MultiTouchType::DATA:
+        return INPUT_MULTI_TOUCH_TYPE_DATA;
     }
 }
 
 QemuDisplay::QemuDisplay(QemuConsole* con, DisplaySurface* ds, int index)
-    : PixmanDisplay(index, ds->image), mConsole(con) {
+        : PixmanDisplay(index, ds->image), mConsole(con) {
     if (!mConsole) {
         LOG(FATAL) << "Display: " << index << " has nullptr console";
     }
@@ -75,6 +75,8 @@ QemuDisplay::QemuDisplay(QemuConsole* con, DisplaySurface* ds, int index)
 }
 
 void QemuDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
+    VLOG(1) << *this << ", sendMultiTouchEvent(" << slot << ", " << x << ", " << y << ", "
+            << (int)type << ")";
     Error* error_warn;
     auto ttype = translate_touch_type(type);
     console_handle_touch_event(mConsole, mTouchSlots, slot, mWidth, mHeight, x, y, ttype,
@@ -83,10 +85,11 @@ void QemuDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType
 }
 
 void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
+    VLOG(1) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
     static uint32_t bmap[INPUT_BUTTON__MAX] = {
-            [INPUT_BUTTON_LEFT] = 0x01,       [INPUT_BUTTON_MIDDLE] = 0x02,
-            [INPUT_BUTTON_RIGHT] = 0x04,      [INPUT_BUTTON_WHEEL_UP] = 0x08,
-            [INPUT_BUTTON_WHEEL_DOWN] = 0x10,
+        [INPUT_BUTTON_LEFT] = 0x01,       [INPUT_BUTTON_MIDDLE] = 0x02,
+        [INPUT_BUTTON_RIGHT] = 0x04,      [INPUT_BUTTON_WHEEL_UP] = 0x08,
+        [INPUT_BUTTON_WHEEL_DOWN] = 0x10,
     };
 
     if (mlast_bmask != button_mask) {
@@ -100,6 +103,7 @@ void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
 }
 
 void QemuDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
+    VLOG(1) << *this << ", sendEvDevEvent(" << type << ", " << code << ", " << value << ")";
     virtio_input_send_evdev(mVhid, type, code, value);
 }
 

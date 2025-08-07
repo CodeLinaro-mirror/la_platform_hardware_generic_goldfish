@@ -74,6 +74,8 @@ class MultiDisplayImpl : public IMultiDisplay {
             return absl::AlreadyExistsError(
                     absl::StrFormat("Display with id %d already exists.", id));
         }
+
+        VLOG(1) << "Created display: " << *display;
         return display;
     }
 
@@ -136,10 +138,10 @@ IMultiDisplay* IMultiDisplay::instance() {
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
     // to gpu0, head:%d
-    QemuConsole *con = dcl->con;
+    QemuConsole* con = dcl->con;
     if (con == nullptr) {
-      LOG(INFO) << "grpc_dpy_gfx_update: Console is NULL, using default";
-      con = qemu_console_lookup_default();
+        LOG(INFO) << "grpc_dpy_gfx_update: Console is NULL, using default";
+        con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
     auto device = MultiDisplayImpl::instance().getDisplayWeak(index);
@@ -162,17 +164,16 @@ extern "C" void grpc_dpy_gfz_refresh(DisplayChangeListener* dcl) {
 
 extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                                     struct DisplaySurface* new_surface) {
-    QemuConsole *con = dcl->con;
+    QemuConsole* con = dcl->con;
     if (con == nullptr) {
-      LOG(INFO) << "grpc_dpy_gfx_switch: Console is NULL, using default";
-      // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
-      con = qemu_console_lookup_default();
+        LOG(INFO) << "grpc_dpy_gfx_switch: Console is NULL, using default";
+        // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
+        con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
     auto device = MultiDisplayImpl::instance().getDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
-        auto status =
-                MultiDisplayImpl::instance().createDisplayFromQemu(con, new_surface, index);
+        auto status = MultiDisplayImpl::instance().createDisplayFromQemu(con, new_surface, index);
         LOG(INFO) << "Display creation state: " << status.status();
         return;
     }

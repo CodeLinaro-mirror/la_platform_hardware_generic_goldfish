@@ -15,6 +15,8 @@
 
 #include <memory>
 
+#include "absl/strings/str_format.h"
+
 #include "android/goldfish/display/Display.h"  // Include the IDisplay definition
 
 extern "C" {
@@ -62,8 +64,15 @@ class PixmanDisplay : public IDisplay {
     void updateSurface(int x, int y, int width, int height);
 
   protected:
+    template <typename Sink>
+    friend void AbslStringify(Sink&, const PixmanDisplay&);
     mutable absl::Mutex mDisplayAccess;
     PixmanImagePtr mSourceImage;
 };
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const PixmanDisplay& display) {
+    absl::Format(&sink, "%s, src: %p", display.string(), display.mSourceImage.get());
+}
 
 }  // namespace android::goldfish

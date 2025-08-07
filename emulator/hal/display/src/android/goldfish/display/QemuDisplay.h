@@ -35,10 +35,18 @@ class QemuDisplay : public PixmanDisplay {
     void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
 
   private:
+    template <typename Sink>
+    friend void AbslStringify(Sink&, const QemuDisplay&);
     QemuConsole* mConsole;
     ::VirtIOInputHID* mVhid;
     int mlast_bmask{0};
     struct touch_slot mTouchSlots[INPUT_EVENT_SLOTS_MAX];
 };
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const QemuDisplay& display) {
+    absl::Format(&sink, "QemuDisplay: %s, src: %p, con: %p", display.string(),
+                 display.mSourceImage.get(), display.mConsole);
+}
 
 }  // namespace android::goldfish

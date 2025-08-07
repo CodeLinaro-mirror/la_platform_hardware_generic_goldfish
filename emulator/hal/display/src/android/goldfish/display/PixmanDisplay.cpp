@@ -93,6 +93,7 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     mSourceImage = PixmanImagePtr(image);
     mWidth = pixman_image_get_width(image);
     mHeight = pixman_image_get_height(image);
+    VLOG(1) << "updateSourceImage: " << *this;
 }
 
 absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWidth, int newHeight,

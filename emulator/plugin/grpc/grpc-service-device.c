@@ -60,6 +60,7 @@ static void android_display_init(struct DisplayState* ds, struct DisplayOptions*
 
         // Note we expect our gRPC handler to do figure out
         // console --> display mapping.
+        dcl.con = con;
         register_displaychangelistener(&dcl);
     }
 }
