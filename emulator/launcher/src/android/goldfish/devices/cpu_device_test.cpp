@@ -16,20 +16,19 @@
 
 #include <memory>
 
-#include "absl/log/globals.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/base/testing/TestSystem.h"
 #include "android/cmdline-definitions.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
 #include "mock_avd.h"
 
 namespace android::goldfish::test {
+
+using ::absl_testing::StatusIs;
 
 TEST(Cpu, Basic_x86) {
     auto hw = HardwareConfig();
@@ -40,7 +39,7 @@ TEST(Cpu, Basic_x86) {
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -70,7 +69,7 @@ TEST(Cpu, Basic_arm64) {
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -100,7 +99,7 @@ TEST(Cpu, NoAccel) {
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -132,7 +131,7 @@ TEST(Cpu, AccelOff) {
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -164,7 +163,7 @@ TEST(Cpu, HostAndTargetMismatch) {
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -183,6 +182,57 @@ TEST(Cpu, HostAndTargetMismatch) {
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("Snowridge"),
                                      testing::Eq("-accel"), testing::Eq("tcg")));
+}
+
+TEST(Cpu, CoresFlagOverride) {
+    auto hw = HardwareConfig();
+    hw.hw_cpu_ncore = 3;
+
+    auto avd = std::make_unique<MockAvd>();
+
+    MockAvd* avd_ptr = avd.get();
+    // First the 3 calls by Emulator ctor.
+    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+
+    EXPECT_CALL(*avd_ptr, detectArchitecture())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    AndroidOptions opts{};
+    opts.cores = "5";
+    Emulator emu(std::move(avd), std::move(opts));
+
+    CpuDevice dev;
+    EXPECT_OK(dev.initialize(emu));
+    EXPECT_THAT(dev.getQemuParameters(emu),
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"),
+                                     testing::Eq("-cpu"), testing::Eq("Snowridge"),
+                                     testing::Eq("-accel"), testing::Eq("kvm")));
+}
+
+TEST(Cpu, CoresFlagInvalid) {
+    auto hw = HardwareConfig();
+    hw.hw_cpu_ncore = 3;
+
+    auto avd = std::make_unique<MockAvd>();
+
+    MockAvd* avd_ptr = avd.get();
+    // First the 3 calls by Emulator ctor.
+    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+
+    AndroidOptions opts{};
+    opts.cores = "nan";
+    Emulator emu(std::move(avd), std::move(opts));
+
+    CpuDevice dev;
+    EXPECT_THAT(dev.initialize(emu), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 }  // namespace android::goldfish::test
