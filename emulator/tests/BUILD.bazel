@@ -4,15 +4,31 @@ java_test(
     name = "boot_test",
     data = [
         "//hardware/generic/goldfish/emulator/launcher:goldfish",
-        "//prebuilts/android-emulator-build/sdkhome",
-        "@android_minigbm-x86_64//:system_image",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "//prebuilts/android-emulator-build/sdkhome-linux:sdkhome",
+            "@android_minigbm-x86_64//:system_image",
+        ],
+        "@platforms//os:macos": [
+            "//prebuilts/android-emulator-build/sdkhome-darwin:sdkhome",
+            "@android_minigbm-arm64-v8a//:system_image",
+        ],
+        "//conditions:default": [],
+    }),
     jvm_flags = [
-        "-Demulator.test.system.image.files=\"$(locations @android_minigbm-x86_64//:system_image)\"",
         "-Demulator.test.emulator.path=hardware/generic/goldfish/emulator/launcher/goldfish",
         "-Demulator.test.emulator.is-emu-next=1",
-        "-Demulator.test.sdk.path=prebuilts/android-emulator-build/sdkhome",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "-Demulator.test.sdk.path=prebuilts/android-emulator-build/sdkhome-linux",
+            "-Demulator.test.system.image.files=\"$(locations @android_minigbm-x86_64//:system_image)\"",
+        ],
+        "@platforms//os:macos": [
+            "-Demulator.test.sdk.path=prebuilts/android-emulator-build/sdkhome-darwin",
+            "-Demulator.test.system.image.files=\"$(locations @android_minigbm-arm64-v8a//:system_image)\"",
+        ],
+        "//conditions:default": [],
+    }),
     tags = [
         "block-network",
     ],
