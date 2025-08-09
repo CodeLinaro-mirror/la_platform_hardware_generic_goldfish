@@ -95,20 +95,19 @@ std::vector<char> buildBootconfigBlob(
     return blob;
 }
 
-int createRamdiskWithBootconfig(
-        const char* srcRamdiskPath, const char* dstRamdiskPath,
+int createRamdiskWithBootconfig(const std::string &srcRamdiskPath, const std::string &dstRamdiskPath,
         const std::vector<std::pair<std::string, std::string>>& bootconfig) {
     struct FILE_deleter {
         void operator()(FILE* fp) const { ::fclose(fp); }
     };
 
-    std::unique_ptr<FILE, FILE_deleter> srcRamdisk(android_fopen(srcRamdiskPath, "rb"));
+    std::unique_ptr<FILE, FILE_deleter> srcRamdisk(android_fopen(srcRamdiskPath.c_str(), "rb"));
     if (!srcRamdisk) {
         LOG(ERROR) << " Can't open '" << srcRamdiskPath << "' for reading";
         return 1;
     }
 
-    std::unique_ptr<FILE, FILE_deleter> dstRamdisk(android_fopen(dstRamdiskPath, "wb"));
+    std::unique_ptr<FILE, FILE_deleter> dstRamdisk(android_fopen(dstRamdiskPath.c_str(), "wb"));
     if (!dstRamdisk) {
         LOG(ERROR) << ": Can't open '" << dstRamdiskPath << "' for writing";
         return 1;

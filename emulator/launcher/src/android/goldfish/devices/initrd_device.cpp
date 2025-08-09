@@ -25,6 +25,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 
+#include "aemu/base/utils/status_macros.h"
+
 #include "android/base/system/System.h"
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/bootconfig.h"
@@ -292,7 +294,9 @@ std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
     // if (android_op_writable_system) {
     // unlocked state
 
-    verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+    // if (emulator.opts().writable_system) {
+        verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+    // }
     return verified_boot_params;
 }
 
@@ -317,13 +321,24 @@ absl::Status InitrdDevice::initialize(const Emulator& emulator) {
     auto properties = getBootProperties(emulator);
 
     const Avd& avd = emulator.avd();
-    auto hw = avd.hw();
-    auto init_rd = avd.getContentPath() / "initrd";
+
+    fs::path system_ramdisk;
+    if (auto *ramdisk = emulator.opts().ramdisk; ramdisk != nullptr) {
+        system_ramdisk = fs::path(ramdisk);
+        if (!fs::exists(system_ramdisk)) {
+            return absl::NotFoundError(absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
+        }
+    } else {
+        ASSIGN_OR_RETURN(system_ramdisk, avd.getSystemImageFilePath(Avd::ImageType::RAMDISK));
+    }
+
+    // Why doesn't it use Avd::getImageFilename(Avd::ImageType::USERRAMDISK) ?
+    mUserRamdisk = avd.getContentPath() / "initrd";
+    // TODO(whollins): if mUserRamdisk exists then don't overwrite it (but then boot properties aren't updated)?
 
     // Ok.. let's create it
-    LOG(INFO) << "Creating initrd from " << hw.disk_ramdisk_path << " -> " << init_rd;
-    if (::goldfish::createRamdiskWithBootconfig(hw.disk_ramdisk_path.c_str(),
-                                                init_rd.string().c_str(), properties) != 0) {
+    LOG(INFO) << "Creating initrd from " << system_ramdisk << " -> " << mUserRamdisk;
+    if (::goldfish::createRamdiskWithBootconfig(system_ramdisk.string(), mUserRamdisk.string(), properties) != 0) {
         return absl::InternalError("Failed to create initrd image with bootpropterties.");
     }
 
@@ -332,8 +347,7 @@ absl::Status InitrdDevice::initialize(const Emulator& emulator) {
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
 std::vector<std::string> InitrdDevice::getQemuParameters(const Emulator& emulator) const {
-    const Avd& avd = emulator.avd();
-    return {"-initrd", android::base::System::pathAsString(avd.getContentPath() / "initrd")};
+    return {"-initrd", mUserRamdisk.string()};
 }
 
 }  // namespace android::goldfish

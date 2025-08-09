@@ -17,6 +17,7 @@
 #include <android/base/system/System.h>
 #include <android/goldfish/config/hardware_config.h>
 #include <gtest/gtest.h>
+#include <string.h>
 
 #include <memory>
 #include <fstream>
@@ -86,7 +87,6 @@ TEST(BootProperties, Logcat) {
 
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
-
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).Times(2).WillRepeatedly(testing::Return("mock_avd"));
@@ -110,22 +110,21 @@ TEST(Initrd, Basic) {
     std::filesystem::create_directories(launcher_path / "content");
     std::filesystem::create_directories(launcher_path / "system");
 
-    auto system_initrd = launcher_path / "system/system-initrd";
+    auto system_initrd = launcher_path / "system/ramdisk.img";
     std::ofstream{system_initrd};
 
     auto hw = HardwareConfig();
-    hw.disk_ramdisk_path = system_initrd.string();
-
     auto avd = std::make_unique<MockAvd>();
-
     MockAvd* avd_ptr = avd.get();
     // First the 3 calls by Emulator ctor.
     EXPECT_CALL(*avd_ptr, name()).Times(2).WillRepeatedly(testing::Return("mock_avd"));
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::RAMDISK))
+            .Times(1).WillRepeatedly(testing::Return(system_initrd.string()));
     EXPECT_CALL(*avd_ptr, getContentPath())
-            .Times(2).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
+            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -139,6 +138,50 @@ TEST(Initrd, Basic) {
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(
                                      testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
+}
+
+TEST(Initrd, RamdiskFlag) {
+    auto launcher_path = std::filesystem::temp_directory_path();
+    base::TestSystem sys(launcher_path);
+
+    std::filesystem::create_directories(launcher_path / "content");
+    std::filesystem::create_directories(launcher_path / "system");
+
+    auto system_initrd = launcher_path / "system/ramdisk.img";
+    std::ofstream{system_initrd};
+
+    auto override_initrd = launcher_path / "system/other-initrd";
+    std::ofstream{override_initrd} << "abc";
+
+    auto hw = HardwareConfig();
+    auto avd = std::make_unique<MockAvd>();
+    MockAvd* avd_ptr = avd.get();
+    // First the 3 calls by Emulator ctor.
+    EXPECT_CALL(*avd_ptr, name()).Times(2).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::RAMDISK))
+            .Times(0).WillRepeatedly(testing::Return(system_initrd.string()));
+    EXPECT_CALL(*avd_ptr, getContentPath())
+            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
+
+    EXPECT_CALL(*avd_ptr, detectArchitecture())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    char override_str[1024];
+    strncpy(override_str, override_initrd.c_str(), 1024);
+    AndroidOptions opts{.ramdisk = override_str};
+    Emulator emu(std::move(avd), std::move(opts));
+
+    InitrdDevice dev;
+    EXPECT_OK(dev.initialize(emu));
+    auto params = dev.getQemuParameters(emu);
+    EXPECT_THAT(params, testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
+    std::string contents;
+    std::ifstream{params[1]} >> contents;
+    EXPECT_THAT(contents, testing::StartsWith("abc"));
 }
 
 }  // namespace android::goldfish::test

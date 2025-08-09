@@ -37,6 +37,7 @@ class InitrdDevice : public Device {
   std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
 
  private:
+  fs::path mUserRamdisk;
 };
 
 }  // namespace android::goldfish
