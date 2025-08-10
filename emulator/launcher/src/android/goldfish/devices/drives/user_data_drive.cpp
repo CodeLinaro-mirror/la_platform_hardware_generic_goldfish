@@ -13,31 +13,107 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "user_data_drive.h"
+
 
 #include <filesystem>
 #include <fstream>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
+#include "aemu/base/utils/status_macros.h"
 #include "android/base/system/System.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
-#include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
-#include "android/goldfish/config/emulator.h"
+#include "android/filesystems/ext4_utils.h"
+#include "android/filesystems/ext4_resize.h"
 #include "android/utils/path.h"
 
-#define D(...) (void)(0)
 namespace android::goldfish {
 
-using android::base::System;
-using android::goldfish::ConfigDirs;
 namespace fs = std::filesystem;
 
-static absl::Status writePublicKey(const fs::path& guestAdbKeyPath, const std::string& pubKey) {
+namespace {
+
+using android::base::System;
+using android::base::StorageCapacity;
+using android::base::operator""_MiB;
+using android::base::operator""_TiB;
+
+absl::Status resizePartition(fs::path partition, StorageCapacity size) {
+    constexpr auto minSize = 128_MiB;
+    constexpr auto maxSize = 16_TiB;
+
+    if (size < minSize) {
+        return absl::InvalidArgumentError(
+                absl::StrFormat("Partition '%s' cannot be smaller than %s. Requested size: %s",
+                                partition.string(), minSize.string(), size.string()));
+    }
+
+    if (size > maxSize) {
+        return absl::InvalidArgumentError(
+                absl::StrFormat("Partition '%s' cannot be larger than %s. Requested size: %s",
+                                partition.string(), maxSize.string(), size.string()));
+    }
+
+    int resizeResult = resizeExt4Partition(partition.string().c_str(), size.bytes());
+
+    // Interpret the error codes can propagate.
+    if (resizeResult != 0) {
+        std::string resizeError;
+        switch (resizeResult) {
+            case -1:
+                resizeError = "Argument formatting failed";
+                break;
+            case -2:
+                resizeError = "System call failed";
+                break;
+            default:
+                resizeError = absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
+                break;
+        }
+        return absl::InternalError(absl::StrFormat("Could not resize partition %s. Error: %s",
+                                                   partition.string(), resizeError));
+    }
+
+    return absl::OkStatus();
+}
+
+absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
+    System::FileSize current_data_size;
+    if (System::get()->pathIsExt4(image) &&
+        System::get()->pathFileSize(image, &current_data_size)) {
+        if (desired_size_bytes > 0 && current_data_size < desired_size_bytes) {
+            // Log resize intent
+            LOG(WARNING) << "Resizing userdata partition " << image << " from "
+                         << current_data_size.string() << " to "
+                         << desired_size_bytes;
+            RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
+            // It will be recreated by RwDrive.
+            fs::remove(fs::path(image).concat(".qcow2"));
+        }
+    }
+    return absl::OkStatus();
+}
+
+absl::Status createExt4ImageFromDirectory(fs::path source, fs::path destination,
+                                                            StorageCapacity size,
+                                                            std::string mount_point) {
+    if (android_createExt4ImageFromDir(destination.string().c_str(), source.string().c_str(),
+                                       size.bytes(), mount_point.c_str()) == 0) {
+        return absl::OkStatus();
+    }
+
+    return absl::InternalError(
+            absl::StrFormat("Failed to create Ext4 image from directory '%s' to '%s'",
+                            source.string(), destination.string()));
+}
+
+absl::Status writePublicKey(const fs::path& guestAdbKeyPath, const std::string& pubKey) {
     std::ofstream pubKeyFile(guestAdbKeyPath);
     if (!pubKeyFile.is_open()) {
         return absl::UnknownError(
@@ -50,11 +126,6 @@ static absl::Status writePublicKey(const fs::path& guestAdbKeyPath, const std::s
 absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
     // The adb_keys file permission will also be set in guest system.
     // Referencing system/core/rootdir/init.usb.rc
-    if (fs::exists(to)) {
-        LOG(WARNING) << "Erasing existing folder: " << to.string();
-        fs::remove_all(to);
-    }
-
     static const int kAdbKeyDirFilePerm = 02750;
     std::error_code ec;
     fs::copy(from, to, fs::copy_options::recursive, ec);
@@ -92,7 +163,7 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
             if (!status.ok()) {
                 return status;
             }
-            D("Using re-constructed public key from %s", adbKeyPrivPath.string());
+            VLOG(1) << "Using re-constructed public key from " << adbKeyPrivPath.string();
         }
     } else {
         path_copy_file(guestAdbKeyPath.string().c_str(), adbKeyPubPath.string().c_str());
@@ -105,192 +176,51 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
     return absl::OkStatus();
 }
 
-absl::Status UserDataDrive::createImage(const HardwareConfig& hw, const fs::path data_path) {
-    LOG(INFO) << "Creating image [" << hw.disk_dataPartition_path << "] of size "
-              << hw.disk_dataPartition_size.string();
-    fs::path empty_data_path = data_path / "empty_data_disk";
-    bool shouldUseEmptyDataImg = fs::exists(empty_data_path);
-    // &&!(android_foldable_is_pixel_fold());
+}  // namespace
 
-    absl::Status create_status;
-    if (fs::exists(empty_data_path)) {
-        create_status =
-                createExt4Image(hw.disk_dataPartition_path, hw.disk_dataPartition_size, "data");
+absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size, bool wipe_data, bool resize) {
+    if (wipe_data) {
+        fs::remove(user_data);
+    }
+
+    if (fs::exists(user_data)) {
+        if (!resize) {
+            return absl::OkStatus();
+        }
+        return minimizePartition(user_data, data_size);
     } else {
-        create_status = createExt4ImageFromDirectory(data_path, hw.disk_dataPartition_path,
-                                                     hw.disk_dataPartition_size, "data");
-    }
-
-    // Check if creating user data img succeed
-    System::FileSize diskSize;
-    if (create_status.ok() && System::get()->pathFileSize(hw.disk_dataPartition_path, &diskSize) &&
-        diskSize > 0) {
-        return absl::OkStatus();
-    }
-
-    fs::remove(hw.disk_dataPartition_path);
-    return absl::DataLossError(
-            absl::StrFormat("Failed to properly configure the partition. The file "
-                            "'%s' has been deleted. Reason: %s",
-                            hw.disk_dataPartition_path, create_status.message()));
-}
-
-absl::Status UserDataDrive::createUserData(const Emulator& emulator, const fs::path data_path,
-                                           bool asQcow2) {
-    auto hw = emulator.avd().hw();
-    const Avd& avd = emulator.avd();
-
-    auto initDir = avd.getImageFilePath(Avd::ImageType::INITZIP);
-    if (!initDir.ok()) {
-        return initDir.status();
-    }
-
-    bool needCopyDataPartition = true;
-    if (fs::exists(*initDir)) {
-        LOG(INFO) << "Creating ext4 userdata partition: " << data_path << " from " << initDir;
-
-        auto status = prepareDataFolder(*initDir, data_path);
-        if (!status.ok()) {
-            LOG(ERROR) << "Failed to prepare data folder.";
-            return status;
+        if (!fs::is_directory(init_data)) {
+            return absl::InvalidArgumentError(absl::StrCat("data partition initialization path is not a directory: ", init_data.string()));
+        }
+        fs::path empty_data_path = init_data / "empty_data_disk";
+        if (fs::exists(empty_data_path)) {
+            // Don't create anything - in this case, userdata should be created the same as cache or sdcard.
+            return absl::OkStatus();
         }
 
-        // TODO(jansene):
-        // Add support for foldable and display settings.
-        //    prepareDisplaySettingXml(hw, data_path);
-        // if (feature_is_enabled(kFeature_SupportPixelFold)) {
-        //   prepareSkinConfig(hw, data_path);
-        // }
+        // TODO just a tmpdir
+        fs::path tmp_data_path = user_data.parent_path() / "data";
+        VLOG(1) << "Creating ext4 userdata partition: " << tmp_data_path << " from " << init_data;
+        RETURN_IF_ERROR(prepareDataFolder(init_data, tmp_data_path));
 
-        status = createImage(hw, data_path);
-        if (!status.ok()) {
-            LOG(ERROR) << "Failed to create user data image " << data_path;
-            return status;
-        }
+        LOG(INFO) << "Creating image [" << user_data << "] of size " << data_size;
+        absl::Status create_status = createExt4ImageFromDirectory(tmp_data_path, user_data, data_size, "userdata");
+        fs::remove_all(tmp_data_path);
+        RETURN_IF_ERROR(create_status);
 
-        fs::remove_all(data_path);
-
-        // if (asQcow2) {
-        auto startTime = std::chrono::steady_clock::now();
-        auto qemu_img = System::get()->findBundledExecutable("qemu-img");
-        std::string dataimageext4 = std::string(hw.disk_dataPartition_path);
-        status = convertImgToQcow2(dataimageext4);
-        if (!status.ok()) {
-            return status;
-        }
-        // };
-    }
-
-    if (needCopyDataPartition) {
-        if (System::get()->pathExists(hw.disk_dataPartition_initPath)) {
-            D("Creating: %s by copying from %s ", hw.disk_dataPartition_path,
-              hw.disk_dataPartition_initPath);
-
-            if (!fs::copy_file(hw.disk_dataPartition_initPath, hw.disk_dataPartition_path)) {
-                return absl::InternalError(
-                        absl::StrFormat("Could not create %s. Copy operation failed: %s",
-                                        hw.disk_dataPartition_path, strerror(errno)));
-            }
-
-            if (!hw.hw_arc) {
-                auto status =
-                        resizePartition(hw.disk_dataPartition_path, hw.disk_dataPartition_size);
-                if (!status.ok()) {
-                    LOG(WARNING) << "Failed to resize partition. Ignoring resize "
-                                    "operation. Reason: "
-                                 << status.message();
-                }
-            }
+        // Check if creating img succeed
+        if (System::FileSize diskSize; System::get()->pathFileSize(user_data, &diskSize) && diskSize > 0) {
+            return absl::OkStatus();
+        } else {
+            fs::remove(user_data);
+            return absl::DataLossError(
+                    absl::StrFormat("Failed to properly configure the partition. The file "
+                                    "'%s' has been deleted. Reason: %s",
+                                    user_data, create_status.message()));
         }
     }
 
     return absl::OkStatus();
-}
-
-absl::Status UserDataDrive::minimizeUserDataPartition(const Emulator& emulator) {
-    auto hw = emulator.avd().hw();
-    // Check if a resize is needed (current size < configured size)
-    // b/196926
-    System::FileSize current_data_size;
-    if (System::get()->pathIsExt4(hw.disk_dataPartition_path) &&
-        System::get()->pathFileSize(hw.disk_dataPartition_path, &current_data_size)) {
-        auto partition_size = hw.disk_dataPartition_size;
-        if (hw.disk_dataPartition_size > 0 && current_data_size < partition_size) {
-            // Log resize intent
-            LOG(WARNING) << "Resizing userdata partition " << hw.disk_dataPartition_path << " from "
-                         << current_data_size.string() << " to "
-                         << hw.disk_dataPartition_size.string();
-            auto status = resizePartition(hw.disk_dataPartition_path, hw.disk_dataPartition_size);
-            if (!status.ok()) {
-                auto qcow2 = absl::StrCat(hw.disk_dataPartition_path, ".qcow2");
-                LOG(WARNING) << "Partition resize failed. Deleting associated QCOW2 image: "
-                             << qcow2;
-                System::get()->deleteFile(qcow2);
-            };
-        }
-    }
-    return absl::OkStatus();
-}
-
-absl::Status UserDataDrive::initialize(const Emulator& emulator) {
-    using android::base::operator""_GiB;
-    auto hw = emulator.avd().hw();
-
-    if (exists()) {
-        if (!hw.hw_arc) {
-            return minimizeUserDataPartition(emulator);
-        }
-        return absl::OkStatus();
-    }
-
-    // auto initImage = emulator.avd().getImagePath(Avd::ImageType::INITDATA);
-    // if (!initImage.ok()) {
-    //   return initImage.status();
-    // }
-
-    if (emulator.avd().playstore()) {
-        StorageCapacity kMinPlaystoreImageSize = 6_GiB;
-        if (hw.disk_dataPartition_size < kMinPlaystoreImageSize) {
-            hw.disk_dataPartition_size = kMinPlaystoreImageSize;
-            // TODO(jansene): Now update underlying config.ini file..
-        }
-    }
-
-    StorageCapacity availableSpace;
-    if (!hw.disk_dataPartition_path.empty() &&
-        System::get()->pathFreeSpace(hw.disk_dataPartition_path, &availableSpace)) {
-        constexpr double kDataPartitionSafetyFactor = 1.2;
-        auto needed = hw.disk_dataPartition_size * kDataPartitionSafetyFactor;
-
-        if (needed > availableSpace) {
-            return absl::ResourceExhaustedError(absl::StrFormat(
-                    "Failed to create userdata partition due to "
-                    "insufficient disk space. "
-                    "Available space at '%s': %s, required space: %s",
-                    hw.disk_dataPartition_path, availableSpace.string(), needed.string()));
-        }
-    }
-    if (absl::StartsWith(hw.hw_device_name, "pixel_fold") ||
-        absl::StartsWith(hw.hw_device_name, "resizable")) {
-        // TODO(jansene): if (!feature_is_enabled(kFeature_SupportPixelFold))
-        return absl::AbortedError(
-                absl::StrFormat("Device %s requires the foldable feature, but "
-                                "the system image does not support it. Please update "
-                                "your system image or use a compatible device.",
-                                hw.hw_device_name));
-    }
-
-    // convert the ext4 to qcow2
-    bool bShouldConvertToQcow2 = false;
-
-    // TODO(jansene): Enable features..
-    // if (feature_is_enabled(kFeature_DownloadableSnapshot) ||
-    //     opts->qcow2_for_userdata || hw.userdata_useQcow2) {
-    //     bShouldConvertToQcow2 = true;
-    // }
-
-    fs::path data_path = emulator.avd().getContentPath() / "data";
-    return createUserData(emulator, data_path, bShouldConvertToQcow2);
 }
 
 }  // namespace android::goldfish

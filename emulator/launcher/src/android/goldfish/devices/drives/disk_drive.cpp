@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "disk_drive.h"
+#include <aemu/base/utils/status_macros.h>
 
 #include <chrono>
 #include <filesystem>
@@ -20,16 +21,13 @@
 #include <memory>
 #include <string_view>
 
-#include "absl/log/absl_log.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
 
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "android/base/system/System.h"
-#include "android/base/system/storage_capacity.h"
-#include "android/filesystems/ext4_resize.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
@@ -37,64 +35,23 @@
 
 namespace android::goldfish {
 using android::base::System;
-using android::base::operator""_MiB;
-using android::base::operator""_TiB;
 
 namespace {
 std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_view addr) {
     switch (avd.detectArchitecture()) {
         case Avd::CpuArchitecture::kArm:
             // Note that this isn't actually a pci device, oh well.
-            return absl::StrFormat("virtio-blk-device,drive=%s,num-queues=4,iothread=disk-iothread",
-                                   diskId);
+            return absl::StrCat("virtio-blk-device,drive=", diskId, ",num-queues=4,iothread=disk-iothread");
         case Avd::CpuArchitecture::kX86:
-            return absl::StrFormat(
-                    "virtio-blk-pci,addr=%s,drive=%s,num-queues=4,iothread=disk-iothread", addr,
-                    diskId);
+            return absl::StrCat("virtio-blk-pci,addr=", addr, ",drive=", diskId, ",num-queues=4,iothread=disk-iothread");
         case Avd::CpuArchitecture::kRiscV:
         case Avd::CpuArchitecture::kUnknown:
         default:
             return {};
     }
 }
-}  // namespace
 
-absl::Status RawDrive::initialize(const Emulator& emulator) {
-    return emulator.avd().getSystemImageFilePath(mImage).status();
-};
-
-std::vector<std::string> RawDrive::getQemuParameters(const Emulator& emulator) const {
-    const Avd& avd = emulator.avd();
-    auto diskImage = avd.getSystemImageFilePath(mImage);
-    auto diskId = diskImage->filename().string();
-    return {"-device", getDeviceParam(avd, diskId, addr()), "-blockdev",
-            absl::StrFormat("driver=raw,node-name=%s,read-only=on,driver="
-                            "file,filename=%s",
-                            diskId, diskImage->string())};
-}
-
-void MutableDiskDrive::clear() {
-    fs::remove(mDiskImage);
-    auto img = mDiskImage;
-    // assert(img.extension() == ".qcow2");
-    fs::remove(img.replace_extension());
-}
-
-std::vector<std::string> MutableDiskDrive::getQemuParameters(const Emulator& emulator) const {
-    // TODO(jansene): Optimize for performance.
-    // For example run an individual iothread per drive
-    //  "-object",  "iothread,id=disk-iothread" per drive..
-    // and setup proper caching.
-    return {"-device",
-            getDeviceParam(emulator.avd(), mDiskId, addr()) + std::string(",write-cache=on"),
-            "-blockdev",
-            absl::StrFormat(
-                    "driver=qcow2,node-name=%s,file.driver=file,file.filename=%s"
-                    ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576",
-                    mDiskId, mDiskImage.string())};
-}
-
-absl::Status MutableDiskDrive::createExt4Image(fs::path destination, StorageCapacity size,
+absl::Status createExt4Image(fs::path destination, StorageCapacity size,
                                                std::string mount_point) {
     if (android_createEmptyExt4Image(destination.string().c_str(), size.bytes(),
                                      mount_point.c_str()) == 0) {
@@ -106,46 +63,7 @@ absl::Status MutableDiskDrive::createExt4Image(fs::path destination, StorageCapa
                             destination.string(), size.bytes()));
 }
 
-absl::Status MutableDiskDrive::resizePartition(fs::path partition, StorageCapacity size) {
-    constexpr auto minSize = 128_MiB;
-    constexpr auto maxSize = 16_TiB;
-
-    if (size < minSize) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("Partition '%s' cannot be smaller than %s. Requested size: %s",
-                                partition.string(), minSize.string(), size.string()));
-    }
-
-    if (size > maxSize) {
-        return absl::InvalidArgumentError(
-                absl::StrFormat("Partition '%s' cannot be larger than %s. Requested size: %s",
-                                partition.string(), maxSize.string(), size.string()));
-    }
-
-    int resizeResult = resizeExt4Partition(partition.string().c_str(), size.bytes());
-
-    // Interpret the error codes can propagate.
-    if (resizeResult != 0) {
-        std::string resizeError;
-        switch (resizeResult) {
-            case -1:
-                resizeError = "Argument formatting failed";
-                break;
-            case -2:
-                resizeError = "System call failed";
-                break;
-            default:
-                resizeError = absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
-                break;
-        }
-        return absl::InternalError(absl::StrFormat("Could not resize partition %s. Error: %s",
-                                                   partition.string(), resizeError));
-    }
-
-    return absl::OkStatus();
-}
-
-absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
+absl::Status convertImgToQcow2(fs::path ext4_image, fs::path qcow2_image) {
     constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
 
     if (!fs::exists(ext4_image)) {
@@ -160,41 +78,80 @@ absl::Status MutableDiskDrive::convertImgToQcow2(fs::path ext4_image) {
                 "The bundled executable qemu-img cannot be "
                 "found, please check you installation.");
     }
-    fs::path qcow2 = ext4_image;
-    qcow2.concat(".qcow2");
 
     auto img_proc = base::Command::create({qemu_img.string(), "convert", "-O", "qcow2",
-                                           ext4_image.string(), qcow2.string()})
+                                           ext4_image.string(), qcow2_image.string()})
                             .execute();
     if (img_proc->wait_for(kQemuImgTimeout) == std::future_status::timeout) {
         return absl::DeadlineExceededError(
                 absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image.string(),
-                                qcow2.string(), kQemuImgTimeout.count()));
+                                qcow2_image.string(), kQemuImgTimeout.count()));
     }
-    if (!System::get()->pathIsQcow2(qcow2)) {
+    if (!System::get()->pathIsQcow2(qcow2_image)) {
         return absl::DataLossError(
-                absl::StrFormat("The created file %s is not in qcow2 format", qcow2));
+                absl::StrFormat("The created file %s is not in qcow2 format", qcow2_image));
     }
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - startTime);
     long long timeUsedMs = (long long)elapsed.count();
-    ABSL_VLOG(1) << "Converted ext4->qcow2 " << ext4_image << " to " << qcow2 << " in "
+    VLOG(1) << "Converted ext4->qcow2 " << ext4_image << " to " << qcow2_image << " in "
                  << timeUsedMs << " milliseconds.";
     return absl::OkStatus();
 }
 
-absl::Status MutableDiskDrive::createExt4ImageFromDirectory(fs::path source, fs::path destination,
-                                                            StorageCapacity size,
-                                                            std::string mount_point) {
-    if (android_createExt4ImageFromDir(destination.string().c_str(), source.string().c_str(),
-                                       size.bytes(), mount_point.c_str()) == 0) {
-        return absl::OkStatus();
+}  // namespace
+
+absl::Status RoDrive::initialize(const Emulator& emulator) {
+    if (!System::get()->pathIsFile(mImagePath)) {
+        return absl::InvalidArgumentError(absl::StrCat("Unable to initialize drive as image isn't a file: ", mImagePath.string()));
+    }
+    if (!System::get()->pathCanRead(mImagePath)) {
+        return absl::InvalidArgumentError(absl::StrCat("Unable to initialize drive as image file can't be read: ", mImagePath.string()));
+    }
+    return absl::OkStatus();
+}
+
+std::vector<std::string> RoDrive::getQemuParameters(const Emulator& emulator) const {
+    const Avd& avd = emulator.avd();
+    return {"-device", getDeviceParam(avd, id(), addr()), "-blockdev",
+            absl::StrCat("driver=raw,node-name=", id(), ",read-only=on,driver=file,filename=", mImagePath.string())};
+}
+
+absl::Status RwDrive::initialize(const Emulator& emulator) {
+    if (mWipeExisting) {
+        fs::remove(mQcow2Image);
+        fs::remove(mDestinationImage);
     }
 
-    return absl::InternalError(
-            absl::StrFormat("Failed to create Ext4 image from directory '%s' to '%s'",
-                            source.string(), destination.string()));
+    if (!fs::exists(mDestinationImage)) {
+        fs::remove(mQcow2Image);
+        if (mSourcePath) {
+            fs::copy_options options = fs::copy_options::overwrite_existing;
+            fs::copy(*mSourcePath, mDestinationImage, options);
+
+            if (!fs::exists(mDestinationImage)) {
+                return absl::NotFoundError(absl::StrCat("Failed to copy '", mSourcePath->string(), "' to '", mDestinationImage.string(), "'"));
+            }
+        } else {
+            LOG(INFO) << "Preparing empty drive: " << mDestinationImage;
+            RETURN_IF_ERROR(createExt4Image(mDestinationImage, mSizeBytes, id()));
+        }
+    }
+
+    if (!fs::exists(mQcow2Image)) {
+        return convertImgToQcow2(mDestinationImage, mQcow2Image);
+    }
+
+    return absl::OkStatus();
+}
+
+std::vector<std::string> RwDrive::getQemuParameters(const Emulator& emulator) const {
+    return {"-device",
+            absl::StrCat(getDeviceParam(emulator.avd(), id(), addr()), ",write-cache=on"),
+            "-blockdev",
+            absl::StrCat("driver=qcow2,node-name=", id(),",file.driver=file,file.filename=", mQcow2Image.string(),
+                    ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-cache-size=1048576")};
 }
 
 }  // namespace android::goldfish

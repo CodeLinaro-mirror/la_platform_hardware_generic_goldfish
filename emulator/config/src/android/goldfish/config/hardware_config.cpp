@@ -45,7 +45,7 @@ void HardwareConfig::load(IniFile* ini) {
     hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
 }
 
-void HardwareConfig::applyDefaults(Avd* avd) {
+void HardwareConfig::applyDefaults(const Avd &avd) {
     if (android_sdk_root.empty()) {
         android_sdk_root = ConfigDirs::getSdkRootDirectory().string();
     }
@@ -63,51 +63,6 @@ void HardwareConfig::applyDefaults(Avd* avd) {
         } else {
             hw_initialOrientation = "portrait";
         }
-    }
-
-    // TODO(jansene): Setup command line overrides..
-    disk_ramdisk_path =
-            avd->getImageFilePath(Avd::ImageType::USERRAMDISK).value_or(fs::path()).string();
-    if (disk_ramdisk_path.empty()) {
-        disk_ramdisk_path =
-                avd->getImageFilePath(Avd::ImageType::RAMDISK).value_or(fs::path()).string();
-    }
-
-    disk_dataPartition_path =
-            avd->getImageFilePath(Avd::ImageType::USERDATA).value_or(fs::path()).string();
-
-    if (disk_dataPartition_path.empty()) {
-        disk_dataPartition_path =
-                (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::USERDATA)).string();
-    }
-
-    disk_systemPartition_initPath =
-            avd->getSystemImageFilePath(Avd::ImageType::USERSYSTEM).value_or(fs::path()).string();
-
-    if (disk_systemPartition_initPath.empty() || !fs::exists(disk_systemPartition_initPath)) {
-        disk_systemPartition_initPath = avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM)
-                                                .value_or(fs::path())
-                                                .string();
-    }
-
-    disk_encryptionKeyPartition_path =
-            avd->getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).value_or(fs::path()).string();
-
-    if (disk_encryptionKeyPartition_path.empty() && !disk_dataPartition_path.empty()) {
-        disk_encryptionKeyPartition_path = (fs::path(disk_dataPartition_path).parent_path() /
-                                            Avd::getImageFilename(Avd::ImageType::ENCRYPTIONKEY))
-                                                   .string();
-    }
-
-    hw_sdCard_path =
-            (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::SDCARD)).string();
-
-    disk_cachePartition_size = StorageCapacity(66, StorageCapacity::Unit::MiB).bytes();
-    disk_cachePartition_path =
-            avd->getImageFilePath(Avd::ImageType::CACHE).value_or(fs::path()).string();
-    if (disk_cachePartition_path.empty()) {
-        disk_cachePartition_path =
-                (avd->getContentPath() / avd->getImageFilename(Avd::ImageType::CACHE)).string();
     }
 
     // If minigbm (always the case for this version of the emulator).
