@@ -89,7 +89,8 @@ qemu_binaries = [
     "@platforms//os:windows": [],
     "//conditions:default": [
         "//third_party/qemu:qemu-system-aarch64",
-        "//third_party/qemu:qemu-system-riscv64",
+        # We currently don't have riscv images
+        # "//third_party/qemu:qemu-system-riscv64",
     ],
 })
 
@@ -100,7 +101,8 @@ plugin_binaries = [
     "@platforms//os:windows": [],
     "//conditions:default": [
         "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
-        "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+        # We currently don't have riscv images
+        # "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
     ],
 }) + select({
     "@platforms//os:linux": [
@@ -148,7 +150,8 @@ pkg_files(
         "//conditions:default": {
             "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64",
             "//third_party/qemu:qemu-system-aarch64": "qemu-system-aarch64",
-            "//third_party/qemu:qemu-system-riscv64": "qemu-system-riscv64",
+            # We currently don't have riscv images
+            # "//third_party/qemu:qemu-system-riscv64": "qemu-system-riscv64",
         },
     }),
 )
