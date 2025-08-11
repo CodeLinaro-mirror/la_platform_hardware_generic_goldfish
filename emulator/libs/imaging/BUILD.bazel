@@ -4,14 +4,14 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "imaging",
     srcs = [
-        "getStride.cpp",
+        "queryInfo.cpp",
     ],
     hdrs = [
         "include/goldfish/imaging/AndroidPixelFormat.h",
         "include/goldfish/imaging/ImageFormat.h",
         "include/goldfish/imaging/ImageRef.h",
         "include/goldfish/imaging/Rect.h",
-        "include/goldfish/imaging/getStride.h",
+        "include/goldfish/imaging/queryInfo.h",
     ],
     includes = ["include"],
     visibility = [
@@ -23,7 +23,7 @@ cc_library(
 cc_test(
     name = "imaging_unittests",
     srcs = [
-        "test/getStride_unittests.cpp",
+        "test/queryInfo_unittests.cpp",
     ],
     deps = [
         ":imaging",
