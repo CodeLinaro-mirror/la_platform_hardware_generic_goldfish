@@ -51,7 +51,7 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
   public:
     ClipDataEventStreamWriter(EventChangeSupport<ClipboardEvent>* listener,
                               ::grpc::CallbackServerContext* context)
-        : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener), mContext(context) {}
+            : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener), mContext(context) {}
     virtual ~ClipDataEventStreamWriter() = default;
 
     /**
@@ -148,7 +148,10 @@ Status ClipboardServiceImpl::getClipboard(ServerContext* context,
         reply->set_text(clipboard->getContents());
         return Status::OK;
     }
-    return Status(grpc::StatusCode::UNAVAILABLE, "Clipboard is not available");
+
+    VLOG(1) << "Clipboard not (yet?) available, returning empty string.";
+    reply->set_text("");
+    return Status::OK;
 }
 
 Status ClipboardServiceImpl::setClipboard(ServerContext* context, const ClipData* clipData,
@@ -162,7 +165,8 @@ Status ClipboardServiceImpl::setClipboard(ServerContext* context, const ClipData
         fireEvent(event);
         return Status::OK;
     }
-    return Status(grpc::StatusCode::UNAVAILABLE, "Clipboard is not available");
+    VLOG(1) << "Clipboard not (yet?) available, ignoring.";
+    return Status::OK;
 }
 
 }  // namespace control

@@ -54,7 +54,8 @@ struct ClipboardEvent {
  * filters out duplicate clipboard events to prevent unnecessary updates to
  * listeners.
  */
-class ClipboardServiceImpl : public base::EventChangeSupport<ClipboardEvent> {
+class ClipboardServiceImpl : public base::EventChangeSupport<ClipboardEvent>,
+                             public EmulatorController::Service {
   public:
     ClipboardServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
     ~ClipboardServiceImpl();
