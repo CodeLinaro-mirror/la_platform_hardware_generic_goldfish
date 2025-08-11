@@ -63,7 +63,7 @@ cc_test(
         ":emulator-service",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/config:avd-test",
-        "//hardware/generic/goldfish/emulator/devices:test-socket",
+        "//hardware/generic/goldfish/emulator/devices:test-helpers",
         "//hardware/generic/goldfish/emulator/hal/display:test-display",
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",

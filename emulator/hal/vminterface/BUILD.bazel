@@ -125,3 +125,15 @@ cc_test(
         "@aemu//base:aemu-base-headers",
     ],
 )
+
+cc_library(
+    name = "test_vminterface",
+    hdrs = [
+        "test/FakeVmOperations.h",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":headers",
+    ],
+)
