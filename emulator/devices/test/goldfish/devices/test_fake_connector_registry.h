@@ -25,7 +25,6 @@ class FakeConnectorRegistry : public ConnectorRegistry {
   public:
     FakeConnectorRegistry() {
         mBootPropertiesDevice = std::make_shared<boot::FakeBootPropertiesDevice>();
-        mCameraDevice = std::make_shared<camera::FakeCameraDevice>(nullptr);
         mClipboardDevice = std::make_shared<clipboard::FakeClipboardDevice>();
         mFingerprintDevice = std::make_shared<fingerprint::FakeFingerprintDevice>();
         mGpsDevice = std::make_shared<gps::FakeGpsDevice>();
@@ -33,7 +32,6 @@ class FakeConnectorRegistry : public ConnectorRegistry {
         mSensorDevice = std::make_shared<sensor::FakeSensorDevice>();
 
         registerTest(boot::IBootPropertiesDevice::serviceName, mBootPropertiesDevice);
-        registerTest(camera::CameraDevice, mCameraDevice);
         registerTest(clipboard::IClipboardDevice::serviceName, mClipboardDevice);
         registerTest(fingerprint::IFingerprintDevice::serviceName, mFingerprintDevice);
         registerTest(gps::IGpsDevice::serviceName, mGpsDevice);
@@ -45,7 +43,6 @@ class FakeConnectorRegistry : public ConnectorRegistry {
     std::shared_ptr<boot::FakeBootPropertiesDevice> bootPropertiesDevice() {
         return mBootPropertiesDevice;
     }
-    std::shared_ptr<camera::FakeCameraDevice> cameraDevice() { return mCameraDevice; }
     std::shared_ptr<clipboard::FakeClipboardDevice> clipboardDevice() { return mClipboardDevice; }
     std::shared_ptr<fingerprint::FakeFingerprintDevice> fingerprintDevice() {
         return mFingerprintDevice;
@@ -56,11 +53,10 @@ class FakeConnectorRegistry : public ConnectorRegistry {
 
   private:
     void registerTest(std::string_view name, cable::PlugPtr plug) {
-        registerInternal(std::string(name), plug);
+        registerInternal<cable::IPlug>(std::string(name), plug);
     }
 
     std::shared_ptr<boot::FakeBootPropertiesDevice> mBootPropertiesDevice;
-    std::shared_ptr<camera::FakeCameraDevice> mCameraDevice;
     std::shared_ptr<clipboard::FakeClipboardDevice> mClipboardDevice;
     std::shared_ptr<fingerprint::FakeFingerprintDevice> mFingerprintDevice;
     std::shared_ptr<gps::FakeGpsDevice> mGpsDevice;

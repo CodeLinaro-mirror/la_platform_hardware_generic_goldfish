@@ -1,3 +1,4 @@
+
 // Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -283,16 +284,13 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     return Status::OK;
 }
 
-Status DisplayServiceImpl::getDisplayConfigurations(ServerContext* context, const Empty* request,
+Status DisplayServiceImpl::getDisplayConfigurations(IMultiDisplay* multiDisplay,
                                                     DisplayConfigurations* reply) {
-    if (!mMultiDisplay->isEnabled()) {
-        return Status(grpc::StatusCode::FAILED_PRECONDITION,
-                      "The multi-display feature is not available", "");
-    }
-
-    for (const auto& weakdisplay : mMultiDisplay->displays()) {
+    for (const auto& weakdisplay : multiDisplay->displays()) {
         if (auto display = weakdisplay.lock()) {
             auto cfg = reply->add_displays();
+            // cfg->set_width(1080);
+            // cfg->set_height(2400);
             cfg->set_width(display->width());
             cfg->set_height(display->height());
             cfg->set_dpi(display->dpi());
@@ -301,7 +299,16 @@ Status DisplayServiceImpl::getDisplayConfigurations(ServerContext* context, cons
         }
     }
 
+    // TODO(jansene): Where should these really come from?
+    reply->set_maxdisplays(multiDisplay->maxDisplays);
+    reply->set_userconfigurable(3);
+
     return Status::OK;
+}
+
+Status DisplayServiceImpl::getDisplayConfigurations(ServerContext* context, const Empty* request,
+                                                    DisplayConfigurations* reply) {
+    return getDisplayConfigurations(mMultiDisplay, reply);
 }
 
 }  // namespace control

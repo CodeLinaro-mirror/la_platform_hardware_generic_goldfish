@@ -35,6 +35,7 @@ namespace emulation {
 namespace control {
 
 using android::base::eventing::CallbackEventSource;
+using android::base::eventing::event_param;
 using android::base::eventing::EventListener;
 
 /**
@@ -108,7 +109,7 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
      * @param event The event of type T that has arrived and needs to be
      * handled.
      */
-    void eventArrived(const T event) override {
+    void eventArrived(typename event_param<T>::type event) override {
         DD_EVT("Handling %p, %s", this, event.ShortDebugString().c_str());
         SimpleServerWriter<T>::Write(event);
     };
@@ -143,7 +144,7 @@ class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
      * @param event The event of type T that has arrived and needs to be written
      *        to the client.
      */
-    void eventArrived(const T event) override {
+    void eventArrived(typename event_param<T>::type event) override {
         const std::lock_guard<std::mutex> lock(mEventLock);
         if (!google::protobuf::util::MessageDifferencer::Equals(event, mLastEvent)) {
             mLastEvent = event;

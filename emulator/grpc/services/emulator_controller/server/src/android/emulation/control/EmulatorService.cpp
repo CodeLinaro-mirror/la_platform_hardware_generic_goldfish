@@ -23,6 +23,7 @@
 #include "android/emulation/control/ClipboardService.h"
 #include "android/emulation/control/DisplayService.h"
 #include "android/emulation/control/GpsService.h"
+#include "android/emulation/control/NotificationStream.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/VmService.h"
@@ -48,29 +49,24 @@ using grpc::Status;
 
 // Logic and data behind the server's behavior.
 class EmulatorControllerImpl final
-    : public EmulatorController::WithCallbackMethod_streamClipboard<
-              EmulatorController::WithCallbackMethod_streamInputEvent<
-                      EmulatorController::WithCallbackMethod_streamClipboard<
-                              EmulatorController::WithCallbackMethod_injectWheel<
-                                      EmulatorController::Service>>>> {
+        : public EmulatorController::WithCallbackMethod_streamClipboard<
+                  EmulatorController::WithCallbackMethod_streamInputEvent<
+                          EmulatorController::WithCallbackMethod_streamClipboard<
+                                  EmulatorController::WithCallbackMethod_injectWheel<
+                                          EmulatorController::WithCallbackMethod_streamNotification<
+                                                  EmulatorController::Service>>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
-        : mVmService(vm),
-          mSensorService(connectorRegistry),
-          mClipboardService(connectorRegistry),
-          mDisplayService(multidisplay, connectorRegistry),
-          mStatusService(connectorRegistry, avd),
-          mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0))),
-          mGpsService(connectorRegistry),
-          mInputEventSender(multidisplay) {}
-
-    Status getDisplayConfigurations(ServerContext* context,
-                                    const ::google::protobuf::Empty* request,
-                                    DisplayConfigurations* reply) override {
-        return Status(::grpc::StatusCode::FAILED_PRECONDITION,
-                      "The multi-display feature is not available", "");
-    }
+            : mClipboardService(connectorRegistry)
+            , mDisplayService(multidisplay, connectorRegistry)
+            , mGpsService(connectorRegistry)
+            , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
+            , mInputEventSender(multidisplay)
+            , mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0)))
+            , mSensorService(connectorRegistry)
+            , mStatusService(connectorRegistry, avd)
+            , mVmService(vm) {}
 
     Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
                      EmulatorStatus* reply) override {
@@ -180,6 +176,12 @@ class EmulatorControllerImpl final
         return mClipboardService.setClipboard(context, request, reply);
     }
 
+    Status getDisplayConfigurations(ServerContext* context,
+                                    const ::google::protobuf::Empty* request,
+                                    DisplayConfigurations* reply) override {
+        return mDisplayService.getDisplayConfigurations(context, request, reply);
+    }
+
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override {
         return mDisplayService.streamScreenshot(context, request, writer);
@@ -190,15 +192,22 @@ class EmulatorControllerImpl final
         return mDisplayService.getScreenshot(context, request, reply);
     }
 
+    ::grpc::ServerWriteReactor<Notification>* streamNotification(
+            ::grpc::CallbackServerContext* context,
+            const ::google::protobuf::Empty* request) override {
+        return mNotificationStream->notificationStream();
+    }
+
   private:
-    VmServiceImpl mVmService;
-    SensorServiceImpl mSensorService;
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
-    StatusServiceImpl mStatusService;
-    std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
     GpsServiceImpl mGpsService;
     InputEventSender mInputEventSender;
+    std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
+    std::shared_ptr<NotificationStream> mNotificationStream;
+    SensorServiceImpl mSensorService;
+    StatusServiceImpl mStatusService;
+    VmServiceImpl mVmService;
 };
 
 grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry,
