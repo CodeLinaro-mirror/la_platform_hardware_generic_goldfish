@@ -39,6 +39,7 @@ absl::StatusOr<DisplayPtr> FakeMultiDisplay::createDisplay(DisplayId displayId, 
     }
     auto sharedDisplay = ActiveFakePixmanDisplay::createShared(displayId, 30, width, height);
     mDisplays[displayId] = sharedDisplay;
+    fireEvent(DisplayEvent{DisplayEvent::AddedEvent{sharedDisplay}});
     return sharedDisplay;
 }
 
@@ -60,7 +61,7 @@ absl::Status FakeMultiDisplay::eraseDisplay(DisplayId displayId) {
     if (mDisplays.erase(displayId) == 0) {
         return absl::NotFoundError(absl::StrFormat("Display with id %d not found", displayId));
     }
-    return absl::OkStatus();
+    fireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
     return absl::OkStatus();
 }
 

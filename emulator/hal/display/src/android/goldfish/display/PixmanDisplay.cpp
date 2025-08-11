@@ -14,10 +14,9 @@
 
 // This must be first to get M_PI.
 #define _USE_MATH_DEFINES
-#include <cmath>
-
 #include "android/goldfish/display/PixmanDisplay.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -36,12 +35,12 @@ namespace {
 
 static pixman_format_code_t pixmanFormat(const ::android::goldfish::PixelFormat& format) {
     switch (format) {
-        case ::android::goldfish::PixelFormat::RGBA8888:
-            return PIXMAN_a8r8g8b8;
-        case ::android::goldfish::PixelFormat::RGB888:
-            return PIXMAN_b8g8r8;
-        default:
-            return PIXMAN_a8r8g8b8;
+    case ::android::goldfish::PixelFormat::RGBA8888:
+        return PIXMAN_a8r8g8b8;
+    case ::android::goldfish::PixelFormat::RGB888:
+        return PIXMAN_b8g8r8;
+    default:
+        return PIXMAN_a8r8g8b8;
     }
 }
 }  // namespace
@@ -84,16 +83,27 @@ PixmanImagePtr& PixmanImagePtr::operator=(PixmanImagePtr&& other) noexcept {
 }
 
 PixmanDisplay::PixmanDisplay(int id, ::pixman_image_t* image)
-    : IDisplay(id, pixman_image_get_width(image), pixman_image_get_height(image)) {
+        : IDisplay(id, pixman_image_get_width(image), pixman_image_get_height(image)) {
     updateSourceImage(image);
 }
 
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
-    absl::MutexLock lock(&mDisplayAccess);
-    mSourceImage = PixmanImagePtr(image);
-    mWidth = pixman_image_get_width(image);
-    mHeight = pixman_image_get_height(image);
+    auto oldWidth = mWidth;
+    auto oldHeight = mHeight;
+    {
+        absl::MutexLock lock(&mDisplayAccess);
+        mSourceImage = PixmanImagePtr(image);
+        mWidth = pixman_image_get_width(image);
+        mHeight = pixman_image_get_height(image);
+    }
+    // Notify listeners of updated display size,
     VLOG(1) << "updateSourceImage: " << *this;
+    if (oldWidth != mWidth || oldHeight != mHeight) {
+        VLOG(1) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
+                << mWidth << "x" << mHeight << "\n";
+        EventChangeSupport<ResizeEvent>::fireEvent(
+                ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
+    }
 }
 
 absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWidth, int newHeight,

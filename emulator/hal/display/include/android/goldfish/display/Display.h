@@ -46,6 +46,14 @@ struct FrameInfo {
     FrameInfo(uint64_t seq) : sequenceNumber(seq), timestamp(absl::Now()) {}
 };
 
+struct ResizeEvent {
+    uint8_t displayId;
+    uint32_t previousWidth;
+    uint32_t previousHeight;
+    uint32_t width;
+    uint32_t height;
+};
+
 enum class MultiTouchType {
     BEGIN,   //  = INPUT_MULTI_TOUCH_TYPE_BEGIN,
     UPDATE,  // = INPUT_MULTI_TOUCH_TYPE_UPDATE,
@@ -84,7 +92,8 @@ using SharedDisplay = std::shared_ptr<IDisplay>;
  *  event signaling capabilities. Subscribers can register to receive events
  *  of type FrameInfo, which represents information about a display frame update.
  */
-class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo> {
+class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo>,
+                 public WithCallbacks<EventChangeSupport, ResizeEvent> {
   public:
     virtual ~IDisplay() = default;
 
@@ -200,7 +209,7 @@ class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo> {
     void frameReceived() {
         absl::MutexLock lock(&mSeqAccess);
         mSeq = FrameInfo(mSeq.sequenceNumber + 1);
-        fireEvent(mSeq);
+        EventChangeSupport<FrameInfo>::fireEvent(mSeq);
     }
 
     virtual std::string string() const {
@@ -208,7 +217,7 @@ class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo> {
     };
 
     IDisplay(uint8_t id, uint32_t width, uint32_t height)
-        : mDisplayId(id), mWidth(width), mHeight(height), mSeq(0) {}
+            : mDisplayId(id), mWidth(width), mHeight(height), mSeq(0) {}
 
     uint8_t mDisplayId;
     uint32_t mWidth;

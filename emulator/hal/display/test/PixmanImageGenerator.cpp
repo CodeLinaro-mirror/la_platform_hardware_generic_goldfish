@@ -23,6 +23,7 @@ extern "C" {
 }
 
 #include "absl/log/log.h"
+#include "absl/synchronization/mutex.h"
 
 namespace android::goldfish {
 
@@ -40,7 +41,7 @@ static uint32_t getColorValue(Color color) {
 }
 
 PixmanImageGenerator::PixmanImageGenerator(int fps, int width, int height)
-    : mFps(fps), mWidth(width), mHeight(height), mRunning(false) {}
+        : mFps(fps), mWidth(width), mHeight(height), mRunning(false), mFrameCount(0) {}
 
 PixmanImageGenerator::~PixmanImageGenerator() {
     stop();
@@ -62,7 +63,14 @@ void PixmanImageGenerator::stop() {
     mThread.reset();
 }
 
+void PixmanImageGenerator::resize(int w, int h) {
+    absl::MutexLock lock(&mMutex);
+    mWidth = w;
+    mHeight = h;
+}
+
 pixman_image_t* PixmanImageGenerator::generateImage(Color color) {
+    absl::MutexLock lock(&mMutex);
     uint32_t* pixels = new uint32_t[mWidth * mHeight];
     uint32_t colorValue = getColorValue(color);
     for (int i = 0; i < mWidth * mHeight; ++i) {
@@ -72,32 +80,55 @@ pixman_image_t* PixmanImageGenerator::generateImage(Color color) {
                                     mWidth * sizeof(uint32_t));
 }
 
+bool PixmanImageGenerator::waitForFramesWithTimeout(int n, absl::Duration timeout) {
+    absl::MutexLock lock(&mMutex);
+    while (mFrameCount < n) {
+        if (mFrameCv.WaitWithTimeout(&mMutex, timeout)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int PixmanImageGenerator::frameCount() const {
+    absl::MutexLock lock(&mMutex);
+    return mFrameCount;
+}
+
 void PixmanImageGenerator::generateImagesLoop() {
     const std::chrono::milliseconds frameDuration(1000 / mFps);
-    int frameCount = 0;
 
     while (mRunning) {
         auto start = std::chrono::steady_clock::now();
 
         ::pixman_image_t* image;
-        switch (frameCount % 3) {
+        Color color;
+        {
+            absl::MutexLock lock(&mMutex);
+            switch (mFrameCount % 3) {
             case 0:
-                image = generateImage(Color::Red);
+                color = Color::Red;
                 break;
             case 1:
-                image = generateImage(Color::Green);
+                color = Color::Green;
                 break;
             case 2:
-                image = generateImage(Color::Blue);
+                color = Color::Blue;
                 break;
+            }
         }
+        image = generateImage(color);
 
         if (image) {
             fireEvent(image);
             pixman_image_unref(image);
         }
 
-        frameCount++;
+        {
+            absl::MutexLock lock(&mMutex);
+            mFrameCount++;
+            mFrameCv.SignalAll();
+        }
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

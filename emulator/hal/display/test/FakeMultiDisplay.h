@@ -79,6 +79,10 @@ class FakeMultiDisplay : public IMultiDisplay {
      */
     std::vector<DisplayPtr> displays() const override;
 
+    template <typename T>
+    std::shared_ptr<T> getDisplay(absl::StatusOr<DisplayPtr> status) {
+        return std::static_pointer_cast<T>(status.value().lock());
+    }
     /**
      * @brief Clears all displays, accept display 0.
      */

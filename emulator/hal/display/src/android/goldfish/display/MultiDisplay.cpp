@@ -30,6 +30,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/QemuDisplay.h"
 #include "goldfish/physics/Rotation.h"
@@ -76,6 +77,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         VLOG(1) << "Created display: " << *display;
+        fireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
         return display;
     }
 
@@ -101,6 +103,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display: %d does not exist (already removed?).", displayId));
         }
         mDisplays.erase(it);
+        fireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
         return absl::OkStatus();
     }
 
