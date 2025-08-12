@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 
 #include "android/camera/GrallocDetails.h"
@@ -23,7 +24,9 @@
 
 namespace goldfish::devices::camera {
 
+using GrallocProvider = std::function<GrallocDetailsPtr()>;
+
 void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GrallocDetailsPtr grallocDetails);
+                    const android::goldfish::Avd& avd, GrallocProvider);
 
 }  // namespace goldfish::devices::camera
