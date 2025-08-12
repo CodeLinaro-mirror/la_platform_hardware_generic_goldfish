@@ -116,8 +116,6 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto avd = gAvd.get();
     auto registry = &goldfish::avd_info::deviceRegistry();
 
-    GrallocDetailsPtr gralloc = getGrallocImpl();
-
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, looper);
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
@@ -127,7 +125,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     std::string emulatedCameraProp;
     goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, *avd,
-                                              std::move(gralloc));
+                                              []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
     goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
