@@ -10,6 +10,7 @@ cc_library(
         "include/goldfish/async/async_socket_utils.h",
         "include/goldfish/async/event_loop.h",
         "include/goldfish/async/scoped_async_resource.h",
+        "include/goldfish/async/scoped_async_timer.h",
         "include/goldfish/async/threaded_event_loop.h",
     ],
     includes = ["include"],
