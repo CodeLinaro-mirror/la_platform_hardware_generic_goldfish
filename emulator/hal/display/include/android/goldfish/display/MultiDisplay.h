@@ -21,12 +21,37 @@ namespace android::goldfish {
 
 using DisplayId = unsigned;
 
+struct DisplayEvent {
+    using AddedEvent = DisplayPtr;
+    using DeletedEvent = DisplayId;
+
+    std::variant<AddedEvent, DeletedEvent> eventData;
+
+    // Helper functions to check event type and access data safely
+    bool isAddedEvent() const { return std::get_if<AddedEvent>(&eventData); }
+    bool isDeletedEvent() const { return std::get_if<DeletedEvent>(&eventData); }
+
+    DisplayPtr display() const {
+        if (isAddedEvent()) {
+            return std::get<AddedEvent>(eventData);
+        }
+        return {};
+    }
+
+    DisplayId displayId() const {
+        if (isDeletedEvent()) {
+            return std::get<DeletedEvent>(eventData);
+        }
+        return -1;
+    }
+};
+
 /**
  * @class MultiDisplay
  * @brief Singleton class managing a collection of IDisplay objects.
  *
  */
-class IMultiDisplay {
+class IMultiDisplay : public WithCallbacks<EventChangeSupport, DisplayEvent> {
   public:
     /**
      * @brief Returns the singleton instance of MultiDisplay.
@@ -101,6 +126,8 @@ class IMultiDisplay {
      * @note This is equivalent to calling `getDisplay(0)`.
      */
     absl::StatusOr<DisplayPtr> defaultDisplay() const { return getDisplay(0); }
+
+    static constexpr size_t maxDisplays = 11;  ///< Maximum number of supported Android displays.
 };
 
 }  // namespace android::goldfish

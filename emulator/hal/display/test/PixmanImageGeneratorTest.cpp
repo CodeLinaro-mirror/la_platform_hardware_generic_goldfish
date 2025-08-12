@@ -6,6 +6,8 @@
 #include <thread>
 #include <vector>
 
+#include "absl/time/time.h"
+
 #include "FakePixmanDisplay.h"
 #include "MockDisplay.h"
 #include "PixmanImageGenerator.h"
@@ -44,7 +46,7 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
     generator.addListener(&listener);
 
     generator.start();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));  // Wait for a few frames
+    generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
     generator.stop();
 
     ASSERT_GE(listener.images.size(), 3);  // Should have at least 3 images
@@ -87,7 +89,7 @@ TEST_F(PixmanImageGeneratorTest, FpsAccuracy) {
 
     generator.start();
     auto start = std::chrono::steady_clock::now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Wait for 1 second
+    generator.waitForFramesWithTimeout(10, absl::Milliseconds(2000));
     auto end = std::chrono::steady_clock::now();
     generator.stop();
 
@@ -107,14 +109,14 @@ TEST_F(PixmanImageGeneratorTest, StartStop) {
     generator.addListener(&listener);
 
     generator.start();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    generator.waitForFramesWithTimeout(1, absl::Milliseconds(200));
     generator.stop();
     size_t imageCountAfterStop = listener.images.size();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     ASSERT_EQ(listener.images.size(), imageCountAfterStop);  // No new images after stop
 
     generator.start();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    generator.waitForFramesWithTimeout(imageCountAfterStop + 1, absl::Milliseconds(200));
     generator.stop();
     ASSERT_GT(listener.images.size(), imageCountAfterStop);  // New images after restart
 }
@@ -128,10 +130,42 @@ TEST_F(PixmanImageGeneratorTest, EventFiring) {
     generator.addListener(&listener);
 
     generator.start();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
     generator.stop();
 
     ASSERT_GT(listener.images.size(), 0);  // At least one event should have been fired
+}
+
+TEST_F(PixmanImageGeneratorTest, Resize) {
+    int fps = 10;
+    int width = 100;
+    int height = 50;
+    PixmanImageGenerator generator(fps, width, height);
+    ImageListener listener;
+    generator.addListener(&listener);
+
+    generator.start();
+    generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
+    generator.resize(200, 100);
+    generator.waitForFramesWithTimeout(4, absl::Milliseconds(500));
+    generator.stop();
+
+    ASSERT_GT(listener.images.size(), 0);
+    auto lastImage = listener.images.back();
+    ASSERT_EQ(pixman_image_get_width(lastImage), 200);
+    ASSERT_EQ(pixman_image_get_height(lastImage), 100);
+}
+
+TEST_F(PixmanImageGeneratorTest, WaitForFrames) {
+    int fps = 10;
+    int width = 100;
+    int height = 50;
+    PixmanImageGenerator generator(fps, width, height);
+    generator.start();
+    EXPECT_TRUE(generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000)));
+    EXPECT_GE(generator.frameCount(), 5);
+    EXPECT_FALSE(generator.waitForFramesWithTimeout(100, absl::Milliseconds(100)));
+    generator.stop();
 }
 
 }  // namespace android::goldfish

@@ -15,6 +15,7 @@
 
 #include <memory>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/strings/str_format.h"
 
 #include "android/goldfish/display/Display.h"  // Include the IDisplay definition
@@ -67,7 +68,7 @@ class PixmanDisplay : public IDisplay {
     template <typename Sink>
     friend void AbslStringify(Sink&, const PixmanDisplay&);
     mutable absl::Mutex mDisplayAccess;
-    PixmanImagePtr mSourceImage;
+    PixmanImagePtr mSourceImage ABSL_GUARDED_BY(mDisplayAccess);
 };
 
 template <typename Sink>

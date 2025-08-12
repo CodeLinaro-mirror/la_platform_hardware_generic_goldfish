@@ -26,7 +26,21 @@ void FakePixmanDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTou
 }
 
 void FakePixmanDisplay::updateSourceImage(::pixman_image_t* image) {
-    PixmanDisplay::updateSourceImage(image);
+    absl::MutexLock lock(&mDisplayAccess);
+    mSourceImage = PixmanImagePtr(image);
+    auto oldWidth = mWidth;
+    auto oldHeight = mHeight;
+    mWidth = pixman_image_get_width(image);
+    mHeight = pixman_image_get_height(image);
+
+    // Notify listeners of updated display size,
+    VLOG(1) << "updateSourceImage: " << *this;
+    if (oldWidth != mWidth || oldHeight != mHeight) {
+        VLOG(1) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
+                << mWidth << "x" << mHeight << "\n";
+        EventChangeSupport<ResizeEvent>::fireEvent(
+                ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
+    }
     updateSurface(0, 0, mWidth, mHeight);
 }
 
@@ -52,6 +66,14 @@ void ActiveFakePixmanDisplay::start() {
 
 void ActiveFakePixmanDisplay::stop() {
     mGenerator->stop();
+}
+
+void ActiveFakePixmanDisplay::resize(int w, int h) {
+    mGenerator->resize(w, h);
+}
+
+bool ActiveFakePixmanDisplay::waitForFramesWithTimeout(int n, absl::Duration timeout) {
+    return mGenerator->waitForFramesWithTimeout(n, timeout);
 }
 
 ActiveFakePixmanDisplay ActiveFakePixmanDisplay::create(int id, int fps, int w, int h) {

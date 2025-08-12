@@ -19,6 +19,9 @@ extern "C" {
 
 #include <thread>
 
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+
 #include "aemu/base/events/CallbackEventSupport.h"
 
 namespace android::goldfish {
@@ -56,18 +59,46 @@ class PixmanImageGenerator : public WithCallbacks<EventChangeSupport, ::pixman_i
     void stop();
 
     /**
+     * @brief Resizes the generated images.
+     *
+     * @param w The new width.
+     * @param h The new height.
+     */
+    void resize(int w, int h);
+
+    /**
      * @brief Generates a pixman image with the specified color.
      */
     pixman_image_t* generateImage(Color color);
+
+    /**
+     * @brief Waits for a specific number of frames to be generated with a timeout.
+     *
+     * @param n The number of frames to wait for.
+     * @param timeout The maximum time to wait.
+     * @return True if the desired number of frames were generated within the timeout, false
+     * otherwise.
+     */
+    bool waitForFramesWithTimeout(int n, absl::Duration timeout);
+
+    /**
+     * @brief Returns the number of frames that have been generated.
+     *
+     * @return The number of frames generated.
+     */
+    int frameCount() const;
 
   private:
     void generateImagesLoop();
 
     int mFps;
-    int mWidth;
-    int mHeight;
+    int mWidth ABSL_GUARDED_BY(mMutex);
+    int mHeight ABSL_GUARDED_BY(mMutex);
     bool mRunning;
     std::unique_ptr<std::thread> mThread;
+    mutable absl::Mutex mMutex;
+    int mFrameCount ABSL_GUARDED_BY(mMutex);
+    absl::CondVar mFrameCv;
 };
 
 }  // namespace android::goldfish

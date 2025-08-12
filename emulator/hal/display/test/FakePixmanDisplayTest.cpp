@@ -150,7 +150,7 @@ TEST(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     display.start();
 
     // Wait for a few frames
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    display.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
 
     // Stop the generator
     display.stop();
@@ -291,6 +291,37 @@ TEST(FakePixmanDisplayTest, InitialImageIsBlue) {
         }
     }
     ASSERT_TRUE(allPixelsBlue) << "Not all pixels are blue.";
+}
+
+class TestListener : public EventListener<ResizeEvent> {
+  public:
+    void eventArrived(ResizeEvent event) override { events.push_back(event); }
+    std::vector<ResizeEvent> events;
+};
+
+TEST(FakePixmanDisplayTest, ResizeEvent) {
+    int fps = 10;
+    int width = 100;
+    int height = 50;
+    int id = 0;
+
+    // Create an ActiveFakePixmanDisplay
+    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    TestListener listener;
+    display.EventChangeSupport<ResizeEvent>::addListener(&listener);
+
+    // Start the generator
+    display.start();
+    display.waitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display.resize(200, 100);
+    display.waitForFramesWithTimeout(4, absl::Milliseconds(500));
+    display.stop();
+
+    ASSERT_EQ(listener.events.size(), 1);
+    EXPECT_EQ(listener.events[0].previousWidth, 100);
+    EXPECT_EQ(listener.events[0].previousHeight, 50);
+    EXPECT_EQ(listener.events[0].width, 200);
+    EXPECT_EQ(listener.events[0].height, 100);
 }
 
 }  // namespace android::goldfish

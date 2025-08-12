@@ -202,6 +202,24 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
     void stop();
 
     /**
+     * @brief Resizes the generated images.
+     *
+     * @param w The new width.
+     * @param h The new height.
+     */
+    void resize(int w, int h);
+
+    /**
+     * @brief Waits for a specific number of frames to be generated with a timeout.
+     *
+     * @param n The number of frames to wait for.
+     * @param timeout The maximum time to wait.
+     * @return True if the desired number of frames were generated within the timeout, false
+     * otherwise.
+     */
+    bool waitForFramesWithTimeout(int n, absl::Duration timeout);
+
+    /**
      * @brief Creates an ActiveFakePixmanDisplay.
      *
      * @param id The ID of the display.
