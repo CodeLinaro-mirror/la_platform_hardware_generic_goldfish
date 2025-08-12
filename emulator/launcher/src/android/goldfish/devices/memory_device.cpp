@@ -17,13 +17,13 @@
 #include <android/base/system/System.h>
 #include <android/base/system/storage_capacity.h>
 
-#include <chrono>
 #include <filesystem>
 #include <initializer_list>
-#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 
 #include "aemu/base/process/Command.h"
 #include "android/goldfish/config/avd.h"
@@ -32,15 +32,40 @@
 #include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
-using base::StorageCapacity;
-using base::System;
-using base::operator""_KiB;
 
 absl::Status MemoryDevice::initialize(const Emulator& emulator) {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
+    mMemorySizeMiB = hw.hw_ramSize;
+    if (mMemorySizeMiB <= 0) {
+        LOG(WARNING) << "RAM size not specified in AVD, defaulting to 2GiB";
+        mMemorySizeMiB = 2048;
+    }
+    if (emulator.opts().memory != nullptr) {
+        if (!absl::SimpleAtoi(emulator.opts().memory, &mMemorySizeMiB)) {
+            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -memory flag: ", emulator.opts().memory));
+        }
+    }
 
-    auto ram = StorageCapacity(hw.hw_ramSize, StorageCapacity::Unit::MiB);
+    // TODO Add minram checks:
+    // if (avdInfo_getApiLevel(avd) >= 34) {
+    //     minRam = 2560;  // 2.5G is required for U and up, to avoid kswapd eating
+    // } else if (avdInfo_getApiLevel(avd) >= 33 && (isFoldable || isLargeScreen)) {
+    //     minRam = 3072; // 3G is required for U and up, to avoid kswapd eating cpus
+    // } else if (avdInfo_getApiLevel(avd) >= 29) {
+    //     minRam = 2048;
+    // }
+    // if (opts->lowram) {
+    //     D("Removing any lower bound of RAM size");
+    //     minRam = 0;
+    // }
+    // if (hw->hw_ramSize < minRam) {
+    //     dinfo("Increasing RAM size to %iMB", minRam);
+    //     hw->hw_ramSize = minRam;
+    // }
+
+    // TODO re-enable space checking when snapshots are supported.
+    /*auto ram = StorageCapacity(mMemorySizeMiB, StorageCapacity::Unit::MiB);
 
     auto path = avd.getContentPath() / "default_boot";
     if (!fs::exists(path)) {
@@ -89,7 +114,7 @@ absl::Status MemoryDevice::initialize(const Emulator& emulator) {
         return absl::ResourceExhaustedError(
                 absl::StrFormat("Insufficient space available. Need: %s, available: %s",
                                 requiredFreeSpace.string(), availableSpace.string()));
-    }
+    }*/ 
 
     return absl::OkStatus();
 }
@@ -97,11 +122,11 @@ absl::Status MemoryDevice::initialize(const Emulator& emulator) {
 std::vector<std::string> MemoryDevice::getQemuParameters(const Emulator& emulator) const {
     auto hw = emulator.avd().hw();
     return {
-            "-m", std::to_string(hw.hw_ramSize)
+            "-m", std::to_string(mMemorySizeMiB)
             //  ,"-object",
             // absl::StrFormat("memory-backend-file,id=android.ram,size=%dM,mem-path=%s,"
             //                 "prealloc=on,share=on",
-            //                 hw.hw_ramSize,
+            //                 mMemorySizeMiB,
             //                 avd->getMemoryMappedDirectory() / "ram.bin"
             //)
     };
