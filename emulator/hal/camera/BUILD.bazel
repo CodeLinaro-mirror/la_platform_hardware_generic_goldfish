@@ -96,3 +96,15 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers:image_providers_unittests",
     ],
 )
+
+cc_library(
+    name = "test_camera",
+    hdrs = [
+        "test/FakeCameraDevice.h",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":camera",
+    ],
+)
