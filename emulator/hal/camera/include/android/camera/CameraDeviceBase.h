@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <string_view>
+
 #include "android/camera/CameraImageProviderAPI.h"
 #include "android/camera/CameraProtocolBase.h"
 #include "android/camera/GrallocDetails.h"
@@ -23,12 +25,15 @@ namespace goldfish::devices::camera {
 
 using imaging::AndroidPixelFormat;
 using imaging::ImageFormat;
+using namespace std::string_view_literals;
 
 struct CameraDeviceBase : public CameraProtocolBase {
     CameraDeviceBase(SocketPtr socket, void* imageProvider, const CameraImageProviderVtbl& vtbl,
                      GrallocDetailsPtr grallocDetails);
 
     ~CameraDeviceBase() override;
+
+    static constexpr std::string_view serviceName = "camera"sv;
 
   protected:
     bool startCapturingImpl(const CameraImageProviderStreamConfig* streams,
