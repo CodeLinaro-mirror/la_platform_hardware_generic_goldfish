@@ -239,6 +239,11 @@ std::future<absl::Status> LibuvEventLoop::shutdown(std::chrono::milliseconds tim
     auto promise = std::make_shared<std::promise<absl::Status>>();
     std::future<absl::Status> future = promise->get_future();
 
+    if (!mIsRunning) {
+        promise->set_value(absl::InternalError("You cannot shutdown a loop that is not running."));
+        return future;
+    }
+
     if (mIsShuttingDown.load()) {
         promise->set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
         return future;
@@ -297,7 +302,9 @@ absl::Status LibuvEventLoop::run() {
     }
 
     mThreadId = std::this_thread::get_id();
+    mIsRunning = true;
     int err = uv_run(mLoop, UV_RUN_DEFAULT);
+    mIsRunning = false;
     auto status = UvErrToAbslStatus(err);
     err = uv_idle_stop(mKeepAliveHandle);
     if (status.ok()) {

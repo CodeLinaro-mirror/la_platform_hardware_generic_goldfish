@@ -75,19 +75,42 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "qemu_event_loop",
+    srcs = ["src/qemu_event_loop.cpp"],
+    hdrs = ["include/goldfish/async/qemu_event_loop.h"],
+    includes = [
+        "include",
+        "//third_party/qemu",
+        "//third_party/qemu/include",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        "//third_party/qemu:qemu-headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+    ],
+)
+
 cc_test(
     name = "eventloop_unittests",
     size = "small",
+    timeout = "moderate",
     srcs = [
         "test/event_loop_test.cpp",
+        "test/fake_qemu_callbacks.cpp",
+        "test/fake_qemu_callbacks.h",
     ],
     copts = ["-Wno-unused-result"],
+    includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
     deps = [
         ":libuv_event_loop",
+        ":qemu_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

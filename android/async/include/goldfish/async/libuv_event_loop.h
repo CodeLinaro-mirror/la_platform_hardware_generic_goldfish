@@ -138,6 +138,7 @@ class LibuvEventLoop : public EventLoop {
 
     /// Atomic flag indicating the loop is shutting down and will not accept new tasks.
     std::atomic<bool> mIsShuttingDown{false};
+    std::atomic<bool> mIsRunning{false};
 };
 
 }  // namespace goldfish::async
