@@ -15,7 +15,7 @@
 
 #include "goldfish/avd/GrallocImpl.h"
 
-#include "goldfish/imaging/getStride.h"
+#include "goldfish/imaging/queryInfo.h"
 #include "goldfish/parsing/fromChars.h"
 
 extern "C" {

@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 
-#include "goldfish/imaging/getStride.h"
+#include "goldfish/imaging/queryInfo.h"
 
 using namespace goldfish::imaging;
 

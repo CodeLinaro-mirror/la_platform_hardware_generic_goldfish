@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/imaging/getStride.h"
+#include "goldfish/imaging/queryInfo.h"
 
 namespace goldfish::imaging {
 
