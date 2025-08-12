@@ -34,4 +34,20 @@ size_t getStride(const ImageRef& img) {
     return getStride(img.getFormat(), img.getSize().width);
 }
 
+size_t getDataSize(const ImageFormat fmt, const size_t width, const size_t height) {
+    switch (fmt) {
+    case ImageFormat::NONE:
+        break;
+
+    case ImageFormat::RGBA_8888:
+        return width * height * 4;
+
+    case ImageFormat::YUV420_3P:
+    case ImageFormat::YUV420_NV12:
+        return width * height * 3 / 2;
+    }
+
+    return 0;
+}
+
 }  // namespace goldfish::imaging
