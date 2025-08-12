@@ -32,3 +32,20 @@ TEST(getStride, image) {
     EXPECT_EQ(getStride(ImageRef(ImageFormat::YUV420_NV12, {7, 7}, nullptr, 0)), 0);
     EXPECT_EQ(getStride(ImageRef(ImageFormat::NONE, {7, 7}, nullptr, 0)), 0);
 }
+
+TEST(getDataSize, incorrect_format) {
+    EXPECT_EQ(getDataSize(static_cast<ImageFormat>(1377354), 42, 97), 0);
+}
+
+TEST(getDataSize, empty_format) {
+    EXPECT_EQ(getDataSize(ImageFormat::NONE, 42, 97), 0);
+}
+
+TEST(getDataSize, rgbx) {
+    EXPECT_EQ(getDataSize(ImageFormat::RGBA_8888, 42, 97), 42 * 97 * 4);
+}
+
+TEST(getDataSize, yuv) {
+    EXPECT_EQ(getDataSize(ImageFormat::YUV420_3P, 300, 200), 300 * 200 * 3 / 2);
+    EXPECT_EQ(getDataSize(ImageFormat::YUV420_NV12, 300, 200), 300 * 200 * 3 / 2);
+}
