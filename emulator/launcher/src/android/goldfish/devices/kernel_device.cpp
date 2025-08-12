@@ -45,8 +45,7 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
     }
 
     // Get the one defined in the avd.
-    auto options = {Avd::ImageType::KERNEL, Avd::ImageType::KERNELRANCHU64,
-                    Avd::ImageType::KERNELRANCHU};
+    auto options = {Avd::ImageType::KERNELRANCHU, Avd::ImageType::KERNELRANCHU64, Avd::ImageType::KERNEL};
     for (const auto& option : options) {
         auto kernel_image = avd.getSystemImageFilePath(option);
         if (kernel_image.ok()) {

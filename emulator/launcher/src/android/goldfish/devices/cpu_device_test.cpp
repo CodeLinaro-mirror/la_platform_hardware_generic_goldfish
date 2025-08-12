@@ -37,10 +37,7 @@ TEST(Cpu, Basic_x86) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -67,10 +64,7 @@ TEST(Cpu, Basic_arm64) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -97,10 +91,7 @@ TEST(Cpu, NoAccel) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -129,10 +120,7 @@ TEST(Cpu, AccelOff) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -161,10 +149,7 @@ TEST(Cpu, HostAndTargetMismatch) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -191,10 +176,7 @@ TEST(Cpu, CoresFlagOverride) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(3).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)
@@ -222,10 +204,7 @@ TEST(Cpu, CoresFlagInvalid) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     AndroidOptions opts{};
     opts.cores = "nan";

@@ -32,16 +32,13 @@ TEST(Kernel, Basic_x86) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -64,16 +61,13 @@ TEST(Kernel, Basic_arm64) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
@@ -97,15 +91,8 @@ TEST(Kernel, AppendExtras) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
+    EXPECT_CALL(*avd_ptr, hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
-            .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
-            .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 

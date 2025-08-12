@@ -39,9 +39,6 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncDisabled) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     opts.enable_vnc = false;
@@ -73,9 +70,6 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncEnabled) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.enable_vnc = true};
     Emulator emu(std::move(avd), std::move(opts));

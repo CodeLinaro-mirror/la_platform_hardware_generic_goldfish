@@ -42,7 +42,7 @@ class Emulator {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts);
+    explicit Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(opts) {}
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -122,6 +122,8 @@ class Emulator {
     absl::Status launch();
 
   private:
+    absl::Status addDevices();
+
     // Constructs the qemu command line.
     std::vector<std::string> getCmdline() const;
     std::string mVmodule;

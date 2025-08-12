@@ -35,10 +35,6 @@ TEST(Grpc, DefaultPort) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     Emulator emu(std::move(avd), std::move(opts));
@@ -56,10 +52,6 @@ TEST(Grpc, CustomPort) {
     auto avd = std::make_unique<MockAvd>();
 
     MockAvd* avd_ptr = avd.get();
-    // First the 3 calls by Emulator ctor.
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(testing::ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(testing::Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{
         .grpc = "1000",
