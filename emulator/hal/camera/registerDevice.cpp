@@ -166,7 +166,7 @@ void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraPro
             backCameraSource = CameraImageSource::EMULATED;
         }
 
-        registry->registerQemuDevice("camera"s,
+        registry->registerQemuDevice(std::string(CameraDeviceBase::serviceName),
                                      [imageProvidersRegistry = std::move(imageProvidersRegistry),
                                       grallocDetails = std::move(grallocDetails)](
                                              SocketPtr socket, const std::shared_ptr<PingTopic>&,
