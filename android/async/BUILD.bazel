@@ -56,6 +56,22 @@ cc_library(
 )
 
 cc_library(
+    name = "errno_to_absl",
+    srcs = [
+        "src/errno_to_absl.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/errno_to_absl.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "libuv_event_loop",
     srcs = [
         "src/libuv_event_loop.cpp",
