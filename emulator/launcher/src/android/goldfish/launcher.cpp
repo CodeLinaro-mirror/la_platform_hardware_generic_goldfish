@@ -13,12 +13,9 @@
 // limitations under the License.
 #include <string>
 
-#include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
-#include "absl/strings/numbers.h"
-#include "absl/strings/str_split.h"
 
 #include "aemu_version.h"
 #include "android/base/bazel/bazel_info.h"
@@ -128,10 +125,8 @@ int main(int argc, char** argv) {
 
     Emulator emulator{std::move(avd.value()), opts};
 
-    if (opts.wipe_data) {
-        emulator.clear();
+    if (auto s = emulator.launch(); !s.ok()) {
+        LOG(FATAL) << "Fatal error whilst launching the emulator: " << s;
     }
-
-    (void)emulator.launch();
     return 0;
 }

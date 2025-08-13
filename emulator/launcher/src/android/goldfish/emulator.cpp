@@ -13,10 +13,10 @@
 // limitations under the License.
 #include "android/goldfish/config/emulator.h"
 
-#include <android/goldfish/config/hardware_config.h>
 #include <stdio.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <initializer_list>
 #include <memory>
 #include <string_view>
@@ -31,9 +31,11 @@
 
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
+#include "aemu/base/utils/status_macros.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "devices/adb_device.h"
 #include "devices/audio_device.h"
 #include "devices/cpu_device.h"
@@ -54,17 +56,13 @@
 
 namespace android::goldfish {
 
-using android::base::operator""_KiB;
 using android::base::Bazel;
 using android::base::System;
 
-Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
-    : mAvd(std::move(avd)), mOpts(std::move(opts)) {
+absl::Status Emulator::addDevices() {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
-    const HardwareConfig& hw = mAvd->hw();
-
     absl::LogSeverityAtLeast pluginLogLevel =
             mOpts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
 
@@ -86,6 +84,7 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     addDevice<KernelDevice>();
     addDevice<InitrdDevice>();
 
+    const HardwareConfig& hw = mAvd->hw();
     // Currently this must be the first drive on ARM to match the androidboot.boot_devices parameter
     // set in initrd_device.cpp.
     addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
@@ -168,6 +167,8 @@ Emulator::Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts)
     if (mOpts.qemu) {
         addDevice<ParameterList>(absl::StrSplit(mOpts.qemu, ' '));
     }
+
+    return absl::OkStatus();
 }
 
 void Emulator::clear() {
@@ -178,6 +179,8 @@ void Emulator::clear() {
 }
 
 absl::Status Emulator::initialize() {
+    RETURN_IF_ERROR(addDevices());
+
     for (auto& device : mDevices) {
         ABSL_LOG(INFO) << "Preparing: " << device->id();
         auto status = device->initialize(*this);

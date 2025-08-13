@@ -41,8 +41,6 @@ TEST(MemoryDevice, Basic) {
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     Emulator emu(std::move(avd), std::move(opts));
@@ -60,8 +58,6 @@ TEST(MemoryDevice, Default) {
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     Emulator emu(std::move(avd), std::move(opts));
@@ -79,8 +75,6 @@ TEST(MemoryDevice, Override) {
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     opts.memory = "1024";
@@ -99,8 +93,6 @@ TEST(MemoryDevice, InvalidOverride) {
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     opts.memory = "foo";

@@ -23,9 +23,6 @@ TEST(AdbDeviceTest, DefaultPort) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{};
     Emulator emu(std::move(avd), std::move(opts));
@@ -41,9 +38,6 @@ TEST(AdbDeviceTest, CustomPortFromPort) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.port = "6666"};
     Emulator emu(std::move(avd), std::move(opts));
@@ -59,9 +53,6 @@ TEST(AdbDeviceTest, CustomPortFromPorts) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.ports = "7777,8888"};
     Emulator emu(std::move(avd), std::move(opts));
@@ -77,9 +68,6 @@ TEST(AdbDeviceTest, InvalidPorts) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.ports = "1234"};
     Emulator emu(std::move(avd), std::move(opts));
@@ -92,9 +80,6 @@ TEST(AdbDeviceTest, NonNumericPort) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.port = "abc"};
     Emulator emu(std::move(avd), std::move(opts));
@@ -107,9 +92,6 @@ TEST(AdbDeviceTest, NonNumericPorts) {
     auto hw = HardwareConfig();
     auto avd = std::make_unique<MockAvd>();
     MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).WillOnce(Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillOnce(ReturnRef(hw));
-    EXPECT_CALL(*avd_ptr, getIniFile()).WillOnce(Return("some/path/mock_avd.ini"));
 
     AndroidOptions opts{.ports = "123,abc"};
     Emulator emu(std::move(avd), std::move(opts));
