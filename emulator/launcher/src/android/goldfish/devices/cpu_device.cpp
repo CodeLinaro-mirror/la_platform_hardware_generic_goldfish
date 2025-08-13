@@ -15,10 +15,11 @@
 
 #include <initializer_list>
 #include <string>
-#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
@@ -31,6 +32,16 @@ absl::Status CpuDevice::initialize(const Emulator& emulator) {
     // TODO(jansene): do a series of checks.
     // TODO(invoking qemu --accel help will give supported hypervisors)
     // TODO(invoking qemu --cpu help will give supported cpus)
+
+    mCores = emulator.avd().hw().hw_cpu_ncore;
+    if (auto *c = emulator.opts().cores; c != nullptr) {
+        uint64_t cores;
+        if (absl::SimpleAtoi(c, &cores)) {
+            mCores = cores;
+        } else {
+            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -cores flag: ", c));
+        }
+    }
 
     return absl::OkStatus();
 }
@@ -62,8 +73,9 @@ std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) 
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
 
+
     std::vector<std::string> params;
-    params.insert(params.end(), {"-smp", std::to_string(hw.hw_cpu_ncore)});
+    params.insert(params.end(), {"-smp", std::to_string(mCores)});
 
     auto target_arch = avd.detectArchitecture();
     {
@@ -95,6 +107,7 @@ std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) 
                          << "result in a very slow emulator!";
             supported = CPU_ACCELERATOR_NONE;
         }
+        // TODO(whollins): support any other values of -accel flag?
         if (target_arch != getHostArch()) {
             LOG(WARNING) << "target arch does not match host arch so forcing TCG. "
                          << "This will result in a very slow emulator!";
