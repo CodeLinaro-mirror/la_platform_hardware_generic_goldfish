@@ -18,7 +18,7 @@
 #include "aemu/base/msvc.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketErrors.h"
-#include "android/utils/sockets.h"
+#include "android/base/system/no_sigalarm.h"
 
 #ifdef _WIN32
 #include "aemu/base/sockets/Winsock.h"
@@ -61,6 +61,16 @@ namespace {
 
 #ifndef EHOSTDOWN
 #define EHOSTDOWN 10064
+#endif
+
+// Stub to make sure we can compile under windows
+#ifndef SIGALRM
+#define SIGALRM 14 /* Alarm clock (POSIX).  */
+#endif
+
+// Stub to make sure we can compile on windows
+#ifndef SIG_BLOCK
+#define SIG_BLOCK 0 /* Block signals.  */
 #endif
 
 // This macro is used to implement a mapping of Winsock error codes
@@ -451,6 +461,14 @@ int socketTcpBindAndListen(int socket, const SockAddressStorage* addr) {
     ON_SOCKET_ERROR_RETURN_M1(ret);
 
     return 0;
+}
+
+static int socket_connect_posix(int fd, const void* address, uint32_t address_len) {
+    ScopedNoSigAlarm disableAlarms(SIGALRM, SIG_BLOCK);
+    int ret = HANDLE_EINTR(::connect(fd, static_cast<const struct sockaddr*>(address),
+                                     static_cast<socklen_t>(address_len)));
+    ON_SOCKET_ERROR_RETURN_M1(ret);
+    return ret;
 }
 
 #ifdef _WIN32

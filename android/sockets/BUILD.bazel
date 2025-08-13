@@ -1,6 +1,41 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "socket_utils_impl",
+    srcs =
+        [
+            "src/android/base/sockets/SocketUtils.cpp",
+        ],
+    copts = select({
+        "@platforms//os:windows": [
+            "-Wno-microsoft-goto",
+            "-Wno-macro-redefined",
+        ],
+        "//conditions:default": [],
+    }),
+    includes =
+        [
+            "include",
+            "src",
+        ],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Rpcrt4.lib",
+            "-DEFAULTLIB:Ws2_32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps =
+        [
+            "//hardware/generic/goldfish/android/system",
+            "@aemu//base:aemu-base",
+            "@com_google_absl//absl/log",
+            "@com_google_absl//absl/log:check",
+        ],
+)
+
+cc_library(
     name = "sockets",
     srcs =
         [
@@ -44,6 +79,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps =
         [
+            ":socket_utils_impl",
             "//hardware/generic/goldfish/android/files",
             "//hardware/generic/goldfish/android/looper",
             "//hardware/generic/goldfish/android/memory",

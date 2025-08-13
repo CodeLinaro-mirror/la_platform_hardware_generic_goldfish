@@ -16,6 +16,7 @@ cc_library(
         "include/android/base/system/System.h",
         "include/android/base/system/Win32UnicodeString.h",
         "include/android/base/system/Win32Utils.h",
+        "include/android/base/system/no_sigalarm.h",
         "include/android/base/system/storage_capacity.h",
         "include/android/utils/compiler.h",
     ],
