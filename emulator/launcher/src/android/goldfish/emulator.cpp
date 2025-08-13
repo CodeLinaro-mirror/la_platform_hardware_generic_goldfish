@@ -19,12 +19,14 @@
 #include <filesystem>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <vector>
 
 // Use ABSL_LOG to avoid conflict with crashpadh logging
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -35,16 +37,11 @@
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/hardware_config.h"
 #include "devices/adb_device.h"
 #include "devices/audio_device.h"
 #include "devices/cpu_device.h"
 #include "devices/display_device.h"
-#include "devices/drives/cache_drive.h"
-#include "devices/drives/disk_drive.h"
-#include "devices/drives/encryption_drive.h"
-#include "devices/drives/sdcard_drive.h"
-#include "devices/drives/user_data_drive.h"
+#include "devices/drives/configure_drives.h"
 #include "devices/gpu_device.h"
 #include "devices/grpc_device.h"
 #include "devices/initrd_device.h"
@@ -84,17 +81,7 @@ absl::Status Emulator::addDevices() {
     addDevice<KernelDevice>();
     addDevice<InitrdDevice>();
 
-    const HardwareConfig& hw = mAvd->hw();
-    // Currently this must be the first drive on ARM to match the androidboot.boot_devices parameter
-    // set in initrd_device.cpp.
-    addDevice<RawDrive>("system", "03.0", Avd::ImageType::INITSYSTEM);
-    // Encryption must be second for ARM - to have path
-    // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
-    addDevice<EncryptionDrive>(hw);
-    addDevice<RawDrive>("vendor", "07.0", Avd::ImageType::INITVENDOR);
-    addDevice<UserDataDrive>(hw);
-    addDevice<CacheDrive>(hw);
-    addDevice<SDCardDrive>(hw);
+    RETURN_IF_ERROR(addDrives(*this));
 
     addDevice<AudioDevice>("09.0");
 

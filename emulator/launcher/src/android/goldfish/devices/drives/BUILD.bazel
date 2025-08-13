@@ -1,12 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "cache_drive",
-    srcs = ["cache_drive.cpp"],
-    hdrs = ["cache_drive.h"],
+    name = "user_data_drive",
+    srcs = ["user_data_drive.cpp"],
+    hdrs = ["user_data_drive.h"],
     visibility = ["//visibility:public"],
     deps = [
-        ":disk_drive",
+        "//hardware/generic/goldfish/android/filesystems",
+        "//hardware/generic/goldfish/emulator/adb/secrets",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
         "@aemu//base:aemu-base",
@@ -22,7 +23,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/filesystems",
-        "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/status:statusor",
@@ -46,13 +46,14 @@ cc_test(
 )
 
 cc_library(
-    name = "encryption_drive",
-    srcs = ["encryption_drive.cpp"],
-    hdrs = ["encryption_drive.h"],
+    name = "configure_drives",
+    srcs = ["configure_drives.cpp"],
+    hdrs = ["configure_drives.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":disk_drive",
-        "//hardware/generic/goldfish/emulator/config",
+        ":user_data_drive",
+        "//hardware/generic/goldfish/android/filesystems",
         "//hardware/generic/goldfish/emulator/launcher:headers",
         "@aemu//base:aemu-base",
         "@com_google_absl//absl/status:statusor",
@@ -60,33 +61,17 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "sdcard_drive",
-    srcs = ["sdcard_drive.cpp"],
-    hdrs = ["sdcard_drive.h"],
+cc_test(
+    name = "configure_drives_test",
+    srcs = ["configure_drives_test.cpp"],
     visibility = ["//visibility:public"],
     deps = [
-        ":disk_drive",
-        "//hardware/generic/goldfish/emulator/config",
-        "//hardware/generic/goldfish/emulator/launcher:headers",
-        "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_library(
-    name = "user_data_drive",
-    srcs = ["user_data_drive.cpp"],
-    hdrs = ["user_data_drive.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":disk_drive",
-        "//hardware/generic/goldfish/emulator/adb/secrets",
-        "//hardware/generic/goldfish/emulator/config",
-        "//hardware/generic/goldfish/emulator/launcher:headers",
-        "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
+        ":configure_drives",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:emulator",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:mock_avd",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",
     ],
 )

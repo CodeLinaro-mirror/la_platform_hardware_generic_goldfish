@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <filesystem>
 #include <string>
 
 #include "absl/log/initialize.h"
@@ -27,6 +28,8 @@
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/logging.h"
 #include "android/main-help.h"
+
+namespace fs = std::filesystem;
 
 using android::base::Bazel;
 using android::base::System;
@@ -117,7 +120,31 @@ int main(int argc, char** argv) {
     }
 
     auto name = opts.avd;
-    auto avd = Avd::fromName(name, opts.sysdir ? opts.sysdir : "", opts.read_only);
+
+    fs::path sysdir_override;
+    if (opts.sysdir) {
+        sysdir_override = fs::path(opts.sysdir);
+    }
+
+    fs::path writable_content_override;
+    if (opts.read_only) {
+        writable_content_override = System::get()->getTempDir();
+        VLOG(1) << "Content path overridden to: " << writable_content_override;
+        fs::create_directories(writable_content_override);
+    } else if (opts.datadir) {
+        writable_content_override = fs::path(opts.datadir);
+        if (!fs::exists(writable_content_override)) {
+            LOG(ERROR) << "-datadir specified does not exist: " << writable_content_override;
+            return -1;
+        }
+        if (!fs::is_directory(writable_content_override)) {
+            LOG(ERROR) << "-datadir specified is not a directory: " << writable_content_override;
+            return -1;
+        }
+        VLOG(1) << "Content path overridden to: " << writable_content_override;
+    }
+
+    auto avd = Avd::fromName(name, sysdir_override, writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return -1;

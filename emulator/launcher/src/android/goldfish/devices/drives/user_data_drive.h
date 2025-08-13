@@ -14,28 +14,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <android/goldfish/config/hardware_config.h>
+
+#include <filesystem>
 
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
-
-#include "disk_drive.h"
 
 namespace android::goldfish {
 
-class UserDataDrive : public MutableDiskDrive {
-  public:
-    explicit UserDataDrive(const HardwareConfig& hw) : MutableDiskDrive("userdata", "05.0") {
-        mDiskId = "userdata";
-        mDiskImage = fs::path(hw.disk_dataPartition_path).concat(".qcow2");
-    }
+namespace fs = std::filesystem;
 
-    absl::Status initialize(const Emulator& emulator) override;
-
-  private:
-    absl::Status minimizeUserDataPartition(const Emulator& emulator);
-    absl::Status createImage(const HardwareConfig& hw, const fs::path data_path);
-    absl::Status createUserData(const Emulator& emulator, const fs::path data_path, bool asQcow2);
-};
+absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size, bool wipe_data, bool resize);
 
 }  // namespace android::goldfish

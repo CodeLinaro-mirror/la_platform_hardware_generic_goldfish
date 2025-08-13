@@ -203,16 +203,6 @@ class FakeAvd : public Avd {
     fs::path getContentPath() const override { return mContentPath; }
     void setContentPath(const fs::path& path) { mContentPath = path; }
 
-    absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const override {
-        if (mImageFilePaths.count(imgType)) {
-            return mImageFilePaths.at(imgType);
-        }
-        return absl::NotFoundError("Image file not found");
-    }
-    void setImageFilePath(Avd::ImageType imgType, const fs::path& path) {
-        mImageFilePaths[imgType] = path;
-    }
-
     absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const override {
         if (mSystemImageFilePaths.count(imgType)) {
             return mSystemImageFilePaths.at(imgType);
@@ -223,7 +213,6 @@ class FakeAvd : public Avd {
         mSystemImageFilePaths[imgType] = path;
     }
 
-    bool hasEncryptionKey() const override { return mHasEncryptionKey; }
     void setHasEncryptionKey(bool hasKey) { mHasEncryptionKey = hasKey; }
 
     CpuArchitecture detectArchitecture() const override { return mCpuArchitecture; }

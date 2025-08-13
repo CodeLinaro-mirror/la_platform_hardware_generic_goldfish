@@ -165,7 +165,7 @@ TEST(Avd, path_getAvdSystemImage) {
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName("q"));
-    EXPECT_THAT(avd->getImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
+    EXPECT_THAT(avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
 
     std::remove(expectedPath.string().c_str());
 
@@ -174,7 +174,7 @@ TEST(Avd, path_getAvdSystemImage) {
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd2, Avd::fromName("q", tmp->path() / "nothome" / "blah"));
-    EXPECT_THAT(avd2->getImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
+    EXPECT_THAT(avd2->getSystemImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
 }
 
 TEST(FakeAvdTest, DefaultValues) {
@@ -226,9 +226,6 @@ TEST(FakeAvdTest, SettersAndGetters) {
 
     avd.setCpuArchitecture(Avd::CpuArchitecture::kX86);
     EXPECT_EQ(avd.detectArchitecture(), Avd::CpuArchitecture::kX86);
-
-    avd.setHasEncryptionKey(true);
-    EXPECT_TRUE(avd.hasEncryptionKey());
 
     avd.setDisplayName("My Display Name");
     EXPECT_EQ(avd.display_name(), "My Display Name");

@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -98,22 +97,6 @@ class Avd {
     virtual fs::path getContentPath() const = 0;
 
     /**
-     * @brief Retrieves an AVD image file path, favoring the content directory.
-     *
-     * Attempts to locate the image file within the AVD's content directory.
-     * If not found, searches for the system image based on configuration
-     * settings.
-     *
-     * @param imgType The type of AVD image to retrieve.
-     * @return A StatusOr object containing the file path on success, or an
-     *         error status on failure.
-     *
-     * @see Avd::ImageType
-     * @see getSystemImagePath
-     */
-    virtual absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const = 0;
-
-    /**
      * @brief Retrieves the file path of a system image associated with an Android
      * emulator.
      *
@@ -132,16 +115,6 @@ class Avd {
     virtual absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const = 0;
 
     /**
-     * @brief Checks if the AVD supports encryption.
-     *
-     * This method determines encryption support by checking if the
-     * encryption key image file can be located.
-     *
-     * @return True if the encryption key image is found, false otherwise.
-     */
-    virtual bool hasEncryptionKey() const = 0;
-
-    /**
      * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
      * config value.
      *
@@ -156,6 +129,7 @@ class Avd {
     virtual CpuArchitecture detectArchitecture() const = 0;
 
     virtual const HardwareConfig& hw() const = 0;
+
     virtual bool playstore() const = 0;
 
     /**
@@ -239,12 +213,14 @@ class Avd {
      * @param name The name of the AVD.
      * @param sysdir_override Optionally supply a path to override the system directory
      *        search. Use empty string for default behaviour.
+     * @param writable_content_override Optionally supply a path to override the content
+     *        directory. Use empty string for default behaviour.
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
     static absl::StatusOr<std::unique_ptr<Avd>> fromName(std::string name,
-                                                         std::string sysdir_override = "",
-                                                         bool read_only = false);
+                                                         fs::path sysdir_override = {},
+                                                         fs::path writable_content_override = {});
 
     static constexpr int kUnknownApiLevel = 1000;
 
@@ -258,10 +234,8 @@ class FileBackedAvd : public Avd {
 
     std::string name() const override { return mName; }
     DeviceType getDeviceType() const override;
-    fs::path getContentPath() const override { return mContentPath; };
-    absl::StatusOr<fs::path> getImageFilePath(Avd::ImageType imgType) const override;
+    fs::path getContentPath() const override { return mWritableContentOverride.empty() ? mContentPath : mWritableContentOverride; };
     absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const override;
-    bool hasEncryptionKey() const override;
     CpuArchitecture detectArchitecture() const override;
     const HardwareConfig& hw() const override { return mHwCfg; }
     bool playstore() const override { return false; }
@@ -274,20 +248,21 @@ class FileBackedAvd : public Avd {
     }
 
     static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(fs::path ini_file,
-                                                                std::string sysdir_override = "",
-                                                                bool read_only = false);
+                                                                fs::path sysdir_override = {},
+                                                                fs::path writable_content_override = {});
 
    private:
     FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
-                  std::unique_ptr<IniFile> config, std::string name, std::string sysdir_override,
-                  bool read_only);
+                                std::unique_ptr<IniFile> config, std::string name,
+                                fs::path sysdir_override, fs::path writable_content_override);
 
     std::string mName;
     fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
     std::unique_ptr<IniFile> mTarget;
     std::unique_ptr<IniFile> mConfig;
     HardwareConfig mHwCfg;
-    std::string mSysdirOverride;
+    fs::path mSysdirOverride;
+    fs::path mWritableContentOverride;
 };
 
 }  // namespace android::goldfish

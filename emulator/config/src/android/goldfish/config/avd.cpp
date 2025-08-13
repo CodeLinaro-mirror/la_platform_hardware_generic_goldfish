@@ -20,7 +20,6 @@
 #include <cctype>
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <regex>
 #include <string>
 #include <unordered_map>
@@ -42,7 +41,6 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/keys.h"
 #include "host-common/constants.h"
-#include "host-common/hw-config.h"
 
 /* technical note on how all of this is supposed to work:
  *
@@ -244,10 +242,6 @@ std::string FileBackedAvd::apiDescription() const {
     return getFullApiName(apiLevel());
 }
 
-bool FileBackedAvd::hasEncryptionKey() const {
-    return getImageFilePath(Avd::ImageType::ENCRYPTIONKEY).ok();
-}
-
 DeviceType FileBackedAvd::getDeviceType() const {
     DeviceType res = DeviceType::kUnknown;
 
@@ -288,16 +282,6 @@ DeviceType FileBackedAvd::getDeviceType() const {
 
     // Likely unknown.
     return res;
-}
-
-absl::StatusOr<fs::path> FileBackedAvd::getImageFilePath(Avd::ImageType imgType) const {
-    fs::path possible = mContentPath / _imageFileNames[static_cast<uint8_t>(imgType)];
-    if (System::get()->pathIsFile(possible) && System::get()->pathCanRead(possible)) {
-        return possible;
-    }
-    ABSL_VLOG(1) << "Did not find " << possible << " in " << mContentPath
-                 << " falling back to system path";
-    return getSystemImageFilePath(imgType);
 }
 
 absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType imgType) const {
@@ -350,18 +334,19 @@ std::string FileBackedAvd::details(const bool verbose) const {
 
 FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
                              std::unique_ptr<IniFile> config, std::string name,
-                             std::string sysdir_override, bool read_only)
+                             fs::path sysdir_override, fs::path writable_content_override)
         : mName(name)
         , mContentPath(content_path)
         , mTarget(std::move(target))
         , mConfig(std::move(config))
-        , mSysdirOverride(std::move(sysdir_override)) {
+        , mSysdirOverride(std::move(sysdir_override))
+        , mWritableContentOverride(std::move(writable_content_override)) {
     mHwCfg.load(mConfig.get());
 
     // TODO also load skin hardware.ini if present?
 
     // TODO this probably needs to be updated when snapshots are supported.
-    auto hw_path = mContentPath / CORE_HARDWARE_INI;
+    auto hw_path = getContentPath() / CORE_HARDWARE_INI;
     if (auto* sys = System::get(); sys->pathExists(hw_path) && sys->pathCanRead(hw_path)) {
         auto hw_config = std::make_unique<IniFile>(hw_path);
         if (hw_config->read()) {
@@ -370,27 +355,13 @@ FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> tar
         }
     }
 
-    mHwCfg.applyDefaults(this);
-
-    // maybe move this into HardwareConfig?
-    if (read_only) {
-        auto tmp = System::get()->getTempDir();
-        mHwCfg.disk_encryptionKeyPartition_path = (tmp / "encryptionkey.img").string();
-        mHwCfg.disk_dataPartition_path = (tmp / "userdata-qemu.img").string();
-        mHwCfg.disk_cachePartition_path = (tmp / "cache.img").string();
-        mHwCfg.hw_sdCard_path = (tmp / "sdcard.img").string();
-
-        VLOG(1) << "Temporary encryption path set to: " << mHwCfg.disk_encryptionKeyPartition_path;
-        VLOG(1) << "Temporary user data path set to: " << mHwCfg.disk_dataPartition_path;
-        VLOG(1) << "Temporary cache path set to: " << mHwCfg.disk_cachePartition_path;
-        VLOG(1) << "Temporary sdcard path set to: " << mHwCfg.hw_sdCard_path;
-    }
+    mHwCfg.applyDefaults(*this);
 }
 
 // static
 absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini_file,
-                                                                    std::string sysdir_override,
-                                                                    bool read_only) {
+                                                                    fs::path sysdir_override,
+                                                                    fs::path writable_content_override) {
     auto* sys = System::get();
     if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", System::pathAsString(ini_file)));
@@ -423,7 +394,7 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini
     }
     return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(content_path, std::move(ini),
                                                             std::move(config), name,
-                                                            std::move(sysdir_override), read_only));
+                                                            std::move(sysdir_override), std::move(writable_content_override)));
 }
 
 namespace {
@@ -459,11 +430,12 @@ std::vector<std::string> Avd::list() {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, std::string sysdir_override,
-                                                   bool read_only) {
+absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, fs::path sysdir_override,
+                                                   fs::path writable_content_override) {
+
     auto directory_path = ConfigDirs::getAvdRootDirectory();
     return FileBackedAvd::parse(directory_path / (name + ".ini"), std::move(sysdir_override),
-                                read_only);
+                                std::move(writable_content_override));
 }
 
 // static
