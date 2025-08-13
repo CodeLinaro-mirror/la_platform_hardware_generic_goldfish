@@ -1,0 +1,56 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "gvk",
+    srcs = [
+        "DeviceDispatch.cpp",
+        "DeviceResources.cpp",
+        "InstanceDispatch.cpp",
+        "SystemMetaLoader.cpp",
+        "buildDeviceQueueCreateInfo.cpp",
+        "getMemoryTypeIndex.cpp",
+        "include/goldfish/gvk/GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR.h",
+        "include/goldfish/gvk/util/GetPFN.h",
+        "include/goldfish/gvk/util/initPFN.h",
+        "logVkResult.cpp",
+        "selectPhysicalDevice.cpp",
+        "stagingBuffers.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/gvk/DeviceDispatch.h",
+        "include/goldfish/gvk/DeviceQueueLocation.h",
+        "include/goldfish/gvk/DeviceResources.h",
+        "include/goldfish/gvk/IMetaLoader.h",
+        "include/goldfish/gvk/InstanceDispatch.h",
+        "include/goldfish/gvk/SystemMetaLoader.h",
+        "include/goldfish/gvk/util/buildDeviceQueueCreateInfo.h",
+        "include/goldfish/gvk/util/getMemoryTypeIndex.h",
+        "include/goldfish/gvk/util/logVkResult.h",
+        "include/goldfish/gvk/util/selectPhysicalDevice.h",
+        "include/goldfish/gvk/util/stagingBuffers.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/debug",
+        "//hardware/generic/goldfish/emulator/libs/os",
+        "//third_party/vulkan-headers:vulkan_headers",
+        "@aemu//base:aemu-base-headers",
+        "@com_google_absl//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "gvk_unittests",
+    srcs = [
+        "test/buildDeviceQueueCreateInfo_test.cpp",
+        "test/getMemoryTypeIndex_test.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":gvk",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@gfxstream//third_party/glm",
+    ],
+)

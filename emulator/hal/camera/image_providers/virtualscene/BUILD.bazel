@@ -10,11 +10,17 @@ cc_library(
     hdrs = [
         "include/android/camera/image_providers/virtualscene.h",
     ],
-    includes = ["include"],
+    includes = [
+        "include",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/hal/camera:image_provider_api",
+        "//hardware/generic/goldfish/emulator/libs/gvk",
+        "@aemu//base:aemu-base-headers",
         "@com_google_absl//absl/log",
+        "@gfxstream//third_party/glm",
+        "@libyuv",
         "@tinyobjloader",
     ],
     alwayslink = True,
@@ -23,11 +29,14 @@ cc_library(
 cc_test(
     name = "virtualscene_unittests",
     srcs = [
-        "test/todo.cpp",
+        "test/VirtualsceneImageProvider_test.cpp",
         "test/virtualscene_data.cpp",
     ],
     data = [
         "//prebuilts/android-emulator-build/common/virtualscene/Toren1BD",
+    ],
+    includes = [
+        ".",
     ],
     deps = [
         ":virtualscene",
