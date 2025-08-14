@@ -45,7 +45,9 @@ absl::Status ErrnoToAbslStatus(int error_code) {
 
     // Interrupted system call
     case EINTR:
+#ifdef ECANCELED
     case ECANCELED:
+#endif
         absl_code = absl::StatusCode::kCancelled;
         break;
 
@@ -119,11 +121,15 @@ absl::Status ErrnoToAbslStatus(int error_code) {
     case ENOSYS:
     case ENOPROTOOPT:
     case EPROTONOSUPPORT:
+#ifdef ESOCKTNOSUPPORT
     case ESOCKTNOSUPPORT:
+#endif
 #ifdef EOPNOTSUPP
     case EOPNOTSUPP:
 #endif
+#ifdef EPFNOSUPPORT
     case EPFNOSUPPORT:
+#endif
     case EAFNOSUPPORT:
         absl_code = absl::StatusCode::kUnimplemented;
         break;
@@ -132,8 +138,12 @@ absl::Status ErrnoToAbslStatus(int error_code) {
     case ENETDOWN:
     case ENETUNREACH:
     case EHOSTUNREACH:
+#ifdef ENONET
     case ENONET:
+#endif
+#ifdef ETXTBSY
     case ETXTBSY:
+#endif
         absl_code = absl::StatusCode::kUnavailable;
         break;
 
