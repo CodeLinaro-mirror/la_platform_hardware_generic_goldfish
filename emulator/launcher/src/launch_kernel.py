@@ -58,12 +58,29 @@ async def main(args, tmp_dir_for_images):
     # --- Dynamically locate necessary files based on ABI ---
     try:
         minigbm_abi_dir = f"minigbm-{args.abi}"
+        env = os.environ.copy()
 
-        goldfish_exec = Path(
-            r.Rlocation("_main/hardware/generic/goldfish/emulator/launcher/goldfish")
-        )
-        if not goldfish_exec.exists():
-            raise FileNotFoundError(f"Goldfish executable not found: {goldfish_exec}")
+        if args.use_zip:
+            # Remove the environment variables so the emulator does not think it is running under bazel.
+            for e in ["BUILD_WORKING_DIRECTORY", "TEST_BINARY", "RUNFILES_DIR"]:
+                env.pop(e, None)
+            zip_path = Path(r.Rlocation("_main/hardware/generic/goldfish/emulator/release.zip"))
+            if not zip_path.exists():
+                raise FileNotFoundError(f"Goldfish zip not found: {zip_path}")
+            extract_path = Path(tmp_dir_for_images, "goldfish")
+            if not extract_path.exists():
+                extract_path.mkdir()
+                process = await asyncio.create_subprocess_exec(
+                    'unzip', str(zip_path), '-d', str(extract_path), stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.STDOUT)
+                await process.wait()
+            goldfish_exec = extract_path.joinpath("goldfish")
+        else:
+            goldfish_exec = Path(
+                r.Rlocation("_main/hardware/generic/goldfish/emulator/launcher/goldfish")
+            )
+            if not goldfish_exec.exists():
+                raise FileNotFoundError(f"Goldfish executable not found: {goldfish_exec}")
 
         system_image_dir = Path(
             r.Rlocation(f"android_{minigbm_abi_dir}/{args.abi}/source.properties")
@@ -111,7 +128,7 @@ async def main(args, tmp_dir_for_images):
     # Set required environment variables
     avd_parent_dir = str(phone_ini_path.parent)
     env = {
-        **os.environ,
+        **env,
         "ANDROID_TMP": tmp_dir_for_images,
         "ANDROID_AVD_HOME": avd_parent_dir,
         "ANDROID_EMULATOR_HOME": avd_parent_dir,
@@ -201,6 +218,11 @@ if __name__ == "__main__":
         default=0,
         help="Number of times to repeat this test.",
     )
+    parser.add_argument(
+        "--use_zip",
+        action='store_true',
+        help="Use the goldfish from the release zip",
+        )
 
     args = parser.parse_args()
     logging.basicConfig(

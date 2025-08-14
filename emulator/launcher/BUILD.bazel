@@ -274,7 +274,10 @@ test_suite(
     tests = [
         ":can_boot_with_minigbm",
         ":can_boot_with_minigbm_2x",
+        ":can_boot_with_minigbm_2x_zip",
+        ":can_boot_with_minigbm_zip",
         ":can_launch_kernel_with_minigbm",
+        ":can_launch_kernel_with_minigbm_zip",
         ":emulator_unittests",
         ":logging_test",
     ],

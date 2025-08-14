@@ -21,6 +21,14 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
     args = ["--target_log_line", target_log_line, "--repeat", str(repeat)]
     if timeout_seconds:
         args.extend(["--timeout_seconds", str(timeout_seconds)])
+    _create_launch_emulator_test(name, args, ":goldfish")
+    _create_launch_emulator_test(
+        name + "_zip",
+        args + ["--use_zip"],
+        "//hardware/generic/goldfish/emulator:release",
+    )
+
+def _create_launch_emulator_test(name, args, goldfish_dep):
     py_test(
         name = name,
         size = "medium",
@@ -36,7 +44,7 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
                 "x86_64",
             ],
         }) + args,
-        data = [":goldfish"] + select({
+        data = [goldfish_dep] + select({
             "@platforms//os:macos": [
                 "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
                 "@android_minigbm-arm64-v8a//:system_image",
