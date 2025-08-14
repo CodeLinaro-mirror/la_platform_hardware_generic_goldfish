@@ -708,6 +708,59 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
     // The fixture's TearDown will now perform the shutdown and cleanup.
 }
 
+TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
+    runInThread();
+
+    std::promise<void> task_completed_promise;
+    auto future = task_completed_promise.get_future();
+    std::promise<bool> timer_callback_promise;
+    auto timer_executed = timer_callback_promise.get_future();
+
+    // Timer callback, declared here so it will not go out of scope
+    // and get cancelled.
+    std::shared_ptr<EventLoop::Timer> handle;
+
+    // Post a task to the event loop.
+
+    loop->post([&]() {
+        // Inside the task, create a timer.
+        std::weak_ptr<EventLoop::Timer> weak_handle;
+
+        // Create the timer. The `shared_ptr` (`handle`) will keep it alive
+        // for this scope. The EventLoop also holds a reference.
+        handle = loop->scheduleDelayed(
+                // Note we capture a pointer to handle, as we are just initializing it!
+                [h = &handle, &timer_callback_promise]() {
+                    (*h)->cancel();
+                    timer_callback_promise.set_value(true);
+                },
+                10ms);
+
+        // After the `handle` is created, point the `weak_handle` to it.
+        // The lambda now holds a reference to this `weak_handle`.
+        weak_handle = handle;
+
+        // Signal that the inner task has been cancelled
+        task_completed_promise.set_value();
+    });
+
+    // Wait for the posted task to finish.
+    runUntil(future);
+
+    // Now, wait a bit longer to ensure the timer *would* have fired if not
+    // cancelled.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(20);
+    } else {
+        std::this_thread::sleep_for(20ms);
+    }
+
+    runUntil(timer_executed);
+    // The main assertion: the timer's callback should have run,
+    // no deadlocks.
+    ASSERT_TRUE(timer_executed.get());
+}
+
 INSTANTIATE_TEST_SUITE_P(EventLoopImplementations, EventLoopTest,
                          ::testing::Values("libuv", "qemu"),
                          [](const ::testing::TestParamInfo<EventLoopTest::ParamType>& info) {

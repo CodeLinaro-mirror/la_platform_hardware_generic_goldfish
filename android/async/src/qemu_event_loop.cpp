@@ -27,6 +27,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 #include "absl/log/log.h"
 
@@ -98,8 +99,18 @@ class QemuEventLoop : public EventLoop {
 
         // Cancels the timer. This is thread-safe.
         void cancel() override {
+            // Calling cancel while in the callback, note that clean up will
+            // happen upon return of this function.
+            if (std::this_thread::get_id() == mCallbackThread.load()) {
+                mCancelled = true;
+                return;
+            }
+
             std::lock_guard<std::mutex> lock(mMutex);
             if (mCancelled) {
+                // Maybe cancel was being called from within the callback and we
+                // have disappeared already, or many threads are trying to cancel
+                // at the same time.
                 return;
             }
             mCancelled = true;
@@ -144,9 +155,13 @@ class QemuEventLoop : public EventLoop {
                 return;
             }
 
+            assert(mCallbackThread.load() == std::thread::id() &&
+                   "Multiple threads are trying to fire the timer!");
+            mCallbackThread.store(std::this_thread::get_id());
             mTask();
+            mCallbackThread.store(std::thread::id());
 
-            if (mInterval.count() > 0) {
+            if (mInterval.count() > 0 && !mCancelled) {
                 // It's a repeating timer, so we reschedule it. The self-reference
                 // in `mSelf` remains, keeping the object alive for the next firing.
                 timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_HOST) + mInterval.count());
@@ -166,6 +181,7 @@ class QemuEventLoop : public EventLoop {
         std::chrono::milliseconds mDelay;
         std::chrono::milliseconds mInterval;
         QemuEventLoop* mLoop;
+        std::atomic<std::thread::id> mCallbackThread;
         bool mCancelled = false;
         std::shared_ptr<QemuTimer> mSelf;  // Manages the object's lifetime.
     };
