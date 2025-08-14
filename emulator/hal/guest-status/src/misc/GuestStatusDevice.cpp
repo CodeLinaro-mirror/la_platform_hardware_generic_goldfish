@@ -101,7 +101,9 @@ class GuestStatusDevice : public IGuestStatusDevice {
                 mBootTime = bootTime;
             }
             fireEvent(createBootCompletedEvent(bootTime));
-            LOG(INFO) << "Boot completed in " << bootTime.count() << " ms";
+            // use WARNING, otherwise, logger does no flush and we don't know
+            // it boot completes in timely manner
+            LOG(WARNING) << "Boot completed in " << bootTime.count() << " ms";
         } else {
             VLOG(1) << "Ignoring unknown message from guest (" << message.size() << "):" << message;
         }
