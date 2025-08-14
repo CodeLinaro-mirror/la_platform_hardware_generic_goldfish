@@ -1,3 +1,5 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 cc_library(
     name = "debug",
     hdrs = [
@@ -6,5 +8,8 @@ cc_library(
     includes = ["include"],
     visibility = [
         "//visibility:public",
+    ],
+    deps = [
+        "@com_google_absl//absl/log",
     ],
 )
