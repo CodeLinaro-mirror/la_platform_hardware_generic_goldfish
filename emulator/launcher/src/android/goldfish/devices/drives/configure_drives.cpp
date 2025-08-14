@@ -134,10 +134,12 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd &avd, const And
         // Encryption must be second for ARM - to have path
         // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
         diskConfig(avd, "encrypt", "06.0", true, encrypt, user_encrypt, 0, wipe_data),
-        diskConfig(avd, "vendor", "07.0", rw_sys, vendor, user_vendor, 0),
         diskConfig(avd, "userdata", "05.0", true, std::nullopt, user_data, data_size),
+        diskConfig(avd, "vendor", "07.0", rw_sys, vendor, user_vendor, 0),
         diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size, wipe_data),
+#ifdef __x86_64__
         diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size, wipe_data),
+#endif
     };
 }
 

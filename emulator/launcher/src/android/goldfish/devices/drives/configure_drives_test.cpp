@@ -107,9 +107,10 @@ TEST(ConfigureDrivesTest, AddDrives) {
             .Times(1);
     EXPECT_CALL(mock_container, addRwDrive("cache", "04.0", _, _, _, _, _))
             .Times(1);
+#ifdef __x86_64__
     EXPECT_CALL(mock_container, addRwDrive("sdcard", "08.0", _, _, _, _, _))
             .Times(1);
-
+#endif
     ASSERT_THAT(addDrives(mock_container), IsOk());
 }
 
