@@ -109,14 +109,29 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "fake_qemu_callbacks",
+    srcs = [
+        "test/fake_qemu_callbacks.cpp",
+    ],
+    hdrs = [
+        "test/fake_qemu_callbacks.h",
+    ],
+    includes = [
+        "test",
+    ],
+    deps = [
+        ":qemu_event_loop",
+        "//third_party/qemu:qemu-headers",
+    ],
+)
+
 cc_test(
     name = "eventloop_unittests",
     size = "small",
     timeout = "moderate",
     srcs = [
         "test/event_loop_test.cpp",
-        "test/fake_qemu_callbacks.cpp",
-        "test/fake_qemu_callbacks.h",
     ],
     copts = ["-Wno-unused-result"],
     includes = ["test"],
@@ -125,6 +140,7 @@ cc_test(
         "//conditions:default": [],
     }),
     deps = [
+        ":fake_qemu_callbacks",
         ":libuv_event_loop",
         ":qemu_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
@@ -152,6 +168,30 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "qemu_sockets",
+    srcs = [
+        "src/qemu_sockets.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/async/qemu_socket_factory.h",
+    ],
+    includes = [
+        "include",
+        "//third_party/qemu/include",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        ":errno_to_absl",
+        ":qemu_event_loop",
+        "//hardware/generic/goldfish/android/sockets:socket_utils_impl",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_test(
     name = "sockets_unittests",
     size = "small",
@@ -159,12 +199,15 @@ cc_test(
         "test/async_socket_test.cpp",
     ],
     copts = ["-Wno-unused-result"],
+    includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
     deps = [
+        ":fake_qemu_callbacks",
         ":libuv_sockets",
+        ":qemu_sockets",
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )
