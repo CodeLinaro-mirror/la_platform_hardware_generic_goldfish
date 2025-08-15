@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "goldfish_vsock_hdrs",
@@ -11,6 +12,49 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = ["//hardware/generic/goldfish/android/async:async_api"],
+)
+
+cc_library(
+    name = "goldfish_vsock_marshalling_plug",
+    srcs = [
+        "marshalling_plug.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/vsock/marshalling_plug.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":goldfish_vsock_hdrs",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/android/async:qemu_event_loop",
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_test(
+    name = "goldfish_vsock_marshalling_plug_test",
+    srcs = [
+        "tests/marshalling_plug_test.cpp",
+    ],
+    copts = ["-Wno-unused-result"],
+    includes = ["test"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [
+        ],
+    }),
+    deps = [
+        ":goldfish_vsock_marshalling_plug",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:qemu_event_loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "@com_google_absl//absl/synchronization",
+    ],
 )
 
 [cc_library(
@@ -28,6 +72,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
+        ":goldfish_vsock_marshalling_plug",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/devices:cable",

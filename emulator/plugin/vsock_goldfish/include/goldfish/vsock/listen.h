@@ -13,6 +13,7 @@
 #pragma once
 #include <functional>
 
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
@@ -22,5 +23,20 @@ using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cab
 
 bool listen(uint32_t hostPort, HostPortListener);
 
+/**
+ * @brief Listens on a host port and wraps incoming connections with a
+ * MarshallingPlug.
+ *
+ * The provided listener will be called on the `clientLoop` with the
+ * marshalling socket. The listener should return a plug to be connected to the
+ * other side of the marshaller.
+ *
+ * @param hostPort The host port to listen on.
+ * @param listener The listener to be called on a new connection.
+ * @param clientLoop The event loop on which the listener will be called.
+ * @return true if listening started successfully, false otherwise.
+ */
+bool listenWithMarshalling(uint32_t hostPort, vsock::HostPortListener listener,
+                           async::EventLoop* clientLoop);
 }  // namespace vsock
 }  // namespace goldfish

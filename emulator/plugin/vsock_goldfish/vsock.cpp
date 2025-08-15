@@ -26,6 +26,7 @@
 #include "goldfish/devices/cable/saveload.h"
 #include "goldfish/vsock/connect.h"
 #include "goldfish/vsock/listen.h"
+#include "goldfish/vsock/marshalling_plug.h"
 #include "goldfish/vsock/snapshot.h"
 #include "goldfish/vsock/vsock_low_level.h"
 
@@ -713,6 +714,72 @@ void setParentStateSnapshotHandlers(void* parent, int (*save)(const void*, archi
                                     int (*load)(void*, archive::IReader&)) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
     return instance.setParentStateSnapshotHandlers(parent, save, load);
+}
+
+/**
+ * @brief Listens on a host port, marshalling connections to a client event loop.
+ *
+ * This function provides a thread-safe way for a client on a separate event
+ * loop to listen for incoming vsock connections.
+ *
+ * FLOW:
+ * 1. An `UnpluggerFn` is created. This lambda is crucial for cleanup, ensuring
+ *    that when a `MarshallingSocket` is destroyed, the underlying `VsockStream`
+ *    is correctly unplugged from the vsock device on the QEMU thread.
+ * 2. It calls `devices::cable::listenWithMarshalling`, which handles the complex
+ *    cross-thread logic.
+ * 3. The underlying implementation posts a task to the QEMU event loop to
+ *    register a listener for the specified `hostPort`.
+ * 4. When a guest connects, the QEMU-side listener fires. It creates a
+ *    `VsockStream` (the raw socket).
+ * 5. This raw socket is then wrapped in a `MarshallingSocket`.
+ * 6. A task is posted to the `clientLoop`, executing the provided `listener`
+ *    callback with the thread-safe `MarshallingSocket`.
+ * 7. The client's `listener` returns a `PlugPtr`. This plug is then wrapped in a
+ *    `MarshallingPlug` on the QEMU thread and connected to the `VsockStream`.
+ *
+ * The end result is a fully marshalled connection:
+ * - Calls from the client's socket (`MarshallingSocket`) are marshalled TO the
+ *   QEMU thread.
+ * - Calls from the vsock device (`VsockStream`) are marshalled TO the client's
+ *   plug (`MarshallingPlug`) on the `clientLoop`.
+ */
+bool listenWithMarshalling(uint32_t hostPort, vsock::HostPortListener listener,
+                           async::EventLoop* clientLoop) {
+    auto unplugger = devices::cable::MarshallingSocket::unpluggerFor<VsockStream>();
+    return devices::cable::listenWithMarshalling(hostPort, std::move(listener), clientLoop,
+                                                 unplugger);
+}
+
+/**
+ * @brief Connects to a guest port, marshalling the connection to a client event
+ * loop.
+ *
+ * This function provides a thread-safe way for a client on a separate event
+ * loop to initiate a vsock connection to a guest service.
+ *
+ * FLOW:
+ * 1. An `UnpluggerFn` is created, identical to the one in `listenWithMarshalling`,
+ *    to handle the cleanup of the underlying `VsockStream` on the QEMU thread.
+ * 2. It calls `devices::cable::connectWithMarshalling`, which orchestrates the
+ *    cross-thread connection setup.
+ * 3. The underlying implementation posts a task to the QEMU event loop.
+ * 4. On the QEMU thread, the provided `clientPlug` is wrapped in a
+ *    `MarshallingPlug`.
+ * 5. The core `vsock::connect` is called with the `MarshallingPlug`, which
+ *    creates the raw `VsockStream` and establishes the connection to the guest.
+ * 6. The resulting `VsockStream` is then wrapped in a `MarshallingSocket`.
+ * 7. This thread-safe `MarshallingSocket` is returned to the original caller on
+ *    the client thread.
+ *
+ * The end result is a fully marshalled connection, just like with listening.
+ */
+devices::cable::SocketPtr connectWithMarshalling(uint32_t guestPort,
+                                                 devices::cable::PlugPtr clientPlug,
+                                                 async::EventLoop* clientLoop) {
+    auto unplugger = devices::cable::MarshallingSocket::unpluggerFor<VsockStream>();
+    return devices::cable::connectWithMarshalling(guestPort, std::move(clientPlug), clientLoop,
+                                                  unplugger);
 }
 }  // namespace vsock
 }  // namespace goldfish
