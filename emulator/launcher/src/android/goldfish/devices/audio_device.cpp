@@ -14,6 +14,7 @@
 #include "audio_device.h"
 
 #include <initializer_list>
+#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -28,12 +29,33 @@ absl::Status AudioDevice::initialize(const Emulator& emulator) {
 }
 
 std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator) const {
-    // TODO(jansene): Enable audio.
-    return {
-            "-audiodev", "none,id=hda,out.mixing-engine=off",
-            "-device",   absl::StrCat("intel-hda,addr=", addr()),
-            "-device",   "hda-output,audiodev=hda",
-    };
+    using namespace std::literals;
+
+    const std::string_view audioDriver = "none"sv;
+
+    switch (emulator.avd().detectArchitecture()) {
+    case Avd::CpuArchitecture::kArm:
+        return {
+            "-audiodev"s,
+            absl::StrCat(audioDriver, ",id=mainaudiodev,out.mixing-engine=off"sv),
+            "-device"s,
+            "virtio-sound-device,audiodev=mainaudiodev"s,
+        };
+
+    case Avd::CpuArchitecture::kX86:
+        return {
+            "-audiodev"s,
+            absl::StrCat(audioDriver, ",id=mainaudiodev,out.mixing-engine=off"sv),
+            "-device"s,
+            absl::StrCat("virtio-sound-pci,audiodev=mainaudiodev,addr="sv, addr()),
+        };
+
+    case Avd::CpuArchitecture::kRiscV:
+    case Avd::CpuArchitecture::kUnknown:
+        break;
+    }
+
+    return {};
 }
 
 }  // namespace android::goldfish
