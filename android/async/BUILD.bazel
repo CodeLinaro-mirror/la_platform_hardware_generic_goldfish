@@ -120,6 +120,10 @@ cc_library(
     includes = [
         "test",
     ],
+    visibility = [
+        "//hardware/generic/goldfish/android/async:__pkg__",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:__pkg__",
+    ],
     deps = [
         ":qemu_event_loop",
         "//third_party/qemu:qemu-headers",
@@ -140,9 +144,9 @@ cc_test(
         "//conditions:default": [],
     }),
     deps = [
-        ":fake_qemu_callbacks",
         ":libuv_event_loop",
         ":qemu_event_loop",
+        "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

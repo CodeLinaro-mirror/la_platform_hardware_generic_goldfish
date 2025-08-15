@@ -18,6 +18,7 @@
 #include <future>
 #include <memory>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
@@ -31,9 +32,13 @@ namespace goldfish::async {
 class EventLoop {
   public:
     /**
-     * @brief A unit of work to be executed by the EventLoop.
+     * @brief A move-only, type-erased unit of work to be executed.
+     *
+     * Using absl::AnyInvocable allows the EventLoop to accept any callable,
+     * including move-only lambdas (e.g., those capturing a std::unique_ptr),
+     * without the overhead or copy restrictions of std::function.
      */
-    using Task = std::function<void()>;
+    using Task = absl::AnyInvocable<void()>;
 
     /**
      * @brief An opaque handle to a scheduled task.
