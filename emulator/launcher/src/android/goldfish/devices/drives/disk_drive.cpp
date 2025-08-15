@@ -41,9 +41,9 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     switch (avd.detectArchitecture()) {
         case Avd::CpuArchitecture::kArm:
             // Note that this isn't actually a pci device, oh well.
-            return absl::StrCat("virtio-blk-device,drive=", diskId, ",num-queues=4,iothread=disk-iothread");
+            return absl::StrCat("virtio-blk-device,drive=", diskId);
         case Avd::CpuArchitecture::kX86:
-            return absl::StrCat("virtio-blk-pci,addr=", addr, ",drive=", diskId, ",num-queues=4,iothread=disk-iothread");
+            return absl::StrCat("virtio-blk-pci,addr=", addr, ",drive=", diskId);
         case Avd::CpuArchitecture::kRiscV:
         case Avd::CpuArchitecture::kUnknown:
         default:

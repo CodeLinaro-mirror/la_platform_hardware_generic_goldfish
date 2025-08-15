@@ -58,12 +58,12 @@ TEST(RoDrive, Basic_x86) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(
             dev.getQemuParameters(emu),
-            testing::ElementsAre(testing::Eq("-device"),
-                                 testing::Eq("virtio-blk-pci,addr=03.0,drive=system,num-queues="
-                                             "4,iothread=disk-iothread"),
-                                 testing::Eq("-blockdev"),
-                                 testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
-                                        "driver=file,filename=", image_file.string()))));
+            testing::ElementsAre(
+                    testing::Eq("-device"), testing::Eq("virtio-blk-pci,addr=03.0,drive=system"),
+                    testing::Eq("-blockdev"),
+                    testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
+                                             "driver=file,filename=",
+                                             image_file.string()))));
 }
 
 TEST(RoDrive, Basic_arm64) {
@@ -90,12 +90,12 @@ TEST(RoDrive, Basic_arm64) {
     RoDrive dev("system", "03.0", image_file);
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
-                testing::ElementsAre(testing::Eq("-device"),
-                                     testing::Eq("virtio-blk-device,drive=system,num-queues=4,"
-                                                 "iothread=disk-iothread"),
-                                     testing::Eq("-blockdev"),
-                                     testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
-                                        "driver=file,filename=", image_file.string()))));
+                testing::ElementsAre(
+                        testing::Eq("-device"), testing::Eq("virtio-blk-device,drive=system"),
+                        testing::Eq("-blockdev"),
+                        testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
+                                                 "driver=file,filename=",
+                                                 image_file.string()))));
 }
 
 TEST(RoDrive, MissingImage) {
@@ -136,17 +136,14 @@ TEST(RwDrive, Basic_x86) {
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(
-        dev.getQemuParameters(emu),
-        testing::ElementsAre(
-            "-device",
-            "virtio-blk-pci,addr=04.0,drive=userdata,num-queues=4,iothread=disk-"
-            "iothread,write-cache=on",
-            "-blockdev",
-            absl::StrCat(
-                "driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
-                qcow2Image.string(),
-                ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                "cache-size=1048576")));
+            dev.getQemuParameters(emu),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-pci,addr=04.0,drive=userdata,write-cache=on",
+                    "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
 }
 
 TEST(RwDrive, Basic_arm) {
@@ -170,17 +167,13 @@ TEST(RwDrive, Basic_arm) {
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(
-        dev.getQemuParameters(emu),
-        testing::ElementsAre(
-            "-device",
-            "virtio-blk-device,drive=userdata,num-queues=4,iothread=disk-"
-            "iothread,write-cache=on",
-            "-blockdev",
-            absl::StrCat(
-                "driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
-                qcow2Image.string(),
-                ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
-                "cache-size=1048576")));
+            dev.getQemuParameters(emu),
+            testing::ElementsAre(
+                    "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
+                    absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",
+                                 qcow2Image.string(),
+                                 ",overlap-check=none,cache.direct=off,cache.no-flush=on,l2-"
+                                 "cache-size=1048576")));
 }
 
 }  // namespace android::goldfish::test
