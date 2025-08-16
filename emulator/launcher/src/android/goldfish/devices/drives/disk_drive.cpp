@@ -97,6 +97,12 @@ absl::Status convertImgToQcow2(fs::path ext4_image, fs::path qcow2_image) {
                 absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image.string(),
                                 qcow2_image.string(), kQemuImgTimeout.count()));
     }
+    if (img_proc->exitCode() != 0) {
+        return absl::InternalError(absl::StrCat("qemu-img reported qcow2 creation failed with exit code ", img_proc->exitCode(), ": ", ext4_image.string(), " -> ", qcow2_image.string()));
+    }
+    if (!fs::exists(qcow2_image)) {
+        return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ", qcow2_image.string()));
+    }
     if (!System::get()->pathIsQcow2(qcow2_image)) {
         return absl::DataLossError(
                 absl::StrFormat("The created file %s is not in qcow2 format", qcow2_image));
