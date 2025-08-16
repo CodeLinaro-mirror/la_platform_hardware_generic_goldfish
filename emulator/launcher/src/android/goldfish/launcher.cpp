@@ -87,22 +87,24 @@ int main(int argc, char** argv) {
     }
 
     // Setup the library search dirs.
-    android::goldfish::fs::path qemu_module_dir;
+    fs::path qemu_module_dir;
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins can be
         // found.
-        qemu_module_dir = android::goldfish::fs::path(
+        qemu_module_dir = fs::path(
                 Bazel::runfilesPath("_main/hardware/generic/goldfish/emulator/launcher/plugins"));
         assert(android::goldfish::fs::exists(qemu_module_dir));
     } else {
         qemu_module_dir = System::get()->getProgramDirectory() / "lib" / "qemu";
     }
 
+    qemu_module_dir = fs::canonical(qemu_module_dir);
+
     // Make sure the child process is using the same crashpad handler as we are using.
     std::stringstream handler;
     handler << android::crashreport::CrashReporter::handlerExe();
     System::get()->setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", handler.str());
-    System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", System::pathAsString(qemu_module_dir));
+    System::get()->setEnvironmentVariable("QEMU_MODULE_DIR", qemu_module_dir.string());
     if (System::get()->getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR").empty()) {
         // Only set this if it wasn't already set as some integrators set it externally.
         System::get()->setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",

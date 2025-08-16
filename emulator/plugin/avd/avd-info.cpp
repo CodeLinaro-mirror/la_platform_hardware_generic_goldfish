@@ -95,7 +95,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
     // Configure logging.
-    absl::InitializeLog();
+    // We assume logging has already be initialized in plugin.cpp.
+    //absl::InitializeLog();
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
     UpdateVModule(avd_info->vmodule);

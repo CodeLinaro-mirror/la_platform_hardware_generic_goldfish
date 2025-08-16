@@ -38,7 +38,7 @@ namespace android::goldfish::test {
 #ifdef __APPLE__
 constexpr std::string_view bazelPostfix = ".signed";
 #else
-constexpr std::string_view bazelPostfix = "_std";
+constexpr std::string_view bazelPostfix = "";
 #endif
 
 TEST(Machine, Basic_x86) {
