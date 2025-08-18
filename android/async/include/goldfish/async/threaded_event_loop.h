@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 #include <chrono>
+#include <string>
 #include <thread>
 
 #include "absl/status/status.h"
@@ -36,7 +37,8 @@ class ThreadedEventLoop : public EventLoop {
      * @param loop A shared_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
-    explicit ThreadedEventLoop(std::unique_ptr<EventLoop> loop);
+    explicit ThreadedEventLoop(std::unique_ptr<EventLoop> loop,
+                               std::string name = "AEMU Event Thread");
     ~ThreadedEventLoop() override;
 
     // --- Prevent Copying ---
@@ -94,6 +96,7 @@ class ThreadedEventLoop : public EventLoop {
   private:
     std::thread mRunner;
     std::unique_ptr<EventLoop> mLoop;
+    std::string mLooperName;
 };
 
 }  // namespace goldfish::async

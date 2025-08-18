@@ -21,10 +21,17 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
+
 namespace goldfish::async {
 
-ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop) : mLoop(std::move(loop)) {
-    run();
+ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop, std::string name)
+        : mLoop(std::move(loop)), mLooperName(name) {
+    (void)run();
 }
 
 ThreadedEventLoop::~ThreadedEventLoop() {
@@ -45,6 +52,13 @@ ThreadedEventLoop::~ThreadedEventLoop() {
 
 absl::Status ThreadedEventLoop::run() {
     mRunner = std::thread([this] {
+#if defined(_WIN32)
+        SetThreadName(GetCurrentThread(), mLooperName.c_str());
+#elif defined(__linux__)
+        pthread_setname_np(pthread_self(), mLooperName.c_str());
+#else
+        pthread_setname_np(mLooperName.c_str());
+#endif
         auto status = mLoop->run();
         if (!status.ok()) {
             LOG(WARNING) << "Event loop exited with: " << status;
