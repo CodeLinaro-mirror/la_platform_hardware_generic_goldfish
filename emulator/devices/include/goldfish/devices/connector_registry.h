@@ -14,9 +14,6 @@
 // limitations under the License.
 #pragma once
 
-#include <aemu/base/events/EventSupport.h>
-#include <goldfish/devices/cable/cable.h>
-
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -26,8 +23,10 @@
 
 #include "aemu/base/Compiler.h"
 #include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSupport.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
+#include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace devices {
