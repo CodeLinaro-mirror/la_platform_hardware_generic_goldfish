@@ -83,11 +83,17 @@ crashreporting_binaries = [
 
 qemu_binaries = [
     "//third_party/qemu:qemu-img",
-    "//third_party/qemu:qemu-system-x86_64",
     "//hardware/generic/goldfish/third_party/sparse:img2simg",
 ] + select({
-    "@platforms//os:windows": [],
+    "@platforms//os:windows": [
+        "//third_party/qemu:qemu-system-x86_64",
+    ],
+    "@platforms//os:macos": [
+        "//third_party/qemu:qemu-system-x86_64_signed",
+        "//third_party/qemu:qemu-system-aarch64_signed",
+    ],
     "//conditions:default": [
+        "//third_party/qemu:qemu-system-x86_64",
         "//third_party/qemu:qemu-system-aarch64",
         # We currently don't have riscv images
         # "//third_party/qemu:qemu-system-riscv64",
@@ -145,7 +151,11 @@ pkg_files(
     prefix = "bin",
     renames = select({
         "@platforms//os:windows": {
-            "//third_party/qemu:qemu-system-x86_64_std": "qemu-system-x86_64.exe",
+            "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64.exe",
+        },
+        "@platforms//os:macos": {
+            "//third_party/qemu:qemu-system-x86_64_signed": "qemu-system-x86_64",
+            "//third_party/qemu:qemu-system-aarch64_signed": "qemu-system-aarch64",
         },
         "//conditions:default": {
             "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64",

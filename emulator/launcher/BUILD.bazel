@@ -193,12 +193,19 @@ cc_binary(
         "//third_party/qemu:qemu-img",
         "//third_party/qemu:qemu-keymaps",
         "//third_party/qemu:qemu-roms",
-        "//third_party/qemu:qemu-system-x86_64",
     ] + select({
-        "@platforms//os:windows": [],
+        "@platforms//os:windows": [
+            "//third_party/qemu:qemu-system-x86_64",
+        ],
+        "@platforms//os:macos": [
+            "//third_party/qemu:qemu-system-aarch64_signed",
+            "//third_party/qemu:qemu-system-riscv64_signed",
+            "//third_party/qemu:qemu-system-x86_64_signed",
+        ],
         "//conditions:default": [
             "//third_party/qemu:qemu-system-aarch64",
             "//third_party/qemu:qemu-system-riscv64",
+            "//third_party/qemu:qemu-system-x86_64",
         ],
     }),
     includes = [

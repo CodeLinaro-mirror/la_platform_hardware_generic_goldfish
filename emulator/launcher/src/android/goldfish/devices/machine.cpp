@@ -40,7 +40,7 @@ static std::string qemu_exe(const Avd& avd) {
 #ifdef __APPLE__
     constexpr std::string_view bazelPostfix = ".signed";
 #else
-    constexpr std::string_view bazelPostfix = "_std";
+    constexpr std::string_view bazelPostfix = "";
 #endif
 
     switch (avd.detectArchitecture()) {

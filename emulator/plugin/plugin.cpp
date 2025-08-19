@@ -13,6 +13,12 @@
 // limitations under the License.
 
 #include <cstdio>
+
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/internal/globals.h"
+#include "absl/log/log.h"
+
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/avd-finalize.h"
 #include "goldfish/avd/adb-device.h"
@@ -30,6 +36,7 @@
 #include "google/system/aemu_func_defs.h"
 
 extern "C" void GF_REGISTER_TYPES_FUNC(void) {
+    VLOG(1) << "Enter GF_REGISTER_TYPES";
     goldfish_battery_register_types();
     vsock_port_fwd_register_types();
     vsock_low_level_register_types();
@@ -40,10 +47,20 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
 #ifndef _WIN32
     grpc_register_types();
 #endif
+    VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
 extern "C" void GF_STARTUP_FUNC(int argc, char **argv) {
+  absl::InitializeLog();
+  absl::log_internal::EnableSymbolizeLogStackTrace(true);
+  // What should we log before the AVD module is loaded and configures it properly?
+  // TODO Decide what to set this to.
+  absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+
   crashhandler_init(argc, argv);
+
+  LOG(INFO) << "goldfish plugin initialization completed";
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
