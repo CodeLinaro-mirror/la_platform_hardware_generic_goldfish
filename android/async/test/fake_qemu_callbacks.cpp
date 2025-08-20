@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef _WIN32
 #include <poll.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -31,6 +33,15 @@ extern "C" {
 #include "qemu/osdep.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
+
+
+// Windows workarounds
+#ifdef shutdown
+#undef shutdown
+#endif
+#ifdef close
+#undef close
+#endif
 // IWYU pragma: end_keep
 // clang-format on
 }
@@ -107,6 +118,7 @@ int sPipeFd[2] = {-1, -1};
 //    events and invokes their corresponding read/write callbacks.
 void io_loop() {
     goldfish::async::initializeQemuEventLoop();
+#ifndef _WIN32
     while (sIoLoopRunning.load()) {
         std::vector<struct pollfd> pollfds;
         std::map<int, FdHandler> current_handlers;
@@ -169,6 +181,7 @@ void io_loop() {
             }
         }
     }
+#endif
 }
 
 }  // namespace
@@ -179,7 +192,9 @@ extern "C" {
 
 void fake_qemu_start_io_loop() {
     if (sIoLoopRunning.load()) return;
+#ifndef _WIN32
     pipe(sPipeFd);
+#endif
     sIoLoopRunning = true;
     sIoLoopThread = std::thread(io_loop);
 }

@@ -34,7 +34,12 @@ cc_library(
         ":async_api",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -141,14 +146,24 @@ cc_test(
     includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Shell32.lib",
+            "-DEFAULTLIB:User32.lib",
+        ],
         "//conditions:default": [],
     }),
     deps = [
         ":libuv_event_loop",
         ":qemu_event_loop",
         "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
+        "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
