@@ -152,3 +152,35 @@ TEST(ConfigDirs, getAvdRootDirectory) {
     sys.envSet("USER_HOME", "bogus");
     EXPECT_THAT(ConfigDirs::getAvdRootDirectory(), PathEq("Area_6/.android/avd"));
 }
+
+class ConfigDirsTest : public testing::TestWithParam<bool> {};
+
+TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
+    TestSystem sys("", "myhome");
+
+    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("runtime")));
+    fs::path base = "runtime";
+
+#if defined(_WIN32)
+    base = base / "Temp";
+#elif defined(__APPLE__)
+    base = base / "Library" / "Caches" / "TemporaryItems";
+#endif
+
+    auto want = base / "avd" / "running";
+    if (GetParam()) {
+        ASSERT_TRUE(fs::create_directories(want));
+        fs::permissions(want, fs::perms::owner_all, fs::perm_options::remove);
+    }
+
+    sys.envSet("LOCALAPPDATA", "runtime");
+    sys.envSet("XDG_RUNTIME_DIR", "runtime");
+    sys.envSet("HOME", "runtime");
+
+    auto got = ConfigDirs::getDiscoveryDirectory();
+    EXPECT_THAT(got, PathEq(want));
+    EXPECT_TRUE(fs::exists(got));
+    EXPECT_EQ(fs::status(got).permissions() & fs::perms::owner_all, fs::perms::owner_all);
+}
+
+INSTANTIATE_TEST_SUITE_P(DiscoveryDirectory, ConfigDirsTest, testing::Values(true, false));

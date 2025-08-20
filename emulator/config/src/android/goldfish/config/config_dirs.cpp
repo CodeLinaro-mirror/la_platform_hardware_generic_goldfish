@@ -285,8 +285,8 @@ auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
             LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to "
                          << ec.message();
         }
-        fs::permissions(desired_directory, fs::perms::owner_all, fs::perm_options::remove);
     }
+    fs::permissions(desired_directory, fs::perms::owner_all, fs::perm_options::add);
     return desired_directory;
 }
 }  // namespace android::goldfish
