@@ -13,17 +13,21 @@
 // limitations under the License.
 #pragma once
 #include <chrono>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "absl/status/status.h"
 
+#include "aemu/base/events/CallbackEventSupport.h"
 #include "goldfish/async/event_loop.h"
 
 namespace goldfish::async {
 
 /**
- * @brief A decorator that runs an EventLoop implementation in a background thread.
+ * @brief A decorator that runs an EventLoop implementation in a background
+ * thread.
  *
  * This class takes ownership of an EventLoop (e.g., a LibuvEventLoop) and
  * manages its execution in a dedicated thread. The run() method starts the
@@ -34,7 +38,7 @@ class ThreadedEventLoop : public EventLoop {
   public:
     /**
      * @brief Constructs a ThreadedEventLoop.
-     * @param loop A shared_ptr to the underlying EventLoop implementation that
+     * @param loop A unique_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
     explicit ThreadedEventLoop(std::unique_ptr<EventLoop> loop,
@@ -97,6 +101,7 @@ class ThreadedEventLoop : public EventLoop {
     std::thread mRunner;
     std::unique_ptr<EventLoop> mLoop;
     std::string mLooperName;
+    std::unique_ptr<android::base::ScopedEventCallback<EventLoop, LooperStatusEvent>> mSubscription;
 };
 
 }  // namespace goldfish::async

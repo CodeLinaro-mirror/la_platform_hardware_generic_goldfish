@@ -30,7 +30,9 @@
 namespace goldfish::async {
 
 ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop, std::string name)
-        : mLoop(std::move(loop)), mLooperName(name) {
+        : mLoop(std::move(loop)), mLooperName(std::move(name)) {
+    mSubscription = android::base::makeScopedCallback<EventLoop, LooperStatusEvent>(
+            *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
     (void)run();
 }
 
@@ -51,6 +53,10 @@ ThreadedEventLoop::~ThreadedEventLoop() {
 }
 
 absl::Status ThreadedEventLoop::run() {
+    if (getState() != LooperStatusEvent::State::NOT_STARTED) {
+        return absl::FailedPreconditionError(
+                "The event loop is automatically run, and has already started.");
+    }
     mRunner = std::thread([this] {
 #if defined(_WIN32)
         SetThreadName(GetCurrentThread(), mLooperName.c_str());

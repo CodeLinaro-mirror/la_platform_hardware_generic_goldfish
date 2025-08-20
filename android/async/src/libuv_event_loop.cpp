@@ -232,6 +232,7 @@ static void onInternalHandleClosed(uv_handle_t* handle) {
 }
 
 std::future<absl::Status> LibuvEventLoop::shutdown(std::chrono::milliseconds timeout) {
+    setState(LooperStatusEvent::State::SHUTTING_DOWN);
     auto wait_until = absl::Now() + absl::FromChrono(timeout);
 
     // Create a promise to signal when shutdown is complete.
@@ -303,8 +304,10 @@ absl::Status LibuvEventLoop::run() {
 
     mThreadId = std::this_thread::get_id();
     mIsRunning = true;
+    setState(LooperStatusEvent::State::RUNNING);
     int err = uv_run(mLoop, UV_RUN_DEFAULT);
     mIsRunning = false;
+    setState(LooperStatusEvent::State::FINISHED);
     auto status = UvErrToAbslStatus(err);
     err = uv_idle_stop(mKeepAliveHandle);
     if (status.ok()) {

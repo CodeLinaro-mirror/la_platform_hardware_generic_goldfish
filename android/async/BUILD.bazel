@@ -16,6 +16,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/google/aemu/base:event-support",
         "@com_google_absl//absl/status:statusor",
     ],
 )

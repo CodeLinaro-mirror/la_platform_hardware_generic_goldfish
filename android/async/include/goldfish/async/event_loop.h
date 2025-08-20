@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <future>
@@ -21,15 +22,56 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+
+#include "aemu/base/events/CallbackEventSupport.h"
 
 namespace goldfish::async {
+
+using android::base::EventChangeSupport;
+using android::base::WithCallbacks;
+
+/**
+ * @brief Event that is fired when the state of the looper changes.
+ * Observers can subscribe to this event to be notified of the looper's
+ * lifecycle.
+ */
+struct LooperStatusEvent {
+    enum class State {
+        NOT_STARTED,    // The loop has not yet been started.
+        RUNNING,        // The loop is actively processing events.
+        SHUTTING_DOWN,  // A graceful shutdown has been initiated.
+        FINISHED,       // The loop has finished execution.
+    };
+
+    State state;
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const LooperStatusEvent& event) {
+    switch (event.state) {
+    case LooperStatusEvent::State::NOT_STARTED:
+        sink.Append("NOT_STARTED");
+        break;
+    case LooperStatusEvent::State::RUNNING:
+        sink.Append("RUNNING");
+        break;
+    case LooperStatusEvent::State::SHUTTING_DOWN:
+        sink.Append("SHUTTING_DOWN");
+        break;
+    case LooperStatusEvent::State::FINISHED:
+        sink.Append("FINISHED");
+        break;
+    }
+}
+
 /**
  * @brief An abstract interface for an event loop.
  *
  * This allows application code to depend on the concept of an event loop
  * without being tied to a specific implementation like libuv or asio.
  */
-class EventLoop {
+class EventLoop : public WithCallbacks<EventChangeSupport, LooperStatusEvent> {
   public:
     /**
      * @brief A move-only, type-erased unit of work to be executed.
@@ -161,6 +203,23 @@ class EventLoop {
 
     // Implementation specific loop.
     virtual void* getRawLoop() const = 0;
+
+    /**
+     * @brief Gets the current state of the event loop.
+     * @return The current state.
+     */
+    LooperStatusEvent::State getState() const { return mState; }
+
+  protected:
+    void setState(LooperStatusEvent::State newState) {
+        LooperStatusEvent::State oldState = mState.exchange(newState);
+        if (oldState != newState) {
+            fireEvent({.state = newState});
+        }
+    }
+
+  private:
+    std::atomic<LooperStatusEvent::State> mState{LooperStatusEvent::State::NOT_STARTED};
 };
 
 }  // namespace goldfish::async

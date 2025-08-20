@@ -49,6 +49,7 @@ extern "C" {
 namespace {
 
 using goldfish::async::EventLoop;
+using goldfish::async::LooperStatusEvent;
 using goldfish::async::ScopedTimer;
 
 // An implementation of the EventLoop interface that is backed by the QEMU main
@@ -187,7 +188,7 @@ class QemuEventLoop : public EventLoop {
     };
 
   public:
-    QemuEventLoop() = default;
+    QemuEventLoop() { setState(LooperStatusEvent::State::RUNNING); }
     ~QemuEventLoop() override = default;
 
     absl::Status run() override;
@@ -229,6 +230,7 @@ void QemuEventLoop::stop() {
 }
 
 std::future<absl::Status> QemuEventLoop::shutdown(std::chrono::milliseconds timeout) {
+    setState(LooperStatusEvent::State::SHUTTING_DOWN);
     mIsShuttingDown.store(true);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
