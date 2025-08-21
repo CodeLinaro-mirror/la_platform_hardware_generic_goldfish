@@ -104,6 +104,13 @@ plugin_binaries = [
     "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
     "@crosvm//:rutabaga_ffi",
 ] + select({
+    "@platforms//os:macos": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+        "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
+    ],
+    "//conditions:default": [
+    ],
+}) + select({
     "@platforms//os:windows": [],
     "//conditions:default": [
         "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
@@ -112,8 +119,8 @@ plugin_binaries = [
     ],
 }) + select({
     "@platforms//os:linux": [
-        # TODO(b/434942959,whollins): Re-add this.
-        #"@gcc_lib//:libpulse",
+        "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
+        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
     ],
     "//conditions:default": [
     ],
