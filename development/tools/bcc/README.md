@@ -26,7 +26,7 @@ From within a Bazel workspace:
 If installed via pip
 
   ```bash
-  extract-cc -o ~/src/emu/dev/hardware/google/gfxstream/ @glib//:glib-static //hardware/google/gfxstream/host:gfxstream_backend
+  extract-cc -o ~/src/emu/dev/hardware/google/gfxstream/ @glib//glib //hardware/google/gfxstream/host:gfxstream_backend
   ```
 
 Note: Make sure you output the `compile_commands.json` file to a location where your compiler tools expect them! For example when using vscode you usually want it
