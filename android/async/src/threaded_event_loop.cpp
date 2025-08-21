@@ -22,7 +22,13 @@
 #include "absl/time/time.h"
 
 #ifdef _WIN32
+// clang-format off
+// IWYU pragma: begin_keep
 #include <windows.h>
+#include <processthreadsapi.h>
+#include "aemu/base/system/Win32UnicodeString.h"
+// IWYU pragma: end_keep
+// clang-format on
 #else
 #include <pthread.h>
 #endif
@@ -59,7 +65,8 @@ absl::Status ThreadedEventLoop::run() {
     }
     mRunner = std::thread([this] {
 #if defined(_WIN32)
-        SetThreadName(GetCurrentThread(), mLooperName.c_str());
+        SetThreadDescription(GetCurrentThread(),
+                             android::base::Win32UnicodeString(mLooperName).c_str());
 #elif defined(__linux__)
         pthread_setname_np(pthread_self(), mLooperName.c_str());
 #else

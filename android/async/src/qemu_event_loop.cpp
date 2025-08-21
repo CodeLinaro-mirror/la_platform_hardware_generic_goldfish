@@ -42,6 +42,14 @@ extern "C" {
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
 
+
+// Windows workarounds
+#ifdef shutdown
+#undef shutdown
+#endif
+#ifdef close
+#undef close
+#endif
 // IWYU pragma: end_keep
 // clang-format on
 }

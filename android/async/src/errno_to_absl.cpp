@@ -98,7 +98,9 @@ absl::Status ErrnoToAbslStatus(int error_code) {
     case ECONNRESET:
     case EISCONN:
     case ENOTCONN:
+#ifdef ESHUTDOWN
     case ESHUTDOWN:
+#endif
     case EALREADY:
         absl_code = absl::StatusCode::kFailedPrecondition;
         break;
