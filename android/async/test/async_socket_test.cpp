@@ -378,9 +378,15 @@ TEST_P(AsyncSocketTest, SendSynchronouslyBlocksAndSucceeds) {
     EXPECT_EQ(received_future.get(), message_to_send);
 }
 
-INSTANTIATE_TEST_SUITE_P(SocketImplementations, AsyncSocketTest, ::testing::Values("libuv", "qemu"),
+INSTANTIATE_TEST_SUITE_P(SocketImplementations, AsyncSocketTest,
+#ifdef _WIN32
+                         // We do not have qemu fake drivers for windows so we will not be running
+                         // these tests.
+                         ::testing::Values("libuv"),
+#else
+                         ::testing::Values("libuv", "qemu"),
+#endif
                          [](const ::testing::TestParamInfo<AsyncSocketTest::ParamType>& info) {
                              return info.param;
                          });
-
 }  // namespace goldfish::async

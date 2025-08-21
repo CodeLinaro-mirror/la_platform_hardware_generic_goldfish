@@ -14,7 +14,7 @@
 	],
 	"settings": {
 		"[cpp]": {
-			"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+			"editor.defaultFormatter": "xaver.clang-format"
 		},
 		/// bsv.bazel plugin does not support ${workspaceFolder}
 		// "bsv.bazel.executable": "${workspaceFolder}/prebuilts/tools/bazel/bazel",
@@ -36,6 +36,7 @@
 			"tools": false
 		},
 		"mesonbuild.selectRootDir": false,
-		"workbench.colorTheme": "Eva Dark Italic"
+		"workbench.colorTheme": "Eva Dark Italic",
+		"files.eol": "\n" // Windows should not introduce CRLF.
 	}
 }

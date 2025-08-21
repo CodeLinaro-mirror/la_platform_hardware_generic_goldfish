@@ -38,6 +38,13 @@ extern "C" {
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "qemu/main-loop.h"
+
+// Qemu introduces a set if #defines we do not want in windows.
+#ifdef _WIN32
+#undef close
+#undef send
+#undef connect
+#endif
 // IWYU pragma: end_keep
 // clang-format on
 }
