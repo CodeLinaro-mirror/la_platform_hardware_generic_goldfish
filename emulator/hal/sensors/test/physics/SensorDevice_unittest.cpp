@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_format.h"
 
+#include "android/base/system/TestClock.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
@@ -44,7 +45,7 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
 class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        ISensorDevice::registerDevice(&registry, mAvd, registry.getLooper());
+        ISensorDevice::registerDevice(&registry, mAvd, registry.getLooper(), &mClock);
         device = registry.constructDevice<ISensorDevice>();
         test_socket = registry.getSocket();
         looper = registry.getLooper();
@@ -71,6 +72,7 @@ class SensorDeviceTest : public ::testing::Test {
     TestSocket* test_socket;
     ISensorDevice* device;
     android::goldfish::FakeAvd mAvd;
+    android::base::TestClock mClock;
 };
 
 TEST_F(SensorDeviceTest, canCreateDevice) {
@@ -93,21 +95,21 @@ TEST_F(SensorDeviceTest, canSetSensors) {
 }
 
 TEST_F(SensorDeviceTest, setDelayCausesATick) {
-    looper->setVirtualTimeNs(1234567890);
+    mClock.set_time(absl::FromUnixNanos(1234567890));
     receive("set-delay:10");
     // The looper keeps ticking so just check for the first few digits.
     EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:1234"));
 }
 
 TEST_F(SensorDeviceTest, setTimeOffset) {
-    looper->setVirtualTimeNs(1234567890);
+    mClock.set_time(absl::FromUnixNanos(1234567890));
     receive("time:100");
     receive("set-delay:1");
     EXPECT_THAT(test_socket->storage, HasSubstr("000Eguest-sync:10"));
 }
 
 TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
-    looper->setVirtualTimeNs(1234567890);
+    mClock.set_time(absl::FromUnixNanos(1234567890));
     receive("set-delay:1");
     clear();
     EXPECT_THAT(test_socket->storage, Eq(""));
