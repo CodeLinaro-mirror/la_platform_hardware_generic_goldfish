@@ -2,11 +2,15 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 
 [
     [
-        cc_library(
-            name = "plugin_" + arch,
+        cc_binary(
+            name = "goldfish_" + arch,
             srcs = ["plugin.cpp"],
-            # Workaround a bug where the .o file can't be found.
-            features = ["-thin_lto"],
+            linkopts = select({
+                "@platforms//os:macos": ["-undefined dynamic_lookup"],
+                "//conditions:default": [],
+            }),
+            linkshared = True,
+            visibility = ["//visibility:public"],
             deps = [
                 "//hardware/generic/goldfish/emulator/plugin/avd",
                 "//hardware/generic/goldfish/emulator/plugin/battery",
@@ -29,15 +33,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
                 # buildifier: leave-alone
                 "//hardware/generic/goldfish/emulator/crashreport:init",
             ],
-        ),
-        cc_shared_library(
-            name = "goldfish_" + arch,
-            user_link_flags = select({
-                "@platforms//os:macos": ["-undefined dynamic_lookup"],
-                "//conditions:default": [],
-            }),
-            visibility = ["//visibility:public"],
-            deps = [":plugin_" + arch],
         ),
     ]
     for arch in [
