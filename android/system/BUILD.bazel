@@ -1,4 +1,23 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "clock",
+    srcs = [
+        "src/abseil_clock.cpp",
+        "src/clock.cpp",
+    ],
+    hdrs = [
+        "include/android/base/system/abseil_clock.h",
+        "include/android/base/system/clock.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@aemu//base:aemu-base",
+        "@com_google_absl//absl/time",
+    ],
+)
 
 cc_library(
     name = "system",
@@ -30,6 +49,7 @@ cc_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        ":clock",
         "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/log",
@@ -51,6 +71,7 @@ cc_library(
     testonly = True,
     srcs = ["test/android/base/system/test_file_util_bazel.cc"],
     hdrs = [
+        "test-headers/android/base/system/TestClock.h",
         "test-headers/android/base/testing/MockUtils.h",
         "test-headers/android/base/testing/ResultMatchers.h",
         "test-headers/android/base/testing/TestEvent.h",
@@ -107,5 +128,20 @@ cc_library(
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:initialize",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "clock_perf",
+    testonly = True,
+    srcs = ["test/bm_clock.cpp"],
+    copts = [
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-result",
+    ],
+    deps = [
+        ":clock",
+        ":system",
+        "@com_github_google_benchmark//:benchmark",
     ],
 )

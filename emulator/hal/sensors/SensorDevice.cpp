@@ -14,6 +14,7 @@
 
 #include "goldfish/devices/sensor/SensorDevice.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdbool>
 #include <cstdio>
@@ -28,15 +29,17 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 
 #include "aemu/base/async/Looper.h"
+#include "android/base/system/clock.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/qemud.h"
 #include "goldfish/devices/sensor/PhysicalModel.h"
 #include "goldfish/devices/sensor/Sensors.h"
-#include "goldfish/devices/qemud.h"
 #include "goldfish/physics/SkinRotation.h"
 
 namespace goldfish::devices::sensor {
@@ -159,11 +162,12 @@ void _sanitizeSensorString(char* string, int maxlen) {
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(SocketPtr socket, const android::goldfish::Avd& avd, android::base::Looper* looper)
+    SensorDevice(SocketPtr socket, const android::goldfish::Avd& avd, android::base::Looper* looper,
+                 ::android::base::IClock* clock)
             : mSocket(std::move(socket))
             , mPhysicalModel(new PhysicalModel(avd))
-            , mLooper(looper)
-            , mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual)) {
+            , mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual))
+            , mClock(clock) {
         // Initialize sensors based on AVD configuration
         if (avd.hw().hw_accelerometer) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
@@ -181,7 +185,8 @@ class SensorDevice : public ISensorDevice {
             mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
         }
         if (avd.hw().hw_sensors_magnetic_field_uncalibrated) {
-            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled = true;
+            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled =
+                    true;
         }
         if (avd.hw().hw_sensors_gyroscope_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
@@ -303,7 +308,7 @@ class SensorDevice : public ISensorDevice {
 
     bool onReceive(const void* data, size_t size) override {
         std::string_view msg(static_cast<const char*>(data), size);
-        VLOG(1) << "From sensor hal: " << msg;
+        VLOG(1) << "Received message from sensor HAL: " << msg;
         if (msg == "list-sensors") {
             std::string response = std::to_string(mEnabledMask);
             send(response);
@@ -316,11 +321,13 @@ class SensorDevice : public ISensorDevice {
         }
 
         if (absl::ConsumePrefix(&msg, "set-delay:")) {
-            if (absl::SimpleAtoi(msg, &mDelayMs)) {
+            int32_t delay_ms;
+            if (absl::SimpleAtoi(msg, &delay_ms)) {
+                mDelay = absl::Milliseconds(delay_ms);
                 if (mEnabledMask != 0) tick();
                 return true;
             } else {
-                VLOG(1) << "ignore bad 'set-delay' command: " << msg;
+                VLOG(1) << "Ignoring 'set-delay' command with invalid delay value: '" << msg << "'";
                 return true;
             }
         }
@@ -328,18 +335,20 @@ class SensorDevice : public ISensorDevice {
         if (absl::ConsumePrefix(&msg, "set:")) {
             std::vector<std::string_view> parts = absl::StrSplit(msg, ':');
             if (parts.size() != 2) {
-                VLOG(1) << "ignore bad 'set' command: " << msg;
+                VLOG(1) << "Ignoring malformed 'set' command. Expected format "
+                        << "'set:<sensor>:<0|1>', but received: 'set:" << msg << "'";
                 return true;
             }
 
             int id = sensorIdFromName(parts[0]);
             if (id < 0 || id >= static_cast<int>(AndroidSensor::MAX_SENSORS)) {
-                VLOG(1) << "ignore unknown sensor name: '" << parts[0] << "'";
+                VLOG(1) << "Ignoring 'set' command for unknown sensor: '" << parts[0] << "'";
                 return true;
             }
 
             if (!mSensors[id].enabled) {
-                VLOG(1) << "trying to set disabled " << parts[0] << " sensor";
+                VLOG(1) << "Ignoring 'set' command for sensor '" << parts[0]
+                        << "' which is not enabled by AVD configuration.";
                 return true;
             }
 
@@ -357,16 +366,16 @@ class SensorDevice : public ISensorDevice {
         if (absl::ConsumePrefix(&msg, "time:")) {
             int64_t guest_time_ns;
             if (absl::SimpleAtoi(msg, &guest_time_ns)) {
-                auto now_ns = mLooper->nowNs(Looper::ClockType::kVirtual);
-                mTimeOffsetNs = guest_time_ns - now_ns;
+                auto now = mClock->now(::android::base::ClockType::Virtual);
+                mTimeOffset = absl::FromUnixNanos(guest_time_ns) - now;
                 return true;
             } else {
-                VLOG(1) << "ignore bad 'time' command: " << msg;
+                VLOG(1) << "Ignoring 'time' command with invalid timestamp value: '" << msg << "'";
                 return true;
             }
         }
 
-        VLOG(1) << "Ignoring unknown command: " << msg;
+        VLOG(1) << "Ignoring unknown command from sensor HAL: " << msg;
         return true;
     }
 
@@ -379,10 +388,9 @@ class SensorDevice : public ISensorDevice {
 
     absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) override {
         if (sensor_id >= AndroidSensor::MAX_SENSORS) {
-            return absl::InvalidArgumentError(
-                    absl::StrFormat("SensorId: %zu, out of range (max:%zu)",
-                                    static_cast<size_t>(sensor_id),
-                                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "SensorId: %zu, out of range (max:%zu)", static_cast<size_t>(sensor_id),
+                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
         }
 
         if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
@@ -390,24 +398,24 @@ class SensorDevice : public ISensorDevice {
         }
 
         switch (sensor_id) {
-            case AndroidSensor::HINGE_ANGLE0:
-                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, data.data(), data.size(),
-                                          PhysicalInterpolation::SMOOTH);
+        case AndroidSensor::HINGE_ANGLE0:
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, data.data(), data.size(),
+                                      PhysicalInterpolation::SMOOTH);
 
-                break;
-            case AndroidSensor::HINGE_ANGLE1:
-                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, data.data(), data.size(),
-                                          PhysicalInterpolation::SMOOTH);
+            break;
+        case AndroidSensor::HINGE_ANGLE1:
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, data.data(), data.size(),
+                                      PhysicalInterpolation::SMOOTH);
 
-                break;
-            case AndroidSensor::HINGE_ANGLE2:
-                setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, data.data(), data.size(),
-                                          PhysicalInterpolation::SMOOTH);
+            break;
+        case AndroidSensor::HINGE_ANGLE2:
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, data.data(), data.size(),
+                                      PhysicalInterpolation::SMOOTH);
 
-                break;
-            default:
-                setSensorValue(sensor_id, data.data(), data.size());
-                break;
+            break;
+        default:
+            setSensorValue(sensor_id, data.data(), data.size());
+            break;
         }
 
         fireEvent(sensor_id);
@@ -416,10 +424,9 @@ class SensorDevice : public ISensorDevice {
 
     absl::StatusOr<SensorData> getSensorData(AndroidSensor sensor_id) override {
         if (sensor_id >= AndroidSensor::MAX_SENSORS) {
-            return absl::InvalidArgumentError(
-                    absl::StrFormat("SensorId: %zu, out of range (max:%zu)",
-                                    static_cast<size_t>(sensor_id),
-                                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
+            return absl::InvalidArgumentError(absl::StrFormat(
+                    "SensorId: %zu, out of range (max:%zu)", static_cast<size_t>(sensor_id),
+                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
         }
 
         if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
@@ -445,11 +452,11 @@ class SensorDevice : public ISensorDevice {
     }
 
     std::chrono::microseconds getSensorTimeOffset() override {
-        return std::chrono::microseconds(mTimeOffsetNs);
+        return absl::ToChronoMicroseconds(mTimeOffset);
     }
 
     std::chrono::milliseconds getSensorDelayMs() override {
-        return std::chrono::milliseconds(mDelayMs);
+        return absl::ToChronoMilliseconds(mDelay);
     }
 
     absl::StatusOr<Rotation> getDeviceRotation() override {
@@ -461,10 +468,10 @@ class SensorDevice : public ISensorDevice {
         glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
 
         static const std::array<std::pair<glm::vec3, SkinRotation>, 4> directions{
-                std::make_pair(glm::vec3(0.0f, 1.0f, 0.0f), SkinRotation::PORTRAIT),
-                std::make_pair(glm::vec3(1.0f, 0.0f, 0.0f), SkinRotation::LANDSCAPE),
-                std::make_pair(glm::vec3(0.0f, -1.0f, 0.0f), SkinRotation::REVERSE_PORTRAIT),
-                std::make_pair(glm::vec3(-1.0f, 0.0f, 0.0f), SkinRotation::REVERSE_LANDSCAPE)};
+            std::make_pair(glm::vec3(0.0f, 1.0f, 0.0f), SkinRotation::PORTRAIT),
+            std::make_pair(glm::vec3(1.0f, 0.0f, 0.0f), SkinRotation::LANDSCAPE),
+            std::make_pair(glm::vec3(0.0f, -1.0f, 0.0f), SkinRotation::REVERSE_PORTRAIT),
+            std::make_pair(glm::vec3(-1.0f, 0.0f, 0.0f), SkinRotation::REVERSE_LANDSCAPE)};
         auto coarse_orientation = SkinRotation::PORTRAIT;
         for (const auto& v : directions) {
             if (fabs(glm::dot(normalized_accelerometer, v.first) - 1.f) < 0.1f) {
@@ -513,9 +520,9 @@ class SensorDevice : public ISensorDevice {
 #undef SERIALIZE_VALUE_NAME
 #undef GET_FUNCTION_NAME
 #undef ENUM_NAME
-            default:
-                assert(false);  // should never happen
-                return;
+        default:
+            assert(false);  // should never happen
+            return;
         }
         assert(sensor.serialized.length < sizeof(sensor.serialized.value));
 
@@ -558,9 +565,9 @@ class SensorDevice : public ISensorDevice {
 #undef ENUM_NAME
 #undef GET_TYPE_VALUE_FUNCTION_NAME
 #undef OVERRIDE_FUNCTION_NAME
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
     }
 
@@ -580,9 +587,9 @@ class SensorDevice : public ISensorDevice {
 #undef ENUM_NAME
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
     }
 
@@ -601,15 +608,15 @@ class SensorDevice : public ISensorDevice {
 #undef ENUM_NAME
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
     }
 
     // Helper functions for physical parameters
-    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val, const size_t count,
-                                   PhysicalInterpolation interpolation_mode) {
+    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
+                                   const size_t count, PhysicalInterpolation interpolation_mode) {
         switch (parameter) {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
@@ -624,16 +631,16 @@ class SensorDevice : public ISensorDevice {
 #undef SET_TARGET_FUNCTION_NAME
 #undef GET_TYPE_VALUE_FUNCTION_NAME
 #undef ENUM_NAME
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
 
         // TODO(jansene): (fire sensor change event)
     }
 
-    void getPhysicalParameterValue(PhysicalParameter parameter_id, float* const* out, const size_t count,
-                                   ParameterValueType parameter_value_type) {
+    void getPhysicalParameterValue(PhysicalParameter parameter_id, float* const* out,
+                                   const size_t count, ParameterValueType parameter_value_type) {
         switch (parameter_id) {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
@@ -648,9 +655,9 @@ class SensorDevice : public ISensorDevice {
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef ENUM_NAME
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
     }
 
@@ -658,18 +665,18 @@ class SensorDevice : public ISensorDevice {
         switch (parameter_id) {
 #define ENUM_NAME(x) PhysicalParameter::x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
-#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)  \
-    case ENUM_NAME(x):                               \
-        TYPE_GET_VALUES_FUNCTION_NAME(w)             \
-        (size);                                      \
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
+    case ENUM_NAME(x):                              \
+        TYPE_GET_VALUES_FUNCTION_NAME(w)            \
+        (size);                                     \
         break;
             GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
 #undef TYPE_GET_VALUES_FUNCTION_NAME
 #undef ENUM_NAME
-            default:
-                assert(false);  // should never happen
-                break;
+        default:
+            assert(false);  // should never happen
+            break;
         }
     }
 
@@ -680,9 +687,10 @@ class SensorDevice : public ISensorDevice {
         // the android.hardware CTS requires sync times to be no greater than the
         // time of the sensor event arrival. Since the CTS enforces this property,
         // other code may also rely on it.
-        auto now_ns = mLooper->nowNs(Looper::ClockType::kVirtual);
-        mPhysicalModel->setCurrentTime(now_ns);
-        for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS); ++sensor_id) {
+        const auto now = mClock->now(::android::base::ClockType::Virtual);
+        mPhysicalModel->setCurrentTime(absl::ToUnixNanos(now));
+        for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
+             ++sensor_id) {
             if (!enabled(sensor_id)) {
                 continue;
             }
@@ -691,15 +699,8 @@ class SensorDevice : public ISensorDevice {
                                   mSensors[sensor_id].serialized.length));
         }
 
-        char buffer[64];
-        int buffer_len = snprintf(buffer, sizeof(buffer), "guest-sync:%" PRId64,
-                                  ((int64_t)now_ns) + mTimeOffsetNs);
-        assert(buffer_len < sizeof(buffer));
-        send(std::string_view(buffer, buffer_len));
-
-        buffer_len = snprintf(buffer, sizeof(buffer), "sync:%" PRId64, now_ns / 1000);
-        assert(buffer_len < sizeof(buffer));
-        send(std::string_view(buffer, buffer_len));
+        send(absl::StrFormat("guest-sync:%d", absl::ToUnixNanos(now + mTimeOffset)));
+        send(absl::StrFormat("sync:%d", absl::ToUnixMicros(now)));
 
         if (mEnabledMask == 0) return;
 
@@ -715,12 +716,8 @@ class SensorDevice : public ISensorDevice {
         // - Some CTS hardware test cases require a limit on the maximum update
         // rate,
         //   which has been known to be in the low 100's of Hz.
-        if (mDelayMs < 10) {
-            mDelayMs = 10;
-        } else if (mDelayMs > 60 * 60 * 1000) {
-            mDelayMs = 60 * 60 * 1000;
-        }
-        mTimer->startRelative(mDelayMs);
+        mDelay = std::clamp(mDelay, absl::Milliseconds(10), absl::Hours(1));
+        mTimer->startRelative(absl::ToInt64Milliseconds(mDelay));
     }
 
     static void _SensorDevice_tick(void* opaque, Looper::Timer* unused) {
@@ -730,32 +727,37 @@ class SensorDevice : public ISensorDevice {
     SocketPtr mSocket;
     Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
     std::unique_ptr<PhysicalModel> mPhysicalModel;
-    int64_t mTimeOffsetNs;
-    Looper* mLooper;
+    absl::Duration mTimeOffset;
     Looper::Timer* mTimer;
+    ::android::base::IClock* mClock;
     uint32_t mEnabledMask{0};
-    int32_t mDelayMs{800};
+    absl::Duration mDelay{absl::Milliseconds(800)};
 
     // Sensor and Physical Parameter information arrays
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) {y, static_cast<int>(AndroidSensor::x)},
-            GOLDFISH_SENSORS_LIST
+        GOLDFISH_SENSORS_LIST
 #undef SENSOR_
     };
 };
 
-// Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper) {
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper,
+                                   ::android::base::IClock* clock) {
     registry->registerQemuDevice(
             std::string(ISensorDevice::serviceName),
-            [&avd, looper](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                           std::string_view args) {
-                return std::make_shared<SensorDevice>(std::move(socket), avd, looper);
+            [&avd, looper, clock](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+                                  std::string_view args) {
+                return std::make_shared<SensorDevice>(std::move(socket), avd, looper, clock);
             });
 }
 
+// Registers the sensor device with the registry
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper) {
+    registerDevice(registry, avd, looper, &::android::base::IClock::get());
+}
+
 SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)
-    : mDeviceListener(registry), mId(id) {
+        : mDeviceListener(registry), mId(id) {
     mDeviceListener.addCallback(
             [this](std::weak_ptr<ISensorDevice> device) { registerDevice(device); });
 }

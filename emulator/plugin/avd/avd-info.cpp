@@ -26,6 +26,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
+#include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
@@ -93,6 +94,9 @@ void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
+
+    // Set the system clock to the QEMU implementation.
+    android::base::IClock::set(std::make_unique<android::base::QemuClock>());
 
     // Configure logging.
     // We assume logging has already be initialized in plugin.cpp.

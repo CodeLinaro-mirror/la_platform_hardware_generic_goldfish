@@ -26,6 +26,10 @@
 #include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/physics/Rotation.h"
 
+namespace android::base {
+class IClock;
+}
+
 namespace goldfish::devices::sensor {
 
 using android::base::EventChangeSupport;
@@ -127,6 +131,9 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
      * externally to ensure they outlive the registry.
      */
     static void registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper);
+    // Test seam
+    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper,
+                               ::android::base::IClock* clock);
 };
 
 /**
