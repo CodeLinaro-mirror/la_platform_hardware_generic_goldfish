@@ -13,6 +13,14 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#pragma once
 
-TEST(virtualscene, todo) {}
+#include <vulkan/vulkan.h>
+
+#include "goldfish/imaging/ImageFormat.h"
+
+namespace goldfish::imaging {
+
+VkFormat toVkFormat(ImageFormat);
+
+}  // namespace goldfish::imaging

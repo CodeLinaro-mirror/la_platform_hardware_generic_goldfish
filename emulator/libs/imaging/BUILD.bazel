@@ -5,6 +5,7 @@ cc_library(
     name = "imaging",
     srcs = [
         "queryInfo.cpp",
+        "toVkFormat.cpp",
     ],
     hdrs = [
         "include/goldfish/imaging/AndroidPixelFormat.h",
@@ -12,10 +13,14 @@ cc_library(
         "include/goldfish/imaging/ImageRef.h",
         "include/goldfish/imaging/Rect.h",
         "include/goldfish/imaging/queryInfo.h",
+        "include/goldfish/imaging/toVkFormat.h",
     ],
     includes = ["include"],
     visibility = [
         "//visibility:public",
+    ],
+    deps = [
+        "//third_party/vulkan-headers:vulkan_headers",
     ],
     alwayslink = True,
 )
@@ -24,6 +29,7 @@ cc_test(
     name = "imaging_unittests",
     srcs = [
         "test/queryInfo_unittests.cpp",
+        "test/toVkFormat_unittests.cpp",
     ],
     deps = [
         ":imaging",
