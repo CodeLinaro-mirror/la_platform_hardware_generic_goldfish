@@ -115,6 +115,7 @@ class LibuvEventLoop : public EventLoop {
   private:
     friend class LibuvTimer;
     void processTasks();
+    absl::Status doPost(Task task);
 
     /// The core libuv event loop instance.
     uv_loop_t* mLoop = nullptr;
@@ -138,6 +139,8 @@ class LibuvEventLoop : public EventLoop {
 
     /// Atomic flag indicating the loop is shutting down and will not accept new tasks.
     std::atomic<bool> mIsShuttingDown{false};
+    std::promise<absl::Status> mShutdownCompletePromise;
+    std::atomic<bool> mPromiseSet{false};
     std::atomic<bool> mIsRunning{false};
 };
 

@@ -195,12 +195,9 @@ LibuvEventLoop::~LibuvEventLoop() {
  *
  * Since the shutdown process is asynchronous and involves multiple callbacks,
  * we need a way to share state between them. This struct is created on the heap
- * and holds the promise to be fulfilled and a counter for tracking pending
- * handle closures. A pointer to this context is passed to the callbacks via
- * the `uv_handle_t::data` field.
+ * and holds a counter for tracking pending handle closures.
  */
 struct ShutdownContext {
-    std::shared_ptr<std::promise<absl::Status>> promise;
     std::atomic<int> handles_to_close;
 };
 
@@ -222,79 +219,67 @@ static void onInternalHandleClosed(uv_handle_t* handle) {
     assert(context && "No contex present in onInternalHandleClosed");
 
     auto open_handles = --(context->handles_to_close);
+    VLOG(1) << "We have: " << open_handles << " left to close";
     // Atomically decrement the counter, the last will cleanup
     if (open_handles == 0) {
-        // This is the last handle to close, so we can now safely signal
-        // that the shutdown operation is complete and delete the context
-        context->promise->set_value(absl::OkStatus());
+        // This is the last handle to close
         delete context;
     }
 }
 
 std::future<absl::Status> LibuvEventLoop::shutdown(std::chrono::milliseconds timeout) {
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
+
+    // Handle cases where shutdown is not possible by returning an immediately-fulfilled future.
+    if (!mIsRunning || isOnLoopThread()) {
+        const char* msg = !mIsRunning ? "You cannot shutdown a loop that is not running."
+                                      : "You cannot shutdown an event loop from the loop thread.";
+        std::promise<absl::Status> promise;
+        promise.set_value(absl::InvalidArgumentError(msg));
+        return promise.get_future();
+    }
+
+    // Atomically check and set the shutdown flag. If it was already true, another
+    // thread has already started the shutdown process.
+    if (mIsShuttingDown.exchange(true)) {
+        // Return a new future that is immediately fulfilled with an error.
+        // This prevents a crash from trying to get the future from the member
+        // promise more than once.
+        std::promise<absl::Status> promise;
+        promise.set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
+        return promise.get_future();
+    }
+
+    // --- This is the first and only thread to initiate shutdown ---
     auto wait_until = absl::Now() + absl::FromChrono(timeout);
 
-    // Create a promise to signal when shutdown is complete.
-    // It's wrapped in a shared_ptr to be safely passed to the context.
-    auto promise = std::make_shared<std::promise<absl::Status>>();
-    std::future<absl::Status> future = promise->get_future();
-
-    if (!mIsRunning) {
-        promise->set_value(absl::InternalError("You cannot shutdown a loop that is not running."));
-        return future;
-    }
-
-    if (mIsShuttingDown.load()) {
-        promise->set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
-        return future;
-    }
-
-    // First we cancel all outstanding timers.
-    if (isOnLoopThread()) {
-        promise->set_value(absl::InvalidArgumentError(
-                "You cannot shutdown an event loop from the loop thread."));
-        return future;
-    }
-
-    // Post the actual shutdown logic to the event loop thread. This ensures
-    // all interactions with libuv handles happen on the correct thread.
-    auto status = post([this, promise, wait_until]() {
-        // The post queue is now offically closed.
-        mIsShuttingDown.store(true);
-
+    // Post the actual shutdown logic using the private doPost.
+    doPost([this, wait_until]() {
         {
             absl::MutexLock lock(&mActiveTimersMutex);
             for (auto timer : mActiveTimers) {
                 static_cast<LibuvTimer*>(timer)->doCancel();
-
-                // Check if we are past our deadline.
                 if (absl::Now() > wait_until) {
-                    promise->set_value(absl::DeadlineExceededError(
-                            "Unable to cancel timers in a timely fashion."));
+                    if (!mPromiseSet.exchange(true)) {
+                        mShutdownCompletePromise.set_value(absl::DeadlineExceededError(
+                                "Unable to cancel timers in a timely fashion."));
+                    }
                     return;
                 }
             }
         }
 
-        // Create the context on the heap. Its lifetime must persist across
-        // multiple loop ticks until all close callbacks have fired.
-        // We have 2 internal handles to close: mKeepAliveHandle and mAsyncHandle.
-        auto* context = new ShutdownContext{promise, 2};
-
-        // Attach the shared context to each handle. This is how the static
-        // callback will retrieve the state it needs to operate on.
-        // Note that at this point we are overriding the async handle
-        // and you can no longer post to the queue.
+        auto* context = new ShutdownContext{2};
         mKeepAliveHandle->data = context;
         mAsyncHandle.data = context;
 
-        // Schedule the closing of both internal handles. Libuv will call
-        // onInternalHandleClosed for each one when they are fully closed.
         uv_close((uv_handle_t*)mKeepAliveHandle, onInternalHandleClosed);
         uv_close((uv_handle_t*)&mAsyncHandle, onInternalHandleClosed);
+        uv_stop(mLoop);
     });
-    return future;
+
+    // Return the one true future that waits for the shutdown to complete.
+    return mShutdownCompletePromise.get_future();
 }
 
 absl::Status LibuvEventLoop::run() {
@@ -312,6 +297,9 @@ absl::Status LibuvEventLoop::run() {
     err = uv_idle_stop(mKeepAliveHandle);
     if (status.ok()) {
         status = UvErrToAbslStatus(err);
+    }
+    if (!mPromiseSet.exchange(true)) {
+        mShutdownCompletePromise.set_value(status);
     }
     return status;
 }
@@ -342,17 +330,21 @@ void LibuvEventLoop::processTasks() {
     }
 }
 
-absl::Status LibuvEventLoop::post(Task task) {
+absl::Status LibuvEventLoop::doPost(Task task) {
     if (!mLoop) return absl::UnavailableError("Event loop is not initialized.");
-    if (mIsShuttingDown.load()) {
-        return absl::CancelledError("Event loop is shutting down.");
-    }
     {
         absl::MutexLock lock(&mTaskMutex);
         mTaskQueue.push(std::move(task));
     }
     uv_async_send(&mAsyncHandle);
     return absl::OkStatus();
+}
+
+absl::Status LibuvEventLoop::post(Task task) {
+    if (mIsShuttingDown.load()) {
+        return absl::CancelledError("Event loop is shutting down.");
+    }
+    return doPost(std::move(task));
 }
 
 // Cleaner fire-and-forget implementation.
