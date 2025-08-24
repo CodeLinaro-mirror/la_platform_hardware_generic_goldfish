@@ -9,6 +9,7 @@ cc_library(
         "include/goldfish/async/async_socket_server.h",
         "include/goldfish/async/async_socket_utils.h",
         "include/goldfish/async/event_loop.h",
+        "include/goldfish/async/event_loop_dispatcher.h",
         "include/goldfish/async/scoped_async_resource.h",
         "include/goldfish/async/scoped_async_timer.h",
         "include/goldfish/async/threaded_event_loop.h",
@@ -27,6 +28,7 @@ cc_library(
         "src/threaded_event_loop.cpp",
     ],
     hdrs = [
+        "include/goldfish/async/event_loop_dispatcher.h",
         "include/goldfish/async/threaded_event_loop.h",
     ],
     includes = ["include"],
@@ -229,6 +231,19 @@ cc_test(
         ":libuv_sockets",
         ":qemu_sockets",
         "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "event_loop_dispatcher_test",
+    size = "small",
+    srcs = [
+        "test/event_loop_dispatcher_test.cpp",
+    ],
+    deps = [
+        ":libuv_event_loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@aemu//base:event-support",
     ],
 )
 
