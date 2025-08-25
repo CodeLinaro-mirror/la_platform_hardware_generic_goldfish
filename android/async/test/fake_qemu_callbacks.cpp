@@ -220,7 +220,8 @@ void fake_qemu_advance_ms(int64_t ms) {
     while (sFakeClockMs < deadline) {
         sFakeClockMs++;
 
-        for (auto* timer : sTimers) {
+        auto timers = sTimers;
+        for (auto* timer : timers) {
             if (timer->scale && timer->expire_time <= sFakeClockMs) {
                 timer->scale = 0;
                 timer->cb(timer->opaque);
@@ -243,8 +244,12 @@ void fake_qemu_advance_ms(int64_t ms) {
 void fake_qemu_reset() {
     fake_qemu_stop_io_loop();
     std::lock_guard<std::recursive_mutex> lock(sMutex);
+    fake_qemu_advance_ms(1);
     sFakeClockMs = 0;
 
+    if (!sTimers.empty()) {
+        LOG(FATAL) << "You are leaking timers!";
+    }
     for (auto* timer : sTimers) {
         delete timer;
     }
