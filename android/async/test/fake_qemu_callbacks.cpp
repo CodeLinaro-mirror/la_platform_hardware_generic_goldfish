@@ -22,6 +22,7 @@
 #include <list>
 #include <map>
 #include <mutex>
+#include <ranges>
 #include <thread>
 #include <vector>
 
@@ -182,7 +183,7 @@ void fake_qemu_advance_ms(int64_t ms) {
             scheduled_bhs = sScheduledBHs;
             sScheduledBHs.clear();
         }
-        for (auto* bh : scheduled_bhs) {
+        for (auto* bh : std::views::reverse(scheduled_bhs)) {
             if (!bh->deleted) {
                 bh->scheduled = false;
                 bh->cb(bh->opaque);
