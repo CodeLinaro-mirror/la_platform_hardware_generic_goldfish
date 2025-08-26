@@ -24,9 +24,9 @@ cc_library(
     deps = [
         ":headers",
         "//third_party/qemu:qemu-headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/synchronization",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -63,8 +63,8 @@ cc_library(
     deps = [
         ":headers",
         "//third_party/qemu:qemu-headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/synchronization",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
     ],
     alwayslink = True,
 ) for arch in [

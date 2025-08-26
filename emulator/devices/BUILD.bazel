@@ -102,11 +102,11 @@ cc_library(
     ],
     deps = [
         ":devices",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -123,10 +123,10 @@ cc_library(
         ":connector_registry_hdrs",
         ":devices",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings",
     ],
 )
 

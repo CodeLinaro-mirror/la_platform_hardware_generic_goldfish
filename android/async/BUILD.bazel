@@ -16,8 +16,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/status:statusor",
         "@aemu//base:event-support",
-        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -33,8 +33,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":async_api",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -54,9 +54,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@libuv",
     ],
 )
@@ -72,8 +72,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -92,7 +92,7 @@ cc_library(
         ":async_api",
         ":async_impl",
         ":uv_to_absl",
-        "@com_google_absl//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@libuv",
     ],
 )
@@ -110,8 +110,8 @@ cc_library(
     deps = [
         ":async_api",
         "//third_party/qemu:qemu-headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
     ],
 )
 
@@ -181,9 +181,9 @@ cc_library(
         ":async_api",
         ":libuv_event_loop",
         ":uv_to_absl",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@libuv",
     ],
 )
@@ -206,9 +206,9 @@ cc_library(
         ":errno_to_absl",
         ":qemu_event_loop",
         "//hardware/generic/goldfish/android/sockets:socket_utils_impl",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -241,6 +241,6 @@ cc_binary(
     ],
     deps = [
         ":libuv_sockets",
-        "@com_github_google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark",
     ],
 )

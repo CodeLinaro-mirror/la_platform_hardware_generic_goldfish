@@ -1,4 +1,4 @@
-load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -7,7 +7,7 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpa
 proto_library(
     name = "adb_service_proto",
     srcs = ["adb_service.proto"],
-    deps = ["@com_google_protobuf//:empty_proto"],
+    deps = ["@protobuf//:empty_proto"],
 )
 
 cc_proto_library(

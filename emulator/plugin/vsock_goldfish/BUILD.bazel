@@ -29,7 +29,7 @@ cc_library(
         "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
         "//hardware/generic/goldfish/emulator/devices:cable",
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/log",
     ],
 )
 
@@ -53,7 +53,7 @@ cc_test(
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/devices:cable",
-        "@com_google_absl//absl/synchronization",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 

@@ -67,7 +67,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers/virtualscene",
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers/webcam",
         "//hardware/generic/goldfish/emulator/libs/parsing",
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
 )

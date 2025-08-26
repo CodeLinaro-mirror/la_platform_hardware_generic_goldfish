@@ -30,10 +30,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/system",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

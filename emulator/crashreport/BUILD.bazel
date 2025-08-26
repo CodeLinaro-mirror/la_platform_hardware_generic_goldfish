@@ -44,9 +44,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/launcher:aemu_version",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings",
         "@com_google_crashpad//client",
         "@com_google_crashpad//handler",
         "@com_google_crashpad//snapshot",
@@ -82,7 +82,7 @@ cc_library(
     includes = ["include"],
     local_defines = ["AEMU_CRASH_EXPORTS"],
     deps = [
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/log",
         "@com_google_crashpad//client",
     ],
 )
@@ -101,8 +101,8 @@ cc_binary(
         ":uploader",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/third_party/json",
+        "@abseil-cpp//absl/memory",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/memory",
         "@com_google_breakpad//src/common",
         "@com_google_breakpad//src/processor",
         "@com_google_crashpad//third_party/mini_chromium:base",
@@ -141,8 +141,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/strings",
         "@com_google_breakpad//src/processor",
         "@com_google_crashpad//client",
     ],
@@ -161,8 +161,8 @@ cc_binary(
     deps = [
         ":always_consent",
         ":init",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log:initialize",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:initialize",
     ],
 )

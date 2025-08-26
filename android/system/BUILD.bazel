@@ -14,8 +14,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/time",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/time",
     ],
 )
 
@@ -50,11 +50,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":clock",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
     ] + select({
         "@platforms//os:linux": [
             "//hardware/generic/goldfish/android/process",
@@ -88,10 +88,10 @@ cc_library(
     deps = [
         ":system",
         "//hardware/generic/goldfish/android/logging:backend",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/log:absl_log",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -123,11 +123,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":system",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log:flags",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_googletest//:gtest",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:initialize",
+        "@googletest//:gtest",
     ],
 )
 
@@ -142,6 +142,6 @@ cc_binary(
     deps = [
         ":clock",
         ":system",
-        "@com_github_google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark",
     ],
 )

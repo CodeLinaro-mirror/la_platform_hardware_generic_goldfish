@@ -22,10 +22,10 @@ cc_library(
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
         "//hardware/generic/goldfish/emulator/hal/display:headers",
         "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -42,8 +42,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/hal/display:test-display",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
     ],
 )
