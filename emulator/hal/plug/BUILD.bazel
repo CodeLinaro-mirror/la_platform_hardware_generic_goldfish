@@ -1,0 +1,51 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hal_plug",
+    hdrs = [
+        "include/goldfish/hal/plug/HalPlug.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "marshalling_hal_socket",
+    srcs = ["MarshallingHalSocket.cpp"],
+    hdrs = ["include/goldfish/hal/plug/MarshallingHalSocket.h"],
+    includes = ["include"],
+    deps = [
+        ":hal_plug",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/emulator/devices:cable",
+    ],
+)
+
+cc_library(
+    name = "hal_plug_to_i_plug_adapter",
+    srcs = ["HalPlugToIPlugAdapter.cpp"],
+    hdrs = ["include/goldfish/hal/plug/HalPlugToIPlugAdapter.h"],
+    includes = ["include"],
+    deps = [
+        ":hal_plug",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/emulator/devices:cable",
+    ],
+)
+
+cc_test(
+    name = "hal_plug_adapter_unittests",
+    size = "small",
+    srcs = ["test/hal_plug_adapter_unittest.cpp"],
+    deps = [
+        ":hal_plug_to_i_plug_adapter",
+        ":marshalling_hal_socket",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
