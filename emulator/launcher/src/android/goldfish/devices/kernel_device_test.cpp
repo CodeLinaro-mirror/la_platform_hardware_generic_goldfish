@@ -113,7 +113,12 @@ TEST(Kernel, AppendExtras) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"), testing::EndsWith(" foo bar'")));
+                                     testing::Eq("-append"),
+#ifdef _WIN32
+                                     testing::EndsWith(" foo bar\"")));
+#else
+                                     testing::EndsWith(" foo bar'")));
+#endif
 }
 
 }  // namespace android::goldfish::test
