@@ -12,6 +12,8 @@
 
 #include "goldfish/devices/qemud.h"
 
+#include <cstdint>
+
 namespace goldfish {
 namespace devices {
 namespace qemud {
@@ -139,6 +141,13 @@ void sendAsync(const void* data, const size_t size, cable::ISocket& dst) {
     dst.sendAsync(data, size);
 }
 
+std::string encodeQemudPacket(const std::string_view data) {
+    std::string result;
+    result.resize(kSizeSize + data.size());
+    encodeRequestSize(data.size(), (uint8_t*)result.data());
+    std::memcpy(result.data() + kSizeSize, data.data(), data.size());
+    return result;
+}
 }  // namespace qemud
 }  // namespace devices
 }  // namespace goldfish

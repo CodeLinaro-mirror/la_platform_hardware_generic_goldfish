@@ -27,6 +27,9 @@ using cable::PlugPtr;
 
 namespace qemud {
 
+// The maximum size that can be encoded in a 4-byte hex string (FFFF)
+constexpr size_t kMaxHexEncodedSize = 0xffff;
+
 namespace {
 struct TestSocket : public ISocket {
     void sendAsync(const void* const data, const size_t size) override {
@@ -107,6 +110,53 @@ TEST(qemud, loopback) {
     continueReceiving = false;
     EXPECT_FALSE(parser.onReceive(socket.storage.data(), socket.storage.size()));
     EXPECT_EQ(payloadsReceived, 3);
+}
+
+TEST(QemudPacketTest, EncodeEmptyPacket) {
+    std::string_view data = "";
+    std::string expected_packet = "0000";
+    std::string actual_packet = encodeQemudPacket(data);
+    EXPECT_EQ(expected_packet, actual_packet);
+}
+
+TEST(QemudPacketTest, EncodeSimplePacket) {
+    std::string_view data = "test-data";
+    std::string expected_header = "0009";
+    std::string expected_packet = expected_header + "test-data";
+    std::string actual_packet = encodeQemudPacket(data);
+
+    EXPECT_EQ(expected_packet, actual_packet);
+    EXPECT_EQ(expected_header, actual_packet.substr(0, kSizeSize));
+    EXPECT_EQ(data, actual_packet.substr(kSizeSize));
+}
+
+TEST(QemudPacketTest, EncodePacketWithNulls) {
+    const int kSize = 16;
+    const char c_string[kSize] = "data\0with\0nulls";
+    std::string data(c_string, kSize - 1);
+    std::string expected_header = "000F";  // 15 bytes including nulls
+    std::string expected_packet;
+    expected_packet.reserve(kSizeSize + data.size());
+    expected_packet.append(expected_header);
+    expected_packet.append(data);
+
+    std::string_view data_view(data);
+    std::string actual_packet = encodeQemudPacket(data_view);
+
+    EXPECT_EQ(expected_packet.size(), actual_packet.size());
+    EXPECT_EQ(expected_packet, actual_packet);
+}
+
+TEST(QemudPacketTest, EncodeMaxSizedPacket) {
+    std::string data(kMaxHexEncodedSize, 'a');  // 65535 'a' characters
+    std::string expected_header = "FFFF";
+    std::string_view data_view(data);
+
+    std::string actual_packet = encodeQemudPacket(data_view);
+
+    EXPECT_EQ(kSizeSize + kMaxHexEncodedSize, actual_packet.size());
+    EXPECT_EQ(expected_header, actual_packet.substr(0, kSizeSize));
+    EXPECT_EQ(data, actual_packet.substr(kSizeSize));
 }
 
 }  // namespace qemud

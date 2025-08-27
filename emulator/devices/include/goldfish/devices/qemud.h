@@ -33,12 +33,16 @@ namespace qemud {
  * and calls the `Sink` when a whole QEMUD packet is received.
  *
  * `sendAsync` sends the `size` header and then the payload.
+ *
+ * `encodeQemudPacket` constructs a full packet by prepending the encoded
+ * size to the raw payload data.
  */
 
 constexpr size_t kSizeSize = 4;
 
 void encodeRequestSize(uint32_t size, uint8_t* data);
 size_t decodeRequestSize(const uint8_t* const data8);
+std::string encodeQemudPacket(const std::string_view);
 
 struct Parser {
     using Sink = std::function<bool(const void* data, size_t size)>;
