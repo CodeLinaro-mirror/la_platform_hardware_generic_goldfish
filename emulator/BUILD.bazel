@@ -112,6 +112,11 @@ angle_binaries = select({
         "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
         "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
     ],
+    "@platforms//os:windows": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
+        "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
+    ],
     "//conditions:default": [],
 })
 
@@ -123,6 +128,10 @@ vulkan_binaries = select({
     "@platforms//os:linux": [
         "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
         "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+    ],
+    "@platforms//os:windows": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
     ],
     "//conditions:default": [],
 })
