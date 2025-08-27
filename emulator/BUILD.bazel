@@ -76,6 +76,7 @@ launcher_binaries = [
     "//hardware/generic/goldfish/emulator/launcher:goldfish",
 ]
 
+
 crashreporting_binaries = [
     "@com_google_crashpad//handler:crashpad_handler",
     "//hardware/generic/goldfish/emulator/crashreport",
@@ -100,17 +101,36 @@ qemu_binaries = [
     ],
 })
 
+angle_binaries = select({
+    "@platforms//os:macos": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+        "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+    ],
+    "@platforms//os:linux": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+        "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+    ],
+    "//conditions:default": [],
+})
+
+vulkan_binaries = select({
+    "@platforms//os:macos": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+    ],
+    "@platforms//os:linux": [
+        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+        "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+    ],
+    "//conditions:default": [],
+})
+
 plugin_binaries = [
     "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
     "@crosvm//:rutabaga_ffi",
 ] + select({
-    "@platforms//os:macos": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
-        "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
-    ],
-    "//conditions:default": [
-    ],
-}) + select({
     "@platforms//os:windows": [],
     "//conditions:default": [
         "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
@@ -119,8 +139,8 @@ plugin_binaries = [
     ],
 }) + select({
     "@platforms//os:linux": [
-        "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
-        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+        # TODO(b/434942959,whollins): Re-add this.
+        #"@gcc_lib//:libpulse",
     ],
     "//conditions:default": [
     ],
@@ -186,6 +206,18 @@ pkg_files(
 )
 
 pkg_files(
+    name = "angle",
+    srcs = angle_binaries,
+    prefix = "lib/qemu",
+)
+
+pkg_files(
+    name = "vulkan",
+    srcs = vulkan_binaries,
+    prefix = "lib/qemu/lib64/vulkan",
+)
+
+pkg_files(
     name = "data_virtualscene_Toren1BD",
     srcs = [
         "//prebuilts/android-emulator-build/common/virtualscene/Toren1BD",
@@ -202,10 +234,12 @@ remapped_pkg_files(
 pkg_zip(
     name = "release",
     srcs = [
+        ":angle",
         ":data_virtualscene_Toren1BD",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-binaries_stripped",
+        ":vulkan",
         "//hardware/generic/goldfish/emulator/grpc/security:emulator-access",
         "//third_party/qemu:qemu-keymaps",
         "//third_party/qemu:qemu-roms",
