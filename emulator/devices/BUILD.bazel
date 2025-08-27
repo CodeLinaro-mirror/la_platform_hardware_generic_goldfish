@@ -102,6 +102,8 @@ cc_library(
     ],
     deps = [
         ":devices",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_to_i_plug_adapter",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
@@ -122,11 +124,29 @@ cc_library(
     deps = [
         ":connector_registry_hdrs",
         ":devices",
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_to_i_plug_adapter",
+        "//hardware/generic/goldfish/emulator/hal/plug:marshalling_hal_socket",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
+    ],
+)
+
+cc_test(
+    name = "connector_registry_tests",
+    size = "small",
+    srcs = [
+        "test/connector_registry_threading_unittest.cpp",
+        "test/connector_registry_unittest.cpp",
+    ],
+    deps = [
+        ":connector_registry_hdrs",
+        ":connector_registry_impl",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )
 

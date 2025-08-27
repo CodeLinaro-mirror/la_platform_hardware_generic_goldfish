@@ -22,6 +22,9 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
+#include "goldfish/async/event_loop.h"
+#include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
+#include "goldfish/hal/plug/MarshallingHalSocket.h"
 #include "goldfish/vsock/listen.h"
 
 namespace goldfish {
@@ -32,7 +35,7 @@ using cable::SocketPtr;
 ConnectorRegistry::ConnectorRegistry() : ConnectorRegistry(std::make_shared<PingTopic>()) {}
 
 ConnectorRegistry::ConnectorRegistry(std::shared_ptr<PingTopic> pingTopic)
-    : mPingTopic(std::move(pingTopic)), mAcceptingRegistries(true) {}
+        : mPingTopic(std::move(pingTopic)), mAcceptingRegistries(true) {}
 
 bool ConnectorRegistry::listen(int port) {
     return listen([port](HostPortListener listener) { return vsock::listen(port, listener); });
@@ -88,6 +91,28 @@ bool ConnectorRegistry::registerDevice(std::string name, Connector::DeviceFactor
     }
     mEntries[absl::StrCat("-", name)] = factory;
     return true;
+}
+
+void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* clientLoop,
+                                          async::EventLoop* qemuLoop, HalDeviceFactory factory) {
+    auto wrapperFactory = [qemuLoop, clientLoop, userFactory = std::move(factory)](
+                                  SocketPtr qemuSocket, std::shared_ptr<PingTopic> pingTopic,
+                                  std::string_view args) -> PlugPtr {
+        // This wrapper factory executes on the QEMU thread.
+        std::shared_ptr<HalPlug> realHalPlug =
+                clientLoop->postAndWait([&] { return userFactory(); });
+
+        clientLoop->post([realHalPlug, qemuLoop, socket = std::move(qemuSocket)]() mutable {
+            auto marshallingSocket =
+                    std::make_unique<MarshallingHalSocket>(std::move(socket), qemuLoop);
+            realHalPlug->establishConnection(std::move(marshallingSocket));
+            realHalPlug->onConnect();
+        });
+
+        return std::make_shared<HalPlugToIPlugAdapter>(clientLoop, std::move(realHalPlug));
+    };
+
+    registerDevice(std::move(name), std::move(wrapperFactory));
 }
 
 ConnectorRegistry& ConnectorRegistry::defaultRegistry() {

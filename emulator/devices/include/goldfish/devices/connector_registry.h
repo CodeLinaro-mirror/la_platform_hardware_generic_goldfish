@@ -22,12 +22,12 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "aemu/base/Compiler.h"
-#include "aemu/base/events/CallbackEventSupport.h"
 #include "aemu/base/events/EventSupport.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
-
+#include "goldfish/hal/plug/HalPlug.h"
 namespace goldfish {
 namespace devices {
 
@@ -36,6 +36,7 @@ using android::base::EventListener;
 using android::base::WithCallbacks;
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 using DeviceName = std::string;
+using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
 
 struct IConnectorRegistry : public WithCallbacks<EventChangeSupport, DeviceName> {
     virtual ~IConnectorRegistry() = default;
@@ -65,6 +66,22 @@ struct IConnectorRegistry : public WithCallbacks<EventChangeSupport, DeviceName>
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
     virtual bool registerDevice(std::string name, Connector::DeviceFactory factory) = 0;
+
+    /**
+     * @brief Registers a thread-safe HAL device with the registry.
+     *
+     * This method registers a HAL device that is designed to run on a separate
+     * event loop. It uses a factory to create the device and transparently
+     * wraps it in the necessary marshalling infrastructure to ensure thread-safe
+     * communication between the QEMU main loop and the device's event loop.
+     *
+     * @param name The name of the device.
+     * @param clientLoop The event loop on which the device will run.
+     * @param qemuLoop The event loop which is tied to qemu.
+     * @param factory The factory function for creating the device.
+     */
+    virtual void registerHalDevice(std::string name, async::EventLoop* clientLoop,
+                                   async::EventLoop* qemuLoop, HalDeviceFactory factory) = 0;
 };
 
 /**
@@ -84,6 +101,9 @@ class NullConnectorRegistry : public IConnectorRegistry {
     bool registerDevice(std::string name, Connector::DeviceFactory factory) override {
         return true;
     };
+
+    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
+                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override {};
 };
 
 /**
@@ -154,6 +174,9 @@ class ConnectorRegistry : public IConnectorRegistry {
     bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override;
 
     bool registerDevice(std::string name, Connector::DeviceFactory factory) override;
+
+    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
+                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
 
     static ConnectorRegistry& defaultRegistry();
 
