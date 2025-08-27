@@ -10,6 +10,6 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/grpc/async",
         "@aemu//base:event-support",
-        "@com_github_grpc_grpc//:grpc++",
+        "@grpc//:grpc++",
     ],
 )

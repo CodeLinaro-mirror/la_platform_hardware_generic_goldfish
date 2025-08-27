@@ -13,7 +13,7 @@ cc_library(
         "include/android/grpc/utils/SyncToAsyncAdapter.h",
     ],
     includes = ["include"],
-    deps = ["@com_github_grpc_grpc//:grpc++"],
+    deps = ["@grpc//:grpc++"],
 )
 
 cc_test(
@@ -22,6 +22,6 @@ cc_test(
     deps = [
         ":async",
         "//hardware/generic/goldfish/android/system:googletest_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

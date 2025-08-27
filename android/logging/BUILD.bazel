@@ -10,10 +10,10 @@ cc_library(
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:absl_log",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -41,14 +41,14 @@ cc_library(
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/log:log_sink_registry",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base-logging",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:absl_log",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/log:log_sink_registry",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -88,6 +88,6 @@ cc_test(
     copts = ["-Wno-deprecated-declarations"],
     deps = [
         ":absl-c-bridge",
-        "@com_github_google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark",
     ],
 )

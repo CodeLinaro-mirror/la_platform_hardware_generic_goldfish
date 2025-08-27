@@ -23,10 +23,10 @@ cc_library(
     includes = ["src"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -39,8 +39,8 @@ cc_binary(
     name = "sleep_emu",
     srcs = ["test/android/base/process/sleep.cpp"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
     ],
 )
 
@@ -58,8 +58,8 @@ cc_test(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
     ],
 )

@@ -35,8 +35,8 @@ cc_library(
         "//hardware/generic/goldfish/emulator/libs/debug",
         "//hardware/generic/goldfish/emulator/libs/os",
         "//third_party/vulkan-headers:vulkan_headers",
+        "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base-headers",
-        "@com_google_absl//absl/log",
     ],
     alwayslink = True,
 )

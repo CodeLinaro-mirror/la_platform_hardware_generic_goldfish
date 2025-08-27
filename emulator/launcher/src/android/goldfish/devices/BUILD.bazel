@@ -15,9 +15,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -28,8 +28,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/launcher:headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -43,8 +43,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -57,9 +57,9 @@ cc_library(
         "//hardware/generic/goldfish/android/cpu",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -73,8 +73,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -85,8 +85,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/launcher:headers",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -100,8 +100,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -113,9 +113,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -128,9 +128,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -144,8 +144,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -160,9 +160,9 @@ cc_library(
         "//hardware/generic/goldfish/emulator/launcher:bootconfig",
         "//hardware/generic/goldfish/emulator/launcher:headers",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:disk_drive",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -176,8 +176,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -189,9 +189,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -205,8 +205,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -218,9 +218,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -234,8 +234,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -247,9 +247,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -263,8 +263,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -276,9 +276,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -292,8 +292,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/launcher:emulator",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -305,8 +305,8 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )

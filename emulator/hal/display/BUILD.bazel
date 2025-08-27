@@ -12,8 +12,8 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/grpc/event-stream",
         # "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -37,7 +37,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//third_party/qemu:qemu-headers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",
     ],

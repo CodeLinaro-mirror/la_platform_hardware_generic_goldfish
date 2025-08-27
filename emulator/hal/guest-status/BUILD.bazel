@@ -9,10 +9,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -29,13 +29,13 @@ cc_library(
         "//hardware/generic/goldfish/emulator/devices:PingTopic",
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:qemud",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
     ],
     alwayslink = True,
 )
@@ -55,7 +55,7 @@ cc_test(
         "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base",
         "@aemu//base:aemu-base-headers",
-        "@com_google_protobuf//:protobuf",
+        "@protobuf",
     ],
 )
 

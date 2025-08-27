@@ -9,10 +9,10 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

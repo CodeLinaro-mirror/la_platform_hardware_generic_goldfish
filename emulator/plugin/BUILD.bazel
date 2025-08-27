@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 
 [
     [
@@ -16,7 +16,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
                 "//hardware/generic/goldfish/emulator/plugin/battery",
                 "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
                 "//third_party/qemu:aemu_func_defs",
-                "@com_google_absl//absl/log",
+                "@abseil-cpp//absl/log",
                 "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
             ] + select({
                 "@platforms//os:windows": [

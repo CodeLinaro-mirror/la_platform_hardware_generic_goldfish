@@ -17,8 +17,8 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/hal/camera:image_provider_api",
         "//hardware/generic/goldfish/emulator/libs/gvk",
+        "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base-headers",
-        "@com_google_absl//absl/log",
         "@gfxstream//third_party/glm",
         "@libyuv",
         "@tinyobjloader",

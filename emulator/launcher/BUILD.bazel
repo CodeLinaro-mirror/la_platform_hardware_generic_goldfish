@@ -29,9 +29,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/cmdline",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:initialize",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -43,7 +43,7 @@ cc_test(
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -97,10 +97,10 @@ cc_library(
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:network_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:parameter_list",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:configure_drives",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
@@ -229,10 +229,10 @@ cc_binary(
         "//hardware/generic/goldfish/emulator/crashreport:init",
         "//hardware/generic/goldfish/third_party/json",
         "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:initialize",
         "@aemu//base:aemu-base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log:initialize",
     ],
 )
 

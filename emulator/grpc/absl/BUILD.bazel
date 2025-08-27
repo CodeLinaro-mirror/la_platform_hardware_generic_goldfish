@@ -13,8 +13,8 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
-        "@com_github_grpc_grpc//:grpc++",
-        "@com_google_absl//absl/status",
+        "@abseil-cpp//absl/status",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -24,6 +24,6 @@ cc_test(
     deps = [
         ":translate",
         "//hardware/generic/goldfish/android/system:googletest_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
