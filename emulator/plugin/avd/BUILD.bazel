@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
@@ -39,6 +40,30 @@ cc_library(
         "@pixman//:pixman-1",
     ],
     alwayslink = True,
+)
+
+cc_library(
+    name = "global-event-loop",
+    srcs = [
+        "global-event-loop.cpp",
+    ],
+    hdrs = ["include/goldfish/avd/global-event-loop.h"],
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
+    ],
+)
+
+cc_test(
+    name = "global-event-loop-tests",
+    size = "small",
+    srcs = [
+        "test/global-event-loop-test.cpp",
+    ],
+    deps = [
+        ":global-event-loop",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
 )
 
 cc_library(
