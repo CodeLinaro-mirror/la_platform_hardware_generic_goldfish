@@ -14,6 +14,7 @@
 // limitations under the License.
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <queue>
@@ -125,7 +126,7 @@ class LibuvEventLoop : public EventLoop {
     uv_async_t mAsyncHandle;
 
     /// The thread ID of the thread currently running the event loop.
-    std::thread::id mThreadId;
+    std::atomic<std::thread::id> mThreadId;
 
     /// Mutex protecting access to the mActiveTimers set.
     absl::Mutex mActiveTimersMutex;
