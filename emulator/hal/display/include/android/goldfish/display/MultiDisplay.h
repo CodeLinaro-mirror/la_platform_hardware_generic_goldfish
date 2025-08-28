@@ -51,7 +51,7 @@ struct DisplayEvent {
  * @brief Singleton class managing a collection of IDisplay objects.
  *
  */
-class IMultiDisplay : public WithCallbacks<EventChangeSupport, DisplayEvent> {
+class IMultiDisplay : public CallbackEventSource<DisplayEvent> {
   public:
     /**
      * @brief Returns the singleton instance of MultiDisplay.

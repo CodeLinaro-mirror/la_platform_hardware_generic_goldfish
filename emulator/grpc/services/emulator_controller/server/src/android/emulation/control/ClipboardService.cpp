@@ -15,7 +15,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/events/EventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/clipboard/ClipboardDevice.h"
 
 namespace android {
@@ -49,7 +49,7 @@ static std::string peerId(const ::grpc::ServerContextBase* context) {
  */
 class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, ClipboardEvent> {
   public:
-    ClipDataEventStreamWriter(EventChangeSupport<ClipboardEvent>* listener,
+    ClipDataEventStreamWriter(CallbackEventSource<ClipboardEvent>* listener,
                               ::grpc::CallbackServerContext* context)
             : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener), mContext(context) {}
     virtual ~ClipDataEventStreamWriter() = default;
@@ -64,7 +64,7 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
      *
      * @param event The clipboard event that has arrived.
      */
-    void eventArrived(const ClipboardEvent event) override {
+    void eventArrived(const ClipboardEvent& event) override {
         std::string dest = peerId(mContext);
         const std::lock_guard<std::mutex> lock(mEventLock);
         if (google::protobuf::util::MessageDifferencer::Equals(event.data, mLastEvent)) {

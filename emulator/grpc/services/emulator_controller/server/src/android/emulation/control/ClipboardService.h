@@ -16,8 +16,7 @@
 
 #include <atomic>
 
-#include "aemu/base/events/CallbackEventSupport.h"
-#include "aemu/base/events/EventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/emulation/control/utils/GrpcEventStreamSupport.h"
 #include "goldfish/devices/connector_registry.h"
@@ -54,7 +53,7 @@ struct ClipboardEvent {
  * filters out duplicate clipboard events to prevent unnecessary updates to
  * listeners.
  */
-class ClipboardServiceImpl : public base::EventChangeSupport<ClipboardEvent>,
+class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent>,
                              public EmulatorController::Service {
   public:
     ClipboardServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}

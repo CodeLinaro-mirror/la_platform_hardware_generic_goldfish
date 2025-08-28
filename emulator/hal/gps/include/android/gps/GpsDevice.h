@@ -17,14 +17,13 @@
 
 #include "absl/status/status.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::gps {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
@@ -99,7 +98,7 @@ struct Location {
  * The guest HAL implementation resides in
  * `device/generic/goldfish/hals/gnss/GnssHwConn.cpp`.
  */
-class IGpsDevice : public IPlug, public WithCallbacks<EventChangeSupport, Location> {
+class IGpsDevice : public IPlug, public CallbackEventSource<Location> {
   public:
     virtual ~IGpsDevice() = default;
 

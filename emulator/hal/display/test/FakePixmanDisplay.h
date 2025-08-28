@@ -16,7 +16,7 @@
 #include <memory>
 
 #include "PixmanImageGenerator.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/PixmanDisplay.h"
 
@@ -177,7 +177,7 @@ struct FakePixmanDisplay : public PixmanDisplay {
  * continuously updates its image.
  */
 class ActiveFakePixmanDisplay : public FakePixmanDisplay,
-                                public android::base::EventListener<::pixman_image_t*> {
+                                public android::base::eventing::EventListener<::pixman_image_t*> {
   public:
     /**
      * @brief Destroys the ActiveFakePixmanDisplay.
@@ -218,17 +218,6 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * otherwise.
      */
     bool waitForFramesWithTimeout(int n, absl::Duration timeout);
-
-    /**
-     * @brief Creates an ActiveFakePixmanDisplay.
-     *
-     * @param id The ID of the display.
-     * @param fps The frames per second at which to generate images.
-     * @param w The width of the generated images.
-     * @param h The height of the generated images.
-     * @return An ActiveFakePixmanDisplay object.
-     */
-    static ActiveFakePixmanDisplay create(int id, int fps, int w, int h);
 
     /**
      * @brief Creates a shared_ptr of ActiveFakePixmanDisplay.

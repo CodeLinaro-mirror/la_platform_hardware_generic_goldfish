@@ -20,7 +20,7 @@
 #include "grpcpp/grpcpp.h"
 
 #include "aemu/base/Tracing.h"
-#include "aemu/base/events/EventWaiter.h"
+#include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/MultiDisplay.h"
@@ -31,8 +31,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using android::base::EventWaiter;
-using android::base::GenericMultiEventWaiter;
+using android::base::eventing::MultiEventSourceWaiter;
 using android::goldfish::FrameInfo;
 using android::goldfish::IDisplay;
 using android::goldfish::IMultiDisplay;
@@ -116,7 +115,9 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     }
 
     SensorObserver accObserver(mRegistry, AndroidSensor::ACCELERATION);
-    GenericMultiEventWaiter<FrameInfo, SensorData> frameOrSensorEvent(display.get(), &accObserver);
+    MultiEventSourceWaiter frameOrSensorEvent;
+    frameOrSensorEvent.listen(&accObserver);
+    frameOrSensorEvent.listen<goldfish::FrameInfoCallbackSource>(display.get());
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.

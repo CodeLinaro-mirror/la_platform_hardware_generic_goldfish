@@ -24,12 +24,11 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 
 namespace goldfish::async {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 
 /**
  * @brief Event that is fired when the state of the looper changes.
@@ -71,7 +70,7 @@ void AbslStringify(Sink& sink, const LooperStatusEvent& event) {
  * This allows application code to depend on the concept of an event loop
  * without being tied to a specific implementation like libuv or asio.
  */
-class EventLoop : public WithCallbacks<EventChangeSupport, LooperStatusEvent> {
+class EventLoop : public CallbackEventSource<LooperStatusEvent> {
   public:
     /**
      * @brief A move-only, type-erased unit of work to be executed.

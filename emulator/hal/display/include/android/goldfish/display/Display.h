@@ -21,12 +21,11 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 
 namespace android::goldfish {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 
 struct pixman_image_t;
 struct InputEvent;
@@ -80,6 +79,8 @@ class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
 
+using FrameInfoCallbackSource = CallbackEventSource<FrameInfo>;
+using ResizeEventCallbackSource = CallbackEventSource<ResizeEvent>;
 /**
  * @class IDisplay
  * @brief Interface representing an Android display.
@@ -88,12 +89,13 @@ using SharedDisplay = std::shared_ptr<IDisplay>;
  *  retrieve pixel data in different ways, send virtio input events,
  *  and signal frame updates via events.
  *
- *  It inherits from WithCallbacks<EventChangeSupport, FrameInfo> to provide
+ *  It inherits from CallbackEventSource< FrameInfo> to provide
  *  event signaling capabilities. Subscribers can register to receive events
  *  of type FrameInfo, which represents information about a display frame update.
  */
-class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo>,
-                 public WithCallbacks<EventChangeSupport, ResizeEvent> {
+class IDisplay : public FrameInfoCallbackSource,
+                 public ResizeEventCallbackSource,
+                 public std::enable_shared_from_this<IDisplay> {
   public:
     virtual ~IDisplay() = default;
 
@@ -209,7 +211,7 @@ class IDisplay : public WithCallbacks<EventChangeSupport, FrameInfo>,
     void frameReceived() {
         absl::MutexLock lock(&mSeqAccess);
         mSeq = FrameInfo(mSeq.sequenceNumber + 1);
-        EventChangeSupport<FrameInfo>::fireEvent(mSeq);
+        FrameInfoCallbackSource::fireEvent(mSeq);
     }
 
     virtual std::string string() const {

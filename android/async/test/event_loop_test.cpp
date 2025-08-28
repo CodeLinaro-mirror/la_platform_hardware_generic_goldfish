@@ -782,8 +782,8 @@ TEST_P(EventLoopTest, DISABLED_LibuvEventStateChanges) {
     absl::Notification finished;
     absl::Notification running;
 
-    auto subscription = android::base::makeScopedCallback<EventLoop, LooperStatusEvent>(
-            *loop, [&](const LooperStatusEvent& event) {
+    auto subscription =
+            android::base::eventing::makeScopedCallback(*loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << event;
                 if (event.state == LooperStatusEvent::State::RUNNING) {
@@ -817,7 +817,7 @@ TEST_P(EventLoopTest, DISABLED_ThreadedEventStateChanges) {
     absl::Notification finished;
     absl::Notification running;
 
-    auto subscription = android::base::makeScopedCallback<ThreadedEventLoop, LooperStatusEvent>(
+    auto subscription = android::base::eventing::makeScopedCallback(
             threaded_loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << "state: " << event;

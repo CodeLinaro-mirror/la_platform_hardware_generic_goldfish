@@ -18,16 +18,15 @@
 #include <string_view>
 
 #include "aemu/base/async/Looper.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::guest_status {
 
-using android::base::EventChangeSupport;
 using android::base::Looper;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
@@ -107,8 +106,7 @@ struct AndroidGuestStatus {
  *
  * ```
  */
-class IGuestStatusDevice : public IPlug,
-                           public WithCallbacks<EventChangeSupport, AndroidGuestStatus> {
+class IGuestStatusDevice : public IPlug, public CallbackEventSource<AndroidGuestStatus> {
   public:
     static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 

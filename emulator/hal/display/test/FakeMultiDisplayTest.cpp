@@ -4,11 +4,10 @@
 
 #include "FakeMultiDisplay.h"
 #include "FakePixmanDisplay.h"
-#include "aemu/base/events/EventSupport.h"
 
 namespace android::goldfish {
 
-using android::base::EventListener;
+using android::base::eventing::EventListener;
 
 class FakeMultiDisplayTest : public ::testing::Test {
   protected:
@@ -20,7 +19,7 @@ class FakeMultiDisplayTest : public ::testing::Test {
 
 class DisplayEventListener : public EventListener<DisplayEvent> {
   public:
-    void eventArrived(const DisplayEvent event) override { events.push_back(event); }
+    void eventArrived(const DisplayEvent& event) override { events.push_back(event); }
     std::vector<DisplayEvent> events;
 };
 
@@ -143,23 +142,22 @@ TEST_F(FakeMultiDisplayTest, IsEnabled) {
 TEST_F(FakeMultiDisplayTest, DisplayEvents) {
     // Get the singleton instance
     IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
-    DisplayEventListener listener;
-    reinterpret_cast<WithCallbacks<EventChangeSupport, DisplayEvent>*>(multiDisplay)
-            ->addListener(&listener);
+    auto listener = std::make_shared<DisplayEventListener>();
+    reinterpret_cast<CallbackEventSource<DisplayEvent>*>(multiDisplay)->addListener(listener);
 
     // Create a new display
     auto result = multiDisplay->createDisplay(1, 800, 600);
     ASSERT_TRUE(result.ok());
-    ASSERT_EQ(listener.events.size(), 1);
-    ASSERT_TRUE(listener.events[0].isAddedEvent());
-    ASSERT_EQ(listener.events[0].display().lock()->id(), 1);
+    ASSERT_EQ(listener->events.size(), 1);
+    ASSERT_TRUE(listener->events[0].isAddedEvent());
+    ASSERT_EQ(listener->events[0].display().lock()->id(), 1);
 
     // Erase the display
     auto eraseResult = multiDisplay->eraseDisplay(1);
     ASSERT_TRUE(eraseResult.ok());
-    ASSERT_EQ(listener.events.size(), 2);
-    ASSERT_TRUE(listener.events[1].isDeletedEvent());
-    ASSERT_EQ(listener.events[1].displayId(), 1);
+    ASSERT_EQ(listener->events.size(), 2);
+    ASSERT_TRUE(listener->events[1].isDeletedEvent());
+    ASSERT_EQ(listener->events[1].displayId(), 1);
 }
 
 }  // namespace android::goldfish

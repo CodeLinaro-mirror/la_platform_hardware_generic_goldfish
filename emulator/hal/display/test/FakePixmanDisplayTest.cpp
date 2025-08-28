@@ -9,14 +9,13 @@
 #include "FakePixmanDisplay.h"
 #include "MockDisplay.h"
 #include "PixmanImageGenerator.h"
-#include "aemu/base/events/EventSupport.h"
 
 extern "C" {
 #include "pixman.h"
 }
 
 namespace android::goldfish {
-using android::base::EventListener;
+using android::base::eventing::EventListener;
 
 // Test case for default constructor (nullptr)
 TEST(PixmanImagePtr, DefaultConstructor) {
@@ -144,25 +143,25 @@ TEST(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // Start the generator
-    display.start();
+    display->start();
 
     // Wait for a few frames
-    display.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
+    display->waitForFramesWithTimeout(5, absl::Milliseconds(1000));
 
     // Stop the generator
-    display.stop();
+    display->stop();
 
     // Check if the display has been updated
-    ::pixman_image_t* currentImage = display.image();
+    ::pixman_image_t* currentImage = display->image();
     ASSERT_NE(currentImage, nullptr);
     ASSERT_EQ(pixman_image_get_width(currentImage), width);
     ASSERT_EQ(pixman_image_get_height(currentImage), height);
 
     // We should have received at least a few frames.
-    ASSERT_GT(display.seq().sequenceNumber, 2);
+    ASSERT_GT(display->seq().sequenceNumber, 2);
 }
 
 TEST(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
@@ -172,13 +171,13 @@ TEST(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // Get the screenshot
     size_t cPixels = width * height * 4;
     std::vector<uint8_t> pixels(cPixels);
     auto result =
-            display.getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
@@ -196,12 +195,13 @@ TEST(FakePixmanDisplayTest, GetScreenshotRGB888) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // Get the screenshot
     size_t cPixels = width * height * 3;
     std::vector<uint8_t> pixels(cPixels);
-    auto result = display.getPixels(PixelFormat::RGB888, width, height, 0, pixels.data(), &cPixels);
+    auto result =
+            display->getPixels(PixelFormat::RGB888, width, height, 0, pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
@@ -220,13 +220,13 @@ TEST(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // Get the screenshot with a too small buffer
     size_t cPixels = 10;
     std::vector<uint8_t> pixels(cPixels);
     auto result =
-            display.getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
 
@@ -240,13 +240,13 @@ TEST(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // First call with a too small buffer
     size_t cPixels = 10;
     std::vector<uint8_t> pixels(cPixels);
     auto result =
-            display.getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
     ASSERT_GT(cPixels, 10);
@@ -255,7 +255,7 @@ TEST(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     pixels.resize(cPixels);
 
     // Second call with the resized buffer
-    result = display.getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+    result = display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
     ASSERT_EQ(cPixels, width * height * 4);
 
@@ -271,10 +271,10 @@ TEST(FakePixmanDisplayTest, InitialImageIsBlue) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
 
     // Get the initial image
-    ::pixman_image_t* initialImage = display.image();
+    ::pixman_image_t* initialImage = display->image();
     ASSERT_NE(initialImage, nullptr);
 
     // Check the dimensions
@@ -295,7 +295,7 @@ TEST(FakePixmanDisplayTest, InitialImageIsBlue) {
 
 class TestListener : public EventListener<ResizeEvent> {
   public:
-    void eventArrived(ResizeEvent event) override { events.push_back(event); }
+    void eventArrived(const ResizeEvent& event) override { events.push_back(event); }
     std::vector<ResizeEvent> events;
 };
 
@@ -306,22 +306,22 @@ TEST(FakePixmanDisplayTest, ResizeEvent) {
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    ActiveFakePixmanDisplay display = ActiveFakePixmanDisplay::create(id, fps, width, height);
-    TestListener listener;
-    display.EventChangeSupport<ResizeEvent>::addListener(&listener);
+    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto listener = std::make_shared<TestListener>();
+    display->ResizeEventCallbackSource::addListener(listener);
 
     // Start the generator
-    display.start();
-    display.waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    display.resize(200, 100);
-    display.waitForFramesWithTimeout(4, absl::Milliseconds(500));
-    display.stop();
+    display->start();
+    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->resize(200, 100);
+    display->waitForFramesWithTimeout(4, absl::Milliseconds(500));
+    display->stop();
 
-    ASSERT_EQ(listener.events.size(), 1);
-    EXPECT_EQ(listener.events[0].previousWidth, 100);
-    EXPECT_EQ(listener.events[0].previousHeight, 50);
-    EXPECT_EQ(listener.events[0].width, 200);
-    EXPECT_EQ(listener.events[0].height, 100);
+    ASSERT_EQ(listener->events.size(), 1);
+    EXPECT_EQ(listener->events[0].previousWidth, 100);
+    EXPECT_EQ(listener->events[0].previousHeight, 50);
+    EXPECT_EQ(listener->events[0].width, 200);
+    EXPECT_EQ(listener->events[0].height, 100);
 }
 
 }  // namespace android::goldfish

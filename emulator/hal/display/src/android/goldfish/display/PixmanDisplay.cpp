@@ -101,7 +101,7 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     if (oldWidth != mWidth || oldHeight != mHeight) {
         VLOG(1) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
                 << mWidth << "x" << mHeight << "\n";
-        EventChangeSupport<ResizeEvent>::fireEvent(
+        ResizeEventCallbackSource::fireEvent(
                 ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
     }
 }

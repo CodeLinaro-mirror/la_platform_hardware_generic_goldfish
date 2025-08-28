@@ -10,7 +10,6 @@
 // GNU General Public License for more details.
 #include "android/misc/GuestStatusDevice.h"
 
-#include <android/base/testing/TestSystem.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -19,6 +18,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
@@ -70,7 +70,7 @@ TEST_F(GuestStatusDeviceTest, canCreateDevice) {
 TEST_F(GuestStatusDeviceTest, heartbeatSendsAnEvent) {
     auto start = device->heartbeat();
     AndroidGuestStatus received;
-    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](AndroidGuestStatus event) { received = event; });
     receive("heartbeat");
     EXPECT_THAT(received.heartbeat(), Eq(start + 1));
@@ -87,13 +87,13 @@ TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
 TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
     TestSystem test("/");
     AndroidGuestStatus received;
-    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](AndroidGuestStatus event) { received = event; });
 
     test.setProcessTimes({
-            .userMs = 1,
-            .systemMs = 10,
-            .wallClockMs = 100,
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 100,
     });
     receive("bootcompleted");
     EXPECT_THAT(received.isBootCompletedEvent(), Eq(true));
@@ -103,9 +103,9 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
 TEST_F(GuestStatusDeviceTest, tracksBootCompleted) {
     TestSystem test("/");
     test.setProcessTimes({
-            .userMs = 1,
-            .systemMs = 10,
-            .wallClockMs = 100,
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 100,
     });
     receive("bootcompleted");
     EXPECT_THAT(device->hasBooted(), Eq(true));
@@ -127,7 +127,7 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
 TEST_F(GuestStatusDeviceTest, firesResetEvent) {
     AndroidGuestStatus received;
-    auto scoped = android::base::makeScopedCallback<IGuestStatusDevice, AndroidGuestStatus>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](AndroidGuestStatus event) { received = event; });
 
     receive("bootcompleted");
@@ -140,9 +140,9 @@ TEST_F(GuestStatusDeviceTest, firesResetEvent) {
 TEST_F(GuestStatusDeviceTest, updatesBootTimeAfterReset) {
     TestSystem test("/");
     test.setProcessTimes({
-            .userMs = 1,
-            .systemMs = 10,
-            .wallClockMs = 100,
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 100,
     });
     receive("bootcompleted");
 
@@ -151,9 +151,9 @@ TEST_F(GuestStatusDeviceTest, updatesBootTimeAfterReset) {
 
     // Move our wallclock forward
     test.setProcessTimes({
-            .userMs = 1,
-            .systemMs = 10,
-            .wallClockMs = 110,
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 110,
     });
     receive("bootcompleted");
 

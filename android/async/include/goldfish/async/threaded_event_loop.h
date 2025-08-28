@@ -20,7 +20,7 @@
 
 #include "absl/status/status.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "goldfish/async/event_loop.h"
 
 namespace goldfish::async {
@@ -101,7 +101,8 @@ class ThreadedEventLoop : public EventLoop {
     std::thread mRunner;
     std::unique_ptr<EventLoop> mLoop;
     std::string mLooperName;
-    std::unique_ptr<android::base::ScopedEventCallback<EventLoop, LooperStatusEvent>> mSubscription;
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<EventLoop, LooperStatusEvent>>
+            mSubscription;
 };
 
 }  // namespace goldfish::async

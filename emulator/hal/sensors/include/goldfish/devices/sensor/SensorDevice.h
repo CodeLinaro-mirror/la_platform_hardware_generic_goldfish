@@ -19,7 +19,7 @@
 #include "absl/status/statusor.h"
 
 #include "aemu/base/async/Looper.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
@@ -32,9 +32,8 @@ class IClock;
 
 namespace goldfish::devices::sensor {
 
-using android::base::EventChangeSupport;
 using android::base::Looper;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
@@ -46,7 +45,7 @@ using namespace std::string_view_literals;
 using SensorData = std::vector<float>;
 
 // A Qemud based sensor emulator.
-class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, AndroidSensor> {
+class ISensorDevice : public IPlug, public CallbackEventSource<AndroidSensor> {
   public:
     ~ISensorDevice() override {}
 
@@ -150,7 +149,7 @@ class ISensorDevice : public IPlug, public WithCallbacks<EventChangeSupport, And
  * The SensorObserver relies on the `ISensorDevice` to provide sensor data and
  * to notify it when sensor events occur.
  */
-class SensorObserver : public WithCallbacks<EventChangeSupport, SensorData> {
+class SensorObserver : public CallbackEventSource<SensorData> {
   public:
     /**
      * @brief Constructs a SensorObserver for a specific sensor.

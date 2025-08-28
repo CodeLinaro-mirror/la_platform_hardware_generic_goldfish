@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -272,7 +272,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
 
-    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
@@ -344,7 +344,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
@@ -421,7 +421,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
@@ -522,7 +522,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
     bool targetStateChanged = false;
     bool physicalStateChanging = false;
-    auto scoped = android::base::makeScopedCallback<PhysicalModel, PhysicalModelChangeEvent>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::PhysicalStateChanging:

@@ -16,16 +16,15 @@
 #include <string_view>
 
 #include "aemu/base/async/Looper.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::clipboard {
 
-using android::base::EventChangeSupport;
 using android::base::Looper;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::PlugPtr;
@@ -86,7 +85,7 @@ using namespace std::string_view_literals;
  *
  * The guest side is in com/android/server/clipboard/EmulatorClipboardMonitor.java
  */
-class IClipboardDevice : public IPlug, public WithCallbacks<EventChangeSupport, ClipboardData> {
+class IClipboardDevice : public IPlug, public CallbackEventSource<ClipboardData> {
   public:
     ~IClipboardDevice() override {}
 
