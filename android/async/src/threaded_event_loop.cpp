@@ -37,7 +37,7 @@ namespace goldfish::async {
 
 ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop, std::string name)
         : mLoop(std::move(loop)), mLooperName(std::move(name)) {
-    mSubscription = android::base::makeScopedCallback<EventLoop, LooperStatusEvent>(
+    mSubscription = android::base::eventing::makeScopedCallback(
             *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
     (void)run();
 }

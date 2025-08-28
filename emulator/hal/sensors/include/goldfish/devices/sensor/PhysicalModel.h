@@ -21,7 +21,7 @@
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/sensor/Foldable.h"
 #include "goldfish/devices/sensor/FoldableModel.h"
@@ -33,8 +33,7 @@
 
 namespace goldfish::devices::sensor {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 
 using ::goldfish::physics::AmbientEnvironment;
 using ::goldfish::physics::BodyModel;
@@ -77,32 +76,32 @@ struct PhysicalModelChangeEvent {
  *
  * @note All public methods are thread-safe unless otherwise specified.
  */
-class PhysicalModel : public WithCallbacks<EventChangeSupport, PhysicalModelChangeEvent> {
+class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
   public:
-   PhysicalModel(const android::goldfish::Avd& avd);
-   ~PhysicalModel() = default;
+    PhysicalModel(const android::goldfish::Avd& avd);
+    ~PhysicalModel() = default;
 
-   /**
-    * @brief Sets the current simulation time.
-    *
-    * This time is used for calculating sensor values and recording when target
-    * parameter changes occur. Time values should be monotonic (non-decreasing).
-    *
-    * @param time_ns The current time in nanoseconds.
-    */
-   void setCurrentTime(int64_t time_ns);
+    /**
+     * @brief Sets the current simulation time.
+     *
+     * This time is used for calculating sensor values and recording when target
+     * parameter changes occur. Time values should be monotonic (non-decreasing).
+     *
+     * @param time_ns The current time in nanoseconds.
+     */
+    void setCurrentTime(int64_t time_ns);
 
-   /**
-    * @brief Sets the gravity vector for the simulation.
-    * @param x X component of gravity vector
-    * @param y Y component of gravity vector
-    * @param z Z component of gravity vector
-    */
-   void setGravity(float x, float y, float z);
+    /**
+     * @brief Sets the gravity vector for the simulation.
+     * @param x X component of gravity vector
+     * @param y Y component of gravity vector
+     * @param z Z component of gravity vector
+     */
+    void setGravity(float x, float y, float z);
 
-   /*
-    * Target state setters and parameter getters
-    */
+    /*
+     * Target state setters and parameter getters
+     */
 #define SET_TARGET_FUNCTION_NAME(x) setTarget##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
     void SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode);

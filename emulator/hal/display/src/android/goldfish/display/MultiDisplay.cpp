@@ -30,7 +30,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/QemuDisplay.h"
 #include "goldfish/physics/Rotation.h"

@@ -17,15 +17,14 @@
 #include <unordered_map>
 
 #include "BootPropertyString.h"
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/boot/BootPropertyString.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::boot {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using goldfish::devices::BootPropertyString;
 using goldfish::devices::LimitedString;
 using goldfish::devices::cable::IPlug;
@@ -77,8 +76,7 @@ struct BootPropertyStatus {
  *
  * ```
  */
-class IBootPropertiesDevice : public IPlug,
-                              public WithCallbacks<EventChangeSupport, BootPropertyStatus> {
+class IBootPropertiesDevice : public IPlug, public CallbackEventSource<BootPropertyStatus> {
   public:
     virtual ~IBootPropertiesDevice() override {}
 

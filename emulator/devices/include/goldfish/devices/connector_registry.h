@@ -22,7 +22,6 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "aemu/base/Compiler.h"
-#include "aemu/base/events/EventSupport.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
@@ -31,14 +30,12 @@
 namespace goldfish {
 namespace devices {
 
-using android::base::EventChangeSupport;
-using android::base::EventListener;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 using DeviceName = std::string;
 using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
 
-struct IConnectorRegistry : public WithCallbacks<EventChangeSupport, DeviceName> {
+struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
     virtual ~IConnectorRegistry() = default;
 
     /**
@@ -239,7 +236,7 @@ class ConnectorRegistry : public IConnectorRegistry {
 };
 
 template <class IDevice>
-using DeviceRegistrationCallbacks = WithCallbacks<EventChangeSupport, std::weak_ptr<IDevice>>;
+using DeviceRegistrationCallbacks = CallbackEventSource<std::weak_ptr<IDevice>>;
 
 /**
  * @brief Listens for the registration of a specific device type within the ConnectorRegistry.
@@ -317,16 +314,6 @@ class DeviceRegistrationListener : public DeviceRegistrationCallbacks<IDevice> {
             DeviceRegistrationListener::fireEvent(device);
         }
         return id;
-    }
-
-    void addListener(EventListener<std::weak_ptr<IDevice>>* listener) override {
-        EventChangeSupport<std::weak_ptr<IDevice>>::addListener(listener);
-        // If a device becomes alive right now, we will see 2 events..
-        auto device = mRegistry->activeDevice<IDevice>();
-        // Only fire an event if the device is not expired (i.e. it exists).
-        if (!device.expired()) {
-            DeviceRegistrationListener::fireEvent(device);
-        }
     }
 
     ~DeviceRegistrationListener() { mRegistry->removeCallback(mCallbackId); }

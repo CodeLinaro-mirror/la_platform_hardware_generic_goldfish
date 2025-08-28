@@ -38,7 +38,7 @@ void FakePixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     if (oldWidth != mWidth || oldHeight != mHeight) {
         VLOG(1) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
                 << mWidth << "x" << mHeight << "\n";
-        EventChangeSupport<ResizeEvent>::fireEvent(
+        ResizeEventCallbackSource::fireEvent(
                 ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
     }
     updateSurface(0, 0, mWidth, mHeight);
@@ -76,23 +76,18 @@ bool ActiveFakePixmanDisplay::waitForFramesWithTimeout(int n, absl::Duration tim
     return mGenerator->waitForFramesWithTimeout(n, timeout);
 }
 
-ActiveFakePixmanDisplay ActiveFakePixmanDisplay::create(int id, int fps, int w, int h) {
-    auto generator = std::make_unique<PixmanImageGenerator>(fps, w, h);
-    return ActiveFakePixmanDisplay(id, std::move(generator));
-}
-
 std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::createShared(int id, int fps,
                                                                                int w, int h) {
     auto generator = std::make_unique<PixmanImageGenerator>(fps, w, h);
-    return std::shared_ptr<ActiveFakePixmanDisplay>(
+    auto fake = std::shared_ptr<ActiveFakePixmanDisplay>(
             new ActiveFakePixmanDisplay(id, std::move(generator)));
+    fake->mGenerator->addListener(fake);
+    return fake;
 }
 
 ActiveFakePixmanDisplay::ActiveFakePixmanDisplay(int id,
                                                  std::unique_ptr<PixmanImageGenerator> generator)
-    : FakePixmanDisplay(id, generator->generateImage(Color::Blue)),
-      mGenerator(std::move(generator)) {
-    mGenerator->addListener(this);
-}
+        : FakePixmanDisplay(id, generator->generateImage(Color::Blue))
+        , mGenerator(std::move(generator)) {}
 
 }  // namespace android::goldfish

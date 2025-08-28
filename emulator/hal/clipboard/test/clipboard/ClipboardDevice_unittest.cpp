@@ -58,7 +58,7 @@ TEST_F(ClipboardDeviceTest, canCreateDevice) {
 
 TEST_F(ClipboardDeviceTest, receiveClipboardDataFiresAnEvent) {
     std::string received;
-    auto scoped = android::base::makeScopedCallback<IClipboardDevice, ClipboardData>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](ClipboardData data) { received = data; });
     receive("hello");
     EXPECT_THAT(received, Eq("hello"));

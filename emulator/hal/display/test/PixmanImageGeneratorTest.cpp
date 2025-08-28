@@ -11,14 +11,13 @@
 #include "FakePixmanDisplay.h"
 #include "MockDisplay.h"
 #include "PixmanImageGenerator.h"
-#include "aemu/base/events/EventSupport.h"
 
 extern "C" {
 #include "pixman.h"
 }
 
 namespace android::goldfish {
-using android::base::EventListener;
+using android::base::eventing::EventListener;
 
 class PixmanImageGeneratorTest : public ::testing::Test {
   protected:
@@ -42,16 +41,16 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
     int width = 100;
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    ImageListener listener;
-    generator.addListener(&listener);
+    auto listener = std::make_shared<ImageListener>();
+    generator.addListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
     generator.stop();
 
-    ASSERT_GE(listener.images.size(), 3);  // Should have at least 3 images
+    ASSERT_GE(listener->images.size(), 3);  // Should have at least 3 images
 
-    for (size_t i = 0; i < listener.images.size(); ++i) {
+    for (size_t i = 0; i < listener->images.size(); ++i) {
         uint32_t expectedColor;
         switch (i % 3) {
             case 0:
@@ -65,7 +64,7 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
                 break;
         }
 
-        uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener.images[i]);
+        uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener->images[i]);
         bool allPixelsMatch = true;
         for (int j = 0; j < width * height; ++j) {
             if (pixels[j] != expectedColor) {
@@ -74,8 +73,8 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
             }
         }
         ASSERT_TRUE(allPixelsMatch) << "Image " << i << " has incorrect color.";
-        ASSERT_EQ(pixman_image_get_width(listener.images[i]), width);
-        ASSERT_EQ(pixman_image_get_height(listener.images[i]), height);
+        ASSERT_EQ(pixman_image_get_width(listener->images[i]), width);
+        ASSERT_EQ(pixman_image_get_height(listener->images[i]), height);
     }
 }
 
@@ -84,8 +83,8 @@ TEST_F(PixmanImageGeneratorTest, FpsAccuracy) {
     int width = 100;
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    ImageListener listener;
-    generator.addListener(&listener);
+    auto listener = std::make_shared<ImageListener>();
+    generator.addListener(listener);
 
     generator.start();
     auto start = std::chrono::steady_clock::now();
@@ -94,7 +93,7 @@ TEST_F(PixmanImageGeneratorTest, FpsAccuracy) {
     generator.stop();
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    double actualFps = (double)listener.images.size() / (elapsed.count() / 1000.0);
+    double actualFps = (double)listener->images.size() / (elapsed.count() / 1000.0);
 
     ASSERT_NEAR(actualFps, fps, 5.0);  // Allow some tolerance on our slow build bots.
 }
@@ -104,21 +103,21 @@ TEST_F(PixmanImageGeneratorTest, StartStop) {
     int width = 100;
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    ImageListener listener;
+    auto listener = std::make_shared<ImageListener>();
     ;
-    generator.addListener(&listener);
+    generator.addListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(1, absl::Milliseconds(200));
     generator.stop();
-    size_t imageCountAfterStop = listener.images.size();
+    size_t imageCountAfterStop = listener->images.size();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_EQ(listener.images.size(), imageCountAfterStop);  // No new images after stop
+    ASSERT_EQ(listener->images.size(), imageCountAfterStop);  // No new images after stop
 
     generator.start();
     generator.waitForFramesWithTimeout(imageCountAfterStop + 1, absl::Milliseconds(200));
     generator.stop();
-    ASSERT_GT(listener.images.size(), imageCountAfterStop);  // New images after restart
+    ASSERT_GT(listener->images.size(), imageCountAfterStop);  // New images after restart
 }
 
 TEST_F(PixmanImageGeneratorTest, EventFiring) {
@@ -126,14 +125,14 @@ TEST_F(PixmanImageGeneratorTest, EventFiring) {
     int width = 100;
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    ImageListener listener;
-    generator.addListener(&listener);
+    auto listener = std::make_shared<ImageListener>();
+    generator.addListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
     generator.stop();
 
-    ASSERT_GT(listener.images.size(), 0);  // At least one event should have been fired
+    ASSERT_GT(listener->images.size(), 0);  // At least one event should have been fired
 }
 
 TEST_F(PixmanImageGeneratorTest, Resize) {
@@ -141,8 +140,8 @@ TEST_F(PixmanImageGeneratorTest, Resize) {
     int width = 100;
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    ImageListener listener;
-    generator.addListener(&listener);
+    auto listener = std::make_shared<ImageListener>();
+    generator.addListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
@@ -150,8 +149,8 @@ TEST_F(PixmanImageGeneratorTest, Resize) {
     generator.waitForFramesWithTimeout(4, absl::Milliseconds(500));
     generator.stop();
 
-    ASSERT_GT(listener.images.size(), 0);
-    auto lastImage = listener.images.back();
+    ASSERT_GT(listener->images.size(), 0);
+    auto lastImage = listener->images.back();
     ASSERT_EQ(pixman_image_get_width(lastImage), 200);
     ASSERT_EQ(pixman_image_get_height(lastImage), 100);
 }

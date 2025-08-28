@@ -22,12 +22,11 @@ extern "C" {
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/CallbackEventSupport.h"
+#include "aemu/base/events/EventSources.h"
 
 namespace android::goldfish {
 
-using android::base::EventChangeSupport;
-using android::base::WithCallbacks;
+using android::base::eventing::CallbackEventSource;
 
 enum class Color { Red, Green, Blue };
 
@@ -36,7 +35,7 @@ enum class Color { Red, Green, Blue };
  *
  * This class creates pixman images and notifies listeners whenever a new image is generated.
  */
-class PixmanImageGenerator : public WithCallbacks<EventChangeSupport, ::pixman_image_t*> {
+class PixmanImageGenerator : public CallbackEventSource<::pixman_image_t*> {
   public:
     /**
      * @brief Constructs a PixmanImageGenerator.

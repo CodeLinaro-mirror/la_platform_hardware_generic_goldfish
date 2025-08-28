@@ -19,7 +19,7 @@
 
 #include "google/protobuf/util/message_differencer.h"
 
-#include "aemu/base/events/EventSupport.h"
+#include "aemu/base/events/EventSources.h"
 #include "android/grpc/utils/SimpleAsyncGrpc.h"
 
 #define DEBUG_EVT 0
@@ -34,9 +34,8 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using android::base::EventChangeSupport;
-using android::base::EventListener;
-using android::base::GenericEventHandler;
+using android::base::eventing::CallbackEventSource;
+using android::base::eventing::EventListener;
 
 /**
  * BaseEventStreamWriter is a class for writing events of type T to a gRPC
@@ -46,9 +45,9 @@ using android::base::GenericEventHandler;
  * @tparam T The type of events to be written to the gRPC stream.
  */
 template <class T, class Event>
-class BaseEventStreamWriter : public SimpleServerWriter<T>, public GenericEventHandler<Event> {
+class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event> {
   public:
-    using ChangeSupport = EventChangeSupport<Event>;
+    using ChangeSupport = CallbackEventSource<Event>;
 
     /**
      * Constructs a new GenericEventWriter with the specified listener.
@@ -60,27 +59,34 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, public GenericEventH
      * @param listener A pointer to the ChangeSupport instance that will handle
      *        event subscriptions and event notifications.
      */
-    BaseEventStreamWriter(ChangeSupport* listener) : GenericEventHandler<Event>(listener) {}
+    BaseEventStreamWriter(ChangeSupport* listener) : mListener(listener) {
+        mCallbackId =
+                mListener->addCallback([this](const Event event) { this->eventArrived(event); });
+    }
 
-    virtual ~BaseEventStreamWriter() = default;
+    virtual ~BaseEventStreamWriter() { mListener->removeCallback(mCallbackId); }
 
     /**
-     * Overrides the GenericEventHandler<T, EventWriterPolicy>::OnDone() method
+     * Overrides the SimpleServerWriter<T, EventWriterPolicy>::OnDone() method
      * to delete the GenericEventWriter instance when the client is done reading
      * the event stream.
      */
     void OnDone() override { delete this; }
 
     /**
-     * Overrides the GenericEventHandler<T, EventWriterPolicy>::OnCancel()
+     * Overrides the SimpleServerWriter<T, EventWriterPolicy>::OnCancel()
      * method to inform the parent we want to Cancel this connection. This
      * should result in a callback to OnDone, which will do the final cleanup.
      */
     void OnCancel() override {
         DD_EVT("Cancelled %p", this);
-        GenericEventHandler<Event>::unsubscribe();
+        mListener->removeCallback(mCallbackId);
         grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
     }
+
+  private:
+    CallbackEventSource<Event>::CallbackId mCallbackId;
+    ChangeSupport* mListener;
 };
 
 // template<class T>
@@ -88,7 +94,7 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, public GenericEventH
 
 template <class T>
 class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
-    using ChangeSupport = EventChangeSupport<T>;
+    using ChangeSupport = CallbackEventSource<T>;
 
   public:
     GenericEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter<T, T>(listener) {}
@@ -125,7 +131,7 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
  */
 template <class T>
 class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
-    using ChangeSupport = EventChangeSupport<T>;
+    using ChangeSupport = CallbackEventSource<T>;
 
   public:
     UniqueEventStreamWriter(ChangeSupport* listener) : GenericEventStreamWriter<T>(listener) {}

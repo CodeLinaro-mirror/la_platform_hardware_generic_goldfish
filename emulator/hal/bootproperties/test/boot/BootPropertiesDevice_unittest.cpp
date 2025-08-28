@@ -138,7 +138,7 @@ TEST(BootPropertiesDeviceTest, receivesMountEvent) {
     TestConnectorRegistry registry;
     IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
     auto device = registry.constructDevice<IBootPropertiesDevice>();
-    auto scoped = android::base::makeScopedCallback<IBootPropertiesDevice, BootPropertyStatus>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](BootPropertyStatus event) { received = event; });
     device->onReceive("list", 4);
     EXPECT_THAT(received.dataPartitionMounted, Eq(true));
@@ -170,7 +170,7 @@ TEST(BootPropertiesDeviceTest, firesResetEvent) {
     IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
     auto device = registry.constructDevice<IBootPropertiesDevice>();
 
-    auto scoped = android::base::makeScopedCallback<IBootPropertiesDevice, BootPropertyStatus>(
+    auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](BootPropertyStatus event) { received = event; });
 
     device->onReceive("list", 4);
