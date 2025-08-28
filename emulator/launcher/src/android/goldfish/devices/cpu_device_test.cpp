@@ -53,7 +53,7 @@ TEST(Cpu, Basic_x86) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("Snowridge"),
+                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("kvm")));
 }
 
@@ -165,7 +165,7 @@ TEST(Cpu, HostAndTargetMismatch) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("Snowridge"),
+                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("tcg")));
 }
 
@@ -193,7 +193,7 @@ TEST(Cpu, CoresFlagOverride) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"),
-                                     testing::Eq("-cpu"), testing::Eq("Snowridge"),
+                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("kvm")));
 }
 

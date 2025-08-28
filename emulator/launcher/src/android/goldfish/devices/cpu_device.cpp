@@ -85,7 +85,8 @@ std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) 
                 cpu = "cortex-a53";
                 break;
             case Avd::CpuArchitecture::kX86:
-                cpu = "Snowridge";
+                // TODO: switch to better cpu model for linux/windows
+                cpu = "SandyBridge";
                 break;
             case Avd::CpuArchitecture::kRiscV:
             case Avd::CpuArchitecture::kUnknown:
