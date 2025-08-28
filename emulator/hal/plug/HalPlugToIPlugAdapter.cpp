@@ -17,17 +17,14 @@
 
 #include "absl/log/log.h"
 
+#include "goldfish/hal/plug/MarshallingHalSocket.h"
+
 namespace goldfish {
 namespace devices {
 
-class NullHalSocket : public HalSocket {
-  public:
-    void send(std::string data) override {}
-    void close() override {}
-};
-
 HalPlugToIPlugAdapter::~HalPlugToIPlugAdapter() {
-    VLOG(1) << "Bye bye: mHalPlug: " << mHalPlug.use_count();
+    VLOG(1) << "Tearing down HalPlugToIPlugAdapter with mHalPlug: " << mHalPlug
+            << ", use_count: " << mHalPlug.use_count();
 }
 
 HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
@@ -54,10 +51,26 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
 
 cable::SocketPtr HalPlugToIPlugAdapter::onUnplug() {
     // This is called on the QEMU thread when the guest disconnects.
-    // We post a task to notify the HalPlug on its own thread.
-    VLOG(1) << "HalPlugToIPlugAdapter::onUnplug: Releasing socket.";
-    mClientLoop->post([plug = mHalPlug]() { plug->onClose(); });
-    return nullptr;
+    // We must fulfill the IPlug contract by returning the SocketPtr.
+    //
+    // 1. Notify the HalPlug on its own thread that the connection is closed.
+    VLOG(1) << "Scheduling onClose for mHalPlug:" << mHalPlug;
+    (void)mClientLoop->post([plug = mHalPlug]() {
+        VLOG(1) << "Calling onClose from client thread on" << plug;
+        plug->onClose();
+    });
+
+    // 2. Safely get a shared_ptr to the marshalling socket. This is safe
+    //    because mHalPlug is a shared_ptr.
+    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->socket());
+
+    // 3. If the socket exists, call its close() method. This will
+    //    asynchronously post the real unplug operation back to the QEMU
+    //    thread, ensuring proper, race-free cleanup. Then, call release()
+    //    to get the underlying SocketPtr to return to the caller.
+
+    marshallingSocket->close();
+    return marshallingSocket->release();
 }
 
 }  // namespace devices

@@ -33,6 +33,7 @@
 namespace goldfish {
 namespace devices {
 
+class HalPlugToIPlugAdapter;
 /**
  * @class MarshallingHalSocket
  * @brief An internal implementation of the HalSocket interface.
@@ -72,9 +73,13 @@ class MarshallingHalSocket : public HalSocket {
     void close() override;
 
   private:
-    cable::SocketPtr mSocket;
-    async::EventLoop* mQemuLoop;
-    std::atomic<bool> mIsClosed{false};
+   friend class HalPlugToIPlugAdapter;
+   cable::SocketPtr release();
+
+   cable::SocketPtr mSocket;
+   absl::Mutex mSocketMutex;
+   async::EventLoop* mQemuLoop;
+   std::atomic<bool> mIsClosed{false};
 };
 
 }  // namespace devices

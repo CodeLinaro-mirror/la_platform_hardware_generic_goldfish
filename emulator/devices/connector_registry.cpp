@@ -23,6 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "goldfish/async/event_loop.h"
+#include "goldfish/hal/plug/HalPlugFriend.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
 #include "goldfish/vsock/listen.h"
@@ -46,12 +47,16 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
     std::lock_guard<std::mutex> lock(mEntriesMutex);
     mAcceptingRegistries = false;
 
-    for (const auto& [key, value] : mEntries) {
-        Connector::DeviceFactory registerfn = [value, key, this](auto socket, auto ping,
-                                                                 auto args) {
-            auto connector = value(std::move(socket), std::move(ping), args);
+    for (const auto& [key, factory_fn] : mEntries) {
+        Connector::DeviceFactory registerfn = [factory_fn, key, this](auto socket, auto ping,
+                                                                      auto args) {
+            auto connector = factory_fn(std::move(socket), std::move(ping), args);
             auto registryName = key.substr(1);
-            registerInternal(registryName, connector);
+
+            // Only register if our factory_fn didn't register it already
+            if (!mActivePlugs.count(registryName)) {
+                registerInternal<cable::IPlug>(registryName, connector);
+            }
             return connector;
         };
         mDevices.push_back({key.c_str(), std::move(registerfn)});
@@ -62,57 +67,75 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
     });
 }
 
-void ConnectorRegistry::registerInternal(std::string registryName,
-                                         std::weak_ptr<cable::IPlug> plug) {
-    {
-        std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-        VLOG(1) << "Registering device: " << registryName;
-        mActivePlugs[registryName] = plug;
-    }
-    fireEvent(registryName);
-}
-
 bool ConnectorRegistry::registerQemuDevice(std::string name, Connector::DeviceFactory factory) {
-    std::lock_guard<std::mutex> lock(mEntriesMutex);
-    if (!mAcceptingRegistries) {
-        LOG(WARNING) << "The registry is closed, qemud: " << name << " is not registered.";
-        return false;
-    }
-
-    mEntries[absl::StrCat("q", name)] = factory;
-    return true;
+    return registerDeviceImpl(std::move(name), std::move(factory), "q");
 }
 
 bool ConnectorRegistry::registerDevice(std::string name, Connector::DeviceFactory factory) {
+    return registerDeviceImpl(std::move(name), std::move(factory), "-");
+}
+
+bool ConnectorRegistry::registerDeviceImpl(std::string name, Connector::DeviceFactory factory,
+                                           const char* prefix) {
     std::lock_guard<std::mutex> lock(mEntriesMutex);
     if (!mAcceptingRegistries) {
         LOG(WARNING) << "The registry is closed, device: " << name << " is not registered.";
         return false;
     }
-    mEntries[absl::StrCat("-", name)] = factory;
+    mEntries[absl::StrCat(prefix, name)] = std::move(factory);
     return true;
 }
 
 void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* clientLoop,
                                           async::EventLoop* qemuLoop, HalDeviceFactory factory) {
-    auto wrapperFactory = [qemuLoop, clientLoop, userFactory = std::move(factory)](
+    registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
+                          [this](std::string name, Connector::DeviceFactory factory) {
+                              return registerDevice(std::move(name), std::move(factory));
+                          });
+}
+
+void ConnectorRegistry::registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
+                                              async::EventLoop* qemuLoop,
+                                              HalDeviceFactory factory) {
+    registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
+                          [this](std::string name, Connector::DeviceFactory factory) {
+                              return registerQemuDevice(std::move(name), std::move(factory));
+                          });
+}
+
+void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
+                                              async::EventLoop* qemuLoop, HalDeviceFactory factory,
+                                              DeviceRegistration registerFn) {
+    auto wrapperFactory = [this, name, qemuLoop, clientLoop, userFactory = std::move(factory)](
                                   SocketPtr qemuSocket, std::shared_ptr<PingTopic> pingTopic,
                                   std::string_view args) -> PlugPtr {
-        // This wrapper factory executes on the QEMU thread.
-        std::shared_ptr<HalPlug> realHalPlug =
-                clientLoop->postAndWait([&] { return userFactory(); });
+        // 1. Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
+        // as we must give our vsockstream a concrete PlugPtr. Let's hope developers are not doing
+        // *crazy* things in the factory.
+        std::shared_ptr<HalPlug> realHalPlug = userFactory();
 
-        clientLoop->post([realHalPlug, qemuLoop, socket = std::move(qemuSocket)]() mutable {
-            auto marshallingSocket =
-                    std::make_unique<MarshallingHalSocket>(std::move(socket), qemuLoop);
-            realHalPlug->establishConnection(std::move(marshallingSocket));
+        // 2. Create the marshalling socket on the QEMU thread.
+        auto marshallingSocket =
+                std::make_shared<MarshallingHalSocket>(std::move(qemuSocket), qemuLoop);
+
+        // 3. Set the socket on the HalPlug using the friend class.
+        HalPlugFriend::establishConnection(realHalPlug.get(), marshallingSocket);
+
+        // 4. Post the onConnect notification to the client thread.
+        VLOG(1) << "Scheduling on connect for realHalPlug: " << realHalPlug
+                << ", clientLoop: " << clientLoop;
+        (void)clientLoop->post([realHalPlug]() {
+            VLOG(1) << "Delivering onConnect to realHalPlug: " << realHalPlug;
             realHalPlug->onConnect();
         });
 
+        // 5. Register the plug for activeDevice() lookups and return the
+        //    adapter to the vsock layer.
+        registerInternal<HalPlug>(name, realHalPlug);
         return std::make_shared<HalPlugToIPlugAdapter>(clientLoop, std::move(realHalPlug));
     };
 
-    registerDevice(std::move(name), std::move(wrapperFactory));
+    registerFn(std::move(name), std::move(wrapperFactory));
 }
 
 ConnectorRegistry& ConnectorRegistry::defaultRegistry() {

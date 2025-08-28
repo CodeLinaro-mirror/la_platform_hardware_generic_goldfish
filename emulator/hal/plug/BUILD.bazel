@@ -14,6 +14,14 @@ cc_library(
 )
 
 cc_library(
+    name = "hal_plug_friend",
+    hdrs = ["include/goldfish/hal/plug/HalPlugFriend.h"],
+    includes = ["include"],
+    visibility = ["//hardware/generic/goldfish/emulator/devices:__pkg__"],
+    deps = [":hal_plug"],
+)
+
+cc_library(
     name = "marshalling_hal_socket",
     srcs = ["MarshallingHalSocket.cpp"],
     hdrs = ["include/goldfish/hal/plug/MarshallingHalSocket.h"],
@@ -32,6 +40,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":hal_plug",
+        ":marshalling_hal_socket",
         "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/emulator/devices:cable",
     ],
@@ -40,12 +49,19 @@ cc_library(
 cc_test(
     name = "hal_plug_adapter_unittests",
     size = "small",
-    srcs = ["test/hal_plug_adapter_unittest.cpp"],
+    srcs = [
+        "test/fake_vsock.cpp",
+        "test/hal_plug_adapter_concurrency_test.cpp",
+        "test/hal_plug_adapter_unittest.cpp",
+    ],
     deps = [
+        ":hal_plug_friend",
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
+        "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
         "@abseil-cpp//absl/synchronization",
     ],
 )

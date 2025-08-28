@@ -107,7 +107,7 @@ class TestConnectorRegistry : public ConnectorRegistry {
         auto socket = goldfish::devices::fakeConnection(&mLooper);
         mSocket = static_cast<TestSocket*>(socket.get());
         mPlug = mFactory(std::move(socket), std::make_shared<PingTopic>(), "");
-        registerInternal(std::string(T::serviceName), mPlug);
+        registerInternal<cable::IPlug>(std::string(T::serviceName), mPlug);
         return reinterpret_cast<T*>(mPlug.get());
     }
 

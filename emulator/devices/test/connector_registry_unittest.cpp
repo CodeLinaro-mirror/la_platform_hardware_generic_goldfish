@@ -15,14 +15,21 @@
 // limitations under the License.
 #include "goldfish/devices/connector_registry.h"
 
-#include <goldfish/devices/cable/cable.h>
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdio>
 #include <memory>
 
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/devices/cable/cable.h"
+
 namespace goldfish {
 
+using async::EventLoop;
+using async::LibuvEventLoop;
+using async::ThreadedEventLoop;
 using devices::cable::IPlug;
 using devices::cable::ISocket;
 using devices::cable::PlugPtr;
@@ -32,9 +39,9 @@ using namespace std::string_view_literals;
 namespace {
 struct TestDevice : public IPlug {
     TestDevice(SocketPtr socket, bool isQemud, std::string_view args)
-        : mSocket(std::move(socket)),
-          mIsQemud(isQemud),
-          mArgs(std::string(args.begin(), args.end())) {}
+            : mSocket(std::move(socket))
+            , mIsQemud(isQemud)
+            , mArgs(std::string(args.begin(), args.end())) {}
 
     static constexpr std::string_view serviceName = "TestDevice"sv;
 
@@ -77,6 +84,24 @@ struct TestSocket : public ISocket {
 
     PlugPtr plug;
 };
+
+struct TestHalDevice : public devices::HalPlug {
+    using HalSocket = devices::HalSocket;
+
+    void onConnect() override { mConnectedPromise.set_value(true); }
+    void onClose() override { mClosedPromise.set_value(true); }
+    void onReceive(std::string_view data) override {}
+
+    std::future<bool> connected() { return mConnectedPromise.get_future(); }
+    std::future<bool> closed() { return mClosedPromise.get_future(); }
+
+    void close() { socket()->close(); }
+    static constexpr std::string_view serviceName = "TestHalDevice"sv;
+
+  private:
+    std::promise<bool> mConnectedPromise;
+    std::promise<bool> mClosedPromise;
+};
 }  // namespace
 
 static bool gListenCalled = false;
@@ -106,12 +131,18 @@ class ConnectorRegistryTest : public ::testing::Test {
         listenCalled = false;
         gListenCalled = false;
         gTestSocket = nullptr;
+
+        mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
+        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
     }
 
     void TearDown() override {
+        using namespace std::chrono_literals;
         if (gTestSocket) {
             delete gTestSocket;
         }
+        mClientLoop.reset();
+        mQemuLoop.reset();
     }
 
   protected:
@@ -123,6 +154,9 @@ class ConnectorRegistryTest : public ::testing::Test {
         listenCalled = true;
         return true;  // Simulate successful listening
     }
+
+    std::unique_ptr<EventLoop> mQemuLoop;
+    std::unique_ptr<EventLoop> mClientLoop;
 };
 
 TEST_F(ConnectorRegistryTest, ListenSuccess) {
@@ -317,6 +351,97 @@ TEST_F(ConnectorRegistryTest, DeviceRegistrationListenerFiltersIrrelevantDevices
     // We should never get an event as we are listening for TestDevice
     EXPECT_EQ(eventFired, 0);
     EXPECT_TRUE(weakDevice.expired());
+}
+
+TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
+    using namespace std::literals;
+
+    auto device = std::make_shared<TestHalDevice>();
+    auto connected_future = device->connected();
+    auto closed_future = device->closed();
+    bool factoryCalled = false;
+
+    registry.registerHalDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(), [&]() {
+        factoryCalled = true;
+        return device;
+    });
+
+    // Use the ListenFn overload to directly get the created device factory.
+    registry.listen([&](HostPortListener listener) {
+        // This simulates the guest connecting and the vsock layer creating a
+        // generic Connector plug.
+        gTestSocket = new TestSocket();
+        auto connectorPlug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
+        gTestSocket->plug = std::move(connectorPlug);
+        return true;
+    });
+
+    // Now, simulate the guest sending the pipe connection string. This will
+    // cause the Connector plug to invoke our wrapperFactory.
+    EXPECT_TRUE(gTestSocket->send("pipe:TestHalDevice:args\0"sv));
+
+    // Verify that our user-provided factory was called.
+    EXPECT_TRUE(factoryCalled);
+
+    // Verify the rest of the connection flow.
+    connected_future.wait_for(100ms);
+    EXPECT_TRUE(connected_future.get());
+
+    auto active = registry.activeDevice<TestHalDevice>();
+    EXPECT_FALSE(active.expired());
+    EXPECT_EQ(active.lock(), device);
+
+    // Now we unplug, lest we get into weird states where
+    // cleanup happens at the wrong time
+    gTestSocket->plug->onUnplug();
+    closed_future.wait_for(100ms);
+    EXPECT_TRUE(closed_future.get());
+
+    // Cleanly exit loops before we destroy sockets etc.
+    mClientLoop->shutdown(100ms).wait_for(100ms);
+    mQemuLoop->shutdown(100ms).wait_for(100ms);
+}
+
+TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
+    using namespace std::literals;
+
+    auto device = std::make_shared<TestHalDevice>();
+    auto connected_future = device->connected();
+    auto closed_future = device->closed();
+    bool factoryCalled = false;
+
+    registry.registerHalQemuDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(), [&]() {
+        factoryCalled = true;
+        return device;
+    });
+
+    registry.listen([&](HostPortListener listener) {
+        gTestSocket = new TestSocket();
+        auto connectorPlug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
+        gTestSocket->plug = std::move(connectorPlug);
+        return true;
+    });
+
+    EXPECT_TRUE(gTestSocket->send("pipe:qemud:TestHalDevice:args\0"sv));
+
+    EXPECT_TRUE(factoryCalled);
+
+    connected_future.wait_for(100ms);
+    EXPECT_TRUE(connected_future.get());
+
+    auto active = registry.activeDevice<TestHalDevice>();
+    EXPECT_FALSE(active.expired());
+    EXPECT_EQ(active.lock(), device);
+
+    // Now we unplug, lest we get into weird states where
+    // cleanup happens at the wrong time
+    gTestSocket->plug->onUnplug();
+    closed_future.wait_for(100ms);
+    EXPECT_TRUE(closed_future.get());
+
+    // Cleanly exit loops before we destroy sockets etc.
+    mClientLoop->shutdown(100ms).wait_for(100ms);
+    mQemuLoop->shutdown(100ms).wait_for(100ms);
 }
 
 }  // namespace devices

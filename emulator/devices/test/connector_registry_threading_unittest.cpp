@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -43,6 +42,19 @@ using namespace std::chrono_literals;
 namespace goldfish {
 namespace devices {
 
+// Helper struct to manage assertions for asynchronous operations.
+struct AsyncAssertion {
+    absl::Notification notified;
+    std::thread::id thread_id;
+
+    void notify() {
+        thread_id = std::this_thread::get_id();
+        notified.Notify();
+    }
+
+    bool wait() { return notified.WaitForNotificationWithTimeout(absl::Seconds(1)); }
+};
+
 // A mock HalPlug to verify that its methods are called on the correct threads.
 class MockHalPlug : public HalPlug {
   public:
@@ -51,9 +63,7 @@ class MockHalPlug : public HalPlug {
     MOCK_METHOD(void, onClose, (), (override));
 
     // Returns the socket associated with this plug.
-    HalSocket* getSocket() { return socket(); }
-
-    std::thread::id onReceiveThreadId;
+    std::shared_ptr<HalSocket> getSocket() { return socket(); }
 };
 
 // A mock socket to simulate the QEMU side of the connection.
@@ -73,17 +83,31 @@ class MockSocket : public cable::ISocket {
     PlugPtr plug;
 };
 
+// The tests in this file are exercising the ConnectorRegistry, which can
+// involve multiple threads for QEMU and guest-side components. We use
+// two event loops (mQemuLoop and mClientLoop) to simulate this environment.
+//
+// To avoid race conditions and flaky tests, it is critical to follow a
+// strict "arrange, act, assert" pattern.
+//
+// 1. **Arrange:** All mocks, expectations (e.g., EXPECT_CALL), and callbacks
+//    must be set up *before* the registry starts listening or any connection
+//    attempts are made. This ensures that when the event loops start
+//    processing events, all the necessary handlers are already in place.
+//
+// 2. **Act:** The action is typically simulating a guest connection or sending
+//    data, which will trigger events that are processed on the event loop
+//    threads.
+//
+// 3. **Assert:** We use synchronization primitives like absl::Notification to
+//    wait for asynchronous operations to complete and then assert on the
+//    results. This is crucial for verifying behavior that happens on a
+//    different thread from the main test thread.
 class ConnectorRegistryThreadingTest : public ::testing::Test {
   protected:
     void SetUp() override {
         mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
         mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
-    }
-
-    void TearDown() override {
-        // Shut down the event loops and join the threads cleanly.
-        mQemuLoop->shutdown(100ms).wait_for(100ms);
-        mClientLoop->shutdown(100ms).wait_for(100ms);
     }
 
     std::unique_ptr<ThreadedEventLoop> mQemuLoop;
@@ -107,17 +131,32 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     const std::string kHelloFromQemu = "Hello";
     const std::string kWorldFromClient = "world";
 
-    // --- Test connection ---
-    absl::Notification onConnectCalled;
-    std::thread::id onConnectThreadId;
+    // --- Setup phase, we register all the expectations
+    // we do this now to make sure we don't run into any concurrency issues
+    AsyncAssertion connectAssertion;
+    AsyncAssertion receiveAssertion;
+    AsyncAssertion closeAssertion;
+    AsyncAssertion sendAsyncAssertion;
 
     // The HAL device receives an empty message upon connection, a leftover
     // from the vsock protocol.
     EXPECT_CALL(*mockHalPlug, onReceive(""));
+    EXPECT_CALL(*mockHalPlug, onConnect()).WillOnce(Invoke([&]() { connectAssertion.notify(); }));
 
-    EXPECT_CALL(*mockHalPlug, onConnect()).WillOnce(Invoke([&]() {
-        onConnectThreadId = std::this_thread::get_id();
-        onConnectCalled.Notify();
+    EXPECT_CALL(*mockHalPlug, onReceive(kHelloFromQemu)).WillOnce(Invoke([&](std::string_view) {
+        receiveAssertion.notify();
+    }));
+
+    EXPECT_CALL(testSocket, sendAsync(_, kWorldFromClient.size()))
+            .WillOnce(Invoke([&](const void* data, size_t size) {
+                EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), kWorldFromClient);
+                sendAsyncAssertion.notify();
+            }));
+
+    EXPECT_CALL(testSocket, unplugImpl()).Times(1);
+    EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
+        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
+        closeAssertion.notify();
     }));
 
     // Act: Register the HAL device. The factory lambda captures the pre-created
@@ -138,64 +177,42 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     };
     registry.listen(listenCallback);
 
-    // Act: Simulate a connection request from the QEMU side.
-    // it contains the protocol, device name, and possible args for our device.
-    // In our case we have no arguments. So the first call our DevicePlug will
-    // get is the empty string.
-    auto connectionString = absl::StrFormat("pipe:%s:args\0", kDeviceName);
-    connectorPlug->onReceive(connectionString.data(), connectionString.size() + 1);
+    // --- Test connection ---
+    {
+        // Act: Simulate a connection request from the QEMU side.
+        // it contains the protocol, device name, and possible args for our device.
+        // In our case we have no arguments. So the first call our DevicePlug will
+        // get is the empty string.
+        auto connectionString = absl::StrFormat("pipe:%s:args\0", kDeviceName);
+        connectorPlug->onReceive(connectionString.data(), connectionString.size() + 1);
 
-    // Assert: Verify onConnect was called on the client thread.
-    ASSERT_TRUE(onConnectCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
-    EXPECT_EQ(onConnectThreadId, mClientLoop->get_id());
+        // Assert: Verify onConnect was called on the client thread.
+        ASSERT_TRUE(connectAssertion.wait());
+        EXPECT_EQ(connectAssertion.thread_id, mClientLoop->get_id());
+    }
 
     // --- Test data flow: QEMU -> Client ---
     {
-        absl::Notification onReceiveCalled;
-        EXPECT_CALL(*mockHalPlug, onReceive(kHelloFromQemu))
-                .WillOnce(Invoke([&](std::string_view /* data */) {
-                    mockHalPlug->onReceiveThreadId = std::this_thread::get_id();
-                    onReceiveCalled.Notify();
-                }));
-
         // Act: Post a message from the QEMU loop.
         (void)mQemuLoop->post([&] { testSocket.send(kHelloFromQemu); });
 
         // Assert: Verify onReceive was called on the client thread.
-        ASSERT_TRUE(onReceiveCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
-        EXPECT_EQ(mockHalPlug->onReceiveThreadId, mClientLoop->get_id());
+        ASSERT_TRUE(receiveAssertion.wait());
+        EXPECT_EQ(receiveAssertion.thread_id, mClientLoop->get_id());
     }
 
     // --- Test data flow: Client -> QEMU ---
     {
-        absl::Notification sendAsyncCalled;
-        EXPECT_CALL(testSocket, sendAsync(_, kWorldFromClient.size()))
-                .WillOnce(Invoke([&](const void* data, size_t size) {
-                    EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->get_id());
-                    EXPECT_EQ(std::string_view(static_cast<const char*>(data), size),
-                              kWorldFromClient);
-                    sendAsyncCalled.Notify();
-                }));
-
         // Act: Post a send request from the client loop.
         (void)mClientLoop->post([&] { mockHalPlug->getSocket()->send(kWorldFromClient); });
 
         // Assert: Verify sendAsync was called on the QEMU thread.
-        ASSERT_TRUE(sendAsyncCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
+        ASSERT_TRUE(sendAsyncAssertion.wait());
+        EXPECT_EQ(sendAsyncAssertion.thread_id, mQemuLoop->get_id());
     }
 
     // --- Test disconnection ---
     {
-        absl::Notification onCloseCalled;
-        EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
-            static int callcount = 0;
-            VLOG(1) << "Called: " << callcount++;
-            EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
-
-            // Clients will usually close the socket..
-            onCloseCalled.Notify();
-        }));
-
         // Act: Unplug the connection from the QEMU loop.
         (void)mQemuLoop->post([&] {
             VLOG(1) << "Going to unplug the adapter";
@@ -203,13 +220,15 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         });
 
         // Assert: Verify onClose was called on the client thread.
-        ASSERT_TRUE(onCloseCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
+        ASSERT_TRUE(closeAssertion.wait());
+        EXPECT_EQ(closeAssertion.thread_id, mClientLoop->get_id());
     }
 
-    // Closing out the socket will call unplug..
-    EXPECT_CALL(testSocket, unplugImpl()).Times(1);
-    // Let's close out our socket, which will release all our resources as well.
-    mockHalPlug->getSocket()->close();
+    // Make sure we don't have live sockets on our loops.
+    mQemuLoop->shutdown(100ms).wait_for(100ms);
+    mQemuLoop->stop();
+    mClientLoop->shutdown(100ms).wait_for(100ms);
+    mClientLoop->stop();
 }
 
 }  // namespace devices

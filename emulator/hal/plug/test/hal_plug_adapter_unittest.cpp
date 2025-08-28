@@ -25,6 +25,7 @@
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/hal/plug/HalPlugFriend.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
 
@@ -52,11 +53,7 @@ class MockHalPlug : public HalPlug {
     MOCK_METHOD(void, onReceive, (std::string_view data), (override));
     MOCK_METHOD(void, onClose, (), (override));
 
-    HalSocket* getSocket() { return socket(); }
-    void resetSocket() { establishConnection(nullptr); }
-
-  private:
-    std::unique_ptr<HalSocket> mSocket;
+    std::shared_ptr<HalSocket> getSocket() { return socket(); }
 };
 
 class HalPlugAdapterTest : public ::testing::Test {
@@ -100,8 +97,8 @@ class HalPlugAdapterTest : public ::testing::Test {
 
         mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
             auto marshallingSocket =
-                    std::make_unique<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-            mMockHalPlug->establishConnection(std::move(marshallingSocket));
+                    std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
+            HalPlugFriend::establishConnection(mMockHalPlug.get(), marshallingSocket);
             mMockHalPlug->onConnect();
         });
 
@@ -128,8 +125,8 @@ TEST_F(HalPlugAdapterTest, OnConnectIsMarshalledToClientThread) {
     // Simulate a connection..
     mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
         auto marshallingSocket =
-                std::make_unique<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-        mMockHalPlug->establishConnection(std::move(marshallingSocket));
+                std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
+        HalPlugFriend::establishConnection(mMockHalPlug.get(), marshallingSocket);
         mMockHalPlug->onConnect();
     });
 
@@ -169,13 +166,26 @@ TEST_F(HalPlugAdapterTest, SendIsMarshalledToQemuThread) {
 TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
     connect();
     absl::Notification onCloseCalled;
+    absl::Notification unplugImplCalled;
+
     EXPECT_CALL(*mMockHalPlug, onClose()).WillOnce(Invoke([&] {
         EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
         onCloseCalled.Notify();
     }));
 
+    // onUnplug will trigger close(), which will post a task to call unplugImpl.
+    // We need to expect that call and wait for it to ensure the async chain completes.
+    EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() {
+        mSocketIsOpen = false;  // Signal to TearDown that we handled the close.
+        unplugImplCalled.Notify();
+        return nullptr;
+    }));
+
     mQemuLoop->post([&] { mAdapter->onUnplug(); });
+
+    // Wait for both notifications to ensure the full sequence has executed.
     onCloseCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+    unplugImplCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
 TEST_F(HalPlugAdapterTest, CloseIsMarshalledToUnplugImplOnQemuThread) {

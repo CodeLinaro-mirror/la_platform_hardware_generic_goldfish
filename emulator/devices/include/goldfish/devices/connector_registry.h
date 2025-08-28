@@ -17,10 +17,10 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-
 #include "aemu/base/Compiler.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/Connector.h"
@@ -33,6 +33,23 @@ namespace devices {
 using android::base::eventing::CallbackEventSource;
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 using DeviceName = std::string;
+
+/**
+ * @brief A factory function for creating a HalPlug instance.
+ *
+ * This function is invoked by the ConnectorRegistry to create a new instance
+ * of a HAL device when a guest connects.
+ *
+ * @warning The factory function itself is executed on the **QEMU main loop
+ * thread**. It is critical that this function be **non-blocking** and that the
+ * `HalPlug`'s constructor be lightweight. Any significant work should be
+ * deferred to the `onConnect` method. Furthermore, the `HalPlug` instance is
+ * not fully initialized at this stage; the `socket()` method is not yet valid.
+ * **You MUST NOT call `socket()` or other methods on the `HalPlug` from
+ * within this factory function.**
+ *
+ * @return A `std::shared_ptr` to the newly created HalPlug instance.
+ */
 using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
 
 struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
@@ -40,6 +57,10 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
 
     /**
      * @brief Registers a QEMU device with the registry.
+     *
+     * @deprecated This method uses the legacy, non-thread-safe IPlug model.
+     * Prefer using `registerHalQemuDevice` with the modern `HalPlug` model for
+     * all new development.
      *
      * This method registers devices that use the older "qemud" protocol, which
      * has some differences compared to the standard protocol used by
@@ -53,19 +74,26 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      * @param factory The factory function for creating the device.
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
-    virtual bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) = 0;
+    [[deprecated("Use registerHalQemuDevice instead.")]] virtual bool registerQemuDevice(
+        std::string name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a device with the registry.
+     *
+     * @deprecated This method uses the legacy, non-thread-safe IPlug model.
+     * Prefer using `registerHalDevice` with the modern `HalPlug` model for all
+     * new development.
      *
      * @param name The name of the device.
      * @param factory The factory function for creating the device.
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
-    virtual bool registerDevice(std::string name, Connector::DeviceFactory factory) = 0;
+    [[deprecated("Use registerHalDevice instead.")]] virtual bool registerDevice(
+        std::string name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a thread-safe HAL device with the registry.
+     *
      *
      * This method registers a HAL device that is designed to run on a separate
      * event loop. It uses a factory to create the device and transparently
@@ -79,6 +107,9 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      */
     virtual void registerHalDevice(std::string name, async::EventLoop* clientLoop,
                                    async::EventLoop* qemuLoop, HalDeviceFactory factory) = 0;
+
+    virtual void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
+                                       async::EventLoop* qemuLoop, HalDeviceFactory factory) = 0;
 };
 
 /**
@@ -101,6 +132,9 @@ class NullConnectorRegistry : public IConnectorRegistry {
 
     void registerHalDevice(std::string name, async::EventLoop* clientLoop,
                            async::EventLoop* qemuLoop, HalDeviceFactory factory) override {};
+
+    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
+                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override {};
 };
 
 /**
@@ -131,20 +165,13 @@ class ConnectorRegistry : public IConnectorRegistry {
      */
     using ListenFn = std::function<bool(HostPortListener)>;
 
-    /**
-     * @brief Constructs a `ConnectorRegistry` with a default ping topic
-     */
+    // Use a variant to store weak pointers to both plug types.
+    using ActivePlugVariant = std::variant<std::weak_ptr<cable::IPlug>, std::weak_ptr<HalPlug>>;
 
     ConnectorRegistry();
     virtual ~ConnectorRegistry() = default;
 
     DISALLOW_COPY_AND_ASSIGN(ConnectorRegistry);
-
-    /**
-     * @brief Constructs a `ConnectorRegistry` object.
-     *
-     * @param pingTopic The `PingTopic` instance to be used by the connectors.
-     */
     explicit ConnectorRegistry(std::shared_ptr<PingTopic> pingTopic);
 
     /**
@@ -175,6 +202,9 @@ class ConnectorRegistry : public IConnectorRegistry {
     void registerHalDevice(std::string name, async::EventLoop* clientLoop,
                            async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
 
+    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
+                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
+
     static ConnectorRegistry& defaultRegistry();
 
     /**
@@ -194,20 +224,33 @@ class ConnectorRegistry : public IConnectorRegistry {
     std::weak_ptr<T> activeDevice() {
         std::lock_guard<std::mutex> lock(mActivePlugsMutex);
         auto it = mActivePlugs.find(T::serviceName);
-        if (it != mActivePlugs.end()) {
-            if (auto plugPtr = it->second.lock()) {
-                // Try to cast the shared_ptr to the target type
-                if (auto castPtr = std::dynamic_pointer_cast<T>(plugPtr)) {
-                    return std::weak_ptr<T>(castPtr);
-                }
-                // If cast fails, return empty weak_ptr
-                return std::weak_ptr<T>();
-            } else {
-                // The device has been unplugged; remove the stale entry.
-                mActivePlugs.erase(it);
-            }
+        if (it == mActivePlugs.end()) {
+          return {};
         }
-        return std::weak_ptr<T>();
+
+        std::weak_ptr<T> result;
+        std::visit(
+            [&](auto& plug) {
+              // Check if the current type in the variant is a base class of T.
+              // This cast works because it operates on shared_ptr.
+              if (auto sharedPtr = plug.lock()) {
+                if (auto castPtr = std::dynamic_pointer_cast<T>(sharedPtr)) {
+                  result = std::weak_ptr<T>(castPtr);
+                }
+              }
+              // Note we technically could clean up `it` but this would
+              // possibly lead to undefined behaviour as we are invalidating
+              // `it` in function scope of std::visit, hence we will do it later.
+            },
+            it->second);
+
+        // Check for stale entries and clean them up.
+        bool expired = std::visit([](auto& weak_ptr) { return weak_ptr.expired(); }, it->second);
+        if (expired) {
+          mActivePlugs.erase(it);
+        }
+
+        return result;
     }
 
   protected:
@@ -223,16 +266,43 @@ class ConnectorRegistry : public IConnectorRegistry {
      *
      * @protected This method is protected to allow access from test classes.
      */
-    void registerInternal(std::string registryName, std::weak_ptr<cable::IPlug> plug);
+   template <typename PlugType>
+   void registerInternal(std::string registryName, std::weak_ptr<PlugType> plug) {
+     {
+       std::lock_guard<std::mutex> lock(mActivePlugsMutex);
+       mActivePlugs.emplace(registryName, plug);
+     }
+     fireEvent(registryName);
+   }
 
   private:
-    std::shared_ptr<PingTopic> mPingTopic;
-    bool mAcceptingRegistries;
-    std::mutex mEntriesMutex;
-    std::mutex mActivePlugsMutex;
-    absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
-    absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
-    std::vector<Connector::DeviceEntry> mDevices;
+   bool registerDeviceImpl(std::string name, Connector::DeviceFactory factory, const char* prefix);
+
+   using DeviceRegistration = std::function<bool(std::string, Connector::DeviceFactory)>;
+   void registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
+                              async::EventLoop* qemuLoop, HalDeviceFactory factory,
+                              DeviceRegistration registerFn);
+
+   std::shared_ptr<PingTopic> mPingTopic;
+   bool mAcceptingRegistries;
+   std::mutex mEntriesMutex;
+   std::mutex mActivePlugsMutex;
+   absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
+
+   // This map holds weak pointers to all currently active plugs, allowing for
+   // inspection via the `activeDevice<T>()` method.
+   //
+   // It stores a std::variant of two types:
+   // 1. `std::weak_ptr<cable::IPlug>`: For legacy devices that are not
+   //    thread-safe and are difficult to implement correctly. This type is
+   //    being deprecated.
+   // 2. `std::weak_ptr<HalPlug>`: For modern, thread-safe HALs. This is the
+   //    preferred type for all new development.
+   //
+   // The goal is to eventually migrate all devices to the `HalPlug` model and
+   // remove the need for this variant.
+   absl::flat_hash_map<std::string, ActivePlugVariant> mActivePlugs;
+   std::vector<Connector::DeviceEntry> mDevices;
 };
 
 template <class IDevice>

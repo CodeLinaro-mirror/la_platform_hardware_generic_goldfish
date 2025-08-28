@@ -25,7 +25,7 @@ namespace {
 
 // A socket that sends things nowhere..
 struct NullSocket : public cable::ISocket {
-    ~NullSocket() override { VLOG(1) << "Program exit!"; }
+    ~NullSocket() override {}
     void sendAsync(const void* data, size_t size) override {};
     cable::PlugPtr switchPlug(cable::PlugPtr newPlug) override { return {}; }
     cable::PlugPtr unplugImpl() override { return {}; }
@@ -41,8 +41,7 @@ MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::Event
 
 MarshallingHalSocket::~MarshallingHalSocket() {
     if (!mIsClosed) {
-        VLOG(1) << "Inner socket was not closed, closing it now";
-        close();
+        LOG(WARNING) << "Inner socket was not closed!";
     }
 }
 
@@ -50,26 +49,44 @@ void MarshallingHalSocket::send(std::string data) {
     if (mIsClosed) return;
 
     mQemuLoop->post([this, data = std::move(data)]() {
+        absl::MutexLock lock(&mSocketMutex);
         VLOG(1) << "Sending " << data.size() << " bytes";
         // Bytes go either to the *real* or NullSocket..
         mSocket->sendAsync(data.data(), data.size());
     });
 }
 
+cable::SocketPtr MarshallingHalSocket::release() {
+    absl::MutexLock lock(&mSocketMutex);
+    auto s = std::move(mSocket);
+    mSocket = cable::SocketPtr(&gNullSocket);
+    return std::move(s);
+}
+
 void MarshallingHalSocket::close() {
     if (!mIsClosed.exchange(true)) {
-        // Note that we install a Nullsocket, so a client that has posted
-        // a send event on the qemu loop as well has 2 options:
-        // 1. It gets executed before us, bytes go to socket
-        // 2. It gets executed after us, bytes go nowhere.
-        //
-        // We need to block and wait as we must make sure we do not get
-        // into a non-deterministic state with regards to our own lifetime.
-        mQemuLoop->postAndWait([this]() mutable {
-            VLOG(1) << "Installing the Null socket and closing up: " << mSocket;
-            auto s = std::move(mSocket);
-            mSocket = cable::SocketPtr(&gNullSocket);
-            cable::ISocket::unplug(std::move(s));
+        // Post the unplug operation to the QEMU loop asynchronously.
+        // This avoids deadlocking if close() is called from a client
+        // callback that was initiated by the QEMU loop.
+        mQemuLoop->post([this]() {
+            cable::SocketPtr socketToUnplug;
+            {
+                // Safely take ownership of the real socket pointer
+                // under the lock. This coordinates with the release()
+                // method, which may be called by onUnplug on this same
+                // QEMU thread.
+                absl::MutexLock lock(&mSocketMutex);
+                socketToUnplug = std::move(mSocket);
+                mSocket = cable::SocketPtr(&gNullSocket);
+            }
+
+            // Unplug the real socket outside the lock.
+            // Don't unplug if it was already the null socket (e.g., if
+            // release() was called first).
+            if (socketToUnplug && socketToUnplug.get() != &gNullSocket) {
+                VLOG(1) << "Unplugging the real socket.";
+                cable::ISocket::unplug(std::move(socketToUnplug));
+            }
         });
     }
 }
