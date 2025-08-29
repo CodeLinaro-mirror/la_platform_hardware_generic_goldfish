@@ -11,7 +11,6 @@
  */
 
 #pragma once
-#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
@@ -19,19 +18,5 @@ namespace vsock {
 
 devices::cable::SocketPtr connect(uint32_t guestPort, devices::cable::PlugPtr);
 
-/**
- * @brief Connects to a guest port, wrapping the connection with a
- * MarshallingPlug.
- *
- * The provided `clientPlug` will be called on the `clientLoop`.
- *
- * @param guestPort The guest port to connect to.
- * @param clientPlug The plug to connect to the guest.
- * @param clientLoop The event loop on which the plug will be called.
- * @return A socket pointer to the marshalling plug.
- */
-devices::cable::SocketPtr connectWithMarshalling(uint32_t guestPort,
-                                                 devices::cable::PlugPtr clientPlug,
-                                                 async::EventLoop* clientLoop);
 }  // namespace vsock
 }  // namespace goldfish
