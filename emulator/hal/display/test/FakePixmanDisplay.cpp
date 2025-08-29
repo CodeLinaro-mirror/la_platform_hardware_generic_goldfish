@@ -19,7 +19,8 @@
 
 namespace android::goldfish {
 
-FakePixmanDisplay::FakePixmanDisplay(int id, ::pixman_image_t* image) : PixmanDisplay(id, image) {}
+FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
+        : PixmanDisplay(loop, id, image) {}
 
 void FakePixmanDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     mMultiTouchEvents.push_back({slot, x, y, type});
@@ -76,18 +77,19 @@ bool ActiveFakePixmanDisplay::waitForFramesWithTimeout(int n, absl::Duration tim
     return mGenerator->waitForFramesWithTimeout(n, timeout);
 }
 
-std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::createShared(int id, int fps,
+std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::createShared(EventLoop* loop,
+                                                                               int id, int fps,
                                                                                int w, int h) {
     auto generator = std::make_unique<PixmanImageGenerator>(fps, w, h);
     auto fake = std::shared_ptr<ActiveFakePixmanDisplay>(
-            new ActiveFakePixmanDisplay(id, std::move(generator)));
+            new ActiveFakePixmanDisplay(loop, id, std::move(generator)));
     fake->mGenerator->addListener(fake);
     return fake;
 }
 
-ActiveFakePixmanDisplay::ActiveFakePixmanDisplay(int id,
+ActiveFakePixmanDisplay::ActiveFakePixmanDisplay(EventLoop* loop, int id,
                                                  std::unique_ptr<PixmanImageGenerator> generator)
-        : FakePixmanDisplay(id, generator->generateImage(Color::Blue))
+        : FakePixmanDisplay(loop, id, generator->generateImage(Color::Blue))
         , mGenerator(std::move(generator)) {}
 
 }  // namespace android::goldfish

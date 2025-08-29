@@ -55,7 +55,7 @@ class PixmanImagePtr {
 
 class PixmanDisplay : public IDisplay {
   public:
-    PixmanDisplay(int id, ::pixman_image_t* image);
+    PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
     virtual ~PixmanDisplay() = default;
 
     virtual void updateSourceImage(::pixman_image_t* image);

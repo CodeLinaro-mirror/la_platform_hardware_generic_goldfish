@@ -107,6 +107,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":avd_hdrs",
+        ":global-event-loop",
         ":gralloc_impl",
         ":qemu-looper",
         "//hardware/generic/goldfish/android/looper",
@@ -119,6 +120,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
         "//hardware/generic/goldfish/emulator/hal/camera",
         "//hardware/generic/goldfish/emulator/hal/clipboard",
+        "//hardware/generic/goldfish/emulator/hal/display",
         "//hardware/generic/goldfish/emulator/hal/fingerprint",
         "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status",

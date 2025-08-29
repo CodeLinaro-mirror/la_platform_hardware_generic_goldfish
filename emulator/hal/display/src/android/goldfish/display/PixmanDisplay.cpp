@@ -82,8 +82,8 @@ PixmanImagePtr& PixmanImagePtr::operator=(PixmanImagePtr&& other) noexcept {
     return mImage;
 }
 
-PixmanDisplay::PixmanDisplay(int id, ::pixman_image_t* image)
-        : IDisplay(id, pixman_image_get_width(image), pixman_image_get_height(image)) {
+PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
+        : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image)) {
     updateSourceImage(image);
 }
 

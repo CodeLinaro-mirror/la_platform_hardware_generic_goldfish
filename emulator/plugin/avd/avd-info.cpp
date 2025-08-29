@@ -32,9 +32,11 @@
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/avd.h"
+#include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
 #include "goldfish/avd/GrallocImpl.h"
+#include "goldfish/avd/global-event-loop.h"
 #include "goldfish/avd/qemu-looper.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 
@@ -100,7 +102,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     // Configure logging.
     // We assume logging has already be initialized in plugin.cpp.
-    //absl::InitializeLog();
+    // absl::InitializeLog();
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
     UpdateVModule(avd_info->vmodule);
@@ -117,6 +119,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::move(avd_status.value());
 
+    auto eventloop = goldfish::async::globalEventLoop();
     auto looper = android::goldfish::qemuLooper();
     auto avd = gAvd.get();
     auto registry = &goldfish::avd_info::deviceRegistry();
@@ -140,6 +143,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 {"qemu.sf.lcd_density"s, "420"s},
             },
             &DummyRegisterEmulatorReset);
+
+    android::goldfish::QemuMultidisplay::configureMultiDisplay(eventloop);
 }
 
 void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
@@ -152,8 +157,7 @@ void avd_info_set_vmodule(Object* obj, const char* value, Error** errp) {
     avd_info->vmodule = value;
 }
 
-void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque,
-                                   Error** errp) {
+void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     uint32_t value;
 
@@ -192,10 +196,10 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
 }
 
 const TypeInfo avd_info_type_info = {
-        .name = TYPE_AVD,
-        .parent = TYPE_DEVICE,
-        .instance_size = sizeof(AvdInfoDev),
-        .class_init = avd_info_class_init,
+    .name = TYPE_AVD,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(AvdInfoDev),
+    .class_init = avd_info_class_init,
 };
 
 }  // namespace
@@ -205,4 +209,3 @@ void avd_info_register_types(void) {
 }
 
 }  // namespace goldfish::avd_info
-

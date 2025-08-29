@@ -10,8 +10,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/grpc/event-stream",
-        # "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/android/async:async_impl",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
     ],
@@ -33,7 +32,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//hardware/generic/goldfish/emulator/grpc/event-stream",
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//third_party/qemu:qemu-headers",
@@ -82,6 +80,8 @@ cc_test(
     deps = [
         ":display",
         ":test-display",
+        "//hardware/generic/goldfish/android/async:async_impl",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

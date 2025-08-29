@@ -21,14 +21,9 @@
 
 namespace android::goldfish {
 
-FakeMultiDisplay::FakeMultiDisplay() : mEnabled(true) {
+FakeMultiDisplay::FakeMultiDisplay(EventLoop* loop) : IMultiDisplay(loop), mEnabled(true) {
     // Create the default display (displayId 0)
-    mDisplays[0] = ActiveFakePixmanDisplay::createShared(0, 30, 640, 480);
-}
-
-IMultiDisplay* FakeMultiDisplay::instance() {
-    static FakeMultiDisplay sInstance;
-    return &sInstance;
+    mDisplays[0] = ActiveFakePixmanDisplay::createShared(mLoop, 0, 30, 640, 480);
 }
 
 absl::StatusOr<DisplayPtr> FakeMultiDisplay::createDisplay(DisplayId displayId, uint32_t width,
@@ -37,7 +32,7 @@ absl::StatusOr<DisplayPtr> FakeMultiDisplay::createDisplay(DisplayId displayId, 
         return absl::InvalidArgumentError(
                 absl::StrFormat("Display with id %d already exists", displayId));
     }
-    auto sharedDisplay = ActiveFakePixmanDisplay::createShared(displayId, 30, width, height);
+    auto sharedDisplay = ActiveFakePixmanDisplay::createShared(mLoop, displayId, 30, width, height);
     mDisplays[displayId] = sharedDisplay;
     fireEvent(DisplayEvent{DisplayEvent::AddedEvent{sharedDisplay}});
     return sharedDisplay;

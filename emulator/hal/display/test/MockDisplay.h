@@ -21,7 +21,8 @@ using ::testing::Mock;
 namespace android::goldfish {
 class MockDisplay : public IDisplay {
   public:
-    MockDisplay(uint8_t id, uint32_t width, uint32_t height) : IDisplay(id, width, height) {}
+    MockDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+            : IDisplay(loop, id, width, height) {}
     MOCK_METHOD(absl::StatusOr<FrameInfo>, getPixels,
                 (PixelFormat fmt, int width, int height, int rotationDeg, uint8_t* pixel,
                  size_t* cPixels),

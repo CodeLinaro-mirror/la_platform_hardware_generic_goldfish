@@ -9,6 +9,8 @@
 #include "FakePixmanDisplay.h"
 #include "MockDisplay.h"
 #include "PixmanImageGenerator.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 
 extern "C" {
 #include "pixman.h"
@@ -136,14 +138,26 @@ TEST(PixmanImagePtr, MoveAssignmentOperator) {
     pixman_image_unref(image2);
 }
 
-TEST(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
+class FakePixmanDisplayTest : public ::testing::Test {
+  protected:
+    void SetUp() override {
+        mLoop = ::goldfish::async::ThreadedEventLoop::create(
+                ::goldfish::async::LibuvEventLoop::create());
+    }
+
+    void TearDown() override { mLoop.reset(); }
+
+    std::unique_ptr<EventLoop> mLoop;
+};
+
+TEST_F(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Start the generator
     display->start();
@@ -164,14 +178,14 @@ TEST(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     ASSERT_GT(display->seq().sequenceNumber, 2);
 }
 
-TEST(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
+TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the screenshot
     size_t cPixels = width * height * 4;
@@ -188,14 +202,14 @@ TEST(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
     ASSERT_NE(pixelData[0], 0);
 }
 
-TEST(FakePixmanDisplayTest, GetScreenshotRGB888) {
+TEST_F(FakePixmanDisplayTest, GetScreenshotRGB888) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the screenshot
     size_t cPixels = width * height * 3;
@@ -213,14 +227,14 @@ TEST(FakePixmanDisplayTest, GetScreenshotRGB888) {
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2], 0);
 }
 
-TEST(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
+TEST_F(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the screenshot with a too small buffer
     size_t cPixels = 10;
@@ -233,14 +247,14 @@ TEST(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
     ASSERT_GT(cPixels, 10);
 }
 
-TEST(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
+TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // First call with a too small buffer
     size_t cPixels = 10;
@@ -264,14 +278,14 @@ TEST(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
 }
 
-TEST(FakePixmanDisplayTest, InitialImageIsBlue) {
+TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the initial image
     ::pixman_image_t* initialImage = display->image();
@@ -299,14 +313,14 @@ class TestListener : public EventListener<ResizeEvent> {
     std::vector<ResizeEvent> events;
 };
 
-TEST(FakePixmanDisplayTest, ResizeEvent) {
+TEST_F(FakePixmanDisplayTest, ResizeEvent) {
     int fps = 10;
     int width = 100;
     int height = 50;
     int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
     auto listener = std::make_shared<TestListener>();
     display->ResizeEventCallbackSource::addListener(listener);
 
@@ -322,6 +336,58 @@ TEST(FakePixmanDisplayTest, ResizeEvent) {
     EXPECT_EQ(listener->events[0].previousHeight, 50);
     EXPECT_EQ(listener->events[0].width, 200);
     EXPECT_EQ(listener->events[0].height, 100);
+}
+
+TEST_F(FakePixmanDisplayTest, ResizeEventsAreOnTheEventLoop) {
+    int fps = 10;
+    int width = 100;
+    int height = 50;
+    int id = 0;
+
+    // Create an ActiveFakePixmanDisplay
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto listener = std::make_shared<TestListener>();
+
+    auto callbackSource = static_cast<ResizeEventCallbackSource*>(display.get());
+    auto callback = android::base::eventing::makeScopedCallback(
+            *callbackSource, [&](const ResizeEvent& event) {
+                ASSERT_TRUE(mLoop->isOnLoopThread())
+                        << "Event should have been delivered on the event loop";
+            });
+    // Start the generator
+    display->start();
+    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->resize(200, 100);
+    display->waitForFramesWithTimeout(4, absl::Milliseconds(500));
+    display->stop();
+}
+
+TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
+    int fps = 10;
+    int width = 100;
+    int height = 50;
+    int id = 0;
+    std::atomic_int frames = 0;
+    // Create an ActiveFakePixmanDisplay
+    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto listener = std::make_shared<TestListener>();
+
+    // Cast the source so our scopedCallback doesn't get confused (display has multiple event
+    // sources)
+    auto callbackSource = static_cast<FrameInfoCallbackSource*>(display.get());
+    auto callback = android::base::eventing::makeScopedCallback(
+            *callbackSource, [&](const FrameInfo& event) {
+                frames++;
+                ASSERT_TRUE(mLoop->isOnLoopThread())
+                        << "Event should have been delivered on the event loop";
+            });
+    // Start the generator
+    display->start();
+    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->stop();
+
+    // We delivered some frames to our callback, where we verified that it is on the event loop
+    EXPECT_GT(frames, 0);
 }
 
 }  // namespace android::goldfish

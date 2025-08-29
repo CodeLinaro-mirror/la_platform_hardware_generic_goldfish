@@ -15,6 +15,8 @@
 
 #include <memory>
 
+#include "absl/synchronization/mutex.h"
+
 #include "PixmanImageGenerator.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/goldfish/display/Display.h"
@@ -118,7 +120,7 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param id The ID of the display.
      * @param image The initial pixman image to display.
      */
-    FakePixmanDisplay(int id, ::pixman_image_t* image);
+    FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
     /**
      * @brief Destroys the FakePixmanDisplay.
      */
@@ -162,7 +164,10 @@ struct FakePixmanDisplay : public PixmanDisplay {
      *
      * @return A pointer to the current pixman image.
      */
-    ::pixman_image_t* image() { return mSourceImage.get(); }
+    ::pixman_image_t* image() {
+        absl::MutexLock lock(&mDisplayAccess);
+        return mSourceImage.get();
+    }
 
     std::vector<FakeEvDevEvent> mEvdevs;       ///< A list of simulated evdev events.
     std::vector<FakeMouseEvent> mMouseEvents;  ///< A list of simulated mouse events.
@@ -228,7 +233,8 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @param h The height of the generated images.
      * @return An ActiveFakePixmanDisplay object.
      */
-    static std::shared_ptr<ActiveFakePixmanDisplay> createShared(int id, int fps, int w, int h);
+    static std::shared_ptr<ActiveFakePixmanDisplay> createShared(EventLoop* loop, int id, int fps,
+                                                                 int w, int h);
 
   private:
     /**
@@ -237,7 +243,8 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @param id The ID of the display.
      * @param generator A unique pointer to the PixmanImageGenerator.
      */
-    ActiveFakePixmanDisplay(int id, std::unique_ptr<PixmanImageGenerator> generator);
+    ActiveFakePixmanDisplay(EventLoop* loop, int id,
+                            std::unique_ptr<PixmanImageGenerator> generator);
 
     std::unique_ptr<PixmanImageGenerator> mGenerator;
 };

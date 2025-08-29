@@ -61,6 +61,8 @@ cc_test(
     includes = ["test"],
     deps = [
         ":emulator-service",
+        "//hardware/generic/goldfish/android/async:async_impl",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/config:avd-test",
         "//hardware/generic/goldfish/emulator/devices:test-helpers",

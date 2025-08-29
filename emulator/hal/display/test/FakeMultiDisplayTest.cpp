@@ -1,9 +1,18 @@
+#include <android/goldfish/display/MultiDisplay.h>
 #include <gtest/gtest.h>
 
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <vector>
+
+#include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
 
 #include "FakeMultiDisplay.h"
 #include "FakePixmanDisplay.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 
 namespace android::goldfish {
 
@@ -12,20 +21,44 @@ using android::base::eventing::EventListener;
 class FakeMultiDisplayTest : public ::testing::Test {
   protected:
     void SetUp() override {
+        mLoop = ::goldfish::async::ThreadedEventLoop::create(
+                ::goldfish::async::LibuvEventLoop::create());
+
         // Clear all displays except the default one before each test
-        reinterpret_cast<FakeMultiDisplay*>(FakeMultiDisplay::instance())->clear();
+        mFakeMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
+        IMultiDisplay::injectSingleton(mFakeMultiDisplay.get());
     }
+    void TearDown() override { mLoop.reset(); }
+
+    std::unique_ptr<FakeMultiDisplay> mFakeMultiDisplay;
+    std::unique_ptr<EventLoop> mLoop;
 };
 
 class DisplayEventListener : public EventListener<DisplayEvent> {
   public:
-    void eventArrived(const DisplayEvent& event) override { events.push_back(event); }
+    void eventArrived(const DisplayEvent& event) override {
+        std::unique_lock<std::mutex> lock(mMutex);
+        events.push_back(event);
+        mCv.notify_one();
+    }
+
+    bool waitForEvent(size_t eventCount,
+                      std::chrono::milliseconds timeout = std::chrono::milliseconds(1000)) {
+        std::unique_lock<std::mutex> lock(mMutex);
+        return mCv.wait_for(lock, timeout,
+                            [this, eventCount] { return events.size() >= eventCount; });
+    }
+
     std::vector<DisplayEvent> events;
+
+  private:
+    std::mutex mMutex;
+    std::condition_variable mCv;
 };
 
 TEST_F(FakeMultiDisplayTest, CreateAndGetDisplay) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Create a new display
     auto result = multiDisplay->createDisplay(1, 800, 600);
@@ -43,7 +76,7 @@ TEST_F(FakeMultiDisplayTest, CreateAndGetDisplay) {
 
 TEST_F(FakeMultiDisplayTest, CreateDisplayAlreadyExists) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Create a new display
     auto result = multiDisplay->createDisplay(2, 800, 600);
@@ -57,7 +90,7 @@ TEST_F(FakeMultiDisplayTest, CreateDisplayAlreadyExists) {
 
 TEST_F(FakeMultiDisplayTest, GetDisplayNotFound) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Try to get a non-existent display
     auto result = multiDisplay->getDisplay(99);
@@ -67,7 +100,7 @@ TEST_F(FakeMultiDisplayTest, GetDisplayNotFound) {
 
 TEST_F(FakeMultiDisplayTest, EraseDisplay) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Create a new display
     auto result = multiDisplay->createDisplay(3, 800, 600);
@@ -85,7 +118,7 @@ TEST_F(FakeMultiDisplayTest, EraseDisplay) {
 
 TEST_F(FakeMultiDisplayTest, EraseDefaultDisplay) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Try to erase the default display
     auto result = multiDisplay->eraseDisplay(0);
@@ -95,7 +128,7 @@ TEST_F(FakeMultiDisplayTest, EraseDefaultDisplay) {
 
 TEST_F(FakeMultiDisplayTest, Displays) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Create a few displays
     auto result1 = multiDisplay->createDisplay(4, 800, 600);
@@ -122,7 +155,7 @@ TEST_F(FakeMultiDisplayTest, Displays) {
 
 TEST_F(FakeMultiDisplayTest, DefaultDisplay) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Get the default display
     DisplayPtr defaultDisplay = multiDisplay->defaultDisplay().value();
@@ -133,21 +166,24 @@ TEST_F(FakeMultiDisplayTest, DefaultDisplay) {
 
 TEST_F(FakeMultiDisplayTest, IsEnabled) {
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
 
     // Check if the display is enabled
     ASSERT_TRUE(multiDisplay->isEnabled());
 }
 
 TEST_F(FakeMultiDisplayTest, DisplayEvents) {
+    using namespace std::chrono_literals;
     // Get the singleton instance
-    IMultiDisplay* multiDisplay = FakeMultiDisplay::instance();
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
     auto listener = std::make_shared<DisplayEventListener>();
     reinterpret_cast<CallbackEventSource<DisplayEvent>*>(multiDisplay)->addListener(listener);
 
     // Create a new display
     auto result = multiDisplay->createDisplay(1, 800, 600);
     ASSERT_TRUE(result.ok());
+
+    ASSERT_TRUE(listener->waitForEvent(1, 1s));
     ASSERT_EQ(listener->events.size(), 1);
     ASSERT_TRUE(listener->events[0].isAddedEvent());
     ASSERT_EQ(listener->events[0].display().lock()->id(), 1);
@@ -155,9 +191,26 @@ TEST_F(FakeMultiDisplayTest, DisplayEvents) {
     // Erase the display
     auto eraseResult = multiDisplay->eraseDisplay(1);
     ASSERT_TRUE(eraseResult.ok());
+
+    ASSERT_TRUE(listener->waitForEvent(2, 1s));
     ASSERT_EQ(listener->events.size(), 2);
     ASSERT_TRUE(listener->events[1].isDeletedEvent());
     ASSERT_EQ(listener->events[1].displayId(), 1);
 }
 
+TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
+    using namespace std::chrono_literals;
+    // Get the singleton instance
+    IMultiDisplay* multiDisplay = IMultiDisplay::instance();
+    absl::Notification event;
+    auto callback =
+            android::base::eventing::makeScopedCallback(*multiDisplay, [&](const DisplayEvent& _) {
+                ASSERT_TRUE(mLoop->isOnLoopThread())
+                        << "Event should have been delivered on the event loop";
+                event.Notify();
+            });
+    auto result = multiDisplay->createDisplay(1, 800, 600);
+    ASSERT_TRUE(result.ok());
+    event.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+}
 }  // namespace android::goldfish

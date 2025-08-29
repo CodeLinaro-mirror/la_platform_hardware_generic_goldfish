@@ -20,6 +20,8 @@
 #include "gtest/gtest.h"
 
 #include "android/goldfish/display/Display.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 
 namespace android::goldfish {
 namespace {
@@ -27,7 +29,8 @@ namespace {
 // Test Display implementation for unit testing.
 class TestDisplay : public IDisplay {
   public:
-    TestDisplay(uint8_t id, uint32_t width, uint32_t height) : IDisplay(id, width, height) {}
+    TestDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+            : IDisplay(loop, id, width, height) {}
 
     absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height, int rotationDeg,
                                         uint8_t* pixel, size_t* cPixels) const override {
@@ -45,8 +48,20 @@ class TestDisplay : public IDisplay {
     void incoming() { frameReceived(); }
 };
 
-TEST(DisplayTest, WaitForFrameTimeout) {
-    TestDisplay display(0, 100, 100);
+class DisplayTest : public ::testing::Test {
+  protected:
+    void SetUp() override {
+        mLoop = ::goldfish::async::ThreadedEventLoop::create(
+                ::goldfish::async::LibuvEventLoop::create());
+    }
+
+    void TearDown() override { mLoop.reset(); }
+
+    std::unique_ptr<EventLoop> mLoop;
+};
+
+TEST_F(DisplayTest, WaitForFrameTimeout) {
+    TestDisplay display(mLoop.get(), 0, 100, 100);
     uint64_t initialSeq = display.seq().sequenceNumber;
 
     // Test timeout.
@@ -54,8 +69,8 @@ TEST(DisplayTest, WaitForFrameTimeout) {
     EXPECT_FALSE(display.waitForFrame(timeout, initialSeq));
 }
 
-TEST(DisplayTest, WaitForFrameSuccess) {
-    TestDisplay display(0, 100, 100);
+TEST_F(DisplayTest, WaitForFrameSuccess) {
+    TestDisplay display(mLoop.get(), 0, 100, 100);
     uint64_t initialSeq = display.seq().sequenceNumber;
 
     std::thread frameUpdater([&display, initialSeq]() {
@@ -69,8 +84,8 @@ TEST(DisplayTest, WaitForFrameSuccess) {
     frameUpdater.join();
 }
 
-TEST(DisplayTest, WaitForNextFrameSuccess) {
-    TestDisplay display(0, 100, 100);
+TEST_F(DisplayTest, WaitForNextFrameSuccess) {
+    TestDisplay display(mLoop.get(), 0, 100, 100);
 
     std::thread frameUpdater([&display]() {
         absl::SleepFor(absl::Milliseconds(5));  // Simulate frame update delay
@@ -82,8 +97,8 @@ TEST(DisplayTest, WaitForNextFrameSuccess) {
     frameUpdater.join();
 }
 
-TEST(DisplayTest, WaitForNextFrameTimeout) {
-    TestDisplay display(0, 100, 100);
+TEST_F(DisplayTest, WaitForNextFrameTimeout) {
+    TestDisplay display(mLoop.get(), 0, 100, 100);
 
     auto timeout = absl::Milliseconds(10);
     EXPECT_FALSE(display.waitForNextFrame(timeout));

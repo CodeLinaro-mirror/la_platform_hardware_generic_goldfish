@@ -25,6 +25,8 @@
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/display/PixmanDisplay.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
@@ -45,11 +47,14 @@ using namespace std::chrono_literals;
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
     void SetUp() override {
+        mLoop = ::goldfish::async::ThreadedEventLoop::create(
+                ::goldfish::async::LibuvEventLoop::create());
+
         // Clear all displays except the default one before each test
-        mMultiDisplay = reinterpret_cast<FakeMultiDisplay*>(FakeMultiDisplay::instance());
+        mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mMultiDisplay->clear();
         ISensorDevice::registerDevice(&mRegistry, mAvd, mRegistry.getLooper());
-        mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay, &mRegistry);
+        mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), &mRegistry);
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());
 
@@ -74,7 +79,8 @@ class DisplayServiceTest : public GrcpServiceTest {
         ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
     }
 
-    FakeMultiDisplay* mMultiDisplay;
+    std::unique_ptr<FakeMultiDisplay> mMultiDisplay;
+    std::unique_ptr<::goldfish::async::EventLoop> mLoop;
     goldfish::FakeAvd mAvd;
     TestConnectorRegistry mRegistry;
     std::unique_ptr<DisplayServiceImpl> mDisplayService;

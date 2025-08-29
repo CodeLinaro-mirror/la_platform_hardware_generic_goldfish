@@ -13,11 +13,18 @@
 // limitations under the License.
 #pragma once
 
+#include <goldfish/async/event_loop.h>
+
+#include <atomic>
 #include <vector>
 
 #include "android/goldfish/display/Display.h"
+#include "goldfish/async/event_loop_dispatcher.h"
 
 namespace android::goldfish {
+
+using ::goldfish::async::EventLoop;
+using ::goldfish::async::LoopBoundCallbackSource;
 
 using DisplayId = unsigned;
 
@@ -51,13 +58,17 @@ struct DisplayEvent {
  * @brief Singleton class managing a collection of IDisplay objects.
  *
  */
-class IMultiDisplay : public CallbackEventSource<DisplayEvent> {
+class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
   public:
     /**
      * @brief Returns the singleton instance of MultiDisplay.
      * @return Pointer to the MultiDisplay instance.
      */
     static IMultiDisplay* instance();
+    static void injectSingleton(IMultiDisplay* display);
+
+    IMultiDisplay(EventLoop* loop) : LoopBoundCallbackSource<DisplayEvent>(loop), mLoop(loop) {}
+    virtual ~IMultiDisplay() = default;
 
     /**
      * @brief Creates a new IDisplay object and adds it to the managed collection.
@@ -128,6 +139,16 @@ class IMultiDisplay : public CallbackEventSource<DisplayEvent> {
     absl::StatusOr<DisplayPtr> defaultDisplay() const { return getDisplay(0); }
 
     static constexpr size_t maxDisplays = 11;  ///< Maximum number of supported Android displays.
+
+  protected:
+    EventLoop* mLoop;
+
+  private:
+    static std::atomic<IMultiDisplay*> gSingleton;
 };
+
+namespace QemuMultidisplay {
+void configureMultiDisplay(EventLoop* loop);
+}
 
 }  // namespace android::goldfish

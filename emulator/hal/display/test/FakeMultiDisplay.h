@@ -26,7 +26,7 @@ namespace android::goldfish {
  */
 class FakeMultiDisplay : public IMultiDisplay {
   public:
-    FakeMultiDisplay();
+    FakeMultiDisplay(EventLoop* loop);
     ~FakeMultiDisplay() = default;
 
     /**

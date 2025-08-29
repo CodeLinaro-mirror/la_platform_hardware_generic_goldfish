@@ -16,7 +16,7 @@
 namespace android::goldfish {
 class NullDisplay : public IDisplay {
   public:
-    NullDisplay() : IDisplay(-1, -1, -1) { mActive = false; }
+    NullDisplay() : IDisplay(nullptr, -1, -1, -1) { mActive = false; }
     ~NullDisplay() = default;
 
     absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height, int rotationDeg,

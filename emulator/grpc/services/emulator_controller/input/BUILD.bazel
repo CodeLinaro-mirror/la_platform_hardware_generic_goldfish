@@ -37,10 +37,12 @@ cc_test(
     ],
     deps = [
         ":input",
+        "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/logging:backend",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/grpc/event-stream",
         "//hardware/generic/goldfish/emulator/hal/display:test-display",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",

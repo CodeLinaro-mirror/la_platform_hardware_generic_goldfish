@@ -24,10 +24,12 @@
 
 #include "MockDisplay.h"
 #include "android/emulation/control/input/SlotRegistry.h"
+#include "goldfish/async/testing/test_event_loop.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
 
 using android::emulation::control::EvDevEvent;
+using ::goldfish::async::testing::TestEventLoop;
 using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -83,7 +85,8 @@ TEST(PenTouchEventTest, EvDevEventsConversion) {
 
 TEST(PenTouchEventTest, SendEvents) {
     // Create a mock display.
-    MockDisplay display(0, 1024, 768);
+    auto evloop = TestEventLoop::create();
+    MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcher dispatcher;
@@ -131,7 +134,8 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     // Create a mock display, note we are using a nicemock
     // as we will make a series of calls to our mock that we
     // do not care about.
-    ::testing::NiceMock<MockDisplay> display(0, 1024, 768);
+    auto evloop = TestEventLoop::create();
+    ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcherUnderTest dispatcher;
@@ -267,7 +271,8 @@ TEST(TouchEvDevTest, NoReleaseTwice) {
 
 TEST(MultiTouchEventTest, SendEventsPress) {
     // Create a mock display.
-    MockDisplay display(0, 1024, 768);
+    auto evloop = TestEventLoop::create();
+    MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcher dispatcher;
@@ -306,7 +311,8 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     // Create a mock display, note we are using a nicemock
     // as we will make a series of calls to our mock that we
     // do not care about.
-    ::testing::NiceMock<MockDisplay> display(0, 1024, 768);
+    auto evloop = TestEventLoop::create();
+    ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcherUnderTest dispatcher;
@@ -343,7 +349,8 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
 
 TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
     // Create a mock display.
-    MockDisplay display(0, 1024, 768);
+    auto evloop = TestEventLoop::create();
+    MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcher dispatcher;

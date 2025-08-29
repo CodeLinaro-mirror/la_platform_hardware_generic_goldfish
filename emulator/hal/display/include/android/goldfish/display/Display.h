@@ -21,11 +21,12 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/EventSources.h"
+#include "goldfish/async/event_loop_dispatcher.h"
 
 namespace android::goldfish {
 
-using android::base::eventing::CallbackEventSource;
+using ::goldfish::async::EventLoop;
+using ::goldfish::async::LoopBoundCallbackSource;
 
 struct pixman_image_t;
 struct InputEvent;
@@ -79,8 +80,8 @@ class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
 
-using FrameInfoCallbackSource = CallbackEventSource<FrameInfo>;
-using ResizeEventCallbackSource = CallbackEventSource<ResizeEvent>;
+using FrameInfoCallbackSource = LoopBoundCallbackSource<FrameInfo>;
+using ResizeEventCallbackSource = LoopBoundCallbackSource<ResizeEvent>;
 /**
  * @class IDisplay
  * @brief Interface representing an Android display.
@@ -97,6 +98,8 @@ class IDisplay : public FrameInfoCallbackSource,
                  public ResizeEventCallbackSource,
                  public std::enable_shared_from_this<IDisplay> {
   public:
+    IDisplay(EventLoop* loop)
+            : FrameInfoCallbackSource(loop), ResizeEventCallbackSource(loop), mSeq(0) {}
     virtual ~IDisplay() = default;
 
     /**
@@ -218,8 +221,13 @@ class IDisplay : public FrameInfoCallbackSource,
         return absl::StrFormat("Display: %d (%dx%d)", mDisplayId, mWidth, mHeight);
     };
 
-    IDisplay(uint8_t id, uint32_t width, uint32_t height)
-            : mDisplayId(id), mWidth(width), mHeight(height), mSeq(0) {}
+    IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
+            : FrameInfoCallbackSource(loop)
+            , ResizeEventCallbackSource(loop)
+            , mDisplayId(id)
+            , mWidth(width)
+            , mHeight(height)
+            , mSeq(0) {}
 
     uint8_t mDisplayId;
     uint32_t mWidth;
