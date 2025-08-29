@@ -114,6 +114,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         mIsConnected = false;
 
         if (!uv_is_closing((const uv_handle_t*)&mTcpHandle)) {
+            delete mTcpHandle.data;
             mTcpHandle.data = new std::shared_ptr<LibuvSocket>(shared_from_this());
             uv_close((uv_handle_t*)&mTcpHandle, [](uv_handle_t* h) {
                 auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(h->data);
