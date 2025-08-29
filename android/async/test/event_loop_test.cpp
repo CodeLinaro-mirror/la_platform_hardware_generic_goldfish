@@ -103,7 +103,14 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTask) {
     EXPECT_TRUE(future.get());
 }
 
-TEST_P(EventLoopTest, PostAndWaitFromLoopThreadFails) {
+// From https://github.com/google/googletest/blob/main/docs/advanced.md#death-tests-and-threads
+// Due to well-known problems with forking in the presence of threads, death tests should be run in
+// a single-threaded context. Sometimes, however, it isn't feasible to arrange that kind of
+// environment. For example, statically-initialized modules may start threads before main is ever
+// reached. Once threads have been created, it may be difficult or impossible to clean them up.
+//
+// For us this translates into all sorts of strange behavior.
+TEST_P(EventLoopTest, DISABLED_PostAndWaitFromLoopThreadFails) {
     if (mLoopType == "libuv") {
         std::promise<void> status_promise;
         auto status_future = status_promise.get_future();
