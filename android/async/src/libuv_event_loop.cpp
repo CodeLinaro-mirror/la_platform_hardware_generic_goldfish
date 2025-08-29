@@ -53,7 +53,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     LibuvTimer(LibuvEventLoop* loop, EventLoop::Task task, bool repeating)
             : mEventLoop(loop), mTask(std::move(task)), mIsRepeating(repeating) {
         mUvTimer = new uv_timer_t;
-        mEventLoop->post([uv_timer = mUvTimer, loop = mEventLoop->mLoop]() {
+        (void)mEventLoop->post([uv_timer = mUvTimer, loop = mEventLoop->mLoop]() {
             uv_timer_init(loop, uv_timer);
         });
         absl::MutexLock lock(&mEventLoop->mActiveTimersMutex);
@@ -73,7 +73,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         if (!mIsClosed.load()) {
             // We are not closed, this means we still exist on the uv queue and
             // must stop and clean our handle
-            mEventLoop->post([uv_timer = mUvTimer]() {
+            (void)mEventLoop->post([uv_timer = mUvTimer]() {
                 uv_timer_stop(uv_timer);
                 uv_close((uv_handle_t*)uv_timer, [](auto handle) { delete handle; });
             });
@@ -100,7 +100,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     void cancel() override {
         if (!mIsClosed.load()) {
             // Stop and delete the timer from the event loop.
-            mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
+            (void)mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
         }
     }
 
@@ -228,12 +228,13 @@ static void onInternalHandleClosed(uv_handle_t* handle) {
 }
 
 std::future<absl::Status> LibuvEventLoop::shutdown(std::chrono::milliseconds timeout) {
+    bool isRunning = getState() == LooperStatusEvent::State::RUNNING;
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
 
     // Handle cases where shutdown is not possible by returning an immediately-fulfilled future.
-    if (!mIsRunning || isOnLoopThread()) {
-        const char* msg = !mIsRunning ? "You cannot shutdown a loop that is not running."
-                                      : "You cannot shutdown an event loop from the loop thread.";
+    if (!isRunning || isOnLoopThread()) {
+        const char* msg = !isRunning ? "You cannot shutdown a loop that is not running."
+                                     : "You cannot shutdown an event loop from the loop thread.";
         std::promise<absl::Status> promise;
         promise.set_value(absl::InvalidArgumentError(msg));
         return promise.get_future();
@@ -254,7 +255,7 @@ std::future<absl::Status> LibuvEventLoop::shutdown(std::chrono::milliseconds tim
     auto wait_until = absl::Now() + absl::FromChrono(timeout);
 
     // Post the actual shutdown logic using the private doPost.
-    doPost([this, wait_until]() {
+    (void)doPost([this, wait_until]() {
         {
             absl::MutexLock lock(&mActiveTimersMutex);
             for (auto timer : mActiveTimers) {
@@ -288,10 +289,11 @@ absl::Status LibuvEventLoop::run() {
     }
 
     mThreadId = std::this_thread::get_id();
-    mIsRunning = true;
-    setState(LooperStatusEvent::State::RUNNING);
+    // Post a task to our own queue. When this task executes, we can be
+    // certain that the event loop is actively processing events.
+    (void)post([this]() { setState(LooperStatusEvent::State::RUNNING); });
+
     int err = uv_run(mLoop, UV_RUN_DEFAULT);
-    mIsRunning = false;
     setState(LooperStatusEvent::State::FINISHED);
     auto status = UvErrToAbslStatus(err);
     err = uv_idle_stop(mKeepAliveHandle);

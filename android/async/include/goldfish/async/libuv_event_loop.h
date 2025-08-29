@@ -142,7 +142,6 @@ class LibuvEventLoop : public EventLoop {
     std::atomic<bool> mIsShuttingDown{false};
     std::promise<absl::Status> mShutdownCompletePromise;
     std::atomic<bool> mPromiseSet{false};
-    std::atomic<bool> mIsRunning{false};
 };
 
 }  // namespace goldfish::async

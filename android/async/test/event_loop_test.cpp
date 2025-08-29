@@ -772,8 +772,41 @@ INSTANTIATE_TEST_SUITE_P(EventLoopImplementations, EventLoopTest,
                              return name;
                          });
 
+TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
+    if (mLoopType == "qemu") {
+        GTEST_SKIP() << "This test is specific to the LibuvEventLoop lifecycle.";
+    }
+
+    // This test validates a race-free shutdown of the event loop immediately after its creation.
+    //
+    // The problem this test addresses is a potential race condition between a newly created
+    // ThreadedEventLoop and its shutdown sequence. In the old implementation, the event loop's
+    // state might have been prematurely marked as "RUNNING" or its shutdown process initiated
+    // before the worker thread had fully entered the `uv_run` loop. This could lead to:
+    //
+    // 1. **Data Race:** A race between the main thread calling `uv_stop` during shutdown and the
+    //    worker thread reading the loop's state inside `uv_run`. This is a classic read/write
+    //    race on shared state, which ThreadSanitizer (TSan) would correctly flag.
+    //
+    // 2. **Premature Shutdown:** The main thread's `shutdown` and `stop` calls could execute
+    //    before the `uv_run` loop was fully initialized, causing the teardown to operate on
+    //    an incomplete or invalid state.
+    //
+    // The current implementation in `ThreadedEventLoop` correctly addresses this by posting
+    // a task to the event loop that updates the state to "RUNNING" and by ensuring the constructor
+    // will finish after the event loop is marked as running.
+    //
+    // The test confirms this by creating a `ThreadedEventLoop` and immediately shutting it
+    // down, verifying that no TSan failures or crashes occur.
+    ThreadedEventLoop threaded_loop(std::move(mLibuvLoop));
+    auto future = threaded_loop.shutdown(1s);
+    future.wait_for(1s);
+    ASSERT_TRUE(future.get().ok()) << "Shutdown failed, the thread host run is likely not active.";
+    threaded_loop.stop();
+}
+
 // DISABLED Until we have event fixes
-TEST_P(EventLoopTest, DISABLED_LibuvEventStateChanges) {
+TEST_P(EventLoopTest, LibuvEventStateChanges) {
     if (mLoopType == "qemu") {
         GTEST_SKIP() << "This test is specific to the LibuvEventLoop lifecycle.";
     }
@@ -807,7 +840,7 @@ TEST_P(EventLoopTest, DISABLED_LibuvEventStateChanges) {
 }
 
 // DISABLED Until we have event fixes
-TEST_P(EventLoopTest, DISABLED_ThreadedEventStateChanges) {
+TEST_P(EventLoopTest, ThreadedEventStateChanges) {
     if (mLoopType == "qemu") {
         GTEST_SKIP() << "ThreadedEventLoop is not compatible with the singleton QemuEventLoop.";
     }
@@ -815,29 +848,22 @@ TEST_P(EventLoopTest, DISABLED_ThreadedEventStateChanges) {
     ThreadedEventLoop threaded_loop(std::move(mLibuvLoop));
     std::vector<LooperStatusEvent::State> states;
     absl::Notification finished;
-    absl::Notification running;
 
     auto subscription = android::base::eventing::makeScopedCallback(
             threaded_loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << "state: " << event;
-                if (event.state == LooperStatusEvent::State::RUNNING) {
-                    running.Notify();
-                }
                 if (event.state == LooperStatusEvent::State::FINISHED) {
                     finished.Notify();
                 }
             });
 
-    // ASSERT_TRUE(threaded_loop.run().ok());
-    running.WaitForNotification();
     auto status = threaded_loop.shutdown(1s).get();
     ASSERT_TRUE(status.ok());
     threaded_loop.stop();
     finished.WaitForNotification();
 
-    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::RUNNING,
-                                               LooperStatusEvent::State::SHUTTING_DOWN,
+    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::SHUTTING_DOWN,
                                                LooperStatusEvent::State::FINISHED));
 }
 

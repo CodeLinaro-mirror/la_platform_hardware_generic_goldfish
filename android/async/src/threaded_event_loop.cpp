@@ -13,12 +13,15 @@
 // limitations under the License.
 #include "goldfish/async/threaded_event_loop.h"
 
+#include <goldfish/async/event_loop.h>
+
 #include <future>
 #include <memory>
 #include <thread>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
 #ifdef _WIN32
@@ -35,11 +38,27 @@
 
 namespace goldfish::async {
 
+constexpr absl::Duration kMaxStartTimeout = absl::Milliseconds(100);
+
 ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop, std::string name)
         : mLoop(std::move(loop)), mLooperName(std::move(name)) {
     mSubscription = android::base::eventing::makeScopedCallback(
             *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
+    absl::Notification isRunning;
+    auto waitForRun = android::base::eventing::makeScopedCallback(
+            *mLoop, [&isRunning](const LooperStatusEvent& event) {
+                VLOG(1) << "Eventloop state transitioned to " << event;
+                if (event.state == LooperStatusEvent::State::RUNNING) {
+                    isRunning.Notify();
+                }
+            });
+
     (void)run();
+
+    VLOG(1) << "Waiting until the thread is truly running";
+    if (!isRunning.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
+        LOG(WARNING) << "Eventloop state did not transition to running within " << kMaxStartTimeout;
+    }
 }
 
 ThreadedEventLoop::~ThreadedEventLoop() {

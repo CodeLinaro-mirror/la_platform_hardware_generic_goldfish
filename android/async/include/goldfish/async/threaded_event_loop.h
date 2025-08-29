@@ -38,6 +38,10 @@ class ThreadedEventLoop : public EventLoop {
   public:
     /**
      * @brief Constructs a ThreadedEventLoop.
+     *
+     * The constructor will spin up a new thread and run the EventLoop.
+     * it will block and wait until the EventLoop has marked itself as started.
+     *
      * @param loop A unique_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
