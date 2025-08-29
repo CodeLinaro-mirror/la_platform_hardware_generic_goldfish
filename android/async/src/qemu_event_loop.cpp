@@ -79,7 +79,6 @@ class QemuEventLoop : public EventLoop {
 
         // Schedules the QEMU timer.
         void start() {
-            std::lock_guard<std::mutex> lock(mMutex);
             if (mCancelled) return;
 
             // Lifetime Management with `mSelf`:
@@ -106,41 +105,33 @@ class QemuEventLoop : public EventLoop {
             timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_HOST) + mDelay.count());
         }
 
+        void cleanup() {
+            // The timer is still pending. We need to safely free the underlying
+            // QEMUTimer from the QEMU main thread. We post a task to do this.
+            // The lambda captures `mSelf` to ensure `this` is still alive when
+            // the cleanup task runs.
+            if (mCleanup.exchange(true)) {
+                return;
+            };
+
+            // Guaranteed to run once b/441087461 is fixed.
+            mLoop->post([qemu_timer = mQemuTimer, self = mSelf]() {
+                // This will both remove the timers that are scheduled
+                // and cleanup any resources. Since we are on the loop thread ourselves
+                // we can guarantee that no timer is active.
+                timer_free(qemu_timer);
+
+                // Break the self-reference cycle to allow destruction if needed.
+                self->mSelf.reset();
+            });
+        }
+
         // Cancels the timer. This is thread-safe.
         void cancel() override {
-            // Calling cancel while in the callback, note that clean up will
-            // happen upon return of this function.
-            if (std::this_thread::get_id() == mCallbackThread.load()) {
-                mCancelled = true;
+            if (mCancelled.exchange(true)) {
                 return;
             }
-
-            std::lock_guard<std::mutex> lock(mMutex);
-            if (mCancelled) {
-                // Maybe cancel was being called from within the callback and we
-                // have disappeared already, or many threads are trying to cancel
-                // at the same time.
-                return;
-            }
-            mCancelled = true;
-
-            if (mQemuTimer) {
-                // The timer is still pending. We need to safely free the underlying
-                // QEMUTimer from the QEMU main thread. We post a task to do this.
-                // The lambda captures `mSelf` to ensure `this` is still alive when
-                // the cleanup task runs.
-                mLoop->post([qemu_timer = mQemuTimer, self = mSelf]() {
-                    timer_del(qemu_timer);
-                    timer_free(qemu_timer);
-                    // Break the self-reference cycle to allow destruction.
-                    self->mSelf.reset();
-                });
-                mQemuTimer = nullptr;
-            } else {
-                // The timer has already fired or was never started. We can just
-                // break the self-reference cycle now.
-                mSelf.reset();
-            }
+            cleanup();
         }
 
       private:
@@ -152,47 +143,34 @@ class QemuEventLoop : public EventLoop {
 
         // Called when the QEMU timer fires.
         void handleFire() {
-            std::unique_lock<std::mutex> lock(mMutex);
+            // Note: Only on thread is every active here.
 
-            // Clearly we are on the qemu thread, so let's mark
+            // Clearly we are on the qemu thread, so let's mark it.
             mLoop->setQemuThread();
-            if (mCancelled) {
+            if (mCancelled.load()) {
                 // Can happen if cancel() is called just as the timer fires.
-                // The cancel() method will handle breaking the self-reference.
-                lock.unlock();
-                mSelf.reset();  // Release self-reference
+                cleanup();
                 return;
             }
 
-            assert(mCallbackThread.load() == std::thread::id() &&
-                   "Multiple threads are trying to fire the timer!");
-            mCallbackThread.store(std::this_thread::get_id());
             mTask();
-            mCallbackThread.store(std::thread::id());
 
-            if (mInterval.count() > 0 && !mCancelled) {
-                // It's a repeating timer, so we reschedule it. The self-reference
-                // in `mSelf` remains, keeping the object alive for the next firing.
+            if (mInterval.count() > 0 && !mCancelled.load()) {
                 timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_HOST) + mInterval.count());
             } else {
-                // It's a one-shot timer. The work is done.
-                mCancelled = true;
-                lock.unlock();
-                // We must now break the self-reference cycle to allow this object
-                // to be destroyed.
-                mSelf.reset();
+                // It's a one-shot timer or we are cancelled. The work is done.
+                cleanup();
             }
         }
 
-        std::mutex mMutex;
         QEMUTimer* mQemuTimer = nullptr;
         Task mTask;
         std::chrono::milliseconds mDelay;
         std::chrono::milliseconds mInterval;
         QemuEventLoop* mLoop;
-        std::atomic<std::thread::id> mCallbackThread;
-        bool mCancelled = false;
-        std::shared_ptr<QemuTimer> mSelf;  // Manages the object's lifetime.
+        std::atomic<bool> mCancelled{false};
+        std::atomic<bool> mCleanup{false};  // Only one cleanup ever.
+        std::shared_ptr<QemuTimer> mSelf;   // Manages the object's lifetime.
     };
 
   public:
@@ -214,8 +192,6 @@ class QemuEventLoop : public EventLoop {
     inline static void setQemuThread() { sIsQemuThread = true; }
 
   private:
-    friend EventLoop* getQemuEventLoop();
-
     // A thread-local flag to identify if the current thread is the one running
     // the QEMU main loop.
     static thread_local bool sIsQemuThread;
