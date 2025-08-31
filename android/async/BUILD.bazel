@@ -259,3 +259,26 @@ cc_binary(
         "@google_benchmark//:benchmark",
     ],
 )
+
+cc_library(
+    name = "async_testing",
+    srcs = ["src/test_event_loop.cpp"],
+    hdrs = ["include/goldfish/async/testing/test_event_loop.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "async_testing_unittests",
+    srcs = ["test/test_event_loop_unittest.cpp"],
+    deps = [
+        ":async_testing",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+    ],
+)

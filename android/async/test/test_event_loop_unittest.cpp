@@ -1,0 +1,202 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "goldfish/async/testing/test_event_loop.h"
+
+#include <chrono>
+#include <future>
+
+#include "gtest/gtest.h"
+
+using namespace goldfish::async;
+using namespace goldfish::async::testing;
+using namespace std::chrono_literals;
+
+TEST(TestEventLoop, PostSingleTask) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+    loop->post([&]() { executed = true; });
+    ASSERT_FALSE(executed);
+    loop->runAll();
+    ASSERT_TRUE(executed);
+}
+
+TEST(TestEventLoop, PostMultipleTasks) {
+    auto loop = TestEventLoop::create();
+    int count = 0;
+    loop->post([&]() { count++; });
+    loop->post([&]() { count++; });
+    loop->post([&]() { count++; });
+    ASSERT_EQ(0, count);
+    loop->runAll();
+    ASSERT_EQ(3, count);
+}
+
+TEST(TestEventLoop, ScheduleDelayedTask) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+
+    // Store the returned handle in a variable to keep it alive.
+    auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+
+    // only advance clock does something with timed task
+    loop->runAll();
+    ASSERT_FALSE(executed);
+    loop->advanceClock(99ms);
+    ASSERT_FALSE(executed);
+    loop->advanceClock(1ms);
+    ASSERT_TRUE(executed);
+}
+
+TEST(TestEventLoop, ScheduleRepeatingTask) {
+    auto loop = TestEventLoop::create();
+    int count = 0;
+    auto timer = loop->scheduleRepeating([&]() { count++; }, 100ms, 50ms);
+
+    loop->advanceClock(100ms);
+    ASSERT_EQ(1, count);
+
+    loop->advanceClock(50ms);
+    ASSERT_EQ(2, count);
+
+    loop->advanceClock(50ms);
+    ASSERT_EQ(3, count);
+
+    // no new events after cancel.
+    timer->cancel();
+    loop->advanceClock(50ms);
+    ASSERT_EQ(3, count);
+}
+
+TEST(TestEventLoop, PostAndWait) {
+    auto loop = TestEventLoop::create();
+    auto future = std::async(std::launch::async,
+                             [&]() { return loop->postAndWait([]() { return 42; }); });
+
+    while (future.wait_for(100ms) == std::future_status::timeout) {
+        loop->runAll();
+    }
+    ASSERT_EQ(42, future.get());
+}
+
+TEST(TestEventLoop, PostAndWaitVoid) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+    auto future = std::async(std::launch::async,
+                             [&]() { loop->postAndWait([&]() { executed = true; }); });
+
+    while (future.wait_for(100ms) == std::future_status::timeout) {
+        loop->runAll();
+    }
+    future.get();
+    ASSERT_TRUE(executed);
+}
+
+TEST(TestEventLoop, TimerCancellation) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+    auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+
+    timer->cancel();
+    loop->advanceClock(100ms);
+    ASSERT_FALSE(executed);
+}
+
+TEST(TestEventLoop, TimerHandleDestructionCancels) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+    {
+        auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+    }
+    // Timer is out of scope and should be cancelled.
+    loop->advanceClock(100ms);
+    ASSERT_FALSE(executed);
+}
+
+TEST(TestEventLoop, ShutdownClearsPendingTasks) {
+    auto loop = TestEventLoop::create();
+    bool executed = false;
+    loop->post([&]() { executed = true; });
+    loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+
+    loop->shutdown(0ms).wait();
+    loop->runAll();
+    loop->advanceClock(100ms);
+
+    ASSERT_FALSE(executed);
+}
+
+// This test verifies that a repeating task can be executed multiple times
+// without crashing. It directly targets the use-after-move bug in the
+// faulty implementation.
+TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
+    // ARRANGE: Create an event loop and a counter.
+    auto loop = TestEventLoop::create();
+    std::atomic<int> execution_count = 0;
+
+    // Schedule a task to run every 10ms, starting immediately.
+    auto timer = loop->scheduleRepeating([&execution_count]() { execution_count++; },
+                                         0ms,  // Initial delay of 0 means it's due immediately.
+                                         10ms  // Repeat every 10ms.
+    );
+
+    // ACT & ASSERT (First Execution)
+    // Advance the clock by 1ms. This should cause the task scheduled
+    // at t=0 to run.
+    loop->advanceClock(1ms);
+
+    // With a correct implementation, the count is 1.
+    // The faulty implementation would crash inside this advanceClock call.
+    ASSERT_EQ(execution_count, 1);
+
+    // ACT & ASSERT (Second Execution)
+    // Advance the clock by another 10ms. This should cause the re-scheduled
+    // task at t=10ms to run.
+    loop->advanceClock(10ms);
+    ASSERT_EQ(execution_count, 2);
+
+    // ACT & ASSERT (Third Execution)
+    // Advancing again proves the task continues to be rescheduled correctly.
+    loop->advanceClock(10ms);
+    ASSERT_EQ(execution_count, 3);
+}
+
+TEST(TestEventLoop, RunOne) {
+    auto loop = TestEventLoop::create();
+    int count = 0;
+    loop->post([&]() { count++; });
+    loop->post([&]() { count++; });
+    ASSERT_TRUE(loop->runOne());
+    ASSERT_EQ(1, count);
+    ASSERT_TRUE(loop->runOne());
+    ASSERT_EQ(2, count);
+}
+
+TEST(TestEventLoop, RunMany) {
+    auto loop = TestEventLoop::create();
+    int count = 0;
+    loop->post([&]() { count++; });
+    loop->post([&]() { count++; });
+    loop->post([&]() { count++; });
+    ASSERT_TRUE(loop->runMany(3));
+    ASSERT_EQ(3, count);
+}
+
+TEST(TestEventLoop, RunManyTimeout) {
+    auto loop = TestEventLoop::create();
+    int count = 0;
+    loop->post([&]() { count++; });
+    ASSERT_EQ(loop->runMany(2), 1);
+    ASSERT_EQ(1, count);
+}
