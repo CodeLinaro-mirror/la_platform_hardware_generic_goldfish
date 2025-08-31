@@ -25,6 +25,7 @@
 #include "goldfish/async/qemu_event_loop.h"
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -181,8 +182,8 @@ class QemuEventLoop : public EventLoop {
     void stop() override;
     std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
     bool isOnLoopThread() const override;
-    absl::Status post(Task task) override;
-    absl::Status post(Task task, std::chrono::milliseconds delay) override;
+
+    void postImpl(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) override;
@@ -192,6 +193,7 @@ class QemuEventLoop : public EventLoop {
     inline static void setQemuThread() { sIsQemuThread = true; }
 
   private:
+    void postImmediately(Task task);
     // A thread-local flag to identify if the current thread is the one running
     // the QEMU main loop.
     static thread_local bool sIsQemuThread;
@@ -225,9 +227,10 @@ bool QemuEventLoop::isOnLoopThread() const {
     return sIsQemuThread;
 }
 
-absl::Status QemuEventLoop::post(Task task) {
+void QemuEventLoop::postImmediately(Task task) {
     if (mIsShuttingDown) {
-        return absl::CancelledError("Event loop is shutting down.");
+        LOG(ERROR) << "Event loop is shutting down, task is not scheduled.";
+        return;
     }
 
     // Self-deleting BH for immediate tasks.
@@ -244,20 +247,24 @@ absl::Status QemuEventLoop::post(Task task) {
     auto* bh_task = new SelfDeletingBh{nullptr, std::move(task)};
     bh_task->bh = qemu_bh_new(SelfDeletingBh::callback, bh_task);
     qemu_bh_schedule(bh_task->bh);
-    return absl::OkStatus();
 }
 
-absl::Status QemuEventLoop::post(Task task, std::chrono::milliseconds delay) {
+void QemuEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
     if (mIsShuttingDown) {
-        return absl::CancelledError("Event loop is shutting down.");
+        LOG(ERROR) << "Event loop is shutting down, not scheduling task";
+        return;
     }
-    // Use the robust QemuTimer for delayed posts, but don't return the handle.
+
+    if (delay == std::chrono::milliseconds::zero()) {
+        postImmediately(std::move(task));
+        return;
+    }
+
     // The timer will manage its own lifetime via a shared_ptr cycle that is
     // broken when the timer fires.
     auto timer =
             std::make_shared<QemuTimer>(std::move(task), delay, std::chrono::milliseconds(0), this);
     timer->start();
-    return absl::OkStatus();
 }
 
 std::shared_ptr<EventLoop::Timer> QemuEventLoop::scheduleDelayed(Task task,

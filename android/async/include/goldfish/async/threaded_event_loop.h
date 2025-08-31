@@ -77,15 +77,7 @@ class ThreadedEventLoop : public EventLoop {
      */
     bool isOnLoopThread() const override;
 
-    /**
-     * @brief Posts a task to the underlying event loop to be executed on its
-     * background thread.
-     * @param task The task to execute.
-     * @return The status of the post operation.
-     */
-    absl::Status post(Task task) override;
-
-    absl::Status post(Task task, std::chrono::milliseconds delay) override;
+    void postImpl(Task task, std::chrono::milliseconds delay) override;
 
     std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
 

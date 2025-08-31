@@ -114,12 +114,8 @@ bool ThreadedEventLoop::isOnLoopThread() const {
     return mLoop->isOnLoopThread();
 }
 
-absl::Status ThreadedEventLoop::post(Task fn) {
-    return mLoop->post(std::move(fn));
-}
-
-absl::Status ThreadedEventLoop::post(Task task, std::chrono::milliseconds delay) {
-    return mLoop->post(std::move(task), delay);
+void ThreadedEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
+    mLoop->post(std::move(task), delay);
 }
 
 std::shared_ptr<EventLoop::Timer> ThreadedEventLoop::scheduleDelayed(

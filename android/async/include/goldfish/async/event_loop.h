@@ -132,22 +132,38 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     // --- Fire-and-Forget Methods ---
 
     /**
-     * @brief Posts a task for immediate execution (fire-and-forget).
-     * @param task The function to be executed.
-     * @return absl::OkStatus() if the task was successfully posted.
+     * @brief Posts a callable object for execution on the event loop.
+     *
+     * @tparam F The type of the callable object.
+     * @param f The callable object to execute.
+     * @param delay The duration to wait before executing the task. A delay of
+     * zero executes the task as soon as possible.
+     * @return A std::future that will be fulfilled with the return value of the task.
      */
-    virtual absl::Status post(Task task) = 0;
+    template <typename F>
+    auto post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
+            -> std::future<decltype(std::forward<F>(f)())> {
+        using ReturnType = decltype(std::forward<F>(f)());
+        auto promise = std::make_shared<std::promise<ReturnType>>();
+        auto future = promise->get_future();
 
-    /**
-     * @brief Posts a task for delayed execution (fire-and-forget).
-     *
-     * The task cannot be cancelled once posted.
-     *
-     * @param task The task to execute.
-     * @param delay The duration to wait before executing the task.
-     * @return absl::OkStatus() if the task was successfully posted.
-     */
-    virtual absl::Status post(Task task, std::chrono::milliseconds delay) = 0;
+        // This lambda will be executed on the event loop thread.
+        auto task_runner = [promise, f = std::forward<F>(f)]() mutable {
+            try {
+                if constexpr (std::is_void_v<ReturnType>) {
+                    f();
+                    promise->set_value();
+                } else {
+                    promise->set_value(f());
+                }
+            } catch (...) {
+                promise->set_exception(std::current_exception());
+            }
+        };
+
+        postImpl(std::move(task_runner), delay);
+        return future;
+    }
 
     // --- Cancellable Scheduling Methods ---
 
@@ -210,6 +226,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     LooperStatusEvent::State getState() const { return mState; }
 
   protected:
+    virtual void postImpl(Task task, std::chrono::milliseconds delay) = 0;
+
     void setState(LooperStatusEvent::State newState) {
         LooperStatusEvent::State oldState = mState.exchange(newState);
         if (oldState != newState) {

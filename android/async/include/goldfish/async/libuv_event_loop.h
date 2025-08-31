@@ -105,8 +105,7 @@ class LibuvEventLoop : public EventLoop {
     void* getRawLoop() const override;
 
     // --- Task Posting and Scheduling ---
-    absl::Status post(Task task) override;
-    absl::Status post(Task task, std::chrono::milliseconds delay) override;
+    void postImpl(Task task, std::chrono::milliseconds delay) override;
 
     std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
 
@@ -116,7 +115,7 @@ class LibuvEventLoop : public EventLoop {
   private:
     friend class LibuvTimer;
     void processTasks();
-    absl::Status doPost(Task task);
+    void doPost(Task task);
 
     /// The core libuv event loop instance.
     uv_loop_t* mLoop = nullptr;

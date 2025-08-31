@@ -82,12 +82,11 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
     void start(uint64_t timeout_ms, uint64_t repeat_ms) {
         // Post the start operation to the eventloop, at this point
-        auto status = mEventLoop->post([self = shared_from_this(), timeout_ms, repeat_ms]() {
+        mEventLoop->post([self = shared_from_this(), timeout_ms, repeat_ms]() {
             assert(!self->mIsClosed.load() &&
                    "Timer was closed before it started, this should not be possible");
             uv_timer_start(self->mUvTimer, onTimer, timeout_ms, repeat_ms);
         });
-        assert(status.ok());
     }
 
     void doCancel() {
@@ -332,31 +331,33 @@ void LibuvEventLoop::processTasks() {
     }
 }
 
-absl::Status LibuvEventLoop::doPost(Task task) {
-    if (!mLoop) return absl::UnavailableError("Event loop is not initialized.");
+void LibuvEventLoop::doPost(Task task) {
+    if (!mLoop) {
+        LOG(ERROR) << "Event loop is not initialized.";
+        return;
+    }
     {
         absl::MutexLock lock(&mTaskMutex);
         mTaskQueue.push(std::move(task));
     }
     uv_async_send(&mAsyncHandle);
-    return absl::OkStatus();
 }
 
-absl::Status LibuvEventLoop::post(Task task) {
-    if (mIsShuttingDown.load()) {
-        return absl::CancelledError("Event loop is shutting down.");
+void LibuvEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
+    if (!mLoop || mIsShuttingDown) {
+        LOG(WARNING) << "LibuvEventLoop is not available: "
+                     << (mIsShuttingDown ? " as it is shutting down"
+                                         : " the loop is not initialized.");
     }
-    return doPost(std::move(task));
-}
 
-// Cleaner fire-and-forget implementation.
-absl::Status LibuvEventLoop::post(Task task, std::chrono::milliseconds delay) {
-    if (!mLoop) return absl::UnavailableError("Event loop is not initialized.");
+    if (delay == std::chrono::milliseconds::zero()) {
+        doPost(std::move(task));
+        return;
+    }
     // For fire-and-forget, the timer's lifetime is managed by its own async
     // operations. We create it and immediately let go of the handle.
     auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/false);
     timer->start(delay.count(), 0);
-    return absl::OkStatus();
 }
 
 std::shared_ptr<EventLoop::Timer> LibuvEventLoop::scheduleDelayed(Task task,
