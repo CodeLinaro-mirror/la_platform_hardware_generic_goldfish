@@ -36,17 +36,17 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
     void SetUp() override {
         mLoopType = GetParam();
         if (mLoopType == "libuv") {
-            mLibuvLoop = std::make_unique<LibuvEventLoop>();
-            mLoop = mLibuvLoop.get();
+            mEventLoop = LibuvEventLoop::create();
+            mRawEventLoop = mEventLoop.get();
             mFactory = std::make_unique<LibuvAsyncSocketFactory>();
-            mLoopThread = std::thread([this] { mLoop->run(); });
+            mLoopThread = std::thread([this] { mRawEventLoop->run(); });
         } else if (mLoopType == "qemu") {
             absl::Notification running;
+            mEventLoop = QemuEventLoop::create();
+            mRawEventLoop = mEventLoop.get();
             mFactory = std::make_unique<QemuSocketFactory>();
             mStopQemuLooper = false;
             mQemuLooperThread = std::thread([&, this] {
-                initializeQemuEventLoop();
-                mLoop = getQemuEventLoop();
                 fake_qemu_start_io_loop();
                 running.Notify();
                 while (!mStopQemuLooper) {
@@ -61,9 +61,9 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
 
     void TearDown() override {
         if (mLoopType == "libuv") {
-            auto shutdown_future = mLoop->shutdown(100ms);
+            auto shutdown_future = mRawEventLoop->shutdown(100ms);
             ASSERT_EQ(shutdown_future.wait_for(2s), std::future_status::ready);
-            mLoop->stop();
+            mRawEventLoop->stop();
             if (mLoopThread.joinable()) {
                 mLoopThread.join();
             }
@@ -87,12 +87,12 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
 
     template <typename F>
     auto postAndWait(F&& func) {
-        return mLoop->postAndWait(std::forward<F>(func));
+        return mRawEventLoop->postAndWait(std::forward<F>(func));
     }
 
     std::string mLoopType;
-    std::unique_ptr<LibuvEventLoop> mLibuvLoop;
-    EventLoop* mLoop;
+    std::unique_ptr<EventLoop> mEventLoop;
+    EventLoop* mRawEventLoop;
     std::shared_ptr<AsyncSocketFactory> mFactory;
     std::thread mLoopThread;
     std::thread mQemuLooperThread;
@@ -118,17 +118,17 @@ TEST_P(AsyncSocketTest, ConnectAndClose) {
         return true;
     };
 
-    ScopedAsyncServer server(
-            postAndWait([&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port));
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
     }));
     ASSERT_NE(client, nullptr);
 
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([&](absl::Status err) { LOG(INFO) << err; });
         client->setOnCloseCallback([&] {
             LOG(INFO) << "Client is closed";
@@ -162,17 +162,17 @@ TEST_P(AsyncSocketTest, ClientCanSendData) {
         return true;
     };
 
-    ScopedAsyncServer server(
-            postAndWait([&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port));
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
     }));
     ASSERT_NE(client, nullptr);
 
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnCloseCallback([&] { closed_promise.set_value(); });
         client->setOnConnectedCallback([&](auto) {
             client->send(sent_message.data(), sent_message.size(), [&](auto) { client->close(); });
@@ -203,17 +203,17 @@ TEST_P(AsyncSocketTest, EchoTest) {
         return true;
     };
 
-    ScopedAsyncServer server(
-            postAndWait([&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port));
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
     }));
     ASSERT_NE(client, nullptr);
 
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnReadCallback([&](std::string_view data, absl::Status err) {
             echo_promise.set_value(std::string(data));
         });
@@ -250,17 +250,17 @@ TEST_P(AsyncSocketTest, LargeDataTransfer) {
         return true;
     };
 
-    ScopedAsyncServer server(
-            postAndWait([&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port));
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
     }));
     ASSERT_NE(client, nullptr);
 
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([&](auto) {
             client->send(large_message.data(), large_message.size(),
                          [&](auto) { client->close(); });
@@ -292,19 +292,19 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
         return true;
     };
 
-    ScopedAsyncServer server(
-            postAndWait([&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port));
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
     }));
     ASSERT_NE(client, nullptr);
 
     std::vector<std::thread> threads;
     absl::Notification connected;
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([&](auto) { connected.Notify(); });
         ASSERT_TRUE(client->connect().ok());
     });
@@ -314,7 +314,7 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
     for (int i = 0; i < num_threads; ++i) {
         threads.emplace_back([&]() {
             absl::Notification bytesAway;
-            mLoop->post([&]() {
+            mRawEventLoop->post([&]() {
                 VLOG(1) << "Sending data from thread: " << i;
                 client->send(message_per_thread.data(), message_per_thread.size(),
                              [&](auto) { bytesAway.Notify(); });
@@ -330,7 +330,7 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
     // We still need to close the client to trigger the server's OnCloseCallback
     // which fulfills the promise for this test. The Scoped wrapper will also
     // post a close, but that's harmless (close is idempotent).
-    mLoop->post([&] { client->close(); });
+    mRawEventLoop->post([&] { client->close(); });
 
     runUntil(received_size_future);
     EXPECT_EQ(received_size_future.get(), num_threads * message_per_thread.size());
@@ -355,15 +355,16 @@ TEST_P(AsyncSocketTest, SendSynchronouslyBlocksAndSucceeds) {
     };
 
     // --- Setup: Create server, client, and establish a connection ---
-    ScopedAsyncServer server(mLoop->postAndWait(
-            [&] { return mFactory->createServer(mLoop, "127.0.0.1:0", on_connect); }));
+    ScopedAsyncServer server(mRawEventLoop->postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect); }));
     int port = postAndWait([&] { return server->port(); });
 
-    ScopedAsyncSocket client(mLoop->postAndWait(
-            [&] { return mFactory->createSocket(mLoop, "127.0.0.1:" + std::to_string(port)); }));
+    ScopedAsyncSocket client(mRawEventLoop->postAndWait([&] {
+        return mFactory->createSocket(mRawEventLoop, "127.0.0.1:" + std::to_string(port));
+    }));
 
     absl::Notification connected_notification;
-    mLoop->post([&]() {
+    mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([&](auto) { connected_notification.Notify(); });
         client->connect();
     });

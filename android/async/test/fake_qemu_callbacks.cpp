@@ -117,8 +117,8 @@ int sPipeFd[2] = {-1, -1};
 // 5. When `poll()` returns, the loop iterates through the descriptors with
 //    events and invokes their corresponding read/write callbacks.
 void io_loop() {
-    goldfish::async::initializeQemuEventLoop();
 #ifndef _WIN32
+    goldfish::async::QemuEventLoop::markQemuThread();
     while (sIoLoopRunning.load()) {
         std::vector<struct pollfd> pollfds;
         std::map<int, FdHandler> current_handlers;

@@ -17,7 +17,7 @@
 // (timers, immediate callbacks) on the main QEMU thread from anywhere in the
 // application.
 //
-// The QemuEventLoop is a singleton, accessible via `getQemuEventLoop()`.
+// The QemuEventLoopImpl is a singleton, accessible via `getQemuEventLoop()`.
 // It's crucial to call `initializeQemuEventLoop()` from the main QEMU thread
 // at startup before any other thread attempts to use the loop. This sets a
 // thread-local flag that allows `isOnLoopThread()` to work correctly.
@@ -30,6 +30,7 @@
 #include <mutex>
 #include <thread>
 
+#include "absl/base/call_once.h"
 #include "absl/log/log.h"
 
 #include "goldfish/async/event_loop.h"
@@ -63,17 +64,17 @@ using goldfish::async::ScopedTimer;
 
 // An implementation of the EventLoop interface that is backed by the QEMU main
 // event loop. This allows scheduling work on the main QEMU thread.
-class QemuEventLoop : public EventLoop {
+class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
   public:
     // --- QemuTimer Implementation ---
     // An implementation of the Timer interface that wraps a QEMUTimer.
     //
     // This class is responsible for managing the lifetime of cancellable delayed
-    // and repeating tasks scheduled on the QemuEventLoop.
+    // and repeating tasks scheduled on the QemuEventLoopImpl.
     class QemuTimer : public EventLoop::Timer, public std::enable_shared_from_this<QemuTimer> {
       public:
         QemuTimer(Task task, std::chrono::milliseconds delay, std::chrono::milliseconds interval,
-                  QemuEventLoop* loop)
+                  QemuEventLoopImpl* loop)
                 : mTask(std::move(task)), mDelay(delay), mInterval(interval), mLoop(loop) {}
 
         ~QemuTimer() override { VLOG(1) << "QemuTimer is out of scope"; }
@@ -145,9 +146,6 @@ class QemuEventLoop : public EventLoop {
         // Called when the QEMU timer fires.
         void handleFire() {
             // Note: Only on thread is every active here.
-
-            // Clearly we are on the qemu thread, so let's mark it.
-            mLoop->setQemuThread();
             if (mCancelled.load()) {
                 // Can happen if cancel() is called just as the timer fires.
                 cleanup();
@@ -168,15 +166,15 @@ class QemuEventLoop : public EventLoop {
         Task mTask;
         std::chrono::milliseconds mDelay;
         std::chrono::milliseconds mInterval;
-        QemuEventLoop* mLoop;
+        QemuEventLoopImpl* mLoop;
         std::atomic<bool> mCancelled{false};
         std::atomic<bool> mCleanup{false};  // Only one cleanup ever.
         std::shared_ptr<QemuTimer> mSelf;   // Manages the object's lifetime.
     };
 
   public:
-    QemuEventLoop() { setState(LooperStatusEvent::State::RUNNING); }
-    ~QemuEventLoop() override = default;
+    QemuEventLoopImpl() { setState(LooperStatusEvent::State::RUNNING); }
+    ~QemuEventLoopImpl() override = default;
 
     absl::Status run() override;
     void stop() override;
@@ -189,33 +187,30 @@ class QemuEventLoop : public EventLoop {
                                              std::chrono::milliseconds interval) override;
     void* getRawLoop() const override;
 
-    // Marks the calling thread as the QEMU main loop thread.
-    inline static void setQemuThread() { sIsQemuThread = true; }
+    // The one and only qemu thread..
+    static thread_local bool sIsQemuThread;
 
   private:
     void postImmediately(Task task);
-    // A thread-local flag to identify if the current thread is the one running
-    // the QEMU main loop.
-    static thread_local bool sIsQemuThread;
     std::atomic<bool> mIsShuttingDown{false};
 };
 
-thread_local bool QemuEventLoop::sIsQemuThread = false;
+thread_local bool QemuEventLoopImpl::sIsQemuThread;
 
-// --- QemuEventLoop Method Implementations ---
+// --- QemuEventLoopImpl Method Implementations ---
 
-absl::Status QemuEventLoop::run() {
-    LOG(WARNING) << "QemuEventLoop::run() should not be called. The QEMU main "
+absl::Status QemuEventLoopImpl::run() {
+    LOG(WARNING) << "QemuEventLoopImpl::run() should not be called. The QEMU main "
                     "loop is managed by the application.";
     return absl::UnimplementedError("run() is not supported");
 }
 
-void QemuEventLoop::stop() {
-    LOG(WARNING) << "QemuEventLoop::stop() should not be called. The QEMU main "
+void QemuEventLoopImpl::stop() {
+    LOG(WARNING) << "QemuEventLoopImpl::stop() should not be called. The QEMU main "
                     "loop is managed by the application.";
 }
 
-std::future<absl::Status> QemuEventLoop::shutdown(std::chrono::milliseconds timeout) {
+std::future<absl::Status> QemuEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
     mIsShuttingDown.store(true);
     std::promise<absl::Status> promise;
@@ -223,11 +218,11 @@ std::future<absl::Status> QemuEventLoop::shutdown(std::chrono::milliseconds time
     return promise.get_future();
 }
 
-bool QemuEventLoop::isOnLoopThread() const {
+bool QemuEventLoopImpl::isOnLoopThread() const {
     return sIsQemuThread;
 }
 
-void QemuEventLoop::postImmediately(Task task) {
+void QemuEventLoopImpl::postImmediately(Task task) {
     if (mIsShuttingDown) {
         LOG(ERROR) << "Event loop is shutting down, task is not scheduled.";
         return;
@@ -239,6 +234,7 @@ void QemuEventLoop::postImmediately(Task task) {
         Task task;
         static void callback(void* opaque) {
             auto* self = static_cast<SelfDeletingBh*>(opaque);
+            sIsQemuThread = true;
             self->task();
             qemu_bh_delete(self->bh);
             delete self;
@@ -249,7 +245,7 @@ void QemuEventLoop::postImmediately(Task task) {
     qemu_bh_schedule(bh_task->bh);
 }
 
-void QemuEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
+void QemuEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
     if (mIsShuttingDown) {
         LOG(ERROR) << "Event loop is shutting down, not scheduling task";
         return;
@@ -267,8 +263,8 @@ void QemuEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
     timer->start();
 }
 
-std::shared_ptr<EventLoop::Timer> QemuEventLoop::scheduleDelayed(Task task,
-                                                                 std::chrono::milliseconds delay) {
+std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::scheduleDelayed(
+        Task task, std::chrono::milliseconds delay) {
     if (mIsShuttingDown) {
         return nullptr;
     }
@@ -278,7 +274,7 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoop::scheduleDelayed(Task task,
     return std::make_shared<ScopedTimer>(timer);
 }
 
-std::shared_ptr<EventLoop::Timer> QemuEventLoop::scheduleRepeating(
+std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::scheduleRepeating(
         Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
     if (mIsShuttingDown) {
         return nullptr;
@@ -288,20 +284,26 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoop::scheduleRepeating(
     return std::make_shared<ScopedTimer>(timer);
 }
 
-void* QemuEventLoop::getRawLoop() const {
+void* QemuEventLoopImpl::getRawLoop() const {
     return nullptr;
 }
 }  // namespace
 
 // --- Factory Function ---
 namespace goldfish::async {
-void initializeQemuEventLoop() {
-    QemuEventLoop::setQemuThread();
+
+void QemuEventLoop::markQemuThread() {
+    QemuEventLoopImpl::sIsQemuThread = true;
 }
 
-EventLoop* getQemuEventLoop() {
-    static QemuEventLoop instance;
-    return &instance;
+std::unique_ptr<QemuEventLoop> QemuEventLoop::create() {
+    // Discover the qemu thread and mark ourselves as running.
+    auto loop = std::make_unique<QemuEventLoopImpl>();
+
+    // It is always running..
+    loop->setState(LooperStatusEvent::State::RUNNING);
+    loop->post([] {});
+    return loop;
 }
 
 }  // namespace goldfish::async

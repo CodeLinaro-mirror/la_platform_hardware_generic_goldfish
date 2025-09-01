@@ -12,93 +12,66 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
 #include <chrono>
 #include <memory>
-#include <string>
-#include <thread>
-#include <utility>
 
-#include "absl/status/status.h"
-
-#include "aemu/base/events/EventSources.h"
 #include "goldfish/async/event_loop.h"
 
 namespace goldfish::async {
 
 /**
- * @brief A decorator that runs an EventLoop implementation in a background
- * thread.
+ * @brief A decorator that runs an EventLoop implementation in a background thread.
  *
- * This class takes ownership of an EventLoop (e.g., a LibuvEventLoop) and
- * manages its execution in a dedicated thread. The run() method starts the
- * thread, and the destructor ensures the loop is stopped and the thread is
- * cleanly joined.
+ * This class takes ownership of a concrete EventLoop implementation (e.g., a
+ * LibuvEventLoop) and manages its execution in a dedicated worker thread. The
+ * `run()` method of the underlying loop is called when the thread starts. The
+ * destructor ensures the loop is cleanly shut down and the thread is joined.
+ *
+ * @note This class provides a simple way to turn any EventLoop implementation
+ * into a fully-threaded, concurrently-running service.
  */
 class ThreadedEventLoop : public EventLoop {
   public:
     /**
-     * @brief Constructs a ThreadedEventLoop.
+     * @brief Virtual destructor.
+     */
+    ~ThreadedEventLoop() override = default;
+
+    /**
+     * @brief Gets the thread ID of the background event loop thread.
      *
-     * The constructor will spin up a new thread and run the EventLoop.
-     * it will block and wait until the EventLoop has marked itself as started.
+     * This can be used to verify if the current code is executing on the event
+     * loop's thread, similar to `isOnLoopThread()`.
+     * @return The `std::thread::id` of the worker thread.
+     */
+    virtual std::thread::id get_id() const = 0;
+
+    /**
+     * @brief Gets the default timeout used during shutdown.
      *
-     * @param loop A unique_ptr to the underlying EventLoop implementation that
-     * this class will manage and run.
+     * The destructor will wait at most this amount of time for the underlying
+     * loop to shut down cleanly.
+     * @note Exceeding this timeout may indicate that resources like active
+     * timers were leaked, preventing a graceful shutdown.
+     * @return A `std::chrono::milliseconds` value representing the timeout.
      */
-    explicit ThreadedEventLoop(std::unique_ptr<EventLoop> loop,
-                               std::string name = "AEMU Event Thread");
-    ~ThreadedEventLoop() override;
-
-    // --- Prevent Copying ---
-    ThreadedEventLoop(const ThreadedEventLoop&) = delete;
-    ThreadedEventLoop& operator=(const ThreadedEventLoop&) = delete;
-
-    // --- Prevent Moving ---
-    ThreadedEventLoop(ThreadedEventLoop&& other) noexcept = delete;
-    ThreadedEventLoop& operator=(ThreadedEventLoop&& other) noexcept = delete;
-
-    /**
-     * @brief Starts the background thread and begins executing the underlying
-     * event loop's run() method within it. This method returns immediately.
-     */
-    absl::Status run() override;
-
-    /**
-     * @brief Stops the underlying event loop and waits for the background
-     * thread to complete its execution. This is a blocking call.
-     */
-    void stop() override;
-
-    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
-
-    /**
-     * @brief Checks if the caller is on the background event loop thread.
-     * @return Delegates the call to the underlying EventLoop.
-     */
-    bool isOnLoopThread() const override;
-
-    void postImpl(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
-                                             std::chrono::milliseconds interval) override;
-
-    void* getRawLoop() const override { return mLoop->getRawLoop(); }
-
-    // Timeout used when calling shutdown, the destructor will
-    // wait at most this amount before terminating...
-    // Note: that is usually not a good thing.
     static constexpr std::chrono::milliseconds getTimeout() {
         return std::chrono::milliseconds(500);
     }
 
-  private:
-    std::thread mRunner;
-    std::unique_ptr<EventLoop> mLoop;
-    std::string mLooperName;
-    std::unique_ptr<android::base::eventing::ScopedEventCallback<EventLoop, LooperStatusEvent>>
-            mSubscription;
+    /**
+     * @brief Creates and starts a new ThreadedEventLoop.
+     *
+     * This factory function constructs the event loop, starts its background
+     * thread, and waits for it to initialize before returning.
+     *
+     * @param[in] toRun A `std::unique_ptr` to an `EventLoop` implementation
+     * (e.g., `LibuvEventLoop`) that this class will own and manage.
+     * @return A `std::unique_ptr` to the new `ThreadedEventLoop` on success, or
+     * `nullptr` if the background thread fails to start in a timely manner.
+     */
+    static std::unique_ptr<ThreadedEventLoop> create(std::unique_ptr<EventLoop> toRun);
 };
 
 }  // namespace goldfish::async

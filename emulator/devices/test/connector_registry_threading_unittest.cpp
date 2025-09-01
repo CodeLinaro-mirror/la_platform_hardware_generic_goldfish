@@ -23,11 +23,14 @@
 #include "absl/synchronization/notification.h"
 
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/hal/plug/HalPlug.h"
 
+using goldfish::async::EventLoop;
 using goldfish::async::LibuvEventLoop;
+using goldfish::async::ThreadedEventLoop;
 using goldfish::devices::ConnectorRegistry;
 using goldfish::devices::HalPlug;
 using goldfish::devices::HalSocket;
@@ -73,26 +76,18 @@ class MockSocket : public cable::ISocket {
 class ConnectorRegistryThreadingTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mQemuLoop = std::make_unique<LibuvEventLoop>();
-        mClientLoop = std::make_unique<LibuvEventLoop>();
-        mQemuThread = std::thread([this] { (void)mQemuLoop->run(); });
-        mClientThread = std::thread([this] { (void)mClientLoop->run(); });
+        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
+        mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
     }
 
     void TearDown() override {
         // Shut down the event loops and join the threads cleanly.
         mQemuLoop->shutdown(100ms).wait_for(100ms);
-        mQemuLoop->stop();
         mClientLoop->shutdown(100ms).wait_for(100ms);
-        mClientLoop->stop();
-        mQemuThread.join();
-        mClientThread.join();
     }
 
-    std::unique_ptr<LibuvEventLoop> mQemuLoop;
-    std::unique_ptr<LibuvEventLoop> mClientLoop;
-    std::thread mQemuThread;
-    std::thread mClientThread;
+    std::unique_ptr<ThreadedEventLoop> mQemuLoop;
+    std::unique_ptr<ThreadedEventLoop> mClientLoop;
 };
 
 // This test verifies the threading model of the ConnectorRegistry.
@@ -152,7 +147,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
 
     // Assert: Verify onConnect was called on the client thread.
     ASSERT_TRUE(onConnectCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
-    EXPECT_EQ(onConnectThreadId, mClientThread.get_id());
+    EXPECT_EQ(onConnectThreadId, mClientLoop->get_id());
 
     // --- Test data flow: QEMU -> Client ---
     {
@@ -168,7 +163,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
 
         // Assert: Verify onReceive was called on the client thread.
         ASSERT_TRUE(onReceiveCalled.WaitForNotificationWithTimeout(absl::Seconds(1)));
-        EXPECT_EQ(mockHalPlug->onReceiveThreadId, mClientThread.get_id());
+        EXPECT_EQ(mockHalPlug->onReceiveThreadId, mClientLoop->get_id());
     }
 
     // --- Test data flow: Client -> QEMU ---
@@ -176,7 +171,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         absl::Notification sendAsyncCalled;
         EXPECT_CALL(testSocket, sendAsync(_, kWorldFromClient.size()))
                 .WillOnce(Invoke([&](const void* data, size_t size) {
-                    EXPECT_EQ(std::this_thread::get_id(), mQemuThread.get_id());
+                    EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->get_id());
                     EXPECT_EQ(std::string_view(static_cast<const char*>(data), size),
                               kWorldFromClient);
                     sendAsyncCalled.Notify();
@@ -195,7 +190,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
             static int callcount = 0;
             VLOG(1) << "Called: " << callcount++;
-            EXPECT_EQ(std::this_thread::get_id(), mClientThread.get_id());
+            EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
 
             // Clients will usually close the socket..
             onCloseCalled.Notify();
