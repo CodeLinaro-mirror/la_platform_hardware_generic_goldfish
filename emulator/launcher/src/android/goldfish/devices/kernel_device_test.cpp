@@ -38,6 +38,8 @@ TEST(Kernel, Basic_x86) {
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+            .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
@@ -67,6 +69,8 @@ TEST(Kernel, Basic_arm64) {
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+            .WillOnce(testing::Return(absl::NotFoundError("not found")));
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
@@ -95,6 +99,9 @@ TEST(Kernel, AppendExtras) {
 
     EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
+
+    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+            .WillOnce(testing::Return("some/path/kernel-ranchu-command.txt"));
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
             .Times(1)

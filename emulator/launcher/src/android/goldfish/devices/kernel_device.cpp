@@ -15,6 +15,7 @@
 
 #include <android/cmdline-definitions.h>
 
+#include <fstream>
 #include <initializer_list>
 #include <string>
 
@@ -87,6 +88,20 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     }
     absl::StrAppend(&cl, " bootconfig");
 
+    // for 16k image, there is extra kernel_cmdline.txt
+    {
+        auto kernel_cmdline_txt = avd.getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
+        if (kernel_cmdline_txt.ok() && base::System::get()->pathExists(*kernel_cmdline_txt) &&
+            base::System::get()->pathCanRead(*kernel_cmdline_txt)) {
+            std::ifstream cmdline_file(*kernel_cmdline_txt);
+            std::string first_line;
+            if (cmdline_file.is_open()) {
+                if (std::getline(cmdline_file, first_line)) {
+                    absl::StrAppend(&cl, " ", first_line);
+                }
+            }
+        }
+    }
     for (auto *a = opts.append; a != nullptr; a = a->next) {
         absl::StrAppend(&cl, " ", a->param);
     }
