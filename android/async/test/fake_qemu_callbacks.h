@@ -26,10 +26,4 @@ void fake_qemu_advance_ms(int64_t ms);
 
 // Resets all fake QEMU state to its initial values.
 void fake_qemu_reset();
-
-// Starts the fake I/O loop in a background thread.
-void fake_qemu_start_io_loop();
-
-// Stops the fake I/O loop.
-void fake_qemu_stop_io_loop();
 }

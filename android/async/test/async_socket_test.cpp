@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <future>
 #include <mutex>
@@ -47,13 +48,11 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
             mFactory = std::make_unique<QemuSocketFactory>();
             mStopQemuLooper = false;
             mQemuLooperThread = std::thread([&, this] {
-                fake_qemu_start_io_loop();
                 running.Notify();
                 while (!mStopQemuLooper) {
                     fake_qemu_advance_ms(1);
                     std::this_thread::sleep_for(1ms);
                 }
-                fake_qemu_stop_io_loop();
             });
             running.WaitForNotification();
         }
@@ -77,8 +76,8 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
     }
 
     template <typename T>
-    void runUntil(std::future<T>& future) {
-        ASSERT_EQ(future.wait_for(2s), std::future_status::ready);
+    void runUntil(std::future<T>& future, std::chrono::milliseconds timeout = 2s) {
+        ASSERT_EQ(future.wait_for(timeout), std::future_status::ready);
     }
 
     void runUntil(std::future<void>& future) {
@@ -268,7 +267,9 @@ TEST_P(AsyncSocketTest, LargeDataTransfer) {
         ASSERT_TRUE(client->connect().ok());
     });
 
-    runUntil(received_size_future);
+    // Our build servers are under pretty heavy load running all the tests
+    // and The qemu message pump is very slow, so we give it extra time.
+    runUntil(received_size_future, 30s);
     EXPECT_EQ(received_size_future.get(), large_message.size());
 }
 
@@ -311,7 +312,9 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
 
     connected.WaitForNotification();
 
-    for (int i = 0; i < num_threads; ++i) {
+    // Note: i is read in VLOG(1) below so it is read in thread
+    // and written on main.
+    for (std::atomic<int> i = 0; i < num_threads; ++i) {
         threads.emplace_back([&]() {
             absl::Notification bytesAway;
             mRawEventLoop->post([&]() {

@@ -202,14 +202,15 @@ class QemuAsyncSocket : public AsyncSocket, public std::enable_shared_from_this<
             }
         } else if (bytesRead == 0) {
             // Peer closed the connection.
-            mLoop->post([self = shared_from_this()]() { self->close(); });
+            close();
+
         } else {
             // Error
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 if (mOnRead) {
                     mOnRead({}, ErrnoToAbslStatus(errno));
                 }
-                mLoop->post([self = shared_from_this()]() { self->close(); });
+                close();
             }
         }
     }
@@ -347,6 +348,7 @@ class QemuAsyncSocketServer : public AsyncSocketServer,
     }
 
     void onAccept() {
+        VLOG(1) << "Accepting socket";
         auto clientFd = android::base::ScopedFd(android::base::socketAcceptAny(mListenFd.get()));
         if (!clientFd.valid()) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {

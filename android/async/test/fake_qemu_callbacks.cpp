@@ -74,7 +74,7 @@ namespace {
 std::recursive_mutex sMutex;
 
 // The master fake clock, in milliseconds. Tests manually advance this clock.
-int64_t sFakeClockMs = 0;
+std::atomic<int64_t> sFakeClockMs = 0;
 
 // A list of all active QEMU timers.
 std::list<QEMUTimer*> sTimers;
@@ -91,35 +91,34 @@ struct FdHandler {
 };
 
 std::map<int, FdHandler> sFdHandlers;
-std::atomic<bool> sIoLoopRunning(false);
-std::thread sIoLoopThread;
-// A self-pipe used to wake up the poll() call in the I/O loop thread when
-// the set of monitored file descriptors changes.
-int sPipeFd[2] = {-1, -1};
 
-// The io_loop is the heart of the fake QEMU I/O handling. It runs in a
-// dedicated thread and mimics the behavior of QEMU's main event loop for
-// file descriptor I/O.
-//
-// The loop does the following:
-// 1. Collects all registered file descriptors and their requested events
-//    (read/write) from the global `sFdHandlers` map.
-// 2. Uses `poll()` to wait for I/O events on these descriptors.
-// 3. The `poll()` call blocks indefinitely until an event occurs. To handle
-//    changes in the set of monitored file descriptors (e.g., a new socket is
-//    added or removed), we need a way to wake up the `poll()` call. This is
-//    where `sPipeFd` comes in.
-// 4. `sPipeFd` is a self-pipe. The read end of the pipe is always included
-//    in the `poll()` set. When another thread modifies `sFdHandlers`, it
-//    writes a single byte to the write end of the pipe. This wakes up
-//    `poll()`, causing the loop to re-read the `sFdHandlers` and update the
-//    set of polled file descriptors.
-// 5. When `poll()` returns, the loop iterates through the descriptors with
-//    events and invokes their corresponding read/write callbacks.
-void io_loop() {
-#ifndef _WIN32
-    goldfish::async::QemuEventLoop::markQemuThread();
-    while (sIoLoopRunning.load()) {
+}  // namespace
+
+extern "C" {
+
+// --- Public Test Control Functions ---
+
+void fake_qemu_advance_ms(int64_t ms) {
+    int64_t deadline = sFakeClockMs + ms;
+    while (sFakeClockMs < deadline) {
+        // Step 1: Process a single tick of the fake clock
+        sFakeClockMs++;
+
+        // Step 2: Check and dispatch any expired timers
+        std::vector<QEMUBH*> scheduled_bh_from_timers;
+        std::list<QEMUTimer*> timers;
+        {
+            std::lock_guard<std::recursive_mutex> lock(sMutex);
+            timers = sTimers;
+        }
+        for (auto* timer : sTimers) {
+            if (timer->scale && timer->expire_time <= sFakeClockMs) {
+                timer->scale = 0;
+                scheduled_bh_from_timers.push_back(qemu_bh_new(timer->cb, timer->opaque));
+            }
+        }
+
+        // Step 3: Process I/O events without blocking
         std::vector<struct pollfd> pollfds;
         std::map<int, FdHandler> current_handlers;
         {
@@ -139,110 +138,60 @@ void io_loop() {
             pollfds.push_back(pfd);
         }
 
-        // Add the pipe fd to be able to wake up the poll
-        struct pollfd pfd = {0};
-        pfd.fd = sPipeFd[0];
-        pfd.events = POLLIN;
-        pollfds.push_back(pfd);
+        // Use a non-blocking poll call with a 0ms timeout
+        int ret = poll(pollfds.data(), pollfds.size(), 0);
 
-        int ret = poll(pollfds.data(), pollfds.size(), -1);
-        if (ret <= 0 || !sIoLoopRunning.load()) {
-            continue;
-        }
-
-        for (const auto& p : pollfds) {
-            if (p.fd == sPipeFd[0]) {
-                if (p.revents & POLLIN) {
-                    char buf[1];
-                    read(sPipeFd[0], buf, 1);
+        if (ret > 0) {
+            for (const auto& p : pollfds) {
+                if (p.revents & (POLLIN | POLLHUP | POLLERR)) {
+                    FdHandler handler;
+                    {
+                        std::lock_guard<std::recursive_mutex> lock(sMutex);
+                        handler = sFdHandlers[p.fd];
+                    }
+                    if (handler.read_cb) {
+                        VLOG(1) << "Scheduling Read callback";
+                        qemu_bh_schedule(qemu_bh_new(handler.read_cb, handler.opaque));
+                    }
                 }
-                continue;
-            }
-
-            if (p.revents & (POLLIN | POLLHUP | POLLERR)) {
-                FdHandler handler;
-                {
-                    std::lock_guard<std::recursive_mutex> lock(sMutex);
-                    handler = sFdHandlers[p.fd];
-                }
-                if (handler.read_cb) {
-                    handler.read_cb(handler.opaque);
-                }
-            }
-            if (p.revents & (POLLOUT | POLLHUP | POLLERR)) {
-                FdHandler handler;
-                {
-                    std::lock_guard<std::recursive_mutex> lock(sMutex);
-                    handler = sFdHandlers[p.fd];
-                }
-                if (handler.write_cb) {
-                    handler.write_cb(handler.opaque);
+                if (p.revents & (POLLOUT | POLLHUP | POLLERR)) {
+                    FdHandler handler;
+                    {
+                        std::lock_guard<std::recursive_mutex> lock(sMutex);
+                        handler = sFdHandlers[p.fd];
+                    }
+                    if (handler.write_cb) {
+                        VLOG(1) << "Scheduling Write callback";
+                        qemu_bh_schedule(qemu_bh_new(handler.write_cb, handler.opaque));
+                    }
                 }
             }
         }
-    }
-#endif
-}
 
-}  // namespace
-
-extern "C" {
-
-// --- Public Test Control Functions ---
-
-void fake_qemu_start_io_loop() {
-    if (sIoLoopRunning.load()) return;
-#ifndef _WIN32
-    pipe(sPipeFd);
-#endif
-    sIoLoopRunning = true;
-    sIoLoopThread = std::thread(io_loop);
-}
-
-void fake_qemu_stop_io_loop() {
-    if (!sIoLoopRunning.load()) return;
-    sIoLoopRunning = false;
-    // Wake up the poll() call
-    char c = 0;
-    write(sPipeFd[1], &c, 1);
-    if (sIoLoopThread.joinable()) {
-        sIoLoopThread.join();
-    }
-    close(sPipeFd[0]);
-    close(sPipeFd[1]);
-    sPipeFd[0] = -1;
-    sPipeFd[1] = -1;
-}
-
-void fake_qemu_advance_ms(int64_t ms) {
-    std::lock_guard<std::recursive_mutex> lock(sMutex);
-    int64_t deadline = sFakeClockMs + ms;
-    while (sFakeClockMs < deadline) {
-        sFakeClockMs++;
-
-        auto timers = sTimers;
-        for (auto* timer : timers) {
-            if (timer->scale && timer->expire_time <= sFakeClockMs) {
-                timer->scale = 0;
-                timer->cb(timer->opaque);
+        // Step 4: Process all scheduled BHs (from both timers and I/O)
+        for (auto* bh : scheduled_bh_from_timers) {
+            if (!bh->deleted) {
+                bh->scheduled = false;
+                bh->cb(bh->opaque);
             }
         }
 
-        if (!sScheduledBHs.empty()) {
-            auto scheduled = sScheduledBHs;
+        std::vector<QEMUBH*> scheduled_bhs;
+        {
+            std::lock_guard<std::recursive_mutex> lock(sMutex);
+            scheduled_bhs = sScheduledBHs;
             sScheduledBHs.clear();
-            for (auto* bh : scheduled) {
-                if (!bh->deleted) {
-                    bh->scheduled = false;
-                    bh->cb(bh->opaque);
-                }
+        }
+        for (auto* bh : scheduled_bhs) {
+            if (!bh->deleted) {
+                bh->scheduled = false;
+                bh->cb(bh->opaque);
             }
         }
     }
 }
 
 void fake_qemu_reset() {
-    fake_qemu_stop_io_loop();
     std::lock_guard<std::recursive_mutex> lock(sMutex);
     fake_qemu_advance_ms(1);
     sFakeClockMs = 0;
@@ -272,15 +221,9 @@ void qemu_set_fd_handler(int fd, IOHandler* fd_read, IOHandler* fd_write, void* 
     } else {
         sFdHandlers[fd] = {fd_read, fd_write, opaque};
     }
-    // Wake up poll() to notice the change
-    if (sIoLoopRunning.load()) {
-        char c = 0;
-        write(sPipeFd[1], &c, 1);
-    }
 }
 
 int64_t qemu_clock_get_ns(QEMUClockType type) {
-    std::lock_guard<std::recursive_mutex> lock(sMutex);
     return sFakeClockMs ? sFakeClockMs * 1000000 : 0;
 }
 
@@ -321,6 +264,7 @@ void qemu_bh_schedule(QEMUBH* bh) {
         return;
     }
     bh->scheduled = true;
+    VLOG(1) << "Scheduling bh";
     sScheduledBHs.push_back(bh);
 }
 
