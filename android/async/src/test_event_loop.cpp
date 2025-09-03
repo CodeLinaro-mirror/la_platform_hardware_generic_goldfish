@@ -84,7 +84,7 @@ class TestEventLoopImpl : public TestEventLoop {
     std::thread mThread;
     std::thread::id mThreadId;
     std::atomic<bool> mStop{false};
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     std::condition_variable mCv;
     std::condition_variable mCmdCv;
 
