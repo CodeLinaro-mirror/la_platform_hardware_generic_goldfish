@@ -40,29 +40,78 @@ namespace goldfish::async {
 
 constexpr absl::Duration kMaxStartTimeout = absl::Milliseconds(100);
 
-ThreadedEventLoop::ThreadedEventLoop(std::unique_ptr<EventLoop> loop, std::string name)
+class ThreadedEventLoopImpl : public ThreadedEventLoop {
+  public:
+    /**
+     * @brief Constructs a ThreadedEventLoopImpl.
+     *
+     * The constructor will spin up a new thread and run the EventLoop.
+     * it will block and wait until the EventLoop has marked itself as started.
+     *
+     * @param loop A unique_ptr to the underlying EventLoop implementation that
+     * this class will manage and run.
+     */
+    explicit ThreadedEventLoopImpl(std::unique_ptr<EventLoop> loop,
+                                   std::string name = "AEMU Event Thread");
+    ~ThreadedEventLoopImpl() override;
+
+    // --- Prevent Copying ---
+    ThreadedEventLoopImpl(const ThreadedEventLoopImpl&) = delete;
+    ThreadedEventLoopImpl& operator=(const ThreadedEventLoopImpl&) = delete;
+
+    // --- Prevent Moving ---
+    ThreadedEventLoopImpl(ThreadedEventLoopImpl&& other) noexcept = delete;
+    ThreadedEventLoopImpl& operator=(ThreadedEventLoopImpl&& other) noexcept = delete;
+
+    /**
+     * @brief Starts the background thread and begins executing the underlying
+     * event loop's run() method within it. This method returns immediately.
+     */
+    absl::Status run() override;
+
+    /**
+     * @brief Stops the underlying event loop and waits for the background
+     * thread to complete its execution. This is a blocking call.
+     */
+    void stop() override;
+
+    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
+
+    /**
+     * @brief Checks if the caller is on the background event loop thread.
+     * @return Delegates the call to the underlying EventLoop.
+     */
+    bool isOnLoopThread() const override;
+
+    void postImpl(Task task, std::chrono::milliseconds delay) override;
+
+    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
+
+    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+                                             std::chrono::milliseconds interval) override;
+
+    void* getRawLoop() const override { return mLoop->getRawLoop(); }
+
+    EventLoop* loop() { return mLoop.get(); }
+
+    std::thread::id get_id() const override { return mRunner.get_id(); }
+
+  private:
+    std::thread mRunner;
+    std::unique_ptr<EventLoop> mLoop;
+    std::string mLooperName;
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<EventLoop, LooperStatusEvent>>
+            mSubscription;
+};
+
+ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<EventLoop> loop, std::string name)
         : mLoop(std::move(loop)), mLooperName(std::move(name)) {
     mSubscription = android::base::eventing::makeScopedCallback(
             *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
-    absl::Notification isRunning;
-    auto waitForRun = android::base::eventing::makeScopedCallback(
-            *mLoop, [&isRunning](const LooperStatusEvent& event) {
-                VLOG(1) << "Eventloop state transitioned to " << event;
-                if (event.state == LooperStatusEvent::State::RUNNING) {
-                    isRunning.Notify();
-                }
-            });
-
-    (void)run();
-
-    VLOG(1) << "Waiting until the thread is truly running";
-    if (!isRunning.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
-        LOG(WARNING) << "Eventloop state did not transition to running within " << kMaxStartTimeout;
-    }
 }
 
-ThreadedEventLoop::~ThreadedEventLoop() {
-    VLOG(1) << "~ThreadedEventLoop";
+ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
+    VLOG(1) << "~ThreadedEventLoopImpl";
     auto future = shutdown(getTimeout());
     auto wait = future.wait_for(getTimeout());
     if (wait == std::future_status::ready) {
@@ -77,7 +126,7 @@ ThreadedEventLoop::~ThreadedEventLoop() {
     stop();
 }
 
-absl::Status ThreadedEventLoop::run() {
+absl::Status ThreadedEventLoopImpl::run() {
     if (getState() != LooperStatusEvent::State::NOT_STARTED) {
         return absl::FailedPreconditionError(
                 "The event loop is automatically run, and has already started.");
@@ -99,33 +148,62 @@ absl::Status ThreadedEventLoop::run() {
     return absl::OkStatus();
 }
 
-std::future<absl::Status> ThreadedEventLoop::shutdown(std::chrono::milliseconds timeout) {
+std::future<absl::Status> ThreadedEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
     return mLoop->shutdown(timeout);
 }
 
-void ThreadedEventLoop::stop() {
+void ThreadedEventLoopImpl::stop() {
     mLoop->stop();
     if (mRunner.joinable()) {
         mRunner.join();
     }
 }
 
-bool ThreadedEventLoop::isOnLoopThread() const {
+bool ThreadedEventLoopImpl::isOnLoopThread() const {
     return mLoop->isOnLoopThread();
 }
 
-void ThreadedEventLoop::postImpl(Task task, std::chrono::milliseconds delay) {
+void ThreadedEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
     mLoop->post(std::move(task), delay);
 }
 
-std::shared_ptr<EventLoop::Timer> ThreadedEventLoop::scheduleDelayed(
+std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::scheduleDelayed(
         Task task, std::chrono::milliseconds delay) {
     return mLoop->scheduleDelayed(std::move(task), delay);
 }
 
-std::shared_ptr<EventLoop::Timer> ThreadedEventLoop::scheduleRepeating(
+std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::scheduleRepeating(
         Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
     return mLoop->scheduleRepeating(std::move(task), initial_delay, interval);
 }
 
+std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<EventLoop> toRun) {
+    if (!toRun) {
+        LOG(WARNING) << "No looper present";
+        return nullptr;
+    }
+
+    auto loop = std::make_unique<ThreadedEventLoopImpl>(std::move(toRun));
+    absl::Notification isRunning;
+    auto waitForRun = android::base::eventing::makeScopedCallback(
+            *(loop->loop()), [&isRunning](const LooperStatusEvent& event) {
+                VLOG(1) << "Eventloop state transitioned to " << event;
+                if (event.state == LooperStatusEvent::State::RUNNING) {
+                    isRunning.Notify();
+                }
+            });
+
+    if (auto status = loop->run(); !status.ok()) {
+        LOG(WARNING) << "Failed to start inner loop due to: " << status;
+        return nullptr;
+    }
+
+    VLOG(1) << "Waiting until the thread is truly running";
+    if (!isRunning.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
+        LOG(WARNING) << "Eventloop state did not transition to running within " << kMaxStartTimeout;
+        return nullptr;
+    }
+
+    return loop;
+}
 }  // namespace goldfish::async

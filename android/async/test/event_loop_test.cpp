@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <numeric>
 #include <thread>
@@ -29,11 +30,11 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     void SetUp() override {
         mLoopType = GetParam();
         if (mLoopType == "libuv") {
-            mLibuvLoop = std::make_unique<LibuvEventLoop>();
+            mLibuvLoop = LibuvEventLoop::create();
             loop = mLibuvLoop.get();
         } else if (mLoopType == "qemu") {
-            initializeQemuEventLoop();
-            loop = getQemuEventLoop();
+            mLibuvLoop = QemuEventLoop::create();
+            loop = mLibuvLoop.get();
         }
     }
 
@@ -134,9 +135,9 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskOnRunningLoop) {
     }
     std::promise<bool> task_executed_promise;
     auto future = task_executed_promise.get_future();
-    ThreadedEventLoop running_loop(std::move(mLibuvLoop));
+    auto running_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
 
-    (void)running_loop.post([&]() { task_executed_promise.set_value(true); });
+    (void)running_loop->post([&]() { task_executed_promise.set_value(true); });
 
     ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
     EXPECT_TRUE(future.get());
@@ -621,8 +622,8 @@ TEST_P(EventLoopTest, ThreadedEventLoopWaitsAtMostTimeout) {
     auto start_time = std::chrono::steady_clock::now();
     std::shared_ptr<EventLoop::Timer> task;
     {
-        ThreadedEventLoop tloop(std::move(mLibuvLoop));
-        (void)tloop.post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
+        auto tloop = ThreadedEventLoop::create(std::move(mLibuvLoop));
+        (void)tloop->post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
         start_time = std::chrono::steady_clock::now();
     }
     auto elapsed = std::chrono::steady_clock::now() - start_time;
@@ -805,11 +806,11 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     //
     // The test confirms this by creating a `ThreadedEventLoop` and immediately shutting it
     // down, verifying that no TSan failures or crashes occur.
-    ThreadedEventLoop threaded_loop(std::move(mLibuvLoop));
-    auto future = threaded_loop.shutdown(1s);
+    auto threaded_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
+    auto future = threaded_loop->shutdown(1s);
     future.wait_for(1s);
     ASSERT_TRUE(future.get().ok()) << "Shutdown failed, the thread host run is likely not active.";
-    threaded_loop.stop();
+    threaded_loop->stop();
 }
 
 // DISABLED Until we have event fixes
@@ -852,12 +853,12 @@ TEST_P(EventLoopTest, ThreadedEventStateChanges) {
         GTEST_SKIP() << "ThreadedEventLoop is not compatible with the singleton QemuEventLoop.";
     }
 
-    ThreadedEventLoop threaded_loop(std::move(mLibuvLoop));
+    auto threaded_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
     std::vector<LooperStatusEvent::State> states;
     absl::Notification finished;
 
     auto subscription = android::base::eventing::makeScopedCallback(
-            threaded_loop, [&](const LooperStatusEvent& event) {
+            *threaded_loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << "state: " << event;
                 if (event.state == LooperStatusEvent::State::FINISHED) {
@@ -865,9 +866,9 @@ TEST_P(EventLoopTest, ThreadedEventStateChanges) {
                 }
             });
 
-    auto status = threaded_loop.shutdown(1s).get();
+    auto status = threaded_loop->shutdown(1s).get();
     ASSERT_TRUE(status.ok());
-    threaded_loop.stop();
+    threaded_loop->stop();
     finished.WaitForNotification();
 
     ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::SHUTTING_DOWN,
