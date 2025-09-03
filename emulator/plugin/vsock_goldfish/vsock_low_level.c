@@ -310,10 +310,6 @@ static uint64_t virtio_vsock_device_get_features(VirtIODevice* const dev,
 }
 
 /**********************************************************************/
-static const Property virtio_vsock_properties[] = {
-        DEFINE_PROP_UINT64("guest-cid", VirtIOVSock, guest_cid, 0),
-};
-
 static void virtio_vsock_set_status(VirtIODevice* const dev, const uint8_t status) {
     DEBUG_MSG("dev=%p status=0x%02X", dev, status);
     goldfish_virtio_vsock_set_status(VIRTIO_VSOCK(dev)->impl, status);
@@ -364,8 +360,6 @@ static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
 
     DeviceClass* dc = DEVICE_CLASS(klass);
-    device_class_set_props_n(dc, virtio_vsock_properties,
-                             ARRAY_SIZE(virtio_vsock_properties));
     dc->vmsd = &vmstate_virtio_vsock;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     VirtioDeviceClass* vdc = VIRTIO_DEVICE_CLASS(klass);
@@ -427,6 +421,12 @@ static void virtio_vsock_pci_instance_init(Object* obj) {
      * How the vectors are allocated is decided by the guest kernel.
      */
     dev->parent.nvectors = 3;
+
+    /*
+     * Good enough until we decide to run several vsock
+     * instances simultaneously.
+     */
+    dev->vdev.guest_cid = 3;
 }
 
 static const VirtioPCIDeviceTypeInfo virtio_vsock_pci_typeinfo = {
