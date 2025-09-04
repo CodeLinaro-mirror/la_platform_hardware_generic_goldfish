@@ -31,5 +31,4 @@ class ClangConverter(CompilerConverter):
                 "-MD|-fdebug-prefix-map.*|-fno-canonical-system-headers.*"
             ),
             self.bazel.normalizer,
-            DropDeadIncludes(bazel),
         ]
