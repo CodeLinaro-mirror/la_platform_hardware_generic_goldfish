@@ -71,8 +71,8 @@ class CrashTest : public ::testing::Test {
         if (Bazel::inBazel()) {
             auto crashpad_handler =
                     Bazel::runfilesPath("com_google_crashpad/handler/crashpad_handler");
-            LOG(INFO) << "Using ANDROID_EMU_CRASHPAD_HANDLER:" << crashpad_handler;
-            System::setEnvironmentVariable("ANDROID_EMU_CRASHPAD_HANDLER", crashpad_handler);
+            LOG(INFO) << "Using AEMU_CRASHPAD_HANDLER:" << crashpad_handler;
+            System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
         auto crashDatabasePath = android::base::pj(System::get()->getTempDir(), kCrashpadDatabase);

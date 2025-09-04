@@ -48,7 +48,7 @@ TEST(BootProperties, Basic) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{
         std::pair{"androidboot.hardware", "ranchu"},
@@ -72,7 +72,7 @@ TEST(BootProperties, NoBootAnim) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{.no_boot_anim = true};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
 }
@@ -92,7 +92,7 @@ TEST(BootProperties, Logcat) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{.logcat = "*:S Zygote:E"};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
 }
@@ -123,7 +123,7 @@ TEST(Initrd, Basic) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     InitrdDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -163,7 +163,7 @@ TEST(Initrd, RamdiskFlag) {
     char override_str[1024];
     strncpy(override_str, override_initrd.c_str(), 1024);
     AndroidOptions opts{.ramdisk = override_str};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     InitrdDevice dev;
     EXPECT_OK(dev.initialize(emu));

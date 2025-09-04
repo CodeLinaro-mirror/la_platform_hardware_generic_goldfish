@@ -48,7 +48,7 @@ TEST(Kernel, Basic_x86) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     KernelDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -79,7 +79,7 @@ TEST(Kernel, Basic_arm64) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     KernelDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -114,7 +114,7 @@ TEST(Kernel, AppendExtras) {
     bar.next = nullptr;
 
     AndroidOptions opts{.append = &foo};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     KernelDevice dev;
     EXPECT_OK(dev.initialize(emu));

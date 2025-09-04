@@ -20,45 +20,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 
-#include "android/base/bazel/bazel_info.h"
-#include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
-
-using android::base::Bazel;
-
-static std::string qemu_exe(const Avd& avd) {
-    const bool inBazel = Bazel::inBazel();
-    std::string baseName;
-
-    // Note that this behaviour is currently defined here:
-    // https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
-#ifdef __APPLE__
-    constexpr std::string_view bazelPostfix = ".signed";
-#else
-    constexpr std::string_view bazelPostfix = "";
-#endif
-
-    switch (avd.detectArchitecture()) {
-        case Avd::CpuArchitecture::kArm:
-            baseName = "qemu-system-aarch64";
-            break;
-        case Avd::CpuArchitecture::kX86:
-            baseName = "qemu-system-x86_64";
-            break;
-        case Avd::CpuArchitecture::kRiscV:
-            baseName = "qemu-system-riscv64";
-            break;
-        default:
-            return "unknown";
-    }
-
-    return inBazel ? absl::StrCat(baseName, bazelPostfix) : baseName;
-}
 
 namespace {
 absl::StatusOr<std::string> machine(const Avd& avd) {
@@ -80,13 +47,6 @@ absl::StatusOr<std::string> machine(const Avd& avd) {
 
 absl::Status Machine::initialize(const Emulator& emulator) {
     const Avd& avd = emulator.avd();
-    auto qemu = qemu_exe(avd);
-    mBinary = base::System::findBundledExecutable(qemu);
-
-    if (mBinary.empty()) {
-        return absl::NotFoundError(absl::StrCat("Could not find the qemu binary: ", qemu));
-    }
-
     if (auto m = machine(avd); m.ok()) {
         mMachine = *m;
         return absl::OkStatus();

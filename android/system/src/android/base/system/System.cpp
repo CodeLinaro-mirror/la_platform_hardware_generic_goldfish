@@ -261,13 +261,6 @@ class HostSystem : public System {
 
     ~HostSystem() override {}
 
-    const fs::path getProgramDirectory() const override {
-        if (mProgramDir.empty()) {
-            mProgramDir.assign(getProgramDirectoryFromPlatform());
-        }
-        return mProgramDir;
-    }
-
     fs::path getCurrentDirectory() const override {
 #if defined(_WIN32)
         int currentLen = GetCurrentDirectoryW(0, nullptr);
@@ -301,6 +294,10 @@ class HostSystem : public System {
         return err.value() == 0;
     }
 
+    fs::path getProgramBinary() const override {
+        return getProgramBinaryPath();
+    }
+
     const fs::path getLauncherDirectory() const override {
         std::string launcherDirEnv = envGet("ANDROID_EMULATOR_LAUNCHER_DIR");
         if (!launcherDirEnv.empty()) {
@@ -309,9 +306,8 @@ class HostSystem : public System {
                     << launcherDirEnv;
             return fs::path(launcherDirEnv);
         }
-        fs::path programDir = getProgramDirectory();
-        VLOG(1) << "Derived launcher directory from program directory: " << programDir;
-        return programDir;
+        LOG(ERROR) << "Unable to find launcher directory";
+        return "";
     }
 
     const fs::path getHomeDirectory() const override {
@@ -1766,6 +1762,7 @@ const std::string kExe = ".exe";
 #endif
 // static
 fs::path System::findBundledExecutable(std::string_view programName) {
+    // TODO(whollins): remove when last use is removed (ext4 progs)
     System* const system = System::get();
     const std::string executableName = std::string(programName) + kExe;
 
@@ -1775,11 +1772,6 @@ fs::path System::findBundledExecutable(std::string_view programName) {
         system->getLauncherDirectory() / executableName,
         system->getLauncherDirectory() / "bin" / executableName};
 
-    if (system->getLauncherDirectory() != system->getProgramDirectory()) {
-        underConsideration.push_back(system->getProgramDirectory() / executableName);
-        underConsideration.push_back(system->getProgramDirectory() / "bin" / executableName);
-    }
-
     for (fs::path executablePath : underConsideration) {
         VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
         if (system->pathIsFile(executablePath)) {
@@ -1787,25 +1779,6 @@ fs::path System::findBundledExecutable(std::string_view programName) {
         }
     }
 
-    // We might be running in a bazel dev environment.. Make that work for now
-    if (!Bazel::inBazel()) {
-        return "";
-    };
-
-    std::vector<fs::path> bazel_search{"_main/third_party/qemu",
-                                       "_main/hardware/generic/goldfish/third_party/sparse"
-                                       ""};
-
-    for (const auto& option : bazel_search) {
-        auto possible_exe =
-                fs::path(Bazel::runfilesPath(System::pathAsString(option / executableName)));
-        VLOG(1) << "Searching for: " << programName << " in bazel workspace: " << possible_exe;
-        if (system->pathIsFile(possible_exe)) {
-            return possible_exe;
-        }
-    }
-
-    VLOG(1) << "Unable to find: " << programName << " in bazel workspace";
     return "";
 }
 
@@ -1920,54 +1893,35 @@ std::string System::getEnvironmentVariable(std::string_view varname) {
 }
 
 // static
-std::string System::getProgramDirectoryFromPlatform() {
-    std::string res;
+fs::path System::getProgramBinaryPath() {
 #if defined(__linux__)
     char path[1024];
     memset(path, 0, sizeof(path));  // happy valgrind!
     int len = readlink("/proc/self/exe", path, sizeof(path));
     if (len > 0 && len < (int)sizeof(path)) {
-        char* x = ::strrchr(path, '/');
-        if (x) {
-            *x = '\0';
-            res.assign(path);
-        }
+        return fs::path(path);
     }
 #elif defined(__APPLE__)
     char s[PATH_MAX];
     auto pid = getpid();
-    proc_pidpath(pid, s, sizeof(s));
-    char* x = ::strrchr(s, '/');
-    if (x) {
-        // skip all slashes - there might be more than one
-        while (x > s && x[-1] == '/') {
-            --x;
-        }
-        *x = '\0';
-        res.assign(s);
-    } else {
-        res.assign("<unknown-application-dir>");
+    int ret = proc_pidpath(pid, s, sizeof(s));
+    if (ret > 0) {
+        return fs::path(s);
     }
 #elif defined(_WIN32)
     Win32UnicodeString appDir(PATH_MAX);
     int len = GetModuleFileNameW(0, appDir.data(), appDir.size());
-    res.assign("<unknown-application-dir>");
+    if (len > (int)appDir.size()) {
+        appDir.resize(static_cast<size_t>(len));
+        len = GetModuleFileNameW(0, appDir.data(), appDir.size());
+    }
     if (len > 0) {
-        if (len > (int)appDir.size()) {
-            appDir.resize(static_cast<size_t>(len));
-            GetModuleFileNameW(0, appDir.data(), appDir.size());
-        }
-        std::string dir = appDir.toString();
-        char* sep = ::strrchr(&dir[0], '\\');
-        if (sep) {
-            *sep = '\0';
-            res.assign(dir.c_str());
-        }
+        return fs::path(appDir.toString());
     }
 #else
 #error "Unsupported platform!"
 #endif
-    return res;
+    return fs::path();
 }
 
 // static

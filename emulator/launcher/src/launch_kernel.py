@@ -129,6 +129,7 @@ async def main(args, tmp_dir_for_images):
     avd_parent_dir = str(phone_ini_path.parent)
     env = {
         **env,
+        "ANDROID_HOME": r.Rlocation(f"_main/hardware/generic/goldfish/emulator/sdk"),
         "ANDROID_TMP": tmp_dir_for_images,
         "ANDROID_AVD_HOME": avd_parent_dir,
         "ANDROID_EMULATOR_HOME": avd_parent_dir,

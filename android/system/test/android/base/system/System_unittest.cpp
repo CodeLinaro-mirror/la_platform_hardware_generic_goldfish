@@ -72,8 +72,8 @@ TEST(System, get) {
     EXPECT_EQ(sys1, sys2);
 }
 
-TEST(System, getProgramDirectory) {
-    std::string dir = System::pathAsString(System::get()->getProgramDirectory());
+TEST(System, getProgramBinary) {
+    std::string dir = System::pathAsString(System::get()->getProgramBinary());
     EXPECT_FALSE(dir.empty());
     LOG(INFO) << "Program directory: [" << dir.c_str() << "]";
 }
@@ -104,6 +104,7 @@ TEST(System, getCurrentDirectory) {
 // Tests case where program directory == launcher directory (QEMU1)
 TEST(TestSystem, getDirectory) {
     const char kLauncherDir[] = "/foo/bar";
+    const char kBinaryPath[] = "/foo/bar/goldfish";
     const char kHomeDir[] = "/mama/papa";
 #if defined(__linux__)
     const char* kAppDataDir = "";
@@ -114,8 +115,8 @@ TEST(TestSystem, getDirectory) {
     TestSystem testSys(kLauncherDir, kHomeDir, kAppDataDir);
     std::string ldir = System::pathAsString(System::get()->getLauncherDirectory());
     EXPECT_STREQ(kLauncherDir, ldir.c_str());
-    std::string pdir = System::pathAsString(System::get()->getProgramDirectory());
-    EXPECT_STREQ(kLauncherDir, pdir.c_str());
+    std::string pdir = System::pathAsString(System::get()->getProgramBinary());
+    EXPECT_STREQ(kBinaryPath, pdir.c_str());
     std::string hdir = System::pathAsString(System::get()->getHomeDirectory());
     EXPECT_STREQ(kHomeDir, hdir.c_str());
     std::string adir = System::pathAsString(System::get()->getAppDataDirectory());
@@ -137,11 +138,11 @@ TEST(TestSystem, getDirectoryProgramDir) {
 
     std::string ldir = System::pathAsString(System::get()->getLauncherDirectory());
     EXPECT_STREQ(kLauncherDir, ldir.c_str());
-    std::string pdir = System::pathAsString(System::get()->getProgramDirectory());
+    std::string pdir = System::pathAsString(System::get()->getProgramBinary());
 #ifdef _WIN32
-    EXPECT_STREQ("/foo/bar\\qemu/os-arch", pdir.c_str());
+    EXPECT_STREQ("/foo/bar\\qemu/os-arch\\goldfish", pdir.c_str());
 #else
-    EXPECT_STREQ("/foo/bar/qemu/os-arch", pdir.c_str());
+    EXPECT_STREQ("/foo/bar/qemu/os-arch/goldfish", pdir.c_str());
 #endif
 }
 
@@ -486,10 +487,10 @@ TEST_F(LauncherDirectoryTest, EnvVarOverride) {
     EXPECT_EQ(System::pathAsString(ldir), testLauncherDir);
 }
 
-TEST_F(LauncherDirectoryTest, EmptyEnvVarFallsBackToProgramDir) {
+TEST_F(LauncherDirectoryTest, EmptyEnvVarMeansUnset) {
     mSys->envSet(mEnvVar, "");
     auto ldir = mSys->getLauncherDirectory();
-    EXPECT_EQ(System::pathAsString(ldir), System::pathAsString(mSys->getProgramDirectory()));
+    EXPECT_EQ(System::pathAsString(ldir), "");
 }
 
 }  // namespace base

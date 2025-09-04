@@ -1,0 +1,8 @@
+filegroup(
+    name = "sdk-marker-files",
+    srcs = [
+        "platform-tools/empty",
+        "platforms/empty",
+    ],
+    visibility = ["//visibility:public"],
+)

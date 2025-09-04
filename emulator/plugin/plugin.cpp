@@ -58,7 +58,9 @@ extern "C" void GF_STARTUP_FUNC(int argc, char **argv) {
   absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
 
-  crashhandler_init(argc, argv);
+  if (!crashhandler_init(argc, argv)) {
+    LOG(WARNING) << "Failed to initialize crashreporting.";
+  }
 
   LOG(INFO) << "goldfish plugin initialization completed";
 }
