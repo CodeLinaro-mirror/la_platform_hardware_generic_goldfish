@@ -58,9 +58,6 @@ using android::emulation::AdbHostServer;
 using android::emulation::control::AdbLogger;
 
 namespace {
-void adb_vsock_accept(VSockFwdDev* device, goldfish::devices::cable::ISocket* socket) {
-    socket->setDataSniffer(std::make_unique<AdbLogger>(device->host_port, device->guest_port));
-}
 
 // QEMU device configuration logic
 void adb_vsock_connected(VSockFwdDev* device) {
@@ -87,7 +84,10 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     vsock_fwd_dev->on_connect = adb_vsock_connected;
 
     if (VLOG_IS_ON(1)) {
-        vsock_fwd_dev->on_accept = adb_vsock_accept;
+        vsock_fwd_dev->data_sniffer_factory = [host = vsock_fwd_dev->host_port,
+                                               guest = vsock_fwd_dev->guest_port] {
+            return std::make_unique<AdbLogger>(host, guest);
+        };
     }
 
     // Initialize the vsock port forwarder.
@@ -103,11 +103,11 @@ void adb_vsock_class_init(ObjectClass* oc, void* data) {
 }
 
 const TypeInfo adb_vsock_type_info = {
-        .name = TYPE_ADB_VSOCK_DEVICE,
-        .parent = TYPE_VSOCK_FWD,
-        .instance_size = sizeof(AdbVSockDev),
-        .class_size = sizeof(AdbDeviceClass),
-        .class_init = adb_vsock_class_init,
+    .name = TYPE_ADB_VSOCK_DEVICE,
+    .parent = TYPE_VSOCK_FWD,
+    .instance_size = sizeof(AdbVSockDev),
+    .class_size = sizeof(AdbDeviceClass),
+    .class_init = adb_vsock_class_init,
 };
 }  // namespace
 

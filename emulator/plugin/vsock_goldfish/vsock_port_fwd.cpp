@@ -17,18 +17,23 @@
 #include <string_view>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
-#include "aemu/base/async/AsyncSocket.h"
-#include "aemu/base/async/AsyncSocketServer.h"
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "goldfish/avd/qemu-looper.h"
+#include "goldfish/async/async_socket.h"
+#include "goldfish/async/async_socket_factory.h"
+#include "goldfish/async/async_socket_server.h"
+#include "goldfish/async/event_loop.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/libuv_socket_factory.h"
+#include "goldfish/async/qemu_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"
+#include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/vsock/connect.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
-
 extern "C" {
 #include "goldfish/vsock/vsock_port_fwd.h"
 #include "qom/object.h"
@@ -41,6 +46,8 @@ extern "C" {
 #ifdef _WIN32
 #undef send
 #undef connect
+#undef close
+#undef socket
 #endif
 
 // IWYU pragma: end_keep
@@ -50,170 +57,154 @@ extern "C" {
 #define VLOG_DBG 1
 #define VLOG_TRACE 2
 
-using android::base::AsyncSocket;
-using android::base::AsyncSocketAdapter;
-using android::base::AsyncSocketEventListener;
-using android::base::AsyncSocketServer;
-using android::base::SimpleAsyncSocket;
+namespace {
+
+using goldfish::async::AsyncSocketFactory;
+using goldfish::async::EventLoop;
+using goldfish::async::LibuvAsyncSocketFactory;
+using goldfish::async::LibuvEventLoop;
+using goldfish::async::QemuEventLoop;
+using goldfish::async::ThreadedEventLoop;
 using goldfish::devices::ConnectionAwaiter;
+using goldfish::devices::HalPlugFactory;
 using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::ISocket;
 using goldfish::devices::cable::SocketPtr;
 
-namespace {
-class HostToGuestConnection : public IPlug {
+/// @note all calls are on the clientEventloop, nothing is on the qemu event loop.
+class HostToGuestConnection : public goldfish::devices::HalPlug,
+                              public std::enable_shared_from_this<HostToGuestConnection> {
   public:
-    HostToGuestConnection(int fd, int guestPort)
-            : mLooper(*android::goldfish::qemuLooper())
-            , mAsyncSocket(&mLooper, android::base::ScopedSocket(fd))
-            , mHostSocket(
-                      &mAsyncSocket, [this](std::string_view bytes) { receiveHost(bytes); },
-                      [this]() { closeHost(); })
-            , mGuestPort(guestPort) {
-        mLooper.registerQemuThread();
+    explicit HostToGuestConnection(std::shared_ptr<goldfish::async::AsyncSocket> hostSocket)
+            : mHostSocket(std::move(hostSocket)) {
+        assert(mHostSocket->getLoop()->isOnLoopThread() &&
+               "The constructor should run on the event loop of the sockets.");
     }
 
-    ~HostToGuestConnection() {
-        mLooper.registerQemuThread();
-        closeHost();
-        VLOG(VLOG_DBG) << "Connection to " << mGuestPort << " is finalized.";
+    ~HostToGuestConnection() override { VLOG(1) << "Completed HostToGuestConnection."; }
+
+    static std::shared_ptr<HostToGuestConnection> create(
+            std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
+        auto connection = std::make_shared<HostToGuestConnection>(std::move(hostSocket));
+        connection->mSelf = connection->shared_from_this();
+        connection->mHostSocket->setOnReadCallback(
+                [pThis = connection.get()](std::string_view data, absl::Status status) {
+                    pThis->onSocketReadCallback(data, status);
+                });
+        connection->mHostSocket->setOnCloseCallback(
+                [pThis = connection.get()]() { pThis->onSocketCloseCallback(); });
+        return connection;
     }
 
-    void receiveHost(std::string_view bytes) {
-        if (!mConnected) {
-            std::lock_guard<std::mutex> lock(mConnectedMutex);
-            if (!mConnected) {
-                VLOG(VLOG_TRACE) << "Prepending from host: " << bytes.size();
-                mPreConnectedBuffer.append(bytes);
-                return;
-            }
-        }
-        if (!mGuestSocket) {
+    void onSocketReadCallback(std::string_view data, absl::Status status) {
+        if (!status.ok()) {
+            LOG(WARNING) << "Host (" << *mHostSocket << ") read failure, due to: " << status;
+            socket()->close();
             return;
         }
-        static int total = 0;
-        VLOG(VLOG_TRACE) << "Forwarding from host: " << bytes.size()
-                         << " total: " << (total += bytes.size());
-        mGuestSocket->sendAsync(bytes.data(), bytes.size());
-    }
-
-    void closeHost() {
-        std::lock_guard<std::recursive_mutex> lock(mClosing);
-
-        // Make sure we clean up any outstanding events.
-        if (!mDisposing) {
-            mLooper.registerQemuThread();
-            mHostSocket.dispose();
-            mDisposing = true;
-            VLOG(VLOG_DBG) << "The host is closing the connection, unplugging.";
-            ISocket::unplug(std::move(mGuestSocket));
+        if (mGuestConnected) {
+            VLOG(1) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") " << data;
+            socket()->send(std::string(data));
         } else {
-            VLOG(VLOG_DBG) << "The guest is closing, and called close on the host.";
+            VLOG(1) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") " << data;
+            mHostBuffer.append(data);
         }
     }
 
-    static void connectToGuest(std::shared_ptr<HostToGuestConnection> connection,
-                               VSockFwdDev* device) {
-        VLOG(VLOG_DBG) << "Connecting to guest over vsock on port: " << connection->mGuestPort;
-        connection->mGuestSocket = goldfish::vsock::connect(connection->mGuestPort, connection);
-        if (device->on_accept) {
-            device->on_accept(device, connection->mGuestSocket.get());
-        }
+    void onSocketCloseCallback() {
+        VLOG(1) << "Host (" << *mHostSocket
+                << ") closed, closing vsock, ref: " << mSelf.use_count();
+        socket()->close();
+
+        // Okay, we are ready to be deleted.
+        mSelf.reset();
     }
 
     void onConnect() override {
-        // Nothing needs to happen here.
-        VLOG(VLOG_DBG) << "Connected to guest at port: " << mGuestPort;
-        std::lock_guard<std::mutex> lock(mConnectedMutex);
-        mConnected = true;
-
-        if (mPreConnectedBuffer.empty()) {
-            return;
+        VLOG(1) << "Guest (vsock) connected";
+        mGuestConnected = true;
+        if (!mHostBuffer.empty()) {
+            /// @note we are on the client loop, so no-one is touching mHostBuffer.
+            VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
+                    << ") :" << mHostBuffer;
+            socket()->send(mHostBuffer);
+            mHostBuffer.clear();
         }
-        VLOG(VLOG_TRACE) << "Sending bytes received before connection: "
-                         << mPreConnectedBuffer.size();
-        mGuestSocket->sendAsync(mPreConnectedBuffer.data(), mPreConnectedBuffer.size());
-        mPreConnectedBuffer.clear();
     }
 
-    bool onReceive(const void* data, size_t size) override {
-        static int total = 0;
-        VLOG(VLOG_TRACE) << "Forwarding from guest (" << mGuestPort << "): " << size
-                         << ", total: " << (total += size);
-        mLooper.registerQemuThread();
-        return mHostSocket.send((char*)data, size) == size;
+    void onReceive(std::string_view data) override {
+        VLOG(1) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
+        (void)mHostSocket->send(data.data(), data.size());
     }
 
-    SocketPtr onUnplug() override {
-        std::lock_guard<std::recursive_mutex> lock(mClosing);
-        VLOG(VLOG_DBG) << "The guest has unplugged, closing socket.";
-        if (!mDisposing) {
-            mDisposing = true;
-            mLooper.registerQemuThread();
-            mHostSocket.dispose();
-        }
-        return std::move(mGuestSocket);
+    void onClose() override {
+        VLOG(1) << "Guest (vsock) closed, closing: " << *mHostSocket;
+        mHostSocket->close();
     }
 
   private:
-    android::goldfish::QemuLooper& mLooper;
-    AsyncSocket mAsyncSocket;
-    SimpleAsyncSocket mHostSocket;
-    SocketPtr mGuestSocket;
-    std::string mPreConnectedBuffer;
-    std::mutex mConnectedMutex;
-    std::recursive_mutex mClosing;
-    const int mGuestPort;
-    bool mDisposing{false};
-    bool mConnected{false};
+    std::shared_ptr<goldfish::async::AsyncSocket> mHostSocket;
+    std::shared_ptr<HostToGuestConnection> mSelf;
+    std::string mHostBuffer;
+    bool mGuestConnected{false};
 };
 
 /**
  * @brief This class implements a proxy that forwards traffic between a TCP port
  * on the host and a vsock port on the guest.
  *
- * Note that a connection to the guest will not necessarily succeed if the TCP port in
- * the guest is not yet up. We expect those who connect to the port to be able with
- * the potential delays this can cause.
+ * Note that a connection to the guest will not necessarily succeed if the TCP
+ * port in the guest is not yet up. We expect those who connect to the port to
+ * be able to deal with the potential delays this can cause.
  */
 class VSockProxyImpl : public VSockProxy {
   public:
-    VSockProxyImpl(VSockFwdDev* device) : mDevice(device) {
+    VSockProxyImpl(VSockFwdDev* device)
+            : mDevice(device), mSocketFactory(std::make_unique<LibuvAsyncSocketFactory>()) {
         using namespace std::chrono_literals;
-        // The server socket will be created once the guest port is reachable.
+        mQemuLoop = QemuEventLoop::create();
+        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
-                android::goldfish::qemuLooper(),
+                mQemuLoop.get(),
                 [&](auto plug) { return goldfish::vsock::connect(mDevice->guest_port, plug); },
-                [&](SocketPtr sock) { startServer(); }, 100ms);
+                [&](SocketPtr sock) { vsockAliveOnQemuThread(); }, 100ms);
     }
 
   private:
     void startServer() {
-        mSocketServer = AsyncSocketServer::createTcpLoopbackServer(
-                mDevice->host_port, [this](int fd) { return acceptIncomingSocket(fd); },
-                AsyncSocketServer::LoopbackMode::kIPv4AndIPv6, android::goldfish::qemuLooper());
+        auto serverAddress = absl::StrFormat("localhost:%d", mDevice->host_port);
+        VLOG(1) << "Starting server on " << serverAddress;
+        mSocketServer = mSocketFactory->createServer(
+                mClientLoop.get(), serverAddress,
+                [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
+                    auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
+                    mQemuLoop->post([this, hostToGuest = std::move(hostToGuest)] {
+                        incomingConnectionOnQemuThread(std::move(hostToGuest));
+                    });
+                    return true;
+                });
+
         if (!mSocketServer) {
             LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
                        << " to the host: " << mDevice->host_port
                        << " could not be created, error code: " << errno;
         }
-        mSocketServer->startListening();
+
+        // Notify the world that we are available
         if (mDevice->on_connect) {
             mDevice->on_connect(mDevice);
         }
     }
 
-    /**
-     * @brief Accepts an incoming connection from the host.
-     *
-     * @param fd The file descriptor of the accepted socket.
-     * @return True if the socket was accepted successfully, false otherwise.
-     */
-    bool acceptIncomingSocket(int fd) {
-        VLOG(VLOG_DBG) << "Accepting connection from: " << mDevice->host_port << " with fd: " << fd;
-        auto forward = std::make_shared<HostToGuestConnection>(fd, mDevice->guest_port);
-        HostToGuestConnection::connectToGuest(forward, mDevice);
-        mSocketServer->startListening();
+    void vsockAliveOnQemuThread() {
+        mClientLoop->post([this] { startServer(); });
+    }
+
+    bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {
+        VLOG(1) << "Received an incoming connection socket connection!";
+        auto adapter = HalPlugFactory::connect(
+                mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
+                mClientLoop.get(), mQemuLoop.get(), mDevice->data_sniffer_factory);
+        VLOG(1) << "Adapter registered: " << adapter;
         return true;
     }
 
@@ -221,7 +212,12 @@ class VSockProxyImpl : public VSockProxy {
     VSockFwdDev* mDevice;
 
     /// The AsyncSocketServer used to listen for incoming connections.
-    std::unique_ptr<AsyncSocketServer> mSocketServer;
+    std::shared_ptr<goldfish::async::AsyncSocketServer> mSocketServer;
+
+    std::unique_ptr<EventLoop> mClientLoop;  // Client-side event loop for
+                                             // sockets
+    std::unique_ptr<EventLoop> mQemuLoop;    // The main QEMU event loop
+    std::unique_ptr<goldfish::async::AsyncSocketFactory> mSocketFactory;
     /// Waiter that waits until the guest is connected.
     std::shared_ptr<ConnectionAwaiter> mConnectionAwaiter;
 };
@@ -255,7 +251,7 @@ static void vsock_fwd_set_host_port(Object* obj, Visitor* v, const char* name, v
     }
 
     // Check for invalid input or overflow
-    if (value < 0 || value > 65535) {
+    if (value > 65535) {
         error_setg(errp, "Port number should be between 0 and 65535, not: %d", value);
         return;
     }
@@ -273,7 +269,7 @@ static void vsock_fwd_set_guest_port(Object* obj, Visitor* v, const char* name, 
     }
 
     // Check for invalid input or overflow
-    if (value < 0 || value > 65535) {
+    if (value > 65535) {
         error_setg(errp, "Port number should be between 0 and 65535, not: %d", value);
         return;
     }
@@ -297,10 +293,10 @@ static void vsock_fwd_class_init(ObjectClass* oc, void* data) {
 }
 
 static const TypeInfo vsock_fwd_type_info = {
-        .name = TYPE_VSOCK_FWD,
-        .parent = TYPE_DEVICE,
-        .instance_size = sizeof(VSockFwdDev),
-        .class_init = vsock_fwd_class_init,
+    .name = TYPE_VSOCK_FWD,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VSockFwdDev),
+    .class_init = vsock_fwd_class_init,
 };
 
 void vsock_port_fwd_register_types(void) {

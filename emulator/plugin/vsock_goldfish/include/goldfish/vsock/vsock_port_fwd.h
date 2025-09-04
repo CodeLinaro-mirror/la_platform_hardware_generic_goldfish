@@ -29,7 +29,7 @@ typedef struct VSockProxy {
 typedef struct VSockFwdDev VSockFwdDev;
 
 typedef void (*OnVsockHostConnectFn)(VSockFwdDev*);
-typedef void (*OnVsockAcceptSocketFn)(VSockFwdDev*, goldfish::devices::cable::ISocket*);
+using SnifferFactory = std::function<std::unique_ptr<goldfish::devices::cable::IDataSniffer>()>;
 
 struct VSockFwdDev {
     DeviceClass parent_class;
@@ -37,7 +37,7 @@ struct VSockFwdDev {
     int guest_port;
     VSockProxy* forwarder;
     OnVsockHostConnectFn on_connect;
-    OnVsockAcceptSocketFn on_accept;
+    SnifferFactory data_sniffer_factory;
 };
 
 extern "C" void vsock_port_fwd_register_types(void);
