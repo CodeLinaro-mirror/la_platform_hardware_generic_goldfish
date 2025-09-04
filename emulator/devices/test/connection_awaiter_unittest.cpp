@@ -14,6 +14,7 @@
 // limitations under the License.
 #include "goldfish/devices/connection_awaiter.h"
 
+#include <goldfish/devices/cable/cable.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -23,14 +24,12 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/async/Looper.h"
-#include "aemu/base/testing/TestLooper.h"
+#include "goldfish/async/testing/test_event_loop.h"
 
 namespace goldfish {
 namespace devices {
-using android::base::Looper;
-using android::base::RecurrentTask;
-using android::base::TestLooper;
+namespace async = goldfish::async;
+using async::testing::TestEventLoop;
 
 using cable::IPlug;
 using cable::ISocket;
@@ -69,113 +68,77 @@ class NullPlug : public IPlug {
     SocketPtr onUnplug() override { return nullptr; };
 };
 
-SocketPtr fakeConnection(Looper* looper, PlugPtr plug) {
+SocketPtr fakeConnection(async::EventLoop* eventLoop, PlugPtr plug) {
     auto ptr = SocketPtr(new TestSocket(plug));
-    looper->scheduleCallback(
+    (void)eventLoop->post(
             [socket = ptr.get()]() { static_cast<TestSocket*>(socket)->fakeConnected(); });
     return ptr;
 }
 
 using namespace std::chrono_literals;
 
-void runLooperUntilCompletion(TestLooper& looper, std::chrono::milliseconds deadline = 200ms) {
-    auto start = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - start < deadline) {
-        if (looper.runWithTimeoutMs(50) == EWOULDBLOCK) {
-            return;
-        }
-    }
-}
-
 TEST(ConnectionAwaiter, make_fake_connection) {
-    TestLooper looper;
+    auto eventLoop = TestEventLoop::create();
     auto plug = std::make_shared<NullPlug>();
-    auto socket = fakeConnection(&looper, plug);
+    auto socket = fakeConnection(eventLoop.get(), plug);
 }
 
 TEST(ConnectionAwaiter, fires_on_connect) {
     bool connected = false;
-    TestLooper looper;
+    auto eventLoop = TestEventLoop::create();
     auto ready = ConnectionAwaiter::retryUntilConnected(
-            &looper, [&](auto plug) { return fakeConnection(&looper, plug); },
+            eventLoop.get(), [&](auto plug) { return fakeConnection(eventLoop.get(), plug); },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    runLooperUntilCompletion(looper);
+    eventLoop->advanceClock(10ms);
+    eventLoop->runAll();
     EXPECT_TRUE(connected);
 }
 
 TEST(ConnectionAwaiter, tries_to_connect_multiple_times) {
     bool connected = false;
     int invocation = 0;
-    TestLooper looper;
+    auto eventLoop = TestEventLoop::create();
     auto ready = ConnectionAwaiter::retryUntilConnected(
-            &looper,
+            eventLoop.get(),
             [&](auto plug) {
                 invocation++;
+                VLOG(1) << "Connection attempt: " << invocation;
                 return SocketPtr(new TestSocket(plug));
             },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    runLooperUntilCompletion(looper);
+    eventLoop->advanceClock(10ms);
+    eventLoop->advanceClock(10ms);
+    eventLoop->advanceClock(10ms);
+    eventLoop->advanceClock(10ms);
     EXPECT_FALSE(connected);
-    EXPECT_GE(invocation, 4);
+    EXPECT_EQ(invocation, 4);
 }
 
 TEST(ConnectionAwaiter, stop_calling_after_connect) {
     bool connected = false;
     int invocation = 0;
-    TestLooper looper;
+    auto eventLoop = TestEventLoop::create();
     auto ready = ConnectionAwaiter::retryUntilConnected(
-            &looper,
+            eventLoop.get(),
             [&](auto plug) {
                 // On the third invocation we will connect.
                 invocation++;
                 if (invocation == 3) {
-                    return fakeConnection(&looper, plug);
+                    return fakeConnection(eventLoop.get(), plug);
                 }
                 return SocketPtr(new TestSocket(plug));
             },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    runLooperUntilCompletion(looper);
+    for (int i = 0; i < 4; i++) {
+        eventLoop->advanceClock(10ms);
+        eventLoop->runAll();
+    }
+
     EXPECT_TRUE(connected);
     EXPECT_EQ(invocation, 3);
-}
-
-// This finds problems in the testlooper..
-TEST(ConnectionAwaiter, tsan_thread_test) {
-    bool connected = false;
-    int invocation = 0;
-    TestLooper looper;
-    TestLooper looper2;
-    auto ready = ConnectionAwaiter::retryUntilConnected(
-            &looper,
-            [&](auto plug) {
-                // On the third invocation we will connect.
-                invocation++;
-                if (invocation == 3) {
-                    return fakeConnection(&looper2, plug);
-                }
-                return SocketPtr(new TestSocket(plug));
-            },
-            [&](SocketPtr sock) { connected = true; }, 10ms);
-
-    bool t1done = false;
-    std::thread t1([&]() {
-        runLooperUntilCompletion(looper);
-        t1done = true;
-    });
-    std::thread t2([&]() {
-        while (!t1done) runLooperUntilCompletion(looper2);
-    });
-    t1.join();
-    t2.join();
-
-    EXPECT_TRUE(connected);
-
-    // The connect happens on looper2.. It is very well possible that
-    // we fire the connect after receceiving more events..
-    EXPECT_LE(invocation, 4);
 }
 
 }  // namespace devices

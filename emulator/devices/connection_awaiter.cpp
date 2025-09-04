@@ -18,27 +18,35 @@
 #include <memory>
 #include <mutex>
 
-#include "aemu/base/async/RecurrentTask.h"
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace devices {
 
-using android::base::Looper;
-using android::base::RecurrentTask;
 using cable::IPlug;
 using cable::PlugPtr;
 using cable::SocketPtr;
+namespace async = goldfish::async;
 
 ConnectionAwaiter::~ConnectionAwaiter() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
-    mConnectionRetryTask.stopAndWait();
+    if (mConnectionRetryTask) {
+        VLOG(1) << "Cancelling task";
+        mConnectionRetryTask->cancel();
+    }
 }
 
 void ConnectionAwaiter::onConnect() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
+    VLOG(1) << "Received onConnect: " << (mIsConnected ? "already connected" : "not connected yet");
+    if (mIsConnected) {
+        return;
+    }
     mIsConnected = true;
-    mConnectionRetryTask.stopAsync();
+    if (mConnectionRetryTask) {
+        mConnectionRetryTask->cancel();
+        mConnectionRetryTask.reset();
+    }
     mOnConnected(std::move(mSocket));
     mSocket = nullptr;
 }
@@ -53,26 +61,25 @@ SocketPtr ConnectionAwaiter::onUnplug() {
 }
 
 std::shared_ptr<ConnectionAwaiter> ConnectionAwaiter::retryUntilConnected(
-        Looper* looper, CreateConnection createConnection, ConnectionCallback onConnected,
-        std::chrono::milliseconds interval) {
-    return std::shared_ptr<ConnectionAwaiter>(
-            new ConnectionAwaiter(looper, createConnection, onConnected, interval));
+        async::EventLoop* eventLoop, CreateConnection createConnection,
+        ConnectionCallback onConnected, std::chrono::milliseconds interval) {
+    return std::shared_ptr<ConnectionAwaiter>(new ConnectionAwaiter(
+            eventLoop, std::move(createConnection), std::move(onConnected), interval));
 }
 
-ConnectionAwaiter::ConnectionAwaiter(Looper* looper, CreateConnection createConnection,
+ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
                                      ConnectionCallback onConnected,
                                      std::chrono::milliseconds interval)
-    : mCreateConnection(std::move(createConnection)),
-      mOnConnected(std::move(onConnected)),
-      mConnectionRetryTask(
-              looper, [this]() { return attemptConnection(); }, interval)
-
-{
-    mConnectionRetryTask.start();
+        : mCreateConnection(std::move(createConnection)), mOnConnected(std::move(onConnected)) {
+    VLOG(1) << "Scheduling retry task with interval: " << interval;
+    mConnectionRetryTask =
+            eventLoop->scheduleRepeating([this]() { attemptConnection(); }, interval, interval);
 }
 
 bool ConnectionAwaiter::attemptConnection() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
+    VLOG(1) << "attempting a connection: "
+            << (mIsConnected ? "already connected" : "not connected");
     if (mIsConnected) {
         return false;
     }

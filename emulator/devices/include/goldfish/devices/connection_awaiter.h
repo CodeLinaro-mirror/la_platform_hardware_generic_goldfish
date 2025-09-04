@@ -17,17 +17,16 @@
 #include <memory>
 #include <mutex>
 
-#include "aemu/base/async/RecurrentTask.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace devices {
 
-using android::base::Looper;
-using android::base::RecurrentTask;
 using cable::IPlug;
 using cable::PlugPtr;
 using cable::SocketPtr;
+namespace async = goldfish::async;
 
 /**
  * @brief A class that facilitates asynchronous connection establishment with retry logic.
@@ -86,7 +85,7 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      * connection is successfully established. Once the connection is established,
      * the `onConnected` callback will be invoked.
      *
-     * @param looper The looper instance responsible for scheduling connection retry tasks.
+     * @param eventLoop The event loop instance responsible for scheduling connection retry tasks.
      * @param createConnection A factory function that attempts to create a connection.
      *                         This will be called repeatedly until a connection is made.
      * @param onConnected A callback function that will be triggered once the connection
@@ -97,19 +96,19 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      *                                            object that manages the retry process.
      */
     static std::shared_ptr<ConnectionAwaiter> retryUntilConnected(
-            Looper* looper, CreateConnection createConnection, ConnectionCallback onConnected,
-            std::chrono::milliseconds interval);
+            async::EventLoop* eventLoop, CreateConnection createConnection,
+            ConnectionCallback onConnected, std::chrono::milliseconds interval);
 
   private:
     /**
      * @brief Constructor. Initializes the `ConnectionAwaiter` and starts the retry task.
      *
-     * @param looper The looper instance for scheduling tasks.
+     * @param eventLoop The event loop instance for scheduling tasks.
      * @param createConnection The function to create a connection.
      * @param onConnected The callback to invoke upon successful connection.
      * @param interval The retry interval.
      */
-    ConnectionAwaiter(Looper* looper, CreateConnection createConnection,
+    ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
                       ConnectionCallback onConnected, std::chrono::milliseconds interval);
 
     /**
@@ -139,7 +138,7 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
     ConnectionCallback mOnConnected;
 
     /// Task responsible for retrying connection attempts
-    RecurrentTask mConnectionRetryTask;
+    std::shared_ptr<async::EventLoop::Timer> mConnectionRetryTask;
 };
 }  // namespace devices
 }  // namespace goldfish
