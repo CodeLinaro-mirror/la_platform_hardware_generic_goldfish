@@ -37,14 +37,7 @@ class QemuEventLoop : public EventLoop {
    *
    * @return A std::unique_ptr to a new QemuEventLoop instance.
    */
-  static std::unique_ptr<QemuEventLoop> create();
-
-  /**
-   * @brief Marks the calling thread as the main QEMU event loop thread.
-   *
-   * @note This function is mainly used by testing.
-   */
-  static void markQemuThread();
+   static std::unique_ptr<QemuEventLoop> create();
 };
 
 }  // namespace goldfish::async

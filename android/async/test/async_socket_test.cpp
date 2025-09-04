@@ -71,6 +71,7 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
             if (mQemuLooperThread.joinable()) {
                 mQemuLooperThread.join();
             }
+            mEventLoop.reset();
             fake_qemu_reset();
         }
     }
@@ -314,7 +315,8 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
 
     // Note: i is read in VLOG(1) below so it is read in thread
     // and written on main.
-    for (std::atomic<int> i = 0; i < num_threads; ++i) {
+    std::atomic<int> i = 0;
+    for (; i < num_threads; ++i) {
         threads.emplace_back([&]() {
             absl::Notification bytesAway;
             mRawEventLoop->post([&]() {

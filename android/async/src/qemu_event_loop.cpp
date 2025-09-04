@@ -28,11 +28,13 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <thread>
 
 #include "absl/base/call_once.h"
 #include "absl/log/log.h"
 
+#include "goldfish/QEMUBH.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
 
@@ -61,6 +63,8 @@ namespace {
 using goldfish::async::EventLoop;
 using goldfish::async::LooperStatusEvent;
 using goldfish::async::ScopedTimer;
+using goldfish::qemu::make_qemu_bh;
+using goldfish::qemu::QEMUBHPtr;
 
 // An implementation of the EventLoop interface that is backed by the QEMU main
 // event loop. This allows scheduling work on the main QEMU thread.
@@ -173,8 +177,12 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     };
 
   public:
-    QemuEventLoopImpl() { setState(LooperStatusEvent::State::RUNNING); }
-    ~QemuEventLoopImpl() override = default;
+    QemuEventLoopImpl() : mDrainerBh(make_qemu_bh([&] { drainQueue(); })) {
+        setState(LooperStatusEvent::State::RUNNING);
+    }
+
+    // TODO(jansene): b/441087461 make sure deletion happens on qemu thread.
+    ~QemuEventLoopImpl() override { drainQueue(); };
 
     absl::Status run() override;
     void stop() override;
@@ -187,15 +195,33 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
                                              std::chrono::milliseconds interval) override;
     void* getRawLoop() const override;
 
-    // The one and only qemu thread..
-    static thread_local bool sIsQemuThread;
-
   private:
     void postImmediately(Task task);
-    std::atomic<bool> mIsShuttingDown{false};
-};
 
-thread_local bool QemuEventLoopImpl::sIsQemuThread;
+    void drainQueue() {
+        mQemuThreadId = std::this_thread::get_id();
+        LOG(INFO) << "Currently on: " << std::this_thread::get_id();
+        std::queue<Task> local_queue;
+        {
+            std::lock_guard<std::mutex> lock(mQueueMutex);
+            mTaskQueue.swap(local_queue);
+            mDrainerScheduled = false;
+        }
+
+        while (!local_queue.empty()) {
+            local_queue.front()();
+            local_queue.pop();
+        }
+    }
+
+    std::atomic<bool> mIsShuttingDown{false};
+
+    std::thread::id mQemuThreadId;
+    std::mutex mQueueMutex;
+    std::queue<Task> mTaskQueue;
+    QEMUBHPtr mDrainerBh;
+    bool mDrainerScheduled = false;
+};
 
 // --- QemuEventLoopImpl Method Implementations ---
 
@@ -219,7 +245,7 @@ std::future<absl::Status> QemuEventLoopImpl::shutdown(std::chrono::milliseconds 
 }
 
 bool QemuEventLoopImpl::isOnLoopThread() const {
-    return sIsQemuThread;
+    return mQemuThreadId == std::this_thread::get_id();
 }
 
 void QemuEventLoopImpl::postImmediately(Task task) {
@@ -228,21 +254,13 @@ void QemuEventLoopImpl::postImmediately(Task task) {
         return;
     }
 
-    // Self-deleting BH for immediate tasks.
-    struct SelfDeletingBh {
-        QEMUBH* bh;
-        Task task;
-        static void callback(void* opaque) {
-            auto* self = static_cast<SelfDeletingBh*>(opaque);
-            sIsQemuThread = true;
-            self->task();
-            qemu_bh_delete(self->bh);
-            delete self;
-        }
-    };
-    auto* bh_task = new SelfDeletingBh{nullptr, std::move(task)};
-    bh_task->bh = qemu_bh_new(SelfDeletingBh::callback, bh_task);
-    qemu_bh_schedule(bh_task->bh);
+    std::lock_guard<std::mutex> lock(mQueueMutex);
+    mTaskQueue.push(std::move(task));
+
+    if (!mDrainerScheduled) {
+        qemu_bh_schedule(mDrainerBh.get());
+        mDrainerScheduled = true;
+    }
 }
 
 void QemuEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
@@ -287,14 +305,11 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::scheduleRepeating(
 void* QemuEventLoopImpl::getRawLoop() const {
     return nullptr;
 }
+
 }  // namespace
 
 // --- Factory Function ---
 namespace goldfish::async {
-
-void QemuEventLoop::markQemuThread() {
-    QemuEventLoopImpl::sIsQemuThread = true;
-}
 
 std::unique_ptr<QemuEventLoop> QemuEventLoop::create() {
     // Discover the qemu thread and mark ourselves as running.

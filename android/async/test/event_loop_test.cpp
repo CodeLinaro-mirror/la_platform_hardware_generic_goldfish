@@ -24,6 +24,7 @@
 using namespace std::chrono_literals;
 
 namespace goldfish::async {
+
 // Test fixture parameterized by the event loop type ("libuv" or "qemu").
 class EventLoopTest : public ::testing::TestWithParam<std::string> {
   protected:
@@ -48,6 +49,7 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
             }
             mLibuvLoop.reset();
         } else if (mLoopType == "qemu") {
+            mLibuvLoop.reset();
             fake_qemu_reset();
         }
     }
@@ -97,6 +99,18 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTask) {
     auto future = task_executed_promise.get_future();
 
     (void)loop->post([&]() { task_executed_promise.set_value(true); });
+
+    runInThread();
+    runUntil(future);
+
+    EXPECT_TRUE(future.get());
+}
+
+TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskWithinATask) {
+    std::promise<bool> task_executed_promise;
+    auto future = task_executed_promise.get_future();
+
+    (void)loop->post([&]() { (void)loop->post([&]() { task_executed_promise.set_value(true); }); });
 
     runInThread();
     runUntil(future);
@@ -172,8 +186,8 @@ TEST_P(EventLoopTest, IsOnLoopThreadIsCorrect) {
     if (mLoopType == "libuv") {
         EXPECT_FALSE(loop->isOnLoopThread());
         runInThread();
-    } else {  // qemu
-        EXPECT_TRUE(loop->isOnLoopThread());
+    } else {  // qemu now has a separate thread runner.
+        EXPECT_FALSE(loop->isOnLoopThread());
     }
 
     (void)loop->post([&]() { on_loop_thread_promise.set_value(loop->isOnLoopThread()); });
