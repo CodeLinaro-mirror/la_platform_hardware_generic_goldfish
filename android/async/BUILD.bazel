@@ -173,7 +173,7 @@ cc_test(
 cc_library(
     name = "libuv_sockets",
     srcs = [
-        "src/libuv_impl.cpp",
+        "src/libuv_sockets.cpp",
     ],
     hdrs = [
         "include/goldfish/async/libuv_socket_factory.h",
