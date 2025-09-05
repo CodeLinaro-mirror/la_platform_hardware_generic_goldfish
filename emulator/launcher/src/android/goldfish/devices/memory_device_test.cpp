@@ -43,7 +43,7 @@ TEST(MemoryDevice, Basic) {
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -60,7 +60,7 @@ TEST(MemoryDevice, Default) {
     EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(ReturnRef(hw));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -78,7 +78,7 @@ TEST(MemoryDevice, Override) {
 
     AndroidOptions opts{};
     opts.memory = "1024";
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -96,7 +96,7 @@ TEST(MemoryDevice, InvalidOverride) {
 
     AndroidOptions opts{};
     opts.memory = "foo";
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     MemoryDevice dev;
     EXPECT_FALSE(dev.initialize(emu).ok());

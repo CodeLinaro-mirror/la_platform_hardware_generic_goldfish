@@ -325,7 +325,7 @@ class System {
     static fs::path findBundledExecutable(std::string_view programName);
 
     // Return the path of the current program's directory.
-    virtual const fs::path getProgramDirectory() const = 0;
+    virtual fs::path getProgramBinary() const = 0;
 
     // Return the path of the emulator launcher's directory.
     virtual const fs::path getLauncherDirectory() const = 0;
@@ -407,7 +407,7 @@ class System {
     // regardless of being TestSystem.
     static void setEnvironmentVariable(std::string_view varname, std::string_view varvalue);
     static std::string getEnvironmentVariable(std::string_view varname);
-    static std::string getProgramDirectoryFromPlatform();
+    static fs::path getProgramBinaryPath();
     static WallDuration getSystemTimeUs();
 
     /**

@@ -80,17 +80,12 @@ FilePath CrashReporter::databaseDirectory() {
 }
 
 FilePath CrashReporter::handlerExe() {
-    fs::path handler;
     auto from_env = System::get()->getEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
-
-    if (!from_env.empty()) {
-        handler = fs::path(from_env);
-    } else if (Bazel::inBazel()) {
-        handler = fs::path(Bazel::runfilesPath("com_google_crashpad/handler/crashpad_handler"));
-    } else {
-        handler = System::get()->findBundledExecutable(kCrashpadHandler);
+    if (from_env.empty()) {
+        LOG(ERROR) << "AEMU_CRASHPAD_HANDLER envvar is empty - unable to locate crashpad_handler";
     }
-    return FilePath(handler);
+
+    return FilePath(fs::path(from_env));
 }
 
 HangDetector& CrashReporter::hangDetector() {

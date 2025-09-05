@@ -50,9 +50,6 @@ TEST(Machine, Basic_x86) {
     //     ASSERT_TRUE(tmp->makeSubFile("qemu-system-x86_64_signed"));
 
     auto launcher_path = std::filesystem::temp_directory_path();
-    // To satisfy System::findBundledExecutable.
-    auto binary_path = launcher_path / absl::StrCat("qemu-system-x86_64", bazelPostfix);
-    std::ofstream output(binary_path);
 
     base::TestSystem sys(launcher_path);
 
@@ -63,11 +60,11 @@ TEST(Machine, Basic_x86) {
     MockAvd* avd_ptr = avd.get();
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
-            .Times(2)
+            .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu));
@@ -77,9 +74,6 @@ TEST(Machine, Basic_x86) {
 
 TEST(Machine, Basic_arm64) {
     auto launcher_path = std::filesystem::temp_directory_path();
-    // To satisfy System::findBundledExecutable.
-    auto binary_path = launcher_path / absl::StrCat("qemu-system-aarch64", bazelPostfix);
-    std::ofstream output(binary_path);
 
     base::TestSystem sys(launcher_path);
 
@@ -90,11 +84,11 @@ TEST(Machine, Basic_arm64) {
     MockAvd* avd_ptr = avd.get();
 
     EXPECT_CALL(*avd_ptr, detectArchitecture())
-            .Times(2)
+            .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu));

@@ -13,8 +13,6 @@
 // limitations under the License.
 #include "android/goldfish/config/emulator.h"
 
-#include <stdio.h>
-
 #include <algorithm>
 #include <filesystem>
 #include <initializer_list>
@@ -139,10 +137,10 @@ absl::Status Emulator::addDevices() {
 
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.
-        fs::path bios_path = fs::path(Bazel::runfilesPath("_main/third_party/qemu/pc-bios"));
-        assert(fs::exists(bios_path));
-        addDevice<ParameterList>(
-                std::initializer_list<std::string>{"-L", System::pathAsString(bios_path)});
+        // This is necessary because Qemu searches relative to the current executable path which is
+        // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is composed
+        // of symlinks so the link to the launcher directory is lost.
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", System::pathAsString(mResolvedPaths.bios_directory)});
     }
 
     if (mOpts.qemu_telnet) {
@@ -179,8 +177,25 @@ absl::Status Emulator::initialize() {
     return absl::OkStatus();
 }
 
+std::string Emulator::qemu_exe_path() const {
+    std::string base;
+    switch (mAvd->detectArchitecture()) {
+        case Avd::CpuArchitecture::kX86:
+            return mResolvedPaths.qemu_system_x86_binary.string();
+        case Avd::CpuArchitecture::kArm:
+            return mResolvedPaths.qemu_system_arm_binary.string();
+        case Avd::CpuArchitecture::kRiscV:
+            return mResolvedPaths.qemu_system_riscv_binary.string();
+        default:
+            return "unknown";
+    }
+
+  return base;
+}
+
 std::vector<std::string> Emulator::getCmdline() const {
-    std::vector<std::string> params{get<Machine>("machine")->qemu_binary().string()};
+    std::vector<std::string> params{qemu_exe_path()};
+
     for (const auto& device : mDevices) {
         auto component = device->getQemuParameters(*this);
         params.insert(params.end(), component.begin(), component.end());

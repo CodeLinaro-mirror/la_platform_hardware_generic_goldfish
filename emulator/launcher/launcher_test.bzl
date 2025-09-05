@@ -53,7 +53,9 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
                 "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-x86_64:minigbm",
                 "@android_minigbm-x86_64//:system_image",
             ],
-        }),
+        }) + [
+            "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
+        ],
         main = "src/launch_kernel.py",
         deps = ["@rules_python//python/runfiles"],
         target_compatible_with = [

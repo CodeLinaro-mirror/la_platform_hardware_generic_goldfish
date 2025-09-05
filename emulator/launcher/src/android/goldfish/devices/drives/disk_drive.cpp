@@ -63,7 +63,7 @@ absl::Status createExt4Image(fs::path destination, StorageCapacity size,
                             destination.string(), size.bytes()));
 }
 
-absl::Status convertImgToQcow2(fs::path ext4_image, fs::path qcow2_image) {
+absl::Status convertImgToQcow2(const fs::path &qemu_img_binary, fs::path ext4_image, fs::path qcow2_image) {
     constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
 
     if (!fs::exists(ext4_image)) {
@@ -72,26 +72,9 @@ absl::Status convertImgToQcow2(fs::path ext4_image, fs::path qcow2_image) {
     }
 
     auto startTime = std::chrono::steady_clock::now();
-    auto qemu_img = System::get()->findBundledExecutable("qemu-img");
-    if (!fs::exists(qemu_img)) {
-        return absl::NotFoundError(
-                "The bundled executable qemu-img cannot be "
-                "found, please check you installation.");
-    }
-    if (fs::is_symlink(qemu_img)) {
-        std::error_code ec;
-        auto canon = fs::canonical(qemu_img, ec);
-        if (ec) {
-          return absl::InternalError(absl::StrCat("Failed to canonicalise path: ", qemu_img.string(), " - ", ec.message()));
-        }
-        VLOG(1) << "qemu-img is a symlink, replacing with real path: " << qemu_img << " -> " << canon;
-        qemu_img = canon;
-    }
 
-    VLOG(1) << "Running: " << qemu_img.string() << " convert -O qcow2 " << ext4_image.string() << " " << qcow2_image.string();
-    auto img_proc = base::Command::create({qemu_img.string(), "convert", "-O", "qcow2",
-                                           ext4_image.string(), qcow2_image.string()})
-                            .execute();
+    VLOG(1) << "Running: " << qemu_img_binary.string() << " convert -O qcow2 " << ext4_image.string() << " " << qcow2_image.string();
+    auto img_proc = base::Command::create({qemu_img_binary.string(), "convert", "-O", "qcow2", ext4_image.string(), qcow2_image.string()}).execute();
     if (img_proc->wait_for(kQemuImgTimeout) == std::future_status::timeout) {
         return absl::DeadlineExceededError(
                 absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image.string(),
@@ -156,7 +139,7 @@ absl::Status RwDrive::initialize(const Emulator& emulator) {
     }
 
     if (!fs::exists(mQcow2Image)) {
-        return convertImgToQcow2(mDestinationImage, mQcow2Image);
+        return convertImgToQcow2(emulator.paths().qemu_img_binary, mDestinationImage, mQcow2Image);
     }
 
     return absl::OkStatus();

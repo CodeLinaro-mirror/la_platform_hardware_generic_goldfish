@@ -44,10 +44,7 @@ __BEGIN_DECLS
  *
  * @note If the Crashpad handler cannot be found, crash reporting will be
  *     disabled. The handler location can be influenced by setting the
- *     `ANDROID_EMU_CRASHPAD_HANDLER` environment variable. If not set, the
- *     following locations are searched (in order):
- *     1. The Bazel runfiles directory (if building with Bazel).
- *     2. The emulator's `bin/` directory (if building a release).
+ *     `AEMU_CRASHPAD_HANDLER` environment variable.
  *
  * @note The crash report database is stored in a platform-specific temporary
  *     directory by default, and its name is based on the emulator version.

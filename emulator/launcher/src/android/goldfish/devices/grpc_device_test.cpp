@@ -37,7 +37,7 @@ TEST(Grpc, DefaultPort) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{};
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     GrpcDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -56,7 +56,7 @@ TEST(Grpc, CustomPort) {
     AndroidOptions opts{
         .grpc = "1000",
     };
-    Emulator emu(std::move(avd), std::move(opts));
+    Emulator emu({}, std::move(avd), std::move(opts));
 
     GrpcDevice dev;
     EXPECT_OK(dev.initialize(emu));

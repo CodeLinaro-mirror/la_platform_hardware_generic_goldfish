@@ -5,6 +5,12 @@ load("plugins.bzl", "collect_plugins")
 load("version_info.bzl", "version_info_header")
 
 cc_library(
+    name = "input_paths",
+    hdrs = ["include/android/goldfish/config/input_paths.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "headers",
     srcs = [
         "include/android/goldfish/config/emulator.h",
@@ -13,6 +19,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":input_paths",
         "//hardware/generic/goldfish/emulator/cmdline",
     ],
 )
@@ -80,6 +87,7 @@ cc_library(
     data = ["//third_party/qemu:qemu-roms"],
     visibility = ["//visibility:public"],
     deps = [
+        ":input_paths",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/config",
@@ -143,26 +151,25 @@ selects.config_setting_group(
 
 collect_plugins(
     name = "plugins",
-    output_dir = "plugins",
+    output_dir = "lib/qemu",
     plugins = [
         "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
         "@crosvm//:rutabaga_ffi",
     ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
+        "darwin_aarch64": [
             "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
             "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
-        ],
-    }) + select({
-        "darwin_aarch64": [
             "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
         ],
         "@platforms//os:linux": [
+            "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
+            "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
             "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
             "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
         ],
         "@platforms//os:windows": [
+            # We don't build Qemu system aarch64 or riscv64 on Windows.
             "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
             "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
         ],
@@ -172,7 +179,7 @@ collect_plugins(
 
 collect_plugins(
     name = "vulkan_icds",
-    output_dir = "plugins/lib64/vulkan",
+    output_dir = "lib/qemu/lib64/vulkan",
     plugins = select({
         "darwin_aarch64": [
             "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
@@ -184,19 +191,14 @@ collect_plugins(
     }),
 )
 
-cc_binary(
-    name = "goldfish",
-    srcs = [
-        "aemu_version.h",
-        "src/android/goldfish/launcher.cpp",
-    ],
-    data = [
-        ":plugins",
-        ":vulkan_icds",
-        "//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access",
+collect_plugins(
+    name = "binaries",
+    output_dir = "bin",
+    plugins = [
+        "//hardware/generic/goldfish/third_party/sparse:img2simg",
         "//third_party/qemu:qemu-img",
-        "//third_party/qemu:qemu-keymaps",
-        "//third_party/qemu:qemu-roms",
+        "@com_google_crashpad//handler:crashpad_handler",
+        #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
             "//third_party/qemu:qemu-system-x86_64",
@@ -212,6 +214,38 @@ cc_binary(
             "//third_party/qemu:qemu-system-x86_64",
         ],
     }),
+)
+
+collect_plugins(
+    name = "roms",
+    output_dir = "share/qemu",
+    plugins = [
+        "//third_party/qemu:qemu-roms",
+    ],
+)
+
+collect_plugins(
+    name = "keymaps",
+    output_dir = "share/qemu/keymaps",
+    plugins = [
+        "//third_party/qemu:qemu-keymaps",
+    ],
+)
+
+cc_binary(
+    name = "goldfish",
+    srcs = [
+        "aemu_version.h",
+        "src/android/goldfish/launcher.cpp",
+    ],
+    data = [
+        ":binaries",
+        ":keymaps",
+        ":plugins",
+        ":roms",
+        ":vulkan_icds",
+        "//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access",
+    ],
     includes = [
         ".",
         "include",

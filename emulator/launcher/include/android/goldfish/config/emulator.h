@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
 #include <cstdint>
 #include <cstdio>
 #include <memory>
@@ -26,6 +27,8 @@
 #include "android/cmdline-option.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/device.h"
+
+#include "input_paths.h"
 
 namespace android::goldfish {
 
@@ -42,7 +45,7 @@ class Emulator {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(std::unique_ptr<Avd> avd, AndroidOptions opts) : mAvd(std::move(avd)), mOpts(opts) {}
+    explicit Emulator(ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts) : mResolvedPaths(resolved_paths), mAvd(std::move(avd)), mOpts(opts) {}
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -88,6 +91,9 @@ class Emulator {
         mDevices.push_back(std::move(newDevice));
     }
 
+    // The resolved paths to input binaries and data
+    const ResolvedInputPaths& paths() const { return mResolvedPaths; }
+
     // The avd description used to configure this emulator
     const Avd& avd() const { return *mAvd; }
 
@@ -125,9 +131,11 @@ class Emulator {
     absl::Status addDevices();
 
     // Constructs the qemu command line.
+    std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
     std::string mVmodule;
 
+    const ResolvedInputPaths mResolvedPaths;
     const std::unique_ptr<Avd> mAvd;
     const AndroidOptions mOpts;
     std::vector<std::unique_ptr<Device>> mDevices;

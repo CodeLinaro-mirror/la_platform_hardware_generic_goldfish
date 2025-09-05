@@ -55,7 +55,6 @@ namespace fs = std::filesystem;
 class TestSystem : public System {
   public:
     using System::getEnvironmentVariable;
-    using System::getProgramDirectoryFromPlatform;
     using System::setEnvironmentVariable;
 
     explicit TestSystem(fs::path launcherDir, fs::path homeDir = "/home", fs::path appDataDir = "")
@@ -80,7 +79,7 @@ class TestSystem : public System {
         delete mTempDir;
     }
 
-    const fs::path getProgramDirectory() const override { return mProgramDir; }
+    fs::path getProgramBinary() const override { return mProgramDir / "goldfish"; }
 
     // Set directory of currently executing binary.  This must be a subdirectory
     // of mLauncherDir and specified relative to mLauncherDir
