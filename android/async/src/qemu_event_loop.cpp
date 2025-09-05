@@ -107,8 +107,21 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             // by being cancelled). See `handleFire()` and `cancel()` for where
             // `mSelf.reset()` is called to break the cycle.
             mSelf = shared_from_this();
-            mQemuTimer = timer_new_ms(QEMU_CLOCK_HOST, &QemuTimer::qemuCallback, this);
-            timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_HOST) + mDelay.count());
+
+            // Of course you cannot create/modify timers from a non-qemu loop.
+            if (mLoop->isOnLoopThread()) {
+                mQemuTimer = timer_new_ms(QEMU_CLOCK_REALTIME, &QemuTimer::qemuCallback, this);
+                timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + mDelay.count());
+            } else {
+                mLoop->post([this, self = mSelf] {
+                    if (!mCancelled) {
+                        mQemuTimer =
+                                timer_new_ms(QEMU_CLOCK_REALTIME, &QemuTimer::qemuCallback, this);
+                        timer_mod(mQemuTimer,
+                                  qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + mDelay.count());
+                    }
+                });
+            }
         }
 
         void cleanup() {
@@ -159,7 +172,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             mTask();
 
             if (mInterval.count() > 0 && !mCancelled.load()) {
-                timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_HOST) + mInterval.count());
+                timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + mInterval.count());
             } else {
                 // It's a one-shot timer or we are cancelled. The work is done.
                 cleanup();
