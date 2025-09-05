@@ -12,16 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern "C" {
 #include "goldfish/grpc/grpc-service-device.h"
-
-// clang-format off
-// IWYU pragma: begin_keep
-#include "qemu/osdep.h"
-#include "ui/surface.h"
-// IWYU pragma: end_keep
-// clang-format on
-}
 
 #include <chrono>
 #include <cstdint>

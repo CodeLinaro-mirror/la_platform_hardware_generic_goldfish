@@ -13,6 +13,10 @@
 // limitations under the License.
 #include <stdbool.h>
 
+#include <sys/cdefs.h>
+
+__BEGIN_DECLS
+
 struct GrpcDeviceConfigurationCpp;
 
 typedef struct DisplayChangeListener;
@@ -37,8 +41,6 @@ void finalize(GrpcDeviceConfiguration* device);
 void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h);
 void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);
 
-#ifdef __cplusplus
-extern "C" void grpc_register_types(void);
-#else
 void grpc_register_types(void);
-#endif
+
+__END_DECLS
