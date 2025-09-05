@@ -16,9 +16,10 @@
 #include "absl/status/status_matchers.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
+
 #include "fake_qemu_callbacks.h"
 #include "goldfish/async/async_socket_server.h"
-#include "goldfish/async/async_socket_utils.h"
+#include "goldfish/async/dns_resolver.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
@@ -232,6 +233,9 @@ TEST_P(AsyncSocketTest, EchoTest) {
                     echo_promise.set_value(std::string(data));
                 });
         client->setOnConnectedCallback([&](auto) {
+            ASSERT_THAT(client->send(original_message.data(), original_message.size()), IsOk());
+        });
+        client->setOnConnectedCallback([&](auto) {
             ASSERT_THAT(
                     client->send(original_message.data(), original_message.size()),
                     IsOk());
@@ -370,53 +374,116 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
               num_threads * message_per_thread.size());
 }
 
-TEST_P(AsyncSocketTest, SendSynchronouslyBlocksAndSucceeds) {
-    const std::string message_to_send = "blocking send";
-    std::promise<std::string> received_promise;
-    auto received_future = received_promise.get_future();
+TEST_P(AsyncSocketTest, ConnectAndCloseWithHostname) {
+    // This test is only relevant for libuv as qemu does not support dns.
+    if (mLoopType != "libuv") {
+        GTEST_SKIP();
+    }
+    std::promise<void> connected_promise;
+    auto connected_future = connected_promise.get_future();
+    std::promise<void> client_closed_promise;
+    auto client_closed_future = client_closed_promise.get_future();
 
-    // This will hold the server-side connection to keep it alive.
-    ScopedAsyncSocket server_connection;
-
-    auto on_connect = [&](std::shared_ptr<AsyncSocket> accepted_socket) {
-        // The server sets a read callback to fulfill the promise when data
-        // arrives.
-        accepted_socket->setOnReadCallback(
-                [&](std::string_view data, absl::Status err) {
-                    if (err.ok())
-                        received_promise.set_value(std::string(data));
-                });
-        // Take ownership of the accepted socket.
-        server_connection = ScopedAsyncSocket(std::move(accepted_socket));
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        connected_promise.set_value();
+        LOG(INFO) << "Server received connection, closing incoming.";
+        // Let's be alive a bit so we don't get crazy concurrency.
+        std::this_thread::sleep_for(10ms);
+        socket->close();
         return true;
     };
 
-    // --- Setup: Create server, client, and establish a connection ---
-    ScopedAsyncServer server(mRawEventLoop->postAndWait([&] {
-        return mFactory->createServer(mRawEventLoop, "127.0.0.1:0", on_connect);
-    }));
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "localhost:0", on_connect); }));
+    ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
-    ScopedAsyncSocket client(mRawEventLoop->postAndWait([&] {
-        return mFactory->createSocket(mRawEventLoop,
-                                      "127.0.0.1:" + std::to_string(port));
+    ScopedAsyncSocket client(postAndWait([&, port] {
+        return mFactory->createSocket(mRawEventLoop, "localhost:" + std::to_string(port));
     }));
+    ASSERT_NE(client, nullptr);
 
-    absl::Notification connected_notification;
     mRawEventLoop->post([&]() {
-        client->setOnConnectedCallback(
-                [&](auto) { connected_notification.Notify(); });
+        client->setOnConnectedCallback([&](absl::Status err) { LOG(INFO) << err; });
+        client->setOnCloseCallback([&] {
+            LOG(INFO) << "Client is closed";
+            client_closed_promise.set_value();
+        });
         ASSERT_THAT(client->connect(), IsOk());
     });
-    connected_notification.WaitForNotification();
 
-    // --- Execute: Call the blocking function from the main test thread ---
-    absl::Status status = sendSynchronously(client.get(), message_to_send);
+    runUntil(connected_future);
+    runUntil(client_closed_future);
+}
 
-    ASSERT_THAT(status, IsOk());
+TEST_P(AsyncSocketTest, ConnectAndCloseWithABadHostname) {
+    // This test is only relevant for libuv as qemu does not support dns.
+    if (mLoopType != "libuv") {
+        GTEST_SKIP();
+    }
+    std::promise<void> connected_promise;
+    auto connected_future = connected_promise.get_future();
+    std::promise<void> client_closed_promise;
+    auto client_closed_future = client_closed_promise.get_future();
 
-    runUntil(received_future);
-    EXPECT_EQ(received_future.get(), message_to_send);
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        connected_promise.set_value();
+        LOG(INFO) << "Server received connection, closing incoming.";
+        // Let's be alive a bit so we don't get crazy concurrency.
+        std::this_thread::sleep_for(10ms);
+        socket->close();
+        return true;
+    };
+
+    ScopedAsyncServer server(postAndWait([&] {
+        return mFactory->createServer(mRawEventLoop, "wanou_localhost:0", on_connect);
+    }));
+    ASSERT_EQ(server, nullptr);
+}
+
+TEST_P(AsyncSocketTest, EchoTestWithHostname) {
+    // This test is only relevant for libuv as qemu does not support dns.
+    if (mLoopType != "libuv") {
+        GTEST_SKIP();
+    }
+    const std::string original_message = "Ping";
+    std::promise<std::string> echo_promise;
+    auto echo_future = echo_promise.get_future();
+    std::vector<ScopedAsyncSocket> server_sockets;
+    std::mutex server_sockets_mutex;
+
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->setOnReadCallback([sock = socket.get()](std::string_view data, absl::Status err) {
+            ASSERT_THAT(sock->send(data.data(), data.size()), IsOk());
+        });
+        // Keep the socket alive by moving it into the scoped vector
+        std::lock_guard<std::mutex> lock(server_sockets_mutex);
+        server_sockets.emplace_back(std::move(socket));
+        return true;
+    };
+
+    ScopedAsyncServer server(postAndWait(
+            [&] { return mFactory->createServer(mRawEventLoop, "localhost:0", on_connect); }));
+    ASSERT_NE(server, nullptr);
+    int port = postAndWait([&] { return server->port(); });
+
+    ScopedAsyncSocket client(postAndWait([&, port] {
+        return mFactory->createSocket(mRawEventLoop, "localhost:" + std::to_string(port));
+    }));
+    ASSERT_NE(client, nullptr);
+
+    mRawEventLoop->post([&]() {
+        client->setOnReadCallback([&](std::string_view data, absl::Status err) {
+            echo_promise.set_value(std::string(data));
+        });
+        client->setOnConnectedCallback([&](auto) {
+            ASSERT_THAT(client->send(original_message.data(), original_message.size()), IsOk());
+        });
+        ASSERT_THAT(client->connect(), IsOk());
+    });
+
+    runUntil(echo_future);
+    EXPECT_EQ(echo_future.get(), original_message);
 }
 
 INSTANTIATE_TEST_SUITE_P(

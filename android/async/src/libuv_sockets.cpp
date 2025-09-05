@@ -13,6 +13,14 @@
 // limitations under the License.
 #include <sys/types.h>
 #include <uv.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -24,10 +32,12 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 
 #include "goldfish/async/async_socket.h"
 #include "goldfish/async/async_socket_server.h"
+#include "goldfish/async/dns_resolver.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
@@ -61,7 +71,9 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     LibuvSocket(EventLoop* loop, const struct sockaddr* addr)
-            : mEventLoop(loop), mLoop(static_cast<uv_loop_t*>(loop->getRawLoop())) {
+            : mEventLoop(loop)
+            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mIsIncoming(false) {
         if (addr->sa_family == AF_INET) {
             // Copy IPv4 address
             memcpy(&mAddr, addr, sizeof(sockaddr_in));
@@ -269,37 +281,9 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
 class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
   public:
-    LibuvServer(EventLoop* loop, const std::string& address, ConnectCallback cb)
-            : mEventLoop(loop)
-            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
-            , mConnectCallback(std::move(cb))
-            , mPort(-1)
-            , mIsListening(false) {
-        assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
-
-        struct sockaddr_storage addr;
-        size_t c = address.find_last_of(':');
-        std::string ip = address.substr(0, c);
-        int p = std::stoi(address.substr(c + 1));
-        if (uv_ip4_addr(ip.c_str(), p, (sockaddr_in*)&addr) != 0 &&
-            uv_ip6_addr(ip.c_str(), p, (sockaddr_in6*)&addr) != 0)
-            return;
-
-        uv_tcp_init(mLoop, &mServerHandle);
-        mServerHandle.data = this;
-        if (uv_tcp_bind(&mServerHandle, (const sockaddr*)&addr, 0) != 0) return;
-
-        uv_listen((uv_stream_t*)&mServerHandle, 128, [](uv_stream_t* s, int status) {
-            if (status < 0) return;
-            static_cast<LibuvServer*>(s->data)->on_new_connection(s);
-        });
-
-        mIsListening = true;
-        int len = sizeof(addr);
-        uv_tcp_getsockname(&mServerHandle, (sockaddr*)&addr, &len);
-        mPort = ntohs(addr.ss_family == AF_INET ? ((sockaddr_in*)&addr)->sin_port
-                                                : ((sockaddr_in6*)&addr)->sin6_port);
-    }
+    // Factory to create a LibuvServer. Returns nullptr on failure.
+    static std::shared_ptr<LibuvServer> create(EventLoop* loop, const std::string& address,
+                                               ConnectCallback cb);
 
     ~LibuvServer() override {
         assert(uv_is_closing((const uv_handle_t*)&mServerHandle) &&
@@ -336,6 +320,61 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     EventLoop* getLoop() const override { return mEventLoop; }
 
   private:
+    LibuvServer(EventLoop* loop, ConnectCallback cb)
+            : mEventLoop(loop)
+            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mConnectCallback(std::move(cb))
+            , mPort(-1)
+            , mIsListening(false) {
+        assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
+        uv_tcp_init(mLoop, &mServerHandle);
+        mServerHandle.data = this;
+    }
+
+    bool bindAndListen(const std::string& address) {
+        struct sockaddr_storage addr;
+        auto addresses = resolveAddress(address, AI_PASSIVE);
+        if (addresses.empty()) {
+            LOG(ERROR) << "Failed to resolve address: " << address;
+            return false;
+        }
+
+        bool bound = false;
+        for (const auto& resolved_addr : addresses) {
+            if (uv_tcp_bind(&mServerHandle, (const struct sockaddr*)&resolved_addr, 0) == 0) {
+                bound = true;
+                memcpy(&addr, &resolved_addr, sizeof(resolved_addr));
+                break;
+            }
+        }
+
+        if (!bound) {
+            LOG(ERROR) << "Failed to bind to " << address;
+            return false;
+        }
+
+        int listen_res =
+                uv_listen((uv_stream_t*)&mServerHandle, 128, [](uv_stream_t* s, int status) {
+                    if (status < 0) {
+                        LOG(WARNING) << "Listen error: " << UvErrToAbslStatus(status);
+                        return;
+                    }
+                    static_cast<LibuvServer*>(s->data)->on_new_connection(s);
+                });
+
+        if (listen_res != 0) {
+            LOG(ERROR) << "Failed to listen on " << address << ": "
+                       << UvErrToAbslStatus(listen_res);
+            return false;
+        }
+
+        mIsListening = true;
+        int len = sizeof(addr);
+        uv_tcp_getsockname(&mServerHandle, (sockaddr*)&addr, &len);
+        mPort = ntohs(addr.ss_family == AF_INET ? ((sockaddr_in*)&addr)->sin_port
+                                                : ((sockaddr_in6*)&addr)->sin6_port);
+        return true;
+    }
     void on_new_connection(uv_stream_t* server) {
         if (!mIsListening) return;
 
@@ -370,6 +409,21 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     bool mIsListening;
 };
 
+std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const std::string& address,
+                                                 ConnectCallback cb) {
+    assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
+
+    // Constructor is private, but as a static member, we can call it.
+    auto server = std::shared_ptr<LibuvServer>(new LibuvServer(loop, std::move(cb)));
+
+    if (server->bindAndListen(address)) {
+        return server;
+    }
+
+    server->close();
+    return nullptr;
+}
+
 // =================================================================
 //          LibuvSocketFactory Implementation
 // =================================================================
@@ -378,25 +432,21 @@ std::shared_ptr<AsyncSocketServer> LibuvAsyncSocketFactory::createServer(
         EventLoop* loop, const std::string& address,
         AsyncSocketServer::ConnectCallback connectCallback) {
     assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
-    auto server = std::make_shared<LibuvServer>(loop, address, std::move(connectCallback));
-    if (server->port() != -1) {
-        return server;
-    }
-    return nullptr;
+    return LibuvServer::create(loop, address, std::move(connectCallback));
 }
 
 std::shared_ptr<AsyncSocket> LibuvAsyncSocketFactory::createSocket(EventLoop* loop,
                                                                    const std::string& address) {
     assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
-    struct sockaddr_storage addr;
-    size_t last_colon = address.find_last_of(':');
-    std::string ip_str = address.substr(0, last_colon);
-    int port = std::stoi(address.substr(last_colon + 1));
-    if (uv_ip4_addr(ip_str.c_str(), port, (sockaddr_in*)&addr) != 0 &&
-        uv_ip6_addr(ip_str.c_str(), port, (sockaddr_in6*)&addr) != 0) {
+    auto addresses = resolveAddress(address, 0);
+    if (addresses.empty()) {
+        LOG(ERROR) << "Failed to resolve address: " << address;
         return nullptr;
     }
-    return std::make_shared<LibuvSocket>(loop, (const struct sockaddr*)&addr);
+
+    // Use the first resolved address
+    auto socket = std::make_shared<LibuvSocket>(loop, (const struct sockaddr*)&addresses[0]);
+    return socket;
 }
 
 }  // namespace goldfish::async
