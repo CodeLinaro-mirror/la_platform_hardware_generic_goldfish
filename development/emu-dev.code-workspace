@@ -16,8 +16,6 @@
 		"[cpp]": {
 			"editor.defaultFormatter": "xaver.clang-format"
 		},
-		/// bsv.bazel plugin does not support ${workspaceFolder}
-		// "bsv.bazel.executable": "${workspaceFolder}/prebuilts/tools/bazel/bazel",
 		"C_Cpp.clang_format_fallbackStyle": "Google",
 		"C_Cpp.codeAnalysis.clangTidy.enabled": true,
 		"C_Cpp.codeAnalysis.clangTidy.path": "clang-tidy",
@@ -25,8 +23,8 @@
 		"C_Cpp.intelliSenseEngine": "disabled", // Conflicts with clangd
 		"clangd.path": "clangd",
 		"files.exclude": {
-			"../../..cache": true,
-			"../../..repo": true,
+			".cache": true,
+			".repo": true,
 			"**/.cache": true,
 			"**/.DS_Store": true, // this is a default value
 			"**/.git": true, // this is a default value
