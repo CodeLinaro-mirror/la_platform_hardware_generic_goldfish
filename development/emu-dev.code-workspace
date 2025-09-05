@@ -36,7 +36,7 @@
 			"tools": false
 		},
 		"mesonbuild.selectRootDir": false,
-		"workbench.colorTheme": "Eva Dark Italic",
+		"workbench.colorTheme": "Quiet Light",
 		"files.eol": "\n" // Windows should not introduce CRLF.
 	}
 }

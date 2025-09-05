@@ -232,6 +232,7 @@ cc_test(
         ":libuv_sockets",
         ":qemu_sockets",
         "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 
