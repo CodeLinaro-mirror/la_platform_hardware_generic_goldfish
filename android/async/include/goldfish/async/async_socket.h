@@ -15,11 +15,13 @@
 
 #include <functional>
 #include <future>
+#include <iostream>
 #include <memory>
 #include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_resource.h"
@@ -225,10 +227,56 @@ class AsyncSocket {
      * thread to get the loop pointer needed to `post()` tasks.
      */
     virtual EventLoop* getLoop() const = 0;
+
+  protected:
+    /**
+     * @brief Provides a string representation for logging and debugging.
+     *
+     * This is the implementation hook for `absl::StrFormat`. Concrete socket
+     * implementations should override this method to provide meaningful
+     * diagnostic information (e.g., connection state, peer address).
+     *
+     * @param s The `absl::FormatSink` to write the formatted string to.
+     */
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const {
+        absl::Format(&s, "<DefaultAsyncSocket loop=%p>", getLoop());
+    }
+
+  private:
+    friend void AbslStringify(absl::FormatSink& s, const AsyncSocket& socket);
 };
 
 using ScopedAsyncSocket = ScopedAsyncResource<AsyncSocket>;
 
+/**
+ * @brief Enables `absl::StrFormat` support for `AsyncSocket`.
+ *
+ * This free function is the customization point that allows `AsyncSocket`
+ * objects (and their derivatives) to be formatted with `absl::StrFormat`
+ * using the `%v` format specifier. It delegates the actual formatting to
+ * the virtual `AbslStringifyImpl` method.
+ *
+ * @param s The `absl::FormatSink` to write to.
+ * @param socket The `AsyncSocket` to format.
+ */
+inline void AbslStringify(absl::FormatSink& s, const AsyncSocket& socket) {
+    socket.AbslStringifyImpl(s);
+}
+
+/**
+ * @brief Enables `std::ostream` support for `AsyncSocket`.
+ *
+ * This overload allows `AsyncSocket` objects to be streamed directly to any
+ * `std::ostream` (e.g., `std::cout`, `std::stringstream`, or Abseil's `VLOG`).
+ * It works by using `absl::StreamFormat` to delegate the formatting to the
+ * `AbslStringify` customization point, ensuring a consistent string
+ * representation.
+ *
+ * @param os The output stream to write to.
+ * @param socket The `AsyncSocket` to format.
+ * @return A reference to the output stream.
+ */
+std::ostream& operator<<(std::ostream& os, const AsyncSocket& socket);
 // TODO: Add support for co-routines?
 
 }  // namespace goldfish::async
