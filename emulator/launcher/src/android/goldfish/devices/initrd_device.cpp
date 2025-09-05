@@ -152,9 +152,10 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     //   params.push_back({"androidboot.bootchart", opts->bootchart});
     // }
 
-    // if (opts->selinux) {
-    //   params.push_back({"androidboot.selinux", opts->selinux});
-    // }
+    if (opts.selinux) {
+        // TODO Must be "permissive"
+        params.push_back({"androidboot.selinux", "permissive"});
+    }
 
     if (hw.vm_heapSize > 0) {
         params.push_back({dalvikVmHeapsizeProp, absl::StrFormat("%dm", hw.vm_heapSize)});

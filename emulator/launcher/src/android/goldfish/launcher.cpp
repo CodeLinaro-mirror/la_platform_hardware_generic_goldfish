@@ -142,15 +142,16 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     // TODO(whollins): ASSIGN_OR_RETURN(paths.netsim_binary, check_exists(paths.binary_directory / add_binary_suffix("netsimd"), "netsimd"));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, check_exists(paths.binary_directory / add_binary_suffix("crashpad_handler"), "crashpad handler"));
 
+#ifdef _WIN32
     // Canonicalize binaries as Windows cannot execute a symlink.
+    // Note that Forge seems to break if we do this for Linux.
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, canonicalize(paths.qemu_system_x86_binary));
-#ifndef _WIN32
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, canonicalize(paths.qemu_system_arm_binary));
+    // ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, canonicalize(paths.qemu_system_arm_binary));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, canonicalize(paths.qemu_system_riscv_binary));
-#endif
     ASSIGN_OR_RETURN(paths.qemu_img_binary, canonicalize(paths.qemu_img_binary));
     ASSIGN_OR_RETURN(paths.netsim_binary, canonicalize(paths.netsim_binary));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, canonicalize(paths.crashpad_handler_binary));
+#endif
 
     // Make sure the child process is using the same crashpad handler as we are using.
     // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
