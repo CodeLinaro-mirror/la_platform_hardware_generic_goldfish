@@ -14,11 +14,17 @@ cc_library(
 )
 
 cc_library(
-    name = "hal_plug_friend",
-    hdrs = ["include/goldfish/hal/plug/HalPlugFriend.h"],
+    name = "hal_plug_factory",
+    srcs = ["HalPlugFactory.cpp"],
+    hdrs = ["include/goldfish/hal/plug/HalPlugFactory.h"],
     includes = ["include"],
-    visibility = ["//hardware/generic/goldfish/emulator/devices:__pkg__"],
-    deps = [":hal_plug"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hal_plug",
+        ":hal_plug_to_i_plug_adapter",
+        ":marshalling_hal_socket",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+    ],
 )
 
 cc_library(
@@ -46,16 +52,34 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "fake_vsock",
+    srcs = [
+        "test/fake_vsock.cpp",
+    ],
+    hdrs = [
+        "test/fake_vsock.h",
+    ],
+    includes = ["test"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+    ],
+)
+
 cc_test(
     name = "hal_plug_adapter_unittests",
     size = "small",
     srcs = [
-        "test/fake_vsock.cpp",
         "test/hal_plug_adapter_concurrency_test.cpp",
         "test/hal_plug_adapter_unittest.cpp",
+        "test/hal_plug_factory_listen_test.cpp",
+        "test/hal_plug_factory_test.cpp",
+        "test/hal_plug_testing_friend.h",
     ],
     deps = [
-        ":hal_plug_friend",
+        ":fake_vsock",
+        ":hal_plug_factory",
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
         "//hardware/generic/goldfish/android/async:async_testing",

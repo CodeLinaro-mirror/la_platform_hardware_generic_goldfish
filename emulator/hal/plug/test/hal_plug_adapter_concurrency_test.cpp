@@ -21,9 +21,10 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/hal/plug/HalPlugFriend.h"
+#include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
+#include "hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;
 using namespace goldfish::async;
@@ -84,7 +85,7 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     auto marshallingSocket =
             std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
 
-    HalPlugFriend::establishConnection(mockHalPlug.get(), marshallingSocket);
+    HalPlugTesting::establishConnection(mockHalPlug.get(), marshallingSocket);
 
     // 2. Orchestration: Simulate the exact sequence leading to deadlock.
 
@@ -95,7 +96,6 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     //    Step B: The QEMU loop runs. The adapter receives the event and posts
     //    a corresponding task to the client loop.
     EXPECT_GT(qemuLoop->taskCount(), 0);
-    ;
     ASSERT_EQ(clientLoop->taskCount(), 0);
     qemuLoop->runOne();
     ASSERT_EQ(qemuLoop->taskCount(), 0);
@@ -156,7 +156,7 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     auto adapter = std::make_shared<HalPlugToIPlugAdapter>(clientLoop.get(), mockHalPlug);
     auto marshallingSocket =
             std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
-    HalPlugFriend::establishConnection(mockHalPlug.get(), marshallingSocket);
+    HalPlugTesting::establishConnection(mockHalPlug.get(), marshallingSocket);
 
     // 2. Orchestration
     //    Step A: Host initiates a close(). This posts a task to the QEMU loop.
@@ -314,7 +314,7 @@ TEST(HalPlugAdapterConcurrencyTest, InFlightDataIsDeliveredAfterHostClose) {
     auto adapter = std::make_shared<HalPlugToIPlugAdapter>(clientLoop.get(), mockHalPlug);
     auto marshallingSocket =
             std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
-    HalPlugFriend::establishConnection(mockHalPlug.get(), marshallingSocket);
+    HalPlugTesting::establishConnection(mockHalPlug.get(), marshallingSocket);
 
     // 2. Orchestration
     //    Step A: QEMU thread sends data, posting an onReceive task to the client.

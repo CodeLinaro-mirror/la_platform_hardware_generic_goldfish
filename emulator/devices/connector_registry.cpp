@@ -23,7 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/hal/plug/HalPlugFriend.h"
+#include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
 #include "goldfish/vsock/listen.h"
@@ -109,30 +109,20 @@ void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop
     auto wrapperFactory = [this, name, qemuLoop, clientLoop, userFactory = std::move(factory)](
                                   SocketPtr qemuSocket, std::shared_ptr<PingTopic> pingTopic,
                                   std::string_view args) -> PlugPtr {
-        // 1. Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
+        // Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
         // as we must give our vsockstream a concrete PlugPtr. Let's hope developers are not doing
         // *crazy* things in the factory.
         std::shared_ptr<HalPlug> realHalPlug = userFactory();
 
-        // 2. Create the marshalling socket on the QEMU thread.
-        auto marshallingSocket =
-                std::make_shared<MarshallingHalSocket>(std::move(qemuSocket), qemuLoop);
-
-        // 3. Set the socket on the HalPlug using the friend class.
-        HalPlugFriend::establishConnection(realHalPlug.get(), marshallingSocket);
-
-        // 4. Post the onConnect notification to the client thread.
-        VLOG(1) << "Scheduling on connect for realHalPlug: " << realHalPlug
-                << ", clientLoop: " << clientLoop;
-        (void)clientLoop->post([realHalPlug]() {
-            VLOG(1) << "Delivering onConnect to realHalPlug: " << realHalPlug;
-            realHalPlug->onConnect();
-        });
-
-        // 5. Register the plug for activeDevice() lookups and return the
-        //    adapter to the vsock layer.
+        // Wrap the HAL plug in a marshalling layer. This will ensure that all calls to the
+        // HAL plug are marshalled to the client thread and vice versa.
+        auto adapter = HalPlugFactory::wrapHalPlug(
+                std::move(qemuSocket), [realHalPlug = realHalPlug] { return realHalPlug; },
+                clientLoop, qemuLoop);
+        // Register the plug for activeDevice() lookups and return the
+        // adapter to the vsock layer.
         registerInternal<HalPlug>(name, realHalPlug);
-        return std::make_shared<HalPlugToIPlugAdapter>(clientLoop, std::move(realHalPlug));
+        return adapter;
     };
 
     registerFn(std::move(name), std::move(wrapperFactory));

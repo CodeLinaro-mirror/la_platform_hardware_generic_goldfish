@@ -25,9 +25,10 @@
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/hal/plug/HalPlugFriend.h"
+#include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
+#include "hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;
 using namespace goldfish::async;
@@ -98,7 +99,7 @@ class HalPlugAdapterTest : public ::testing::Test {
         mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
             auto marshallingSocket =
                     std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-            HalPlugFriend::establishConnection(mMockHalPlug.get(), marshallingSocket);
+            HalPlugTesting::establishConnection(mMockHalPlug.get(), marshallingSocket);
             mMockHalPlug->onConnect();
         });
 
@@ -126,7 +127,7 @@ TEST_F(HalPlugAdapterTest, OnConnectIsMarshalledToClientThread) {
     mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
         auto marshallingSocket =
                 std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-        HalPlugFriend::establishConnection(mMockHalPlug.get(), marshallingSocket);
+        HalPlugTesting::establishConnection(mMockHalPlug.get(), marshallingSocket);
         mMockHalPlug->onConnect();
     });
 

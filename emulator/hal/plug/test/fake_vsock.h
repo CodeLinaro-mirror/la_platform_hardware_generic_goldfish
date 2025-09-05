@@ -13,32 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "fake_vsock.h"
-
 #include "goldfish/vsock/connect.h"
 #include "goldfish/vsock/listen.h"
-#include "hardware/generic/goldfish/emulator/plugin/vsock_goldfish/include/goldfish/vsock/listen.h"
 
 // This file provides a fake implementation of the vsock::listen function to
 // satisfy the linker for unit tests that depend on ConnectorRegistry.
 namespace goldfish::vsock {
 
-static FakeListenFn gFakeListenFn = [](uint32_t, HostPortListener) { return true; };
-static FakeConnectFn gFakeConnectFn = [](uint32_t, devices::cable::PlugPtr) { return nullptr; };
+using FakeListenFn = std::function<bool(uint32_t, HostPortListener)>;
+using FakeConnectFn = std::function<devices::cable::SocketPtr(uint32_t, devices::cable::PlugPtr)>;
 
-void set_fake_listen_fn(FakeListenFn fn) {
-    gFakeListenFn = fn;
-}
-void set_fake_connect_fn(FakeConnectFn fn) {
-    gFakeConnectFn = fn;
-}
-
-bool listen(uint32_t port, HostPortListener listener) {
-    return gFakeListenFn(port, listener);
-}
-
-devices::cable::SocketPtr connect(uint32_t guestPort, devices::cable::PlugPtr plug) {
-    return gFakeConnectFn(guestPort, plug);
-}
+void set_fake_listen_fn(FakeListenFn fn);
+void set_fake_connect_fn(FakeConnectFn fn);
 
 }  // namespace goldfish::vsock

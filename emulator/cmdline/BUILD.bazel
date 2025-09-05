@@ -45,11 +45,5 @@ cc_test(
         ":cmdline",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/config:avd-test",
-        "//hardware/generic/goldfish/emulator/devices:test-helpers",
-        "@aemu//:aemu-host-common-test-headers",
-        "@aemu//base:aemu-base",
-        "@aemu//base:aemu-base-headers",
-        "@protobuf",
     ],
 )

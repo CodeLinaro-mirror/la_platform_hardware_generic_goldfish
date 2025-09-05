@@ -22,7 +22,8 @@
 namespace goldfish {
 namespace devices {
 
-class HalPlugFriend;
+class HalPlugFactory;
+class HalPlugTesting;
 class HalPlugToIPlugAdapter;
 /**
  * @class HalSocket
@@ -107,72 +108,76 @@ class NullHalSocket : public HalSocket {
  */
 class HalPlug {
   public:
-   HalPlug() {
-     // Start with a safe, non-functional socket. This prevents crashes if
-     // the user incorrectly calls socket() before onConnect().
-     static auto nullSocket = std::make_shared<internal::NullHalSocket>();
-     mSocket = nullSocket;
-   }
+    HalPlug() {
+        // Start with a safe, non-functional socket. This prevents crashes if
+        // the user incorrectly calls socket() before onConnect().
+        static auto nullSocket = std::make_shared<internal::NullHalSocket>();
+        mSocket = nullSocket;
+    }
 
-   virtual ~HalPlug() = default;
+    virtual ~HalPlug() = default;
 
-   /**
-    * @brief Callback invoked when the connection is fully established.
-    *
-    * This method is called on the HAL's dedicated event loop and signals that
-    * two-way communication with the guest is now possible. It is the point
-    * at which the `socket()` becomes valid for sending data.
-    *
-    * @note An `onReceive` callback with initial connection parameters may
-    * have been called *before* this method. Any such data should be buffered
-    * and processed here.
-    */
-   virtual void onConnect() = 0;
+    /**
+     * @brief Callback invoked when the connection is fully established.
+     *
+     * This method is called on the HAL's dedicated event loop and signals that
+     * two-way communication with the guest is now possible. It is the point
+     * at which the `socket()` becomes valid for sending data.
+     *
+     * @note An `onReceive` callback with initial connection parameters may
+     * have been called *before* this method. Any such data should be buffered
+     * and processed here.
+     */
+    virtual void onConnect() = 0;
 
-   /**
-    * @brief Callback invoked when data is received from the guest.
-    *
-    * This method is called on the HAL's dedicated event loop for each
-    * incoming data packet.
-    *
-    * @param data A view of the received data buffer.
-    * @warning The `data` parameter is a `std::string_view` and is only valid
-    * for the duration of this function call. If the data needs to be
-    * stored or used later, it must be copied.
-    */
-   virtual void onReceive(std::string_view data) = 0;
+    /**
+     * @brief Callback invoked when data is received from the guest.
+     *
+     * This method is called on the HAL's dedicated event loop for each
+     * incoming data packet.
+     *
+     * @param data A view of the received data buffer.
+     * @warning The `data` parameter is a `std::string_view` and is only valid
+     * for the duration of this function call. If the data needs to be
+     * stored or used later, it must be copied.
+     */
+    virtual void onReceive(std::string_view data) = 0;
 
-   /**
-    * @brief Callback invoked when the connection has been terminated by the guest.
-    *
-    * This method is called on the HAL's dedicated event loop when the remote
-    * guest actively closes the connection. After this call begins, the
-    * `socket()` will no longer be valid. Implementations should perform any
-    * necessary resource cleanup within this method.
-    *
-    * @note This callback is only triggered by **guest-initiated** disconnects.
-    * It will **not** be called as a result of the host calling
-    * `socket()->close()`.
-    */
-   virtual void onClose() = 0;
+    /**
+     * @brief Callback invoked when the connection has been terminated by the guest.
+     *
+     * This method is called on the HAL's dedicated event loop when the remote
+     * guest actively closes the connection. After this call begins, the
+     * `socket()` will no longer be valid. Implementations should perform any
+     * necessary resource cleanup within this method.
+     *
+     * @note This callback is only triggered by **guest-initiated** disconnects.
+     * It will **not** be called as a result of the host calling
+     * `socket()->close()`.
+     * @note Due to nature of concurrency it is possible that you wrote some bytes to a NullSocket
+     * before you received the onClose callback.
+     */
+    virtual void onClose() = 0;
 
   protected:
-   /**
-    * @brief Provides access to the underlying `HalSocket`.
-    *
-    * @return A pointer to the `HalSocket` instance for this connection.
-    * @warning This method adheres to the class invariant: the returned
-    * pointer is only functional between the `onConnect()` and `onClose()`
-    * calls. At all other times, it will return a safe, non-functional
-    * "null" socket.
-    */
-   std::shared_ptr<HalSocket> socket() { return mSocket; }
+    /**
+     * @brief Provides access to the underlying `HalSocket`.
+     *
+     * @return A pointer to the `HalSocket` instance for this connection.
+     * @warning This method adheres to the class invariant: the returned
+     * pointer is only functional between the `onConnect()` and `onClose()`
+     * calls. At all other times, it will return a safe, non-functional
+     * "null" socket.
+     */
+    std::shared_ptr<HalSocket> socket() { return mSocket; }
 
   private:
-   friend class HalPlugFriend;
-   friend class HalPlugToIPlugAdapter;
-   void establishConnection(std::shared_ptr<HalSocket> socket) { mSocket = std::move(socket); }
-   std::shared_ptr<HalSocket> mSocket;
+    friend class HalPlugFactory;
+    friend class HalPlugToIPlugAdapter;
+    friend class HalPlugTesting;
+
+    void establishConnection(std::shared_ptr<HalSocket> socket) { mSocket = std::move(socket); }
+    std::shared_ptr<HalSocket> mSocket;
 };
 
 }  // namespace devices
