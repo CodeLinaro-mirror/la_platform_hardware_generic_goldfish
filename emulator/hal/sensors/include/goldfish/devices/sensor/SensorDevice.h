@@ -14,16 +14,18 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <vector>
 
 #include "absl/status/statusor.h"
 
-#include "aemu/base/async/Looper.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/sensor/Sensors.h"
+#include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/physics/Rotation.h"
 
 namespace android::base {
@@ -32,12 +34,9 @@ class IClock;
 
 namespace goldfish::devices::sensor {
 
-using android::base::Looper;
 using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
+using goldfish::async::EventLoop;
 using goldfish::physics::Rotation;
 
 using namespace std::string_view_literals;
@@ -45,7 +44,9 @@ using namespace std::string_view_literals;
 using SensorData = std::vector<float>;
 
 // A Qemud based sensor emulator.
-class ISensorDevice : public IPlug, public CallbackEventSource<AndroidSensor> {
+class ISensorDevice : public HalPlug,
+                      public CallbackEventSource<AndroidSensor>,
+                      public std::enable_shared_from_this<ISensorDevice> {
   public:
     ~ISensorDevice() override {}
 
@@ -129,10 +130,11 @@ class ISensorDevice : public IPlug, public CallbackEventSource<AndroidSensor> {
      * the lifetime of the registry.  Their lifecycles should be managed
      * externally to ensure they outlive the registry.
      */
-    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper);
+    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
     // Test seam
-    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper,
-                               ::android::base::IClock* clock);
+    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, EventLoop* clientLoop,
+                               EventLoop* qemuLoop, ::android::base::IClock* clock);
 };
 
 /**

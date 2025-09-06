@@ -20,12 +20,25 @@
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/test_socket.h"
+#include "hal_plug_testing_friend.h"
+#include "hardware/generic/goldfish/emulator/hal/plug/include/goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish {
 namespace devices {
 
 using cable::PlugPtr;
 using cable::SocketPtr;
+
+struct TestHalSocket : public HalSocket {
+    void send(std::string data) override {
+        LOG(ERROR) << "Send " << data;
+        storage.append(data);
+    }
+    void close() override { closed = true; };
+
+    bool closed{false};
+    std::string storage;
+};
 
 /**
  * @brief A ConnectorRegistry implementation for testing purposes.
@@ -102,6 +115,16 @@ class TestConnectorRegistry : public ConnectorRegistry {
         return true;
     }
 
+    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
+                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override {
+        mHalFactory = factory;
+    }
+
+    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
+                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override {
+        mHalFactory = factory;
+    }
+
     template <typename T>
     T* constructDevice() {
         auto socket = goldfish::devices::fakeConnection(&mLooper);
@@ -111,8 +134,17 @@ class TestConnectorRegistry : public ConnectorRegistry {
         return reinterpret_cast<T*>(mPlug.get());
     }
 
-    TestSocket* getSocket() { return mSocket; }
+    template <typename T>
+    T* constructHalDevice() {
+        mHalSocket = std::make_shared<TestHalSocket>();
+        mHalPlug = mHalFactory();
+        HalPlugTesting::establishConnection(mHalPlug.get(), mHalSocket);
+        registerInternal<HalPlug>(std::string(T::serviceName), mHalPlug);
+        return reinterpret_cast<T*>(mHalPlug.get());
+    }
 
+    TestSocket* getSocket() { return mSocket; }
+    TestHalSocket* halSocket() { return mHalSocket.get(); }
     PlugPtr getPlug() { return mPlug; }
 
     TestLooper* getLooper() { return &mLooper; }
@@ -120,8 +152,13 @@ class TestConnectorRegistry : public ConnectorRegistry {
   private:
     TestLooper mLooper;
     Connector::DeviceFactory mFactory;
+    HalDeviceFactory mHalFactory;
+
     TestSocket* mSocket;
     PlugPtr mPlug;
+
+    std::shared_ptr<TestHalSocket> mHalSocket;
+    std::shared_ptr<HalPlug> mHalPlug;
 };
 
 }  // namespace devices

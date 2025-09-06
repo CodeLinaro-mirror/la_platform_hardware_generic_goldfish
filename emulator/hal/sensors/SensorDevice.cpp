@@ -14,13 +14,17 @@
 
 #include "goldfish/devices/sensor/SensorDevice.h"
 
+#include <goldfish/async/event_loop.h>
+
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdbool>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -34,8 +38,6 @@
 #include "aemu/base/async/Looper.h"
 #include "android/base/system/clock.h"
 #include "android/goldfish/config/avd.h"
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/devices/sensor/PhysicalModel.h"
@@ -46,9 +48,6 @@ namespace goldfish::devices::sensor {
 
 using android::base::Looper;
 using android::goldfish::Avd;
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 using goldfish::physics::SkinRotation;
 
 namespace {  // Anonymous namespace for internal helpers
@@ -162,12 +161,14 @@ void _sanitizeSensorString(char* string, int maxlen) {
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(SocketPtr socket, const android::goldfish::Avd& avd, android::base::Looper* looper,
+    SensorDevice(const android::goldfish::Avd& avd, EventLoop* eventLoop,
                  ::android::base::IClock* clock)
-            : mSocket(std::move(socket))
-            , mPhysicalModel(new PhysicalModel(avd))
-            , mTimer(looper->createTimer(&_SensorDevice_tick, this, Looper::ClockType::kVirtual))
-            , mClock(clock) {
+            : mPhysicalModel(new PhysicalModel(avd))
+            , mLoop(eventLoop)
+            , mClock(clock)
+            , mQemudParser([this](const void* data, size_t size) {
+                return handleMessage(std::string_view(static_cast<const char*>(data), size));
+            }) {
         // Initialize sensors based on AVD configuration
         if (avd.hw().hw_accelerometer) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
@@ -251,11 +252,30 @@ class SensorDevice : public ISensorDevice {
         }
     }
 
-    ~SensorDevice() {}
-    SocketPtr onUnplug() override { return std::move(mSocket); }
+    ~SensorDevice() override {}
+
+    void onClose() override {
+        VLOG(1) << "Bye bye! Sensors shutting down";
+        mTimer->cancel();
+
+        // Make sure we don't get destroyed while a timer is active.
+        // By posting with a self reference we guarantee that we remain alive
+        // until the timer has completed been cleaned up (b/443556478)
+        mLoop->post([this] { mSelf.reset(); });
+    }
+
+    void onConnect() override {
+        VLOG(1) << "Starting sensor ticks" << *this;
+        this->mSelf = shared_from_this();
+        // Note, the timer will be rescheduled after the guest requests it.
+        mTimer = mLoop->scheduleRepeating([this] { tick(); }, std::chrono::milliseconds::max(),
+                                          absl::ToChronoMilliseconds(mDelay));
+    };
 
     void send(std::string_view msg) {
-        goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(encoded);
     }
 
     /*
@@ -305,9 +325,16 @@ class SensorDevice : public ISensorDevice {
      *   emulated system time (using the first sync: to compute an adjustment
      *   offset).
      */
+    void onReceive(std::string_view data) override {
+        mQemudParser.onReceive(data.data(), data.size());
+    }
 
-    bool onReceive(const void* data, size_t size) override {
-        std::string_view msg(static_cast<const char*>(data), size);
+    bool handleMessage(std::string_view msg) {
+        DCHECK(mTimer)
+                << "onReceive must have been called before onConnected was called, this "
+                   "means we are operating on an unconnected socket, and the guest will not "
+                   "receive the expected response! Logcat will likely show a crashed sensor hal.";
+
         VLOG(1) << "Received message from sensor HAL: " << msg;
         if (msg == "list-sensors") {
             std::string response = std::to_string(mEnabledMask);
@@ -324,7 +351,10 @@ class SensorDevice : public ISensorDevice {
             int32_t delay_ms;
             if (absl::SimpleAtoi(msg, &delay_ms)) {
                 mDelay = absl::Milliseconds(delay_ms);
-                if (mEnabledMask != 0) tick();
+                if (mEnabledMask != 0) {
+                    // Trigger a tick to apply the new delay immediately.
+                    tick();
+                }
                 return true;
             } else {
                 VLOG(1) << "Ignoring 'set-delay' command with invalid delay value: '" << msg << "'";
@@ -359,6 +389,7 @@ class SensorDevice : public ISensorDevice {
                 mEnabledMask &= ~(1 << id);
             }
 
+            // Trigger a tick to apply the new mask configuration immediately.
             tick();
             return true;
         }
@@ -377,13 +408,6 @@ class SensorDevice : public ISensorDevice {
 
         VLOG(1) << "Ignoring unknown command from sensor HAL: " << msg;
         return true;
-    }
-
-    bool supportsLoadingFromSnapshot() const override { return false; }
-
-    TypeId getSnapshotTypeId() const override {
-        using namespace std::string_literals;
-        return "SensorDevice"s;
     }
 
     absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) override {
@@ -485,6 +509,11 @@ class SensorDevice : public ISensorDevice {
                       .yAxis = out->at(1),
                       .zAxis = out->at(2)};
         return r;
+    }
+
+  protected:
+    void AbslStringifyImpl(absl::FormatSink& s) const override {
+        absl::Format(&s, "[SensorDevice socket=%v]", *socket());
     }
 
   private:
@@ -687,6 +716,7 @@ class SensorDevice : public ISensorDevice {
         // the android.hardware CTS requires sync times to be no greater than the
         // time of the sensor event arrival. Since the CTS enforces this property,
         // other code may also rely on it.
+        DCHECK(mLoop->isOnLoopThread()) << "Tick must be called from the event loop!";
         const auto now = mClock->now(::android::base::ClockType::Virtual);
         mPhysicalModel->setCurrentTime(absl::ToUnixNanos(now));
         for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
@@ -717,21 +747,27 @@ class SensorDevice : public ISensorDevice {
         // rate,
         //   which has been known to be in the low 100's of Hz.
         mDelay = std::clamp(mDelay, absl::Milliseconds(10), absl::Hours(1));
-        mTimer->startRelative(absl::ToInt64Milliseconds(mDelay));
+
+        DCHECK(mSelf) << "Self reference should have been set, otherwise we are scheduling a "
+                         "callback where we can disappear from (i.e. tick could be called with "
+                         "this == nullptr)!";
+        mTimer->rescheduleRepeating(absl::ToChronoMilliseconds(mDelay),
+                                    absl::ToChronoMilliseconds(mDelay));
     }
 
-    static void _SensorDevice_tick(void* opaque, Looper::Timer* unused) {
-        reinterpret_cast<SensorDevice*>(opaque)->tick();
-    }
-
-    SocketPtr mSocket;
     Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
     std::unique_ptr<PhysicalModel> mPhysicalModel;
     absl::Duration mTimeOffset;
-    Looper::Timer* mTimer;
+    EventLoop* mLoop;
+    std::shared_ptr<EventLoop::Timer> mTimer;
     ::android::base::IClock* mClock;
     uint32_t mEnabledMask{0};
     absl::Duration mDelay{absl::Milliseconds(800)};
+    qemud::Parser mQemudParser;
+
+    // We are having callbacks in a timer, we want to make sure we never
+    // delete ourselves.
+    std::shared_ptr<ISensorDevice> mSelf;
 
     // Sensor and Physical Parameter information arrays
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
@@ -741,19 +777,20 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper,
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd,
+                                   EventLoop* clientLoop, EventLoop* qemuLoop,
                                    ::android::base::IClock* clock) {
-    registry->registerQemuDevice(
-            std::string(ISensorDevice::serviceName),
-            [&avd, looper, clock](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                                  std::string_view args) {
-                return std::make_shared<SensorDevice>(std::move(socket), avd, looper, clock);
-            });
+    registry->registerHalQemuDevice(std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
+                                    [&avd, clientLoop, clock]() {
+                                        return std::make_shared<SensorDevice>(avd, clientLoop,
+                                                                              clock);
+                                    });
 }
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd, Looper* looper) {
-    registerDevice(registry, avd, looper, &::android::base::IClock::get());
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd,
+                                   EventLoop* clientLoop, EventLoop* qemuLoop) {
+    registerDevice(registry, avd, clientLoop, qemuLoop, &::android::base::IClock::get());
 }
 
 SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)

@@ -49,11 +49,13 @@ class DisplayServiceTest : public GrcpServiceTest {
     void SetUp() override {
         mLoop = ::goldfish::async::ThreadedEventLoop::create(
                 ::goldfish::async::LibuvEventLoop::create());
+        mQemuLoop = ::goldfish::async::ThreadedEventLoop::create(
+                ::goldfish::async::LibuvEventLoop::create());
 
         // Clear all displays except the default one before each test
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mMultiDisplay->clear();
-        ISensorDevice::registerDevice(&mRegistry, mAvd, mRegistry.getLooper());
+        ISensorDevice::registerDevice(&mRegistry, mAvd, mLoop.get(), mQemuLoop.get());
         mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), &mRegistry);
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());
@@ -81,6 +83,7 @@ class DisplayServiceTest : public GrcpServiceTest {
 
     std::unique_ptr<FakeMultiDisplay> mMultiDisplay;
     std::unique_ptr<::goldfish::async::EventLoop> mLoop;
+    std::unique_ptr<::goldfish::async::EventLoop> mQemuLoop;
     goldfish::FakeAvd mAvd;
     TestConnectorRegistry mRegistry;
     std::unique_ptr<DisplayServiceImpl> mDisplayService;
@@ -243,7 +246,7 @@ TEST_F(DisplayServiceTest, GetScreenshotNoSize) {
 }
 
 TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
-    auto device = mRegistry.constructDevice<ISensorDevice>();
+    auto device = mRegistry.constructHalDevice<ISensorDevice>();
 
     // Get a screenshot
     ImageFormat request;
@@ -497,7 +500,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
 
     // We are now going to trigger a rotation event, which should result in a new frame.
     // Note that if this doesn't work we will timeout with our context deadline and fail the test.
-    auto device = mRegistry.constructDevice<ISensorDevice>();
+    auto device = mRegistry.constructHalDevice<ISensorDevice>();
     float x = 1;
     float y = 0;
     float z = 0;
@@ -518,7 +521,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
 TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     // Note: if StreamScreenshotRotationProducesAFrame fails, then this will
     // fail as well.
-    auto device = mRegistry.constructDevice<ISensorDevice>();
+    auto device = mRegistry.constructHalDevice<ISensorDevice>();
     ImageFormat request;
     request.set_display(1);
     request.set_format(ImageFormat::RGBA8888);

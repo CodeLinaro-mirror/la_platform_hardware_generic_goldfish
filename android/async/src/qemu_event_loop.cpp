@@ -227,7 +227,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
     void drainQueue() {
         mQemuThreadId = std::this_thread::get_id();
-        LOG(INFO) << "Currently on: " << std::this_thread::get_id();
         std::queue<Task> local_queue;
         {
             std::lock_guard<std::mutex> lock(mQueueMutex);
