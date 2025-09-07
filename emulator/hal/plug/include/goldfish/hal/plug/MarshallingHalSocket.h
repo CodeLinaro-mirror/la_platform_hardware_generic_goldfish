@@ -45,7 +45,8 @@ class HalPlugToIPlugAdapter;
  * When the underlying socket is closed it will be replaced by a NullSocket that
  * will send bytes to the void (ie. discarded).
  */
-class MarshallingHalSocket : public HalSocket {
+class MarshallingHalSocket : public HalSocket,
+                             public std::enable_shared_from_this<MarshallingHalSocket> {
   public:
     /**
      * @brief Constructs a new MarshallingHalSocket.
