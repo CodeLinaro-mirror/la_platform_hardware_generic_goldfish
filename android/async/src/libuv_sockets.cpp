@@ -24,7 +24,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 
 #include "goldfish/async/async_socket.h"
 #include "goldfish/async/async_socket_server.h"
@@ -54,13 +54,23 @@ struct write_req_t {
 class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<LibuvSocket> {
   public:
     explicit LibuvSocket(EventLoop* loop)
-            : mEventLoop(loop), mLoop(static_cast<uv_loop_t*>(loop->getRawLoop())) {
+            : mEventLoop(loop)
+            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mIsIncoming(true) {
         tcpInit();
     }
 
     LibuvSocket(EventLoop* loop, const struct sockaddr* addr)
             : mEventLoop(loop), mLoop(static_cast<uv_loop_t*>(loop->getRawLoop())) {
-        mAddr = *reinterpret_cast<const sockaddr_storage*>(addr);
+        if (addr->sa_family == AF_INET) {
+            // Copy IPv4 address
+            memcpy(&mAddr, addr, sizeof(sockaddr_in));
+        } else if (addr->sa_family == AF_INET6) {
+            // Copy IPv6 address
+            memcpy(&mAddr, addr, sizeof(sockaddr_in6));
+        } else {
+            memset(&mAddr, 0, sizeof(mAddr));
+        }
         tcpInit();
     }
 
@@ -152,6 +162,28 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     EventLoop* getLoop() const override { return mEventLoop; }
 
+  protected:
+    void AbslStringifyImpl(absl::FormatSink& s) const override {
+        char ip[INET6_ADDRSTRLEN];
+        int port = 0;
+
+        if (mAddr.ss_family == AF_INET) {
+            const auto* addr_in = reinterpret_cast<const sockaddr_in*>(&mAddr);
+            uv_ip4_name(addr_in, ip, sizeof(ip));
+            port = ntohs(addr_in->sin_port);
+        } else if (mAddr.ss_family == AF_INET6) {
+            const auto* addr_in6 = reinterpret_cast<const sockaddr_in6*>(&mAddr);
+            uv_ip6_name(addr_in6, ip, sizeof(ip));
+            port = ntohs(addr_in6->sin6_port);
+        } else {
+            absl::Format(&s, "[uvs ? L:%p]", getLoop());
+            return;
+        }
+
+        absl::Format(&s, "[uvs %s%s %s:%d L:%p]", mIsIncoming ? "<-" : "->",
+                     mIsConnected ? "+" : "-", ip, port, getLoop());
+    }
+
   private:
     friend class LibuvServer;
 
@@ -181,6 +213,12 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         VLOG(1) << "accept: " << UvErrToAbslStatus(result);
         if (result == 0) {
             mIsConnected = true;
+            int namelen = sizeof(mAddr);
+            int peer_result = uv_tcp_getpeername(&mTcpHandle, (struct sockaddr*)&mAddr, &namelen);
+            if (peer_result != 0) {
+                LOG(WARNING) << "Failed to get peer name: " << uv_strerror(peer_result);
+                memset(&mAddr, 0, sizeof(mAddr));
+            }
         } else {
             LOG(WARNING) << "Failed to accept incoming connection: " << uv_strerror(result);
             uv_close((uv_handle_t*)&mTcpHandle, nullptr);
@@ -222,6 +260,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     uv_tcp_t mTcpHandle;
     sockaddr_storage mAddr;
     bool mIsConnected = false;
+    bool mIsIncoming = false;
 
     OnReadCallback mOnRead;
     OnCloseCallback mOnClose;
