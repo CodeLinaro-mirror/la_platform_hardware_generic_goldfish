@@ -6,11 +6,17 @@ package(
 
 cc_library(
     name = "hal_plug",
+    srcs = [
+        "logging.cpp",
+    ],
     hdrs = [
         "include/goldfish/hal/plug/HalPlug.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/log",
+    ],
 )
 
 cc_library(

@@ -26,12 +26,15 @@ namespace {
 // A socket that sends things nowhere..
 struct NullSocket : public cable::ISocket {
     ~NullSocket() override {}
-    void sendAsync(const void* data, size_t size) override {};
+    void sendAsync(const void* data, size_t size) override {
+        VLOG(2) << "Sending " << size << " bytes to /dev/null";
+    };
     cable::PlugPtr switchPlug(cable::PlugPtr newPlug) override { return {}; }
     cable::PlugPtr unplugImpl() override {
         VLOG(1) << "Unplugging the NullSocket";
         return {};
     }
+    void AbslStringifyImpl(absl::FormatSink& s) const override { absl::Format(&s, "[NullSocket]"); }
 };
 
 NullSocket gNullSocket;
@@ -50,16 +53,23 @@ MarshallingHalSocket::~MarshallingHalSocket() {
 }
 
 void MarshallingHalSocket::send(std::string data) {
-    if (mIsClosed) return;
+    if (mIsClosed) {
+        VLOG(2) << "Dropping packet, socket is closed.";
+        return;
+    }
 
     VLOG(2) << "Sheduling send for " << data.size() << " bytes";
     // Post the send operation to the QEMU loop asynchronously.
     mQemuLoop->post([this, data = std::move(data), self = shared_from_this()]() {
         absl::MutexLock lock(&mSocketMutex);
-        VLOG(1) << "Sending " << data.size() << " bytes";
+        VLOG(2) << "Sending " << data.size() << " bytes";
         // Bytes go either to the *real* or NullSocket..
         mSocket->sendAsync(data.data(), data.size());
     });
+}
+
+void MarshallingHalSocket::AbslStringifyImpl(absl::FormatSink& s) const {
+    absl::Format(&s, "[MarshallingHalSocket %s, %v]", mIsClosed ? "closed" : "open", *mSocket);
 }
 
 cable::SocketPtr MarshallingHalSocket::release() {

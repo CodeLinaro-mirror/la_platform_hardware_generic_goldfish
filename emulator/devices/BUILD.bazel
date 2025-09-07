@@ -4,6 +4,7 @@ cc_library(
     name = "cable",
     srcs = [
         "cable.cpp",
+        "logging.cpp",
     ],
     hdrs = [
         "include/goldfish/devices/cable/ErrorPlug.h",
@@ -16,6 +17,7 @@ cc_library(
     ],
     deps = [
         "//hardware/generic/goldfish/emulator/libs/archive",
+        "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
 )

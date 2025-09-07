@@ -73,14 +73,17 @@ class MarshallingHalSocket : public HalSocket,
      */
     void close() override;
 
-  private:
-   friend class HalPlugToIPlugAdapter;
-   cable::SocketPtr release();
+  protected:
+    void AbslStringifyImpl(absl::FormatSink& s) const override;
 
-   cable::SocketPtr mSocket;
-   absl::Mutex mSocketMutex;
-   async::EventLoop* mQemuLoop;
-   std::atomic<bool> mIsClosed{false};
+  private:
+    friend class HalPlugToIPlugAdapter;
+    cable::SocketPtr release();
+
+    cable::SocketPtr mSocket;
+    absl::Mutex mSocketMutex;
+    async::EventLoop* mQemuLoop;
+    std::atomic<bool> mIsClosed{false};
 };
 
 }  // namespace devices
