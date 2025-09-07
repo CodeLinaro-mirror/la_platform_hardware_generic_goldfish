@@ -29,49 +29,49 @@ namespace goldfish::async::testing {
  * tasks and advancing time to run scheduled tasks.
  */
 class TestEventLoop : public EventLoop {
- public:
-  ~TestEventLoop() override = default;
-  /**
-   * @brief Factory function to create a concrete instance of the TestEventLoop.
-   * @return A unique_ptr to a new TestEventLoop instance.
-   */
-  static std::unique_ptr<TestEventLoop> create();
+  public:
+    ~TestEventLoop() override = default;
+    /**
+     * @brief Factory function to create a concrete instance of the
+     * TestEventLoop.
+     * @return A unique_ptr to a new TestEventLoop instance.
+     */
+    static std::unique_ptr<TestEventLoop> create();
 
-  /**
-   * @brief Runs all immediately pending tasks until the queue is empty.
-   *
-   * This method does not advance the clock and only executes tasks posted
-   * via post() without a delay.
-   */
-  virtual void runAll() = 0;
+    /**
+     * @brief Runs all immediately pending tasks until the queue is empty.
+     *
+     * This method does not advance the clock and only executes tasks posted
+     * via post() without a delay.
+     */
+    virtual void runAll() = 0;
 
-  /**
-   * @brief Runs at most one immediately pending task.
-   * @return True if a task was executed, false if the queue was empty.
-   */
-  virtual bool runOne() = 0;
+    /**
+     * @brief Runs at most one immediately pending task.
+     * @return True if a task was executed, false if the queue was empty.
+     */
+    virtual bool runOne() = 0;
 
-  /**
-   * @brief Runs up to a specified number of immediately pending tasks.
-   * @param count The maximum number of tasks to run.
-   * @return The number of tasks that were actually executed.
-   */
-  virtual size_t runMany(size_t count) = 0;
+    /**
+     * @brief Runs up to a specified number of immediately pending tasks.
+     * @param count The maximum number of tasks to run.
+     * @return The number of tasks that were actually executed.
+     */
+    virtual size_t runMany(size_t count) = 0;
 
-  /**
-   * @brief Number of scheduled tasks
-   * @return The number of scheduled tasks.
-   */
-  virtual size_t taskCount() const = 0;
-  /**
-   * @brief Advances the loop's internal clock by a specified duration.
-   *
-   * After advancing the clock, this method will run all scheduled tasks
-   * that became due during that time interval. It does not run any
-   * immediately pending tasks from the separate queue.
-   * @param duration The amount of time to advance the clock.
-   */
-  virtual void advanceClock(std::chrono::milliseconds duration) = 0;
+    /**
+     * @brief Number of scheduled tasks
+     * @return The number of scheduled tasks.
+     */
+    virtual size_t taskCount() const = 0;
+    /**
+     * @brief Advances the loop's internal clock by a specified duration.
+     *
+     * After advancing the clock, this method will run all scheduled tasks
+     * that became due during that time interval. It does not run any
+     * immediately pending tasks from the separate queue.
+     * @param duration The amount of time to advance the clock.
+     */
+    virtual void advanceClock(std::chrono::milliseconds duration) = 0;
 };
-
 }  // namespace goldfish::async::testing

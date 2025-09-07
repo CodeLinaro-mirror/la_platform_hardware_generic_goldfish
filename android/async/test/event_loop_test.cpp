@@ -15,6 +15,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 
 #include "fake_qemu_callbacks.h"
 #include "goldfish/async/libuv_event_loop.h"
@@ -825,6 +826,49 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     future.wait_for(1s);
     ASSERT_TRUE(future.get().ok()) << "Shutdown failed, the thread host run is likely not active.";
     threaded_loop->stop();
+}
+
+TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
+    runInThread();
+    std::atomic<int> counter = 0;
+    std::promise<void> promise;
+    auto old = absl::Now();
+
+    auto handle = loop->scheduleRepeating(
+            [&]() {
+                auto now = absl::Now();
+                VLOG(1) << "Timer fired: " << counter << " after: " << (now - old);
+                old = now;
+                counter++;
+            },
+            100ms, 100ms);
+
+    // Let it fire once.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(120);
+    } else {
+        std::this_thread::sleep_for(120ms);
+    }
+    ASSERT_EQ(counter.load(), 1);
+
+    // Reschedule to fire sooner and more frequently.
+    handle->rescheduleRepeating(20ms, 20ms);
+
+    // Check that it fires again quickly.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(30);
+    } else {
+        std::this_thread::sleep_for(30ms);
+    }
+    ASSERT_EQ(counter.load(), 2);
+
+    // Check that it fires again quickly.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(15);
+    } else {
+        std::this_thread::sleep_for(15ms);
+    }
+    ASSERT_EQ(counter.load(), 3);
 }
 
 // DISABLED Until we have event fixes

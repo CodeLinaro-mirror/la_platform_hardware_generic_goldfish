@@ -200,3 +200,25 @@ TEST(TestEventLoop, RunManyTimeout) {
     ASSERT_EQ(loop->runMany(2), 1);
     ASSERT_EQ(1, count);
 }
+
+TEST(TestEventLoop, RescheduleRepeatingTimer) {
+    auto loop = TestEventLoop::create();
+    int counter = 0;
+
+    auto handle = loop->scheduleRepeating([&]() { counter++; }, 100ms, 100ms);
+
+    // Let it fire once.
+    loop->advanceClock(120ms);
+    ASSERT_EQ(counter, 1);
+
+    // Reschedule to fire sooner and more frequently.
+    handle->rescheduleRepeating(20ms, 20ms);
+
+    // Check that it fires again quickly.
+    loop->advanceClock(30ms);
+    ASSERT_EQ(counter, 2);
+
+    // Check that it fires again quickly.
+    loop->advanceClock(15ms);
+    ASSERT_EQ(counter, 3);
+}

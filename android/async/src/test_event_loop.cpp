@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "goldfish/async/testing/test_event_loop.h"
 
+#include <algorithm>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -49,6 +50,9 @@ class TestEventLoopImpl : public TestEventLoop {
     void advanceClock(std::chrono::milliseconds duration) override;
     size_t taskCount() const override;
 
+    void reschedule(const std::shared_ptr<Timer>& timer, std::chrono::milliseconds new_delay,
+                    std::chrono::milliseconds new_interval);
+
   private:
     class TestTimer;
     struct ScheduledTask {
@@ -67,12 +71,18 @@ class TestEventLoopImpl : public TestEventLoop {
 
     class TestTimer : public Timer, public std::enable_shared_from_this<TestTimer> {
       public:
+        TestTimer(TestEventLoopImpl* loop) : mLoop(loop) {}
         ~TestTimer() override { cancel(); }
         void cancel() override { mCancelled = true; }
         bool isCancelled() const { return mCancelled; }
+        void rescheduleRepeating(std::chrono::milliseconds new_delay,
+                                 std::chrono::milliseconds new_interval) override {
+            mLoop->reschedule(shared_from_this(), new_delay, new_interval);
+        }
 
       private:
         std::atomic_bool mCancelled{false};
+        TestEventLoopImpl* mLoop;
     };
 
     enum class Command : uint8_t { None, RunOne, RunMany, AdvanceTime };
@@ -92,7 +102,7 @@ class TestEventLoopImpl : public TestEventLoop {
     std::deque<Task> mTasks;
 
     // scheduled things
-    std::priority_queue<ScheduledTask, std::vector<ScheduledTask>, std::greater<>> mScheduledTasks;
+    std::vector<ScheduledTask> mScheduledTasks;
     std::chrono::steady_clock::time_point mNow;
     Command mCommand = Command::None;
     std::chrono::milliseconds mTimeAdvance{0};
@@ -142,7 +152,7 @@ std::future<absl::Status> TestEventLoopImpl::shutdown(std::chrono::milliseconds)
     promise.set_value(absl::OkStatus());
     std::lock_guard<std::mutex> lock(mMutex);
     mTasks.clear();
-    mScheduledTasks = {};
+    mScheduledTasks.clear();
     return promise.get_future();
 }
 
@@ -171,19 +181,38 @@ size_t TestEventLoopImpl::taskCount() const {
 std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::scheduleDelayed(
         Task task, std::chrono::milliseconds delay) {
     if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) return nullptr;
-    auto timer = std::make_shared<TestTimer>();
+    auto timer = std::make_shared<TestTimer>(this);
     std::lock_guard<std::mutex> lock(mMutex);
-    mScheduledTasks.push({mNow + delay, std::chrono::milliseconds(0), std::move(task), timer});
+    mScheduledTasks.push_back({mNow + delay, std::chrono::milliseconds(0), std::move(task), timer});
+    std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
     return timer;
 }
 
 std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::scheduleRepeating(
         Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
     if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) return nullptr;
-    auto timer = std::make_shared<TestTimer>();
+    auto timer = std::make_shared<TestTimer>(this);
     std::lock_guard<std::mutex> lock(mMutex);
-    mScheduledTasks.push({mNow + initial_delay, interval, std::move(task), timer});
+    mScheduledTasks.push_back({mNow + initial_delay, interval, std::move(task), timer});
+    std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
     return timer;
+}
+
+void TestEventLoopImpl::reschedule(const std::shared_ptr<Timer>& timer,
+                                   std::chrono::milliseconds new_delay,
+                                   std::chrono::milliseconds new_interval) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    auto it = std::find_if(mScheduledTasks.begin(), mScheduledTasks.end(),
+                           [&](const ScheduledTask& task) {
+                               auto handle = task.handle.lock();
+                               return handle && handle.get() == timer.get();
+                           });
+
+    if (it != mScheduledTasks.end()) {
+        it->execution_time = mNow + new_delay;
+        it->interval = new_interval;
+        std::make_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+    }
 }
 
 void* TestEventLoopImpl::getRawLoop() const {
@@ -272,14 +301,11 @@ void TestEventLoopImpl::advanceClockUnlocked(std::chrono::milliseconds duration)
     mNow += duration;
     std::vector<ScheduledTask> tasks_to_run;
 
-    // Pop all tasks from the priority queue that are ready to go
-    while (!mScheduledTasks.empty() && mScheduledTasks.top().execution_time <= mNow) {
-        // Boo! our priority queue returns the top element as const! And our scheduled task
-        // can *only* be moved due to the task inside scheduled task being move only.
-        // (const objects cannot be moved, only copied.).  The priority queue does this so it
-        // can enforce the internal ordering invariant (no one can modify elements in the queue).
-        tasks_to_run.push_back(std::move(const_cast<ScheduledTask&>(mScheduledTasks.top())));
-        mScheduledTasks.pop();
+    // Pop all tasks from the heap that are ready to go
+    while (!mScheduledTasks.empty() && mScheduledTasks.front().execution_time <= mNow) {
+        std::pop_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+        tasks_to_run.push_back(std::move(mScheduledTasks.back()));
+        mScheduledTasks.pop_back();
     }
 
     for (auto& task : tasks_to_run) {
@@ -296,8 +322,8 @@ void TestEventLoopImpl::advanceClockUnlocked(std::chrono::milliseconds duration)
         // reschedule task if needed.
         if (task.interval > std::chrono::milliseconds(0)) {
             task.execution_time += task.interval;
-
-            mScheduledTasks.push(std::move(task));
+            mScheduledTasks.push_back(std::move(task));
+            std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
         }
     }
 }
