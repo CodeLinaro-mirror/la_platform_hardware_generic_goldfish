@@ -223,6 +223,19 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         }
     }
 
+    void rescheduleRepeating(std::chrono::milliseconds new_delay,
+                             std::chrono::milliseconds new_interval) override {
+        if (!mIsClosed.load()) {
+            (void)mEventLoop->post([this, self = shared_from_this(), new_delay, new_interval]() {
+                if (!mIsClosed.load()) {
+                    mIsRepeating = true;
+                    uv_timer_stop(mUvTimer);
+                    uv_timer_start(mUvTimer, onTimer, new_delay.count(), new_interval.count());
+                }
+            });
+        }
+    }
+
   private:
     static void onTimer(uv_timer_t* handle) {
         auto self_shared_ptr = static_cast<std::shared_ptr<LibuvTimer>*>(handle->data);

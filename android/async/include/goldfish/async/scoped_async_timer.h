@@ -50,6 +50,14 @@ class ScopedTimer final : public async::EventLoop::Timer {
         }
     }
 
+    void rescheduleRepeating(std::chrono::milliseconds new_delay,
+                             std::chrono::milliseconds new_interval) override {
+        absl::MutexLock lock(&mTimerMutex);
+        if (mTimer) {
+            mTimer->rescheduleRepeating(new_delay, new_interval);
+        }
+    }
+
   private:
     absl::Mutex mTimerMutex;
     std::shared_ptr<async::EventLoop::Timer> mTimer ABSL_GUARDED_BY(mTimerMutex);

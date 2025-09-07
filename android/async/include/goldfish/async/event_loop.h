@@ -95,6 +95,19 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          * If the task has already run or been cancelled, this is a no-op.
          */
         virtual void cancel() = 0;
+
+        /**
+         * @brief Reschedules a repeating timer with a new delay and interval.
+         *
+         * This method updates both the delay for the next execution and the
+         * subsequent interval for the timer. If the timer was not a repeating
+         * one, it will be converted to a repeating timer.
+         *
+         * @param new_delay The new delay before the next execution.
+         * @param new_interval The new interval for subsequent executions.
+         */
+        virtual void rescheduleRepeating(std::chrono::milliseconds new_delay,
+                                         std::chrono::milliseconds new_interval) = 0;
     };
 
     virtual ~EventLoop() = default;

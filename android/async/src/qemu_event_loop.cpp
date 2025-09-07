@@ -153,6 +153,20 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             cleanup();
         }
 
+        void rescheduleRepeating(std::chrono::milliseconds new_delay,
+                                 std::chrono::milliseconds new_interval) override {
+            if (mCancelled.load()) return;
+
+            mDelay = new_delay;
+            mInterval = new_interval;
+
+            mLoop->post([this, self = mSelf] {
+                if (!mCancelled.load()) {
+                    timer_mod(mQemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + mDelay.count());
+                }
+            });
+        }
+
       private:
         // C-style callback passed to QEMU.
         static void qemuCallback(void* opaque) {
