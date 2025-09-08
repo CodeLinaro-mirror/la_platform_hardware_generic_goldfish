@@ -21,24 +21,17 @@ namespace goldfish {
 namespace devices {
 
 /**
- * @class HalPlugFriend
  * @brief A framework-internal helper to access private members of HalPlug.
  *
- * This class uses the 'friend' mechanism to provide a controlled and explicit
- * way for the connection framework (specifically, the ConnectorRegistry) to
- * call the otherwise private `establishConnection` method on a HalPlug.
- *
- * This enforces at compile time that only authorized framework code can perform
- * this sensitive setup operation, preventing accidental misuse by HAL
- * implementers.
+ * Used by our test framework.
  */
-class HalPlugFriend {
- public:
-  static void establishConnection(HalPlug* plug, std::shared_ptr<HalSocket> socket) {
-    // Because this class is a friend of HalPlug, it is allowed to call
-    // the private establishConnection method.
-    plug->establishConnection(std::move(socket));
-  }
+class HalPlugTesting {
+  public:
+    static void establishConnection(HalPlug* plug, std::shared_ptr<HalSocket> socket) {
+        // Because this class is a friend of HalPlug, it is allowed to call
+        // the private establishConnection method.
+        plug->establishConnection(std::move(socket));
+    }
 };
 
 }  // namespace devices

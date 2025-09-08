@@ -15,6 +15,8 @@
  */
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 
+#include <string_view>
+
 #include "absl/log/log.h"
 
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
@@ -29,10 +31,14 @@ HalPlugToIPlugAdapter::~HalPlugToIPlugAdapter() {
 
 HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
                                              std::shared_ptr<HalPlug> halPlug)
-        : mClientLoop(clientLoop), mHalPlug(std::move(halPlug)) {}
+        : mClientLoop(clientLoop), mHalPlug(std::move(halPlug)) {
+    VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << mHalPlug
+            << ", use_count: " << mHalPlug.use_count();
+}
 
 void HalPlugToIPlugAdapter::onConnect() {
     // Let's inform the client of the new connection.
+    VLOG(1) << "Scheduling onConnect for mHalPlug";
     mClientLoop->post([plug = mHalPlug]() { plug->onConnect(); });
 }
 
@@ -42,6 +48,7 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
     // We return true immediately, preventing the QEMU thread from blocking.
     //
     // This means that vsock will never close out this socket from this call.
+    VLOG(1) << "Scheduling onReceive for mHalPlug with: " << std::string_view((char*)data, size);
     mClientLoop->post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
         plug->onReceive(s);
     });
@@ -53,24 +60,23 @@ cable::SocketPtr HalPlugToIPlugAdapter::onUnplug() {
     // This is called on the QEMU thread when the guest disconnects.
     // We must fulfill the IPlug contract by returning the SocketPtr.
     //
-    // 1. Notify the HalPlug on its own thread that the connection is closed.
+    // First yank the socket, we do not want to start an immediate race
+    // with the post call we make below that can also close the socket.
+    //
+    // Note: the marshalling socket can be a NullSocket if someone else was just
+    // ahead of us when closing.
+    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->socket());
+    marshallingSocket->close();
+    auto releasedSocket = marshallingSocket->release();
+
+    // Now notify the client that we are no longer alive.
     VLOG(1) << "Scheduling onClose for mHalPlug:" << mHalPlug;
     (void)mClientLoop->post([plug = mHalPlug]() {
         VLOG(1) << "Calling onClose from client thread on" << plug;
         plug->onClose();
     });
 
-    // 2. Safely get a shared_ptr to the marshalling socket. This is safe
-    //    because mHalPlug is a shared_ptr.
-    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->socket());
-
-    // 3. If the socket exists, call its close() method. This will
-    //    asynchronously post the real unplug operation back to the QEMU
-    //    thread, ensuring proper, race-free cleanup. Then, call release()
-    //    to get the underlying SocketPtr to return to the caller.
-
-    marshallingSocket->close();
-    return marshallingSocket->release();
+    return releasedSocket;
 }
 
 }  // namespace devices

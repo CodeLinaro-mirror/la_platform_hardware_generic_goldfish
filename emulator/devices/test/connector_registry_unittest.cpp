@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "fake_vsock.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
@@ -107,10 +108,8 @@ struct TestHalDevice : public devices::HalPlug {
 static bool gListenCalled = false;
 static TestSocket* gTestSocket;
 
-namespace vsock {
-
 // Custom vsock::listen implementation for unit tests.
-bool listen(const uint32_t hostPort, devices::HostPortListener listener) {
+bool fake_vsock_listen(const uint32_t hostPort, devices::HostPortListener listener) {
     if (gListenCalled) {
         return false;
     }
@@ -119,7 +118,6 @@ bool listen(const uint32_t hostPort, devices::HostPortListener listener) {
     gTestSocket->plug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
     return true;
 }
-}  // namespace vsock
 
 namespace devices {
 
@@ -128,6 +126,7 @@ class ConnectorRegistryTest : public ::testing::Test {
     ConnectorRegistryTest() {}
 
     void SetUp() override {
+        vsock::set_fake_listen_fn(fake_vsock_listen);
         listenCalled = false;
         gListenCalled = false;
         gTestSocket = nullptr;

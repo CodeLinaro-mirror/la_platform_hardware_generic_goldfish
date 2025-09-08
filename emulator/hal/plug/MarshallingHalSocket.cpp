@@ -28,7 +28,10 @@ struct NullSocket : public cable::ISocket {
     ~NullSocket() override {}
     void sendAsync(const void* data, size_t size) override {};
     cable::PlugPtr switchPlug(cable::PlugPtr newPlug) override { return {}; }
-    cable::PlugPtr unplugImpl() override { return {}; }
+    cable::PlugPtr unplugImpl() override {
+        VLOG(1) << "Unplugging the NullSocket";
+        return {};
+    }
 };
 
 NullSocket gNullSocket;
@@ -40,6 +43,7 @@ MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::Event
 }
 
 MarshallingHalSocket::~MarshallingHalSocket() {
+    VLOG(1) << "~MarshallingHalSocket: " << mSocket << " destroyed";
     if (!mIsClosed) {
         LOG(WARNING) << "Inner socket was not closed!";
     }
@@ -58,17 +62,20 @@ void MarshallingHalSocket::send(std::string data) {
 
 cable::SocketPtr MarshallingHalSocket::release() {
     absl::MutexLock lock(&mSocketMutex);
+    VLOG(1) << "Releasing the socket.";
     auto s = std::move(mSocket);
     mSocket = cable::SocketPtr(&gNullSocket);
-    return std::move(s);
+    return s;
 }
 
 void MarshallingHalSocket::close() {
     if (!mIsClosed.exchange(true)) {
+        VLOG(1) << "Closing the socket.";
         // Post the unplug operation to the QEMU loop asynchronously.
         // This avoids deadlocking if close() is called from a client
         // callback that was initiated by the QEMU loop.
         mQemuLoop->post([this]() {
+            VLOG(1) << "Calling onplug on socket";
             cable::SocketPtr socketToUnplug;
             {
                 // Safely take ownership of the real socket pointer
@@ -77,6 +84,8 @@ void MarshallingHalSocket::close() {
                 // QEMU thread.
                 absl::MutexLock lock(&mSocketMutex);
                 socketToUnplug = std::move(mSocket);
+
+                VLOG(1) << "Installing null socket, welcome to the void.";
                 mSocket = cable::SocketPtr(&gNullSocket);
             }
 
@@ -88,6 +97,8 @@ void MarshallingHalSocket::close() {
                 cable::ISocket::unplug(std::move(socketToUnplug));
             }
         });
+    } else {
+        VLOG(1) << "Socket already closed";
     }
 }
 }  // namespace devices
