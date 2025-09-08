@@ -15,16 +15,14 @@
 
 #include <string_view>
 
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish::devices::fingerprint {
 
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
-
 using namespace std::string_view_literals;
+using goldfish::async::EventLoop;
+
 /**
  * @brief Interface for emulating a fingerprint sensor in the Android emulator.
  *
@@ -35,7 +33,7 @@ using namespace std::string_view_literals;
  *
  * The guest HAL lives in device/generic/goldfish/fingerprint/fingerprint.c
  */
-class IFingerprintDevice : public IPlug {
+class IFingerprintDevice : public HalPlug {
   public:
     virtual ~IFingerprintDevice() override {}
 
@@ -65,7 +63,10 @@ class IFingerprintDevice : public IPlug {
      * the qemud pipe.
      *
      * @param registry  The connector registry instance.
+     * @param clientLoop The event loop for client-side operations.
+     * @param qemuLoop The event loop for QEMU-side operations.
      */
-    static void registerDevice(IConnectorRegistry* registry);
+    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::fingerprint
