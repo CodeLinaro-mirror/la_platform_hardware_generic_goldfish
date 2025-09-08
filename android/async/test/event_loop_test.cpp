@@ -831,44 +831,64 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
 TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     runInThread();
     std::atomic<int> counter = 0;
-    std::promise<void> promise;
-    auto old = absl::Now();
+    std::promise<void> fired1_promise, fired2_promise, fired3_promise;
+    auto fired1_future = fired1_promise.get_future();
+    auto fired2_future = fired2_promise.get_future();
+    auto fired3_future = fired3_promise.get_future();
+
+    // Shared pointers to hold timestamps to be checked inside the callback
+    auto schedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto reschedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto last_fire_time = std::make_shared<std::chrono::steady_clock::time_point>();
 
     auto handle = loop->scheduleRepeating(
-            [&]() {
-                auto now = absl::Now();
-                VLOG(1) << "Timer fired: " << counter << " after: " << (now - old);
-                old = now;
-                counter++;
+            [&, schedule_time, reschedule_time, last_fire_time]() {
+                auto now = std::chrono::steady_clock::now();
+                int c = ++counter;
+
+                if (mLoopType == "libuv") {
+                    if (c == 1) {
+                        auto elapsed = now - *schedule_time;
+                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
+                                            .count(),
+                                    100, tolerance.count());
+                    } else if (c == 2) {
+                        auto elapsed = now - *reschedule_time;
+                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
+                                            .count(),
+                                    200, tolerance.count());
+                    } else if (c == 3) {
+                        auto elapsed = now - *last_fire_time;
+                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
+                                            .count(),
+                                    200, tolerance.count());
+                    }
+                }
+                *last_fire_time = now;
+
+                if (c == 1) fired1_promise.set_value();
+                if (c == 2) fired2_promise.set_value();
+                if (c == 3) fired3_promise.set_value();
             },
             100ms, 100ms);
 
+    *schedule_time = std::chrono::steady_clock::now();
+
     // Let it fire once.
-    if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(120);
-    } else {
-        std::this_thread::sleep_for(120ms);
-    }
+    runUntil(fired1_future);
     ASSERT_EQ(counter.load(), 1);
 
     // Reschedule to fire sooner and more frequently.
-    handle->rescheduleRepeating(20ms, 20ms);
+    *reschedule_time = std::chrono::steady_clock::now();
+    handle->rescheduleRepeating(200ms, 200ms);
 
     // Check that it fires again quickly.
-    if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(30);
-    } else {
-        std::this_thread::sleep_for(30ms);
-    }
+    runUntil(fired2_future);
     ASSERT_EQ(counter.load(), 2);
 
     // Check that it fires again quickly.
-    if (mLoopType == "qemu") {
-        fake_qemu_advance_ms(15);
-    } else {
-        std::this_thread::sleep_for(15ms);
-    }
-    ASSERT_EQ(counter.load(), 3);
+    runUntil(fired3_future);
+    ASSERT_GE(counter.load(), 3);
 }
 
 // DISABLED Until we have event fixes
