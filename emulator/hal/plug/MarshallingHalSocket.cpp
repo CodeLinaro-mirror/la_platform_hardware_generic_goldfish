@@ -52,7 +52,9 @@ MarshallingHalSocket::~MarshallingHalSocket() {
 void MarshallingHalSocket::send(std::string data) {
     if (mIsClosed) return;
 
-    mQemuLoop->post([this, data = std::move(data)]() {
+    VLOG(2) << "Sheduling send for " << data.size() << " bytes";
+    // Post the send operation to the QEMU loop asynchronously.
+    mQemuLoop->post([this, data = std::move(data), self = shared_from_this()]() {
         absl::MutexLock lock(&mSocketMutex);
         VLOG(1) << "Sending " << data.size() << " bytes";
         // Bytes go either to the *real* or NullSocket..
@@ -74,7 +76,7 @@ void MarshallingHalSocket::close() {
         // Post the unplug operation to the QEMU loop asynchronously.
         // This avoids deadlocking if close() is called from a client
         // callback that was initiated by the QEMU loop.
-        mQemuLoop->post([this]() {
+        mQemuLoop->post([this, self = shared_from_this()]() {
             VLOG(1) << "Calling onplug on socket";
             cable::SocketPtr socketToUnplug;
             {
