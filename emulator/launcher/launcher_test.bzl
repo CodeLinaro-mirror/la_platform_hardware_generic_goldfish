@@ -10,6 +10,10 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
     architecture (ARM64 for macOS, x86_64 for others) and includes the necessary
     system images.
 
+    Note that tests will use the tag: `exclusive-if-local` this will force the test to be run
+    in the "exclusive" mode if it is executed locally, but will run the test in parallel if it's
+    executed remotely.
+
     Args:
         name: A unique name for this test target.
         target_log_line: A regular expression string. The
@@ -34,6 +38,7 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
         size = "medium",
         timeout = "moderate",
         srcs = ["src/launch_kernel.py"],
+        tags = ["exclusive-if-local"],
         args = select({
             "@platforms//os:macos": [
                 "--abi",
