@@ -37,7 +37,7 @@ using grpc::Status;
 class DisplayServiceImpl : public EmulatorController::Service {
   public:
     DisplayServiceImpl(IMultiDisplay* display, ConnectorRegistry* connectorRegistry)
-        : mMultiDisplay(display), mRegistry(connectorRegistry) {};
+            : mMultiDisplay(display), mRegistry(connectorRegistry) {};
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override;
@@ -46,6 +46,9 @@ class DisplayServiceImpl : public EmulatorController::Service {
 
     Status getDisplayConfigurations(ServerContext* context, const Empty* request,
                                     DisplayConfigurations* reply) override;
+
+    static Status getDisplayConfigurations(IMultiDisplay* multiDisplay,
+                                           DisplayConfigurations* reply);
 
   private:
     IMultiDisplay* mMultiDisplay;

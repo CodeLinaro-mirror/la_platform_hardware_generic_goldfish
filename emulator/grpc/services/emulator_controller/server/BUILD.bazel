@@ -12,6 +12,8 @@ cc_library(
         "src/android/emulation/control/EmulatorService.cpp",
         "src/android/emulation/control/GpsService.cpp",
         "src/android/emulation/control/GpsService.h",
+        "src/android/emulation/control/NotificationStream.cpp",
+        "src/android/emulation/control/NotificationStream.h",
         "src/android/emulation/control/SensorService.cpp",
         "src/android/emulation/control/SensorService.h",
         "src/android/emulation/control/StatusService.cpp",
@@ -42,6 +44,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/guest-status:headers",
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/hal/vminterface:headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",
         "@glib//glib",
@@ -51,14 +54,16 @@ cc_library(
 cc_test(
     name = "emulator-service_unittests",
     srcs = [
+        "include/android/emulation/control/EmulatorService.h",
         "src/android/emulation/control/DisplayService.h",
+        "src/android/emulation/control/NotificationStream.h",
         "src/android/emulation/control/VmService.h",
         "test/DisplayServiceTest.cpp",
         "test/GrpcServiceTest.h",
+        "test/NotificationStreamTest.cpp",
         "test/QemuStubs.c",
         "test/VmServiceTest.cpp",
     ],
-    includes = ["test"],
     deps = [
         ":emulator-service",
         "//hardware/generic/goldfish/android/async:async_impl",
@@ -71,5 +76,7 @@ cc_test(
         "//hardware/generic/goldfish/emulator/hal/sensors",
         "//hardware/generic/goldfish/emulator/hal/vminterface:vm_with_cpu_stub",
         "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface-test",
+        "@aemu//base:aemu-base",
+        "@aemu//base:event-support",
     ],
 )
