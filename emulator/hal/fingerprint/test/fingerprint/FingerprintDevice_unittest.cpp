@@ -17,32 +17,40 @@
 #include "gmock/gmock.h"
 
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::fingerprint {
 
 using android::base::TestSystem;
+using async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 
 class FingerprintDeviceTest : public ::testing::Test {
     void SetUp() override {
-        IFingerprintDevice::registerDevice(&registry);
-        device = registry.constructDevice<IFingerprintDevice>();
-        test_socket = registry.getSocket();
-        looper = registry.getLooper();
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
+
+        IFingerprintDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
+
+        device = registry.constructHalDevice<IFingerprintDevice>();
+        test_socket = registry.halSocket();
         clear();
+        device->onConnect();
     }
 
   public:
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    TestLooper* looper;
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
+
     TestConnectorRegistry registry;
-    TestSocket* test_socket;
+    TestHalSocket* test_socket;
     IFingerprintDevice* device;
 };
 

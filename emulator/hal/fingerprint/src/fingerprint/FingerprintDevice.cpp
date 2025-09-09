@@ -20,49 +20,37 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
-
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::fingerprint {
 
 class FingerprintDevice : public IFingerprintDevice {
   public:
-    FingerprintDevice(SocketPtr socket) : mSocket(std::move(socket)) {
-        VLOG(1) << "Fingerprint device has been created";
-    }
+    FingerprintDevice() { VLOG(1) << "Fingerprint device has been created"; }
 
     ~FingerprintDevice() {}
-    SocketPtr onUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void* data, size_t size) override {
-        VLOG(1) << "The guest is (unexpectedly) sending data to the fingerprint device: "
-                << std::string_view((char*)data, size);
-        return true;
+    void onConnect() override { VLOG(1) << "Fingerprint device has been connected"; }
+    void onClose() override { VLOG(1) << "Fingerprint device has been disconnected"; }
+    void onReceive(std::string_view data) override {
+        VLOG(1) << "The guest is (unexpectedly) sending data to the fingerprint device: " << data;
     }
 
     void send(std::string_view msg) {
-        goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(encoded);
     }
 
     void touch(int id) override { send(absl::StrFormat("on:%d", id)); }
 
     virtual void release() override { send("off"); };
-
-  private:
-    SocketPtr mSocket;
 };
 
-void IFingerprintDevice::registerDevice(IConnectorRegistry* registry) {
-    registry->registerQemuDevice(std::string(IFingerprintDevice::serviceName),
-                                 [](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                                    std::string_view args) {
-                                     return std::make_shared<FingerprintDevice>(std::move(socket));
-                                 });
+void IFingerprintDevice::registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+                                        EventLoop* qemuLoop) {
+    registry->registerHalQemuDevice(std::string(IFingerprintDevice::serviceName), clientLoop,
+                                    qemuLoop, [] { return std::make_shared<FingerprintDevice>(); });
 }
 
 }  // namespace goldfish::devices::fingerprint
