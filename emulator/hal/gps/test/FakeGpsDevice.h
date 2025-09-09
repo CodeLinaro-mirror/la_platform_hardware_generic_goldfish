@@ -18,9 +18,9 @@ class FakeGpsDevice : public IGpsDevice, public std::enable_shared_from_this<Fak
     }
     Location getLocation() const override { return mLocation; }
 
-    // IPlug implementation
-    bool onReceive(const void* data, size_t size) override { return true; }
-    SocketPtr onUnplug() override { return nullptr; }
+    void onConnect() override { VLOG(1) << "FakeGpsDevice has been connected"; }
+    void onClose() override { VLOG(1) << "FakeGpsDevice has been disconnected"; }
+    void onReceive(std::string_view data) override { VLOG(1) << "FakeGpsDevice received " << data; }
 
   private:
     Location mLocation;

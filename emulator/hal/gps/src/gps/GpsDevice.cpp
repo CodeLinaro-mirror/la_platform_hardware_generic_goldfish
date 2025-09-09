@@ -34,22 +34,23 @@ namespace goldfish::devices::gps {
 
 class GpsDevice : public IGpsDevice {
   public:
-    GpsDevice(SocketPtr socket) : mSocket(std::move(socket)) {
+    GpsDevice() {
         VLOG(1) << "Gps device has been created";
         setLocation(googleplex());
     }
 
     ~GpsDevice() {}
-    SocketPtr onUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void* data, size_t size) override {
-        VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: "
-                << std::string_view((char*)data, size);
-        return true;
+    void onConnect() override { VLOG(1) << "Gps device has been connected"; }
+    void onClose() override { VLOG(1) << "Gps device has been disconnected"; }
+    void onReceive(std::string_view data) override {
+        VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
     void send(std::string msg) {
-        goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(encoded);
     }
 
     Location getLocation() const override { return mLastKnownLocation; };
@@ -80,24 +81,22 @@ class GpsDevice : public IGpsDevice {
   private:
     Location googleplex() {
         return Location{
-                .latitude = 39.237256,
-                .longitude = -123.150032,
-                .speed = 0.0,
-                .bearing = 0.0,
-                .altitude = 0.0,
-                .satellites = 4,
+            .latitude = 39.237256,
+            .longitude = -123.150032,
+            .speed = 0.0,
+            .bearing = 0.0,
+            .altitude = 0.0,
+            .satellites = 4,
         };
     };
 
     Location mLastKnownLocation = googleplex();
-    SocketPtr mSocket;
 };
 
-void IGpsDevice::registerDevice(IConnectorRegistry* registry) {
-    registry->registerQemuDevice(
-            std::string(IGpsDevice::serviceName),
-            [](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-               std::string_view args) { return std::make_shared<GpsDevice>(std::move(socket)); });
+void IGpsDevice::registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+                                EventLoop* qemuLoop) {
+    registry->registerHalQemuDevice(std::string(IGpsDevice::serviceName), clientLoop, qemuLoop,
+                                    [] { return std::make_shared<GpsDevice>(); });
 }
 
 }  // namespace goldfish::devices::gps

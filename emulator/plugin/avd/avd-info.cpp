@@ -140,7 +140,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                                                                         qemu_register_reset);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
                                                                        gQemuLoop.get());
-    goldfish::devices::gps::IGpsDevice::registerDevice(registry);
+    goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
     goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, *avd,

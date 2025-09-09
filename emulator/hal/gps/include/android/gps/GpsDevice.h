@@ -13,21 +13,19 @@
 // limitations under the License.
 #pragma once
 
+#include <goldfish/async/event_loop.h>
+
 #include <string_view>
 
 #include "absl/status/status.h"
 
 #include "aemu/base/events/EventSources.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::gps {
 
 using android::base::eventing::CallbackEventSource;
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
-
+using goldfish::async::EventLoop;
 using namespace std::string_view_literals;
 
 /**
@@ -98,7 +96,7 @@ struct Location {
  * The guest HAL implementation resides in
  * `device/generic/goldfish/hals/gnss/GnssHwConn.cpp`.
  */
-class IGpsDevice : public IPlug, public CallbackEventSource<Location> {
+class IGpsDevice : public HalPlug, public CallbackEventSource<Location> {
   public:
     virtual ~IGpsDevice() = default;
 
@@ -133,8 +131,11 @@ class IGpsDevice : public IPlug, public CallbackEventSource<Location> {
      * instance, making it available for connection through the qemud pipe.
      *
      * @param registry The connector registry instance.
+     * @param clientLoop The event loop for client-side operations.
+     * @param qemuLoop The event loop for QEMU-side operations.
      */
-    static void registerDevice(IConnectorRegistry* registry);
+    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
 };
 
 }  // namespace goldfish::devices::gps

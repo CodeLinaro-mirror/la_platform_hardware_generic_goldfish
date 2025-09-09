@@ -17,12 +17,14 @@
 #include "gmock/gmock.h"
 
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::gps {
 
 using android::base::TestSystem;
+using async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -30,20 +32,22 @@ using ::testing::MatchesRegex;
 
 class GpsDeviceTest : public ::testing::Test {
     void SetUp() override {
-        IGpsDevice::registerDevice(&registry);
-        device = registry.constructDevice<IGpsDevice>();
-        test_socket = registry.getSocket();
-        looper = registry.getLooper();
-        clear();
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
+
+        IGpsDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
+        device = registry.constructHalDevice<IGpsDevice>();
+        test_socket = registry.halSocket();
     }
 
   public:
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    TestLooper* looper;
     TestConnectorRegistry registry;
-    TestSocket* test_socket;
+    TestHalSocket* test_socket;
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
     IGpsDevice* device;
 };
 
@@ -53,12 +57,12 @@ TEST_F(GpsDeviceTest, canCreateDevice) {
 
 TEST_F(GpsDeviceTest, canSendLocation) {
     Location kAmsterdam = {
-            .latitude = 52.3676,
-            .longitude = 4.9041,
-            .speed = 0.0,     // Default speed
-            .bearing = 0.0,   // Default bearing
-            .altitude = 0.0,  // Default altitude
-            .satellites = 0,  // Default satellites
+        .latitude = 52.3676,
+        .longitude = 4.9041,
+        .speed = 0.0,     // Default speed
+        .bearing = 0.0,   // Default bearing
+        .altitude = 0.0,  // Default altitude
+        .satellites = 0,  // Default satellites
     };
 
     device->setLocation(kAmsterdam);
