@@ -14,11 +14,15 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/str_format.h"
 
-#include "android/goldfish/display/Display.h"  // Include the IDisplay definition
+#include "android/goldfish/display/Display.h"
+#include "android/goldfish/display/FpsCalculator.h"
+#include "android/goldfish/display/PixmanFrameManager.h"
+#include "android/goldfish/display/PixmanImagePtr.h"
 
 extern "C" {
 #include "pixman.h"
@@ -26,32 +30,6 @@ extern "C" {
 }
 
 namespace android::goldfish {
-
-/**
- * @brief A smart pointer class for managing pixman_image_t* objects.
- *
- * This class provides automatic reference counting for pixman_image_t*
- * objects using `pixman_image_ref` and `pixman_image_unref`. It ensures
- * that the reference count is properly managed, preventing memory leaks
- * and double-frees.
- *
- * The class is designed to be used as a replacement for raw
- * pixman_image_t* pointers, providing RAII (Resource Acquisition Is
- * Initialization) semantics.
- */
-class PixmanImagePtr {
-  public:
-    PixmanImagePtr(::pixman_image_t* image = nullptr);
-    ~PixmanImagePtr();
-    PixmanImagePtr(PixmanImagePtr&& other) noexcept;
-    PixmanImagePtr& operator=(PixmanImagePtr&& other) noexcept;
-
-    ::pixman_image_t* get() const;
-    ::pixman_image_t* operator->() const;
-
-  private:
-    ::pixman_image_t* mImage;
-};
 
 class PixmanDisplay : public IDisplay {
   public:
@@ -64,16 +42,18 @@ class PixmanDisplay : public IDisplay {
                                         size_t* cPixels) const override;
     void updateSurface(int x, int y, int width, int height);
 
+    std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight) override;
+
   protected:
     template <typename Sink>
     friend void AbslStringify(Sink&, const PixmanDisplay&);
-    mutable absl::Mutex mDisplayAccess;
-    PixmanImagePtr mSourceImage ABSL_GUARDED_BY(mDisplayAccess);
+    std::unique_ptr<PixmanFrameManager> mFrameManager;
+    FpsCalculator mFpsCalculator{30};
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const PixmanDisplay& display) {
-    absl::Format(&sink, "%s, src: %p", display.string(), display.mSourceImage.get());
+    absl::Format(&sink, "%s", display.string());
 }
 
 }  // namespace android::goldfish

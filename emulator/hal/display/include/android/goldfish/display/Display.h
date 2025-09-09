@@ -125,6 +125,15 @@ class IDisplay : public FrameInfoCallbackSource,
     uint32_t flags() const { return mFlags; }
 
     /**
+     * Calculates new dimensions to fit a box while preserving aspect ratio.
+     *
+     * @param desiredWidth The maximum width of the bounding box.
+     * @param desiredHeight The maximum height of the bounding box.
+     * @return A std::pair<int, int> containing the new width and height.
+     */
+    virtual std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight);
+
+    /**
      * @brief Returns the current frame information.
      *
      *  This is a monotonically increasing counter that is incremented whenever

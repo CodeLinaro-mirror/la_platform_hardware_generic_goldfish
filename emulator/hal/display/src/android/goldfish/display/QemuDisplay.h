@@ -45,8 +45,7 @@ class QemuDisplay : public PixmanDisplay {
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const QemuDisplay& display) {
-    absl::Format(&sink, "QemuDisplay: %s, src: %p, con: %p", display.string(),
-                 display.mSourceImage.get(), display.mConsole);
+    absl::Format(&sink, "QemuDisplay: %s, con: %p", display.string(), display.mConsole);
 }
 
 }  // namespace android::goldfish

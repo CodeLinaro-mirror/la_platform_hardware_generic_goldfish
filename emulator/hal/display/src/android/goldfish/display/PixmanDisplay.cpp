@@ -13,14 +13,23 @@
 // limitations under the License.
 
 // This must be first to get M_PI.
+
+// Some general notes on debug levels:
+// VLOG(1) -- Get FPS from qemu
+// VLOG(2) -- Get scaling and timing information
+// VLOG(3) -- Add "blue" blocks in the corner for inspecting visual scaling issues.
+
 #define _USE_MATH_DEFINES
 #include "android/goldfish/display/PixmanDisplay.h"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 
 #include "absl/log/log.h"
+
+#include "android/base/system/clock.h"
 
 extern "C" {
 // clang-format off
@@ -47,59 +56,67 @@ static pixman_format_code_t pixmanFormat(const ::android::goldfish::PixelFormat&
 
 namespace android::goldfish {
 
-PixmanImagePtr::PixmanImagePtr(::pixman_image_t* image) : mImage(image) {
-    if (image) {
-        ::pixman_image_ref(image);
-    }
+namespace {
+
+// Helper function to compute the greatest common divisor.
+// Used to simplify the scaling fraction.
+int gcd(int a, int b) {
+    return std::abs(std::gcd(a, b));
 }
 
-PixmanImagePtr::~PixmanImagePtr() {
-    if (mImage) {
-        ::pixman_image_unref(mImage);
-    }
+// The maximum denominator allowed for a "safe" scaling ratio.
+// Ratios with simplified denominators larger than this are likely to cause
+// cumulative rounding errors in pixman's fixed-point arithmetic, leading to
+// visual artifacts like shearing. A threshold of 16 is a conservative choice,
+// allowing for common fractions (1/2, 3/4, 5/8, etc.) while rejecting complex
+// ones.
+constexpr int kMaxSafeDenominator = 16;
+
+// Checks if a scaling operation from a source dimension to a target dimension
+// is likely to be safe from precision-related artifacts.
+bool isScalingSafe(int source, int target) {
+    if (source == 0 || target == 0) return true;  // No scaling.
+    int common = gcd(source, target);
+    int denominator = target / common;
+    return denominator <= kMaxSafeDenominator;
 }
 
-PixmanImagePtr::PixmanImagePtr(PixmanImagePtr&& other) noexcept : mImage(other.mImage) {
-    other.mImage = nullptr;
-}
-
-PixmanImagePtr& PixmanImagePtr::operator=(PixmanImagePtr&& other) noexcept {
-    if (this != &other) {
-        if (mImage) {
-            ::pixman_image_unref(mImage);
-        }
-        mImage = other.mImage;
-        other.mImage = nullptr;
-    }
-    return *this;
-}
-
-::pixman_image_t* PixmanImagePtr::get() const {
-    return mImage;
-}
-
-::pixman_image_t* PixmanImagePtr::operator->() const {
-    return mImage;
-}
+}  // namespace
 
 PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
-        : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image)) {
+        : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image))
+        , mFrameManager(std::make_unique<PixmanFrameManager>()) {
     updateSourceImage(image);
 }
 
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     auto oldWidth = mWidth;
     auto oldHeight = mHeight;
-    {
-        absl::MutexLock lock(&mDisplayAccess);
-        mSourceImage = PixmanImagePtr(image);
-        mWidth = pixman_image_get_width(image);
-        mHeight = pixman_image_get_height(image);
+
+    // Used to debug issues around scaling, it will create a set of blue blocks
+    // in the corners that you can use to visually analyze if things "look okay".
+    // enable by setting the --vmodule "PixmanDisplay.*=3"
+    if (ABSL_VLOG_IS_ON(3)) {
+        LOG_FIRST_N(WARNING, 5)
+                << "Adding blue blocks in the corners to visually diagnose scaling issues.";
+        if (mWidth >= 100 && mHeight >= 100) {
+            pixman_color_t blue = {0, 0, 0xffff, 0xffff};  // R, G, B, A (16-bit)
+            pixman_rectangle16_t rects[4] = {
+                {0, 0, 100, 100},                                          // Top-left
+                {int16_t(mWidth - 100), 0, 100, 100},                      // Top-right
+                {0, int16_t(mHeight - 100), 100, 100},                     // Bottom-left
+                {int16_t(mWidth - 100), int16_t(mHeight - 100), 100, 100}  // Bottom-right
+            };
+            pixman_image_fill_rectangles(PIXMAN_OP_SRC, image, &blue, 4, rects);
+        }
     }
-    // Notify listeners of updated display size,
-    VLOG(1) << "updateSourceImage: " << *this;
+
+    mFrameManager->updateSourceImage(image);
+    mWidth = pixman_image_get_width(image);
+    mHeight = pixman_image_get_height(image);
+    VLOG(2) << "updateSourceImage: " << *this;
     if (oldWidth != mWidth || oldHeight != mHeight) {
-        VLOG(1) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
+        VLOG(2) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
                 << mWidth << "x" << mHeight << "\n";
         ResizeEventCallbackSource::fireEvent(
                 ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
@@ -109,6 +126,9 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
 absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWidth, int newHeight,
                                                    int rotation, uint8_t* pixels,
                                                    size_t* cPixels) const {
+    // NOTE: We expect newWidth and newHeight to be safe, shearing *WILL* happen if the ratios
+    // are not proper.
+    absl::Time now = android::base::IClock::host_now();
     auto pixmanFmt = pixmanFormat(format);
     auto bpp = PIXMAN_FORMAT_BPP(pixmanFmt);
     auto stride =
@@ -123,9 +143,9 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
                 absl::StrFormat("Buffer too small; need %u bytes, have %u", requiredSize, old));
     }
 
-    absl::MutexLock lock(&mDisplayAccess);
+    auto sourceImage = mFrameManager->getRenderableImage();
     ::pixman_image_t* dst_img;
-    ::pixman_image_t* src_img = mSourceImage.get();
+    ::pixman_image_t* src_img = sourceImage.get();
     ::pixman_transform_t transform;
 
     if (!src_img) {
@@ -139,46 +159,94 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     assert(pixman_image_get_width(src_img) == mWidth);
     assert(pixman_image_get_height(src_img) == mHeight);
 
-    // Set up the transformation (scale and rotate)
-    pixman_transform_init_identity(&transform);  // Start with identity
+    double scale_x = (double)mWidth / (double)newWidth;
+    double scale_y = (double)mHeight / (double)newHeight;
 
-    // Apply scaling
-    pixman_transform_scale(&transform, NULL, pixman_double_to_fixed((double)newWidth / mWidth),
-                           pixman_double_to_fixed((double)newHeight / mHeight));
+    VLOG(2) << "Source: " << mWidth << "x" << mHeight << ", dest: " << newWidth << "x" << newHeight
+            << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
+    // centering/translation logic.
+    pixman_transform_init_identity(&transform);
+    pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
+                               pixman_double_to_fixed(-0.5));
+    pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
+                           pixman_double_to_fixed(scale_y));
+    pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
+                               pixman_double_to_fixed(0.5));
 
-    // Apply rotation around the center
-    double angleRadians = rotation * M_PI / 180.0;
-    pixman_fixed_t cos_val = pixman_double_to_fixed(cos(angleRadians));
-    pixman_fixed_t sin_val = pixman_double_to_fixed(sin(angleRadians));
+    // Set the transform and filter on the source image for fast scaling.
+    pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
+    pixman_image_set_transform(src_img, &transform);
 
-    pixman_transform_translate(&transform, NULL, pixman_int_to_fixed(newWidth / 2),
-                               pixman_int_to_fixed(newHeight / 2));
-    pixman_transform_rotate(&transform, NULL, cos_val, sin_val);
-    pixman_transform_translate(&transform, NULL, pixman_int_to_fixed(-newWidth / 2),
-                               pixman_int_to_fixed(-newHeight / 2));
-    pixman_image_set_transform(dst_img, &transform);
+    pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img, 0, 0, 0, 0, 0, 0, newWidth,
+                           newHeight);
 
-    pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img, 0, 0, 0, 0, 0, 0, mWidth,
-                           mHeight);
-
-    int dheight = pixman_image_get_height(dst_img);
-    int dstride = pixman_image_get_stride(dst_img);
-
-    assert(dstride != 0);
-
-    // Calculate total size to copy (height * stride)
-    *cPixels = dheight * dstride;
-    memcpy(pixels, pixman_image_get_data(dst_img), *cPixels);
+    // The buffer is now filled with the scaled and rotated image.
+    // The size of the valid pixel data is the required size.
+    *cPixels = requiredSize;
 
     // Clean up
     pixman_image_unref(dst_img);
 
     absl::MutexLock seqlock(&mSeqAccess);
+
+    VLOG(2) << "Image scaled in: " << (android::base::IClock::host_now() - now);
     return mSeq;
 }
 
 void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
     frameReceived();
+    if (ABSL_VLOG_IS_ON(1)) {
+        mFpsCalculator.addFrame();
+        VLOG_EVERY_N_SEC(1, 1) << "Qemu framerate: " << mFpsCalculator.getFps() << " fps";
+    }
+}
+
+std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
+    if (mWidth <= 0 || mHeight <= 0) {
+        return {0, 0};
+    }
+
+    // First, calculate the ideal dimensions while preserving aspect ratio.
+    int idealWidth, idealHeight;
+    // Use 64-bit integers for the cross-multiplication to prevent overflow.
+    int64_t h64 = mHeight;
+    int64_t w64 = mWidth;
+
+    // Note that we will never scale above display device width and height.
+    desiredWidth = std::min<int64_t>(desiredWidth, w64);
+    desiredHeight = std::min<int64_t>(desiredHeight, h64);
+
+    if (static_cast<int64_t>(desiredWidth) * h64 < static_cast<int64_t>(desiredHeight) * w64) {
+        // Width is the limiting factor.
+        idealHeight = static_cast<int>((h64 * desiredWidth) / w64);
+        idealWidth = desiredWidth;
+    } else {
+        // Height is the limiting factor.
+        idealWidth = static_cast<int>((w64 * desiredHeight) / h64);
+        idealHeight = desiredHeight;
+    }
+
+    // Now, check if these ideal dimensions are "safe" for pixman scaling.
+    // If not, find the nearest smaller dimensions that are safe.
+    // We only need to check the width; the height will be recalculated
+    // from the safe width to preserve the aspect ratio.
+    int safeWidth = idealWidth;
+    if (!isScalingSafe(mWidth, idealWidth)) {
+        for (int w_check = idealWidth; w_check > 0; --w_check) {
+            if (isScalingSafe(mWidth, w_check)) {
+                safeWidth = w_check;
+                break;
+            }
+        }
+    }
+
+    // Recalculate the height based on the safe width to maintain aspect ratio.
+    int safeHeight = static_cast<int>((h64 * safeWidth) / w64);
+
+    VLOG(2) << "Requested " << desiredWidth << "x" << desiredHeight << ", ideal " << idealWidth
+            << "x" << idealHeight << ", snapped to safe " << safeWidth << "x" << safeHeight;
+
+    return {safeWidth, safeHeight};
 }
 
 }  // namespace android::goldfish

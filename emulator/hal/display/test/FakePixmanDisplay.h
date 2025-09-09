@@ -165,8 +165,8 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @return A pointer to the current pixman image.
      */
     ::pixman_image_t* image() {
-        absl::MutexLock lock(&mDisplayAccess);
-        return mSourceImage.get();
+        auto img = mFrameManager->getRenderableImage();
+        return img.get();
     }
 
     std::vector<FakeEvDevEvent> mEvdevs;       ///< A list of simulated evdev events.

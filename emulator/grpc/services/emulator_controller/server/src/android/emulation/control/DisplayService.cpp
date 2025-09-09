@@ -14,6 +14,7 @@
 // limitations under the License.
 #include "android/emulation/control/DisplayService.h"
 
+#include <cstdint>
 #include <memory>
 
 #include "absl/log/log.h"
@@ -24,6 +25,7 @@
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/display/Display.h"
+#include "android/goldfish/display/FpsCalculator.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
@@ -45,25 +47,6 @@ using ::grpc::Status;
 using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
-
-std::tuple<int, int> resizeKeepAspectRatio(double width, double height, double desiredWidth,
-                                           double desiredHeight) {
-    double aspectRatio = width / height;
-    double newAspectRatio = desiredWidth / desiredHeight;
-    int newWidth, newHeight;
-    if (newAspectRatio > aspectRatio) {
-        // Wider than necessary; use the same height and compute the width
-        // from the desired aspect ratio.
-        newHeight = desiredHeight;
-        newWidth = (desiredHeight * aspectRatio);
-    } else {
-        // Taller than necessary; use the same width and compute the height
-        // from the desired aspect ratio
-        newWidth = desiredWidth;
-        newHeight = (desiredWidth / aspectRatio);
-    }
-    return std::make_tuple(newWidth, newHeight);
-}
 
 ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     ProtoRotation protoRotation;
@@ -94,6 +77,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     // Make sure we always write the first frame, this can be
     // a completely empty frame if the screen is not active.
     Image reply;
+    goldfish::FpsCalculator fpsCalculator(10);
 
     // cPixels is used to verify the invariant that retrieved image
     // is not shrinking over subsequent calls, as this might result
@@ -158,7 +142,15 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             bool emptyFrame = reply.format().width() == 0;
             if (!context->IsCancelled() && (!lastFrameWasEmpty || !emptyFrame)) {
                 AEMU_SCOPED_TRACE("streamScreenshot::write");
+                VLOG(2) << "Writing out frame";
                 clientAvailable = writer->Write(reply);
+
+                // Log the FPS when verbose logging is enabled.
+                if (ABSL_VLOG_IS_ON(1)) {
+                    fpsCalculator.addFrame();
+                    VLOG_EVERY_N_SEC(1, 1)
+                            << "gRPC framerate: " << fpsCalculator.getFps() << " fps";
+                }
             }
             lastFrameWasEmpty = emptyFrame;
         }
@@ -230,6 +222,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     // phone..
     if (deviceRotation.rotation == DeviceSkinRotation::LANDSCAPE ||
         deviceRotation.rotation == DeviceSkinRotation::REVERSE_LANDSCAPE) {
+        VLOG(2) << "Swapping width & height " << width << "x" << height << " to " << height << "x"
+                << width;
         std::swap(width, height);
 
         // TODO(jansene): Support for folded device.
@@ -238,16 +232,11 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         //     std::swap(rect.size.w, rect.size.h);
         // }
     }
-
-    // Note that we will never scale above the device width and height.
-    desiredWidth = std::min<uint32_t>(desiredWidth, width);
-    desiredHeight = std::min<uint32_t>(desiredHeight, height);
-
     // Calculate width and height, keeping aspect ratio in mind.
-    int newWidth, newHeight;
-    std::tie(newWidth, newHeight) =
-            resizeKeepAspectRatio(width, height, desiredWidth, desiredHeight);
+    auto [newWidth, newHeight] = display->resizeKeepAspectRatio(desiredWidth, desiredHeight);
 
+    VLOG(2) << "Resizing from " << desiredWidth << "x" << desiredHeight << " to " << newWidth << "x"
+            << newHeight;
     int rotationDeg = 0;
     char* unsafe = reply->mutable_image()->data();
     uint8_t* pixels = reinterpret_cast<uint8_t*>(unsafe);
@@ -256,7 +245,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 
     auto seq = display->getPixels(format, newWidth, newHeight, rotationDeg, pixels, &cPixels);
     if (absl::IsFailedPrecondition(seq.status())) {
-        VLOG(1) << "Allocating string object: " << seq.status();
+        VLOG(2) << "Allocating string object: " << seq.status();
         auto buffer = new std::string(cPixels, 0);
 
         // The protobuf message takes ownership of the pointer.
@@ -281,6 +270,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     reply->set_timestampus(absl::ToUnixMicros(seq->timestamp));
     reply->set_seq(seq->sequenceNumber);
 
+    VLOG(2) << "Produced frame: " << outFormat->ShortDebugString();
     return Status::OK;
 }
 

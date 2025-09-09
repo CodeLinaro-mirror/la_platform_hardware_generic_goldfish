@@ -11,6 +11,8 @@
 
 #include "FakeMultiDisplay.h"
 #include "FakePixmanDisplay.h"
+#include "ImageGenerationStrategy.h"
+#include "android/goldfish/display/PixmanDisplay.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
@@ -212,5 +214,148 @@ TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     auto result = multiDisplay->createDisplay(1, 800, 600);
     ASSERT_TRUE(result.ok());
     event.WaitForNotificationWithTimeout(absl::Milliseconds(100));
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeMaintainsPatternIntegrity) {
+    constexpr int kWidth = 1080;
+    constexpr int kHeight = 2400;
+
+    // 1. Create Image
+    ChessboardStrategy strategy;
+    auto sourceImage = android::goldfish::PixmanImagePtr(
+            pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kWidth, kHeight, nullptr, 0));
+    ASSERT_NE(sourceImage.get(), nullptr);
+    strategy.generate(sourceImage.get(), 0);
+
+    // 2. Get Display HAL
+    auto displayResult = mFakeMultiDisplay->getDisplay(0);
+    ASSERT_TRUE(displayResult.ok());
+    auto display = std::dynamic_pointer_cast<FakePixmanDisplay>(displayResult->lock());
+    ASSERT_NE(display, nullptr);
+
+    // 3. Update HAL State
+    display->updateSourceImage(sourceImage.get());
+
+    // 4. Trigger Surface Update
+    display->updateSurface(0, 0, kWidth, kHeight);
+
+    // 5. Retrieve Pixels
+    std::vector<uint8_t> pixel_buffer(kWidth * kHeight * 4);
+    size_t num_pixels = pixel_buffer.size();
+    auto pixelsResult = display->getPixels(PixelFormat::RGBA8888, kWidth, kHeight, 0,
+                                           pixel_buffer.data(), &num_pixels);
+    ASSERT_TRUE(pixelsResult.ok());
+
+    // 6. Validate Pattern
+    auto validationImage = android::goldfish::PixmanImagePtr(pixman_image_create_bits_no_clear(
+            PIXMAN_a8r8g8b8, kWidth, kHeight, (uint32_t*)pixel_buffer.data(), kWidth * 4));
+    ASSERT_NE(validationImage.get(), nullptr);
+    EXPECT_TRUE(strategy.isGeneratedBy(validationImage.get(), 0));
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeWithScaling) {
+    constexpr int kInitialWidth = 1080;
+    constexpr int kInitialHeight = 2400;
+
+    // 1. Create Image
+    ChessboardStrategy strategy;
+    auto sourceImage = android::goldfish::PixmanImagePtr(pixman_image_create_bits_no_clear(
+            PIXMAN_a8r8g8b8, kInitialWidth, kInitialHeight, nullptr, 0));
+    ASSERT_NE(sourceImage.get(), nullptr);
+    strategy.generate(sourceImage.get(), 0);
+
+    // 2. Get Display HAL
+    auto displayResult = mFakeMultiDisplay->getDisplay(0);
+    ASSERT_TRUE(displayResult.ok());
+    auto display = std::dynamic_pointer_cast<FakePixmanDisplay>(displayResult->lock());
+    ASSERT_NE(display, nullptr);
+
+    // 3. Update HAL State
+    display->updateSourceImage(sourceImage.get());
+    display->updateSurface(0, 0, kInitialWidth, kInitialHeight);
+
+    // 4. Resize to 540x1200 and validate
+    constexpr int kResizeWidth1 = 540;
+    constexpr int kResizeHeight1 = 1200;
+    std::vector<uint8_t> pixel_buffer1(kResizeWidth1 * kResizeHeight1 * 4);
+    size_t num_pixels1 = pixel_buffer1.size();
+    auto pixelsResult1 = display->getPixels(PixelFormat::RGBA8888, kResizeWidth1, kResizeHeight1, 0,
+                                            pixel_buffer1.data(), &num_pixels1);
+    ASSERT_TRUE(pixelsResult1.ok());
+    auto validationImage1 = android::goldfish::PixmanImagePtr(
+            pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kResizeWidth1, kResizeHeight1,
+                                              (uint32_t*)pixel_buffer1.data(), kResizeWidth1 * 4));
+    ASSERT_NE(validationImage1.get(), nullptr);
+    EXPECT_TRUE(strategy.isGeneratedBy(validationImage1.get(), 0));
+
+    // 5. Resize to 541x1204 and validate
+    constexpr int kResizeWidth2 = 541;
+    constexpr int kResizeHeight2 = 1204;
+    std::vector<uint8_t> pixel_buffer2(kResizeWidth2 * kResizeHeight2 * 4);
+    size_t num_pixels2 = pixel_buffer2.size();
+    auto pixelsResult2 = display->getPixels(PixelFormat::RGBA8888, kResizeWidth2, kResizeHeight2, 0,
+                                            pixel_buffer2.data(), &num_pixels2);
+    ASSERT_TRUE(pixelsResult2.ok());
+    auto validationImage2 = android::goldfish::PixmanImagePtr(
+            pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kResizeWidth2, kResizeHeight2,
+                                              (uint32_t*)pixel_buffer2.data(), kResizeWidth2 * 4));
+    ASSERT_NE(validationImage2.get(), nullptr);
+    // Note: This is expected to fail, as the above ratio will cause shearing.
+    // as we didn't *snap* the resize to a ratio we actually support.
+    EXPECT_FALSE(strategy.isGeneratedBy(validationImage2.get(), 0));
+}
+
+// This test was used as a diagnostic tool to identify a shearing artifact
+// that occurred during image scaling. The issue was traced back to rounding
+// errors in pixman's scaling algorithm when the source and destination
+// dimensions did not share a sufficiently simple ratio.
+//
+// The test iterates through various scaled widths, keeping the aspect ratio,
+// to pinpoint the exact dimensions where the shearing (pattern corruption)
+// begins. The insights from this test led to the implementation of a "snapping"
+// mechanism that forces the scaled dimensions to a ratio that pixman can
+// handle without introducing these rounding errors, thus preserving image
+// integrity.
+//
+// It is disabled because it is a diagnostic test and not a regression test.
+TEST_F(FakeMultiDisplayTest, DISABLED_ScalingFailureBoundaryTest) {
+    constexpr int kInitialWidth = 1080;
+    constexpr int kInitialHeight = 2400;
+
+    // 1. Create Image
+    ChessboardStrategy strategy;
+    auto sourceImage = android::goldfish::PixmanImagePtr(pixman_image_create_bits_no_clear(
+            PIXMAN_a8r8g8b8, kInitialWidth, kInitialHeight, nullptr, 0));
+    ASSERT_NE(sourceImage.get(), nullptr);
+    strategy.generate(sourceImage.get(), 0);
+
+    // 2. Get Display HAL
+    auto displayResult = mFakeMultiDisplay->getDisplay(0);
+    ASSERT_TRUE(displayResult.ok());
+    auto display = std::dynamic_pointer_cast<FakePixmanDisplay>(displayResult->lock());
+    ASSERT_NE(display, nullptr);
+
+    // 3. Update HAL State
+    display->updateSourceImage(sourceImage.get());
+    display->updateSurface(0, 0, kInitialWidth, kInitialHeight);
+
+    // 4. Iterate and validate
+    for (int w = kInitialWidth; w >= 530; --w) {
+        auto [newWidth, newHeight] = display->resizeKeepAspectRatio(w, kInitialHeight);
+
+        std::vector<uint8_t> buffer(newWidth * newHeight * 4);
+        size_t bufferSize = buffer.size();
+        auto result = display->getPixels(PixelFormat::RGBA8888, newWidth, newHeight, 0,
+                                         buffer.data(), &bufferSize);
+        ASSERT_TRUE(result.ok());
+
+        auto validationImage = android::goldfish::PixmanImagePtr(pixman_image_create_bits_no_clear(
+                PIXMAN_a8r8g8b8, newWidth, newHeight, (uint32_t*)buffer.data(), newWidth * 4));
+        ASSERT_NE(validationImage.get(), nullptr);
+
+        bool success = strategy.isGeneratedBy(validationImage.get(), 0);
+        std::cout << "Width: " << newWidth << ", Height: " << newHeight << " -> "
+                  << (success ? "PASS" : "FAIL") << std::endl;
+    }
 }
 }  // namespace android::goldfish
