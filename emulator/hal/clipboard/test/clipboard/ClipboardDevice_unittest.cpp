@@ -17,38 +17,44 @@
 #include "gmock/gmock.h"
 
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::clipboard {
 
 using android::base::TestSystem;
+using goldfish::async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 
 class ClipboardDeviceTest : public ::testing::Test {
     void SetUp() override {
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
+
         android::goldfish::FakeAvd avd;
-        IClipboardDevice::registerDevice(&registry, &avd, registry.getLooper());
-        device = registry.constructDevice<IClipboardDevice>();
-        test_socket = registry.getSocket();
-        looper = registry.getLooper();
+        IClipboardDevice::registerDevice(&registry, &avd, mClientLoop.get(), mQemuLoop.get());
+        device = registry.constructHalDevice<IClipboardDevice>();
+
+        test_socket = registry.halSocket();
         clear();
     }
 
   public:
     void receive(std::string_view msg) {
         uint32_t size = msg.size();
-        device->onReceive(&size, sizeof(size));
-        device->onReceive(msg.data(), msg.size());
+        device->onReceive(std::string(reinterpret_cast<const char*>(&size), sizeof(size)));
+        device->onReceive(std::string(msg));
     }
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    TestLooper* looper;
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
     TestConnectorRegistry registry;
-    TestSocket* test_socket;
+    TestHalSocket* test_socket;
     IClipboardDevice* device;
 };
 

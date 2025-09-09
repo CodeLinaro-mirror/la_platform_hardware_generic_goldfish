@@ -23,16 +23,10 @@
 #include "absl/strings/numbers.h"
 #include "absl/synchronization/mutex.h"
 
-#include "aemu/base/async/Looper.h"
 #include "android/goldfish/config/avd.h"
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/qemud.h"
 
-using android::base::Looper;
 using android::goldfish::Avd;
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::clipboard {
 
@@ -75,14 +69,12 @@ struct ReadWriteState {
 
 class ClipboardDevice : public IClipboardDevice {
   public:
-    ClipboardDevice(SocketPtr socket) : mSocket(std::move(socket)) {
-        VLOG(1) << "Clipboard device has been created";
-    }
+    ClipboardDevice() { VLOG(1) << "Clipboard device has been created"; }
 
     ~ClipboardDevice() {}
-    SocketPtr onUnplug() override { return std::move(mSocket); }
-
-    bool onReceive(const void* data, size_t size) override {
+    void onConnect() override { VLOG(1) << "Clipboard device has been connected"; }
+    void onClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
+    void onReceive(std::string_view data) override {
         if (mGuestReadState.size() == 0 && !mGuestReadState.dataSizeTransferred) {
             mGuestReadState.dataSizeTransferred = true;
             mGuestReadState.processedBytes = 0;
@@ -90,21 +82,19 @@ class ClipboardDevice : public IClipboardDevice {
             // buffer on our side has enough space.
             mGuestReadState.buffer.resize(mGuestReadState.dataSize);
         }
-        memcpy(mGuestReadState.data(), data, size);
-        mGuestReadState.processedBytes += size;
+        memcpy(mGuestReadState.data(), data.data(), data.size());
+        mGuestReadState.processedBytes += data.size();
 
         if (mGuestReadState.isFinished()) {
-            auto data = mGuestReadState.view();
-            VLOG(1) << "Clipboard update from guest to (" << data.size() << "):" << data;
+            auto clipboardData = mGuestReadState.view();
+            VLOG(1) << "Clipboard update from guest to (" << clipboardData.size() << "):" << data;
             {
                 absl::MutexLock lock(&mClipboardDataLock);
-                mClipboardData = data;
+                mClipboardData = clipboardData;
             }
-            fireEvent(data);
+            fireEvent(clipboardData);
             mGuestReadState.reset();
         }
-
-        return true;
     }
 
     bool isEnabled() const override { return mEnabled; }
@@ -122,8 +112,8 @@ class ClipboardDevice : public IClipboardDevice {
         char size_buf[sizeof(uint32_t)];
         absl::little_endian::Store32(size_buf, size);
 
-        mSocket->sendAsync(size_buf, sizeof(size_buf));
-        mSocket->sendAsync(contents.data(), size);
+        socket()->send(std::string(size_buf, sizeof(size_buf)));
+        socket()->send(std::string(contents));
     }
 
     ClipboardData getContents() const override {
@@ -133,18 +123,15 @@ class ClipboardDevice : public IClipboardDevice {
 
   private:
     ReadWriteState mGuestReadState;
-    SocketPtr mSocket;
     std::string mClipboardData ABSL_GUARDED_BY(mClipboardDataLock);
     bool mEnabled{true};
     mutable absl::Mutex mClipboardDataLock;  // protects mClipboardData
 };
 
-void IClipboardDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper) {
-    registry->registerDevice(std::string(IClipboardDevice::serviceName),
-                             [](SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                                std::string_view args) {
-                                 return std::make_shared<ClipboardDevice>(std::move(socket));
-                             });
+void IClipboardDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, EventLoop* clientLoop,
+                                      EventLoop* qemuLoop) {
+    registry->registerHalDevice(std::string(IClipboardDevice::serviceName), clientLoop, qemuLoop,
+                                [] { return std::make_shared<ClipboardDevice>(); });
 }
 
 }  // namespace goldfish::devices::clipboard

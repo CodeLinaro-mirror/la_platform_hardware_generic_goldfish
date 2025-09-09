@@ -15,20 +15,15 @@
 
 #include <string_view>
 
-#include "aemu/base/async/Looper.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::clipboard {
 
-using android::base::Looper;
 using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
+using goldfish::async::EventLoop;
 
 using ClipboardData = std::string_view;
 using namespace std::string_view_literals;
@@ -85,7 +80,7 @@ using namespace std::string_view_literals;
  *
  * The guest side is in com/android/server/clipboard/EmulatorClipboardMonitor.java
  */
-class IClipboardDevice : public IPlug, public CallbackEventSource<ClipboardData> {
+class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardData> {
   public:
     ~IClipboardDevice() override {}
 
@@ -131,19 +126,21 @@ class IClipboardDevice : public IPlug, public CallbackEventSource<ClipboardData>
      * This function registers the clipboard device with the provided
      * `IConnectorRegistry` instance, making it available for connection
      * through the qemud pipe.  The provided `Avd` object supplies
-     * configuration information for the clipboard device, while the `Looper`
-     * instance manages the event loop for asynchronous operations.
+     * configuration information for the clipboard device. The `clientLoop` and
+     * `qemuLoop` manage the asynchronous operations.
      *
      * @param registry The `IConnectorRegistry` instance to register with.
      * @param avd The `Avd` object containing the AVD configuration.
-     * @param looper The `Looper` instance to use for asynchronous operations.
+     * @param clientLoop The event loop for client-side operations.
+     * @param qemuLoop The event loop for QEMU-side operations.
      *
-     * @note The `avd` and `looper` objects are expected to remain valid for
-     * the lifetime of the registry.  Their lifecycles should be managed
-     * externally to ensure they outlive the registry.
+     * @note The `avd`, `clientLoop`, and `qemuLoop` objects are expected to
+     * remain valid for the lifetime of the registry. Their lifecycles should be
+     * managed externally to ensure they outlive the registry.
      *
      * @note A clipboard device is not a qemud device.
      */
-    static void registerDevice(IConnectorRegistry* registry, Avd* avd, Looper* looper);
+    static void registerDevice(IConnectorRegistry* registry, Avd* avd, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::clipboard

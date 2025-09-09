@@ -129,13 +129,13 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto clientLoop = goldfish::async::globalEventLoop();
     gQemuLoop = goldfish::async::QemuEventLoop::create();
 
-    auto looper = android::goldfish::qemuLooper();
     auto avd = gAvd.get();
     auto registry = &goldfish::avd_info::deviceRegistry();
 
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, clientLoop,
                                                              gQemuLoop.get());
-    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
+    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, clientLoop,
+                                                                   gQemuLoop.get());
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
                                                                         qemu_register_reset);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
