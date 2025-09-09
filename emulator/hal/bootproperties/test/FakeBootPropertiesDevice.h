@@ -11,21 +11,22 @@ namespace goldfish::devices::boot {
  */
 class FakeBootPropertiesDevice : public IBootPropertiesDevice,
                                  public std::enable_shared_from_this<FakeBootPropertiesDevice> {
-  public:
-    // IBootPropertiesDevice implementation
-    bool isDataPartitionMounted() override { return mDataPartitionMounted; }
+ public:
+  // IBootPropertiesDevice implementation
+  bool isDataPartitionMounted() override { return mDataPartitionMounted; }
 
-    void setDataPartitionMounted(bool mounted) {
-        mDataPartitionMounted = mounted;
-        fireEvent(BootPropertyStatus{mounted});
-    }
+  void setDataPartitionMounted(bool mounted) {
+    mDataPartitionMounted = mounted;
+    fireEvent(BootPropertyStatus{mounted});
+  }
+  void onConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
+  void onClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
+  void onReceive(std::string_view data) override {
+    VLOG(1) << "Bootproperties device received " << data;
+  }
 
-    // IPlug implementation
-    bool onReceive(const void* data, size_t size) override { return true; }
-    SocketPtr onUnplug() override { return nullptr; }
-
-  private:
-    bool mDataPartitionMounted = false;
+ private:
+  bool mDataPartitionMounted = false;
 };
 
 }  // namespace goldfish::devices::boot

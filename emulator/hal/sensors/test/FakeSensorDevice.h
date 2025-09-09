@@ -47,8 +47,12 @@ class FakeSensorDevice : public ISensorDevice,
     void setDeviceRotation(const Rotation& rotation) { mRotation = rotation; }
 
     // IPlug implementation
-    bool onReceive(const void* data, size_t size) override { return true; }
-    SocketPtr onUnplug() override { return nullptr; }
+
+  void onConnect() override { VLOG(1) << "FakeSensorDevice device has been connected"; }
+  void onClose() override { VLOG(1) << "FakeSensorDevice device has been disconnected"; }
+  void onReceive(std::string_view data) override {
+    VLOG(1) << "FakeSensorDevice device received " << data;
+  }
 
   private:
     std::map<AndroidSensor, SensorData> mSensorData;

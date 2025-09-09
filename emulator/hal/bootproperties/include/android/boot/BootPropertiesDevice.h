@@ -19,17 +19,15 @@
 #include "BootPropertyString.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/boot/BootPropertyString.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish::devices::boot {
 
 using android::base::eventing::CallbackEventSource;
+using goldfish::async::EventLoop;
 using goldfish::devices::BootPropertyString;
 using goldfish::devices::LimitedString;
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 using namespace std::string_view_literals;
 
@@ -76,7 +74,7 @@ struct BootPropertyStatus {
  *
  * ```
  */
-class IBootPropertiesDevice : public IPlug, public CallbackEventSource<BootPropertyStatus> {
+class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPropertyStatus> {
   public:
     virtual ~IBootPropertiesDevice() override {}
 
@@ -139,7 +137,8 @@ class IBootPropertiesDevice : public IPlug, public CallbackEventSource<BootPrope
      * @param properties The set of properties to register.
      */
     static void registerDevice(IConnectorRegistry* registry, Properties properties,
-                               RegisterEmulatorReset registerEmulatorReset);
+                               RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
 };
 
 // User-defined literal for creating PropertyName objects.

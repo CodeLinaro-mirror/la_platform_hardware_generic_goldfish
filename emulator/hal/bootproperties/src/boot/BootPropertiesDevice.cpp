@@ -20,13 +20,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
-
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::boot {
 
@@ -36,24 +30,32 @@ IBootPropertiesDevice::PropertyName operator""_bps(const char* c_str, size_t len
 }
 class BootPropertiesDevice : public IBootPropertiesDevice {
   public:
-    BootPropertiesDevice(SocketPtr socket, Properties properties,
-                         RegisterEmulatorReset registerEmulatorReset)
-        : mSocket(std::move(socket)), mProperties(std::move(properties)) {
+    BootPropertiesDevice(Properties properties, RegisterEmulatorReset registerEmulatorReset)
+            : mProperties(std::move(properties))
+            , mQemudParser([this](const void* data, size_t size) {
+                return handleMessage(std::string_view(static_cast<const char*>(data), size));
+            }) {
         VLOG(1) << "BootProperties device has been created";
         registerEmulatorReset(BootPropertiesDevice::QEMUResetHandler, this);
     }
 
     ~BootPropertiesDevice() {}
-    SocketPtr onUnplug() override { return std::move(mSocket); }
 
     void send(std::string_view msg) {
-        goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(encoded);
     }
 
     bool isDataPartitionMounted() override { return mDataPartitionMounted; }
 
-    bool onReceive(const void* data, size_t size) override {
-        std::string_view cmd = std::string_view((char*)data, size);
+    void onConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
+    void onClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
+    void onReceive(std::string_view data) override {
+        mQemudParser.onReceive(data.data(), data.size());
+    }
+
+    bool handleMessage(std::string_view cmd) {
         if (cmd == "list") {
             for (const auto& [name, value] : mProperties) {
                 send(absl::StrFormat("%s=%s", name, value));
@@ -77,21 +79,20 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
         fireEvent({.dataPartitionMounted = false});
     }
 
-    SocketPtr mSocket;
     Properties mProperties;
+    qemud::Parser mQemudParser;
     bool mDataPartitionMounted{false};
 };
 
 void IBootPropertiesDevice::registerDevice(IConnectorRegistry* registry, Properties properties,
-                                           RegisterEmulatorReset registerEmulatorReset) {
-    registry->registerQemuDevice(
-            std::string(IBootPropertiesDevice::serviceName),
+                                           RegisterEmulatorReset registerEmulatorReset,
+                                           EventLoop* clientLoop, EventLoop* qemuLoop) {
+    registry->registerHalQemuDevice(
+            std::string(IBootPropertiesDevice::serviceName), clientLoop, qemuLoop,
             [properties = std::move(properties),
-             registerEmulatorReset = std::move(registerEmulatorReset)](
-                    SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                    std::string_view args) {
-                return std::make_shared<BootPropertiesDevice>(
-                        std::move(socket), std::move(properties), std::move(registerEmulatorReset));
+             registerEmulatorReset = std::move(registerEmulatorReset)] {
+                return std::make_shared<BootPropertiesDevice>(std::move(properties),
+                                                              std::move(registerEmulatorReset));
             });
 }
 

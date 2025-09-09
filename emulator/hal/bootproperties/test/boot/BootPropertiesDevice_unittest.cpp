@@ -10,13 +10,13 @@
 // GNU General Public License for more details.
 #include "android/boot/BootPropertiesDevice.h"
 
-#include <android/base/testing/TestSystem.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "gmock/gmock.h"
-
+#include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/devices/qemud.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
@@ -37,6 +37,7 @@ void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
 namespace goldfish::devices::boot {
 
 using android::base::TestSystem;
+using goldfish::async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -104,76 +105,78 @@ TEST(BootPropertyStringTest, LengthLimit) {
     EXPECT_THROW({ BootPropertyString<5> str("abcdef"); }, std::length_error);
 }
 
-TEST(BootPropertiesDeviceTest, canCreateDevice) {
-    IBootPropertiesDevice::Properties props;
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, props, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-    EXPECT_NE(device, nullptr);
-}
+class BootPropertiesDeviceTest : public ::testing::Test {
+    void SetUp() override {
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
 
-TEST(BootPropertiesDeviceTest, mountsDataPartition) {
-    IBootPropertiesDevice::Properties props;
-    props["foo"_bps] = "bar";
+        IBootPropertiesDevice::Properties props;
+        registerWithProps(props);
+    }
+
+  public:
+    void registerWithProps(IBootPropertiesDevice::Properties props) {
+        IBootPropertiesDevice::registerDevice(&registry, props, qemu_register_reset,
+                                              mClientLoop.get(), mQemuLoop.get());
+        device = registry.constructHalDevice<IBootPropertiesDevice>();
+        test_socket = registry.halSocket();
+        clear();
+        device->onConnect();
+    }
+    void receive(std::string_view msg) { device->onReceive(qemud::encodeQemudPacket(msg)); }
+    void clear() { test_socket->storage.clear(); }
+
+  protected:
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
+
     TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, props, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-    device->onReceive("list", 4);
+    TestHalSocket* test_socket;
+    IBootPropertiesDevice::Properties props;
+    IBootPropertiesDevice* device;
+};
+
+TEST_F(BootPropertiesDeviceTest, mountsDataPartition) {
+    props["foo"_bps] = "bar";
+    registerWithProps(props);
+    receive("list");
     EXPECT_TRUE(device->isDataPartitionMounted());
 }
 
-TEST(BootPropertiesDeviceTest, sendsBootProperties) {
-    IBootPropertiesDevice::Properties props;
+TEST_F(BootPropertiesDeviceTest, sendsBootProperties) {
     props["foo"_bps] = "bar";
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, props, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-    auto test_socket = registry.getSocket();
-    device->onReceive("list", 4);
+    registerWithProps(props);
+    receive("list");
     EXPECT_EQ(test_socket->storage, "0007foo=bar");
 }
 
-TEST(BootPropertiesDeviceTest, receivesMountEvent) {
+TEST_F(BootPropertiesDeviceTest, receivesMountEvent) {
     BootPropertyStatus received;
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
     auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](BootPropertyStatus event) { received = event; });
-    device->onReceive("list", 4);
+    receive("list");
     EXPECT_THAT(received.dataPartitionMounted, Eq(true));
 }
 
-TEST(BootPropertiesDeviceTest, registersResetHandler) {
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-
+TEST_F(BootPropertiesDeviceTest, registersResetHandler) {
     EXPECT_NE(sResetHandler, nullptr);
     EXPECT_EQ(sOpaque, device);
 }
 
-TEST(BootPropertiesDeviceTest, resetHandlerResetsBootCompleted) {
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-    device->onReceive("list", 4);
+TEST_F(BootPropertiesDeviceTest, resetHandlerResetsBootCompleted) {
+    receive("list");
 
     // Simulate a reset
     sResetHandler(sOpaque);
     EXPECT_THAT(device->isDataPartitionMounted(), Eq(false));
 }
 
-TEST(BootPropertiesDeviceTest, firesResetEvent) {
+TEST_F(BootPropertiesDeviceTest, firesResetEvent) {
     BootPropertyStatus received;
-    TestConnectorRegistry registry;
-    IBootPropertiesDevice::registerDevice(&registry, {}, qemu_register_reset);
-    auto device = registry.constructDevice<IBootPropertiesDevice>();
-
     auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](BootPropertyStatus event) { received = event; });
 
-    device->onReceive("list", 4);
+    receive("list");
     EXPECT_THAT(received.dataPartitionMounted, Eq(true));
 
     // Simulate a reset

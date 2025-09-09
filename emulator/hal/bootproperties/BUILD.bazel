@@ -21,9 +21,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//hardware/generic/goldfish/emulator/devices:PingTopic",
-        "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:qemud",
+        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:event-support",

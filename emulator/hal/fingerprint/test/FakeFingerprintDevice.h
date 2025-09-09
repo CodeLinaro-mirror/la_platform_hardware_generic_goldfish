@@ -11,14 +11,16 @@ namespace goldfish::devices::fingerprint {
  */
 class FakeFingerprintDevice : public IFingerprintDevice,
                               public std::enable_shared_from_this<FakeFingerprintDevice> {
-  public:
-    // IFingerprintDevice implementation
-    void touch(int id) override {}
-    void release() override {}
+ public:
+  // IFingerprintDevice implementation
+  void touch(int id) override {}
+  void release() override {}
 
-    // IPlug implementation
-    bool onReceive(const void* data, size_t size) override { return true; }
-    SocketPtr onUnplug() override { return nullptr; }
+  void onConnect() override { VLOG(1) << "FakeFingerprintDevice device has been connected"; }
+  void onClose() override { VLOG(1) << "FakeFingerprintDevice device has been disconnected"; }
+  void onReceive(std::string_view data) override {
+    VLOG(1) << "FakeFingerprintDevice device recevied " << data;
+  }
 };
 
 }  // namespace goldfish::devices::fingerprint

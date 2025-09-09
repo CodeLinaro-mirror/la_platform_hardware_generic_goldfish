@@ -153,7 +153,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 {"qemu.sf.fake_camera"s, emulatedCameraProp},
                 {"qemu.sf.lcd_density"s, "420"s},
             },
-            &DummyRegisterEmulatorReset);
+            &DummyRegisterEmulatorReset, clientLoop, gQemuLoop.get());
 
     android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop);
 }
