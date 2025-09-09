@@ -17,6 +17,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "absl/strings/str_format.h"
+
 #include "goldfish/SocketBuffer.h"
 #include "goldfish/UniqueIdAllocator.h"
 #include "goldfish/archive/QEMUFileReader.h"
@@ -83,6 +85,14 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
         assert(op > VIRTIO_VSOCK_OP_INVALID);
         assert(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
         sendOpMask |= (1U << op);
+    }
+
+    void AbslStringifyImpl(absl::FormatSink& sink) const override {
+        absl::Format(&sink,
+                     "[VsockStream %u <-> %u, %s,  gFwd:%u, "
+                     "hSent:%u, hFwd:%u]",
+                     hostPort, guestPort, isConnected ? "open" : "closed", guestFwdCnt, hostSentCnt,
+                     hostFwdCnt);
     }
 };
 

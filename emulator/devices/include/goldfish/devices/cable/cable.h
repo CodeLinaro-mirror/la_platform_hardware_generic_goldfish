@@ -17,9 +17,10 @@
 #include <string>
 #include <variant>
 
+#include "absl/strings/str_format.h"
+
 #include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
-
 namespace goldfish {
 namespace devices {
 namespace cable {
@@ -84,7 +85,14 @@ struct ISocket {
      * will be called).
      */
     virtual PlugPtr unplugImpl() = 0;
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const { absl::Format(&s, "[ISocket]"); }
+    friend void AbslStringify(absl::FormatSink& s, const ISocket& socket);
 };
+
+inline void AbslStringify(absl::FormatSink& s, const ISocket& socket) {
+    socket.AbslStringifyImpl(s);
+}
+std::ostream& operator<<(std::ostream& os, const ISocket& socket);
 
 using SocketPtr = ISocket::Ptr;
 
@@ -132,8 +140,17 @@ struct IPlug {
     virtual bool supportsLoadingFromSnapshot() const { return false; }
     virtual TypeId getSnapshotTypeId() const { return {}; }
     virtual bool saveStateToSnapshot(archive::IWriter&) const { return false; };
+
+  protected:
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const { absl::Format(&s, "[IPlug]"); }
+    friend void AbslStringify(absl::FormatSink& s, const IPlug& plug);
 };
 
+inline void AbslStringify(absl::FormatSink& s, const IPlug& plug) {
+    plug.AbslStringifyImpl(s);
+}
+
+std::ostream& operator<<(std::ostream& os, const IPlug& plug);
 using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
 
 /* `PlugLoader` represents a function which loads `IPlug`

@@ -14,22 +14,27 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include "absl/strings/str_format.h"
 
 #include "android/base/system/TestClock.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish//async/testing/test_event_loop.h"
+#include "goldfish/devices/qemud.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::sensor {
 
 using android::base::TestSystem;
+using async::testing::TestEventLoop;
+using goldfish::physics::SkinRotation;
 using ::testing::_;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
-using goldfish::physics::SkinRotation;
 
 int countOccurrences(const std::string& text, const std::string& target) {
     int count = 0;
@@ -45,15 +50,18 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
 class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        ISensorDevice::registerDevice(&registry, mAvd, registry.getLooper(), &mClock);
-        device = registry.constructDevice<ISensorDevice>();
-        test_socket = registry.getSocket();
-        looper = registry.getLooper();
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
+
+        ISensorDevice::registerDevice(&registry, mAvd, mClientLoop.get(), mQemuLoop.get(), &mClock);
+        device = registry.constructHalDevice<ISensorDevice>();
+        test_socket = registry.halSocket();
         clear();
+        device->onConnect();
     }
 
   public:
-    void receive(std::string_view msg) { device->onReceive(msg.data(), msg.size()); }
+    void receive(std::string_view msg) { device->onReceive(qemud::encodeQemudPacket(msg)); }
     void clear() { test_socket->storage.clear(); }
 
     void setAcceleration(float x, float y, float z) {
@@ -67,10 +75,12 @@ class SensorDeviceTest : public ::testing::Test {
     }
 
   protected:
-    TestLooper* looper;
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
+
     TestConnectorRegistry registry;
-    TestSocket* test_socket;
     ISensorDevice* device;
+    TestHalSocket* test_socket;
     android::goldfish::FakeAvd mAvd;
     android::base::TestClock mClock;
 };
@@ -113,7 +123,7 @@ TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
     receive("set-delay:1");
     clear();
     EXPECT_THAT(test_socket->storage, Eq(""));
-    looper->runWithTimeoutMs(50);
+    for (int i = 0; i < 11; i++) mClientLoop->advanceClock(std::chrono::milliseconds(10));
 
     // We should see a sync several times.
     EXPECT_THAT(countOccurrences(test_socket->storage, "guest-sync:"), Gt(10));

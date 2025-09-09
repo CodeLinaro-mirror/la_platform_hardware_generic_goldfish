@@ -25,20 +25,20 @@ namespace goldfish {
 namespace devices {
 
 HalPlugToIPlugAdapter::~HalPlugToIPlugAdapter() {
-    VLOG(1) << "Tearing down HalPlugToIPlugAdapter with mHalPlug: " << mHalPlug
+    VLOG(1) << "Tearing down " << *this << " with mHalPlug: " << *mHalPlug
             << ", use_count: " << mHalPlug.use_count();
 }
 
 HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
                                              std::shared_ptr<HalPlug> halPlug)
         : mClientLoop(clientLoop), mHalPlug(std::move(halPlug)) {
-    VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << mHalPlug
+    VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << *mHalPlug
             << ", use_count: " << mHalPlug.use_count();
 }
 
 void HalPlugToIPlugAdapter::onConnect() {
     // Let's inform the client of the new connection.
-    VLOG(1) << "Scheduling onConnect for mHalPlug";
+    VLOG(1) << "Scheduling onConnect for mHalPlug: " << *mHalPlug;
     mClientLoop->post([plug = mHalPlug]() { plug->onConnect(); });
 }
 
@@ -48,7 +48,7 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
     // We return true immediately, preventing the QEMU thread from blocking.
     //
     // This means that vsock will never close out this socket from this call.
-    VLOG(1) << "Scheduling onReceive for mHalPlug with: " << std::string_view((char*)data, size);
+    VLOG(1) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
     mClientLoop->post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
         plug->onReceive(s);
     });
@@ -66,13 +66,14 @@ cable::SocketPtr HalPlugToIPlugAdapter::onUnplug() {
     // Note: the marshalling socket can be a NullSocket if someone else was just
     // ahead of us when closing.
     auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->socket());
+    VLOG(1) << "Closing and releasing " << *marshallingSocket;
     marshallingSocket->close();
     auto releasedSocket = marshallingSocket->release();
 
     // Now notify the client that we are no longer alive.
-    VLOG(1) << "Scheduling onClose for mHalPlug:" << mHalPlug;
+    VLOG(1) << "Scheduling onClose for mHalPlug:" << *mHalPlug;
     (void)mClientLoop->post([plug = mHalPlug]() {
-        VLOG(1) << "Calling onClose from client thread on" << plug;
+        VLOG(1) << "Calling onClose from client thread on " << *plug;
         plug->onClose();
     });
 

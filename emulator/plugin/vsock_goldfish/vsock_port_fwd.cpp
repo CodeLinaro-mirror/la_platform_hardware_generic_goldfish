@@ -141,6 +141,11 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
         mHostSocket->close();
     }
 
+  protected:
+    void AbslStringifyImpl(absl::FormatSink& s) const override {
+        absl::Format(&s, "[HostToGuestConnection guest:%v, host:%v]", *socket(), *mHostSocket);
+    }
+
   private:
     std::shared_ptr<goldfish::async::AsyncSocket> mHostSocket;
     std::shared_ptr<HostToGuestConnection> mSelf;

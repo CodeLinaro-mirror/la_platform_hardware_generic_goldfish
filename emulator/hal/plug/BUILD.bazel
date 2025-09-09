@@ -6,11 +6,17 @@ package(
 
 cc_library(
     name = "hal_plug",
+    srcs = [
+        "logging.cpp",
+    ],
     hdrs = [
         "include/goldfish/hal/plug/HalPlug.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/log",
+    ],
 )
 
 cc_library(
@@ -59,8 +65,14 @@ cc_library(
     ],
     hdrs = [
         "test/fake_vsock.h",
+        "test/hal_plug_testing_friend.h",
     ],
     includes = ["test"],
+    visibility = [
+        "//hardware/generic/goldfish/emulator/devices:__subpackages__",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:__subpackages__",
+        "//hardware/generic/goldfish/emulator/hal:__subpackages__",
+    ],
     deps = [
         "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
@@ -75,7 +87,6 @@ cc_test(
         "test/hal_plug_adapter_unittest.cpp",
         "test/hal_plug_factory_listen_test.cpp",
         "test/hal_plug_factory_test.cpp",
-        "test/hal_plug_testing_friend.h",
     ],
     deps = [
         ":fake_vsock",

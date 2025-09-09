@@ -14,6 +14,8 @@
 
 #include "goldfish/avd/avd-info.h"
 
+#include <goldfish/async/event_loop.h>
+
 #include <memory>
 
 #include "absl/log/globals.h"
@@ -35,6 +37,9 @@
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/qemu_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/avd/qemu-looper.h"
@@ -94,6 +99,8 @@ void UpdateVModule(const std::string& vmodule) {
 
 void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
+std::unique_ptr<async::EventLoop> gQemuLoop;
+
 void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
 
@@ -119,12 +126,15 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
     gAvd = std::move(avd_status.value());
 
-    auto eventloop = goldfish::async::globalEventLoop();
+    auto clientLoop = goldfish::async::globalEventLoop();
+    gQemuLoop = goldfish::async::QemuEventLoop::create();
+
     auto looper = android::goldfish::qemuLooper();
     auto avd = gAvd.get();
     auto registry = &goldfish::avd_info::deviceRegistry();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, looper);
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, clientLoop,
+                                                             gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, looper);
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
                                                                         qemu_register_reset);
@@ -144,7 +154,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
             },
             &DummyRegisterEmulatorReset);
 
-    android::goldfish::QemuMultidisplay::configureMultiDisplay(eventloop);
+    android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop);
 }
 
 void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

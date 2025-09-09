@@ -53,7 +53,54 @@ class HalSocket {
      * correct (QEMU) thread.
      */
     virtual void close() = 0;
+
+  protected:
+    /**
+     * @brief Provides a string representation for logging and debugging.
+     *
+     * This is the implementation hook for `absl::StrFormat`. Concrete HalSocket
+     * implementations should override this method to provide meaningful
+     * diagnostic information (e.g., type, state etc).
+     *
+     * @param s The `absl::FormatSink` to write the formatted string to.
+     */
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const {
+        absl::Format(&s, "<DefaultHalSocket>");
+    }
+
+  private:
+    friend void AbslStringify(absl::FormatSink& s, const HalSocket& socket);
 };
+
+/**
+ * @brief Enables `absl::StrFormat` support for `AsyncSocket`.
+ *
+ * This free function is the customization point that allows `AsyncSocket`
+ * objects (and their derivatives) to be formatted with `absl::StrFormat`
+ * using the `%v` format specifier. It delegates the actual formatting to
+ * the virtual `AbslStringifyImpl` method.
+ *
+ * @param s The `absl::FormatSink` to write to.
+ * @param socket The `AsyncSocket` to format.
+ */
+inline void AbslStringify(absl::FormatSink& s, const HalSocket& socket) {
+    socket.AbslStringifyImpl(s);
+}
+
+/**
+ * @brief Enables `std::ostream` support for `AsyncSocket`.
+ *
+ * This overload allows `HalSocket` objects to be streamed directly to any
+ * `std::ostream` (e.g., `std::cout`, `std::stringstream`, or Abseil's `VLOG`).
+ * It works by using `absl::StreamFormat` to delegate the formatting to the
+ * `AbslStringify` customization point, ensuring a consistent string
+ * representation.
+ *
+ * @param os The output stream to write to.
+ * @param socket The `HalSocket` to format.
+ * @return A reference to the output stream.
+ */
+std::ostream& operator<<(std::ostream& os, const HalSocket& socket);
 
 namespace internal {
 // A non-functional socket implementation used as a safe null object.
@@ -169,16 +216,60 @@ class HalPlug {
      * calls. At all other times, it will return a safe, non-functional
      * "null" socket.
      */
-    std::shared_ptr<HalSocket> socket() { return mSocket; }
+    std::shared_ptr<HalSocket> socket() const { return mSocket; }
+
+    /**
+     * @brief Provides a string representation for logging and debugging.
+     *
+     * This is the implementation hook for `absl::StrFormat`. Concrete HalPlug
+     * implementations should override this method to provide meaningful
+     * diagnostic information (e.g., type, state etc).
+     *
+     * @param s The `absl::FormatSink` to write the formatted string to.
+     */
+    virtual void AbslStringifyImpl(absl::FormatSink& s) const {
+        absl::Format(&s, "[HalPlug socket=%v]", *socket());
+    }
 
   private:
     friend class HalPlugFactory;
     friend class HalPlugToIPlugAdapter;
     friend class HalPlugTesting;
+    friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
 
     void establishConnection(std::shared_ptr<HalSocket> socket) { mSocket = std::move(socket); }
     std::shared_ptr<HalSocket> mSocket;
 };
+
+/**
+ * @brief Enables `absl::StrFormat` support for `AsyncSocket`.
+ *
+ * This free function is the customization point that allows `AsyncSocket`
+ * objects (and their derivatives) to be formatted with `absl::StrFormat`
+ * using the `%v` format specifier. It delegates the actual formatting to
+ * the virtual `AbslStringifyImpl` method.
+ *
+ * @param s The `absl::FormatSink` to write to.
+ * @param socket The `AsyncSocket` to format.
+ */
+inline void AbslStringify(absl::FormatSink& s, const HalPlug& plug) {
+    plug.AbslStringifyImpl(s);
+}
+
+/**
+ * @brief Enables `std::ostream` support for `AsyncSocket`.
+ *
+ * This overload allows `HalPlug` objects to be streamed directly to any
+ * `std::ostream` (e.g., `std::cout`, `std::stringstream`, or Abseil's `VLOG`).
+ * It works by using `absl::StreamFormat` to delegate the formatting to the
+ * `AbslStringify` customization point, ensuring a consistent string
+ * representation.
+ *
+ * @param os The output stream to write to.
+ * @param socket The `HalPlug` to format.
+ * @return A reference to the output stream.
+ */
+std::ostream& operator<<(std::ostream& os, const HalPlug& socket);
 
 }  // namespace devices
 }  // namespace goldfish
