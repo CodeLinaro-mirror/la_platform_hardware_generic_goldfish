@@ -28,21 +28,9 @@ class FakeGuestDevice : public IGuestStatusDevice,
     std::optional<std::chrono::milliseconds> bootTime() const override { return mBootTime; }
     void setBootTime(std::optional<std::chrono::milliseconds> bootTime) { mBootTime = bootTime; }
 
-    // IPlug implementation
-    /**
-     * @brief Handles incoming data.
-     * @param data A pointer to the data buffer.
-     * @param size The size of the data buffer.
-     * @return Always returns true.
-     */
-    bool onReceive(const void* data, size_t size) override { return true; }
-
-    /**
-     * @brief Handles the unplug event.
-     * @return Always returns nullptr.
-     */
-    ::goldfish::devices::cable::SocketPtr onUnplug() override { return nullptr; }
-
+    void onConnect() override {}
+    void onClose() override {}
+    void onReceive(std::string_view data) override {}
     /**
      * @brief Simulates the boot completed event.
      *

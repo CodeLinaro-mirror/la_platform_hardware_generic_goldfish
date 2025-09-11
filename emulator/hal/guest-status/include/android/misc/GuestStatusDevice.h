@@ -17,20 +17,15 @@
 #include <optional>
 #include <string_view>
 
-#include "aemu/base/async/Looper.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/avd.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::guest_status {
 
-using android::base::Looper;
 using android::base::eventing::CallbackEventSource;
 using android::goldfish::Avd;
-using goldfish::devices::cable::IPlug;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
+using goldfish::async::EventLoop;
 using namespace std::string_view_literals;
 
 /**
@@ -106,7 +101,7 @@ struct AndroidGuestStatus {
  *
  * ```
  */
-class IGuestStatusDevice : public IPlug, public CallbackEventSource<AndroidGuestStatus> {
+class IGuestStatusDevice : public HalPlug, public CallbackEventSource<AndroidGuestStatus> {
   public:
     static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 
@@ -167,6 +162,7 @@ class IGuestStatusDevice : public IPlug, public CallbackEventSource<AndroidGuest
      * @param registerEmulatorReset The function used to register a reset callback.
      */
     static void registerDevice(IConnectorRegistry* registry,
-                               RegisterEmulatorReset registerEmulatorReset);
+                               RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
+                               EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::guest_status

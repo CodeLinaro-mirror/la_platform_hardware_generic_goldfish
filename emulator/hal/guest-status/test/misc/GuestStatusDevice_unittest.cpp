@@ -20,12 +20,14 @@
 
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/config/fake-avd.h"
+#include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::guest_status {
 
 using android::base::TestSystem;
+using async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -45,21 +47,26 @@ void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
 
 class GuestStatusDeviceTest : public ::testing::Test {
     void SetUp() override {
-        IGuestStatusDevice::registerDevice(&registry, qemu_register_reset);
-        device = registry.constructDevice<IGuestStatusDevice>();
-        test_socket = registry.getSocket();
-        looper = registry.getLooper();
+        mClientLoop = TestEventLoop::create();
+        mQemuLoop = TestEventLoop::create();
+
+        IGuestStatusDevice::registerDevice(&registry, qemu_register_reset, mClientLoop.get(),
+                                           mQemuLoop.get());
+        device = registry.constructHalDevice<IGuestStatusDevice>();
+        test_socket = registry.halSocket();
         clear();
     }
 
   public:
-    void receive(std::string_view msg) { device->onReceive(msg.data(), msg.size()); }
+    void receive(std::string_view msg) { device->onReceive(msg); }
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    TestLooper* looper;
+    std::unique_ptr<TestEventLoop> mClientLoop;
+    std::unique_ptr<TestEventLoop> mQemuLoop;
+
     TestConnectorRegistry registry;
-    TestSocket* test_socket;
+    TestHalSocket* test_socket;
     IGuestStatusDevice* device;
 };
 

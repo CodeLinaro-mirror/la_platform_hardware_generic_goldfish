@@ -26,8 +26,6 @@ cc_library(
         ":headers",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/config",
-        "//hardware/generic/goldfish/emulator/devices:PingTopic",
-        "//hardware/generic/goldfish/emulator/devices:cable",
         "//hardware/generic/goldfish/emulator/devices:qemud",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -48,6 +46,7 @@ cc_test(
     includes = ["test"],
     deps = [
         ":guest-status",
+        "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
         "//hardware/generic/goldfish/emulator/config:avd-test",

@@ -137,8 +137,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                                                              gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, clientLoop,
                                                                    gQemuLoop.get());
-    goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(registry,
-                                                                        qemu_register_reset);
+    goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
+            registry, qemu_register_reset, clientLoop, gQemuLoop.get());
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
                                                                        gQemuLoop.get());
     goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());

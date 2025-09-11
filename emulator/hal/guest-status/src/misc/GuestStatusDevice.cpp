@@ -53,21 +53,20 @@ static AndroidGuestStatus createHeartbeatEvent(uint64_t heartbeat) {
 
 class GuestStatusDevice : public IGuestStatusDevice {
   public:
-    GuestStatusDevice(SocketPtr socket, RegisterEmulatorReset registerEmulatorReset)
-        : mSocket(std::move(socket)),
-          mHeartbeat(0),
-          mBootTime(std::chrono::milliseconds(0)),
-          mResetTimestampMs(std::chrono::milliseconds(0)) {
+    GuestStatusDevice(RegisterEmulatorReset registerEmulatorReset)
+            : mHeartbeat(0)
+            , mBootTime(std::chrono::milliseconds(0))
+            , mResetTimestampMs(std::chrono::milliseconds(0)) {
         VLOG(1) << "GuestStatus device has been created";
         registerEmulatorReset(GuestStatusDevice::QEMUResetHandler, this);
     }
 
     ~GuestStatusDevice() = default;
 
-    SocketPtr onUnplug() override { return std::move(mSocket); }
-
-    void send(std::string_view msg) {
-        goldfish::devices::qemud::sendAsync(msg.data(), msg.size(), *mSocket.get());
+    void send(std::string msg) {
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(encoded);
     }
 
     uint64_t heartbeat() const override {
@@ -81,8 +80,10 @@ class GuestStatusDevice : public IGuestStatusDevice {
         return mBootTime;
     }
 
-    bool onReceive(const void* data, size_t size) override {
-        std::string_view message(static_cast<const char*>(data), size);
+    void onConnect() override { VLOG(1) << "Guest status device has been connected"; }
+    void onClose() override { VLOG(1) << "Guest status device has been disconnected"; }
+
+    void onReceive(std::string_view message) override {
         VLOG(1) << "Received message from guest:" << message;
 
         if (absl::StartsWith(message, "heartbeat")) {
@@ -109,7 +110,6 @@ class GuestStatusDevice : public IGuestStatusDevice {
         }
 
         send("KO");
-        return true;
     }
 
   private:
@@ -140,14 +140,13 @@ class GuestStatusDevice : public IGuestStatusDevice {
 };
 
 void IGuestStatusDevice::registerDevice(IConnectorRegistry* registry,
-                                        RegisterEmulatorReset registerEmulatorReset) {
-    registry->registerDevice(std::string(IGuestStatusDevice::serviceName),
-                             [registerEmulatorReset = std::move(registerEmulatorReset)](
-                                     SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-                                     std::string_view args) {
-                                 return std::make_shared<GuestStatusDevice>(std::move(socket),
-                                                                            registerEmulatorReset);
-                             });
+                                        RegisterEmulatorReset registerEmulatorReset,
+                                        EventLoop* clientLoop, EventLoop* qemuLoop) {
+    registry->registerHalDevice(
+            std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
+            [registerEmulatorReset = std::move(registerEmulatorReset)] {
+                return std::make_shared<GuestStatusDevice>(registerEmulatorReset);
+            });
 }
 
 }  // namespace goldfish::devices::guest_status
