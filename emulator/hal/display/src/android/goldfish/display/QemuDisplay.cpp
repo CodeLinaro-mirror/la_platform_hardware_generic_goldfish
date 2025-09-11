@@ -56,8 +56,9 @@ static ::InputMultiTouchType translate_touch_type(MultiTouchType type) {
     }
 }
 
-QemuDisplay::QemuDisplay(EventLoop* loop, QemuConsole* con, DisplaySurface* ds, int index)
-        : PixmanDisplay(loop, index, ds->image), mConsole(con) {
+QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemuLoop, QemuConsole* con, DisplaySurface* ds,
+                         int index)
+        : PixmanDisplay(loop, index, ds->image), mConsole(con), mQemuLoop(qemuLoop) {
     if (!mConsole) {
         LOG(FATAL) << "Display: " << index << " has nullptr console";
     }
@@ -75,6 +76,7 @@ QemuDisplay::QemuDisplay(EventLoop* loop, QemuConsole* con, DisplaySurface* ds, 
 }
 
 void QemuDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
+    absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendMultiTouchEvent(" << slot << ", " << x << ", " << y << ", "
             << (int)type << ")";
     Error* error_warn;
@@ -84,27 +86,32 @@ void QemuDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType
     warn_report_err(error_warn);
 }
 
+static uint32_t bmap[INPUT_BUTTON__MAX] = {
+    [INPUT_BUTTON_LEFT] = 0x01,     [INPUT_BUTTON_MIDDLE] = 0x02,     [INPUT_BUTTON_RIGHT] = 0x04,
+    [INPUT_BUTTON_WHEEL_UP] = 0x08, [INPUT_BUTTON_WHEEL_DOWN] = 0x10,
+};
+
 void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
+    absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
-    static uint32_t bmap[INPUT_BUTTON__MAX] = {
-        [INPUT_BUTTON_LEFT] = 0x01,       [INPUT_BUTTON_MIDDLE] = 0x02,
-        [INPUT_BUTTON_RIGHT] = 0x04,      [INPUT_BUTTON_WHEEL_UP] = 0x08,
-        [INPUT_BUTTON_WHEEL_DOWN] = 0x10,
-    };
-
-    if (mlast_bmask != button_mask) {
-        qemu_input_update_buttons(mConsole, bmap, mlast_bmask, button_mask);
-        mlast_bmask = button_mask;
-    }
-
-    qemu_input_queue_abs(mConsole, INPUT_AXIS_X, x, 0, mWidth);
-    qemu_input_queue_abs(mConsole, INPUT_AXIS_Y, y, 0, mHeight);
-    qemu_input_event_sync();
+    mQemuLoop->post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
+                     mask = button_mask] {
+        if (last != mask) {
+            qemu_input_update_buttons(con, bmap, last, mask);
+        }
+        qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, w);
+        qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, h);
+        qemu_input_event_sync();
+    });
+    mlast_bmask = button_mask;
 }
 
 void QemuDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
+    absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendEvDevEvent(" << type << ", " << code << ", " << value << ")";
-    virtio_input_send_evdev(mVhid, type, code, value);
+    mQemuLoop->post([vhid = mVhid, type, code, value] {
+        virtio_input_send_evdev(vhid, type, code, value);
+    });
 }
 
 }  // namespace android::goldfish

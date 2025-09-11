@@ -155,7 +155,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
             },
             &DummyRegisterEmulatorReset, clientLoop, gQemuLoop.get());
 
-    android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop);
+    android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 }
 
 void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {

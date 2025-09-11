@@ -16,6 +16,7 @@
 #pragma once
 #include <memory>
 
+#include "goldfish/async/event_loop.h"
 #include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 // Necessary on Windows.
@@ -29,6 +30,8 @@ namespace android {
 namespace emulation {
 namespace control {
 namespace keyboard {
+
+using ::goldfish::async::EventLoop;
 
 /**
  * @class IKeyEventSender
@@ -60,7 +63,8 @@ class IKeyEventSender {
      * sending the appropriate low-level commands to the emulator.
      *
      * @param request The KeyboardEvent protobuf message describing the event.
-     *
+     * @note This is thread safe, the actual events will be posted on a qemuLoop
+
      * @see KeyboardEvent
      * @see KeyEventSenderImpl::doSend
      */
@@ -75,13 +79,14 @@ class IKeyEventSender {
  * specified QemuConsole.
  *
  * @param console A pointer to the QemuConsole to which events will be sent.
+ * @param qemuLoop A pointer to the Qemu Event loop used to post actual events.
  * @return A unique pointer to the created IKeyEventSender instance.
  *
  * @see IKeyEventSender
  * @see KeyEventSenderImpl
  * @see QemuConsole
  */
-std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console);
+std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemuLoop);
 
 }  // namespace keyboard
 }  // namespace control

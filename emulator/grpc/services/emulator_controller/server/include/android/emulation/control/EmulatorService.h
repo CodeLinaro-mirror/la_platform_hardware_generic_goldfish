@@ -17,6 +17,7 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/vm/VmInterface.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace android {
@@ -26,7 +27,8 @@ namespace control {
 grpc::Service* getEmulatorController(android::goldfish::VmOperations* vmInterface,
                                      ::goldfish::devices::ConnectorRegistry* connectorRegistry,
                                      android::goldfish::Avd* avd,
-                                     android::goldfish::IMultiDisplay* multiDisplay);
+                                     android::goldfish::IMultiDisplay* multiDisplay,
+                                     ::goldfish::async::EventLoop* qemuLoop);
 
 }  // namespace control
 }  // namespace emulation

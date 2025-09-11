@@ -146,7 +146,7 @@ std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
     return {};
 }
 
-void QemuKeyEvent::send(QKbdState* kbd) {
+void QemuKeyEvent::send(QKbdState* kbd) const {
     VLOG(1) << "Sending: " << code << " " << (down ? "down" : "up");
     qkbd_state_key_event(kbd, code, down);
 }

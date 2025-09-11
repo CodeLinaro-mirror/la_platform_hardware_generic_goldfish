@@ -148,7 +148,7 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
 };
 
 namespace QemuMultidisplay {
-void configureMultiDisplay(EventLoop* loop);
+void configureMultiDisplay(EventLoop* loop, EventLoop* qemuLoop);
 }
 
 }  // namespace android::goldfish

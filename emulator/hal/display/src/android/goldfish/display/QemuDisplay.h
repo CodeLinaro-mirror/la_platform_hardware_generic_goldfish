@@ -13,6 +13,9 @@
 // limitations under the License.
 #pragma once
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/PixmanDisplay.h"
 
@@ -29,7 +32,8 @@ namespace android::goldfish {
 
 class QemuDisplay : public PixmanDisplay {
   public:
-    QemuDisplay(EventLoop* loop, QemuConsole* console, DisplaySurface* ds, int id);
+    QemuDisplay(EventLoop* loop, EventLoop* qemuLoop, QemuConsole* console, DisplaySurface* ds,
+                int id);
     void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void sendMouseEvent(int x, int y, int button_mask) override;
     void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
@@ -38,9 +42,11 @@ class QemuDisplay : public PixmanDisplay {
     template <typename Sink>
     friend void AbslStringify(Sink&, const QemuDisplay&);
     QemuConsole* mConsole;
+    EventLoop* mQemuLoop;
     ::VirtIOInputHID* mVhid;
-    int mlast_bmask{0};
+    int mlast_bmask ABSL_GUARDED_BY(mSendLock) = 0;
     struct touch_slot mTouchSlots[INPUT_EVENT_SLOTS_MAX];
+    absl::Mutex mSendLock;
 };
 
 template <typename Sink>

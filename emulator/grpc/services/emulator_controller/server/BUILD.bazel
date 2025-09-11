@@ -30,6 +30,7 @@ cc_library(
         "src",
     ],
     deps = [
+        "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/grpc/absl:translate",

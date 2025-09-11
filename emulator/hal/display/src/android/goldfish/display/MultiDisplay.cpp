@@ -59,7 +59,8 @@ using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
-    MultiDisplayImpl(EventLoop* loop) : IMultiDisplay(loop) {}
+    MultiDisplayImpl(EventLoop* loop, EventLoop* qemuLoop)
+            : IMultiDisplay(loop), mQemuLoop(qemuLoop) {}
     virtual ~MultiDisplayImpl() = default;
 
     absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
@@ -71,7 +72,7 @@ class MultiDisplayImpl : public IMultiDisplay {
     absl::StatusOr<DisplayPtr> createDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
                                                      uint8_t id) {
         absl::MutexLock lock(&mDisplayAccess);
-        auto display = std::make_shared<QemuDisplay>(mLoop, console, ds, id);
+        auto display = std::make_shared<QemuDisplay>(mLoop, mQemuLoop, console, ds, id);
 
         auto [it, inserted] = mDisplays.insert({id, display});
         if (!inserted) {
@@ -130,6 +131,7 @@ class MultiDisplayImpl : public IMultiDisplay {
   private:
     mutable absl::Mutex mDisplayAccess;
     QemuDisplayMap mDisplays ABSL_GUARDED_BY(mDisplayAccess);
+    EventLoop* mQemuLoop;
 
     static std::unique_ptr<MultiDisplayImpl> gMultidisplay;
 };
@@ -145,8 +147,8 @@ void IMultiDisplay::injectSingleton(IMultiDisplay* display) {
 }
 
 namespace QemuMultidisplay {
-void configureMultiDisplay(EventLoop* loop) {
-    static MultiDisplayImpl instance(loop);
+void configureMultiDisplay(EventLoop* loop, EventLoop* qemuLoop) {
+    static MultiDisplayImpl instance(loop, qemuLoop);
     IMultiDisplay::injectSingleton(&instance);
 }
 }  // namespace QemuMultidisplay

@@ -11,13 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#include "goldfish/grpc/grpc-service-device.h"
-
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <system_error>
 
@@ -34,7 +32,9 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
+#include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/grpc/grpc-service-device.h"
 
 namespace fs = std::filesystem;
 using android::base::System;
@@ -44,11 +44,15 @@ using android::goldfish::EmulatorAdvertisement;
 using android::goldfish::EmulatorProperties;
 using android::goldfish::IMultiDisplay;
 using android::goldfish::VmOperations;
+using goldfish::async::EventLoop;
+using goldfish::async::QemuEventLoop;
 
 struct GrpcDeviceConfigurationCpp {
     GrpcDeviceConfigurationCpp(std::unique_ptr<EmulatorControllerService> grpc,
-                               EmulatorProperties props)
-            : grpcService(std::move(grpc)), advertiser(std::move(props)) {
+                               EmulatorProperties props, std::unique_ptr<EventLoop> qemuLoop)
+            : grpcService(std::move(grpc))
+            , advertiser(std::move(props))
+            , mQemuLoop(std::move(qemuLoop)) {
         advertiser.garbageCollect();
         advertiser.write();
     }
@@ -66,6 +70,7 @@ struct GrpcDeviceConfigurationCpp {
 
     const std::unique_ptr<EmulatorControllerService> grpcService;
     EmulatorAdvertisement advertiser;
+    std::unique_ptr<EventLoop> mQemuLoop;
 };
 
 // Generates a secure base64 encoded token of
@@ -87,6 +92,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
     auto avd = goldfish::avd_info::get_avd();
     auto registry = &goldfish::avd_info::deviceRegistry();
 
+    auto qemuLoop = QemuEventLoop::create();
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{
         {"port.serial", "5554"},
@@ -99,7 +105,8 @@ bool initialize(GrpcDeviceConfiguration* device) {
         // TODO(jansene):
         {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" \"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance());
+            VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance(),
+            qemuLoop.get());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)
@@ -139,7 +146,8 @@ bool initialize(GrpcDeviceConfiguration* device) {
         }
     }
 
-    device->cppState = new GrpcDeviceConfigurationCpp(std::move(grpcService), std::move(props));
+    device->cppState = new GrpcDeviceConfigurationCpp(std::move(grpcService), std::move(props),
+                                                      std::move(qemuLoop));
     return true;
 }
 

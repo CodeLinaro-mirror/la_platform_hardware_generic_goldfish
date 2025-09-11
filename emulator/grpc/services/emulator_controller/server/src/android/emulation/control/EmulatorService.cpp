@@ -31,6 +31,7 @@
 #include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
+#include "goldfish/async/event_loop.h"
 #include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 extern "C" {
@@ -57,13 +58,15 @@ class EmulatorControllerImpl final
                                                   EmulatorController::Service>>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
-                           android::goldfish::Avd* avd, IMultiDisplay* multidisplay)
+                           android::goldfish::Avd* avd, IMultiDisplay* multidisplay,
+                           ::goldfish::async::EventLoop* qemuLoop)
             : mClipboardService(connectorRegistry)
             , mDisplayService(multidisplay, connectorRegistry)
             , mGpsService(connectorRegistry)
             , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
             , mInputEventSender(multidisplay)
-            , mKeyEventSender(keyboard::createKeyEventSender(qemu_console_lookup_by_index(0)))
+            , mKeyEventSender(
+                      keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
             , mSensorService(connectorRegistry)
             , mStatusService(connectorRegistry, avd)
             , mVmService(vm) {}
@@ -211,8 +214,10 @@ class EmulatorControllerImpl final
 };
 
 grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry,
-                                     android::goldfish::Avd* avd, IMultiDisplay* multidisplay) {
-    return new EmulatorControllerImpl(vm, connectorRegistry, avd, multidisplay);
+                                     android::goldfish::Avd* avd, IMultiDisplay* multidisplay,
+
+                                     ::goldfish::async::EventLoop* qemuLoop) {
+    return new EmulatorControllerImpl(vm, connectorRegistry, avd, multidisplay, qemuLoop);
 }
 
 }  // namespace control

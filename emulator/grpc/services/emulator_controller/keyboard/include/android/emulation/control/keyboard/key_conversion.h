@@ -50,9 +50,10 @@ struct QemuKeyEvent {
     /**
      * @brief Sends the keyboard event to the QEMU keyboard state.
      *
+     * @note This method should be invoked on the qemu event loop.
      * @param kbd A pointer to the QEMU keyboard state.
      */
-    void send(QKbdState* kbd);
+    void send(QKbdState* kbd) const;
 
     /**
      * @brief The QEMU keycode.

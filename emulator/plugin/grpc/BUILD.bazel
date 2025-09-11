@@ -24,6 +24,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
+        "//hardware/generic/goldfish/android/async:qemu_event_loop",
         "//third_party/qemu:qemu-headers",
         "//hardware/generic/goldfish/emulator/agents",
         "//hardware/generic/goldfish/emulator/grpc/event-stream",

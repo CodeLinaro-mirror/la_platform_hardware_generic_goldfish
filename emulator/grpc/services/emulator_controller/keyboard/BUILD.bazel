@@ -1,16 +1,14 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "keyboard",
+    name = "keyconversion",
     srcs = [
         "src/KeyConversion.cpp",
-        "src/KeyEventSender.cpp",
         "src/dom_key.h",
         "src/dom_key_data.inc",
         "src/keycode_converter_data.inc",
     ],
     hdrs = [
-        "include/android/emulation/control/keyboard/KeyEventSender.h",
         "include/android/emulation/control/keyboard/key_conversion.h",
     ],
     includes = [
@@ -19,6 +17,27 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//third_party/qemu:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "keyboard",
+    srcs = [
+        "src/KeyEventSender.cpp",
+    ],
+    hdrs = [
+        "include/android/emulation/control/keyboard/KeyEventSender.h",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":keyconversion",
+        "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/log",
@@ -32,14 +51,8 @@ cc_test(
     name = "keyboard_unittests",
     srcs = ["test/key_converter_unittest.cpp"],
     deps = [
-        ":keyboard",
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/logging:backend",
+        ":keyconversion",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service",
-        "@abseil-cpp//absl/flags:flag",
-        "@abseil-cpp//absl/flags:parse",
-        "@bazel_tools//tools/cpp/runfiles",
     ],
 )
