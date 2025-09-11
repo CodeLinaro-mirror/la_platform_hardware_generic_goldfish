@@ -3,6 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "base",
     hdrs = [
+        "include/goldfish/base/IntrusivePtr.h",
         "include/goldfish/base/UniqueHandle.h",
     ],
     includes = ["include"],
@@ -13,6 +14,7 @@ cc_library(
 cc_test(
     name = "base_unittests",
     srcs = [
+        "test/IntrusivePtr_test.cpp",
         "test/UniqueHandle_test.cpp",
     ],
     includes = ["test"],
