@@ -21,6 +21,7 @@
 
 #include "android/emulation/control/adb/AdbHostServer.h"
 #include "android/emulation/control/adb/AdbMessageLogger.h"
+#include "goldfish/device_registry/DeviceRegistry.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -92,6 +93,7 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);
+    DeviceRegistry::get().setOnce(properties::kAdbPort, vsock_fwd_dev->host_port);
 }
 
 void adb_vsock_class_init(ObjectClass* oc, void* data) {
