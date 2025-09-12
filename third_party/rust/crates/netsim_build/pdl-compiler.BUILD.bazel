@@ -1,0 +1,213 @@
+# Copyright 2025 - The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""pdl_compiler bazel build rule"""
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+genrule(
+    name = "pdl_generated_files_compile_rs",
+    srcs = [
+        ":pdl_generated_files",
+    ],
+    outs = [
+        "generated_files_compile.rs",
+    ],
+    cmd = "$(location tests/generated_files_compile.sh) $(location :pdl_generated_files) > $(out)",
+)
+
+genrule(
+    name = "pdl_be_test_file",
+    srcs = [
+        "tests/canonical/le_test_file.pdl",
+    ],
+    outs = [
+        "be_test_file.pdl",
+    ],
+    cmd = "",
+)
+
+genrule(
+    name = "pdl_rust_generator_tests_le_src",
+    srcs = [
+        "tests/canonical/le_test_file.pdl",
+        "tests/canonical/le_test_vectors.json",
+    ],
+    outs = [
+        "le_canonical.rs",
+    ],
+    cmd = "$(location :pdlc)",
+)
+
+genrule(
+    name = "pdl_rust_generator_tests_be_src",
+    srcs = [
+        ":pdl_be_test_file",
+        "tests/canonical/be_test_vectors.json",
+    ],
+    outs = [
+        "be_canonical.rs",
+    ],
+    cmd = "$(location :pdlc)",
+)
+
+genrule(
+    name = "pdl_python_generator_le_test_gen",
+    srcs = [
+        "tests/canonical/le_test_file.pdl",
+    ],
+    outs = [
+        "le_backend.py",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+genrule(
+    name = "pdl_python_generator_be_test_gen",
+    srcs = [
+        ":pdl_be_test_file",
+    ],
+    outs = [
+        "be_backend.py",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+genrule(
+    name = "pdl_cxx_canonical_le_src_gen",
+    srcs = [
+        "tests/canonical/le_test_file.pdl",
+    ],
+    outs = [
+        "canonical_le_test_file.h",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+genrule(
+    name = "pdl_cxx_canonical_le_test_gen",
+    srcs = [
+        "tests/canonical/le_test_file.pdl",
+        "tests/canonical/le_test_vectors.json",
+        ":pdl_cxx_canonical_le_src_gen",
+    ],
+    outs = [
+        "canonical_le_test.cc",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+genrule(
+    name = "pdl_cxx_canonical_be_src_gen",
+    srcs = [
+        ":pdl_be_test_file",
+    ],
+    outs = [
+        "canonical_be_test_file.h",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+genrule(
+    name = "pdl_cxx_canonical_be_test_gen",
+    srcs = [
+        ":pdl_be_test_file",
+        "tests/canonical/be_test_vectors.json",
+        ":pdl_cxx_canonical_be_src_gen",
+    ],
+    outs = [
+        "canonical_be_test.cc",
+    ],
+    cmd = "set -o pipefail;",
+)
+
+rust_library(
+    name = "pdl-compiler",
+    srcs = glob(["**/*.rs"]),
+    crate_name = "pdl_compiler",
+    edition = "2021",
+    crate_root = "src/lib.rs",
+    deps = [
+        "@argh",
+        "@codespan-reporting",
+        "@heck",
+        "@pest",
+        "@prettyplease",
+        "@proc-macro2",
+        "@quote",
+        "@serde",
+        "@serde_json",
+        "@syn",
+    ],
+    proc_macro_deps = [
+        "@pest_derive",
+    ],
+    rustc_flags = [
+        "--cfg=feature=\"default\"",
+        "--cfg=feature=\"serde\"",
+    ],
+)
+
+rust_binary(
+    name = "pdlc",
+    srcs = glob(["**/*.rs"]),
+    crate_name = "pdlc",
+    edition = "2021",
+    crate_root = "src/main.rs",
+    deps = [
+        ":pdl-compiler",
+        "@argh",
+        "@codespan-reporting",
+        "@heck",
+        "@pest",
+        "@prettyplease",
+        "@proc-macro2",
+        "@quote",
+        "@serde",
+        "@serde_json",
+        "@syn",
+    ],
+    proc_macro_deps = [
+        "@pest_derive",
+    ],
+    rustc_flags = [
+        "--cfg=feature=\"default\"",
+        "--cfg=feature=\"serde\"",
+    ],
+)
+
+py_binary(
+    name = "pdl_cxx_generator",
+    main = "scripts/generate_cxx_backend.py",
+    srcs = [
+        "scripts/generate_cxx_backend.py",
+        "scripts/pdl/ast.py",
+        "scripts/pdl/core.py",
+        "scripts/pdl/utils.py",
+    ],
+    imports = ["scripts"],
+)
+
+cc_library(
+    name = "pdl_cxx_packet_runtime",
+    hdrs = [
+        "scripts/packet_runtime.h",
+    ],
+    includes = [
+        "scripts",
+    ],
+)
