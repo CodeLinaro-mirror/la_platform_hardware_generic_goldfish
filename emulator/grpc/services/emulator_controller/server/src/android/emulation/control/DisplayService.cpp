@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "absl/hash/hash.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
@@ -77,6 +78,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     // Make sure we always write the first frame, this can be
     // a completely empty frame if the screen is not active.
     Image reply;
+    absl::Hash<std::string> hasher;
     goldfish::FpsCalculator fpsCalculator(10);
 
     // cPixels is used to verify the invariant that retrieved image
@@ -142,7 +144,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             bool emptyFrame = reply.format().width() == 0;
             if (!context->IsCancelled() && (!lastFrameWasEmpty || !emptyFrame)) {
                 AEMU_SCOPED_TRACE("streamScreenshot::write");
-                VLOG(2) << "Writing out frame";
+                VLOG(2) << "Writing frame: " << reply.seq() << ", hash: " << hasher(reply.image());
                 clientAvailable = writer->Write(reply);
 
                 // Log the FPS when verbose logging is enabled.
