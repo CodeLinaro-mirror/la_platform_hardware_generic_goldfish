@@ -124,6 +124,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
 
     ASSIGN_OR_RETURN(paths.binary_directory, check_exists(paths.launcher_directory / "bin", "binary directory"));
     ASSIGN_OR_RETURN(paths.library_directory, check_exists(paths.launcher_directory / "lib" / "qemu", "library directory"));
+    ASSIGN_OR_RETURN(paths.lib64_directory, check_exists(paths.launcher_directory / "lib64", "lib64 directory"));
     // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
     // It is also used by gfxstream to locate the GL and Vulkan libraries.
     System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR", System::pathAsString(paths.library_directory));
@@ -219,6 +220,7 @@ int main(int argc, char** argv) {
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.
     System::get()->addLibrarySearchDir(resolved_paths->library_directory.string());
+    System::get()->addLibrarySearchDir(resolved_paths->lib64_directory.string());
 
     if (!opts.avd) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "

@@ -12,6 +12,7 @@ struct ResolvedInputPaths {
     fs::path launcher_directory;
     fs::path binary_directory;
     fs::path library_directory;
+    fs::path lib64_directory;
     fs::path bios_directory;
 
     fs::path sdk_directory;

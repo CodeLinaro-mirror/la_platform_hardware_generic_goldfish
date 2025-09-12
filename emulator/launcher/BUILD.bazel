@@ -159,19 +159,13 @@ collect_plugins(
         "darwin_aarch64": [
             "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
             "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
-            "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
         ],
         "@platforms//os:linux": [
             "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
             "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
-            "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
         ],
         "@platforms//os:windows": [
             # We don't build Qemu system aarch64 or riscv64 on Windows.
-            "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
         ],
         "//conditions:default": [],
     }),
@@ -179,13 +173,39 @@ collect_plugins(
 
 collect_plugins(
     name = "vulkan_icds",
-    output_dir = "lib/qemu/lib64/vulkan",
+    output_dir = "lib64/vulkan",
     plugins = select({
         "darwin_aarch64": [
             "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
         ],
         "@platforms//os:linux": [
             "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+        ],
+        "@platforms//os:windows": [
+            "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+collect_plugins(
+    name = "lib64gl",
+    output_dir = "lib64",
+    plugins = select({
+        "darwin_aarch64": [
+            "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+        ],
+        "@platforms//os:linux": [
+            "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+        ],
+        "@platforms//os:windows": [
+            "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
+            "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
         ],
         "//conditions:default": [],
     }),
@@ -240,6 +260,7 @@ cc_binary(
     ],
     data = [
         ":binaries",
+        ":lib64gl",
         ":keymaps",
         ":plugins",
         ":roms",
