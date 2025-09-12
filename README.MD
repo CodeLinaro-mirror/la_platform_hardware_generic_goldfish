@@ -31,13 +31,39 @@ The launcher executable is called `goldfish`.
 
 ### Running a development build
 
-You can also run the emulator directly from within bazel:
+You can run the emulator directly from within Bazel for development and testing.
+
+#### Launching with a default system image
+
+The easiest way to start the emulator is to use the `launch_emulator` target. This target bundles a default system image and handles all the necessary setup.
 
 ```sh
-bazel run --config debug //hardware/generic/goldfish/emulator/launcher:goldfish -- --avd V --vnc :8
+bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -show-kernel
 ```
 
-This will launch the goldfish emulator with avd *V* and creates a vnc connection on port 5908. You can now attach your favorite debugger to debug any issues.
+This command will:
+- Build the emulator if necessary.
+- Launch it with a pre-configured AVD and the default system image for your host architecture.
+- Display kernel boot messages in the console (due to the `-show-kernel` flag).
+
+Once launched, the emulator should appear in the **Running Devices** tool window in Android Studio, allowing for easy integration with your development workflow.
+
+You can pass any additional QEMU flags after the `--`. For example, to enable verbose logging for the display component, you can run:
+```sh
+bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -verbose -vmodule "Display*=1"
+```
+
+**Note on Performance:** Debug builds (`-c dbg`) can be very slow as they lack GPU-accelerated scaling. For a smoother experience, use an optimized release build (`-c opt`).
+
+#### Launching the `goldfish` binary directly
+
+For more advanced scenarios where you need to specify every parameter manually (like the AVD name), you can run the `goldfish` binary directly:
+
+```sh
+bazel run --config debug //hardware/generic/goldfish/emulator/launcher:goldfish -- -avd MyAVD
+```
+
+This will launch the goldfish emulator with avd *MyAVD*.
 
 Note that on linux you will have to set the following source mapping:
 

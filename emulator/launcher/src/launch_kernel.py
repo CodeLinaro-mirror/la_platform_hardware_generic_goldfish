@@ -13,204 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests that the emulator can start the bootprocess and can launch the kernel."""
+"""Command-line entry point for launching a Goldfish emulator."""
 
 import sys
-import os
 import logging
 import asyncio
 import argparse
-from pathlib import Path
-from python.runfiles import Runfiles
-import re
-import random
 import tempfile
-
-
-async def stream_output_and_find_log(stream, target_log):
-    """
-    Asynchronously reads from a stream, prints each line, and returns on finding the target.
-    """
-    target_re = re.compile(target_log)
-    while True:
-        line_bytes = await stream.readline()
-        if not line_bytes:
-            # End of stream reached before finding the log
-            logging.error("--- Stream ended before target log line was found. ---")
-            return False
-
-        line = line_bytes.decode("utf-8", errors="replace").strip()
-        print(line)  # Print emulator output in real-time
-
-        if target_re.search(line):
-            logging.info("--- Target log line detected! ---")
-            return True
-
-
-async def main(args, tmp_dir_for_images):
-    r = Runfiles.Create()
-    if not r:
-        logging.error(
-            "Error: Runfiles.Create() failed. This script must be run via 'bazel run' or 'bazel test'."
-        )
-        return 1
-
-    # --- Dynamically locate necessary files based on ABI ---
-    try:
-        minigbm_abi_dir = f"minigbm-{args.abi}"
-        env = os.environ.copy()
-
-        if args.use_zip:
-            # Remove the environment variables so the emulator does not think it is running under bazel.
-            for e in ["BUILD_WORKING_DIRECTORY", "TEST_BINARY", "RUNFILES_DIR"]:
-                env.pop(e, None)
-            zip_path = Path(r.Rlocation("_main/hardware/generic/goldfish/emulator/release.zip"))
-            if not zip_path.exists():
-                raise FileNotFoundError(f"Goldfish zip not found: {zip_path}")
-            extract_path = Path(tmp_dir_for_images, "goldfish")
-            if not extract_path.exists():
-                extract_path.mkdir()
-                process = await asyncio.create_subprocess_exec(
-                    'unzip', str(zip_path), '-d', str(extract_path), stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.STDOUT)
-                await process.wait()
-            goldfish_exec = extract_path.joinpath("goldfish")
-        else:
-            goldfish_exec = Path(
-                r.Rlocation("_main/hardware/generic/goldfish/emulator/launcher/goldfish")
-            )
-            if not goldfish_exec.exists():
-                raise FileNotFoundError(f"Goldfish executable not found: {goldfish_exec}")
-
-        system_image_dir = Path(
-            r.Rlocation(f"android_{minigbm_abi_dir}/{args.abi}/source.properties")
-        ).parent
-        if not system_image_dir.exists():
-            raise FileNotFoundError(
-                f"System image directory not found: {system_image_dir}"
-            )
-
-        phone_ini_path = Path(
-            r.Rlocation(
-                f"_main/hardware/generic/goldfish/emulator/sdk/system_images/{minigbm_abi_dir}/phone.ini"
-            )
-        )
-        if not phone_ini_path.exists():
-            raise FileNotFoundError(f"Phone INI file not found: {phone_ini_path}")
-
-    except Exception as e:
-        logging.error(
-            "--- Error locating necessary runfiles for ABI '%s': %s ---", args.abi, e
-        )
-        logging.error(
-            "--- Please ensure the runfiles for the selected ABI are available in your build. ---"
-        )
-        return 1
-
-    adb = random.randint(10000, 20000)
-    grpc = random.randint(10000, 20000)
-
-    # --- Prepare the command ---
-    command_to_run = [
-        str(goldfish_exec),
-        "-avd",
-        "phone",
-        "-sysdir",
-        str(system_image_dir),
-        "-verbose",
-        "-no-boot-anim",
-        "-show-kernel",
-        "-port", str(adb),
-        "-grpc", str(grpc),
-        "-read-only",
-    ]
-
-    # Set required environment variables
-    avd_parent_dir = str(phone_ini_path.parent)
-    env = {
-        **env,
-        "ANDROID_HOME": r.Rlocation(f"_main/hardware/generic/goldfish/emulator/sdk"),
-        "ANDROID_TMP": tmp_dir_for_images,
-        "ANDROID_AVD_HOME": avd_parent_dir,
-        "ANDROID_EMULATOR_HOME": avd_parent_dir,
-        # Disable crash reporting as it causes issues when tests run in parallel.
-        "ANDROID_EMU_ENABLE_CRASH_REPORTING": "NO",
-    }
-
-    logging.info(
-        "--- Launching emulator for %s with a %d-second timeout... ---",
-        args.abi,
-        args.timeout_seconds,
-    )
-
-    process = None
-    try:
-        # Start the emulator process asynchronously
-        process = await asyncio.create_subprocess_exec(
-            *command_to_run,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            env=env,
-        )
-
-        # Wait for the log-finding task to complete, with a timeout
-        status = await asyncio.wait_for(
-            stream_output_and_find_log(process.stdout, args.target_log_line),
-            timeout=args.timeout_seconds,
-        )
-
-        if not status:
-            logging.info("--- Script failed with status: %s. ---", status)
-            return 1
-
-        logging.info("--- Script finished successfully. ---")
-        return 0  # Success
-
-    except asyncio.TimeoutError:
-        logging.error(
-            "--- FAILED: Did not see log line within %d seconds. ---",
-            args.timeout_seconds,
-        )
-        return 1  # Failure
-    except Exception as e:
-        logging.error("--- An unexpected error occurred: %s ---", e)
-        return 1  # Failure
-    finally:
-        if process and process.returncode is None:
-            logging.info("--- Terminating emulator process... ---")
-            try:
-                process.terminate()
-                await asyncio.wait_for(process.wait(), timeout=10)
-            except asyncio.TimeoutError:
-                logging.warning(
-                    "--- Emulator did not terminate gracefully. Forcing kill. ---"
-                )
-                process.kill()
+from emulator_lib import launch_and_monitor_emulator
 
 
 if __name__ == "__main__":
-
     # --- Argument Parsing ---
+    # We use parse_known_args to allow passing arbitrary flags through to the emulator.
     parser = argparse.ArgumentParser(
         description="Launch a Goldfish emulator and wait for a boot message."
     )
     parser.add_argument(
         "--abi",
         type=str,
-        choices=["x86_64", "arm64-v8a"],
-        default="x86_64",
-        help="The ABI of the system image to run. Defaults to x86_64.",
+        choices=["x86_64", "arm64-v8a", "auto"],
+        default="auto",
+        help="The ABI of the system image to run. Defaults to auto derive.",
     )
     parser.add_argument(
         "--target_log_line",
         type=str,
-        default="Linux version 6\.6\.66-android15-8-gb66429556fb8-ab13070261",
+        default="-- THESE ARE NOT THE DROIDS YOU ARE LOOKING FOR --",
         help="The script will exit successfully when a log line matching this regex is detected.",
     )
     parser.add_argument(
         "--timeout_seconds",
         type=int,
-        default=30,
+        default=sys.maxsize,
         help="Timeout in seconds to wait for the target log line.",
     )
     parser.add_argument(
@@ -220,22 +55,44 @@ if __name__ == "__main__":
         help="Number of times to repeat this test.",
     )
     parser.add_argument(
+        "--disable-crash-reporting",
+        action="store_true",
+        help="Disable the crash reporting engine.",
+    )
+    parser.add_argument(
         "--use_zip",
-        action='store_true',
+        action="store_true",
         help="Use the goldfish from the release zip",
-        )
+    )
 
-    args = parser.parse_args()
+    args, extra_args = parser.parse_known_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
         stream=sys.stdout,
     )
 
-    logging.info("--- Selected ABI: %s ---", args.abi)
+    # The emulator expects '--' to be stripped if it's present.
+    if extra_args and extra_args[0] == "--":
+        extra_args = extra_args[1:]
 
     with tempfile.TemporaryDirectory() as tmp_dir_for_images:
-        for _ in range(args.repeat + 1):
-            exit_code = asyncio.run(main(args, tmp_dir_for_images))
+        for i in range(args.repeat + 1):
+            if args.repeat > 0:
+                logging.info(
+                    "--- Running iteration %d of %d ---", i + 1, args.repeat + 1
+                )
+            exit_code = asyncio.run(
+                launch_and_monitor_emulator(
+                    abi=args.abi,
+                    use_zip=args.use_zip,
+                    tmp_dir_for_images=tmp_dir_for_images,
+                    timeout_seconds=args.timeout_seconds,
+                    target_log_line=args.target_log_line,
+                    extra_qemu_args=extra_args,
+                    disable_crash_reporting=args.disable_crash_reporting,
+                )
+            )
             if exit_code != 0:
                 sys.exit(exit_code)

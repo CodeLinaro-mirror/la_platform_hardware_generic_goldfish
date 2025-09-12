@@ -48,7 +48,13 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
                 "--abi",
                 "x86_64",
             ],
-        }) + args,
+        }) + args + [
+            "--disable-crash-reporting",
+            "-verbose",
+            "-show-kernel",
+            "-no-boot-anim",
+            "-read-only",
+        ],
         data = [goldfish_dep] + select({
             "@platforms//os:macos": [
                 "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
@@ -62,7 +68,10 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
             "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
         ],
         main = "src/launch_kernel.py",
-        deps = ["@rules_python//python/runfiles"],
+        deps = [
+            ":emulator_lib",
+            "@rules_python//python/runfiles",
+        ],
         target_compatible_with = [
             # Currently launch and boot tests fail on Mac.
             # TODO(b/435653752): Fix and re-enable for other platforms.
