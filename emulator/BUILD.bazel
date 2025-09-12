@@ -217,13 +217,13 @@ pkg_files(
 pkg_files(
     name = "angle",
     srcs = angle_binaries,
-    prefix = "lib/qemu",
+    prefix = "lib64",
 )
 
 pkg_files(
     name = "vulkan",
     srcs = vulkan_binaries,
-    prefix = "lib/qemu/lib64/vulkan",
+    prefix = "lib64/vulkan",
 )
 
 pkg_files(
