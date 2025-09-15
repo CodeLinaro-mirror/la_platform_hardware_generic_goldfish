@@ -69,7 +69,7 @@ TEST(Machine, Basic_x86) {
     Machine dev;
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu), testing::ElementsAre(testing::StartsWith("-machine"),
-                                                                 testing::StartsWith("goldfish,")));
+                                                                 testing::StartsWith("goldfish")));
 }
 
 TEST(Machine, Basic_arm64) {

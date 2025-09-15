@@ -34,10 +34,7 @@ absl::StatusOr<std::string> machine(const Avd& avd) {
             return "goldfish-arm";
         }
         case Avd::CpuArchitecture::kX86:
-            return absl::StrJoin(
-                    {"goldfish", "vendor=/dev/block/pci/pci0000:00/0000:00:07.0/by-name/vendor",
-                     "system=/dev/block/pci/pci0000:00/0000:00:03.0/by-name/system"},
-                    ",");
+            return "goldfish";
         case Avd::CpuArchitecture::kRiscV:
         default:
             return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
