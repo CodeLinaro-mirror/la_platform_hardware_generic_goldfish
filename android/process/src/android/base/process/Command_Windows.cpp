@@ -42,16 +42,6 @@ namespace base {
 
 using namespace std::chrono_literals;
 
-std::vector<char*> toCharArray(const std::vector<std::string>& params) {
-    std::vector<char*> args;
-    args.reserve(params.size());
-    for (const auto& param : params) {
-        args.push_back(const_cast<char*>(param.c_str()));
-    }
-    args.push_back(nullptr);
-    return args;
-}
-
 // Converts a std::string (utf-8) -> utf-16
 static std::wstring toWide(std::string str) {
     // Utf8 -> Utf16, so width will always be smaller.
@@ -64,44 +54,40 @@ static std::wstring toWide(std::string str) {
 }
 
 // static
-std::string quoteParameter(std::string commandLine) {
-    // If |commandLine| doesn't contain any problematic character, just return
-    // it as-is.
-    size_t n = strcspn(commandLine.data(), " \t\v\n\"");
-    if (commandLine[n] == '\0') {
-        return std::string(commandLine);
+std::string quoteParameter(const std::string& commandLine) {
+    // Therefore, the function will return the length of str1 if none of the characters of str2 are
+    // found in str1.
+    if (::strcspn(commandLine.c_str(), " \t\v\n\"") == commandLine.size()) {
+        return commandLine;
     }
+
+    using namespace std::literals;
 
     // Otherwise, we need to quote some of the characters.
-    std::string out("\"");
+    std::string out = "\""s;
 
-    n = 0;
-    while (commandLine[n]) {
-        size_t num_backslashes = 0;
-        while (commandLine[n] == '\\') {
-            n++;
-            num_backslashes++;
-        }
+    for (const char c : commandLine) {
+        switch (c) {
+        case '\\':
+            out.append("\\\\"sv);
+            break;
 
-        if (!commandLine[n]) {
-            // End of string, if there are backslashes, double them.
-            for (; num_backslashes > 0; num_backslashes--) out += "\\\\";
+        case '\n':
+            out.append("\\n"sv);
+            break;
+
+        case '"':
+            out.append("\\\""sv);
+            break;
+
+        default:
+            out.append(1, c);
             break;
         }
-
-        if (commandLine[n] == '"') {
-            // Escape all backslashes as well as the quote that follows them.
-            for (; num_backslashes > 0; num_backslashes--) out += "\\\\";
-            out += "\\\"";
-        } else {
-            for (; num_backslashes > 0; num_backslashes--) out += '\\';
-            out += commandLine[n];
-        }
-        n++;
     }
 
-    // Add final quote.
-    out += '"';
+    out.append("\""sv);
+
     return out;
 }
 
@@ -478,7 +464,19 @@ class WinProcess : public ObservableProcess {
     virtual std::optional<Pid> createProcess(const CommandArguments& args, bool captureOutput,
                                              bool replace) override {
         if (replace) {
-            auto cmdline = toCharArray(args);
+            std::vector<std::string> quotedArgs;
+            quotedArgs.reserve(args.size());
+            for (const std::string& arg : args) {
+                quotedArgs.push_back(quoteParameter(arg));
+            }
+
+            std::vector<char*> cmdline;
+            cmdline.reserve(args.size() + 1);
+            for (std::string& arg : quotedArgs) {
+                cmdline.push_back(const_cast<char*>(arg.c_str()));
+            }
+            cmdline.push_back(nullptr);
+
             // The exec() functions only return if an error has occurred.
             safe_execv(cmdline[0], cmdline.data());
             return std::nullopt;

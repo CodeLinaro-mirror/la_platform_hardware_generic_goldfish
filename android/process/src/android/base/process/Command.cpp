@@ -147,7 +147,7 @@ Command& Command::inherit() {
 }
 
 Command Command::create(std::vector<std::string> programWithArgs) {
-    return Command(programWithArgs);
+    return Command(std::move(programWithArgs));
 }
 
 std::unique_ptr<ObservableProcess> Command::execute() {

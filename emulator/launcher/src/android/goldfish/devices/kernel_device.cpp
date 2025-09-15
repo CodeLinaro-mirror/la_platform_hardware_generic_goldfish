@@ -60,12 +60,7 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
 }
 
 absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
-    // Note the parameters need to be within " or '
-#ifdef _WIN32
-    std::string cl = "\"no_timer_check 8250.nr_uarts=1 loop.max_part=7";
-#else
-    std::string cl = "'no_timer_check 8250.nr_uarts=1 loop.max_part=7";
-#endif
+    std::string cl = "no_timer_check 8250.nr_uarts=1 loop.max_part=7";
 
     switch (auto a = avd.detectArchitecture(); a) {
         case Avd::CpuArchitecture::kArm:
@@ -105,11 +100,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     for (auto *a = opts.append; a != nullptr; a = a->next) {
         absl::StrAppend(&cl, " ", a->param);
     }
-#ifdef _WIN32
-    absl::StrAppend(&cl, "\"");
-#else
-    absl::StrAppend(&cl, "'");
-#endif
+
     return cl;
 }
 }  // namespace
