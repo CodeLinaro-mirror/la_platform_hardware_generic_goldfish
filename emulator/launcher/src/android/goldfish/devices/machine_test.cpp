@@ -94,7 +94,7 @@ TEST(Machine, Basic_arm64) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::StartsWith("-machine"),
-                                     testing::StartsWith("goldfish-arm,")));
+                                     testing::StartsWith("goldfish-arm")));
 }
 
 }  // namespace android::goldfish::test

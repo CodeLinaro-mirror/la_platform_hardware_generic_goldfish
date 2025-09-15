@@ -31,7 +31,7 @@ namespace {
 absl::StatusOr<std::string> machine(const Avd& avd) {
     switch (auto a = avd.detectArchitecture(); a) {
         case Avd::CpuArchitecture::kArm: {
-            return absl::StrJoin({"goldfish-arm", "highmem=off"}, ",");
+            return "goldfish-arm";
         }
         case Avd::CpuArchitecture::kX86:
             return absl::StrJoin(
