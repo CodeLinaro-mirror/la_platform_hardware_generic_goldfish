@@ -60,6 +60,7 @@ cc_test(
     name = "files_unittests",
     size = "small",
     srcs = [
+        "test/FileSystemWatcher_unittest.cpp",
         "test/aemu/base/files/FileShareOpen_unittest.cpp",
         "test/aemu/base/files/IniFile_unittest.cpp",
         "test/android/utils/bufprint_system.cpp",

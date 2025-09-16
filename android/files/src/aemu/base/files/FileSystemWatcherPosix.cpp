@@ -66,7 +66,6 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         if (mRunning.compare_exchange_strong(expected, false)) {
             DD("Closing watchers");
             write(mPipe[1], "x", 1);
-            close(mNotifyFd);
             mWatcherThread.join();
         }
     }
@@ -82,6 +81,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
     bool watchForChanges() {
         mNotifyFd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
         if (mNotifyFd < 1) {
+            mNotifyFd = 0;
             mStarted.signal();
             return false;
         }
@@ -116,12 +116,16 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
 
             wait_for_fd_events();
 
+            if (!mRunning) {
+                break;
+            }
+
             int length = read(mNotifyFd, buffer, sizeof(buffer));
             DD("Read %d bytes", length);
 
-            struct inotify_event* event;
-            for (int i = 0; i < length && mRunning; i += EVENT_SIZE + event->len) {
-                event = (struct inotify_event*)&buffer[i];
+            int i = 0;
+            while (i < length && mRunning) {
+                struct inotify_event* event = (struct inotify_event*)&buffer[i];
                 DD("i: %d, event->len: %d", i, event->len);
                 if (event->len) {
                     Path changed = pj(mPath, std::string(event->name));
@@ -134,10 +138,12 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
                         mChangeCallback(WatcherChangeType::Changed, changed);
                     }
                 }
+                i += EVENT_SIZE + event->len;
             }
         }
 
         DD("Exit loop");
+        close(mNotifyFd);
         close(mPipe[0]);
         close(mPipe[1]);
         return true;
