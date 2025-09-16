@@ -2,7 +2,7 @@
 
 load("@rules_python//python:defs.bzl", "py_test")
 
-def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = None, repeat = 0):
+def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = None, repeat = 0, params = None):
     """Tests that the emulator can launch and that the given target_log_line regular expression is logged.
 
     This macro creates a `py_test` target configured to launch an Android emulator
@@ -21,8 +21,11 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
         repeat: An optional integer specifying the number of times to repeat the test.
         timeout_seconds: An optional integer specifying the maximum time in seconds
             to wait for the emulator to launch and the log line (if specified) to appear.
+        params: Additional parameters that need to be passed on to the emulator launcher.
     """
     args = ["--target_log_line", target_log_line, "--repeat", str(repeat)]
+    if params:
+        args += params
     if timeout_seconds:
         args.extend(["--timeout_seconds", str(timeout_seconds)])
     _create_launch_emulator_test(name, args, ":goldfish")
@@ -51,8 +54,6 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
         }) + args + [
             "--disable-crash-reporting",
             "-verbose",
-            "-show-kernel",
-            "-no-boot-anim",
             "-read-only",
         ],
         data = [goldfish_dep] + select({

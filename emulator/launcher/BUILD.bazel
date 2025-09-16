@@ -312,18 +312,41 @@ cc_library(
 
 create_launch_emulator_test(
     name = "can_launch_kernel_with_minigbm",
+    params = [
+        "-show-kernel",
+        "-no-boot-anim",
+    ],
     target_log_line = "'Linux version 6\\.6\\.66-android15-8-gb66429556fb8-ab13070261'",
     timeout_seconds = 30,
 )
 
 create_launch_emulator_test(
     name = "can_boot_with_minigbm",
+    params = [
+        "-show-kernel",
+        "-no-boot-anim",
+    ],
     target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 180,
 )
 
 create_launch_emulator_test(
+    # This tests validates that the we receive at least a series frames from the guest.
+    name = "emulator_produces_pixels",
+    params = [
+        "-vmodule",
+        "'PixmanDisplay=2'",
+    ],
+    target_log_line = "'updateSurface Display: 0 \\(1080x2400\\), seq: 25'",
+    timeout_seconds = 180,
+)
+
+create_launch_emulator_test(
     name = "can_boot_with_minigbm_2x",
+    params = [
+        "-show-kernel",
+        "-no-boot-anim",
+    ],
     repeat = 1,
     target_log_line = "'Boot completed in \\d+ ms'",
     timeout_seconds = 180,
@@ -338,6 +361,7 @@ test_suite(
         ":can_boot_with_minigbm_zip",
         ":can_launch_kernel_with_minigbm",
         ":can_launch_kernel_with_minigbm_zip",
+        ":emulator_produces_pixels",
         ":emulator_unittests",
         ":logging_test",
     ],
