@@ -35,7 +35,13 @@ You can run the emulator directly from within Bazel for development and testing.
 
 #### Launching with a default system image
 
-The easiest way to start the emulator is to use the `launch_emulator` target. This target bundles a default system image and handles all the necessary setup.
+The easiest way to start the emulator is to use the `launch_emulator` target. This target bundles a default system image and handles all the necessary setup. You might need to first authenticate with `gcloud` to be able to download the system images by running:
+
+```sh
+gcloud auth application-default login --project=emulator-builds
+```
+
+Next you can launch the emulator with:
 
 ```sh
 bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -show-kernel
@@ -49,6 +55,7 @@ This command will:
 Once launched, the emulator should appear in the **Running Devices** tool window in Android Studio, allowing for easy integration with your development workflow.
 
 You can pass any additional QEMU flags after the `--`. For example, to enable verbose logging for the display component, you can run:
+
 ```sh
 bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -verbose -vmodule "Display*=1"
 ```
