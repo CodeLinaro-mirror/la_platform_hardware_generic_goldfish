@@ -90,31 +90,43 @@ PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
 }
 
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
+    DLOG_FIRST_N(WARNING, 100) << "--- WARNING! Reduced performance in debug builds ---";
     auto oldWidth = mWidth;
     auto oldHeight = mHeight;
 
-    // Used to debug issues around scaling, it will create a set of blue blocks
+    // Used to debug issues around scaling, it will create a set of rotating color blocks
     // in the corners that you can use to visually analyze if things "look okay".
     // enable by setting the --vmodule "PixmanDisplay.*=3"
     if (ABSL_VLOG_IS_ON(3)) {
-        LOG_FIRST_N(WARNING, 5)
-                << "Adding blue blocks in the corners to visually diagnose scaling issues.";
+        LOG_FIRST_N(WARNING, 5) << "Adding rotating color blocks in the corners to visually "
+                                   "diagnose frame ordering issues.";
         if (mWidth >= 100 && mHeight >= 100) {
-            pixman_color_t blue = {0, 0, 0xffff, 0xffff};  // R, G, B, A (16-bit)
+            uint64_t frame = seq().sequenceNumber;
+            pixman_color_t colors[4] = {
+                {0xffff, 0, 0, 0xffff},       // Red
+                {0, 0xffff, 0, 0xffff},       // Green
+                {0, 0, 0xffff, 0xffff},       // Blue
+                {0xffff, 0xffff, 0, 0xffff},  // Yellow
+            };
+
             pixman_rectangle16_t rects[4] = {
                 {0, 0, 100, 100},                                          // Top-left
                 {int16_t(mWidth - 100), 0, 100, 100},                      // Top-right
                 {0, int16_t(mHeight - 100), 100, 100},                     // Bottom-left
                 {int16_t(mWidth - 100), int16_t(mHeight - 100), 100, 100}  // Bottom-right
             };
-            pixman_image_fill_rectangles(PIXMAN_OP_SRC, image, &blue, 4, rects);
+
+            for (int i = 0; i < 4; ++i) {
+                pixman_image_fill_rectangles(PIXMAN_OP_SRC, image, &colors[(frame + i) % 4], 1,
+                                             &rects[i]);
+            }
         }
     }
 
     mFrameManager->updateSourceImage(image);
     mWidth = pixman_image_get_width(image);
     mHeight = pixman_image_get_height(image);
-    VLOG(2) << "updateSourceImage: " << *this;
+    VLOG(2) << "updateSourceImage: " << *this << " to: " << image;
     if (oldWidth != mWidth || oldHeight != mHeight) {
         VLOG(2) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
                 << mWidth << "x" << mHeight << "\n";
@@ -194,6 +206,9 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
 }
 
 void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
+    VLOG(2) << "updateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
+            << height << ")";
+
     frameReceived();
     if (ABSL_VLOG_IS_ON(1)) {
         mFpsCalculator.addFrame();

@@ -13,26 +13,80 @@
 // limitations under the License.
 #include "android/goldfish/display/PixmanFrameManager.h"
 
+#include <pixman.h>
+
+#include "absl/hash/hash.h"
+#include "absl/log/log.h"
+#include "absl/strings/string_view.h"
+
+namespace {
+// Calculates a hash of the pixel data of a pixman_image_t, used for debugging frame issues.
+size_t calculateHash(::pixman_image_t* image) {
+    if (!image) {
+        return 0;
+    }
+    auto height = pixman_image_get_height(image);
+    auto stride = pixman_image_get_stride(image);
+    auto* bits = reinterpret_cast<const char*>(pixman_image_get_data(image));
+    if (!bits) {
+        return 0;
+    }
+
+    absl::Hash<absl::string_view> hasher;
+    return hasher(absl::string_view(bits, height * stride));
+}
+}  // namespace
+
 namespace android::goldfish {
 
 void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
+    if (pixman_image_get_depth(image) < mCurrentPixelDepth) {
+        // QEMU delivers two display streams: a 24bpp stream for the "disconnected"
+        // display state and a 32bpp stream for the active Android guest
+        // framebuffer.
+
+        // Before the guest UI is active, only the 24bpp stream is sent. However,
+        // once the guest activates, QEMU begins sending the 32bpp stream *in
+        // addition to* the 24bpp stream, resulting in an interleaved delivery
+        // of both frame types. We are going to discard the 24bpp frames.
+        VLOG(1) << "Not accepting image with pixel depth: " << pixman_image_get_depth(image)
+                << ", expecting: " << mCurrentPixelDepth;
+        return;
+    }
+
+    mCurrentPixelDepth = pixman_image_get_depth(image);
+
+    VLOG(3) << "updateSourceImage pixel hash: " << calculateHash(image);
+    // Create a deep copy of the image to prevent race conditions. This is the
+    // slow part and happens outside the lock.
+    auto width = pixman_image_get_width(image);
+    auto height = pixman_image_get_height(image);
+    auto format = pixman_image_get_format(image);
+    auto* src_bits = pixman_image_get_data(image);
+    auto stride = pixman_image_get_stride(image);
+
+    auto new_image =
+            PixmanImagePtr(pixman_image_create_bits(format, width, height, nullptr, stride));
+    memcpy(pixman_image_get_data(new_image.get()), src_bits, height * stride);
+
+    // Lock and swap the pointer. This is very fast.
     absl::MutexLock lock(&mDisplayAccess);
-    mStagingImage = PixmanImagePtr(image);
+    mCurrentImage = new_image;
 }
 
 PixmanImagePtr PixmanFrameManager::getRenderableImage() {
     PixmanImagePtr local_image;
     {
+        // Lock and copy the smart pointer. This is very fast.
         absl::MutexLock lock(&mDisplayAccess);
-        if (mStagingImage.get()) {
-            mCurrentImage = std::move(mStagingImage);
-        }
         local_image = mCurrentImage;
     }
 
     if (!local_image.get()) {
         return local_image;
     }
+
+    VLOG(3) << "getRenderableImage pixel hash: " << calculateHash(local_image.get());
 
     // Create a proxy image that shares the bits of the original image.
     // This is a lightweight operation that does not copy the pixel data.

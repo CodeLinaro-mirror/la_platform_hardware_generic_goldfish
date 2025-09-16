@@ -55,6 +55,7 @@ class PixmanFrameManager {
     PixmanImagePtr getRenderableImage();
 
   private:
+    int mCurrentPixelDepth{0};
     absl::Mutex mDisplayAccess;
     PixmanImagePtr mStagingImage ABSL_GUARDED_BY(mDisplayAccess);
     PixmanImagePtr mCurrentImage ABSL_GUARDED_BY(mDisplayAccess);
