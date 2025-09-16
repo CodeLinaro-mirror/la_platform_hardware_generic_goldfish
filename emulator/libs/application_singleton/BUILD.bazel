@@ -1,0 +1,49 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "application_singleton",
+    srcs = ["application_singleton.cpp"],
+    hdrs = ["include/goldfish/singleton/application_singleton.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/system",
+        ],
+        "//conditions:default": [
+            "//hardware/generic/goldfish/emulator/config",
+        ],
+    }),
+)
+
+cc_binary(
+    name = "second_instance_test_helper",
+    srcs = ["tests/second_instance_test.cpp"],
+    deps = [":application_singleton"],
+)
+
+cc_binary(
+    name = "crashing_test_helper",
+    srcs = ["tests/crashing_test_helper.cpp"],
+    deps = [":application_singleton"],
+)
+
+cc_test(
+    name = "ApplicationSingleton_test",
+    srcs = ["tests/application_singleton_test.cpp"],
+    data = [
+        ":crashing_test_helper",
+        ":second_instance_test_helper",
+    ],
+    deps = [
+        ":application_singleton",
+        "//hardware/generic/goldfish/android/process",
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/config",
+        "@bazel_tools//tools/cpp/runfiles",
+    ],
+)
