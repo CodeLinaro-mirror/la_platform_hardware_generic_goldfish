@@ -14,6 +14,7 @@
 #include "android/goldfish/config/emulator.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <initializer_list>
 #include <memory>
@@ -235,9 +236,23 @@ absl::Status Emulator::launch() {
 #endif
     }
 
-    auto args = getCmdline();
+    const std::vector<std::string> args = getCmdline();
+    {
+        std::vector<std::string> printableArgs(args.size());
+        std::transform(args.begin(), args.end(), printableArgs.begin(),
+                       [](const std::string& a) -> std::string {
+                           if (std::any_of(a.begin(), a.end(),
+                                           [](const char c) { return std::isspace(c); })) {
+                               using namespace std::literals::string_literals;
+                               return "\""s + a + "\""s;
+                           } else {
+                               return a;
+                           }
+                       });
 
-    ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(args, " ");
+        ABSL_LOG(INFO) << "Launch: " << absl::StrJoin(printableArgs, " ");
+    }
+
     auto proc = android::base::Command::create(args).replace().execute();
     // We only get here if we failed to launch the application
     return absl::InternalError(absl::StrFormat("Failed to launch emulator, error code: %d", errno));
