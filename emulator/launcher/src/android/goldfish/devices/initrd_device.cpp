@@ -71,6 +71,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string qemuDrawFlushIntervalProp = "androidboot.qemu.gltransport.drawFlushInterval";
     std::string qemuOpenglesVersionProp = "androidboot.opengles.version";
     std::string qemuUirendererProp = "androidboot.debug.hwui.renderer";
+    std::string qemuRenderengineProp = "androidboot.debug.renderengine.backend";
     std::string dalvikVmHeapsizeProp = "androidboot.dalvik.vm.heapsize";
     std::string qemuLegacyFakeCameraProp = "androidboot.qemu.legacy_fake_camera";
     std::string qemuCameraProtocolVerProp = "androidboot.qemu.camera_protocol_ver";
@@ -134,7 +135,14 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     // GLESDynamicVersion = on (i.e., is a reasonably good driver)
     params.push_back({qemuOpenglesVersionProp, absl::StrFormat("%d", bootPropOpenglesVersion)});
 
-    params.push_back({qemuUirendererProp, "skiagl"});
+    if (opts.skiavk) {
+        params.push_back({qemuUirendererProp, "skiavk"});
+        params.push_back({qemuRenderengineProp, "skiavk"});
+    } else {
+        params.push_back({qemuUirendererProp, "skiagl"});
+        params.push_back({qemuRenderengineProp, "skiagl"});
+    }
+
     params.push_back({androidbootLogcatProp,
                       opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
 
