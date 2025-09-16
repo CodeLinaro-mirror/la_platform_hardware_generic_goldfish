@@ -94,6 +94,7 @@ void UpdateVModule(const std::string& vmodule) {
         const absl::string_view glob = it.first;
         const int level = it.second;
         absl::SetVLogLevel(glob, level);
+        LOG(INFO) << "Setting module verbosity for " << glob << " to " << level;
     }
 }
 
