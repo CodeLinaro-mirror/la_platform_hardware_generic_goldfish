@@ -227,7 +227,8 @@ class IDisplay : public FrameInfoCallbackSource,
     }
 
     virtual std::string string() const {
-        return absl::StrFormat("Display: %d (%dx%d)", mDisplayId, mWidth, mHeight);
+        return absl::StrFormat("Display: %d (%dx%d), seq: %u", mDisplayId, mWidth, mHeight,
+                               mSeq.sequenceNumber);
     };
 
     IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
