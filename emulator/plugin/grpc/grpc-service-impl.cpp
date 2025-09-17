@@ -34,6 +34,7 @@
 #include "android/goldfish/display/MultiDisplay.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/device_registry/DeviceRegistry.h"
 #include "goldfish/grpc/grpc-service-device.h"
 
 namespace fs = std::filesystem;
@@ -91,19 +92,21 @@ static std::string generateToken(int cnt) {
 bool initialize(GrpcDeviceConfiguration* device) {
     auto avd = goldfish::avd_info::get_avd();
     auto registry = &goldfish::avd_info::deviceRegistry();
-
+    auto adbPort =
+            goldfish::DeviceRegistry::get().get(goldfish::properties::kAdbPort).value_or(5555);
     auto qemuLoop = QemuEventLoop::create();
     // TODO(jansene): Update with actual data.
-    EmulatorProperties props{
-        {"port.serial", "5554"},
-        {"emulator.build", "standalone-0"},
-        {"emulator.version", "50.0.0"},
-        {"port.adb", "5555"},
-        {"avd.name", avd->name()},
-        {"avd.id", avd->display_name()},
-        {"avd.dir", System ::pathAsString(avd->getContentPath())},
-        // TODO(jansene):
-        {"cmdline", "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" \"-grpc-use-token\""}};
+    EmulatorProperties props{{"port.serial", std::to_string(adbPort - 1)},
+                             {"emulator.build", "standalone-0"},
+                             {"emulator.version", "50.0.0"},
+                             {"port.adb", std::to_string(adbPort)},
+                             {"avd.name", avd->name()},
+                             {"avd.id", avd->display_name()},
+                             {"avd.dir", System ::pathAsString(avd->getContentPath())},
+                             // TODO(jansene):
+                             {"cmdline",
+                              "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
+                              "\"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance(),
             qemuLoop.get());
