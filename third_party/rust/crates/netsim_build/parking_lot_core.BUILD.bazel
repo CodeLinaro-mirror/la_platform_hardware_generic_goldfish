@@ -28,5 +28,8 @@ rust_library(
         "@cfg-if",
         "@libc",
         "@smallvec",
-    ],
+    ] + select({
+        "@bazel_tools//src/conditions:windows": ["@windows-targets"],
+        "//conditions:default": [],
+    }),
 )

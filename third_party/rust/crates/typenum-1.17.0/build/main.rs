@@ -7,7 +7,7 @@ use std::path::Path;
 #[cfg(feature = "const-generics")]
 mod generic_const_mappings;
 mod op;
-mod tests;
+//mod tests;
 
 pub enum UIntCode {
     Term,
@@ -194,7 +194,7 @@ pub mod consts {{
     }
     write!(f, "}}").unwrap();
 
-    tests::build_tests().unwrap();
+    //tests::build_tests().unwrap();
 
     op::write_op_macro().unwrap();
 

@@ -31,7 +31,10 @@ rust_library(
         "@pin-project-lite",
         "@signal-hook-registry",
         "@socket2",
-    ],
+    ] + select({
+        "@bazel_tools//src/conditions:windows": ["@windows-sys"],
+        "//conditions:default": [],
+    }),
     proc_macro_deps = [
         "@tokio-macros",
     ],
