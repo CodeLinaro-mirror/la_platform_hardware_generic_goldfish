@@ -85,23 +85,6 @@ struct goldfish_battery_state {
     uint32_t cycle_count;
 };
 
-/* update this each time you update the battery_state struct */
-#define BATTERY_STATE_SAVE_VERSION 1
-
-static const VMStateDescription goldfish_battery_vmsd = {
-        .name = "goldfish_battery",
-        .version_id = BATTERY_STATE_SAVE_VERSION,
-        .minimum_version_id = BATTERY_STATE_SAVE_VERSION,
-        .fields = (VMStateField[]){VMSTATE_UINT32(int_status, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(int_enable, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(ac_online, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(status, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(health, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(present, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(capacity, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(hw_has_battery, struct goldfish_battery_state),
-                                   VMSTATE_END_OF_LIST()}};
-
 int goldfish_battery_read_prop(int property) {
     int retVal = 0;
 
@@ -353,7 +336,30 @@ static void goldfish_battery_realize(DeviceState* dev, Error** errp) {
     sBatteryIsRealized = 1;
 }
 
+/*
+ * b/445476051: it must be initialized at runtime because &vmstate_info_foo
+ * is a runtime value on Windows.
+ */
+static VMStateDescription goldfish_battery_vmsd;
+
+/* update this each time you update the battery_state struct */
+#define BATTERY_STATE_SAVE_VERSION 1
+
 static void goldfish_battery_class_init(ObjectClass* klass, void* data) {
+    goldfish_battery_vmsd = (VMStateDescription){
+        .name = "goldfish_battery",
+        .version_id = BATTERY_STATE_SAVE_VERSION,
+        .minimum_version_id = BATTERY_STATE_SAVE_VERSION,
+        .fields = (VMStateField[]){VMSTATE_UINT32(int_status, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(int_enable, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(ac_online, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(status, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(health, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(present, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(capacity, struct goldfish_battery_state),
+                                   VMSTATE_UINT32(hw_has_battery, struct goldfish_battery_state),
+                                   VMSTATE_END_OF_LIST()}};
+
     DeviceClass* dc = DEVICE_CLASS(klass);
 
     dc->realize = goldfish_battery_realize;

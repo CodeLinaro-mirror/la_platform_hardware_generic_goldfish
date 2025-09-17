@@ -346,7 +346,16 @@ static const VMStateInfo vmstate_info_virtio_vsock_impl = {
         .put = &vmstate_info_virtio_vsock_impl_save,
 };
 
-static const VMStateDescription vmstate_virtio_vsock = {
+/*
+ * b/445476051: it must be initialized at runtime because &vmstate_info_foo
+ * is a runtime value on Windows.
+ */
+static VMStateDescription vmstate_virtio_vsock;
+
+static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
+    DEBUG_MSG("klass=%p data=%p", klass, data);
+
+    vmstate_virtio_vsock = (VMStateDescription){
         .name = TYPE_VIRTIO_VSOCK,
         .minimum_version_id = 0,
         .version_id = 0,
@@ -354,10 +363,7 @@ static const VMStateDescription vmstate_virtio_vsock = {
                                    VMSTATE_POINTER(impl, VirtIOVSock, 0,
                                                    vmstate_info_virtio_vsock_impl, void*),
                                    VMSTATE_END_OF_LIST()},
-};
-
-static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
-    DEBUG_MSG("klass=%p data=%p", klass, data);
+    };
 
     DeviceClass* dc = DEVICE_CLASS(klass);
     dc->vmsd = &vmstate_virtio_vsock;
