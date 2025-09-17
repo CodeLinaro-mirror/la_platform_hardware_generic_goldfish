@@ -1,0 +1,33 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "emulator_catalog",
+    srcs = ["src/emulator_catalog.cpp"],
+    hdrs = ["include/goldfish/catalog/emulator_catalog.h"],
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base",
+        "@aemu//base:event-support",
+    ],
+)
+
+cc_test(
+    name = "emulator_catalog_unittest",
+    srcs = ["tests/emulator_catalog_unittest.cpp"],
+    copts = [
+        "-Ihardware/generic/goldfish/emulator/libs/catalog/include",
+    ],
+    deps = [
+        ":emulator_catalog",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@aemu//base:aemu-base",
+        "@aemu//base:event-support",
+    ],
+)
