@@ -90,7 +90,7 @@ PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
 }
 
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
-    DLOG_FIRST_N(WARNING, 100) << "--- WARNING! Reduced performance in debug builds ---";
+    DLOG_FIRST_N(WARNING, 2) << "--- WARNING! Reduced performance in debug builds ---";
     auto oldWidth = mWidth;
     auto oldHeight = mHeight;
 
