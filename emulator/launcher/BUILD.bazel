@@ -215,20 +215,24 @@ collect_plugins(
     name = "binaries",
     output_dir = "bin",
     plugins = [
+        "//hardware/generic/goldfish/emulator/crashreport",
         "//hardware/generic/goldfish/third_party/sparse:img2simg",
         "//third_party/qemu:qemu-img",
         "@com_google_crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
+            "//prebuilts/android-emulator-build/common/netsim:netsim_windows_x86_64",
             "//third_party/qemu:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
+            "//prebuilts/android-emulator-build/common/netsim:netsim_darwin_aarch64",
             "//third_party/qemu:qemu-system-aarch64_signed",
             "//third_party/qemu:qemu-system-riscv64_signed",
             "//third_party/qemu:qemu-system-x86_64_signed",
         ],
         "//conditions:default": [
+            "//prebuilts/android-emulator-build/common/netsim:netsim_linux_x86_64",
             "//third_party/qemu:qemu-system-aarch64",
             "//third_party/qemu:qemu-system-riscv64",
             "//third_party/qemu:qemu-system-x86_64",

@@ -140,7 +140,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
 #endif
     ASSIGN_OR_RETURN(paths.qemu_img_binary, check_exists(paths.binary_directory / add_binary_suffix("qemu-img"), "qemu-img"));
-    // TODO(whollins): ASSIGN_OR_RETURN(paths.netsim_binary, check_exists(paths.binary_directory / add_binary_suffix("netsimd"), "netsimd"));
+    ASSIGN_OR_RETURN(paths.netsim_binary, check_exists(paths.binary_directory / add_binary_suffix("netsimd"), "netsimd"));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary, check_exists(paths.binary_directory / add_binary_suffix("crashpad_handler"), "crashpad handler"));
 
 #ifdef _WIN32
