@@ -39,29 +39,43 @@ typedef struct GrpcDev {
 
 // TODO(jansene): These are currently externs on Multidisplay.cpp, and should
 // be injected, not linked against!
-static const DisplayChangeListenerOps dcl_ops = {
+static const DisplayChangeListenerOps k_dcl_ops = {
     .dpy_name = "grpc-display",
     .dpy_gfx_update = grpc_dpy_gfx_update,
     .dpy_gfx_switch = grpc_dpy_gfx_switch,
 };
 
-static DisplayChangeListener dcl = {
-    .ops = &dcl_ops,
-};
+static QLIST_HEAD(, DisplayChangeListener) s_dcls = QLIST_HEAD_INITIALIZER(DisplayChangeListener);
 
 static void android_display_init(struct DisplayState* ds, struct DisplayOptions* o) {
-    //  android_display_init has been called! Time t
-    QemuConsole* con;
+    DisplayChangeListener* last_dcl = NULL;
     for (int idx = 0;; idx++) {
-        con = qemu_console_lookup_by_index(idx);
-        if (!con || !qemu_console_is_graphic(con)) {
+        QemuConsole* con = qemu_console_lookup_by_index(idx);
+        if (!con) {
+            break;
+        }
+        if (!qemu_console_is_graphic(con)) {
+            continue;
+        }
+
+        DisplayChangeListener* dcl = g_malloc0(sizeof(DisplayChangeListener));
+        if (!dcl) {
             break;
         }
 
+        dcl->con = con;
+        dcl->ops = &k_dcl_ops;
+
         // Note we expect our gRPC handler to do figure out
         // console --> display mapping.
-        dcl.con = con;
-        register_displaychangelistener(&dcl);
+        register_displaychangelistener(dcl);
+
+        if (last_dcl) {
+            QLIST_INSERT_AFTER(last_dcl, dcl, next);
+        } else {
+            QLIST_INSERT_HEAD(&s_dcls, dcl, next);
+        }
+        last_dcl = dcl;
     }
 }
 
