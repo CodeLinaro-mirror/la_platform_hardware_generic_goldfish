@@ -1,0 +1,31 @@
+load("@qt_prebuilt//deps:defs.bzl", "qt_application", "qt_cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+qt_cc_library(
+    name = "aquarium_lib",
+    srcs = ["src/aquarium.cpp"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/libs/application_singleton",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:initialize",
+        "@qt_prebuilt//:qt_core",
+        "@qt_prebuilt//:qt_gui",
+        "@qt_prebuilt//:qt_widgets",
+    ],
+)
+
+qt_application(
+    name = "aquarium",
+    srcs = ["src/main.cpp"],
+    linkstatic = False,
+    deps = [
+        ":aquarium_lib",
+    ],
+)
+
+cc_binary(
+    name = "sample",
+    srcs = ["src/sample.cpp"],
+    linkstatic = False,
+)
