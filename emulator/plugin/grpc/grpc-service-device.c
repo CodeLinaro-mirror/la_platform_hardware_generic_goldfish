@@ -87,31 +87,32 @@ static void grpc_unrealize(DeviceState* dev) {
 
 static void grpc_set_tls_cer(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.tls_cer = malloc(strlen(value) + 1);
-    strcpy(grpc_device->config.tls_cer, value);
+    free(grpc_device->config.tls_cer);
+    grpc_device->config.tls_cer = strdup(value);
 }
 
 static void grpc_set_tls_key(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.tls_key = malloc(strlen(value) + 1);
-    strcpy(grpc_device->config.tls_key, value);
+    free(grpc_device->config.tls_key);
+    grpc_device->config.tls_key = strdup(value);
 }
 
 static void grpc_set_tls_ca(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.tls_ca = malloc(strlen(value) + 1);
-    strcpy(grpc_device->config.tls_ca, value);
+    free(grpc_device->config.tls_ca);
+    grpc_device->config.tls_ca = strdup(value);
 }
 
 static void grpc_set_allowlist(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.allowlist = malloc(strlen(value) + 1);
-    strcpy(grpc_device->config.allowlist, value);
+    free(grpc_device->config.allowlist);
+    grpc_device->config.allowlist = strdup(value);
 }
 
 static void grpc_set_addr(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config.addr = malloc(strlen(value) + 1);
+    free(grpc_device->config.addr);
+    grpc_device->config.addr = strdup(value);
     strcpy(grpc_device->config.addr, value);
 }
 
