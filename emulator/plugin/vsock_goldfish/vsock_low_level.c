@@ -27,6 +27,7 @@
 #include "hw/qdev-properties.h"
 #include "standard-headers/linux/virtio_vsock.h"
 #include "migration/vmstate.h"
+#include "qapi/visitor.h"
 #include "qom/object.h"
 // IWYU pragma: end_keep
 // clang-format on
@@ -330,6 +331,14 @@ static void virtio_vsock_set_config(VirtIODevice* const dev, const uint8_t* cons
     VIRTIO_VSOCK(dev)->guest_cid = cfg.guest_cid;
 }
 
+static void virtio_vsock_set_guest_cid(Object* obj, Visitor* v, const char* name, void* opaque,
+                                       Error** errp) {
+    uint64_t guest_cid;
+    if (visit_type_uint64(v, name, &guest_cid, errp)) {
+        VIRTIO_VSOCK(obj)->guest_cid = guest_cid;
+    }
+}
+
 static int vmstate_info_virtio_vsock_impl_load(QEMUFile* const f, void* const opaque, size_t size,
                                                const VMStateField* field) {
     return goldfish_virtio_vsock_impl_load(opaque, f);
@@ -368,6 +377,8 @@ static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
     DeviceClass* dc = DEVICE_CLASS(klass);
     dc->vmsd = &vmstate_virtio_vsock;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+    object_class_property_add(klass, "guest-cid", "uint64", NULL, &virtio_vsock_set_guest_cid, NULL,
+                              NULL);
     VirtioDeviceClass* vdc = VIRTIO_DEVICE_CLASS(klass);
     vdc->realize = &virtio_vsock_device_realize;
     vdc->unrealize = &virtio_vsock_device_unrealize;
@@ -427,12 +438,6 @@ static void virtio_vsock_pci_instance_init(Object* obj) {
      * How the vectors are allocated is decided by the guest kernel.
      */
     dev->parent.nvectors = 3;
-
-    /*
-     * Good enough until we decide to run several vsock
-     * instances simultaneously.
-     */
-    dev->vdev.guest_cid = 3;
 }
 
 static const VirtioPCIDeviceTypeInfo virtio_vsock_pci_typeinfo = {

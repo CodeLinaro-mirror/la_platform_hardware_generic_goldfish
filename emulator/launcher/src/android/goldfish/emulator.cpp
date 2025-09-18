@@ -123,7 +123,7 @@ absl::Status Emulator::addDevices() {
     // Our virtio-vsock.
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device",
-        "virtio-goldfish-vsock-pci",
+        "virtio-goldfish-vsock-pci,guest-cid=3",
     });
 
     // Must come after vsock.
