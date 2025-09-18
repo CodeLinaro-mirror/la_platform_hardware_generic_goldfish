@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern const char* cpu_type(void) {
+extern const char* cpu_type_cwrap(void) {
     return "unknown";
 }
 
-extern const char* accel_name() {
+extern const char* accel_name_cwrap() {
     return "unknown";
 }
 
-extern int cpu_count() {
+extern int cpu_count_cwrap() {
     return 1;
 }

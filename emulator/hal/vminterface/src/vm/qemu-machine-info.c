@@ -14,37 +14,24 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-
 #include "qemu/osdep.h"
-#include "qemu/main-loop.h"
-#include "exec/cpu-common.h"
-#include "hw/core/cpu.h"
-#include "sysemu/cpus.h"
-#include "qemu/lockable.h"
-#include "qemu/accel.h"
-#include "vm/qemu-machine-info.h"
 #include "hw/boards.h"
+#include "qemu/accel.h"
+#include "sysemu/cpus.h"
+#include "vm/qemu-machine-info.h"
 // IWYU pragma: end_keep
 // clang-format on
 
 // These functions retrieve machine configuration from qemu.
 
-const char* cpu_type(void) {
-    return current_machine->cpu_type;
+const char* cpu_type_cwrap() {
+    return machine_current_cpu_type();
 }
 
-const char* accel_name() {
+const char* accel_name_cwrap() {
     return current_accel_name();
 }
 
-int cpu_count() {
-    // Will be initialized in CPU_FOREACH macro below.
-    CPUState* some_cpu;
-    int count = 0;
-    cpu_list_lock();
-    CPU_FOREACH(some_cpu) {
-        count++;
-    }
-    cpu_list_unlock();
-    return count;
+int cpu_count_cwrap() {
+    return cpus_count();
 }

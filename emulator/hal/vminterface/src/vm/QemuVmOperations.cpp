@@ -121,7 +121,7 @@ class QemuVmOperations : public VmOperations {
      */
     VmConfiguration getConfiguration() override {
         VmConfiguration config;
-        std::string_view accel = accel_name();
+        const std::string_view accel = ::accel_name_cwrap();
 
         // ** Update this when you add a new hypervisor **
         // Make sure that ac->name matches with pair.first!
@@ -142,8 +142,8 @@ class QemuVmOperations : public VmOperations {
                 break;
             }
         }
-        config.numberOfCpuCores = ::cpu_count();
-        config.cpu_type = ::cpu_type();
+        config.numberOfCpuCores = ::cpu_count_cwrap();
+        config.cpu_type = ::cpu_type_cwrap();
         return config;
     }
 
