@@ -23,7 +23,7 @@ __BEGIN_DECLS
  *
  * @return The number of available CPUs.
  */
-int cpu_count(void);
+int cpu_count_cwrap();
 
 /**
  * @brief Returns the current QEMU CPU type.
@@ -35,7 +35,7 @@ int cpu_count(void);
  * @return A pointer to a null-terminated string representing the QEMU CPU type.
  *         The string is owned by the QEMU instance and should not be freed.
  */
-const char* cpu_type(void);
+const char* cpu_type_cwrap();
 
 /**
  * @brief Returns the name of the hypervisor being used by the running QEMU instance.
@@ -47,6 +47,6 @@ const char* cpu_type(void);
  * @return A pointer to a null-terminated string representing the hypervisor name.
  *         The string is owned by the QEMU instance and should not be freed.
  */
-const char* accel_name(void);
+const char* accel_name_cwrap();
 
 __END_DECLS
