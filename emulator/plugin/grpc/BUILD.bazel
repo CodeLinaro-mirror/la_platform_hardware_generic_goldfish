@@ -34,7 +34,12 @@ cc_library(
         "//third_party/qemu:qemu-headers",
         #"@grpc//:grpc++_reflection",
         "@abseil-cpp//absl/strings",
-        "@crosvm//:rutabaga_gfx",
-    ],
+    ] + select({
+        # TODO(b/410075886): This causes duplicate symbol errors on Windows. Fix and re-add.
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "@crosvm//:rutabaga_gfx",
+        ],
+    }),
     alwayslink = True,
 )
