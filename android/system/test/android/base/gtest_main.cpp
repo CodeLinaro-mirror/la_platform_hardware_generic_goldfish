@@ -8,6 +8,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
@@ -16,6 +17,10 @@
 #include "android/base/bazel/bazel_info.h"
 
 using android::base::Bazel;
+
+ABSL_FLAG(bool, verbose_test, false,
+          "Enable verbose test logging, equivalent to "
+          "--vmodule=\"*=1\" --logtostderr=true --stderrthreshold=0.");
 
 int main(int argc, char* argv[]) {
     if (Bazel::inBazel()) {
@@ -26,6 +31,12 @@ int main(int argc, char* argv[]) {
     std::vector<char*> positional_args;
     std::vector<absl::UnrecognizedFlag> unrecognized_flags;
     absl::ParseAbseilFlagsOnly(argc, argv, positional_args, unrecognized_flags);
+
+    if (absl::GetFlag(FLAGS_verbose_test)) {
+        absl::SetVLogLevel("*", 1);
+        absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+        absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    }
 
     absl::InitializeLog();
 
