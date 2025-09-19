@@ -17,14 +17,11 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-#include "fake_qemu_callbacks.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/dns_resolver.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_socket_factory.h"
-#include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/qemu_socket_factory.h"
 
 namespace goldfish::async {
 using namespace std::chrono_literals;
@@ -34,47 +31,21 @@ using absl_testing::IsOk;
 //                      TEST FIXTURE
 // =================================================================
 
-class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
+class AsyncSocketTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoopType = GetParam();
-        if (mLoopType == "libuv") {
-            mEventLoop = LibuvEventLoop::create();
-            mRawEventLoop = mEventLoop.get();
-            mFactory = std::make_unique<LibuvAsyncSocketFactory>();
-            mLoopThread = std::thread([this] { (void)mRawEventLoop->run(); });
-        } else if (mLoopType == "qemu") {
-            absl::Notification running;
-            mEventLoop = QemuEventLoop::create();
-            mRawEventLoop = mEventLoop.get();
-            mFactory = std::make_unique<QemuSocketFactory>();
-            mStopQemuLooper = false;
-            mQemuLooperThread = std::thread([&, this] {
-                running.Notify();
-                while (!mStopQemuLooper) {
-                    fake_qemu_advance_ms(1);
-                    std::this_thread::sleep_for(1ms);
-                }
-            });
-            running.WaitForNotification();
-        }
+        mEventLoop = LibuvEventLoop::create();
+        mRawEventLoop = mEventLoop.get();
+        mFactory = std::make_unique<LibuvAsyncSocketFactory>();
+        mLoopThread = std::thread([this] { (void)mRawEventLoop->run(); });
     }
 
     void TearDown() override {
-        if (mLoopType == "libuv") {
-            auto shutdown_future = mRawEventLoop->shutdown(100ms);
-            ASSERT_EQ(shutdown_future.wait_for(2s), std::future_status::ready);
-            mRawEventLoop->stop();
-            if (mLoopThread.joinable()) {
-                mLoopThread.join();
-            }
-        } else if (mLoopType == "qemu") {
-            mStopQemuLooper = true;
-            if (mQemuLooperThread.joinable()) {
-                mQemuLooperThread.join();
-            }
-            mEventLoop.reset();
-            fake_qemu_reset();
+        auto shutdown_future = mRawEventLoop->shutdown(100ms);
+        ASSERT_EQ(shutdown_future.wait_for(2s), std::future_status::ready);
+        mRawEventLoop->stop();
+        if (mLoopThread.joinable()) {
+            mLoopThread.join();
         }
     }
 
@@ -93,20 +64,17 @@ class AsyncSocketTest : public ::testing::TestWithParam<std::string> {
         return mRawEventLoop->postAndWait(std::forward<F>(func));
     }
 
-    std::string mLoopType;
     std::unique_ptr<EventLoop> mEventLoop;
     EventLoop* mRawEventLoop;
     std::shared_ptr<AsyncSocketFactory> mFactory;
     std::thread mLoopThread;
-    std::thread mQemuLooperThread;
-    std::atomic<bool> mStopQemuLooper{false};
 };
 
 // =================================================================
 //                      UPDATED TESTS
 // =================================================================
 
-TEST_P(AsyncSocketTest, ConnectAndClose) {
+TEST_F(AsyncSocketTest, ConnectAndClose) {
     std::promise<void> connected_promise;
     auto connected_future = connected_promise.get_future();
     std::promise<void> client_closed_promise;
@@ -147,7 +115,7 @@ TEST_P(AsyncSocketTest, ConnectAndClose) {
     runUntil(client_closed_future);
 }
 
-TEST_P(AsyncSocketTest, ClientCanSendData) {
+TEST_F(AsyncSocketTest, ClientCanSendData) {
     const std::string sent_message = "Hello, from the client!";
     std::promise<std::string> received_promise;
     auto received_future = received_promise.get_future();
@@ -197,7 +165,7 @@ TEST_P(AsyncSocketTest, ClientCanSendData) {
     runUntil(closed_future);
 }
 
-TEST_P(AsyncSocketTest, EchoTest) {
+TEST_F(AsyncSocketTest, EchoTest) {
     const std::string original_message = "Ping";
     std::promise<std::string> echo_promise;
     auto echo_future = echo_promise.get_future();
@@ -247,7 +215,7 @@ TEST_P(AsyncSocketTest, EchoTest) {
     EXPECT_EQ(echo_future.get(), original_message);
 }
 
-TEST_P(AsyncSocketTest, LargeDataTransfer) {
+TEST_F(AsyncSocketTest, LargeDataTransfer) {
     std::string large_message;
     large_message.reserve(5 * 1024 * 1024);
     for (int i = 0; i < (5 * 1024 * 1024) / 10; ++i)
@@ -300,7 +268,7 @@ TEST_P(AsyncSocketTest, LargeDataTransfer) {
     EXPECT_EQ(received_size_future.get(), large_message.size());
 }
 
-TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
+TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     const std::string message_per_thread =
             "This is a message from one of many threads. ";
     const int num_threads = 10;
@@ -374,11 +342,7 @@ TEST_P(AsyncSocketTest, MultiThreadedSendIsSafe) {
               num_threads * message_per_thread.size());
 }
 
-TEST_P(AsyncSocketTest, ConnectAndCloseWithHostname) {
-    // This test is only relevant for libuv as qemu does not support dns.
-    if (mLoopType != "libuv") {
-        GTEST_SKIP();
-    }
+TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
     std::promise<void> connected_promise;
     auto connected_future = connected_promise.get_future();
     std::promise<void> client_closed_promise;
@@ -416,11 +380,7 @@ TEST_P(AsyncSocketTest, ConnectAndCloseWithHostname) {
     runUntil(client_closed_future);
 }
 
-TEST_P(AsyncSocketTest, ConnectAndCloseWithABadHostname) {
-    // This test is only relevant for libuv as qemu does not support dns.
-    if (mLoopType != "libuv") {
-        GTEST_SKIP();
-    }
+TEST_F(AsyncSocketTest, ConnectAndCloseWithABadHostname) {
     std::promise<void> connected_promise;
     auto connected_future = connected_promise.get_future();
     std::promise<void> client_closed_promise;
@@ -441,11 +401,7 @@ TEST_P(AsyncSocketTest, ConnectAndCloseWithABadHostname) {
     ASSERT_EQ(server, nullptr);
 }
 
-TEST_P(AsyncSocketTest, EchoTestWithHostname) {
-    // This test is only relevant for libuv as qemu does not support dns.
-    if (mLoopType != "libuv") {
-        GTEST_SKIP();
-    }
+TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     const std::string original_message = "Ping";
     std::promise<std::string> echo_promise;
     auto echo_future = echo_promise.get_future();
@@ -485,18 +441,4 @@ TEST_P(AsyncSocketTest, EchoTestWithHostname) {
     runUntil(echo_future);
     EXPECT_EQ(echo_future.get(), original_message);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-        SocketImplementations,
-        AsyncSocketTest,
-#ifdef _WIN32
-        // We do not have qemu fake drivers for windows so we will not be
-        // running these tests.
-        ::testing::Values("libuv"),
-#else
-        ::testing::Values("libuv", "qemu"),
-#endif
-        [](const ::testing::TestParamInfo<AsyncSocketTest::ParamType>& info) {
-            return info.param;
-        });
 }  // namespace goldfish::async
