@@ -1,0 +1,48 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "emulator_grpc_client",
+    srcs = [
+        "src/emulator_grpc_client.cpp",
+        "src/grpc_channel_factory.cpp",
+        "src/grpc_channel_factory.h",
+        "src/grpc_connection_monitor.cpp",
+        "src/grpc_connection_monitor.h",
+    ],
+    hdrs = [
+        "include/android/emulation/control/utils/emulator_grpc_client.h",
+    ],
+    includes = [
+        "include",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/grpc/client/proto:grpc_endpoint_description_cc_proto",
+        "//hardware/generic/goldfish/emulator/grpc/security",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//base:event-support",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "emulator_grpc_client_test",
+    srcs = ["tests/emulator_grpc_client_test.cpp"],
+    deps = [
+        ":emulator_grpc_client",
+        "//hardware/generic/goldfish/android/sockets:socket_utils_impl",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/synchronization",
+        "@grpc//:grpc++",
+    ],
+)
