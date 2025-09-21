@@ -101,16 +101,14 @@ qemu_binaries = [
     ],
 })
 
-angle_binaries = select({
+egl_binaries = select({
     "@platforms//os:macos": [
         "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
         "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
         "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
     ],
     "@platforms//os:linux": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
-        "//prebuilts/android-emulator-build/common/ANGLE:lib_linux_x86_64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+        "//prebuilts/android-emulator-build/common/swiftshader:lib_linux_x86_64",
     ],
     "@platforms//os:windows": [
         "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
@@ -215,8 +213,8 @@ pkg_files(
 )
 
 pkg_files(
-    name = "angle",
-    srcs = angle_binaries,
+    name = "egl",
+    srcs = egl_binaries,
     prefix = "lib64",
 )
 
@@ -243,8 +241,8 @@ remapped_pkg_files(
 pkg_zip(
     name = "release",
     srcs = [
-        ":angle",
         ":data_virtualscene_Toren1BD",
+        ":egl",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-binaries_stripped",

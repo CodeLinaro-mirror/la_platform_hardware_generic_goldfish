@@ -31,12 +31,17 @@ absl::Status GpuDevice::initialize(const Emulator& emulator) {
 
 std::vector<std::string> GpuDevice::getQemuParameters(const Emulator& emulator) const {
     const auto& hw = emulator.avd().hw();
-    return {"-device",
-            absl::StrJoin({"virtio-gpu-rutabaga", "x-gfxstream-gles=on", "gfxstream-vulkan=on",
-                           "x-gfxstream-composer=on", "hostmem=256M", absl::StrCat("id=", mGpuName),
-                           absl::StrCat("xres=", hw.hw_lcd_width),
-                           absl::StrCat("yres=", hw.hw_lcd_height)},
-                          ",")};
+    const AndroidOptions& opts = emulator.opts();
+    return {
+        "-device",
+        absl::StrJoin(
+                {"virtio-gpu-rutabaga", "x-gfxstream-gles=on",
+                 opts.renderer_features ? absl::StrCat("gfxstream-vulkan=on,renderer_features=",
+                                                       opts.renderer_features)
+                                        : "gfxstream-vulkan=on",
+                 "x-gfxstream-composer=on", "hostmem=256M", absl::StrCat("id=", mGpuName),
+                 absl::StrCat("xres=", hw.hw_lcd_width), absl::StrCat("yres=", hw.hw_lcd_height)},
+                ",")};
 }
 
 }  // namespace android::goldfish

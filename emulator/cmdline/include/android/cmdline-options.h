@@ -320,6 +320,9 @@ OPT_FLAG(guest_angle, "Enable guest ANGLE as system driver.")
 
 OPT_FLAG(skiavk, "Enable skia vk as hwui renderer.")
 
+OPT_PARAM(renderer_features, "FeatureName:disabled|enabled;...",
+          "Enable or disable features of gfxstream renderer.")
+
 OPT_LIST(usb_passthrough, "VID PID BUS PORTS", "Host USB device Passthrough")
 
 OPT_LIST(append_userspace_opt, "key=value", "Appends a property which is passed to the userspace.")

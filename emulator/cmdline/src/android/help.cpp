@@ -1640,6 +1640,10 @@ static void help_skiavk(stralloc_t* out) {
     PRINTF(" Enables skiavk for hwui, using Vulkan to render on the host.\n");
 }
 
+static void help_renderer_features(stralloc_t* out) {
+    PRINTF(" Passing renderer features to gfxstream, e.g., featureA:enabled;featureB:disabled\n");
+}
+
 static void help_usb_passthrough(stralloc_t* out) {
     PRINTF("  Pass Through a HOST USB device to the guest.\n"
            "  -usb-passthrough vendorid=VID,productid=PID[,hostbus=BUS,hostport=PORT]\n");

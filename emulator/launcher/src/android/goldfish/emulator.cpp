@@ -217,15 +217,42 @@ absl::Status Emulator::launch() {
     // Graphics default to software rendering (with swangle) for now.
     // Always indirect EGL.
     System::get()->setEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
-    // moltenvk or swiftshader or lavapipe.
-    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "swiftshader");
-    // host, guest, swiftshader, swiftshader_indirect, angle, angle_indirect, swangle, swangle_indirect.
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "angle_indirect");
-    // metal, vulkan or swiftshader
+
+#if defined(__linux__) || defined(__APPLE__)
+    const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
+    const char* xdg_runtime_dir_val = getenv(kXDG_RUNTIME_DIR_NAME);
+    if (!xdg_runtime_dir_val) {
+        const char* default_runtime_dir = "/tmp";
+#if defined(__APPLE__)
+        const char* darwin_runtime_dir = getenv("DARWIN_USER_TEMP_DIR");
+        if (darwin_runtime_dir) {
+            default_runtime_dir = darwin_runtime_dir;
+        } else {
+            const char* darwin_temp_dir = getenv("TMPDIR");
+            if (darwin_temp_dir) {
+                default_runtime_dir = darwin_temp_dir;
+            }
+        }
+#endif
+        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, "/tmp");
+    }
+#endif
+
+#if defined(__linux__)
+    // on linux, default to use lavapipe for vulkan, and swiftshader_indirect
+    // for gl, later gl will be removed once vulkan composition is on
+    // TODO: build lavapipe for mac and windows, use them as default
+    // or fallback
+    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader_indirect");
+    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
+#else
+    // still use ANGLE for mac and windows
     System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "swiftshader");
+    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "angle_indirect");
+    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "swiftshader");
+#endif
 
     if (bool gpu_host = mOpts.gpu && std::string(mOpts.gpu) == "host"; gpu_host) {
-      // System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "host");
       System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
       System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
