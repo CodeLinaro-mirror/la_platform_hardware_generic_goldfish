@@ -239,18 +239,18 @@ absl::Status Emulator::launch() {
 #endif
 
 #if defined(__linux__)
-    // on linux, default to use lavapipe for vulkan, and swiftshader_indirect
-    // for gl, later gl will be removed once vulkan composition is on
-    // TODO: build lavapipe for mac and windows, use them as default
-    // or fallback
+    // on linux, default to use swiftshader_indirect for gl,
+    // later gl will be removed once vulkan composition is on
     System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader_indirect");
-    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 #else
-    // still use ANGLE for mac and windows
-    System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "swiftshader");
+    // ANGLE works fine on mac/windows on top of lavapipe, no need to change it
+    // in addition, swiftshader does not work on mac anyway
     System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "angle_indirect");
-    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "swiftshader");
+    System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #endif
+
+    // now all default to lavapipe
+    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 
     if (bool gpu_host = mOpts.gpu && std::string(mOpts.gpu) == "host"; gpu_host) {
       System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
