@@ -19,10 +19,12 @@
 #include <initializer_list>
 #include <string>
 
+#include "absl/container/btree_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/system/System.h"
@@ -60,18 +62,15 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
 }
 
 absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
-    std::string cl = "no_timer_check 8250.nr_uarts=1 loop.max_part=7";
-
+    // btree to provide deterministic (sorted) order.
+    absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check",  "8250.nr_uarts=1", "loop.max_part=7", "mac80211_hwsim.radios=0"};
+    // TODO add ramoops args?
     switch (auto a = avd.detectArchitecture(); a) {
         case Avd::CpuArchitecture::kArm:
-            absl::StrAppend(&cl, absl::StrJoin({" console=ttyAMA0,38400", "keep_bootcon",
-                                                "earlyprintk=ttyAMA0", "ndns=3"},
-                                               " "));
+            cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0", "keep_bootcon", "ndns=3"});
             break;
         case Avd::CpuArchitecture::kX86:
-            absl::StrAppend(&cl,
-                            " clocksource=pit console=0 cma=296M@0-4G "
-                            "memmap=0x10000$0xff018000");
+            cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0", "clocksource=pit", "memmap=0x10000$0xff018000"});
             break;
         case Avd::CpuArchitecture::kRiscV:
         default:
@@ -79,10 +78,10 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     }
 
     if (opts.shell || opts.shell_serial || opts.show_kernel) {
-        absl::StrAppend(&cl, " printk.devkmsg=on");
+        cl.insert("printk.devkmsg=on");
     }
-    absl::StrAppend(&cl, " bootconfig");
 
+    // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86 only) but the set takes care of that.
     // for 16k image, there is extra kernel_cmdline.txt
     {
         auto kernel_cmdline_txt = avd.getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
@@ -92,16 +91,17 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
             std::string first_line;
             if (cmdline_file.is_open()) {
                 if (std::getline(cmdline_file, first_line)) {
-                    absl::StrAppend(&cl, " ", first_line);
+                    cl.merge(absl::btree_set<std::string>(absl::StrSplit(first_line, ' ', absl::SkipEmpty())));
                 }
             }
         }
     }
+
     for (auto *a = opts.append; a != nullptr; a = a->next) {
-        absl::StrAppend(&cl, " ", a->param);
+        cl.insert(a->param);
     }
 
-    return cl;
+    return absl::StrJoin(cl, " ");
 }
 }  // namespace
 

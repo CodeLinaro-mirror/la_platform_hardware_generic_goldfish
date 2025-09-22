@@ -54,7 +54,7 @@ TEST(Kernel, Basic_x86) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"), testing::HasSubstr("console=0 ")));
+                                     testing::Eq("-append"), testing::HasSubstr("console=ttyS0,38400 ")));
 }
 
 TEST(Kernel, Basic_arm64) {
@@ -86,7 +86,7 @@ TEST(Kernel, Basic_arm64) {
     EXPECT_THAT(
             dev.getQemuParameters(emu),
             testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                 testing::Eq("-append"), testing::HasSubstr("console=ttyAMA0,")));
+                                 testing::Eq("-append"), testing::HasSubstr("console=ttyAMA0,38400")));
 }
 
 TEST(Kernel, AppendExtras) {
@@ -120,7 +120,7 @@ TEST(Kernel, AppendExtras) {
     EXPECT_OK(dev.initialize(emu));
     EXPECT_THAT(dev.getQemuParameters(emu),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"), testing::EndsWith(" foo bar")));
+                                     testing::Eq("-append"), testing::AllOf(testing::HasSubstr("foo"), testing::HasSubstr("bar"))));
 }
 
 }  // namespace android::goldfish::test

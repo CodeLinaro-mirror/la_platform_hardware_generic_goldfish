@@ -189,6 +189,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
