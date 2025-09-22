@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 [
     [
@@ -14,6 +14,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
             deps = [
                 "//hardware/generic/goldfish/emulator/plugin/avd",
                 "//hardware/generic/goldfish/emulator/plugin/battery",
+                "//hardware/generic/goldfish/emulator/plugin/grpc",
                 "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
                 "//third_party/qemu:aemu_func_defs",
                 "@abseil-cpp//absl/log",
@@ -22,11 +23,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
                 "@platforms//os:windows": [
                     "//hardware/generic/goldfish/android/windows/posix:compat",
                     "//third_party/qemu:qemu-system-" + arch + ".if",
-                    # TODO(b/410075886): Enable grpc plugin on windows.
-                    # "//hardware/generic/goldfish/emulator/plugin/grpc",
                 ],
-                "@platforms//os:macos": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
-                "@platforms//os:linux": ["//hardware/generic/goldfish/emulator/plugin/grpc"],
                 "//conditions:default": [],
             }) + [
                 # crashreport dep must go after the windows compat dep.

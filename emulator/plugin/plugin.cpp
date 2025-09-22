@@ -26,9 +26,7 @@
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/input/virtio-input-android.h"
-#ifndef _WIN32
 #include "goldfish/grpc/grpc-service-device.h"
-#endif
 
  // library and initialize the crashpad crash engine upon launch.
 #include "android/crashreport/crash-initializer.h"
@@ -44,9 +42,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::avd_finalize::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
-#ifndef _WIN32
     grpc_register_types();
-#endif
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
