@@ -22,8 +22,7 @@
 #include "aemu/base/threads/Thread.h"
 #include "android/base/testing/TestSystem.h"
 
-namespace android {
-namespace emulation {
+namespace goldfish::adb {
 
 using android::base::ScopedSocket;
 using android::base::TestSystem;
@@ -71,5 +70,4 @@ TEST(AdbHostServer, getClientPortWithInvalidEnvironmentOverride) {
     EXPECT_EQ(-1, AdbHostServer::getClientPort());
 }
 
-}  // namespace emulation
-}  // namespace android
+}  // namespace goldfish::adb

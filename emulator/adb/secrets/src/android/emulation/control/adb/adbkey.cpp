@@ -36,8 +36,6 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/utils/path.h"
 
-namespace fs = std::filesystem;
-
 /* set >0 for very verbose debugging */
 #define DEBUG 0
 
@@ -52,8 +50,13 @@ namespace fs = std::filesystem;
 #define DD(fmt, ...) fprintf(stderr, "adbkey: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #endif
 
+namespace fs = std::filesystem;
+
 using android::base::System;
 
+namespace goldfish::adb {
+
+namespace {
 // Better safe than sorry.
 static_assert(ANDROID_PUBKEY_MODULUS_SIZE % 4 == 0,
               "RSA modulus size must be multiple of the word size!");
@@ -61,7 +64,6 @@ static_assert(ANDROID_PUBKEY_MODULUS_SIZE % 4 == 0,
 // Size of the RSA modulus in words.
 constexpr const int ANDROID_PUBKEY_MODULUS_SIZE_WORDS = ANDROID_PUBKEY_MODULUS_SIZE / 4;
 
-namespace {
 std::string get_user_info() {
     std::string hostname = System::get()->getEnvironmentVariable("HOSTNAME");
     if (hostname.empty()) {
@@ -78,31 +80,7 @@ std::string get_user_info() {
     return " " + username + "@" + hostname;
 }
 
-}  // namespace
-
-// From ${AOSP}/system/core/adb/client/auth.cpp
-bool calculate_public_key(std::string* out, RSA* private_key) {
-    uint8_t binary_key_data[ANDROID_PUBKEY_ENCODED_SIZE];
-    if (!android_pubkey_encode(private_key, binary_key_data, sizeof(binary_key_data))) {
-        LOG(ERROR) << "Failed to convert to public key";
-        return false;
-    }
-
-    size_t expected_length;
-    if (!EVP_EncodedLength(&expected_length, sizeof(binary_key_data))) {
-        LOG(ERROR) << "Public key too large to base64 encode";
-        return false;
-    }
-
-    out->resize(expected_length);
-    size_t actual_length =
-            EVP_EncodeBlock((uint8_t*)out->data(), binary_key_data, sizeof(binary_key_data));
-    out->resize(actual_length);
-    out->append(get_user_info());
-    return true;
-}
-
-static std::shared_ptr<RSA> read_key_file(const fs::path& file) {
+std::shared_ptr<RSA> read_key_file(const fs::path& file) {
     std::unique_ptr<FILE, decltype(&fclose)> fp(android_fopen(file.string().c_str(), "r"), fclose);
     if (!fp) {
         LOG(ERROR) << "Failed to open rsa file: " << file;
@@ -119,8 +97,7 @@ static std::shared_ptr<RSA> read_key_file(const fs::path& file) {
     return std::shared_ptr<RSA>(key, RSA_free);
 }
 
-static bool generate_key(const fs::path& file) {
-    mode_t old_mask;
+bool generate_key(const fs::path& file) {
     FILE* f = nullptr;
     bool ret = false;
 
@@ -161,6 +138,43 @@ out:
     RSA_free(rsa);
     BN_free(exponent);
     return ret;
+}
+
+bool sign_token(RSA* key_rsa, const uint8_t* token, int token_size, uint8_t* sig, int& len) {
+    if (token_size != TOKEN_SIZE) {
+        DD("Unexpected token size %d\n", token_size);
+    }
+
+    if (!RSA_sign(NID_sha1, token, (size_t)token_size, sig, (unsigned int*)&len, key_rsa)) {
+        return false;
+    }
+
+    DD("successfully signed with siglen %d\n", (int)len);
+    return true;
+}
+
+}  // namespace
+
+// From ${AOSP}/system/core/adb/client/auth.cpp
+bool calculate_public_key(std::string* out, RSA* private_key) {
+    uint8_t binary_key_data[ANDROID_PUBKEY_ENCODED_SIZE];
+    if (!android_pubkey_encode(private_key, binary_key_data, sizeof(binary_key_data))) {
+        LOG(ERROR) << "Failed to convert to public key";
+        return false;
+    }
+
+    size_t expected_length;
+    if (!EVP_EncodedLength(&expected_length, sizeof(binary_key_data))) {
+        LOG(ERROR) << "Public key too large to base64 encode";
+        return false;
+    }
+
+    out->resize(expected_length);
+    size_t actual_length =
+            EVP_EncodeBlock((uint8_t*)out->data(), binary_key_data, sizeof(binary_key_data));
+    out->resize(actual_length);
+    out->append(get_user_info());
+    return true;
 }
 
 bool adb_auth_keygen(const fs::path& filename) {
@@ -313,19 +327,6 @@ bool android_pubkey_encode(const RSA* key, uint8_t* key_buffer, size_t size) {
     return true;
 }
 
-static bool sign_token(RSA* key_rsa, const uint8_t* token, int token_size, uint8_t* sig, int& len) {
-    if (token_size != TOKEN_SIZE) {
-        DD("Unexpected token size %d\n", token_size);
-    }
-
-    if (!RSA_sign(NID_sha1, token, (size_t)token_size, sig, (unsigned int*)&len, key_rsa)) {
-        return false;
-    }
-
-    DD("successfully signed with siglen %d\n", (int)len);
-    return true;
-}
-
 bool sign_auth_token(const uint8_t* token, int token_size, uint8_t* sig, int& siglen) {
     const auto key_path = getAdbKeyPath(kPrivateKeyFileName);
     if (key_path.empty()) {
@@ -338,3 +339,5 @@ bool sign_auth_token(const uint8_t* token, int token_size, uint8_t* sig, int& si
     }
     return sign_token(rsa.get(), token, token_size, sig, siglen);
 }
+
+}  // namespace goldfish::adb

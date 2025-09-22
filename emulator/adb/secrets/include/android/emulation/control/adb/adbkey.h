@@ -17,6 +17,8 @@
 #include <filesystem>
 #include <string>
 
+namespace goldfish::adb {
+
 // Size of an RSA modulus such as an encrypted block or a signature.
 constexpr const int ANDROID_PUBKEY_MODULUS_SIZE = 2048 / 8;
 // Adb authentication
@@ -55,3 +57,5 @@ bool android_pubkey_encode(const RSA* key, uint8_t* key_buffer, size_t size);
 bool android_pubkey_decode(const uint8_t* key_buffer, size_t size, RSA** key);
 bool sign_auth_token(const uint8_t* token, int token_size, uint8_t* sig, int& siglen);
 bool calculate_public_key(std::string* out, RSA* private_key);
+
+}  // namespace goldfish::adb

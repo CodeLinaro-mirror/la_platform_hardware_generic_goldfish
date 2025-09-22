@@ -12,8 +12,7 @@
 #pragma once
 #include <optional>
 
-namespace android {
-namespace emulation {
+namespace goldfish::adb {
 
 /**
  * @brief Utility class for interacting with the host ADB Server.
@@ -48,5 +47,4 @@ struct AdbHostServer {
     static std::optional<int> getProtocolVersion();
 };
 
-}  // namespace emulation
-}  // namespace android
+}  // namespace goldfish::adb

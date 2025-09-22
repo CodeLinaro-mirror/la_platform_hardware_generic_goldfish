@@ -31,9 +31,9 @@
 
 namespace {
 
-using android::emulation::control::AdbMessageLogger;
-using android::emulation::control::amessage;
-using android::emulation::control::apacket;
+using goldfish::adb::AdbMessageLogger;
+using goldfish::adb::amessage;
+using goldfish::adb::apacket;
 using ::testing::EndsWith;
 using ::testing::HasSubstr;
 using ::testing::Not;

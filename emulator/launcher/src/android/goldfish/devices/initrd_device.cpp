@@ -147,10 +147,10 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
                       opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
 
     // Send adb public key to device
-    auto privkey = getPrivateAdbKeyPath();
+    auto privkey = ::goldfish::adb::getPrivateAdbKeyPath();
     std::string key;
 
-    if (!privkey.empty() && pubkey_from_privkey(privkey, &key)) {
+    if (!privkey.empty() && ::goldfish::adb::pubkey_from_privkey(privkey, &key)) {
         params.push_back({adbKeyProp, key});
     } else {
         LOG(WARNING) << "No adb private key exists";

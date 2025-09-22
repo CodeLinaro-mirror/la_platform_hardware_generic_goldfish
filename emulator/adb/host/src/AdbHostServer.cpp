@@ -24,8 +24,7 @@
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/System.h"
 
-namespace android {
-namespace emulation {
+namespace goldfish::adb {
 
 using android::base::ScopedSocket;
 using android::base::System;
@@ -160,5 +159,4 @@ int AdbHostServer::getClientPort() {
     return clientPort;
 }
 
-}  // namespace emulation
-}  // namespace android
+}  // namespace goldfish::adb

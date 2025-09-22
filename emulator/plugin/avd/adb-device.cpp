@@ -55,8 +55,8 @@ OBJECT_DECLARE_TYPE(AdbVSockDev, AdbDeviceClass, ADB_VSOCK_DEVICE)
 #define ADB_VSOCK_DEV(obj) OBJECT_CHECK(AdbVSockDev, (obj), TYPE_ADB_VSOCK_DEVICE)
 #define ADB_VSOCK_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AdbDeviceClass, obj, TYPE_ADB_VSOCK_DEVICE)
 
-using android::emulation::AdbHostServer;
-using android::emulation::control::AdbLogger;
+using goldfish::adb::AdbHostServer;
+using goldfish::adb::AdbLogger;
 
 namespace {
 
@@ -65,7 +65,7 @@ void adb_vsock_connected(VSockFwdDev* device) {
     auto adb_server = AdbHostServer::getClientPort();
     LOG(INFO) << "Notifying adb server on port " << adb_server
               << " that adbd for is available on localhost:" << device->host_port;
-    android::emulation::AdbHostServer::notify(device->host_port, adb_server);
+    AdbHostServer::notify(device->host_port, adb_server);
     // Make it easier for tests to find us.
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71

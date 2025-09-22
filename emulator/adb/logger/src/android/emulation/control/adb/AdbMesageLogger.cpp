@@ -12,6 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include <algorithm>
 #include <string_view>
 
@@ -20,10 +21,9 @@
 
 #include "android/emulation/control/adb/AdbMessageLogger.h"
 
-namespace android::emulation::control {
+namespace goldfish::adb {
 
-// Maximum number of characters or bytes we are willing to
-// log.
+// Maximum number of characters or bytes we are willing to log.
 constexpr size_t MAX_DATA_LOG_LENGTH = 512;
 
 static bool isValidHeader(amessage* message) {
@@ -141,4 +141,4 @@ void AdbLogger::toPlug(const void* data, size_t dataSize) {
     mToHost.observe(data, dataSize);
 }
 
-}  // namespace android::emulation::control
+}  // namespace goldfish::adb

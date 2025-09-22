@@ -43,7 +43,7 @@ namespace control {
 class AdbServiceImpl : public Adb::Service {
   public:
     Status pullAdbKey(ServerContext* context, const Empty* request, AdbKey* response) override {
-        auto privKey = getPrivateAdbKeyPath();
+        auto privKey = ::goldfish::adb::getPrivateAdbKeyPath();
         if (privKey.empty()) {
             return Status(StatusCode::ABORTED, "Private key was not found", "");
         }

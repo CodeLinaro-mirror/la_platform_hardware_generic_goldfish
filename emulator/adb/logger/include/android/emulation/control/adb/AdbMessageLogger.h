@@ -19,9 +19,7 @@
 
 #include "goldfish/devices/cable/cable.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace goldfish::adb {
 
 #pragma pack(push, 1)
 struct amessage {
@@ -63,6 +61,4 @@ class AdbLogger : public goldfish::devices::cable::IDataSniffer {
     AdbMessageLogger mToGuest;
     AdbMessageLogger mToHost;
 };
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace goldfish::adb

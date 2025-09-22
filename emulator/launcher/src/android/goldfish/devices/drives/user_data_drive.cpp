@@ -44,6 +44,9 @@ using android::base::StorageCapacity;
 using android::base::operator""_MiB;
 using android::base::operator""_TiB;
 
+using ::goldfish::adb::adb_auth_keygen;
+using ::goldfish::adb::getAdbKeyPath;
+
 absl::Status resizePartition(fs::path partition, StorageCapacity size) {
     constexpr auto minSize = 128_MiB;
     constexpr auto maxSize = 16_TiB;
@@ -135,20 +138,20 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
                                 "be lingering data in %s",
                                 from.string(), to.string(), ec.message(), to.string()));
     }
-    fs::path adbKeyPubPath = getAdbKeyPath(kPublicKeyFileName);
-    fs::path adbKeyPrivPath = getAdbKeyPath(kPrivateKeyFileName);
+    fs::path adbKeyPubPath = getAdbKeyPath(::goldfish::adb::kPublicKeyFileName);
+    fs::path adbKeyPrivPath = getAdbKeyPath(::goldfish::adb::kPrivateKeyFileName);
 
     if (adbKeyPubPath == "" && adbKeyPrivPath == "") {
-        fs::path path = ConfigDirs::getUserDirectory() / kPrivateKeyFileName;
+        fs::path path = ConfigDirs::getUserDirectory() / ::goldfish::adb::kPrivateKeyFileName;
         // try to generate the private key
         if (!adb_auth_keygen(path)) {
             return absl::InternalError(
                     absl::StrFormat("Failed to create a private key in %s", path.string()));
         }
-        adbKeyPrivPath = getAdbKeyPath(kPrivateKeyFileName);
+        adbKeyPrivPath = getAdbKeyPath(::goldfish::adb::kPrivateKeyFileName);
         if (adbKeyPrivPath == "") {
-            return absl::NotFoundError(
-                    absl::StrFormat("Unable discover adb path for: %s", kPrivateKeyFileName));
+            return absl::NotFoundError(absl::StrFormat("Unable discover adb path for: %s",
+                                                       ::goldfish::adb::kPrivateKeyFileName));
         }
     }
     fs::path guestAdbKeyDir = to / "misc" / "adb";
@@ -158,7 +161,7 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
     if (adbKeyPubPath == "") {
         // generate from private key
         std::string pubKey;
-        if (pubkey_from_privkey(adbKeyPrivPath, &pubKey)) {
+        if (::goldfish::adb::pubkey_from_privkey(adbKeyPrivPath, &pubKey)) {
             auto status = writePublicKey(guestAdbKeyPath, pubKey);
             if (!status.ok()) {
                 return status;
