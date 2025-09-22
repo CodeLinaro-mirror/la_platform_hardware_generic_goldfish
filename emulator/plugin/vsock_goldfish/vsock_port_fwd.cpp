@@ -164,10 +164,10 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 class VSockProxyImpl : public VSockProxy {
   public:
     VSockProxyImpl(VSockFwdDev* device)
-            : mDevice(device), mSocketFactory(std::make_unique<LibuvAsyncSocketFactory>()) {
+            : mDevice(device)
+            , mQemuLoop(QemuEventLoop::create())
+            , mClientLoop(ThreadedEventLoop::create(LibuvEventLoop::create())) {
         using namespace std::chrono_literals;
-        mQemuLoop = QemuEventLoop::create();
-        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
                 mQemuLoop.get(),
                 [&](auto plug) { return goldfish::vsock::connect(mDevice->guest_port, plug); },
@@ -178,7 +178,7 @@ class VSockProxyImpl : public VSockProxy {
     void startServer() {
         auto serverAddress = absl::StrFormat("localhost:%d", mDevice->host_port);
         VLOG(1) << "Starting server on " << serverAddress;
-        mSocketServer = mSocketFactory->createServer(
+        mSocketServer = mSocketFactory.createServer(
                 mClientLoop.get(), serverAddress,
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
@@ -215,14 +215,13 @@ class VSockProxyImpl : public VSockProxy {
 
     /// The vsock device definition
     VSockFwdDev* mDevice;
+    const std::unique_ptr<EventLoop> mQemuLoop;    // The main QEMU event loop
+    const std::unique_ptr<EventLoop> mClientLoop;  // Client-side event loop for sockets
+    LibuvAsyncSocketFactory mSocketFactory;
 
     /// The AsyncSocketServer used to listen for incoming connections.
     std::shared_ptr<goldfish::async::AsyncSocketServer> mSocketServer;
 
-    std::unique_ptr<EventLoop> mClientLoop;  // Client-side event loop for
-                                             // sockets
-    std::unique_ptr<EventLoop> mQemuLoop;    // The main QEMU event loop
-    std::unique_ptr<goldfish::async::AsyncSocketFactory> mSocketFactory;
     /// Waiter that waits until the guest is connected.
     std::shared_ptr<ConnectionAwaiter> mConnectionAwaiter;
 };
