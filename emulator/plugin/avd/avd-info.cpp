@@ -80,19 +80,14 @@ ConnectorRegistry& deviceRegistry() {
 }
 
 namespace {
-void UpdateVModule(const std::string& vmodule) {
-    std::vector<std::pair<std::string_view, int>> glob_levels;
-    for (absl::string_view glob_level : absl::StrSplit(vmodule, '|')) {
+void updateVModule(const std::string_view vmodule) {
+    for (const absl::string_view glob_level : absl::StrSplit(vmodule, '|')) {
         const size_t eq = glob_level.rfind('=');
         if (eq == glob_level.npos) continue;
         const absl::string_view glob = glob_level.substr(0, eq);
         int level;
         if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
-        glob_levels.emplace_back(glob, level);
-    }
-    for (const auto& it : glob_levels) {
-        const absl::string_view glob = it.first;
-        const int level = it.second;
+
         absl::SetVLogLevel(glob, level);
         LOG(INFO) << "Setting module verbosity for " << glob << " to " << level;
     }
@@ -113,7 +108,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     // absl::InitializeLog();
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
-    UpdateVModule(avd_info->vmodule);
+    updateVModule(avd_info->vmodule);
 
     auto avd_status = android::goldfish::FileBackedAvd::parse(avd_info->ini_path,
                                                               /*sysdir_override=*/std::string());
