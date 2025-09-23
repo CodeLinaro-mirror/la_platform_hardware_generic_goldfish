@@ -45,12 +45,6 @@
 
 namespace goldfish::async {
 
-class LibuvSocket;
-
-struct LibuvSocketContext {
-    LibuvSocket* self;
-};
-
 struct write_req_t {
     uv_write_t req;
     uv_buf_t buf;
@@ -136,7 +130,6 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         mIsConnected = false;
 
         if (!uv_is_closing((const uv_handle_t*)&mTcpHandle)) {
-            delete mTcpHandle.data;
             mTcpHandle.data = new std::shared_ptr<LibuvSocket>(shared_from_this());
             uv_close((uv_handle_t*)&mTcpHandle, [](uv_handle_t* h) {
                 auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(h->data);
@@ -201,7 +194,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     void tcpInit() {
         uv_tcp_init(mLoop, &mTcpHandle);
-        mTcpHandle.data = new LibuvSocketContext{.self = this};
+        mTcpHandle.data = this;
     }
 
     void startReading() {
@@ -213,8 +206,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
                           *buf = uv_buf_init(new char[size], size);
                       },
                       [](uv_stream_t* s, ssize_t n, const uv_buf_t* b) {
-                          auto* ctx = static_cast<LibuvSocketContext*>(s->data);
-                          ctx->self->on_read(n, b);
+                          LibuvSocket* ctx = static_cast<LibuvSocket*>(s->data);
+                          ctx->on_read(n, b);
                           delete[] b->base;
                       });
     }
