@@ -30,7 +30,6 @@
 #include "aemu/base/utils/stream.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
-#include "android/emulation/control/sensors_agent.h"
 #include "android/goldfish/config/avd.h"
 #include "goldfish/devices/sensor/FoldableModel.h"
 #include "goldfish/devices/sensor/Sensors.h"
