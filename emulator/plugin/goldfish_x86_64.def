@@ -1,0 +1,5 @@
+LIBRARY goldfish_x86_64.dll
+EXPORTS
+    goldfish_register_types
+    goldfish_plugin_startup
+    goldfish_plugin_shutdown
