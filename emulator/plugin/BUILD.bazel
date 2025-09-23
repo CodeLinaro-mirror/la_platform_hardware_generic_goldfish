@@ -11,6 +11,10 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             }),
             linkshared = True,
             visibility = ["//visibility:public"],
+            win_def_file = select({
+                "@platforms//os:windows": "goldfish_" + arch + ".def",
+                "//conditions:default": None,
+            }),
             deps = [
                 "//hardware/generic/goldfish/emulator/plugin/avd",
                 "//hardware/generic/goldfish/emulator/plugin/battery",
