@@ -30,6 +30,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
@@ -49,6 +50,26 @@ struct write_req_t {
     uv_write_t req;
     uv_buf_t buf;
     AsyncSocket::OnSendCallback cb;
+
+    static write_req_t* create(const char* bufferData, size_t bufferSize,
+                               AsyncSocket::OnSendCallback cb) {
+        size_t totalSize = sizeof(write_req_t) + bufferSize;
+        void* raw_memory = malloc(totalSize);
+        DCHECK(raw_memory) << "Ran out of memory while creating packet";
+        write_req_t* writeReq = new (raw_memory) write_req_t();
+        char* write_buffer = reinterpret_cast<char*>(writeReq) + sizeof(write_req_t);
+        memcpy(write_buffer, bufferData, bufferSize);
+
+        writeReq->buf = uv_buf_init(write_buffer, bufferSize);
+        writeReq->cb = std::move(cb);
+
+        return writeReq;
+    }
+
+    static void destroy(write_req_t* w) {
+        w->~write_req_t();
+        free(w);
+    }
 };
 
 // =================================================================
@@ -109,18 +130,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             return UvErrToAbslStatus(UV_ENOTCONN);
         }
 
-        auto* writeReq = new write_req_t();
-        char* write_buffer = new char[bufferSize];
-        memcpy(write_buffer, buffer, bufferSize);
-        writeReq->buf = uv_buf_init(write_buffer, bufferSize);
-        writeReq->cb = std::move(cb);
+        auto* writeReq = write_req_t::create(buffer, bufferSize, std::move(cb));
 
         uv_write(&writeReq->req, (uv_stream_t*)&mTcpHandle, &writeReq->buf, 1,
                  [](uv_write_t* req, int s) {
                      auto* w = reinterpret_cast<write_req_t*>(req);
                      w->cb(UvErrToAbslStatus(s));
-                     delete[] w->buf.base;
-                     delete w;
+                     write_req_t::destroy(w);
                  });
         return absl::OkStatus();
     }
