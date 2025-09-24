@@ -1,11 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "socket_utils_impl",
-    srcs =
-        [
-            "src/android/base/sockets/SocketUtils.cpp",
-        ],
+    name = "sockets",
+    srcs = ["src/SocketUtils.cpp"],
     copts = select({
         "@platforms//os:windows": [
             "-Wno-microsoft-goto",
@@ -13,11 +10,7 @@ cc_library(
         ],
         "//conditions:default": [],
     }),
-    includes =
-        [
-            "include",
-            "src",
-        ],
+    includes = ["include"],
     linkopts = select({
         "@platforms//os:windows": [
             "-DEFAULTLIB:Rpcrt4.lib",
@@ -26,26 +19,17 @@ cc_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-    deps =
-        [
-            "//hardware/generic/goldfish/android/system",
-            "@abseil-cpp//absl/log",
-            "@abseil-cpp//absl/log:check",
-            "@aemu//base:aemu-base",
-        ],
-)
-
-alias(
-    name = "sockets",
-    actual = ":socket_utils_impl",
-    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@aemu//base:aemu-base",
+    ],
 )
 
 cc_test(
     name = "sockets_unittests",
-    srcs = [
-        "test/android/base/sockets/SocketUtils_unittest.cpp",
-    ],
+    srcs = ["test/SocketUtils_unittest.cpp"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

@@ -124,10 +124,10 @@ struct WinsockError {
 const WinsockError kWinsockErrors[] = {
 #define EE(w, u, s) \
     {               \
-            w,      \
-            u,      \
+        w,          \
+        u,          \
     },
-        WINSOCK_ERRORS_LIST
+    WINSOCK_ERRORS_LIST
 #undef EE
 };
 
@@ -262,49 +262,49 @@ union SockAddressStorage {
     bool initFromBsd(const void* from, size_t fromLen) {
         auto src = static_cast<const struct sockaddr*>(from);
         switch (src->sa_family) {
-            case AF_INET:
-                if (fromLen != sizeof(inet)) {
-                    errno = EINVAL;
-                    return false;
-                }
-                inet = *static_cast<const struct sockaddr_in*>(from);
-                break;
-
-            case AF_INET6:
-                if (fromLen != sizeof(in6)) {
-                    errno = EINVAL;
-                    return false;
-                }
-                in6 = *static_cast<const struct sockaddr_in6*>(from);
-                break;
-
-            default:
+        case AF_INET:
+            if (fromLen != sizeof(inet)) {
                 errno = EINVAL;
                 return false;
+            }
+            inet = *static_cast<const struct sockaddr_in*>(from);
+            break;
+
+        case AF_INET6:
+            if (fromLen != sizeof(in6)) {
+                errno = EINVAL;
+                return false;
+            }
+            in6 = *static_cast<const struct sockaddr_in6*>(from);
+            break;
+
+        default:
+            errno = EINVAL;
+            return false;
         }
         return true;
     }
 
     void setPort(int port) {
         switch (generic.sa_family) {
-            case AF_INET:
-                inet.sin_port = htons(port);
-                break;
-            case AF_INET6:
-                in6.sin6_port = htons(port);
-                break;
-            default:;
+        case AF_INET:
+            inet.sin_port = htons(port);
+            break;
+        case AF_INET6:
+            in6.sin6_port = htons(port);
+            break;
+        default:;
         }
     }
 
     int getPort() {
         switch (generic.sa_family) {
-            case AF_INET:
-                return ntohs(inet.sin_port);
-            case AF_INET6:
-                return ntohs(in6.sin6_port);
-            default:
-                return -1;
+        case AF_INET:
+            return ntohs(inet.sin_port);
+        case AF_INET6:
+            return ntohs(in6.sin6_port);
+        default:
+            return -1;
         }
     }
 
@@ -313,14 +313,14 @@ union SockAddressStorage {
     socklen_t size() const {
         size_t sz;
         switch (generic.sa_family) {
-            case AF_INET:
-                sz = sizeof(inet);
-                break;
-            case AF_INET6:
-                sz = sizeof(in6);
-                break;
-            default:
-                sz = sizeof(generic);
+        case AF_INET:
+            sz = sizeof(inet);
+            break;
+        case AF_INET6:
+            sz = sizeof(in6);
+            break;
+        default:
+            sz = sizeof(generic);
         }
         return static_cast<socklen_t>(sz);
     }
@@ -344,25 +344,25 @@ union SockAddressStorage {
             // Handle errors.
             int err = 0;
             switch (ret) {
-                case EAI_AGAIN:  // server is down
-                case EAI_FAIL:   // server is sick
-                    err = EHOSTDOWN;
-                    break;
+            case EAI_AGAIN:  // server is down
+            case EAI_FAIL:   // server is sick
+                err = EHOSTDOWN;
+                break;
 /* NOTE that in x86_64-w64-mingw32 both EAI_NODATA and EAI_NONAME are the same
  */
 #if defined(EAI_NODATA) && (EAI_NODATA != EAI_NONAME)
-                case EAI_NODATA:
+            case EAI_NODATA:
 #endif
-                case EAI_NONAME:
-                    err = ENOENT;
-                    break;
+            case EAI_NONAME:
+                err = ENOENT;
+                break;
 
-                case EAI_MEMORY:
-                    err = ENOMEM;
-                    break;
+            case EAI_MEMORY:
+                err = ENOMEM;
+                break;
 
-                default:
-                    err = EINVAL;
+            default:
+                err = EINVAL;
             }
             errno = err;
             return -1;
@@ -697,11 +697,11 @@ static int socketTcpLoopbackClientFor(int port, int domain) {
         CloseHandle(event);
 #else
         struct pollfd fds[] = {
-                {
-                        .fd = fd,
-                        .events = POLLIN | POLLOUT | POLLHUP,
-                        .revents = 0,
-                },
+            {
+                .fd = fd,
+                .events = POLLIN | POLLOUT | POLLHUP,
+                .revents = 0,
+            },
         };
         int numFdsReady = HANDLE_EINTR(::poll(fds, 1, tv.tv_usec / 1000));
 #endif
