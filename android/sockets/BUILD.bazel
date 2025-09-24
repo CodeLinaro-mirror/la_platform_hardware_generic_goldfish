@@ -35,97 +35,16 @@ cc_library(
         ],
 )
 
-cc_library(
+alias(
     name = "sockets",
-    srcs =
-        [
-            "src/android/base/sockets/AsyncSocket.cpp",
-            "src/android/base/sockets/AsyncSocketServer.cpp",
-            "src/android/base/sockets/AsyncWriter.cpp",
-            "src/android/base/sockets/ScopedSocketWatch.cpp",
-            "src/android/base/sockets/SocketDrainer.cpp",
-            "src/android/base/sockets/SocketUtils.cpp",
-            "src/android/base/sockets/SocketWaiter.cpp",
-            "src/android/utils/eintr_wrapper.c",
-            "src/android/utils/eintr_wrapper.h",
-            "src/android/utils/misc.c",
-            "src/android/utils/misc.h",
-            "src/android/utils/socket_drainer.cpp",
-            "src/android/utils/socket_drainer.h",
-            "src/android/utils/sockets.c",
-            "src/android/utils/sockets.h",
-            "src/android/utils/stralloc.c",
-            "src/android/utils/stralloc.h",
-        ],
-    copts = select({
-        "@platforms//os:windows": [
-            "-Wno-microsoft-goto",
-            "-Wno-macro-redefined",
-        ],
-        "//conditions:default": [],
-    }),
-    includes =
-        [
-            "include",
-            "src",
-        ],
-    linkopts = select({
-        "@platforms//os:windows": [
-            "-DEFAULTLIB:Rpcrt4.lib",
-            "-DEFAULTLIB:Ws2_32.lib",
-        ],
-        "//conditions:default": [],
-    }),
+    actual = ":socket_utils_impl",
     visibility = ["//visibility:public"],
-    deps =
-        [
-            ":socket_utils_impl",
-            "//hardware/generic/goldfish/android/files",
-            "//hardware/generic/goldfish/android/looper",
-            "//hardware/generic/goldfish/android/memory",
-            "//hardware/generic/goldfish/android/threads",
-            "@abseil-cpp//absl/log",
-            "@abseil-cpp//absl/log:check",
-            "@aemu//base:aemu-base",
-        ],
-)
-
-cc_library(
-    name = "test-helperss",
-    srcs = [
-        "test/android/base/sockets/ChecksumSocket.cpp",
-        "test/android/base/sockets/SimpleTestServer.cpp",
-        "test/android/base/sockets/SimpleThreadLooper.cpp",
-    ],
-    hdrs = [
-        "test/include/android/base/sockets/ChecksumCalculator.h",
-        "test/include/android/base/sockets/ChecksumSocket.h",
-        "test/include/android/base/sockets/SimpleTestServer.h",
-        "test/include/android/base/sockets/SimpleThreadLooper.h",
-    ],
-    includes = ["test/include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":sockets",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-    ],
 )
 
 cc_test(
     name = "sockets_unittests",
     srcs = [
-        "test/android/base/sockets/AsyncSocketServer_unittest.cpp",
-        "test/android/base/sockets/AsyncSocket_unittest.cpp",
-        "test/android/base/sockets/ChecksumSocket.cpp",
-        "test/android/base/sockets/ScopedSocketWatch_unittest.cpp",
-        "test/android/base/sockets/ScopedSocket_unittest.cpp",
-        "test/android/base/sockets/SimpleTestServer.cpp",
-        "test/android/base/sockets/SimpleThreadLooper.cpp",
-        "test/android/base/sockets/SocketDrainer_unittest.cpp",
         "test/android/base/sockets/SocketUtils_unittest.cpp",
-        "test/android/base/sockets/SocketWaiter_unittest.cpp",
-        "test/android/utils/eintr_wrapper_unittest.cpp",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
@@ -133,29 +52,6 @@ cc_test(
     }),
     deps = [
         ":sockets",
-        ":test-helperss",
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/logging:backend",
-        "//hardware/generic/goldfish/android/looper",
-        "//hardware/generic/goldfish/android/memory",
-        "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/android/threads",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:absl_check",
-        "@aemu//base:aemu-base",
-    ],
-)
-
-cc_test(
-    name = "async_socket_perf",
-    size = "small",
-    srcs = ["test/android/base/sockets/AsyncSocket_perf.cpp"],
-    copts = ["-Wno-deprecated-declarations"],
-    includes = ["test"],
-    deps = [
-        ":test-helperss",
-        "@google_benchmark//:benchmark",
     ],
 )

@@ -5,6 +5,8 @@ cc_library(
     srcs = [
         "src/android/base/async/DefaultLooper.cpp",
         "src/android/base/async/Looper.cpp",
+        "src/android/base/async/ScopedSocketWatch.cpp",
+        "src/android/base/async/SocketWaiter.cpp",
         "src/android/base/async/ThreadLooper.cpp",
         "src/android/utils/assert.h",
         "src/android/utils/looper.cpp",
@@ -24,6 +26,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -36,7 +39,11 @@ cc_library(
 
 cc_test(
     name = "looper_unittests",
-    srcs = ["test/android/utils/Looper_unittest.cpp"],
+    srcs = [
+        "test/ScopedSocket_unittest.cpp",
+        "test/SocketWaiter_unittest.cpp",
+        "test/android/utils/Looper_unittest.cpp",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
