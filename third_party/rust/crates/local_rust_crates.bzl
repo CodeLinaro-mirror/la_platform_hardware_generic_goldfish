@@ -178,6 +178,7 @@ def _local_rust_crates_impl(module_ctx):
         "windows_aarch64_gnullvm",
         "windows_i686_gnullvm",
         "windows_x86_64_gnullvm",
+        "windows-link",
         "windows-sys",
         "windows-targets",
         "zerocopy",
@@ -203,6 +204,7 @@ def _local_rust_crates_impl(module_ctx):
         ("inout", "0.1.3"),
         ("subtle", "2.6.1"),
         ("typenum", "1.17.0"),
+        ("winapi-util", "0.1.9"),
     ]:
         new_local_repository(
             name = crate,

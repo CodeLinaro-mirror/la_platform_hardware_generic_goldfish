@@ -24,4 +24,8 @@ rust_library(
     crate_name = "termcolor",
     edition = "2018",
     crate_root = "src/lib.rs",
+    deps = select({
+        "@bazel_tools//src/conditions:windows": ["@winapi-util"],
+        "//conditions:default": [],
+    }),
 )

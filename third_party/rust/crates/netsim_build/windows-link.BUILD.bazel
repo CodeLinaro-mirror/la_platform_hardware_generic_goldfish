@@ -12,28 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""protobuf-rust bazel build rule"""
+"""windows_link bazel build rule"""
 
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
 
-copy_file(name = "copy_protobuf_build_out", src = "out/version.rs", out = "version.rs", allow_symlink = True)
-
 rust_library(
-    name = "protobuf-rust",
-    srcs = glob(["src/**/*.rs"]) + [":copy_protobuf_build_out"],
-    crate_name = "protobuf",
+    name = "windows-link",
+    srcs = glob(["**/*.rs"]),
+    crate_name = "windows_link",
     edition = "2021",
-    rustc_env = {"OUT_DIR": ".."},
-    deps = [
-        "@bytes",
-        "@once_cell",
-        "@protobuf-support",
-        "@thiserror",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"bytes\"",
-    ],
+    crate_root = "src/lib.rs",
 )

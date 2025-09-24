@@ -19,16 +19,9 @@ load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
 
-genrule(
-    name = "build_script_srcs_gen",
-    srcs = glob(["build/**/*.rs"]),
-    outs = ["build_script_srcs_dir/main.rs", "build_script_srcs_dir/op.rs", "build_script_srcs_dir/consts.rs"],
-    cmd = "touch $(@D)/build_script_srcs_dir/main.rs $(@D)/build_script_srcs_dir/op.rs $(@D)/build_script_srcs_dir/consts.rs && mkdir -p $(@D)/build_script_srcs_dir && cp -r $(SRCS) $(@D)/build_script_srcs_dir && sed -i '' '/mod tests;/d' $(@D)/build_script_srcs_dir/main.rs && sed -i '' '/tests::build_tests().unwrap();/d' $(@D)/build_script_srcs_dir/main.rs",
-)
-
 cargo_build_script(
     name = "build_script",
-    srcs = [":build_script_srcs_gen"],
+    srcs = glob(["build/**/*.rs"]),
     edition = "2021",
 )
 
