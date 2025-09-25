@@ -42,7 +42,6 @@
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
-#include "goldfish/avd/qemu-looper.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 
 // clang-format off

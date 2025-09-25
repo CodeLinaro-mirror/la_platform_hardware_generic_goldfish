@@ -69,36 +69,6 @@ cc_test(
 )
 
 cc_library(
-    name = "qemu-looper",
-    srcs = [
-        "qemu-looper.cpp",
-    ],
-    hdrs = [
-        "include/goldfish/avd/qemu-looper.h",
-    ],
-    copts = ["-Wno-extern-c-compat"],
-    includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//hardware/generic/goldfish/android/looper",
-        "//hardware/generic/goldfish/android/memory",
-        "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/android/threads",
-        "//hardware/generic/goldfish/emulator/adb/logger",
-        "//hardware/generic/goldfish/emulator/config",
-        "//third_party/qemu:qemu-headers",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/log:globals",
-        "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/log:log_sink_registry",
-    ],
-    alwayslink = True,
-)
-
-cc_library(
     name = "avd",
     srcs = [
         "avd-finalize.cpp",
@@ -110,14 +80,11 @@ cc_library(
         ":avd_hdrs",
         ":global-event-loop",
         ":gralloc_impl",
-        ":qemu-looper",
         "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
-        "//hardware/generic/goldfish/android/looper",
-        "//hardware/generic/goldfish/android/memory",
-        "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/android/threads",
+        "//hardware/generic/goldfish/emulator/adb/host",
+        "//hardware/generic/goldfish/emulator/adb/logger",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
