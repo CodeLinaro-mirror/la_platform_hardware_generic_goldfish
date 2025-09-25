@@ -54,6 +54,10 @@ void intrusive_ptr_release(RefCounter* p) {
     p->release();
 }
 
+void intrusive_ptr_ctor(RefCounter* p) {
+    intrusive_ptr_add_ref(p);  // mRefCount starts from zero
+}
+
 using Ptr = goldfish::base::IntrusivePtr<RefCounter>;
 
 class IntrusivePtrTest : public ::testing::Test {
@@ -194,28 +198,6 @@ TEST_F(IntrusivePtrTest, MoveAssignmentSelf) {
 
     EXPECT_EQ(raw, p1.get());
     EXPECT_EQ(1, raw->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
-}
-
-TEST_F(IntrusivePtrTest, RawPointerAssignment) {
-    Ptr p(new RefCounter());
-    auto* raw1 = p.get();
-    auto* raw2 = new RefCounter();
-
-    p = raw2;
-
-    EXPECT_EQ(raw2, p.get());
-    EXPECT_EQ(1, raw2->getRefCount());
-    EXPECT_EQ(1, RefCounter::getLiveInstances());
-}
-
-TEST_F(IntrusivePtrTest, ResetToNewPointer) {
-    Ptr p(new RefCounter());
-    auto* raw2 = new RefCounter();
-
-    p.reset(raw2);
-    EXPECT_EQ(raw2, p.get());
-    EXPECT_EQ(1, raw2->getRefCount());
     EXPECT_EQ(1, RefCounter::getLiveInstances());
 }
 

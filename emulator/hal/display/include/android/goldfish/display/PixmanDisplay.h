@@ -34,6 +34,7 @@ namespace android::goldfish {
 class PixmanDisplay : public IDisplay {
   public:
     PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
+    PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image);
     virtual ~PixmanDisplay() = default;
 
     virtual void updateSourceImage(::pixman_image_t* image);

@@ -26,6 +26,10 @@ inline void intrusive_ptr_release(pixman_image_t* p) {
     pixman_image_unref(p);
 }
 
+inline void intrusive_ptr_ctor(pixman_image_t*) {
+  // do nothing, the counter initialized to 1
+}
+
 namespace android::goldfish {
 
 using PixmanImagePtr = ::goldfish::base::IntrusivePtr<::pixman_image_t>;
