@@ -72,6 +72,7 @@ void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
     // Lock and swap the pointer. This is very fast.
     absl::MutexLock lock(&mDisplayAccess);
     mCurrentImage = new_image;
+    pixman_image_unref(new_image.get());
 }
 
 PixmanImagePtr PixmanFrameManager::getRenderableImage() {
