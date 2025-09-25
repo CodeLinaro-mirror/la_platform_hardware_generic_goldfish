@@ -50,6 +50,10 @@
  *     pixman_image_unref(p);
  * }
  *
+ * inline void intrusive_ptr_ctor(pixman_image_t*) {
+ *      // do nothing, the counter initialized to 1
+ * }
+ *
  * // Now you can use IntrusivePtr to manage pixman_image_t objects.
  * using PixmanImagePtr = goldfish::base::IntrusivePtr<pixman_image_t>;
  *
@@ -73,6 +77,8 @@ template <class T>
 void intrusive_ptr_add_ref(T* p);
 template <class T>
 void intrusive_ptr_release(T* p);
+template <class T>
+void intrusive_ptr_ctor(T* p);
 
 namespace goldfish::base {
 
@@ -97,19 +103,20 @@ class IntrusivePtr {
     using element_type = T;
 
     constexpr IntrusivePtr() noexcept : mPtr(nullptr) {}
-    explicit IntrusivePtr(T* p) : mPtr(p) {
-        if (mPtr) {
-            intrusive_ptr_add_ref(mPtr);
-        }
+
+    explicit IntrusivePtr(T* p) noexcept : mPtr(p) {
+      if (mPtr) {
+        intrusive_ptr_ctor(mPtr);
+      }
     }
 
-    IntrusivePtr(const IntrusivePtr& other) : mPtr(other.mPtr) {
-        if (mPtr) {
-            intrusive_ptr_add_ref(mPtr);
-        }
+    IntrusivePtr(const IntrusivePtr& other) noexcept : mPtr(other.mPtr) {
+      if (mPtr) {
+        intrusive_ptr_add_ref(mPtr);
+      }
     }
 
-    IntrusivePtr(IntrusivePtr&& other) noexcept : mPtr(other.mPtr) { other.mPtr = nullptr; }
+    IntrusivePtr(IntrusivePtr&& other) noexcept : mPtr(std::exchange(other.mPtr, nullptr)) {}
 
     ~IntrusivePtr() {
         if (mPtr) {
@@ -117,9 +124,9 @@ class IntrusivePtr {
         }
     }
 
-    IntrusivePtr& operator=(const IntrusivePtr& other) {
-        IntrusivePtr(other).swap(*this);
-        return *this;
+    IntrusivePtr& operator=(const IntrusivePtr& other) noexcept {
+      IntrusivePtr(other).swap(*this);
+      return *this;
     }
 
     IntrusivePtr& operator=(IntrusivePtr&& other) noexcept {
@@ -127,23 +134,13 @@ class IntrusivePtr {
         return *this;
     }
 
-    IntrusivePtr& operator=(T* p) {
-        IntrusivePtr(p).swap(*this);
-        return *this;
+    void reset() noexcept {
+      if (mPtr) {
+        intrusive_ptr_release(mPtr);
+        mPtr = nullptr;
+      }
     }
 
-    /**
-     * @brief Replaces the managed object.
-     * Decrements the reference count of the old object and increments the count
-     * of the new one.
-     * @param p The new pointer to manage. Defaults to nullptr.
-     */
-    void reset(T* p = nullptr) { IntrusivePtr(p).swap(*this); }
-
-    /**
-     * @brief Swaps the managed objects between two IntrusivePtrs.
-     * @param other The other IntrusivePtr to swap with.
-     */
     void swap(IntrusivePtr& other) noexcept { std::swap(mPtr, other.mPtr); }
 
     T* get() const noexcept { return mPtr; }
@@ -155,14 +152,19 @@ class IntrusivePtr {
     T* mPtr;
 };
 
-template <class T, class U>
-inline bool operator==(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) {
-    return a.get() == b.get();
+template <class T>
+inline void swap(const IntrusivePtr<T>& a, const IntrusivePtr<T>& b) noexcept {
+  a.swap(b);
 }
 
 template <class T, class U>
-inline bool operator!=(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) {
-    return a.get() != b.get();
+inline bool operator==(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) noexcept {
+  return a.get() == b.get();
+}
+
+template <class T, class U>
+inline bool operator!=(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) noexcept {
+  return a.get() != b.get();
 }
 
 template <class T>

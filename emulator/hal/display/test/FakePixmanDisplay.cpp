@@ -22,6 +22,9 @@ namespace android::goldfish {
 FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
         : PixmanDisplay(loop, id, image) {}
 
+FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image)
+        : PixmanDisplay(loop, id, std::move(image)) {}
+
 void FakePixmanDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     mMultiTouchEvents.push_back({slot, x, y, type});
 }
@@ -41,10 +44,10 @@ void FakePixmanDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t va
 
 ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() = default;
 
-void ActiveFakePixmanDisplay::eventArrived(::pixman_image_t* image) {
+void ActiveFakePixmanDisplay::eventArrived(const PixmanImagePtr& image) {
     // Update the FakePixmanDisplay with the new image
     VLOG(1) << "Image arrived";
-    updateSourceImage(image);
+    updateSourceImage(image.get());
 }
 
 void ActiveFakePixmanDisplay::start() {

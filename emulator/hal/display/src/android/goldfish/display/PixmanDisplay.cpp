@@ -89,6 +89,9 @@ PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
     updateSourceImage(image);
 }
 
+PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image)
+        : PixmanDisplay(loop, id, image.get()) {}
+
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     DLOG_FIRST_N(WARNING, 2) << "--- WARNING! Reduced performance in debug builds ---";
     auto oldWidth = mWidth;
@@ -156,7 +159,6 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     }
 
     auto sourceImage = mFrameManager->getRenderableImage();
-    ::pixman_image_t* dst_img;
     ::pixman_image_t* src_img = sourceImage.get();
     ::pixman_transform_t transform;
 
@@ -166,7 +168,8 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
 
     uint32_t* pixel = (uint32_t*)pixels;
     // Create the destination image
-    dst_img = pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride);
+    const PixmanImagePtr dst_img(
+            pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
 
     assert(pixman_image_get_width(src_img) == mWidth);
     assert(pixman_image_get_height(src_img) == mHeight);
@@ -189,15 +192,12 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
     pixman_image_set_transform(src_img, &transform);
 
-    pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img, 0, 0, 0, 0, 0, 0, newWidth,
+    pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img.get(), 0, 0, 0, 0, 0, 0, newWidth,
                            newHeight);
 
     // The buffer is now filled with the scaled and rotated image.
     // The size of the valid pixel data is the required size.
     *cPixels = requiredSize;
-
-    // Clean up
-    pixman_image_unref(dst_img);
 
     absl::MutexLock seqlock(&mSeqAccess);
 

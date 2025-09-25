@@ -11,13 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/display/PixmanFrameManager.h"
 
-#include <pixman.h>
+#include "android/goldfish/display/PixmanFrameManager.h"
 
 #include "absl/hash/hash.h"
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
+
+#include "android/goldfish/display/PixmanImagePtr.h"
 
 namespace {
 // Calculates a hash of the pixel data of a pixman_image_t, used for debugging frame issues.
@@ -65,42 +66,17 @@ void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
     auto* src_bits = pixman_image_get_data(image);
     auto stride = pixman_image_get_stride(image);
 
-    auto new_image =
-            PixmanImagePtr(pixman_image_create_bits(format, width, height, nullptr, stride));
+    PixmanImagePtr new_image(pixman_image_create_bits(format, width, height, nullptr, stride));
     memcpy(pixman_image_get_data(new_image.get()), src_bits, height * stride);
 
     // Lock and swap the pointer. This is very fast.
     absl::MutexLock lock(&mDisplayAccess);
     mCurrentImage = new_image;
-    pixman_image_unref(new_image.get());
 }
 
 PixmanImagePtr PixmanFrameManager::getRenderableImage() {
-    PixmanImagePtr local_image;
-    {
-        // Lock and copy the smart pointer. This is very fast.
-        absl::MutexLock lock(&mDisplayAccess);
-        local_image = mCurrentImage;
-    }
-
-    if (!local_image.get()) {
-        return local_image;
-    }
-
-    VLOG(3) << "getRenderableImage pixel hash: " << calculateHash(local_image.get());
-
-    // Create a proxy image that shares the bits of the original image.
-    // This is a lightweight operation that does not copy the pixel data.
-    // The proxy image can have its own transform and filter settings without
-    // affecting the original image, making it safe for concurrent rendering.
-    auto width = pixman_image_get_width(local_image.get());
-    auto height = pixman_image_get_height(local_image.get());
-    auto format = pixman_image_get_format(local_image.get());
-    auto bits = pixman_image_get_data(local_image.get());
-    auto stride = pixman_image_get_stride(local_image.get());
-
-    return PixmanImagePtr(
-            pixman_image_create_bits_no_clear(format, width, height, (uint32_t*)bits, stride));
+    absl::MutexLock lock(&mDisplayAccess);
+    return mCurrentImage;
 }
 
 }  // namespace android::goldfish

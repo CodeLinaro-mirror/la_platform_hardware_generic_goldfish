@@ -69,15 +69,15 @@ void PixmanImageGenerator::resize(int w, int h) {
     mHeight = h;
 }
 
-pixman_image_t* PixmanImageGenerator::generateImage(Color color) {
+PixmanImagePtr PixmanImageGenerator::generateImage(Color color) {
     absl::MutexLock lock(&mMutex);
     uint32_t* pixels = new uint32_t[mWidth * mHeight];
     uint32_t colorValue = getColorValue(color);
     for (int i = 0; i < mWidth * mHeight; ++i) {
         pixels[i] = colorValue;
     }
-    return pixman_image_create_bits(PIXMAN_a8r8g8b8, mWidth, mHeight, pixels,
-                                    mWidth * sizeof(uint32_t));
+    return PixmanImagePtr(pixman_image_create_bits(PIXMAN_a8r8g8b8, mWidth, mHeight, pixels,
+                                                   mWidth * sizeof(uint32_t)));
 }
 
 bool PixmanImageGenerator::waitForFramesWithTimeout(int n, absl::Duration timeout) {
@@ -101,7 +101,6 @@ void PixmanImageGenerator::generateImagesLoop() {
     while (mRunning) {
         auto start = std::chrono::steady_clock::now();
 
-        ::pixman_image_t* image;
         Color color;
         {
             absl::MutexLock lock(&mMutex);
@@ -117,12 +116,8 @@ void PixmanImageGenerator::generateImagesLoop() {
                 break;
             }
         }
-        image = generateImage(color);
 
-        if (image) {
-            fireEvent(image);
-            pixman_image_unref(image);
-        }
+        fireEvent(generateImage(color));
 
         {
             absl::MutexLock lock(&mMutex);

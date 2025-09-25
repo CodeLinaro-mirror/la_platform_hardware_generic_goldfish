@@ -25,15 +25,10 @@ class PixmanImageGeneratorTest : public ::testing::Test {
     void TearDown() override {}
 };
 
-class ImageListener : public EventListener<::pixman_image_t*> {
+class ImageListener : public EventListener<PixmanImagePtr> {
   public:
-    ~ImageListener() {
-        for (auto image : images) {
-            pixman_image_unref(image);
-        }
-    }
-    void eventArrived(::pixman_image_t* img) override { images.push_back(pixman_image_ref(img)); }
-    std::vector<::pixman_image_t*> images;
+    void eventArrived(const PixmanImagePtr& img) override { images.push_back(img); }
+    std::vector<PixmanImagePtr> images;
 };
 
 TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
@@ -64,7 +59,7 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
                 break;
         }
 
-        uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener->images[i]);
+        uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener->images[i].get());
         bool allPixelsMatch = true;
         for (int j = 0; j < width * height; ++j) {
             if (pixels[j] != expectedColor) {
@@ -73,8 +68,8 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
             }
         }
         ASSERT_TRUE(allPixelsMatch) << "Image " << i << " has incorrect color.";
-        ASSERT_EQ(pixman_image_get_width(listener->images[i]), width);
-        ASSERT_EQ(pixman_image_get_height(listener->images[i]), height);
+        ASSERT_EQ(pixman_image_get_width(listener->images[i].get()), width);
+        ASSERT_EQ(pixman_image_get_height(listener->images[i].get()), height);
     }
 }
 
@@ -151,8 +146,8 @@ TEST_F(PixmanImageGeneratorTest, Resize) {
 
     ASSERT_GT(listener->images.size(), 0);
     auto lastImage = listener->images.back();
-    ASSERT_EQ(pixman_image_get_width(lastImage), 200);
-    ASSERT_EQ(pixman_image_get_height(lastImage), 100);
+    ASSERT_EQ(pixman_image_get_width(lastImage.get()), 200);
+    ASSERT_EQ(pixman_image_get_height(lastImage.get()), 100);
 }
 
 TEST_F(PixmanImageGeneratorTest, WaitForFrames) {
