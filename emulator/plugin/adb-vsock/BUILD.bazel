@@ -1,0 +1,15 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "adb-vsock",
+    srcs = ["adb-device.cpp"],
+    hdrs = ["include/goldfish/adb/adb-device.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/adb/host",
+        "//hardware/generic/goldfish/emulator/adb/logger",
+        "//hardware/generic/goldfish/emulator/libs/device_registry",
+        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+    ],
+)

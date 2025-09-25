@@ -11,7 +11,10 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//hardware/generic/goldfish/android/async:async_api"],
+    deps = [
+        "//hardware/generic/goldfish/android/async:async_api",
+        "//third_party/qemu:qemu-headers",
+    ],
 )
 
 [cc_library(

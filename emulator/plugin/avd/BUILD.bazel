@@ -4,7 +4,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "avd_hdrs",
     hdrs = [
-        "include/goldfish/avd/adb-device.h",
         "include/goldfish/avd/avd-finalize.h",
         "include/goldfish/avd/avd-info.h",
     ],
@@ -99,7 +98,6 @@ cc_library(
 cc_library(
     name = "avd",
     srcs = [
-        "adb-device.cpp",
         "avd-finalize.cpp",
         "avd-info.cpp",
     ],
@@ -117,7 +115,6 @@ cc_library(
         "//hardware/generic/goldfish/android/memory",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/threads",
-        "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
@@ -128,9 +125,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/gps",
         "//hardware/generic/goldfish/emulator/hal/guest-status",
         "//hardware/generic/goldfish/emulator/hal/sensors",
-        "//hardware/generic/goldfish/emulator/libs/device_registry",
         "//hardware/generic/goldfish/emulator/plugin/system:qemu_clock",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

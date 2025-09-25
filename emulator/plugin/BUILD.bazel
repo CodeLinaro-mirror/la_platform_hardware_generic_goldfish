@@ -16,6 +16,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
                 "//conditions:default": None,
             }),
             deps = [
+                "//hardware/generic/goldfish/emulator/plugin/adb-vsock",
                 "//hardware/generic/goldfish/emulator/plugin/avd",
                 "//hardware/generic/goldfish/emulator/plugin/battery",
                 "//hardware/generic/goldfish/emulator/plugin/grpc",

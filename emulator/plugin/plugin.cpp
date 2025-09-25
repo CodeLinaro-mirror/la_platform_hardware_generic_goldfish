@@ -19,9 +19,9 @@
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
 
+#include "goldfish/adb/adb-device.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/avd-finalize.h"
-#include "goldfish/avd/adb-device.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/battery/goldfish_battery.h"
