@@ -47,12 +47,10 @@ cc_test(
         ":memory",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/logging:backend",
-        "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/android/threads",
         "@aemu//base:aemu-base",
     ],
 )
