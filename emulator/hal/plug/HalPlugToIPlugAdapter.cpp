@@ -48,7 +48,7 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
     // We return true immediately, preventing the QEMU thread from blocking.
     //
     // This means that vsock will never close out this socket from this call.
-    VLOG(1) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
+    VLOG(2) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
     mClientLoop->post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
         plug->onReceive(s);
     });

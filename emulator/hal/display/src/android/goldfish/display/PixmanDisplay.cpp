@@ -210,9 +210,9 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
             << height << ")";
 
     frameReceived();
-    if (ABSL_VLOG_IS_ON(1)) {
+    if (ABSL_VLOG_IS_ON(2)) {
         mFpsCalculator.addFrame();
-        VLOG_EVERY_N_SEC(1, 1) << "Qemu framerate: " << mFpsCalculator.getFps() << " fps";
+        VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << mFpsCalculator.getFps() << " fps";
     }
 }
 

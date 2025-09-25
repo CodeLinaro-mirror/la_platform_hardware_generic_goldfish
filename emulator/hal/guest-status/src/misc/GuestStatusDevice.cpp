@@ -84,7 +84,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
     void onClose() override { VLOG(1) << "Guest status device has been disconnected"; }
 
     void onReceive(std::string_view message) override {
-        VLOG(1) << "Received message from guest:" << message;
+        VLOG(2) << "Received message from guest:" << message;
 
         if (absl::StartsWith(message, "heartbeat")) {
             uint64_t heartbeat = 0;
@@ -92,7 +92,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
                 absl::MutexLock lock(&mStatusMutex);
                 heartbeat = ++mHeartbeat;
             }
-            VLOG(1) << "Heartbeat: " << heartbeat;
+            VLOG(2) << "Heartbeat: " << heartbeat;
             fireEvent(createHeartbeatEvent(heartbeat));
         } else if (absl::StartsWith(message, "bootcomplete")) {
             std::chrono::milliseconds bootTime;

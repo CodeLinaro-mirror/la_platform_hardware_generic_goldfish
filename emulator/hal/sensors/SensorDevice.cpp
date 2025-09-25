@@ -335,7 +335,7 @@ class SensorDevice : public ISensorDevice {
                    "means we are operating on an unconnected socket, and the guest will not "
                    "receive the expected response! Logcat will likely show a crashed sensor hal.";
 
-        VLOG(1) << "Received message from sensor HAL: " << msg;
+        VLOG(2) << "Received message from sensor HAL: " << msg;
         if (msg == "list-sensors") {
             std::string response = std::to_string(mEnabledMask);
             send(response);

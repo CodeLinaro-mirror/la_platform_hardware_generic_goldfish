@@ -49,7 +49,7 @@ void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
         // once the guest activates, QEMU begins sending the 32bpp stream *in
         // addition to* the 24bpp stream, resulting in an interleaved delivery
         // of both frame types. We are going to discard the 24bpp frames.
-        VLOG(1) << "Not accepting image with pixel depth: " << pixman_image_get_depth(image)
+        VLOG(2) << "Not accepting image with pixel depth: " << pixman_image_get_depth(image)
                 << ", expecting: " << mCurrentPixelDepth;
         return;
     }

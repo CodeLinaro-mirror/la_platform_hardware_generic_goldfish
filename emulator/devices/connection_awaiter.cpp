@@ -78,7 +78,7 @@ ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnecti
 
 bool ConnectionAwaiter::attemptConnection() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
-    VLOG(1) << "attempting a connection: "
+    VLOG(2) << "attempting a connection: "
             << (mIsConnected ? "already connected" : "not connected");
     if (mIsConnected) {
         return false;

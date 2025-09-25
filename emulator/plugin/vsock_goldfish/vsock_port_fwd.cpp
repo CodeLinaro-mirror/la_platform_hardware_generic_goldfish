@@ -102,10 +102,10 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             return;
         }
         if (mGuestConnected) {
-            VLOG(1) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") " << data;
+            VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") " << data;
             socket()->send(std::string(data));
         } else {
-            VLOG(1) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") " << data;
+            VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") " << data;
             mHostBuffer.append(data);
         }
     }
@@ -132,7 +132,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     }
 
     void onReceive(std::string_view data) override {
-        VLOG(1) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
+        VLOG(VLOG_TRACE) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
         (void)mHostSocket->send(data.data(), data.size());
     }
 

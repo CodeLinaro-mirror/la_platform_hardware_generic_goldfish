@@ -247,7 +247,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void on_read(ssize_t nread, const uv_buf_t* buf) {
-        VLOG(1) << "on_read: " << nread << " : " << UvErrToAbslStatus(nread);
+        VLOG(2) << "on_read: " << nread << " : " << UvErrToAbslStatus(nread);
         if (nread >= 0) {
             // Success path (nread > 0) or no-op (nread == 0).
             if (mOnRead) {
