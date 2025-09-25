@@ -176,13 +176,13 @@ cc_test(
 cc_library(
     name = "test-helpers",
     srcs = [
-        "test/goldfish/devices/test_socket.cpp",
+        # "test/goldfish/devices/test_socket.cpp",
     ],
     hdrs = [
         "include/goldfish/devices/connector_registry.h",
         "test/goldfish/devices/test_connector_registry.h",
         "test/goldfish/devices/test_fake_connector_registry.h",
-        "test/goldfish/devices/test_socket.h",
+        # "test/goldfish/devices/test_socket.h",
     ],
     includes = [
         "include",
@@ -196,8 +196,8 @@ cc_library(
         ":connector_registry_impl",
         ":devices",
         "//hardware/generic/goldfish/android/async:async_testing",
-        "//hardware/generic/goldfish/android/looper",
-        "//hardware/generic/goldfish/android/sockets",
+        # "//hardware/generic/goldfish/android/looper",
+        # "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/emulator/hal/bootproperties:test_bootproperties",
         "//hardware/generic/goldfish/emulator/hal/camera:test_camera",
         "//hardware/generic/goldfish/emulator/hal/clipboard:test_clipboard",

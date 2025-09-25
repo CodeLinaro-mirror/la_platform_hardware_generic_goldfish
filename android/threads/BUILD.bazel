@@ -17,6 +17,7 @@ cc_library(
     includes = ["src"],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/android/looper",
         "//hardware/generic/goldfish/android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:absl_check",

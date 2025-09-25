@@ -14,12 +14,10 @@
 #include <memory>
 #include <string>
 
-#include "aemu/base/testing/TestLooper.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/devices/test_socket.h"
 #include "hal_plug_testing_friend.h"
 #include "hardware/generic/goldfish/emulator/hal/plug/include/goldfish/hal/plug/HalPlug.h"
 
@@ -126,15 +124,6 @@ class TestConnectorRegistry : public ConnectorRegistry {
     }
 
     template <typename T>
-    T* constructDevice() {
-        auto socket = goldfish::devices::fakeConnection(&mLooper);
-        mSocket = static_cast<TestSocket*>(socket.get());
-        mPlug = mFactory(std::move(socket), std::make_shared<PingTopic>(), "");
-        registerInternal<cable::IPlug>(std::string(T::serviceName), mPlug);
-        return reinterpret_cast<T*>(mPlug.get());
-    }
-
-    template <typename T>
     T* constructHalDevice() {
         mHalSocket = std::make_shared<TestHalSocket>();
         mHalPlug = mHalFactory();
@@ -143,18 +132,13 @@ class TestConnectorRegistry : public ConnectorRegistry {
         return reinterpret_cast<T*>(mHalPlug.get());
     }
 
-    TestSocket* getSocket() { return mSocket; }
     TestHalSocket* halSocket() { return mHalSocket.get(); }
     PlugPtr getPlug() { return mPlug; }
 
-    TestLooper* getLooper() { return &mLooper; }
-
   private:
-    TestLooper mLooper;
     Connector::DeviceFactory mFactory;
     HalDeviceFactory mHalFactory;
 
-    TestSocket* mSocket;
     PlugPtr mPlug;
 
     std::shared_ptr<TestHalSocket> mHalSocket;

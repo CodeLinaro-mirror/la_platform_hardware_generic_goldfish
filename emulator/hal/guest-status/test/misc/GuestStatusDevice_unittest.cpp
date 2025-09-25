@@ -22,8 +22,6 @@
 #include "android/goldfish/config/fake-avd.h"
 #include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
-#include "goldfish/devices/test_socket.h"
-
 namespace goldfish::devices::guest_status {
 
 using android::base::TestSystem;

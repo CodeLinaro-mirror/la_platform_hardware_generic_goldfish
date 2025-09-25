@@ -18,7 +18,6 @@
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/devices/test_connector_registry.h"
-#include "goldfish/devices/test_socket.h"
 
 namespace {
 

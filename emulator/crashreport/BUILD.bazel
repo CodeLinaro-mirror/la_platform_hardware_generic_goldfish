@@ -141,6 +141,7 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/android/threads",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@com_google_breakpad//src/processor",

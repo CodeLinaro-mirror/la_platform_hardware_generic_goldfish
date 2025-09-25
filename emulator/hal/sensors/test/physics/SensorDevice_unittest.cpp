@@ -24,7 +24,6 @@
 #include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/devices/test_connector_registry.h"
-#include "goldfish/devices/test_socket.h"
 
 namespace goldfish::devices::sensor {
 
@@ -61,7 +60,10 @@ class SensorDeviceTest : public ::testing::Test {
     }
 
   public:
-    void receive(std::string_view msg) { device->onReceive(qemud::encodeQemudPacket(msg)); }
+    void receive(std::string_view msg) {
+        mClientLoop->post([&, this] { device->onReceive(qemud::encodeQemudPacket(msg)); });
+        mClientLoop->runAll();
+    }
     void clear() { test_socket->storage.clear(); }
 
     void setAcceleration(float x, float y, float z) {
