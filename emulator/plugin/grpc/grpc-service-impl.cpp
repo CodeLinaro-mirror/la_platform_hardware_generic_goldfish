@@ -32,8 +32,10 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/global-event-loop.h"
 #include "goldfish/device_registry/DeviceRegistry.h"
 #include "goldfish/grpc/grpc-service-device.h"
 
@@ -95,6 +97,7 @@ bool initialize(GrpcDeviceConfiguration* device) {
     auto adbPort =
             goldfish::DeviceRegistry::get().get(goldfish::properties::kAdbPort).value_or(5555);
     auto qemuLoop = QemuEventLoop::create();
+
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{{"port.serial", std::to_string(adbPort - 1)},
                              {"emulator.build", "standalone-0"},
@@ -115,8 +118,14 @@ bool initialize(GrpcDeviceConfiguration* device) {
                            .withCertAndKey(device->tls_cer, device->tls_key, device->tls_ca)
                            .withAllowList(device->allowlist)
                            .withPortRange(device->port, device->port + 1)
-                           .withIdleTimeout(std::chrono::seconds(device->idle_timeout))
                            .withService(emulator);
+
+    if (device->idle_timeout > 0) {
+        LOG(INFO) << "Terminating emulator if no activity after " << device->idle_timeout
+                  << " seconds.";
+        auto eventLoop = goldfish::async::globalEventLoop();
+        builder.withIdleTimeout(std::chrono::seconds(device->idle_timeout), eventLoop);
+    }
 
     if (device->use_token) {
         const int of64Bytes = 64;

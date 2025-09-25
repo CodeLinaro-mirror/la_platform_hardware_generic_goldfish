@@ -28,10 +28,17 @@
 #include "msvc-posix.h"
 #endif
 
+namespace goldfish {
+namespace async {
+class EventLoop;
+}  // namespace async
+}  // namespace goldfish
+
 namespace android {
 namespace emulation {
 namespace control {
 
+using ::goldfish::async::EventLoop;
 using grpc::ServerCompletionQueue;
 
 // Controller class for the gRPC endpoint, can be used to stop the service or
@@ -118,7 +125,7 @@ class EmulatorControllerService::Builder {
     // Shutdown the emulator after timeout seconds of gRPC inactivity.
     // The timeout should be at least 1 second, otherwise it will
     // be ignored.
-    Builder& withIdleTimeout(std::chrono::seconds timeout);
+    Builder& withIdleTimeout(std::chrono::seconds timeout, EventLoop* eventLoop);
 
     // Returns the fully configured and running service, or nullptr if
     // construction failed.
@@ -145,13 +152,13 @@ class EmulatorControllerService::Builder {
     std::string mJwkLoadedPath;
     std::string mEmulatorAccessPath;
     Authorization mAuthMode{Authorization::None};
+    EventLoop* mEventLoop{nullptr};
     bool mValid{true};
     bool mVerbose{false};
     bool mLogging{true};
     bool mCaCerts{false};
     IpMode mIpMode{IpMode::Ipv4};
 };
-
 }  // namespace control
 }  // namespace emulation
 }  // namespace android

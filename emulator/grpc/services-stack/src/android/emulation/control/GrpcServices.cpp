@@ -198,8 +198,9 @@ Builder& Builder::withAddress(std::string address) {
     return *this;
 }
 
-Builder& Builder::withIdleTimeout(std::chrono::seconds timeout) {
+Builder& Builder::withIdleTimeout(std::chrono::seconds timeout, EventLoop* eventLoop) {
     mTimeout = timeout;
+    mEventLoop = eventLoop;
     return *this;
 }
 
@@ -348,7 +349,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     //   creators.emplace_back(std::make_unique<BreadcrumbInterceptorFactory>());
     //   creators.emplace_back(std::make_unique<MetricsInterceptorFactory>());
     if (mTimeout.count() > 0) {
-        creators.emplace_back(std::make_unique<IdleInterceptorFactory>(mTimeout));
+        creators.emplace_back(std::make_unique<IdleInterceptorFactory>(mTimeout, mEventLoop));
     }
     builder.experimental().SetInterceptorCreators(std::move(creators));
 

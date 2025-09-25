@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <grpcpp/grpcpp.h>  // for InterceptionHookPoints, InterceptionHookP...
-// #include <grpcpp/support/client_interceptor.h>
-#include <stdint.h>  // for uint64_t
+#include <grpcpp/grpcpp.h>
 
-#include <array>       // for array
-#include <functional>  // for function
-#include <string>      // for string
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <string>
 
 namespace google {
 namespace protobuf {

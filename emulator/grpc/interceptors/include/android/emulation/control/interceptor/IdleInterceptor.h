@@ -12,27 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <grpcpp/grpcpp.h>  // for Interceptor, ServerInt...
-#include <stdint.h>         // for uint64_t
+#include <grpcpp/grpcpp.h>
 
-#include <atomic>  // for atomic
-#include <chrono>  // for seconds
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <memory>
 
-#include "aemu/base/async/RecurrentTask.h"  // for RecurrentTask
+#include "goldfish/async/event_loop.h"
+#include "goldfish/async/scoped_async_timer.h"
 
 namespace android {
-namespace base {
-class Looper;
-class System;
-}  // namespace base
-
 namespace control {
 namespace interceptor {
 
 using namespace grpc::experimental;
-using android::base::Looper;
-using android::base::RecurrentTask;
-using android::base::System;
+using goldfish::async::EventLoop;
+using goldfish::async::ScopedTimer;
 
 // An IdleInterceptor can be installed if you wish to terminate the emulator
 // when there is no gRPC activity within the given timeout.
@@ -56,7 +52,7 @@ class IdleInterceptor : public grpc::experimental::Interceptor {
 // shutdown in an orderly fashion.
 class IdleInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface {
   public:
-    IdleInterceptorFactory(std::chrono::seconds timeout);
+    IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* eventLoop);
     virtual ~IdleInterceptorFactory() = default;
     virtual Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
     bool checkIdleTimeout();
@@ -66,7 +62,7 @@ class IdleInterceptorFactory : public grpc::experimental::ServerInterceptorFacto
     std::chrono::seconds mTimeout;
     std::atomic<uint64_t> mTerminationUnixTime;
     std::atomic<uint64_t> mActiveRequests;
-    RecurrentTask mTimeoutChecker;
+    std::shared_ptr<ScopedTimer> mTimeoutChecker;
 };  // namespace interceptor
 
 }  // namespace interceptor

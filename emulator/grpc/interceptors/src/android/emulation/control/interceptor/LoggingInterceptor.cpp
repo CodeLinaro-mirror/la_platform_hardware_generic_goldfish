@@ -20,10 +20,11 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/time/time.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
-#include "android/base/system/System.h"
+#include "android/base/system/clock.h"
 
 // #define DEBUG 0
 /* set  for very verbose debugging */
@@ -37,6 +38,7 @@ namespace control {
 namespace interceptor {
 
 using namespace grpc::experimental;
+using android::base::IClock;
 
 const std::array<std::string, 4> InvocationRecord::kTypes{"UNARY", "CLIENT_STREAMING",
                                                           "SERVER_STREAMING", "BIDI_STREAMING"};
@@ -98,7 +100,7 @@ LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction re
         }
         mLoginfo.direction = Direction::INCOMING;
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = base::System::get()->getUnixTimeUs();
+    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::host_now());
 }
 
 LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter)
@@ -125,11 +127,11 @@ LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction re
         mLoginfo.direction = Direction::OUTGOING;
         mLoginfo.peer = info->client_context()->peer();
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = base::System::get()->getUnixTimeUs();
+    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::host_now());
 }
 
 LoggingInterceptor::~LoggingInterceptor() {
-    auto ts = base::System::get()->getUnixTimeUs();
+    auto ts = absl::ToUnixMicros(IClock::host_now());
     mLoginfo.duration = ts - mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx];
     mReporter(mLoginfo);
 }
@@ -165,7 +167,7 @@ Phase: [POST_SEND_MESSAGE]
 Phase: [POST_RECV_CLOSE]
  */
 void LoggingInterceptor::Intercept(InterceptorBatchMethods* methods) {
-    auto ts = base::System::get()->getUnixTimeUs();
+    auto ts = absl::ToUnixMicros(IClock::host_now());
     DD("Intercepting -- %d", ts);
 
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::POST_RECV_MESSAGE)) {

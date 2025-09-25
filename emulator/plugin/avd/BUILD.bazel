@@ -48,6 +48,9 @@ cc_library(
     ],
     hdrs = ["include/goldfish/avd/global-event-loop.h"],
     includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
     ],

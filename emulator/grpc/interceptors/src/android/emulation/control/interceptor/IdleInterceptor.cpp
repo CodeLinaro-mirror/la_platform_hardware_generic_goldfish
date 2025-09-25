@@ -13,31 +13,33 @@
 // limitations under the License.
 #include "android/emulation/control/interceptor/IdleInterceptor.h"
 
-#include <cstdint>
 #include <functional>
-#include <ratio>
 
 #include "absl/log/log.h"
+#include "absl/time/time.h"
 
-#include "aemu/base/async/ThreadLooper.h"
 #include "aemu/base/process/Process.h"
-#include "android/base/system/System.h"
+#include "android/base/system/clock.h"
+#include "goldfish/async/event_loop.h"
 
 namespace android {
 namespace control {
 namespace interceptor {
 
 using namespace grpc::experimental;
+using android::base::IClock;
+using android::base::Process;
+using goldfish::async::EventLoop;
 
 IdleInterceptor::IdleInterceptor(std::chrono::seconds timeout,
                                  std::atomic<uint64_t>* terminationUnixTime,
                                  std::atomic<uint64_t>* activeRequests)
-    : mTimeout(timeout),
-      mTerminationUnixTime(terminationUnixTime),
-      mActiveRequests(activeRequests) {}
+        : mTimeout(timeout)
+        , mTerminationUnixTime(terminationUnixTime)
+        , mActiveRequests(activeRequests) {}
 
 IdleInterceptor::~IdleInterceptor() {
-    auto idleTime = System::get()->getUnixTime() + mTimeout.count();
+    auto idleTime = absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(mTimeout.count()));
     mTerminationUnixTime->store(idleTime);
     mActiveRequests->fetch_sub(1);
 }
@@ -46,13 +48,13 @@ void IdleInterceptor::Intercept(InterceptorBatchMethods* methods) {
     methods->Proceed();
 }
 
-IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout)
-    : mTimeout(timeout),
-      mTerminationUnixTime(System::get()->getUnixTime() + timeout.count()),
-      mTimeoutChecker(
-              android::base::ThreadLooper::get(), [=]() { return checkIdleTimeout(); },
-              std::chrono::milliseconds(mTimeout).count()) {
-    mTimeoutChecker.start();
+IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* eventLoop)
+        : mTimeout(timeout)
+        , mTerminationUnixTime(
+                  absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(timeout.count()))) {
+    mTimeoutChecker = std::make_shared<ScopedTimer>(eventLoop->scheduleRepeating(
+            [this]() { checkIdleTimeout(); }, std::chrono::milliseconds(mTimeout),
+            std::chrono::milliseconds(mTimeout)));
 }
 
 Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {
@@ -61,7 +63,7 @@ Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info
 }
 
 bool IdleInterceptorFactory::checkIdleTimeout() {
-    auto epoch = System::get()->getUnixTime();
+    auto epoch = absl::ToUnixSeconds(IClock::host_now());
     if (mActiveRequests > 0 || epoch < mTerminationUnixTime) return true;
 
     LOG(WARNING) << "Idled to long, shutting down. " << epoch << " > " << mTerminationUnixTime;
