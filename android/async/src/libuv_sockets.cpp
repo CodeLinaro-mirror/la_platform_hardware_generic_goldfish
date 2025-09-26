@@ -299,9 +299,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     LibuvServer(EventLoop* loop, ConnectCallback cb, Private)
             : mEventLoop(loop)
             , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
-            , mConnectCallback(std::move(cb))
-            , mPort(-1)
-            , mIsListening(false) {
+            , mConnectCallback(std::move(cb)) {
         assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
         uv_tcp_init(mLoop, &mServerHandle);
         mServerHandle.data = this;
@@ -421,8 +419,8 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     AsyncSocket::OnCloseCallback mOnClose;
     ConnectCallback mConnectCallback;
     uv_tcp_t mServerHandle;
-    int mPort;
-    bool mIsListening;
+    int mPort = -1;
+    bool mIsListening = false;
 };
 
 std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const std::string& address,
