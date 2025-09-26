@@ -119,7 +119,9 @@ cc_test(
     srcs = [
         "test/android/crashreport/AnnotationBuffer_unittest.cpp",
         "test/android/crashreport/CrashDump_unittest.cpp",
-        "test/android/crashreport/HangDetector_unittest.cpp",
+        # Disabled until the hangdetector is migrated to the new event loop
+        # See b/444728681
+        # "test/android/crashreport/HangDetector_unittest.cpp",
         "test/android/crashreport/detectors/CrashDetectors_unittest.cpp",
         "test/android/crashreport/detectors/TimeoutMonitor_unittest.cpp",
     ],
@@ -135,9 +137,6 @@ cc_test(
         ":always_consent",
         ":detectors",
         ":init",
-        "//hardware/generic/goldfish/android/looper",
-        "//hardware/generic/goldfish/android/process",
-        "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
