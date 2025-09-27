@@ -340,12 +340,11 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     EventLoop* getLoop() const override { return mEventLoop; }
 
   private:
-    bool bindAndListen(const std::string& address) {
-        struct sockaddr_storage addr;
+    struct sockaddr_storage bindImpl(const std::string& address) {
         auto addresses = resolveAddress(address, AI_PASSIVE);
         if (addresses.empty()) {
             LOG(ERROR) << "Failed to resolve address: " << address;
-            return false;
+            return { .ss_family = AF_UNSPEC };
         }
 
         std::sort(addresses.begin(), addresses.end(),
@@ -353,17 +352,31 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                       return lhs.ss_family < rhs.ss_family;
                   });
 
-        bool bound = false;
-        for (const auto& resolved_addr : addresses) {
+        for (auto& resolved_addr : addresses) {
             if (uv_tcp_bind(&mServerHandle, (const struct sockaddr*)&resolved_addr, 0) == 0) {
-                bound = true;
-                memcpy(&addr, &resolved_addr, sizeof(resolved_addr));
-                break;
+                int len = sizeof(resolved_addr);
+                uv_tcp_getsockname(&mServerHandle, (sockaddr*)&resolved_addr, &len);
+                return resolved_addr;
             }
         }
 
-        if (!bound) {
-            LOG(ERROR) << "Failed to bind to " << address;
+        LOG(ERROR) << "Failed to bind to " << address;
+        return { .ss_family = AF_UNSPEC };
+    }
+
+    bool bindAndListen(const std::string& address) {
+        const struct sockaddr_storage addr = bindImpl(address);
+        switch (addr.ss_family) {
+        case AF_INET:
+            mPort = ntohs(((const sockaddr_in*)&addr)->sin_port);
+            break;
+
+        case AF_INET6:
+            mPort = ntohs(((const sockaddr_in6*)&addr)->sin6_port);
+            break;
+
+        case AF_UNSPEC:
+        default:
             return false;
         }
 
@@ -383,12 +396,9 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
         }
 
         mIsListening = true;
-        int len = sizeof(addr);
-        uv_tcp_getsockname(&mServerHandle, (sockaddr*)&addr, &len);
-        mPort = ntohs(addr.ss_family == AF_INET ? ((sockaddr_in*)&addr)->sin_port
-                                                : ((sockaddr_in6*)&addr)->sin6_port);
         return true;
     }
+
     void on_new_connection(uv_stream_t* server) {
         if (!mIsListening) return;
 
@@ -414,6 +424,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
             client->close();
         }
     }
+
     EventLoop* mEventLoop;
     uv_loop_t* mLoop;
     AsyncSocket::OnCloseCallback mOnClose;
