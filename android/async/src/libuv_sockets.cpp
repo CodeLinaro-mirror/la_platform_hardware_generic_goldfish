@@ -348,6 +348,11 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
             return false;
         }
 
+        std::sort(addresses.begin(), addresses.end(),
+                  [](const struct sockaddr_storage& lhs, const struct sockaddr_storage& rhs){
+                      return lhs.ss_family < rhs.ss_family;
+                  });
+
         bool bound = false;
         for (const auto& resolved_addr : addresses) {
             if (uv_tcp_bind(&mServerHandle, (const struct sockaddr*)&resolved_addr, 0) == 0) {
@@ -452,6 +457,11 @@ std::shared_ptr<AsyncSocket> LibuvAsyncSocketFactory::createSocket(EventLoop* lo
         LOG(ERROR) << "Failed to resolve address: " << address;
         return nullptr;
     }
+
+    std::sort(addresses.begin(), addresses.end(),
+              [](const struct sockaddr_storage& lhs, const struct sockaddr_storage& rhs){
+                  return lhs.ss_family < rhs.ss_family;
+              });
 
     // Use the first resolved address
     auto socket = std::make_shared<LibuvSocket>(loop, (const struct sockaddr*)&addresses[0]);
