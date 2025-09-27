@@ -289,10 +289,23 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 };
 
 class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
+    struct Private {};
+
   public:
     // Factory to create a LibuvServer. Returns nullptr on failure.
     static std::shared_ptr<LibuvServer> create(EventLoop* loop, const std::string& address,
                                                ConnectCallback cb);
+
+    LibuvServer(EventLoop* loop, ConnectCallback cb, Private)
+            : mEventLoop(loop)
+            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mConnectCallback(std::move(cb))
+            , mPort(-1)
+            , mIsListening(false) {
+        assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
+        uv_tcp_init(mLoop, &mServerHandle);
+        mServerHandle.data = this;
+    }
 
     ~LibuvServer() override {
         assert(uv_is_closing((const uv_handle_t*)&mServerHandle) &&
@@ -329,17 +342,6 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     EventLoop* getLoop() const override { return mEventLoop; }
 
   private:
-    LibuvServer(EventLoop* loop, ConnectCallback cb)
-            : mEventLoop(loop)
-            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
-            , mConnectCallback(std::move(cb))
-            , mPort(-1)
-            , mIsListening(false) {
-        assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
-        uv_tcp_init(mLoop, &mServerHandle);
-        mServerHandle.data = this;
-    }
-
     bool bindAndListen(const std::string& address) {
         struct sockaddr_storage addr;
         auto addresses = resolveAddress(address, AI_PASSIVE);
@@ -426,9 +428,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const std::string& address,
                                                  ConnectCallback cb) {
     assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
-
-    // Constructor is private, but as a static member, we can call it.
-    auto server = std::shared_ptr<LibuvServer>(new LibuvServer(loop, std::move(cb)));
+    const auto server = std::make_shared<LibuvServer>(loop, std::move(cb), Private());
 
     if (server->bindAndListen(address)) {
         return server;

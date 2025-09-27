@@ -153,52 +153,6 @@ int fixErrno() {
     return -1;
 }
 
-// Called on process exit to cleanup Winsock data.
-void winsockCleanup() {
-    WSACleanup();
-}
-
-// Initialize Winsock, must be called early, or socket creation will fail.
-int winsockInit() {
-    WSADATA Data;
-    int ret = WSAStartup(MAKEWORD(2, 2), &Data);
-    if (ret != 0) {
-        (void)WSAGetLastError();
-        return -1;
-    }
-    ::atexit(winsockCleanup);
-    return 0;
-}
-
-void socketInitWinsock() {
-    enum {
-        UNINITIALIZED = 0,
-        INITIALIZING = 1,
-        COMPLETED = 2,
-    };
-    // Ensure thread-safe lazy initialization.
-    //
-    // TODO(digit): Create android::base::Once instead to make this a
-    // little more portable / testable.
-    static LONG volatile sWinsockInit = 0;
-
-    LONG status = InterlockedCompareExchange(&sWinsockInit, INITIALIZING, UNINITIALIZED);
-    if (status == COMPLETED) {
-        // Winsock already initialized.
-        return;
-    }
-    if (status == UNINITIALIZED) {
-        // First thread to call this function.
-        winsockInit();
-        InterlockedExchange(&sWinsockInit, COMPLETED);
-        return;
-    }
-    while (status == INITIALIZING) {
-        ::Sleep(0);
-        status = InterlockedCompareExchange(&sWinsockInit, INITIALIZING, INITIALIZING);
-    }
-}
-
 #endif  // !_WIN32
 
 // Use ON_SOCKET_ERROR_RETURN_M1 to return immediately with value -1
@@ -582,9 +536,6 @@ void socketSetNoDelay(int socket) {
 }
 
 static int socketCreateTcpFor(int domain) {
-#ifdef _WIN32
-    socketInitWinsock();
-#endif
     errno = 0;
     int s = ::socket(domain, SOCK_STREAM | SOCK_CLOEXEC, 0);
     ON_SOCKET_ERROR_RETURN_M1(s);
