@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "network",
+    srcs = [
+        "src/android/base/network/Dns.cpp",
+        "src/android/base/network/IpAddress.cpp",
+        "src/android/base/network/NetworkUtils.cpp",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "@abseil-cpp//absl/log",
+        "@aemu//base:aemu-base",
+    ],
+)
