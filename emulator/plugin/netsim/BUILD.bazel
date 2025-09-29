@@ -26,3 +26,20 @@ cc_library(
         "@abseil-cpp//absl/log",
     ],
 )
+
+cc_library(
+    name = "netsim-chardev",
+    srcs = [
+        "h4_parser.cc",
+        "h4_parser.h",
+        "netsim-chardev.cpp",
+    ],
+    hdrs = ["include/goldfish/netsim/netsim-chardev.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":netsim_transport",
+        "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/log",
+    ],
+)

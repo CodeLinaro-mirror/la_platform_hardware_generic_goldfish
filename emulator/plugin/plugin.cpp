@@ -28,6 +28,7 @@
 #include "goldfish/input/virtio-input-android.h"
 #include "goldfish/net/virtio-wifi.h"
 #include "goldfish/netsim/netsim-netdev.h"
+#include "goldfish/netsim/netsim-chardev.h"
 #include "goldfish/grpc/grpc-service-device.h"
 
  // library and initialize the crashpad crash engine upon launch.
@@ -47,6 +48,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     grpc_register_types();
     virtio_wifi_register_types();
     goldfish::netsim::netsim_netdev_register_types();
+    goldfish::netsim::netsim_chardev_register_types();
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 

@@ -150,6 +150,12 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 {"qemu.sf.lcd_density"s, "420"s},
                 // This is the same value that is passed to the virtio-wifi module.
                 {"net.wifi_mac_prefix"s, absl::StrCat(avd_info->serial_number)},
+                // TODO(b/450338546): hack hack hack
+                // These properties should be added automatically by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
+                // But it isn't currently working so we hack them in here.
+                // They will be incorrect if the order of serial port creation changes.
+                {"vendor.qemu.vport.uwb"s, "/dev/vport8p2"s},
+                {"vendor.qemu.vport.bluetooth"s, "/dev/vport8p3"s},
             },
             &DummyRegisterEmulatorReset, clientLoop, gQemuLoop.get());
 

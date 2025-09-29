@@ -149,19 +149,40 @@ absl::Status Emulator::addDevices() {
         "-device", "virtio-rng-pci",
     });
 
-    // This is needed for virtconsole (logcat).
+    // This is needed for virtconsole (logcat, bt, uwb).
+    // TODO old emulator also created a virtio-serial device, do we need to?
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device", "virtio-serial-pci,ioeventfd=off",
     });
 
+    // virtio logcat consoles, note that order matters here!
+    // This device is probably just to make sure that logcat is on device 1 and not 0.
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-device", "virtconsole,chardev=forhvc0,name=logcat_null", "-chardev", "null,id=forhvc0",
+    });
     if (mOpts.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-device", "virtconsole,chardev=forhvc0", "-chardev", "null,id=forhvc0",
             // Actual logcat location.
-            "-device", "virtconsole,chardev=forhvc1", "-chardev",
+            "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev",
             absl::StrCat("file,id=forhvc1,path=", mOpts.logcat_output)});
+    } else {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            // Actual logcat location.
+            "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev", "null,id=forhvc1"});
     }
+
+    // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
+    // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
+    // /dev/vport8p3 for bt (4th port)
+    // TODO(b/450338546): this isn't currently working and instead there is a hack in avd-info.cpp to workaround.
+    addDevice<ParameterList>(std::initializer_list<std::string>{
+        "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
+        "-device", "virtconsole,chardev=uwb,name=uwb",
+
+        "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
+        "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
+    });
 
     if (mOpts.show_kernel) {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
