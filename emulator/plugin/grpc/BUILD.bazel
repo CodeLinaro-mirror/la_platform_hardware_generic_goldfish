@@ -34,12 +34,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/plugin/avd:global-event-loop",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/strings",
-    ] + select({
-        # TODO(b/410075886): This causes duplicate symbol errors on Windows. Fix and re-add.
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            "@crosvm//:rutabaga_gfx",
-        ],
-    }),
+        "@grpc//:grpc++_reflection",
+    ],
     alwayslink = True,
 )
