@@ -234,7 +234,7 @@ absl::Status Emulator::launch() {
             }
         }
 #endif
-        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, "/tmp");
+        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
     }
 #endif
 
