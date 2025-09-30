@@ -76,24 +76,24 @@ launcher_binaries = [
     "//hardware/generic/goldfish/emulator/launcher:goldfish",
 ]
 
-
-crashreporting_binaries = [
-    "@com_google_crashpad//handler:crashpad_handler",
+binaries = [
     "//hardware/generic/goldfish/emulator/crashreport",
-]
-
-qemu_binaries = [
-    "//third_party/qemu:qemu-img",
     "//hardware/generic/goldfish/third_party/sparse:img2simg",
+    "//third_party/qemu:qemu-img",
+    "@com_google_crashpad//handler:crashpad_handler",
+    #"@netsim//:netsimd",
 ] + select({
     "@platforms//os:windows": [
+        "//prebuilts/android-emulator-build/common/netsim:netsim_windows_x86_64",
         "//third_party/qemu:qemu-system-x86_64",
     ],
     "@platforms//os:macos": [
+        "//prebuilts/android-emulator-build/common/netsim:netsim_darwin_aarch64",
         "//third_party/qemu:qemu-system-x86_64_signed",
         "//third_party/qemu:qemu-system-aarch64_signed",
     ],
     "//conditions:default": [
+        "//prebuilts/android-emulator-build/common/netsim:netsim_linux_x86_64",
         "//third_party/qemu:qemu-system-x86_64",
         "//third_party/qemu:qemu-system-aarch64",
         # We currently don't have riscv images
@@ -153,7 +153,7 @@ plugin_binaries = [
     ],
 })
 
-all_binaries = launcher_binaries + qemu_binaries + plugin_binaries + crashreporting_binaries
+all_binaries = launcher_binaries + binaries + plugin_binaries
 
 stripped_binaries(
     name = "goldfish_binaries_stripped",
@@ -176,8 +176,8 @@ remapped_pkg_files(
 )
 
 pkg_files(
-    name = "qemu-binaries",
-    srcs = qemu_binaries + crashreporting_binaries,
+    name = "binaries",
+    srcs = binaries,
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -201,8 +201,8 @@ pkg_files(
 )
 
 remapped_pkg_files(
-    name = "qemu-binaries_stripped",
-    src = ":qemu-binaries",
+    name = "binaries_stripped",
+    src = ":binaries",
     transform = ":goldfish_binaries_stripped",
 )
 
@@ -241,11 +241,11 @@ remapped_pkg_files(
 pkg_zip(
     name = "release",
     srcs = [
+        ":binaries_stripped",
         ":data_virtualscene_Toren1BD",
         ":egl",
         ":launcher_stripped",
         ":plugins_stripped",
-        ":qemu-binaries_stripped",
         ":vulkan",
         "//hardware/generic/goldfish/emulator/grpc/security:emulator-access",
         "//third_party/qemu:qemu-keymaps",
@@ -273,7 +273,7 @@ native_symbols_pkg(
     binaries = all_binaries,
     layout_templates = {
         "launcher": ":launcher",
-        "qemu": ":qemu-binaries",
+        "qemu": ":binaries",
         "plugins": ":plugins",
     },
     package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
