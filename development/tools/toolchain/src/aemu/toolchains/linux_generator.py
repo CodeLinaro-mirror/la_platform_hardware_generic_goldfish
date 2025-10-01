@@ -24,16 +24,9 @@ class LinuxToLinuxGenerator(ToolchainGenerator):
             return
 
         version_path = (self.clang() / "lib" / "clang" / self.cc_version()).absolute()
-
-        compat_isystem_path = (
-            self.aosp
-            / "third_party"
-            / "qemu"
-            / "google"
-            / "compat"
-            / "linux"
-            / "include"
-        ).absolute()
+        self.with_compat = (
+            self.aosp / "third_party" / "qemu" / "google" / "compat"
+        ).exists()
 
         self.linux_sys_root = (
             self.aosp
@@ -45,8 +38,6 @@ class LinuxToLinuxGenerator(ToolchainGenerator):
         )
         # GCC_DIR = TOOLCHAIN_DIR / "lib" / "gcc" / "x86_64-linux" / "4.8.3"
         self.system_root = self.linux_sys_root / "sysroot"
-        self.bazel.build_target(self.COMPAT_ARCHIVE)
-        compat_lib_dir = self.bazel.get_archive(self.COMPAT_ARCHIVE).parent
         linux_lib_path = version_path / "lib" / "linux"
         lib_path = self.clang() / "lib"
         include_path = version_path / "include"
@@ -62,9 +53,22 @@ class LinuxToLinuxGenerator(ToolchainGenerator):
             f"-L{lib_path} "
             f"--sysroot={self.system_root} "
             f"-Wl,-rpath,'$ORIGIN/lib64:$ORIGIN:{self.clang() / 'lib'}' "
-            f"-L{compat_lib_dir} "
-            f"-isystem {compat_isystem_path} "
         )
+
+        if self.with_compat:
+            self.bazel.build_target(self.COMPAT_ARCHIVE)
+            compat_lib_dir = self.bazel.get_archive(self.COMPAT_ARCHIVE).parent
+            compat_isystem_path = (
+                self.aosp
+                / "third_party"
+                / "qemu"
+                / "google"
+                / "compat"
+                / "linux"
+                / "include"
+            ).absolute()
+            self.cflags += f"-L{compat_lib_dir} -isystem {compat_isystem_path} "
+
         self.initialized = True
 
     def strip(self):
@@ -84,7 +88,9 @@ class LinuxToLinuxGenerator(ToolchainGenerator):
             "-m64 -march=native -mtune=native -mcx16 "
             f"{self.cflags} "
         )
-        extra = "-Wno-unused-command-line-argument -lcompat -lc++ -ldl "
+        extra = "-Wno-unused-command-line-argument -lc++ -ldl "
+        if self.with_compat:
+            extra += "-lcompat "
         return script, extra
 
     def cxx(self):
@@ -97,7 +103,9 @@ class LinuxToLinuxGenerator(ToolchainGenerator):
             f"{self.cflags} "
         )
 
-        extra = "-Wno-unused-command-line-argument -lcompat -lc++ -ldl "
+        extra = "-Wno-unused-command-line-argument -lc++ -ldl "
+        if self.with_compat:
+            extra += "-lcompat "
         return script, extra
 
     def link_dirs(self):

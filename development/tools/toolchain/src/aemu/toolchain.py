@@ -24,123 +24,20 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import List
 
-from aemu.configure.base_builder import QemuBuilder
-from aemu.configure.darwin_builder import DarwinBuilder
-from aemu.configure.linux_builder import LinuxBuilder
-from aemu.configure.trusty_builder import TrustyBuilder
-from aemu.configure.windows_builder import WindowsBuilder
+from aemu.configure.factory import get_builder
+from aemu.configure.shim import create_shim
 from aemu.log import configure_logging
 from aemu.process.bazel import Bazel
 from aemu.process.runner import run
-from aemu.toolchains.darwin_generator import (
-    DarwinToDarwinGenerator,
-    DarwinToDarwinX64Generator,
-)
-from aemu.toolchains.linux_arm_generator import LinuxToLinuxAarch64Generator
-from aemu.toolchains.linux_generator import LinuxToLinuxGenerator
-from aemu.toolchains.toolchain_generator import ToolchainGenerator
-from aemu.toolchains.windows_generator import WindowsToWindowsGenerator
+from aemu.toolchains.factory import get_toolchain_generator
+from aemu.util import find_aosp_root, mkdirs
 
 
 class CustomFormatter(
     argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelpFormatter
 ):
     pass
-
-
-TARGET_ALIAS = {
-    "emulator-windows_x64": "windows-x64",
-    "windows": "windows-x64",
-    "windows-msvc-x86_64": "windows-x64",
-    "linux": "linux-x64",
-    "trusty": "linux-x64",
-    "emulator-linux_x64": "linux-x64",
-    "linux-x86_64": "linux-x64",
-    "linux-aarch64": "linux-aarch64",
-    "darwin": "mac-aarch64",
-    "darwin-x86_64": "mac-x64",
-    "darwin-aarch64": "mac-aarch64",
-    "emulator-mac_aarch64": "mac-aarch64",
-}
-
-
-def get_toolchain_generator(
-    target: str, dest: Path, toolchain_dir: Path, prefix: str, aosp: Path, ccache: Path
-) -> ToolchainGenerator:
-    # TODO: __host__To__target__ Toolchain generator.
-    # Note that if you wish to add cross compilation support
-    # You will have to add this support to the bazel toolchains
-    # as well, as we depend on bazel for pkg-config lib + include
-    # generation.
-    generator_map = {
-        "windows-x64": WindowsToWindowsGenerator,
-        "linux-x64": LinuxToLinuxGenerator,
-        "linux-aarch64": LinuxToLinuxAarch64Generator,
-        "mac-aarch64": DarwinToDarwinGenerator,
-        "mac-x64": DarwinToDarwinX64Generator,
-    }
-
-    if target not in TARGET_ALIAS:
-        raise ValueError(f"No toolchain support for target: {target}")
-
-    toolchain_klazz = generator_map[TARGET_ALIAS[target]]
-    # Initialize the toolchain generator with the specified destination and an empty suffix.
-    # This generator will be used to manage toolchain-related configurations.
-    return toolchain_klazz(Path(aosp), Path(toolchain_dir), prefix)
-
-
-def get_builder(
-    target: str,
-    dest: Path,
-    toolchain_dir: Path,
-    prefix: str,
-    aosp: Path,
-    ccache: Path,
-    bazel_startup_options: List[str],
-    bazel_build_options: List[str],
-) -> QemuBuilder:
-    builder_map = {
-        "windows-x64": WindowsBuilder,
-        "linux-x64": LinuxBuilder,
-        "linux-aarch64": LinuxBuilder,
-        "mac-aarch64": DarwinBuilder,
-        "mac-x64": DarwinBuilder,
-        "trusty": TrustyBuilder,
-    }
-
-    # Get the class that is capable of configuring the toolchain
-    # from the current host targeting our target.
-    toolchain = get_toolchain_generator(
-        target, dest, toolchain_dir, prefix, aosp, ccache
-    )
-
-    if target not in builder_map:
-        logging.info("Mapping %s -> %s", target, TARGET_ALIAS[target])
-        target = TARGET_ALIAS[target]
-
-    return builder_map[target](
-        Path(aosp),
-        Path(dest),
-        Path(toolchain_dir),
-        ccache,
-        toolchain,
-        bazel_startup_options,
-        bazel_build_options,
-    )
-
-
-def mkdirs(out: Path, force: bool):
-    if out.exists():
-        if force:
-            shutil.rmtree(out)
-        else:
-            logging.fatal(
-                "The directory %s already exists, please delete it first or use the -f flag.",
-                out,
-            )
-            raise FileExistsError(f"The directory {out} already exists")
 
 
 def _split_list(s):
@@ -154,7 +51,7 @@ def setup_command(args):
         get_build_dir(args.out),
         get_toolchain_dir(args.out),
         args.prefix,
-        args.aosp,
+        Path(args.aosp),
         args.ccache,
         _split_list(args.bazel_startup_options),
         _split_list(args.bazel_build_options),
@@ -176,14 +73,12 @@ def toolchain_command(args):
     toolchain_dir = get_toolchain_dir(args.out)
     toolchain = get_toolchain_generator(
         args.target,
-        get_build_dir(args.out),
         toolchain_dir,
         args.prefix,
-        args.aosp,
-        args.ccache,
+        Path(args.aosp),
     )
     toolchain.bazel = Bazel(
-        args.aosp.absolute(),
+        Path(args.aosp).absolute(),
         toolchain_dir,
         _split_list(args.bazel_startup_options),
         _split_list(args.bazel_build_options),
@@ -248,31 +143,6 @@ def release_command(args):
             zipf.write(fname, arcname)
 
 
-def _read_jsonc(path):
-    jsonc = path.read_text()
-    noc = "\n".join(l for l in jsonc.split("\n") if not l.lstrip(" ").startswith("//"))
-    return json.loads(noc)
-
-
-def _create_shim(aosp_path, build_path):
-    toolchain_path = aosp_path / "third_party" / "qemu" / "google" / "toolchain"
-    common = _read_jsonc(toolchain_path / "shim-common.jsonc")
-    plat = _read_jsonc(toolchain_path / f"shim-{platform.system().lower()}.jsonc")
-    out = {}
-    out["bazel_prefix"] = common.get("bazel_prefix", "") + plat.get("bazel_prefix", "")
-    out["shims"] = common.get("shims", []) + plat.get("shims", [])
-    # platform external_deps entries can override common ones.
-    out["external_deps"] = common.get("external_deps", {}) | plat.get(
-        "external_deps", {}
-    )
-    out["export"] = common.get("export", []) + plat.get("export", [])
-    out["exclude"] = common.get("exclude", []) + plat.get("exclude", [])
-
-    out_path = build_path / "shim.jsonc"
-    out_path.write_text(json.dumps(out))
-    return out_path
-
-
 def bazel_command(args):
     bazel_out = Path(args.out)
     bazel_out.mkdir(parents=True, exist_ok=True)
@@ -287,7 +157,7 @@ def bazel_command(args):
             get_build_dir(build_dir),
             get_toolchain_dir(build_dir),
             "",
-            args.aosp,
+            Path(args.aosp),
             args.ccache,
             _split_list(args.bazel_startup_options),
             _split_list(args.bazel_build_options),
@@ -303,14 +173,14 @@ def bazel_command(args):
         if args.shim:
             shim_path = Path(args.shim)
         else:
-            shim_path = _create_shim(Path(args.aosp), Path(build_dir))
+            shim_path = create_shim(Path(args.aosp), Path(build_dir))
 
         builder = get_builder(
             args.target,
             get_build_dir(bazel_build_dir),
             get_toolchain_dir(bazel_build_dir),
             "",
-            args.aosp,
+            Path(args.aosp),
             args.ccache,
             _split_list(args.bazel_startup_options),
             _split_list(args.bazel_build_options),
@@ -348,24 +218,6 @@ def bazel_command(args):
 
     if temp_build:
         temp_build.__exit__(None, None, None)
-
-
-def find_aosp_root(start_directory=Path(__file__).resolve()):
-    current_directory = Path(start_directory).resolve()
-
-    while True:
-        repo_directory = current_directory / ".repo"
-        if repo_directory.is_dir():
-            return str(current_directory)
-
-        # Move up one directory
-        parent_directory = current_directory.parent
-
-        # Check if we've reached the root directory
-        if current_directory == parent_directory:
-            return str(current_directory)
-
-        current_directory = parent_directory
 
 
 def main():
