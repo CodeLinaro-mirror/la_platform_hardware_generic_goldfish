@@ -219,6 +219,16 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     uint32_t width = display->width();
     uint32_t height = display->height();
 
+    // the desiredWidth and height are not stable at the moment
+    // they switch from 616x1218 to 616x1080, and that behavior
+    // caused some confusion in embedded ui; in addition, the
+    // sensor does not give correct orientation neither, sometime
+    // it shows landscape, no idea what went wrong. for now,
+    // just do a simple scale according to the ratio of display w/h
+    // TODO: fix this b/448504524
+    const double desired_over_display_ratio = ((double)desiredWidth)/((double)width);
+    desiredHeight = (int)(desired_over_display_ratio * height);
+
     // Depending on the rotation state width and height need to be
     // reversed. as our apsect ration depends on how we are holding our
     // phone..
