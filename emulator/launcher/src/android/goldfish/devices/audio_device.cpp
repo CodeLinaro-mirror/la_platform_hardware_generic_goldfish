@@ -19,25 +19,40 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
+
 namespace android::goldfish {
+
 absl::Status AudioDevice::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
 std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator) const {
     using namespace std::literals;
+    const std::string_view kID = "id=mainaudiodev"sv;
 
-    const std::string_view audioDriver = "none"sv;
+    std::string audioBackend = getAudioBackend(emulator.opts());
+    std::string_view audioSettings;
+    if (audioBackend.empty()) {
+        audioBackend = "none"s;
+        audioSettings = "out.mixing-engine=off,in.mixing-engine=off"sv;
+    } else {
+        audioSettings =
+                "out.mixing-engine=on,out.fixed-settings=on,"
+                "out.frequency=48000,out.format=s16,out.channels=2,"
+                "in.mixing-engine=on,in.fixed-settings=on,"
+                "in.frequency=48000,in.format=s16,in.channels=1"sv;
+    }
 
     switch (emulator.avd().detectArchitecture()) {
     case Avd::CpuArchitecture::kArm:
         return {
             "-audiodev"s,
-            absl::StrCat(audioDriver, ",id=mainaudiodev,out.mixing-engine=off"sv),
+            absl::StrFormat("%s,%s,%s", audioBackend, kID, audioSettings),
             "-device"s,
             "virtio-sound-device,audiodev=mainaudiodev"s,
         };
@@ -45,7 +60,7 @@ std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator
     case Avd::CpuArchitecture::kX86:
         return {
             "-audiodev"s,
-            absl::StrCat(audioDriver, ",id=mainaudiodev,out.mixing-engine=off"sv),
+            absl::StrFormat("%s,%s,%s", audioBackend, kID, audioSettings),
             "-device"s,
             absl::StrCat("virtio-sound-pci,audiodev=mainaudiodev,addr="sv, addr()),
         };
@@ -56,6 +71,23 @@ std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator
     }
 
     return {};
+}
+
+std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
+    if (opts.noaudio) {
+        return {};
+    }
+
+    const char* const audioBackendOpt = opts.audio;
+    if (audioBackendOpt && *audioBackendOpt) {
+        return audioBackendOpt;
+    } else {
+        return detectHostAudioBackend();
+    }
+}
+
+std::string AudioDevice::detectHostAudioBackend() {
+    return {};  // TODO b/448177089
 }
 
 }  // namespace android::goldfish

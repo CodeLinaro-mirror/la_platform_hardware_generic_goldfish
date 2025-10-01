@@ -25,5 +25,8 @@ class AudioDevice : public PciDevice {
 
     absl::Status initialize(const Emulator& emulator) override;
     std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+
+    static std::string getAudioBackend(const AndroidOptions& opts);
+    static std::string detectHostAudioBackend();
 };
 }  // namespace android::goldfish
