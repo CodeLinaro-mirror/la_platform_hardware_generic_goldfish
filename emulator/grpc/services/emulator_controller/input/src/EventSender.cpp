@@ -51,8 +51,7 @@ absl::Status InputEventSender::send(const MouseEvent& event) const {
 absl::Status InputEventSender::send(const WheelEvent& event) const {
     LOG(ERROR) << "Wheel events are not yet supported, dropping event: "
                << event.ShortDebugString();
-    return absl::UnimplementedError(
-            "We do not yet support translation of wheel events to touch events.");
+    return absl::OkStatus();
 }
 
 absl::Status InputEventSender::send(const PenEvent& event) {
