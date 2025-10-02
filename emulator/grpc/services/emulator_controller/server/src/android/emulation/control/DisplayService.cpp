@@ -200,7 +200,11 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
             VLOG(1) << "Unable to retrieve rotation information due to: "
                     << possibleRotation.status();
         } else {
-            deviceRotation = possibleRotation.value();
+            //deviceRotation = possibleRotation.value(); case DeviceSkinRotation::PORTRAIT
+            // TODO: b/448632603, fix sensor reporting, right now it is not correct:
+            // on linux it is portrait, on mac it is landscape,which messes up
+            // input x and y coordinate; for now, just use portrait
+            deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;
         }
     }
 
