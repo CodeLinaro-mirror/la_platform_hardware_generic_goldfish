@@ -146,8 +146,17 @@ plugin_binaries = [
     ],
 }) + select({
     "@platforms//os:linux": [
+        # For netsimd prebuilt
+        "//prebuilts/android-emulator-build/common/vulkan:linux_libc++",
+        "//prebuilts/android-emulator-build/common/netsim:libs_linux_x86_64",
         # TODO(b/434942959,whollins): Re-add this.
         #"@gcc_lib//:libpulse",
+    ],
+    "@platforms//os:macos": [
+        "//prebuilts/android-emulator-build/common/netsim:libs_darwin_aarch64",
+    ],
+    "@platforms//os:windows": [
+        "//prebuilts/android-emulator-build/common/netsim:libs_windows_x86_64",
     ],
     "//conditions:default": [
     ],

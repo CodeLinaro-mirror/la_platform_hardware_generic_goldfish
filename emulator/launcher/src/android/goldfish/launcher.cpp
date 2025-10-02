@@ -265,6 +265,10 @@ int main(int argc, char** argv) {
 
     Emulator emulator{*std::move(resolved_paths), std::move(avd.value()), opts};
 
+    if (auto s = emulator.launch_netsim(); !s.ok()) {
+        LOG(FATAL) << "Fatal error whilst launching the netsimd: " << s;
+    }
+
     if (auto s = emulator.launch(); !s.ok()) {
         LOG(FATAL) << "Fatal error whilst launching the emulator: " << s;
     }

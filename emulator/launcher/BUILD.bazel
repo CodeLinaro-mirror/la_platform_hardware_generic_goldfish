@@ -89,6 +89,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
+        "//hardware/generic/goldfish/android/network",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/config",
@@ -164,6 +165,8 @@ collect_plugins(
         "@platforms//os:linux": [
             "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
             "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+            # For old netsimd prebuilt
+            "//prebuilts/android-emulator-build/common/vulkan:linux_libc++",
         ],
         "@platforms//os:windows": [
             # We don't build Qemu system aarch64 or riscv64 on Windows.

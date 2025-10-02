@@ -15,21 +15,25 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
+#include <future>
 #include <initializer_list>
 #include <memory>
-#include <optional>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 // Use ABSL_LOG to avoid conflict with crashpadh logging
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
+#include "aemu/base/files/IniFile.h"
+#include "aemu/base/network/Dns.h"
+#include "aemu/base/network/IpAddress.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "aemu/base/utils/status_macros.h"
@@ -54,6 +58,54 @@ namespace android::goldfish {
 
 using android::base::Bazel;
 using android::base::System;
+
+namespace {
+
+std::unique_ptr<android::base::ObservableProcess> RunNetsimd(const fs::path& netsim_binary,
+                                                             const AndroidOptions& opts) {
+    bool no_cli_ui = true;  //! feature_is_enabled(kFeature_NetsimCliUi),
+    bool no_web_ui = true;  //! feature_is_enabled(kFeature_NetsimWebUi),
+    std::string host_dns = opts.dns_server ? opts.dns_server : "";
+    if (host_dns.empty()) {
+        android::base::Dns::AddressList al = android::base::Dns::getSystemServerList();
+        host_dns = absl::StrJoin(al, ",", [](std::string* out, const android::base::IpAddress& ip) {
+            absl::StrAppend(out, ip.toString());
+        });
+        VLOG(1) << "Netsim DNS set to: " << host_dns;
+    }
+    std::string_view http_proxy = opts.http_proxy ? opts.http_proxy : "";
+    std::string_view netsim_args = opts.netsim_args ? opts.netsim_args : "";
+
+    std::vector<std::string> program_with_args{netsim_binary.string()};
+    if (no_cli_ui) {
+        program_with_args.push_back("--no-cli-ui");
+    }
+    if (no_web_ui) {
+        program_with_args.push_back("--no-web-ui");
+    }
+    if (!host_dns.empty()) {
+        program_with_args.push_back(absl::StrCat("--host-dns=", host_dns));
+    }
+    if (!http_proxy.empty()) {
+        program_with_args.push_back(absl::StrCat("--http-proxy=", http_proxy));
+    }
+
+    for (auto& flag : absl::StrSplit(netsim_args, " ", absl::SkipEmpty())) {
+        program_with_args.push_back(std::string(flag));
+    }
+
+    LOG(INFO) << "Netsimd launch command:" << absl::StrJoin(program_with_args, " ");
+    auto cmd = android::base::Command::create(program_with_args);
+    // TODO(whollins): It would be useful to see stderr and stdout for debugging.
+    auto netsimd = cmd.asDeamon().execute();
+    if (netsimd) {
+        LOG(INFO) << "Running netsimd as pid: " << netsimd->pid();
+    }
+
+    return netsimd;
+}
+
+}  // namespace
 
 absl::Status Emulator::addDevices() {
     // Device are initialized in order of appearance
@@ -204,6 +256,69 @@ std::vector<std::string> Emulator::getCmdline() const {
     }
 
     return params;
+}
+
+fs::path getEnvDir(const char* envvar, std::string_view subdir) {
+    if (char* env_p = std::getenv(envvar); env_p && *env_p) {
+        return fs::path(env_p) / subdir;
+    }
+    LOG(WARNING) << "No discovery env for " << envvar << ", using tmp/";
+    return fs::path("/tmp");
+}
+
+fs::path GetNetsimDiscoveryDir() {
+    // $TMPDIR is the temp directory on buildbots (and Mac).
+    const char* test_env_p = std::getenv("TMPDIR");
+    if (test_env_p && *test_env_p) {
+        return fs::path(test_env_p);
+    }
+#if defined(_WIN32)
+    return getEnvDir("LOCALAPPDATA", "Temp");
+#elif defined(__linux__)
+    return getEnvDir("XDG_RUNTIME_DIR", "");
+#elif defined(__APPLE__)
+    return getEnvDir("HOME", "Library/Caches/TemporaryItems");
+#else
+#error This platform is not supported.
+#endif
+}
+
+absl::Status Emulator::launch_netsim() {
+    std::unique_ptr<android::base::ObservableProcess> netsimd;
+    if (auto netsim_endpoint = opts().packet_streamer_endpoint; netsim_endpoint) {
+        mNetsimEndpoint = netsim_endpoint;
+    } else {
+        // netsimd itself will check whether it's already running and exit if so.
+        netsimd = RunNetsimd(mResolvedPaths.netsim_binary, opts());
+        if (!netsimd->isAlive()) {
+            return absl::InternalError("Netsimd failed to start");
+        }
+        // Try to wait in case there was another one running.
+        if (netsimd->wait_for(std::chrono::seconds(2)) == std::future_status::ready) {
+            LOG(WARNING) << "netsimd died, perhaps another was aleardy running";
+        }
+        netsimd->detach();
+
+        for (int i = 0; i < 10; i++) {
+            // IniFile netsim_ini(mResolvedPaths.discovery_directory.parent_path().parent_path() /
+            // "netsim.ini");
+            IniFile netsim_ini(GetNetsimDiscoveryDir() / "netsim.ini");
+            if (!netsim_ini.read()) {
+                VLOG(1) << "Failed to read netsim.ini, retrying...";
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            int port = netsim_ini.getInt("grpc.port", 0);
+            VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
+            mNetsimEndpoint = absl::StrCat("localhost:", port);
+            break;
+        }
+        if (mNetsimEndpoint.empty()) {
+            return absl::NotFoundError(
+                    "Unable to read the netsim.ini file for the running netsimd");
+        }
+    }
+    return absl::OkStatus();
 }
 
 absl::Status Emulator::launch() {
