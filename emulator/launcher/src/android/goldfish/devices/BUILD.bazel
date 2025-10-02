@@ -311,3 +311,17 @@ cc_library(
         "@aemu//base:aemu-base",
     ],
 )
+
+cc_library(
+    name = "wifi_device",
+    srcs = ["wifi_device.cpp"],
+    hdrs = ["wifi_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/launcher:headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base",
+    ],
+)

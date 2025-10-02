@@ -53,6 +53,7 @@
 #include "devices/memory_device.h"
 #include "devices/network_device.h"
 #include "devices/parameter_list.h"
+#include "devices/wifi_device.h"
 
 namespace android::goldfish {
 
@@ -136,7 +137,10 @@ absl::Status Emulator::addDevices() {
 
     addDevice<AudioDevice>("09.0");
 
-    addDevice<NetworkDevice>("0a.0");
+    // No ethernet device for now:
+    // addDevice<NetworkDevice>("0a.0");
+
+    addDevice<WifiDevice>("0b.0");
 
     // Hardware RNG device
     addDevice<ParameterList>(std::initializer_list<std::string>{

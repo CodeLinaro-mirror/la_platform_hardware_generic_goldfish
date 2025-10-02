@@ -106,6 +106,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:memory_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:network_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:parameter_list",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:wifi_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:configure_drives",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

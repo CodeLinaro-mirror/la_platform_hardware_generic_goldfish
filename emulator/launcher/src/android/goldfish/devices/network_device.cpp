@@ -30,16 +30,10 @@ std::string network_device_type(const Avd &avd, std::string_view addr) {
 
 std::vector<std::string> NetworkDevice::getQemuParameters(const Emulator& emulator) const {
     return {
-            // First basic ethernet - hubport backend so that slirp isn't
-            // required.
+            // First basic ethernet.
+            // TODO(whollins): The hubport backend doesn't provide any connectivity.
             "-netdev", "hubport,id=mynet,hubid=1234",
             "-device", absl::StrCat(network_device_type(emulator.avd(), addr()), ",netdev=mynet"),
-
-            // Second wifi from netsim.
-            // Could replace dhcpstart with user options
-            // TODO(whollins): Enable this when the virtio-wifi plugin is ready.
-            //"-netdev user,id=virtio-wifi,dhcpstart=10.0.2.16",
-            //"-device virtio-wifi-pci,netdev=virtio-wifi",
     };
 }
 
