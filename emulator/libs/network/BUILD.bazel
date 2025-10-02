@@ -1,0 +1,17 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "network",
+    srcs = [
+        "GenericNetlinkMessage.cpp",
+        "IOVector.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/network/GenericNetlinkMessage.h",
+        "include/goldfish/network/IOVector.h",
+        "include/goldfish/network/iovec.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/log"],
+)

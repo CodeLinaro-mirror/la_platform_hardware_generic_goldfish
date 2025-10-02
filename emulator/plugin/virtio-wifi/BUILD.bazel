@@ -1,0 +1,35 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = [
+        ":SPDX-license-identifier-GPL-2.0-only",
+    ],
+    license_text = "COPYING",
+    visibility = [":__subpackages__"],
+)
+
+license_kind(
+    name = "SPDX-license-identifier-GPL-2.0-only",
+    conditions = ["notice"],
+    url = "https://spdx.org/licenses/GPL-2.0-only.html",
+)
+
+cc_library(
+    name = "virtio-wifi",
+    srcs = ["virtio-wifi.c"],
+    hdrs = ["include/goldfish/net/virtio-wifi.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "//third_party/qemu:qemu-headers",
+    ],
+)
