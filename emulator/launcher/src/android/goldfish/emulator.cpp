@@ -111,8 +111,9 @@ absl::Status Emulator::addDevices() {
 
     auto ini_path = System::pathAsString(mAvd->getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-device", absl::StrFormat("avdstart,ini_path=%s,vmodule=%s,log_level=%d", ini_path,
-                                       vmodules, pluginLogLevel)});
+        "-device",
+        absl::StrCat("avdstart,ini_path=", ini_path, ",vmodule=", vmodules,
+                     ",log_level=", pluginLogLevel, ",serial_number=", serial_number())});
 
     std::string gpu_name = "gpu0";
     addDevice<GpuDevice>(gpu_name);
