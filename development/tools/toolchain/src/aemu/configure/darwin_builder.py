@@ -25,7 +25,6 @@ class DarwinBuilder(QemuBuilder):
 
         features["-Daudio_drv_list"] = "coreaudio"
         features["-Db_pie"] = "true"
-        features["-Dcocoa"] = "enabled"
         features["-Dcoreaudio"] = "enabled"
         features["-Dhvf"] = "enabled"
         features["-Dvmnet"] = "enabled"
