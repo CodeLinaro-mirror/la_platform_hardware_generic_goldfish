@@ -16,7 +16,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Set, Tuple
 
-from aemu.configure.package_config_pc import PackageConfigPc
+from aemu.toolchains.package_config_pc import PackageConfigPc
 
 
 # Base class for shared properties

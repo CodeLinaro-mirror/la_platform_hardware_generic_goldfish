@@ -280,11 +280,11 @@ class WindowsToWindowsGenerator(ToolchainGenerator):
 
     def pkg_config(self):
         # Build pkg-config from source.
-        self.bazel.build_target("//third_party/pkg-config:pkg-config")
+        self.bazel.build_target("@pkg-config")
         pkg_exe = (
             Path(self.bazel.info["bazel-bin"])
-            / "third_party"
-            / "pkg-config"
+            / "external"
+            / "pkg-config+"
             / "pkg-config.exe"
         )
         pkg_path = self.pkgconfig_directory.as_posix()
