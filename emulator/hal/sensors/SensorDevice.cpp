@@ -799,10 +799,9 @@ SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)
             [this](std::weak_ptr<ISensorDevice> device) { registerDevice(device); });
 }
 
-void SensorObserver::registerDevice(std::weak_ptr<ISensorDevice> device) {
-    mDevice = device;
-    auto sensor = device.lock();
-    if (sensor) {
+void SensorObserver::registerDevice(std::weak_ptr<ISensorDevice> weakSensor) {
+    if (auto sensor = weakSensor.lock()) {
+        mDevice = sensor;
         mCallbackId =
                 sensor->addCallback([this](AndroidSensor sensorId) { forwardEvent(sensorId); });
     }
