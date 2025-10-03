@@ -21,12 +21,14 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "aemu/base/Compiler.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/hal/plug/HalPlug.h"
+
 namespace goldfish {
 namespace devices {
 
@@ -228,29 +230,30 @@ class ConnectorRegistry : public IConnectorRegistry {
           return {};
         }
 
-        std::weak_ptr<T> result;
-        std::visit(
-            [&](auto& plug) {
-              // Check if the current type in the variant is a base class of T.
-              // This cast works because it operates on shared_ptr.
+        auto [expired, result] = std::visit(
+            [&](auto& plug) -> std::pair<bool, std::shared_ptr<T>> {
+              using element_type = typename std::remove_reference_t<decltype(plug)>::element_type;
+
               if (auto sharedPtr = plug.lock()) {
                 if (auto castPtr = std::dynamic_pointer_cast<T>(sharedPtr)) {
-                  result = std::weak_ptr<T>(castPtr);
+                  return {false, std::move(castPtr)};
+                } else {
+                  return {false, {}};
                 }
+              } else {
+                return {true, {}};
               }
-              // Note we technically could clean up `it` but this would
-              // possibly lead to undefined behaviour as we are invalidating
-              // `it` in function scope of std::visit, hence we will do it later.
             },
             it->second);
 
-        // Check for stale entries and clean them up.
-        bool expired = std::visit([](auto& weak_ptr) { return weak_ptr.expired(); }, it->second);
         if (expired) {
           mActivePlugs.erase(it);
+        } else if (!result) {
+          LOG(ERROR) << "The '" << T::serviceName
+                     << "' service was found but it was registered with an incompatible type.";
         }
 
-        return result;
+        return std::weak_ptr<T>(std::move(result));
     }
 
   protected:
