@@ -50,13 +50,6 @@ std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator
 
     switch (emulator.avd().detectArchitecture()) {
     case Avd::CpuArchitecture::kArm:
-        return {
-            "-audiodev"s,
-            absl::StrFormat("%s,%s,%s", audioBackend, kID, audioSettings),
-            "-device"s,
-            "virtio-sound-device,audiodev=mainaudiodev"s,
-        };
-
     case Avd::CpuArchitecture::kX86:
         return {
             "-audiodev"s,
