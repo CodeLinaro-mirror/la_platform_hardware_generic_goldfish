@@ -170,7 +170,7 @@ class SensorObserver : public CallbackEventSource<SensorData> {
             mDeviceListener;               ///< Listener for device registration events.
     std::weak_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
     const AndroidSensor mId;
-    CallbackId mCallbackId;  ///< The ID of the registered callback in the ISensorDevice.
+    CallbackId mCallbackId = 1234567890;  ///< The ID of the registered callback in the ISensorDevice.
 };
 
 }  // namespace goldfish::devices::sensor
