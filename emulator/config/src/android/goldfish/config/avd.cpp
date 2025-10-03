@@ -356,6 +356,13 @@ FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> tar
     }
 
     mHwCfg.applyDefaults(*this);
+
+    // save to CORE_HARDWARE_INI as well, embedded ui needs it
+    {
+        auto hw_config = std::make_unique<IniFile>(hw_path);
+        mHwCfg.write(hw_config.get());
+        hw_config->writeDiscardingEmpty();
+    }
 }
 
 // static
