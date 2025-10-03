@@ -169,7 +169,7 @@ class SensorObserver : public CallbackEventSource<SensorData> {
     DeviceRegistrationListener<ISensorDevice>
             mDeviceListener;               ///< Listener for device registration events.
     std::weak_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
-    AndroidSensor mId;
+    const AndroidSensor mId;
     CallbackId mCallbackId;  ///< The ID of the registered callback in the ISensorDevice.
 };
 
