@@ -69,4 +69,17 @@ void HardwareConfig::applyDefaults(const Avd &avd) {
     hw_gltransport = "virtio-gpu-pipe";
 }
 
+void HardwareConfig::write(IniFile* ini) {
+
+#define   HWCFG_BOOL(n,s,d,a,t)       ini->setBool(s, n);
+#define   HWCFG_INT(n,s,d,a,t)        ini->setInt(s, n);
+#define   HWCFG_STRING(n,s,d,a,t)     ini->setString(s, n);
+#define   HWCFG_DOUBLE(n,s,d,a,t)     ini->setDouble(s, n);
+#define   HWCFG_DISKSIZE(n,s,d,a,t)   ini->setDiskSize(s, static_cast<IniFile::DiskSize>(n));
+
+#include "host-common/hw-config-defs.h"
+
+    ini->setDiskSize("sdcard.size", hw_sdCard_size.bytes());
+}
+
 }  // namespace android::goldfish

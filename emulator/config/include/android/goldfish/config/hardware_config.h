@@ -34,6 +34,10 @@ class HardwareConfig {
     void applyDefaults(const Avd &avd);
     void load(IniFile* ini);
 
+    // this is needed as studio embedded ui expects a file called 'hardware-qemu.ini'
+    // that is similar to config.ini but has more finalized values, such as sdk root
+    void write(IniFile* ini);
+
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
 #define HWCFG_INT(n, s, d, a, t) int n;
 #define HWCFG_STRING(n, s, d, a, t) std::string n;
