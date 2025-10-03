@@ -100,6 +100,8 @@ class Emulator {
     // The android options used to configure this emulator
     const AndroidOptions& opts() const { return mOpts; }
 
+    const std::string &serial_number() const { return mSerialNumber; }
+
     /**
      * @brief Clears the device's persistent state and prepares it for
      * re-initialization.
@@ -138,6 +140,7 @@ class Emulator {
     const ResolvedInputPaths mResolvedPaths;
     const std::unique_ptr<Avd> mAvd;
     const AndroidOptions mOpts;
+    std::string mSerialNumber{"5554"};  // TODO(whollins)
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;
 };

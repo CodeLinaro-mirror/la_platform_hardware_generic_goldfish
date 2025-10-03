@@ -25,6 +25,7 @@
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
@@ -147,6 +148,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
             {
                 {"qemu.sf.fake_camera"s, emulatedCameraProp},
                 {"qemu.sf.lcd_density"s, "420"s},
+                // This is the same value that is passed to the virtio-wifi module.
+                {"net.wifi_mac_prefix"s, absl::StrCat(avd_info->serial_number)},
             },
             &DummyRegisterEmulatorReset, clientLoop, gQemuLoop.get());
 
@@ -183,6 +186,17 @@ void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opa
     avd_info->log_level = value;
 }
 
+void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    int32_t value;
+
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+
+    avd_info->serial_number = value;
+}
+
 void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
     object_class_property_set_description(oc, "ini_path",
@@ -196,6 +210,9 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
             oc, "vmodule",
             "Sets logging levels for specific files or groups of files using | separated "
             "key-value pairs (e.g., filename_pattern=level|pattern2=level)");
+
+    object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number, NULL, NULL);
+    object_class_property_set_description(oc, "serial_number", "The serial number of this emulator");
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

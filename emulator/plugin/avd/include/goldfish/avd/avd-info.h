@@ -39,6 +39,7 @@ struct AvdInfoDev {
     std::string ini_path;
     int log_level{2};     // Log only errors
     std::string vmodule;  // Vlog filter
+    int32_t serial_number{5554};
 };
 #define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
