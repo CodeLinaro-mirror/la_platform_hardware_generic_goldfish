@@ -60,13 +60,13 @@ class EmulatorControllerImpl final
     EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
                            android::goldfish::Avd* avd, IMultiDisplay* multidisplay,
                            ::goldfish::async::EventLoop* qemuLoop)
-            : mClipboardService(connectorRegistry)
+            : mKeyEventSender(
+                      keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
+            , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
+            , mClipboardService(connectorRegistry)
             , mDisplayService(multidisplay, connectorRegistry)
             , mGpsService(connectorRegistry)
-            , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
             , mInputEventSender(multidisplay)
-            , mKeyEventSender(
-                      keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
             , mSensorService(connectorRegistry)
             , mStatusService(connectorRegistry, avd)
             , mVmService(vm) {}
@@ -202,12 +202,12 @@ class EmulatorControllerImpl final
     }
 
   private:
+    const std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
+    const std::shared_ptr<NotificationStream> mNotificationStream;
     ClipboardServiceImpl mClipboardService;
     DisplayServiceImpl mDisplayService;
     GpsServiceImpl mGpsService;
     InputEventSender mInputEventSender;
-    std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
-    std::shared_ptr<NotificationStream> mNotificationStream;
     SensorServiceImpl mSensorService;
     StatusServiceImpl mStatusService;
     VmServiceImpl mVmService;
