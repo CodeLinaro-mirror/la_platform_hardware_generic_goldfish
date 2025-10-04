@@ -74,7 +74,9 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
      */
     cable::SocketPtr onUnplug() override;
 
-  protected:
+    const std::shared_ptr<HalPlug>& getHalPlug() const { return mHalPlug; }
+
+   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
         absl::Format(&s, "[IPlugAdapter: client: %p, halPlug: %v]", mClientLoop, *mHalPlug);
     }

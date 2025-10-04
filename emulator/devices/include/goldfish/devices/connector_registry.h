@@ -17,7 +17,6 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -28,6 +27,7 @@
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/hal/plug/HalPlug.h"
+#include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 
 namespace goldfish {
 namespace devices {
@@ -167,9 +167,6 @@ class ConnectorRegistry : public IConnectorRegistry {
      */
     using ListenFn = std::function<bool(HostPortListener)>;
 
-    // Use a variant to store weak pointers to both plug types.
-    using ActivePlugVariant = std::variant<std::weak_ptr<cable::IPlug>, std::weak_ptr<HalPlug>>;
-
     ConnectorRegistry();
     virtual ~ConnectorRegistry() = default;
 
@@ -230,27 +227,26 @@ class ConnectorRegistry : public IConnectorRegistry {
           return {};
         }
 
-        auto [expired, result] = std::visit(
-            [&](auto& plug) -> std::pair<bool, std::shared_ptr<T>> {
-              using element_type = typename std::remove_reference_t<decltype(plug)>::element_type;
-
-              if (auto sharedPtr = plug.lock()) {
-                if (auto castPtr = std::dynamic_pointer_cast<T>(sharedPtr)) {
-                  return {false, std::move(castPtr)};
-                } else {
-                  return {false, {}};
-                }
-              } else {
-                return {true, {}};
-              }
-            },
-            it->second);
-
-        if (expired) {
+        const std::shared_ptr<cable::IPlug> impl = it->second.lock();
+        if (!impl) {
           mActivePlugs.erase(it);
-        } else if (!result) {
-          LOG(ERROR) << "The '" << T::serviceName
-                     << "' service was found but it was registered with an incompatible type.";
+          return {};
+        }
+
+        std::shared_ptr<T> result;
+        if constexpr (std::derived_from<T, cable::IPlug>) {
+          result = std::dynamic_pointer_cast<T>(impl);
+        } else if constexpr (std::derived_from<T, HalPlug>) {
+          if (auto adapter = std::dynamic_pointer_cast<HalPlugToIPlugAdapter>(impl)) {
+            result = std::dynamic_pointer_cast<T>(adapter->getHalPlug());
+          }
+        } else {
+          static_assert(false, "We should not get here");
+        }
+
+        if (!result) {
+          LOG(DFATAL) << "The '" << T::serviceName
+                      << "' service was found but it was registered with an incompatible type.";
         }
 
         return std::weak_ptr<T>(std::move(result));
@@ -269,14 +265,7 @@ class ConnectorRegistry : public IConnectorRegistry {
      *
      * @protected This method is protected to allow access from test classes.
      */
-   template <typename PlugType>
-   void registerInternal(std::string registryName, std::weak_ptr<PlugType> plug) {
-     {
-       std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-       mActivePlugs.emplace(registryName, plug);
-     }
-     fireEvent(registryName);
-   }
+   void registerInternal(std::string registryName, const std::shared_ptr<cable::IPlug>& plug);
 
   private:
    bool registerDeviceImpl(std::string_view prefix,
@@ -296,17 +285,7 @@ class ConnectorRegistry : public IConnectorRegistry {
 
    // This map holds weak pointers to all currently active plugs, allowing for
    // inspection via the `activeDevice<T>()` method.
-   //
-   // It stores a std::variant of two types:
-   // 1. `std::weak_ptr<cable::IPlug>`: For legacy devices that are not
-   //    thread-safe and are difficult to implement correctly. This type is
-   //    being deprecated.
-   // 2. `std::weak_ptr<HalPlug>`: For modern, thread-safe HALs. This is the
-   //    preferred type for all new development.
-   //
-   // The goal is to eventually migrate all devices to the `HalPlug` model and
-   // remove the need for this variant.
-   absl::flat_hash_map<std::string, ActivePlugVariant> mActivePlugs;
+   absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
    std::vector<Connector::DeviceEntry> mDevices;
 };
 

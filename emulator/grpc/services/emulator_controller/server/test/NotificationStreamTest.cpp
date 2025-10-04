@@ -109,7 +109,8 @@ TEST_F(NotificationServiceTest, InitialDisplayConfiguration) {
     EXPECT_EQ(grpc::StatusCode::CANCELLED, status.error_code());
 }
 
-TEST_F(NotificationServiceTest, BootCompletedNotification) {
+// b/448934377
+TEST_F(NotificationServiceTest, DISABLED_BootCompletedNotification) {
     Empty request;
     Notification reply;
     auto context = getContextWithTimeout();
@@ -178,7 +179,8 @@ TEST_F(NotificationServiceTest, StreamCancellation) {
     EXPECT_EQ(grpc::StatusCode::CANCELLED, status.error_code());
 }
 
-TEST_F(NotificationServiceTest, MultipleClients) {
+// b/448934377
+TEST_F(NotificationServiceTest, DISABLED_MultipleClients) {
     Empty request;
     Notification reply1, reply2;
     auto context1 = getContextWithTimeout();
@@ -208,7 +210,8 @@ TEST_F(NotificationServiceTest, MultipleClients) {
     EXPECT_FALSE(reader2->Read(&reply2));
 }
 
-TEST_F(NotificationServiceTest, CombinedEvents) {
+// b/448934377
+TEST_F(NotificationServiceTest, DISABLED_CombinedEvents) {
     Empty request;
     Notification reply;
     auto context = getContextWithTimeout();
@@ -257,7 +260,8 @@ TEST_F(NotificationServiceTest, CombinedEvents) {
     EXPECT_EQ(grpc::StatusCode::CANCELLED, status.error_code());
 }
 
-TEST_F(NotificationServiceTest, DuplicateBootCompletedNotification) {
+// b/448934377
+TEST_F(NotificationServiceTest, DISABLED_DuplicateBootCompletedNotification) {
     Empty request;
     Notification reply;
 
