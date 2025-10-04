@@ -59,8 +59,10 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
             }
             return connector;
         };
+
         mDevices.push_back({key.c_str(), std::move(registerfn)});
     }
+
     return startListening([this](auto socket) {
         return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
                                            mDevices.size());
@@ -82,8 +84,8 @@ bool ConnectorRegistry::registerDeviceImpl(std::string name, Connector::DeviceFa
         LOG(WARNING) << "The registry is closed, device: " << name << " is not registered.";
         return false;
     }
-    mEntries[absl::StrCat(prefix, name)] = std::move(factory);
-    return true;
+
+    return mEntries.insert({absl::StrCat(prefix, name), std::move(factory)}).second;
 }
 
 void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* clientLoop,
