@@ -14,8 +14,8 @@
 
 #pragma once
 
-namespace goldfish::net {
+namespace goldfish::netsim {
 
 void netsim_netdev_register_types(void);
 
-}  // namespace goldfish::net
+}  // namespace goldfish::netsim

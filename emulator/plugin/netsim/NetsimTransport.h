@@ -26,19 +26,25 @@ namespace android::emulation::control {
 class BlockingEmulatorGrpcClient;
 }
 
-namespace goldfish::net {
+namespace goldfish::netsim {
 
-class NetsimTransport : public grpc::ClientBidiReactor<netsim::packet::PacketRequest,
-                                                       netsim::packet::PacketResponse> {
+// Convert a protobuf bytes field into std::unique_ptr<vec<uint8_t>>.
+//
+// Release ownership of the bytes field and convert it to a vector using
+// move iterators. No copy when called with a mutable reference.
+std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field);
+
+class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketRequest,
+                                                       ::netsim::packet::PacketResponse> {
  public:
-  using RecvCallback = std::function<void(std::unique_ptr<std::vector<uint8_t>> buf)>;
+  using RecvCallback = std::function<bool(::netsim::packet::PacketResponse *packet)>;
 
   NetsimTransport(std::string endpoint, RecvCallback recv_cb);
   ~NetsimTransport() override;
 
-  absl::Status initialize();
+  absl::Status initialize(::netsim::startup::Chip chip);
 
-  void send(const uint8_t* buf, size_t size);
+  void send(::netsim::packet::PacketRequest msg);
 
   void next_recv();
 
@@ -48,7 +54,6 @@ class NetsimTransport : public grpc::ClientBidiReactor<netsim::packet::PacketReq
 
   void OnReadDone(bool ok) override;
 
-  void Write(netsim::packet::PacketRequest msg);
   void OnWriteDone(bool ok) override;
   void NextWrite_locked();
 
@@ -56,20 +61,20 @@ class NetsimTransport : public grpc::ClientBidiReactor<netsim::packet::PacketReq
   RecvCallback mRecvCb;
 
   std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient> mGrpcClient;
-  std::unique_ptr<netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
+  std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
 
   std::unique_ptr<grpc::ClientContext> mStreamPacketsContext;
 
   std::mutex mWritelock;
-  std::queue<netsim::packet::PacketRequest> mWriteQueue;
+  std::queue<::netsim::packet::PacketRequest> mWriteQueue;
   bool mWriting{false};
   bool mWriteDone{false};
 
-  netsim::packet::PacketResponse mReadBuffer;
+  ::netsim::packet::PacketResponse mReadBuffer;
   std::mutex mReadlock;
   bool mReadDone{false};
 
   absl::Notification mDone;
 };
 
-}  // namespace goldfish::net
+}  // namespace goldfish::netsim

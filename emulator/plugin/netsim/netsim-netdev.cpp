@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/net/netsim-netdev.h"
+#include "goldfish/netsim/netsim-netdev.h"
 
 #include <memory>
 
 #include "absl/log/log.h"
 
 extern "C" {
+// clang-format off
 #include "qemu/osdep.h"
+// clang-format on
 #include "hw/qdev-core.h"
 #include "net/net.h"
 #include "qapi/error.h"
@@ -30,9 +32,18 @@ extern "C" {
 
 #undef send
 
+#include "goldfish/network/GenericNetlinkMessage.h"
 #include "NetsimTransport.h"
 
-namespace goldfish::net {
+#define __packed
+typedef int8_t s8;
+typedef uint8_t u8;
+typedef uint16_t u16;
+#include "standard-headers/linux/mac80211_hwsim.h"
+
+namespace goldfish::netsim {
+
+namespace {
 
 struct NetsimNetdev {
     DeviceClass parent_class;
@@ -42,8 +53,6 @@ struct NetsimNetdev {
 #define TYPE_NETSIM_NETDEV "netsim-netdev"
 #define NETSIM_NETDEV(obj) OBJECT_CHECK(NetsimNetdev, (obj), TYPE_NETSIM_NETDEV)
 #define NETSIM_NETDEV_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(NetsimNetdev, obj, TYPE_NETSIM_NETDEV)
-
-namespace {
 
 struct NetsimState {
     std::unique_ptr<NetsimTransport> transport;
@@ -56,7 +65,7 @@ struct NetsimNicState {
     NetsimState* netsim;
 };
 
-void netsim_send_completed(NetClientState* nc, ssize_t len) {
+void netsim_netdev_send_completed(NetClientState* nc, ssize_t len) {
     VLOG(2) << "NETSIM: async completed";
     NetsimNicState* s = (NetsimNicState*)nc;
     // Clean-up the saved buffer.
@@ -65,7 +74,7 @@ void netsim_send_completed(NetClientState* nc, ssize_t len) {
     s->netsim->transport->next_recv();
 }
 
-void netsim_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>> buf) {
+bool netsim_netdev_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>> buf) {
     // From netsim to guest.
     VLOG(2) << "NETSIM: send (netsim -> guest)";
 
@@ -73,24 +82,34 @@ void netsim_send(NetClientState* nc, std::unique_ptr<std::vector<uint8_t>> buf) 
     if (s->netsim->async_tx) {
         LOG(DFATAL) << "Netsim recv: async_tx not empty, dropping packet - this is a bug and "
                        "network performance may be affected";
-        return;
+        return false;
     }
 
-    if (qemu_send_packet_async(nc, buf->data(), buf->size(), netsim_send_completed) == 0) {
+    if (qemu_send_packet_async(nc, buf->data(), buf->size(), netsim_netdev_send_completed) == 0) {
         VLOG(2) << "NETSIM: storing async_tx";
         // Keep the buffer alive until the send completes.
         s->netsim->async_tx = std::move(buf);
+        return false;
     } else {
-        s->netsim->transport->next_recv();
+        return true;
     }
 }
 
-ssize_t netsim_receive(NetClientState* nc, const uint8_t* buf, size_t size) {
+ssize_t netsim_netdev_receive(NetClientState* nc, const uint8_t* buf, size_t size) {
     // From guest to netsim.
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
     NetsimNicState* s = (NetsimNicState*)nc;
-    // Return value ignored.
-    s->netsim->transport->send(buf, size);
+
+    // Filter out spurious garbage data from the guest.
+    const goldfish::network::GenericNetlinkMessage msg(buf, size);
+    if (msg.genericNetlinkHeader()->cmd != HWSIM_CMD_FRAME) {
+        VLOG(1) << "Not sending junk frame";
+        return size;
+    }
+
+    ::netsim::packet::PacketRequest toSend;
+    toSend.set_packet(std::string(msg.data(), msg.data() + msg.dataLen()));
+    s->netsim->transport->send(std::move(toSend));
 
     // TODO(whollins): Should we try to detect netsimd connection drop and set link down?
 
@@ -98,28 +117,28 @@ ssize_t netsim_receive(NetClientState* nc, const uint8_t* buf, size_t size) {
     return size;
 }
 
-void netsim_link_status_changed(NetClientState* nc) {
+void netsim_netdev_link_status_changed(NetClientState* nc) {
     VLOG(1) << "NETSIM: link status changed: " << !nc->link_down;
 }
 
-void netsim_cleanup(NetClientState* nc) {
+void netsim_netdev_cleanup(NetClientState* nc) {
     NetsimNicState* s = (NetsimNicState*)nc;
     // This calls NetsimTransport's destructor, which calls cancel and await
     delete s->netsim;
 }
 
-NetClientInfo net_netsim_info = {
+NetClientInfo netsim_netdev_nic_info = {
     // We could add our own value in qapi/net.json but
     // it doesn't seem to be necessary.
     // .type = NET_CLIENT_DRIVER_NETSIM,
     .type = NET_CLIENT_DRIVER_NONE,
     .size = sizeof(NetsimNicState),
-    .receive = netsim_receive,
-    .cleanup = netsim_cleanup,
+    .receive = netsim_netdev_receive,
+    .cleanup = netsim_netdev_cleanup,
     // TODO consider adding a receive iov handler.
-    // ssize_t netsim_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
-    //.receive_iov = netsim_receive_iov,
-    .link_status_changed = netsim_link_status_changed,
+    // ssize_t netsim_netdev_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
+    //.receive_iov = netsim_netdev_receive_iov,
+    .link_status_changed = netsim_netdev_link_status_changed,
 };
 
 void netsim_netdev_realize(DeviceState* dev, Error** errp) {
@@ -144,7 +163,7 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     }
 
     NetClientState* peer = nullptr;
-    nc = qemu_new_net_client(&net_netsim_info, peer, "netsim", dev->id);
+    nc = qemu_new_net_client(&netsim_netdev_nic_info, peer, "netsim", dev->id);
     nc->is_netdev = true;
 
     NetsimNicState* s = (NetsimNicState*)nc;
@@ -152,9 +171,19 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     s->netsim = new NetsimState;
     s->netsim->transport = std::make_unique<NetsimTransport>(
             netsim_netdev->grpc_endpoint,
-            [nc](std::unique_ptr<std::vector<uint8_t>> buf) { netsim_send(nc, std::move(buf)); });
+            [nc](::netsim::packet::PacketResponse *packet) {
+                if (packet->has_packet()) {
+                    return netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
+                } else {
+                    LOG(WARNING) << "Unexpected packet " << packet->DebugString();
+                    // Try to receive next packet immediately.
+                    return true;
+                }
+            });
 
-    if (auto status = s->netsim->transport->initialize(); !status.ok()) {
+    ::netsim::startup::Chip chip;
+    chip.set_kind(::netsim::common::ChipKind::WIFI);
+    if (auto status = s->netsim->transport->initialize(std::move(chip)); !status.ok()) {
         error_setg(errp, "failed to initialize netsim transport %s: %s", dev->id,
                    status.ToString().c_str());
         return;
@@ -211,7 +240,7 @@ const TypeInfo netsim_netdev_type_info = {
 }  // namespace
 
 void netsim_netdev_register_types(void) {
-    type_register_static(&goldfish::net::netsim_netdev_type_info);
+    type_register_static(&goldfish::netsim::netsim_netdev_type_info);
 }
 
-}  // namespace goldfish::net
+}  // namespace goldfish::netsim

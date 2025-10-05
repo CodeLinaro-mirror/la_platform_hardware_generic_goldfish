@@ -26,49 +26,18 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/emulation/control/utils/emulator_grpc_client.h"
-#include "goldfish/network/GenericNetlinkMessage.h"
-#include "goldfish/network/IOVector.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
-#define __packed
-#define BIT(nr) (1ULL << (nr))
-typedef int8_t s8;
-typedef uint8_t u8;
-typedef uint16_t u16;
-#include "standard-headers/linux/mac80211_hwsim.h"
-
-namespace goldfish::net {
+namespace goldfish::netsim {
 namespace {
-
-using netsim::packet::PacketRequest;
-
 const absl::Duration kConnectionDeadline = absl::Seconds(15);
+}  // namespace
 
-// Convert a protobuf bytes field into std::unique_ptr<vec<uint8_t>>.
-//
-// Release ownership of the bytes field and convert it to a vector using
-// move iterators. No copy when called with a mutable reference.
 std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field) {
     return std::make_unique<std::vector<uint8_t>>(std::make_move_iterator(bytes_field->begin()),
                                                   std::make_move_iterator(bytes_field->end()));
 }
-
-}  // namespace
-
-/*int NetsimTransport::send(iovec* vecs, size_t len) {
-    auto* transport = (NetsimWifiTransport*)impl;
-    // Filter out spurious garbage data from the guest.
-    goldfish::wifi::network::IOVector iov(vecs, vecs + len);
-    const goldfish::wifi::network::GenericNetlinkMessage msg(iov);
-    if (msg.genericNetlinkHeader()->cmd != HWSIM_CMD_FRAME) {
-        return 0;
-    }
-    PacketRequest toSend;
-    toSend.set_packet(std::string(msg.data(), msg.data() + msg.dataLen()));
-    transport->Write(toSend);
-    return msg.dataLen();
-}*/
 
 NetsimTransport::NetsimTransport(std::string endpoint, RecvCallback recv_cb)
         : mEndpoint(std::move(endpoint)), mRecvCb(std::move(recv_cb)) {}
@@ -83,11 +52,11 @@ void NetsimTransport::cancel() {
     mGrpcClient->disconnect();
 }
 
-absl::Status NetsimTransport::initialize() {
-    PacketRequest initial_request;
-    auto initial_info = initial_request.mutable_initial_info();
-    initial_info->mutable_chip()->set_kind(netsim::common::ChipKind::WIFI);
-    auto* device_info = initial_info->mutable_device_info();
+absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
+    ::netsim::packet::PacketRequest initial_request;
+    auto *initial_info = initial_request.mutable_initial_info();
+    *initial_info->mutable_chip() = std::move(chip);
+    auto *device_info = initial_info->mutable_device_info();
     // TODO(whollins): set these from properties passed by the launcher.
     // avd.ini.displayname otherwise avd name.
     device_info->set_name("emulator-name");
@@ -111,29 +80,29 @@ absl::Status NetsimTransport::initialize() {
                              .buildBlocking());
     // TODO(whollins): Consider changing to non-blocking.
     RETURN_IF_ERROR(mGrpcClient->connect(kConnectionDeadline));
-    ASSIGN_OR_RETURN(mPacketStreamerStub, mGrpcClient->stub<netsim::packet::PacketStreamer>());
+    ASSIGN_OR_RETURN(mPacketStreamerStub, mGrpcClient->stub<::netsim::packet::PacketStreamer>());
 
     ASSIGN_OR_RETURN(mStreamPacketsContext, mGrpcClient->newContext());
     mPacketStreamerStub->async()->StreamPackets(mStreamPacketsContext.get(), this);
     StartCall();
-    Write(initial_request);
+    send(initial_request);
     next_recv();
 
-    LOG(INFO) << "Successfully initialized netsim WiFi";
+    LOG(INFO) << "Successfully initialized netsim transport";
     return absl::OkStatus();
 }
 
-void NetsimTransport::send(const uint8_t* buf, size_t size) {
-    // Filter out spurious garbage data from the guest.
-    const goldfish::network::GenericNetlinkMessage msg(buf, size);
-    if (msg.genericNetlinkHeader()->cmd != HWSIM_CMD_FRAME) {
-        VLOG(1) << "Not sending junk frame";
+void NetsimTransport::send(::netsim::packet::PacketRequest msg) {
+    std::lock_guard<std::mutex> lock(mWritelock);
+    if (mWriteDone) {
+        // Can't send anymore
         return;
     }
-    PacketRequest toSend;
-    toSend.set_packet(std::string(msg.data(), msg.data() + msg.dataLen()));
-    Write(toSend);
+    mWriteQueue.emplace(std::move(msg));
+
+    NextWrite_locked();
 }
+
 void NetsimTransport::OnWriteDone(bool ok) {
     if (ok) {
         std::lock_guard<std::mutex> lock(mWritelock);
@@ -144,17 +113,6 @@ void NetsimTransport::OnWriteDone(bool ok) {
     } else {
         mWriteDone = true;
     }
-}
-
-void NetsimTransport::Write(netsim::packet::PacketRequest msg) {
-    std::lock_guard<std::mutex> lock(mWritelock);
-    if (mWriteDone) {
-        // Can't send anymore
-        return;
-    }
-    mWriteQueue.emplace(std::move(msg));
-
-    NextWrite_locked();
 }
 
 void NetsimTransport::NextWrite_locked() {
@@ -175,12 +133,7 @@ void NetsimTransport::next_recv() {
 
 void NetsimTransport::OnReadDone(bool ok) {
     if (ok) {
-        if (mReadBuffer.has_packet()) {
-            mRecvCb(ToUniqueVec(mReadBuffer.mutable_packet()));
-            // Note that we don't automatically start another read in this case - the client must
-            // call next_recv().
-        } else {
-            LOG(WARNING) << "Unexpected packet " << mReadBuffer.DebugString();
+        if (mRecvCb(&mReadBuffer)) {
             next_recv();
         }
     } else {
@@ -192,9 +145,9 @@ void NetsimTransport::OnReadDone(bool ok) {
 }
 
 void NetsimTransport::OnDone(const grpc::Status& s) {
-    LOG(WARNING) << "Netsim Wifi " << mStreamPacketsContext->peer() << " is gone due to "
+    LOG(WARNING) << "Netsim Transport " << mStreamPacketsContext->peer() << " is gone due to "
                  << s.error_message();
     mDone.Notify();
 }
 
-}  // namespace goldfish::net
+}  // namespace goldfish::netsim
