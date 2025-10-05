@@ -8,6 +8,10 @@ cc_library(
         "src/android/base/network/NetworkUtils.cpp",
     ],
     includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": ["/DEFAULTLIB:Iphlpapi.lib"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/files",
