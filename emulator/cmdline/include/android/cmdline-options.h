@@ -407,6 +407,8 @@ OPT_FLAG(enable_vnc, "enable vnc debug display")
 
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
+OPT_FLAG(no_wifi, "disable wifi device")
+
 #undef CFG_FLAG
 #undef CFG_PARAM
 #undef OPT_FLAG

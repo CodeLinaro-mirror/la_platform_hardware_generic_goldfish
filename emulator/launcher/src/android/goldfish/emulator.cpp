@@ -140,7 +140,9 @@ absl::Status Emulator::addDevices() {
     // No ethernet device for now:
     // addDevice<NetworkDevice>("0a.0");
 
-    addDevice<WifiDevice>("0b.0");
+    if (!mOpts.no_wifi) {
+      addDevice<WifiDevice>("0b.0");
+    }
 
     // Hardware RNG device
     addDevice<ParameterList>(std::initializer_list<std::string>{

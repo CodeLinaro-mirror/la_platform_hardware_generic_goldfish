@@ -1855,6 +1855,7 @@ static void help_vmodule(stralloc_t* out) {
 #define help_enable_vnc NULL
 #define help_qemu NULL
 #define help_append NULL
+#define help_no_wifi NULL
 
 typedef struct {
     const char* name;
