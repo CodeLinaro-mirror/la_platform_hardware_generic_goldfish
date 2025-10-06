@@ -100,6 +100,8 @@ class Emulator {
     // The android options used to configure this emulator
     const AndroidOptions& opts() const { return mOpts; }
 
+    const std::string &netsim_endpoint() const { return mNetsimEndpoint; }
+
     const std::string &serial_number() const { return mSerialNumber; }
 
     /**
@@ -121,6 +123,8 @@ class Emulator {
      */
     absl::Status initialize();
 
+    absl::Status launch_netsim();
+
     /**
      * @brief Launches the emulator using the configured QEMU command line.
      *
@@ -141,6 +145,7 @@ class Emulator {
     const std::unique_ptr<Avd> mAvd;
     const AndroidOptions mOpts;
     std::string mSerialNumber{"5554"};  // TODO(whollins)
+    std::string mNetsimEndpoint;
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;
 };
