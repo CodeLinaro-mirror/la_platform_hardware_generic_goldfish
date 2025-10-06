@@ -202,10 +202,11 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     params.push_back({qemuVirtioWifiProp, "1"});
 
-    // Hardware decoder
-    params.push_back({qemuHwcodecAvcdecProp, "2"});
-    params.push_back({qemuHwcodecHevcdecProp, "2"});
-    params.push_back({qemuHwcodecVpxdecProp, "2"});
+    // Hardware decoder: disable for now
+    // TODO: make it work b/449741788
+    params.push_back({qemuHwcodecAvcdecProp, "0"});
+    params.push_back({qemuHwcodecHevcdecProp, "0"});
+    params.push_back({qemuHwcodecVpxdecProp, "0"});
 
     if (hasShellConsole) {
         params.push_back({"androidboot.console", absl::StrFormat("%s0", kernelSerialPrefix)});
