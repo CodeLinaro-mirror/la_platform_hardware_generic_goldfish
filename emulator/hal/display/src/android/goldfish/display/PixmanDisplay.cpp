@@ -75,6 +75,12 @@ constexpr int kMaxSafeDenominator = 16;
 // Checks if a scaling operation from a source dimension to a target dimension
 // is likely to be safe from precision-related artifacts.
 bool isScalingSafe(int source, int target) {
+    if (target % 4) {
+        // Pixman requires the stride (in bytes) to be a mulple of 4 bytes,
+        // so for RGB (3 bytes per pixel) we need the width to be a multiple
+        // of 4 as well.
+        return false;
+    }
     if (source == 0 || target == 0) return true;  // No scaling.
     int common = gcd(source, target);
     int denominator = target / common;
