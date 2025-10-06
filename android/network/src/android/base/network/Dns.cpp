@@ -16,6 +16,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_set>
 
 #ifdef _WIN32
 #include "aemu/base/ArraySize.h"
@@ -281,7 +282,7 @@ public:
                         continue;
                     }
 
-                    LOG(DEBUG) << "IPv6 DNS server found: " << address_str;
+                    LOG(INFO) << "IPv6 DNS server found: " << address_str;
                     IpAddress ip = IpAddress(dns_v6_addr->sin6_addr.s6_addr);
                     if (ip.valid()) {
                         auto ret = present.insert(ip);
