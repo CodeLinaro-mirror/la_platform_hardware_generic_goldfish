@@ -69,16 +69,21 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
     });
 }
 
-bool ConnectorRegistry::registerQemuDevice(std::string name, Connector::DeviceFactory factory) {
-    return registerDeviceImpl(std::move(name), std::move(factory), "q");
+bool ConnectorRegistry::registerQemuDevice(const std::string_view name,
+                                           Connector::DeviceFactory factory) {
+    using namespace std::string_view_literals;
+    return registerDeviceImpl("q"sv, name, std::move(factory));
 }
 
-bool ConnectorRegistry::registerDevice(std::string name, Connector::DeviceFactory factory) {
-    return registerDeviceImpl(std::move(name), std::move(factory), "-");
+bool ConnectorRegistry::registerDevice(const std::string_view name,
+                                       Connector::DeviceFactory factory) {
+    using namespace std::string_view_literals;
+    return registerDeviceImpl("-"sv, name, std::move(factory));
 }
 
-bool ConnectorRegistry::registerDeviceImpl(std::string name, Connector::DeviceFactory factory,
-                                           const char* prefix) {
+bool ConnectorRegistry::registerDeviceImpl(const std::string_view prefix,
+                                           const std::string_view name,
+                                           Connector::DeviceFactory factory) {
     std::lock_guard<std::mutex> lock(mEntriesMutex);
     if (!mAcceptingRegistries) {
         LOG(WARNING) << "The registry is closed, device: " << name << " is not registered.";
@@ -92,7 +97,7 @@ void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* cl
                                           async::EventLoop* qemuLoop, HalDeviceFactory factory) {
     registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
                           [this](std::string name, Connector::DeviceFactory factory) {
-                              return registerDevice(std::move(name), std::move(factory));
+                              return registerDevice(name, std::move(factory));
                           });
 }
 
@@ -101,7 +106,7 @@ void ConnectorRegistry::registerHalQemuDevice(std::string name, async::EventLoop
                                               HalDeviceFactory factory) {
     registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
                           [this](std::string name, Connector::DeviceFactory factory) {
-                              return registerQemuDevice(std::move(name), std::move(factory));
+                              return registerQemuDevice(name, std::move(factory));
                           });
 }
 

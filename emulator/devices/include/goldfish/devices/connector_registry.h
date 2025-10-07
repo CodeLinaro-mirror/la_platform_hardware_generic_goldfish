@@ -77,7 +77,7 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
     [[deprecated("Use registerHalQemuDevice instead.")]] virtual bool registerQemuDevice(
-        std::string name, Connector::DeviceFactory factory) = 0;
+        std::string_view name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a device with the registry.
@@ -91,7 +91,7 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
     [[deprecated("Use registerHalDevice instead.")]] virtual bool registerDevice(
-        std::string name, Connector::DeviceFactory factory) = 0;
+        std::string_view name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a thread-safe HAL device with the registry.
@@ -124,11 +124,11 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
  * registration requests.
  */
 class NullConnectorRegistry : public IConnectorRegistry {
-    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override {
+    bool registerQemuDevice(std::string_view name, Connector::DeviceFactory factory) override {
         return true;
     }
 
-    bool registerDevice(std::string name, Connector::DeviceFactory factory) override {
+    bool registerDevice(std::string_view name, Connector::DeviceFactory factory) override {
         return true;
     };
 
@@ -197,9 +197,9 @@ class ConnectorRegistry : public IConnectorRegistry {
      */
     bool listen(ListenFn startListening);
 
-    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override;
+    bool registerQemuDevice(std::string_view name, Connector::DeviceFactory factory) override;
 
-    bool registerDevice(std::string name, Connector::DeviceFactory factory) override;
+    bool registerDevice(std::string_view name, Connector::DeviceFactory factory) override;
 
     void registerHalDevice(std::string name, async::EventLoop* clientLoop,
                            async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
@@ -279,7 +279,9 @@ class ConnectorRegistry : public IConnectorRegistry {
    }
 
   private:
-   bool registerDeviceImpl(std::string name, Connector::DeviceFactory factory, const char* prefix);
+   bool registerDeviceImpl(std::string_view prefix,
+                           std::string_view name,
+                           Connector::DeviceFactory factory);
 
    using DeviceRegistration = std::function<bool(std::string, Connector::DeviceFactory)>;
    void registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
