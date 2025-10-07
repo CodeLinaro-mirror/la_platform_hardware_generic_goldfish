@@ -31,11 +31,7 @@ std::vector<std::string> DisplayDevice::getQemuParameters(const Emulator& emulat
         LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
                           "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
     } else {
-#if defined(__linux__) || defined(__APPLE__)
         params.push_back("android");
-#else
-        params.push_back("none");
-#endif
     }
 
     // Keyboard
