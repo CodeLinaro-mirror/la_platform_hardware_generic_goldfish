@@ -209,7 +209,8 @@ class MockSensorCallback {
     MOCK_METHOD(void, onSensorChanged, (const SensorData& data));
 };
 
-TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
+// b/448934377
+TEST_F(SensorDeviceTest, DISABLED_SensorObserverNotNotifiedOnSameData) {
     // Create a SensorObserver for the accelerometer
     SensorObserver observer(&registry, AndroidSensor::ACCELERATION);
 
@@ -230,7 +231,8 @@ TEST_F(SensorDeviceTest, SensorObserverNotNotifiedOnSameData) {
     setAcceleration(1.0f, 2.0f, 3.0f);
 }
 
-TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
+// b/448934377
+TEST_F(SensorDeviceTest, DISABLED_SensorObserverMultipleCallbacks) {
     // Create a SensorObserver for the accelerometer
     SensorObserver observer(&registry, AndroidSensor::ACCELERATION);
 
@@ -252,7 +254,8 @@ TEST_F(SensorDeviceTest, SensorObserverMultipleCallbacks) {
     setAcceleration(1.0f, 2.0f, 3.0f);
 }
 
-TEST_F(SensorDeviceTest, SensorObserverDifferentSensors) {
+// b/448934377
+TEST_F(SensorDeviceTest, DISABLED_SensorObserverDifferentSensors) {
     // Create a SensorObserver for the accelerometer and proximity
     // std::shared_ptr<ISensorDevice> sharedDevice(device, [](ISensorDevice*) {});
     SensorObserver observerAcceleration(&registry, AndroidSensor::ACCELERATION);

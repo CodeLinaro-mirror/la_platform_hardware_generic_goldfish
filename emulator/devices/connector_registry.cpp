@@ -24,8 +24,6 @@
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
-#include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
-#include "goldfish/hal/plug/MarshallingHalSocket.h"
 #include "goldfish/vsock/listen.h"
 
 namespace goldfish {
@@ -53,10 +51,7 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
             auto connector = factory_fn(std::move(socket), std::move(ping), args);
             auto registryName = key.substr(1);
 
-            // Only register if our factory_fn didn't register it already
-            if (!mActivePlugs.count(registryName)) {
-                registerInternal<cable::IPlug>(registryName, connector);
-            }
+            registerInternal(registryName, connector);
             return connector;
         };
 
@@ -67,6 +62,16 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
         return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
                                            mDevices.size());
     });
+}
+
+void ConnectorRegistry::registerInternal(const std::string registryName,
+                                         const std::shared_ptr<cable::IPlug>& plug) {
+    if (plug) {  // b/448934377, remove this `if`
+        std::lock_guard<std::mutex> lock(mActivePlugsMutex);
+        mActivePlugs[registryName] = plug;
+    }
+
+    fireEvent(registryName);
 }
 
 bool ConnectorRegistry::registerQemuDevice(const std::string_view name,
@@ -126,9 +131,8 @@ void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop
         auto adapter = HalPlugFactory::wrapHalPlug(
                 std::move(qemuSocket), [realHalPlug = realHalPlug] { return realHalPlug; },
                 clientLoop, qemuLoop);
-        // Register the plug for activeDevice() lookups and return the
-        // adapter to the vsock layer.
-        registerInternal<HalPlug>(name, realHalPlug);
+
+        registerInternal(name, adapter);
         return adapter;
     };
 

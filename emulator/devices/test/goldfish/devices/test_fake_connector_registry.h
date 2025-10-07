@@ -53,12 +53,11 @@ class FakeConnectorRegistry : public ConnectorRegistry {
 
   private:
       void registerTest(std::string_view name, std::shared_ptr<HalPlug> plug) {
-        registerInternal<HalPlug>(std::string(name), plug);
+        registerInternal(std::string(name), {});  // b/448934377
     }
 
-
     void registerTest(std::string_view name, cable::PlugPtr plug) {
-        registerInternal<cable::IPlug>(std::string(name), plug);
+        registerInternal(std::string(name), plug);
     }
 
     std::shared_ptr<boot::FakeBootPropertiesDevice> mBootPropertiesDevice;

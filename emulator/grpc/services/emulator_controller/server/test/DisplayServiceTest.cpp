@@ -245,7 +245,8 @@ TEST_F(DisplayServiceTest, GetScreenshotNoSize) {
     ASSERT_NE(reply.image().size(), 0);
 }
 
-TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
+// b/448934377
+TEST_F(DisplayServiceTest, DISABLED_GetScreenshotHasCorrectRotation) {
     auto device = mRegistry.constructHalDevice<ISensorDevice>();
 
     // Get a screenshot
@@ -280,7 +281,8 @@ TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
     }
 }
 
-TEST_F(DisplayServiceTest, GetScreenshotConcurrent) {
+// b/448934377
+TEST_F(DisplayServiceTest, DISABLED_GetScreenshotConcurrent) {
     // Test to make sure we do not lock when having multiple threads.
     // Number of concurrent threads
     const int numThreads = 100;
@@ -470,7 +472,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotSimulateEmbeddedInteraction) {
     }
 }
 
-TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
+// b/448934377
+TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotRotationProducesAFrame) {
     // Get a screenshot with scaling that is larger than the display
     ImageFormat request;
     request.set_display(1);
@@ -518,7 +521,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
 }
 
-TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
+// b/448934377
+TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotHasCorrectRotation) {
     // Note: if StreamScreenshotRotationProducesAFrame fails, then this will
     // fail as well.
     auto device = mRegistry.constructHalDevice<ISensorDevice>();

@@ -188,25 +188,26 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
     }
 
-    int desiredWidth = request->width();
-    int desiredHeight = request->height();
-
     DeviceRotation deviceRotation;
     // Let's get sensor data about our location
-    auto weak = mRegistry->activeDevice<ISensorDevice>();
-    if (auto sensor = weak.lock()) {
+    if (auto sensor = mRegistry->activeDevice<ISensorDevice>().lock()) {
         auto possibleRotation = sensor->getDeviceRotation();
         if (!possibleRotation.ok()) {
             VLOG(1) << "Unable to retrieve rotation information due to: "
                     << possibleRotation.status();
+            //return Status(abslStatusToGrpcStatus(possibleRotation.status()));
+            deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
         } else {
-            //deviceRotation = possibleRotation.value(); case DeviceSkinRotation::PORTRAIT
-            // TODO: b/448632603, fix sensor reporting, right now it is not correct:
-            // on linux it is portrait, on mac it is landscape,which messes up
-            // input x and y coordinate; for now, just use portrait
-            deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;
+            deviceRotation = possibleRotation.value();
         }
+    } else {
+        VLOG(1) << "Unable to retrieve rotation because ISensorDevice is not available";
+        //return Status(grpc::StatusCode::UNAVAILABLE, "ISensorDevice is not available");
+        deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
     }
+
+    int desiredWidth = request->width();
+    int desiredHeight = request->height();
 
     // User wants to use device width/height
     if (desiredWidth == 0 || desiredHeight == 0) {
