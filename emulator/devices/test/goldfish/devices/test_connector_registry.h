@@ -103,12 +103,12 @@ class TestConnectorRegistry : public ConnectorRegistry {
     TestConnectorRegistry() {}
     ~TestConnectorRegistry() = default;
 
-    bool registerQemuDevice(std::string name, Connector::DeviceFactory factory) override {
+    bool registerQemuDevice(std::string_view name, Connector::DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
 
-    bool registerDevice(std::string name, Connector::DeviceFactory factory) override {
+    bool registerDevice(std::string_view name, Connector::DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
