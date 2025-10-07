@@ -1,7 +1,7 @@
 """Bazel rule for extracting breakpad symbols."""
 
-load("@//build/bazel/toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@goldfish_build//toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
 load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
 
 visibility("//hardware/generic/goldfish/emulator/...")
