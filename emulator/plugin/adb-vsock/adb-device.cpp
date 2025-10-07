@@ -17,7 +17,6 @@
 #include <memory>
 
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 
 #include "android/emulation/control/adb/AdbHostServer.h"
 #include "android/emulation/control/adb/AdbMessageLogger.h"
@@ -43,6 +42,7 @@ namespace goldfish::adb_device {
 // override the common properties
 struct AdbVSockDev {
     VSockFwdDev parent;
+    bool monitor;
 };
 
 struct AdbDeviceClass {
@@ -75,6 +75,7 @@ void adb_vsock_connected(VSockFwdDev* device) {
 void adb_vsock_realize(DeviceState* dev, Error** errp) {
     VSockFwdDev* vsock_fwd_dev = VSOCK_FWD_DEV(dev);
     auto adc = ADB_VSOCK_DEVICE_GET_CLASS(dev);
+    AdbVSockDev* adb = ADB_VSOCK_DEV(dev);
 
     // Setup default properties.
     if (vsock_fwd_dev->guest_port == 0) {
@@ -84,7 +85,8 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     }
     vsock_fwd_dev->on_connect = adb_vsock_connected;
 
-    if (VLOG_IS_ON(1)) {
+    if (adb->monitor) {
+        VLOG(1) << "ADB monitor enabled";
         vsock_fwd_dev->data_sniffer_factory = [host = vsock_fwd_dev->host_port,
                                                guest = vsock_fwd_dev->guest_port] {
             return std::make_unique<AdbLogger>(host, guest);
@@ -96,7 +98,22 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
     DeviceRegistry::get().setOnce(properties::kAdbPort, vsock_fwd_dev->host_port);
 }
 
+void adb_vsock_set_monitor(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AdbVSockDev* adb = ADB_VSOCK_DEV(obj);
+
+    bool monitor;
+    if (!visit_type_bool(v, name, &monitor, errp)) {
+        error_setg(errp, "failed to parse monitor bool");
+        return;
+    }
+
+    adb->monitor = monitor;
+}
+
 void adb_vsock_class_init(ObjectClass* oc, void* data) {
+    object_class_property_add(oc, "monitor", "bool", nullptr,
+                              adb_vsock_set_monitor, nullptr, nullptr);
+
     AdbDeviceClass* dc = ADB_VSOCK_DEVICE_CLASS(oc);
 
     // Re-direct the realize to us, and make sure we can call the parent.

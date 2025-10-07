@@ -37,7 +37,8 @@ absl::Status AdbDevice::initialize(const Emulator& emulator) {
 }
 
 std::vector<std::string> AdbDevice::getQemuParameters(const Emulator& emulator) const {
-    return {"-device", absl::StrCat("virtio-goldfish-adb,host_port=", mPort)};
+    std::string_view monitor = emulator.opts().monitor_adb ? ",monitor=true" : "";
+    return {"-device", absl::StrCat("virtio-goldfish-adb,host_port=", mPort, monitor)};
 }
 
 }  // namespace android::goldfish
