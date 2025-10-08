@@ -289,39 +289,63 @@ fs::path GetNetsimDiscoveryDir() {
 #endif
 }
 
+int read_netsim_port() {
+    // TODO(whollins): Resolve this path with the others in launcher.cpp.
+    // IniFile netsim_ini(mResolvedPaths.discovery_directory.parent_path().parent_path() /
+    // "netsim.ini");
+    IniFile netsim_ini(GetNetsimDiscoveryDir() / "netsim.ini");
+    if (!netsim_ini.read()) {
+        VLOG(1) << "Failed to read netsim.ini";
+        return 0;
+    }
+    return netsim_ini.getInt("grpc.port", 0);
+}
+
 absl::Status Emulator::launch_netsim() {
     std::unique_ptr<android::base::ObservableProcess> netsimd;
     if (auto netsim_endpoint = opts().packet_streamer_endpoint; netsim_endpoint) {
         mNetsimEndpoint = netsim_endpoint;
     } else {
+        int existing_port = read_netsim_port();
+        if (existing_port != 0) {
+            LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd still running or it died without cleanup";
+        }
         // netsimd itself will check whether it's already running and exit if so.
         netsimd = RunNetsimd(mResolvedPaths.netsim_binary, opts());
         if (!netsimd->isAlive()) {
-            return absl::InternalError("Netsimd failed to start");
+            return absl::InternalError("netsimd failed to start");
         }
         // Try to wait in case there was another one running.
         if (netsimd->wait_for(std::chrono::seconds(2)) == std::future_status::ready) {
-            LOG(WARNING) << "netsimd died, perhaps another was aleardy running";
+            LOG(WARNING) << "netsimd died, perhaps another was already running";
+            if (existing_port != 0) {
+                mNetsimEndpoint = absl::StrCat("localhost:", existing_port);
+                return absl::OkStatus();
+            } else {
+                return absl::InternalError("netsimd died and there was no existing port to connect to");
+            }
         }
         netsimd->detach();
 
         for (int i = 0; i < 10; i++) {
-            // IniFile netsim_ini(mResolvedPaths.discovery_directory.parent_path().parent_path() /
-            // "netsim.ini");
-            IniFile netsim_ini(GetNetsimDiscoveryDir() / "netsim.ini");
-            if (!netsim_ini.read()) {
-                VLOG(1) << "Failed to read netsim.ini, retrying...";
+            int port = read_netsim_port();
+            if (port == 0) {
+                VLOG(1) << "netsimd: Port not yet available";
                 std::this_thread::sleep_for(std::chrono::seconds(1));
                 continue;
             }
-            int port = netsim_ini.getInt("grpc.port", 0);
+            // We expect the port to change, if it doesn't then something strange has happened.
+            if (port == existing_port) {
+                VLOG(1) << "netsimd: Port in ini file has not yet changed: " << port;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
             VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
             mNetsimEndpoint = absl::StrCat("localhost:", port);
             break;
         }
         if (mNetsimEndpoint.empty()) {
-            return absl::NotFoundError(
-                    "Unable to read the netsim.ini file for the running netsimd");
+            return absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
         }
     }
     return absl::OkStatus();
