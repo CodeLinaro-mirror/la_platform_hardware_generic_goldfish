@@ -69,7 +69,6 @@ cc_test(
     ],
     copts = ["-Wno-deprecated-declarations"],
     data = ["src/android/emulation/control/secure/emulator_access.json"],
-    linkopts = ["-undefined,dynamic_lookup"],
     deps = [
         ":security",
         "//hardware/generic/goldfish/android/system",
