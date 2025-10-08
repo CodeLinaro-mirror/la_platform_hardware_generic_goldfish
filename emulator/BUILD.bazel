@@ -1,5 +1,5 @@
-load("@//build/bazel/rules/native:native_binaries.bzl", "stripped_binaries")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")

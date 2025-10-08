@@ -1,7 +1,7 @@
 """Bazel rules and macros for packaging."""
 
-load("@//build/bazel/rules/native:native_binaries.bzl", "TransformedFilesInfo", "native_symbols")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@goldfish_build//rules/native:native_binaries.bzl", "TransformedFilesInfo", "native_symbols")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo", "PackageVariablesInfo")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")

@@ -1,5 +1,5 @@
 load(
-    "@//build/bazel/toolchains/cc:rules.bzl",
+    "@goldfish_build//toolchains/cc:rules.bzl",
     "sysroot",
 )
 
