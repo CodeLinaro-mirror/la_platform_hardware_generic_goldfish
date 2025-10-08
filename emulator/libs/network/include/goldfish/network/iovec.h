@@ -14,19 +14,9 @@
 
 #pragma once
 
-#if defined(_WIN32)
-/*Because android::base::IOVector has its own definition of
- struct iovec on Windows, we need to avoid the re-definition of iovec
- from qemu/osdep.h by declaring CONFIG_IOVEC beforehand. */
-#ifndef CONFIG_IOVEC
-#define CONFIG_IOVEC 1
-/* Structure for scatter/gather I/O.  */
-struct iovec {
-    void* iov_base; /* Pointer to data.  */
-    size_t iov_len; /* Length of data.  */
-};
-#endif
-#else
-#include <sys/uio.h>
-#endif
+extern "C" {
+#include "qemu/osdep.h"
+}
+#undef send
+#undef connect
 

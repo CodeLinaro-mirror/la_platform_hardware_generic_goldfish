@@ -13,5 +13,8 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["@abseil-cpp//absl/log"],
+    deps = [
+        "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/log",
+    ],
 )
