@@ -29,7 +29,7 @@ rust_library(
         "@libc",
         "@smallvec",
     ] + select({
-        "@bazel_tools//src/conditions:windows": ["@windows-targets"],
+        "@platforms//os:windows": ["@windows-targets", "@windows-link"],
         "//conditions:default": [],
     }),
 )
