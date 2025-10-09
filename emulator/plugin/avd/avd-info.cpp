@@ -154,8 +154,13 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 // These properties should be added automatically by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
                 // But it isn't currently working so we hack them in here.
                 // They will be incorrect if the order of serial port creation changes.
+#if defined(__APPLE__)
+                {"vendor.qemu.vport.uwb"s, "/dev/vport6p2"s},
+                {"vendor.qemu.vport.bluetooth"s, "/dev/vport6p3"s},
+#else
                 {"vendor.qemu.vport.uwb"s, "/dev/vport8p2"s},
                 {"vendor.qemu.vport.bluetooth"s, "/dev/vport8p3"s},
+#endif
             },
             &DummyRegisterEmulatorReset, clientLoop, gQemuLoop.get());
 
