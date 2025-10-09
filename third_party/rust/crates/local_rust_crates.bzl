@@ -79,6 +79,7 @@ def _local_rust_crates_impl(module_ctx):
         "argh_derive",
         "argh_shared",
         "arrayvec",
+        "async-trait",
         "base64",
         "byteorder",
         "bytes",
