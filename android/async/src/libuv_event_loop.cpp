@@ -152,6 +152,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 // We place shared_from_this in the .data handle in the event queue
 class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<LibuvTimer> {
     struct Private {};
+    using LibuvTimerPtr = std::shared_ptr<LibuvTimer>;
 
   public:
     // Factory function to ensure proper std::shared_ptr creation.
@@ -160,15 +161,15 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     static std::shared_ptr<LibuvTimer> create(LibuvEventLoopImpl* loop, EventLoop::Task task,
                                               bool repeating) {
         auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), repeating, Private());
-        timer->mUvTimer->data = new std::shared_ptr<LibuvTimer>(timer);
+        timer->mUvTimer->data = new LibuvTimerPtr(timer);
         timer->addItselfToActiveTimers();
         return timer;
     }
 
     static void deleteSharedPtrOnClose(uv_handle_t* handle) {
-        auto self_shared_ptr = static_cast<std::shared_ptr<LibuvTimer>*>(handle->data);
-        delete self_shared_ptr;
-        delete handle;
+        uv_timer_t* uvTimer = reinterpret_cast<uv_timer_t*>(handle);
+        delete static_cast<LibuvTimerPtr*>(uvTimer->data);
+        delete uvTimer;
     }
 
     LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating, Private)
@@ -243,16 +244,17 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     static void onTimer(uv_timer_t* handle) {
-        auto self_shared_ptr = static_cast<std::shared_ptr<LibuvTimer>*>(handle->data);
-        auto self_ptr = *self_shared_ptr;
-        assert(self_ptr && "onTimer callback is called without a shared_from_this pointer");
-        assert(self_ptr->mEventLoop->isOnLoopThread() &&
+        assert(handle->data);
+        const auto self = *static_cast<LibuvTimerPtr*>(handle->data);
+        assert(self && "onTimer callback is called without a shared_from_this pointer");
+        assert(self->mEventLoop->isOnLoopThread() &&
                "onTimer callback is not called from the event loop");
-        if (!self_ptr->mIsClosed.load()) {
+
+        if (!self->mIsClosed.load()) {
             auto start = absl::Now();
 
             // Invoke the callback
-            self_ptr->mTask();
+            self->mTask();
 
             // Check for duration and update the cached uvloop time if needed
             auto end = absl::Now();
@@ -260,14 +262,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
             if (elapsed > absl::Milliseconds(1)) {
                 // Update the libuv loop's time if the task took longer than 1ms
                 VLOG(1) << "Task took " << elapsed << ", updating uv time";
-                uv_update_time(self_ptr->mEventLoop->mLoop);
+                uv_update_time(self->mEventLoop->mLoop);
             }
 
             // For one-shot timers, close the handle after execution.
             // This will lead to the object being deleted if the user has
             // also released their shared_ptr.
-            if (!self_ptr->mIsRepeating) {
-                if (!self_ptr->mIsClosed.exchange(true)) {
+            if (!self->mIsRepeating) {
+                if (!self->mIsClosed.exchange(true)) {
                     uv_close((uv_handle_t*)handle, deleteSharedPtrOnClose);
                 }
             }
