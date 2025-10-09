@@ -123,8 +123,6 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     /// The core libuv event loop instance.
     uv_loop_t* mLoop = nullptr;
-    /// A libuv idle handle that keeps the loop from exiting when idle.
-    uv_idle_t* mKeepAliveHandle = nullptr;
     /// A libuv async handle used to wake up the loop thread to process tasks.
     uv_async_t mAsyncHandle;
 
@@ -281,10 +279,6 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 LibuvEventLoopImpl::LibuvEventLoopImpl(uv_loop_t* loop) : mLoop(loop) {
     mLoop->data = this;
 
-    mKeepAliveHandle = new uv_idle_t();
-    uv_idle_init(mLoop, mKeepAliveHandle);
-    uv_idle_start(mKeepAliveHandle, [](uv_idle_t* handle) { /* No-op */ });
-
     mAsyncHandle.data = this;
     uv_async_init(mLoop, &mAsyncHandle, [](uv_async_t* handle) {
         static_cast<LibuvEventLoopImpl*>(handle->data)->processTasks();
@@ -307,7 +301,6 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     }
 
     // Clean up the memory for the handle structures themselves.
-    delete mKeepAliveHandle;
     delete mLoop;
 }
 
@@ -404,11 +397,9 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds
             }
         }
 
-        auto* context = new ShutdownContext{2};
-        mKeepAliveHandle->data = context;
+        auto* context = new ShutdownContext{1};
         mAsyncHandle.data = context;
 
-        uv_close((uv_handle_t*)mKeepAliveHandle, onInternalHandleClosed);
         uv_close((uv_handle_t*)&mAsyncHandle, onInternalHandleClosed);
         uv_stop(mLoop);
     });
@@ -426,10 +417,6 @@ absl::Status LibuvEventLoopImpl::run() {
     int err = uv_run(mLoop, UV_RUN_DEFAULT);
     setState(LooperStatusEvent::State::FINISHED);
     auto status = UvErrToAbslStatus(err);
-    err = uv_idle_stop(mKeepAliveHandle);
-    if (status.ok()) {
-        status = UvErrToAbslStatus(err);
-    }
     if (!mPromiseSet.exchange(true)) {
         mShutdownCompletePromise.set_value(status);
     }
