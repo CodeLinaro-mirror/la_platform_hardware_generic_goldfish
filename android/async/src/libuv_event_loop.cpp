@@ -151,14 +151,17 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 // Handles should always be closed in the onclose callback
 // We place shared_from_this in the .data handle in the event queue
 class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<LibuvTimer> {
+    struct Private {};
+
   public:
     // Factory function to ensure proper std::shared_ptr creation.
     // this sets up the mUvTimer with a self reference so it can be
     // placed in a queue.
     static std::shared_ptr<LibuvTimer> create(LibuvEventLoopImpl* loop, EventLoop::Task task,
                                               bool repeating) {
-        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), repeating);
+        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), repeating, Private());
         timer->mUvTimer->data = new std::shared_ptr<LibuvTimer>(timer);
+        timer->addItselfToActiveTimers();
         return timer;
     }
 
@@ -168,25 +171,18 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         delete handle;
     }
 
-    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating)
-            : mEventLoop(loop), mTask(std::move(task)), mIsRepeating(repeating) {
-        mUvTimer = new uv_timer_t;
-        (void)mEventLoop->post([uv_timer = mUvTimer, loop = mEventLoop->mLoop]() {
-            uv_timer_init(loop, uv_timer);
-        });
-        absl::MutexLock lock(&mEventLoop->mActiveTimersMutex);
-        mEventLoop->mActiveTimers.insert(this);
-    }
+    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating, Private)
+            : mEventLoop(loop)
+            , mUvTimer(new uv_timer_t)
+            , mTask(std::move(task))
+            , mIsRepeating(repeating) {}
 
     ~LibuvTimer() override {
         // We are no longer outstanding..
         {
             absl::MutexLock lock(&mEventLoop->mActiveTimersMutex);
-            auto before = mEventLoop->mActiveTimers.size();
-            mEventLoop->mActiveTimers.erase(this);
-            auto after = mEventLoop->mActiveTimers.size();
-
-            assert(before - after == 1 && "Tried to remove a timer that didn't exist");
+            const size_t erased = mEventLoop->mActiveTimers.erase(this);
+            assert((erased == 1) && "Tried to remove a timer that didn't exist");
         }
         if (!mIsClosed.load()) {
             // We are not closed, this means we still exist on the uv queue and
@@ -235,6 +231,17 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
   private:
+    void addItselfToActiveTimers() {
+        // shared_from_this() is not available in the ctor
+        (void)mEventLoop->post([self = shared_from_this()]() {
+            LibuvEventLoopImpl& evLoop = *self->mEventLoop;
+
+            uv_timer_init(evLoop.mLoop, self->mUvTimer);
+            absl::MutexLock lock(&evLoop.mActiveTimersMutex);
+            evLoop.mActiveTimers.insert(self.get());
+        });
+    }
+
     static void onTimer(uv_timer_t* handle) {
         auto self_shared_ptr = static_cast<std::shared_ptr<LibuvTimer>*>(handle->data);
         auto self_ptr = *self_shared_ptr;
@@ -268,7 +275,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     LibuvEventLoopImpl* mEventLoop;  ///< The eventloop on which we are scheduled.
-    uv_timer_t* mUvTimer;  ///< Handle to the actual timer, ->data contains a shared_from_this()
+    uv_timer_t* const mUvTimer;  ///< Handle to the actual timer, ->data contains a shared_from_this()
     EventLoop::Task mTask;
     bool mIsRepeating;
     std::atomic<bool> mIsClosed{false};  ///< True if a uv_close has been scheduled.
