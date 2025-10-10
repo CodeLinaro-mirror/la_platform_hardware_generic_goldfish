@@ -251,19 +251,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
                "onTimer callback is not called from the event loop");
 
         if (!self->mIsClosed.load()) {
-            auto start = absl::Now();
-
             // Invoke the callback
             self->mTask();
-
-            // Check for duration and update the cached uvloop time if needed
-            auto end = absl::Now();
-            auto elapsed = end - start;
-            if (elapsed > absl::Milliseconds(1)) {
-                // Update the libuv loop's time if the task took longer than 1ms
-                VLOG(1) << "Task took " << elapsed << ", updating uv time";
-                uv_update_time(self->mEventLoop->mLoop);
-            }
 
             // For one-shot timers, close the handle after execution.
             // This will lead to the object being deleted if the user has
