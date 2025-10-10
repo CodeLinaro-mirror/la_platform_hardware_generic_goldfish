@@ -423,10 +423,8 @@ absl::Status Emulator::launch() {
       System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
       System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
-#elif defined(__linux__)
-      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
 #else
-    // TODO windows
+      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
 #endif
     }
 
