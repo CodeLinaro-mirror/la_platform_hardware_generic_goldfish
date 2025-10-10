@@ -21,7 +21,7 @@
 #include <thread>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
@@ -33,6 +33,8 @@
 #include "uv.h"
 
 namespace goldfish::async {
+
+class LibuvTimer;
 
 /**
  * @brief A concrete implementation of the EventLoop interface using libuv.
@@ -119,8 +121,8 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
   private:
     friend class LibuvTimer;
 
-    void addActiveTimer(const std::shared_ptr<Timer>&);
-    void removeActiveTimer(Timer*);
+    void addActiveTimer(const std::shared_ptr<LibuvTimer>&);
+    void removeActiveTimer(LibuvTimer*);
 
     void processTasks();
     void doPost(Task task);
@@ -136,8 +138,9 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     /// Mutex protecting access to the mActiveTimers set.
     absl::Mutex mActiveTimersMutex;
-    /// A set of raw pointers to all active timers for tracking during shutdown.
-    absl::flat_hash_set<Timer*> mActiveTimers ABSL_GUARDED_BY(mActiveTimersMutex);
+    /// A map of raw pointers to their corresponding weak pointers for safe shutdown.
+    absl::flat_hash_map<LibuvTimer*, std::weak_ptr<LibuvTimer>>
+            mActiveTimers ABSL_GUARDED_BY(mActiveTimersMutex);
 
     /// Mutex protecting access to the mTaskQueue.
     absl::Mutex mTaskMutex;
@@ -341,13 +344,14 @@ static void onInternalHandleClosed(uv_handle_t* handle) {
     }
 }
 
-void LibuvEventLoopImpl::addActiveTimer(const std::shared_ptr<Timer>& t) {
+void LibuvEventLoopImpl::addActiveTimer(const std::shared_ptr<LibuvTimer>& t) {
     absl::MutexLock lock(&mActiveTimersMutex);
-    const bool inserted = mActiveTimers.insert(t.get()).second;
-    assert(inserted && "Tried to insert a duplicate timer");
+    std::weak_ptr<LibuvTimer>& existing = mActiveTimers[t.get()];
+    assert(existing.expired() && "Tried to insert a duplicate timer");
+    existing = t;
 }
 
-void LibuvEventLoopImpl::removeActiveTimer(Timer* const t) {
+void LibuvEventLoopImpl::removeActiveTimer(LibuvTimer* const t) {
     absl::MutexLock lock(&mActiveTimersMutex);
     const size_t erased = mActiveTimers.erase(t);
     assert((erased == 1) && "Tried to remove a timer that didn't exist");
@@ -384,14 +388,17 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds
     (void)doPost([this, wait_until]() {
         {
             absl::MutexLock lock(&mActiveTimersMutex);
-            for (auto timer : mActiveTimers) {
-                static_cast<LibuvTimer*>(timer)->doCancel();
-                if (absl::Now() > wait_until) {
-                    if (!mPromiseSet.exchange(true)) {
-                        mShutdownCompletePromise.set_value(absl::DeadlineExceededError(
-                                "Unable to cancel timers in a timely fashion."));
+            for (const auto& [unsafePtr, weakTimer] : mActiveTimers) {
+                if (const auto timer = weakTimer.lock()) {
+                    timer->doCancel();
+
+                    if (absl::Now() > wait_until) {
+                        if (!mPromiseSet.exchange(true)) {
+                            mShutdownCompletePromise.set_value(absl::DeadlineExceededError(
+                                    "Unable to cancel timers in a timely fashion."));
+                        }
+                        return;
                     }
-                    return;
                 }
             }
         }

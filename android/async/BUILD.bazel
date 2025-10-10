@@ -100,7 +100,7 @@ cc_library(
         ":async_api",
         ":async_impl",
         ":uv_to_absl",
-        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@libuv",
     ],
 )
