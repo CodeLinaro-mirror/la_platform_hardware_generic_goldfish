@@ -118,6 +118,10 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
   private:
     friend class LibuvTimer;
+
+    void addActiveTimer(const std::shared_ptr<Timer>&);
+    void removeActiveTimer(Timer*);
+
     void processTasks();
     void doPost(Task task);
 
@@ -181,11 +185,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
     ~LibuvTimer() override {
         // We are no longer outstanding..
-        {
-            absl::MutexLock lock(&mEventLoop->mActiveTimersMutex);
-            const size_t erased = mEventLoop->mActiveTimers.erase(this);
-            assert((erased == 1) && "Tried to remove a timer that didn't exist");
-        }
+        mEventLoop->removeActiveTimer(this);
         if (!mIsClosed.load()) {
             // We are not closed, this means we still exist on the uv queue and
             // must stop and clean our handle
@@ -235,8 +235,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
             LibuvEventLoopImpl& evLoop = *self->mEventLoop;
 
             uv_timer_init(evLoop.mLoop.get(), self->mUvTimer);
-            absl::MutexLock lock(&evLoop.mActiveTimersMutex);
-            evLoop.mActiveTimers.insert(self.get());
+            evLoop.addActiveTimer(self);
         });
     }
 
@@ -340,6 +339,18 @@ static void onInternalHandleClosed(uv_handle_t* handle) {
         // This is the last handle to close
         delete context;
     }
+}
+
+void LibuvEventLoopImpl::addActiveTimer(const std::shared_ptr<Timer>& t) {
+    absl::MutexLock lock(&mActiveTimersMutex);
+    const bool inserted = mActiveTimers.insert(t.get()).second;
+    assert(inserted && "Tried to insert a duplicate timer");
+}
+
+void LibuvEventLoopImpl::removeActiveTimer(Timer* const t) {
+    absl::MutexLock lock(&mActiveTimersMutex);
+    const size_t erased = mActiveTimers.erase(t);
+    assert((erased == 1) && "Tried to remove a timer that didn't exist");
 }
 
 std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
