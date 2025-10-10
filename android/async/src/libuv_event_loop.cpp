@@ -297,43 +297,6 @@ std::unique_ptr<LibuvEventLoop> LibuvEventLoop::create() {
     return std::make_unique<LibuvEventLoopImpl>(std::move(loop));
 }
 
-/**
- * @brief A context structure to manage the state of the shutdown operation.
- *
- * Since the shutdown process is asynchronous and involves multiple callbacks,
- * we need a way to share state between them. This struct is created on the heap
- * and holds a counter for tracking pending handle closures.
- */
-struct ShutdownContext {
-    std::atomic<int> handles_to_close;
-};
-
-/**
- * @brief A static C-style callback for when internal handles are closed.
- *
- * This function has the signature required by `uv_close`. It retrieves the
- * shared ShutdownContext from the handle's `data` pointer.
- *
- * The logic implements a "last one out cleans up" pattern: each callback
- * decrements the atomic counter, but only the final callback (when the
- * counter reaches zero) fulfills the promise and deletes the heap-allocated
- * context.
- *
- * @param handle The libuv handle that has just been closed.
- */
-static void onInternalHandleClosed(uv_handle_t* handle) {
-    auto* context = static_cast<ShutdownContext*>(handle->data);
-    assert(context && "No contex present in onInternalHandleClosed");
-
-    auto open_handles = --(context->handles_to_close);
-    VLOG(1) << "We have: " << open_handles << " left to close";
-    // Atomically decrement the counter, the last will cleanup
-    if (open_handles == 0) {
-        // This is the last handle to close
-        delete context;
-    }
-}
-
 void LibuvEventLoopImpl::addActiveTimer(const std::shared_ptr<LibuvTimer>& t) {
     absl::MutexLock lock(&mActiveTimersMutex);
     std::weak_ptr<LibuvTimer>& existing = mActiveTimers[t.get()];
@@ -393,10 +356,7 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds
             }
         }
 
-        auto* context = new ShutdownContext{1};
-        mAsyncHandle.data = context;
-
-        uv_close((uv_handle_t*)&mAsyncHandle, onInternalHandleClosed);
+        uv_close((uv_handle_t*)&mAsyncHandle, [](uv_handle_t*) { /* do nothing */ });
         uv_stop(mLoop.get());
     });
 
