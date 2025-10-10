@@ -78,17 +78,10 @@ struct write_req_t {
 
 class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<LibuvSocket> {
   public:
-    explicit LibuvSocket(EventLoop* loop)
-            : mEventLoop(loop)
-            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
-            , mIsIncoming(true) {
-        tcpInit();
-    }
+    explicit LibuvSocket(EventLoop* loop) : LibuvSocket(loop, /*isIncoming=*/true) {}
 
     LibuvSocket(EventLoop* loop, const struct sockaddr* addr)
-            : mEventLoop(loop)
-            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
-            , mIsIncoming(false) {
+            : LibuvSocket(loop, /*isIncoming=*/false) {
         if (addr->sa_family == AF_INET) {
             // Copy IPv4 address
             memcpy(&mAddr, addr, sizeof(sockaddr_in));
@@ -98,7 +91,6 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         } else {
             memset(&mAddr, 0, sizeof(mAddr));
         }
-        tcpInit();
     }
 
     ~LibuvSocket() override {
@@ -208,7 +200,10 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
   private:
     friend class LibuvServer;
 
-    void tcpInit() {
+    LibuvSocket(EventLoop* loop, const bool isIncoming)
+            : mEventLoop(loop)
+            , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mIsIncoming(isIncoming) {
         uv_tcp_init(mLoop, &mTcpHandle);
         mTcpHandle.data = this;
     }
@@ -276,16 +271,17 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         }
     }
 
-    EventLoop* mEventLoop;
-    uv_loop_t* mLoop;
+    EventLoop* const mEventLoop;
+    uv_loop_t* const mLoop;
     uv_tcp_t mTcpHandle;
     sockaddr_storage mAddr;
-    bool mIsConnected = false;
-    bool mIsIncoming = false;
 
     OnReadCallback mOnRead;
     OnCloseCallback mOnClose;
     OnConnectCallback mOnConnected;
+
+    const bool mIsIncoming;
+    bool mIsConnected = false;
 };
 
 class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
