@@ -213,23 +213,19 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void cancel() override {
-        if (!mIsClosed.load()) {
-            // Stop and delete the timer from the event loop.
-            (void)mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
-        }
+        // Stop and delete the timer from the event loop.
+        (void)mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
     }
 
     void rescheduleRepeating(std::chrono::milliseconds new_delay,
                              std::chrono::milliseconds new_interval) override {
-        if (!mIsClosed.load()) {
-            (void)mEventLoop->post([this, self = shared_from_this(), new_delay, new_interval]() {
-                if (!mIsClosed.load()) {
-                    mIsRepeating = true;
-                    uv_timer_stop(mUvTimer);
-                    uv_timer_start(mUvTimer, onTimer, new_delay.count(), new_interval.count());
-                }
-            });
-        }
+        (void)mEventLoop->post([this, self = shared_from_this(), new_delay, new_interval]() {
+            if (!mIsClosed.load()) {
+                mIsRepeating = true;
+                uv_timer_stop(mUvTimer);
+                uv_timer_start(mUvTimer, onTimer, new_delay.count(), new_interval.count());
+            }
+        });
     }
 
   private:
@@ -251,17 +247,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         assert(self->mEventLoop->isOnLoopThread() &&
                "onTimer callback is not called from the event loop");
 
-        if (!self->mIsClosed.load()) {
-            // Invoke the callback
-            self->mTask();
+        self->mTask();
 
-            // For one-shot timers, close the handle after execution.
-            // This will lead to the object being deleted if the user has
-            // also released their shared_ptr.
-            if (!self->mIsRepeating) {
-                if (!self->mIsClosed.exchange(true)) {
-                    uv_close((uv_handle_t*)handle, deleteSharedPtrOnClose);
-                }
+        // For one-shot timers, close the handle after execution.
+        // This will lead to the object being deleted if the user has
+        // also released their shared_ptr.
+        if (!self->mIsRepeating) {
+            if (!self->mIsClosed.exchange(true)) {
+                uv_close((uv_handle_t*)handle, deleteSharedPtrOnClose);
             }
         }
     }
