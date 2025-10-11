@@ -230,7 +230,9 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     }
 
     // Implementation specific loop.
-    virtual void* getRawLoop() const = 0;
+    virtual void* getRawLoop() {
+      return nullptr;  // `nullptr` is a valid value here
+    }
 
     /**
      * @brief Gets the current state of the event loop.

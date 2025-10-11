@@ -41,7 +41,6 @@ class TestEventLoopImpl : public TestEventLoop {
     std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) override;
-    void* getRawLoop() const override;
 
     // TestEventLoop Interface
     void runAll() override;
@@ -213,10 +212,6 @@ void TestEventLoopImpl::reschedule(const std::shared_ptr<Timer>& timer,
         it->interval = new_interval;
         std::make_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
     }
-}
-
-void* TestEventLoopImpl::getRawLoop() const {
-    return nullptr;
 }
 
 void TestEventLoopImpl::runAll() {
