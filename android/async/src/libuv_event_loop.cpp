@@ -158,8 +158,6 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     static std::shared_ptr<LibuvTimer> create(LibuvEventLoopImpl* loop, EventLoop::Task task,
                                               bool repeating) {
         auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), repeating, Private());
-        timer->mUvTimer.load()->data = timer.get();
-        timer->mPinnedByUvTimer = timer;
         timer->addItselfToActiveTimers();
         return timer;
     }
@@ -169,19 +167,15 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         uv_timer_t* uvTimer = reinterpret_cast<uv_timer_t*>(handle);
         assert(uvTimer->data);
         static_cast<LibuvTimer*>(uvTimer->data)->mPinnedByUvTimer.reset();
-        delete uvTimer;
     }
 
     LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating, Private)
-            : mEventLoop(loop)
-            , mUvTimer(new uv_timer_t)
-            , mTask(std::move(task))
-            , mIsRepeating(repeating) {}
+            : mEventLoop(loop), mTask(std::move(task)), mIsRepeating(repeating) {}
 
     ~LibuvTimer() override {
         // The only way to get here is via `deleteSharedPtrOnClose` which
         // is called with `mUvTimer` cleared earlier.
-        assert(!mUvTimer.load());
+        assert(!mUvTimerHandleValid.load());
 
         // We are no longer outstanding..
         mEventLoop->removeActiveTimer(this);
@@ -190,14 +184,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     void start(uint64_t timeout_ms, uint64_t repeat_ms) {
         // Post the start operation to the eventloop, at this point
         mEventLoop->post([self = shared_from_this(), timeout_ms, repeat_ms]() {
-            if (uv_timer_t* uvTimer = self->mUvTimer.load()) {
+            if (uv_timer_t* uvTimer = self->getUvTimer()) {
                 uv_timer_start(uvTimer, onTimer, timeout_ms, repeat_ms);
             }
         });
     }
 
     void doCancel() {
-        if (uv_timer_t* uvTimer = mUvTimer.exchange(nullptr)) {
+        if (uv_timer_t* uvTimer = takeOwnershipUvTimer()) {
             uv_timer_stop(uvTimer);
             uv_close(reinterpret_cast<uv_handle_t*>(uvTimer), unpinItselfOnClose);
         }
@@ -211,7 +205,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     void rescheduleRepeating(std::chrono::milliseconds new_delay,
                              std::chrono::milliseconds new_interval) override {
         (void)mEventLoop->post([self = shared_from_this(), new_delay, new_interval]() {
-            if (uv_timer_t* uvTimer = self->mUvTimer.load()) {
+            if (uv_timer_t* uvTimer = self->getUvTimer()) {
                 uv_timer_stop(uvTimer);
                 self->mIsRepeating = true;
                 uv_timer_start(uvTimer, onTimer, new_delay.count(), new_interval.count());
@@ -223,10 +217,17 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     void addItselfToActiveTimers() {
         // shared_from_this() is not available in the ctor
         (void)mEventLoop->post([self = shared_from_this()]() {
-            assert(self->mUvTimer.load());
-
             LibuvEventLoopImpl& evLoop = *self->mEventLoop;
-            uv_timer_init(evLoop.mLoop.get(), self->mUvTimer.load());
+
+            assert(!self->mPinnedByUvTimer);
+            self->mPinnedByUvTimer = self;
+            if (const int err = uv_timer_init(evLoop.mLoop.get(), &self->mUvTimerHandle)) {
+                LOG(DFATAL) << "uv_timer_init failed with: " << uv_strerror(err);
+            }
+            self->mUvTimerHandle.data = self.get();
+            assert(!self->mUvTimerHandleValid.load());
+            self->mUvTimerHandleValid.store(true);
+
             evLoop.addActiveTimer(self);
         });
     }
@@ -244,17 +245,23 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         // This will lead to the object being deleted if the user has
         // also released their shared_ptr.
         if (!self->mIsRepeating) {
-            if (uv_timer_t* uvTimer = self->mUvTimer.exchange(nullptr)) {
+            if (uv_timer_t* uvTimer = self->takeOwnershipUvTimer()) {
                 uv_close(reinterpret_cast<uv_handle_t*>(uvTimer), unpinItselfOnClose);
             }
         }
     }
 
+    uv_timer_t* getUvTimer() { return mUvTimerHandleValid.load() ? &mUvTimerHandle : nullptr; }
+
+    uv_timer_t* takeOwnershipUvTimer() {
+        return mUvTimerHandleValid.exchange(false) ? &mUvTimerHandle : nullptr;
+    }
+
     LibuvEventLoopImpl* mEventLoop;  ///< The eventloop on which we are scheduled.
-    std::atomic<uv_timer_t*>
-            mUvTimer;  ///< Handle to the actual timer, `->data` points to `this`
+    uv_timer_t mUvTimerHandle;       ///< Handle to the actual timer, `.data` point to `this`
     EventLoop::Task mTask;
     std::shared_ptr<LibuvTimer> mPinnedByUvTimer;  ///< prevents calling the dctor
+    std::atomic<bool> mUvTimerHandleValid = false;
     bool mIsRepeating;
 };
 
