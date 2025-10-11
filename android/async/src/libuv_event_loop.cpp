@@ -340,17 +340,23 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds
     // Post the actual shutdown logic using the private doPost.
     (void)doPost([this, wait_until]() {
         {
-            absl::MutexLock lock(&mActiveTimersMutex);
-            for (const auto& [unsafePtr, weakTimer] : mActiveTimers) {
-                if (const auto timer = weakTimer.lock()) {
-                    timer->doCancel();
+            // ~LibuvTimer will be called with mActiveTimersMutex unlocked
+            std::vector<std::shared_ptr<LibuvTimer>> pinnedTimers;
+            {
+                absl::MutexLock lock(&mActiveTimersMutex);
+                pinnedTimers.reserve(mActiveTimers.size());
+                for (const auto& [unsafePtr, weakTimer] : mActiveTimers) {
+                    if (std::shared_ptr<LibuvTimer> timer = weakTimer.lock()) {
+                        timer->doCancel();
+                        pinnedTimers.push_back(std::move(timer));
 
-                    if (absl::Now() > wait_until) {
-                        if (!mPromiseSet.exchange(true)) {
-                            mShutdownCompletePromise.set_value(absl::DeadlineExceededError(
-                                    "Unable to cancel timers in a timely fashion."));
+                        if (absl::Now() > wait_until) {
+                            if (!mPromiseSet.exchange(true)) {
+                                mShutdownCompletePromise.set_value(absl::DeadlineExceededError(
+                                        "Unable to cancel timers in a timely fashion."));
+                            }
+                            return;
                         }
-                        return;
                     }
                 }
             }
