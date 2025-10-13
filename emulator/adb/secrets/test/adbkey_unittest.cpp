@@ -26,9 +26,7 @@
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 
-namespace android {
-namespace base {
-
+namespace goldfish::adb {
 // Secret token that gets verified.
 const uint8_t challenge_token[20] = {0xE8, 0x99, 0xE1, 0xFF, 0x95, 0x9B, 0x8F, 0x6B, 0x54, 0xBE,
                                      0xCE, 0xC5, 0x42, 0xF1, 0x93, 0x7D, 0x3,  0x99, 0xA2, 0x32};
@@ -74,8 +72,8 @@ class AdbKeyTest : public ::testing::Test {
     ~AdbKeyTest() {}
 
   protected:
-    TestSystem mTestSystem{"/"};
-    TestTempDir* mTestDir;
+    android::base::TestSystem mTestSystem{"/"};
+    android::base::TestTempDir* mTestDir;
     const char* tstKey = "adbsamplekey";
 };
 
@@ -215,5 +213,4 @@ TEST_F(AndroidPubkeyTest, Encode) {
     ASSERT_EQ(0, memcmp(kKey2048, key_data, sizeof(kKey2048)));
 }
 
-}  // namespace base
-}  // namespace android
+}  // namespace golfish::adb
