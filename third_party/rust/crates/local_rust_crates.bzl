@@ -5,7 +5,7 @@ These are dependencies of crosvm and netsim.
 
 load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 
-def _local_rust_crates_impl(module_ctx):
+def _lrc_impl(module_ctx):
     """Implementation of the local_rust_crates module extension."""
 
     # First the crosvm deps.
@@ -215,7 +215,7 @@ def _local_rust_crates_impl(module_ctx):
 
     return module_ctx.extension_metadata(root_module_direct_deps = "all", root_module_direct_dev_deps = [], reproducible = True)
 
-local_rust_crates = module_extension(
-    implementation = _local_rust_crates_impl,
+lrc = module_extension(
+    implementation = _lrc_impl,
     tag_classes = {},
 )
