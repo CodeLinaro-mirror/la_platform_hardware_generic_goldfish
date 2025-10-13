@@ -36,6 +36,7 @@ cc_library(
         "include/android/crashreport/HangDetector.h",
         "include/android/crashreport/SimpleStringAnnotation.h",
         "include/android/crashreport/crash-export.h",
+        "include/android/crashreport/crash-handler.h",
         "include/android/crashreport/detectors/CrashDetectors.h",
         "include/android/crashreport/detectors/TimeoutMonitor.h",
     ],
@@ -91,6 +92,7 @@ cc_binary(
     name = "crashreport",
     srcs = [
         "include/android/crashreport/CrashReporter.h",
+        "include/android/crashreport/crash-handler.h",
         "src/android/crashreport/CrashUploadTool.cpp",
     ],
     includes = ["include"],

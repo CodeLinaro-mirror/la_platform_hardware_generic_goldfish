@@ -26,7 +26,7 @@
 #include "android/crashreport/HangDetector.h"
 #include "base/files/file_path.h"
 #include "client/annotation.h"
-#include "host-common/crash-handler.h"
+#include "android/crashreport/crash-handler.h"
 
 namespace crashpad {
 class Annotation;

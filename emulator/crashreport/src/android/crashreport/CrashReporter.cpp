@@ -20,7 +20,6 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <map>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -32,12 +31,8 @@
 #include "android/crashreport/SimpleStringAnnotation.h"
 #include "base/files/file_path.h"
 #include "client/annotation.h"
-#include "client/crash_report_database.h"
-#include "client/crashpad_client.h"
-#include "client/settings.h"
 #include "hardware/generic/goldfish/emulator/launcher/aemu_version.h"
-#include "host-common/crash-handler.h"
-#include "util/misc/uuid.h"
+#include "android/crashreport/crash-handler.h"
 
 #ifdef _WIN32
 #include <io.h>
