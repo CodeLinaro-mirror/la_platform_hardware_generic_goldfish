@@ -261,8 +261,7 @@ pkg_zip(
         "//third_party/qemu:qemu-roms",
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
-    package_variables =
-        ":aemu_version_info",
+    package_variables = ":aemu_version_info",
 )
 
 filegroup(

@@ -17,23 +17,18 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/synchronization/mutex.h"
 
-#include "aemu/base/async/Looper.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/avd.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
 
-using android::base::Looper;
 using android::base::System;
-using android::goldfish::Avd;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
