@@ -41,7 +41,6 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/cpu/cpu_accelerator.h"
 #include "android/goldfish/cpu/x86_cpuid.h"
-#include "host-common/FeatureControl.h"
 
 #ifdef _WIN32
 #include "aemu/base/files/PathUtils.h"

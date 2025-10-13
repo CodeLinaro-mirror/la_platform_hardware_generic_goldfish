@@ -30,7 +30,6 @@
 #include "absl/time/time.h"
 
 #include "aemu/base/testing/TestUtils.h"
-#include "host-common/logging.h"
 
 extern "C" {
 #include "hardware/generic/goldfish/android/logging/test/android/base/logging/abseil_log_c_test.h"

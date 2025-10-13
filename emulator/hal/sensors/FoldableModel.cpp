@@ -20,8 +20,6 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/misc/StringUtils.h"
-#include "host-common/FeatureControl.h"
-#include "host-common/hw-config.h"
 
 namespace goldfish::devices::sensor {
 

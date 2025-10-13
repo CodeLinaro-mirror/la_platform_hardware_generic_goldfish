@@ -23,7 +23,6 @@ cc_test(
         ":host",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "@aemu//:aemu-host-common-test-headers",
         "@aemu//base:aemu-base",
     ],
 )

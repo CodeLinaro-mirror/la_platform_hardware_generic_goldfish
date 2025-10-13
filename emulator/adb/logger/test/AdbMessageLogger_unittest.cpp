@@ -27,7 +27,6 @@
 #include "absl/time/time.h"
 
 #include "aemu/base/testing/TestUtils.h"
-#include "host-common/logging.h"
 
 namespace {
 
