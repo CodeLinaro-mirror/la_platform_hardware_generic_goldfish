@@ -166,20 +166,17 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         assert(handle);
         uv_timer_t* uvTimer = reinterpret_cast<uv_timer_t*>(handle);
         assert(uvTimer->data);
-        static_cast<LibuvTimer*>(uvTimer->data)->mPinnedByUvTimer.reset();
+        LibuvTimer* that = static_cast<LibuvTimer*>(uvTimer->data);
+
+        // We get here from `uv_close`, see `takeOwnershipUvTimer`
+        assert(!that->mUvTimerHandleValid.load());
+        that->mPinnedByUvTimer.reset();  // potentially calls ~LibuvTimer
     }
 
     LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating, Private)
             : mEventLoop(loop), mTask(std::move(task)), mIsRepeating(repeating) {}
 
-    ~LibuvTimer() override {
-        // The only way to get here is via `deleteSharedPtrOnClose` which
-        // is called with `mUvTimer` cleared earlier.
-        assert(!mUvTimerHandleValid.load());
-
-        // We are no longer outstanding..
-        mEventLoop->removeActiveTimer(this);
-    }
+    ~LibuvTimer() override { mEventLoop->removeActiveTimer(this); }
 
     void start(uint64_t timeout_ms, uint64_t repeat_ms) {
         // Post the start operation to the eventloop, at this point
