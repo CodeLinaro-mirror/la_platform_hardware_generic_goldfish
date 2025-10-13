@@ -14,20 +14,11 @@
 
 #include "goldfish/avd/avd-info.h"
 
-#include <goldfish/async/event_loop.h>
-
 #include <memory>
 
-#include "absl/log/globals.h"
-#include "absl/log/initialize.h"
-#include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
-#include "absl/log/log_sink_registry.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
@@ -38,9 +29,8 @@
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
-#include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
-#include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
@@ -80,19 +70,6 @@ ConnectorRegistry& deviceRegistry() {
 }
 
 namespace {
-void updateVModule(const std::string_view vmodule) {
-    for (const absl::string_view glob_level : absl::StrSplit(vmodule, '|')) {
-        const size_t eq = glob_level.rfind('=');
-        if (eq == glob_level.npos) continue;
-        const absl::string_view glob = glob_level.substr(0, eq);
-        int level;
-        if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
-
-        absl::SetVLogLevel(glob, level);
-        LOG(INFO) << "Setting module verbosity for " << glob << " to " << level;
-    }
-}
-
 void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
 std::unique_ptr<async::EventLoop> gQemuLoop;
@@ -102,13 +79,6 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     // Set the system clock to the QEMU implementation.
     android::base::IClock::set(std::make_unique<android::base::QemuClock>());
-
-    // Configure logging.
-    // We assume logging has already be initialized in plugin.cpp.
-    // absl::InitializeLog();
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(avd_info->log_level));
-    updateVModule(avd_info->vmodule);
 
     auto avd_status = android::goldfish::FileBackedAvd::parse(avd_info->ini_path,
                                                               /*sysdir_override=*/std::string());
@@ -172,31 +142,6 @@ void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
     avd_info->ini_path = value;
 }
 
-void avd_info_set_vmodule(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->vmodule = value;
-}
-
-void avd_info_set_log_level(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    uint32_t value;
-
-    if (!visit_type_uint32(v, name, &value, errp)) {
-        return;
-    }
-
-    // Check for invalid input or overflow
-    if (value < 0 || value > 4) {
-        error_setg(errp,
-                   "Logging log_level should be in the range [0, 3] (info, warning, error, fatal), "
-                   "not: %d",
-                   value);
-        return;
-    }
-
-    avd_info->log_level = value;
-}
-
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
@@ -212,15 +157,6 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
     object_class_property_set_description(oc, "ini_path",
                                           "the path to the AVD's configuration (.ini) file.");
-
-    object_class_property_add(oc, "log_level", "int", NULL, avd_info_set_log_level, NULL, NULL);
-    object_class_property_set_description(oc, "log_level", "The absl logging level to use.");
-
-    object_class_property_add_str(oc, "vmodule", NULL, avd_info_set_vmodule);
-    object_class_property_set_description(
-            oc, "vmodule",
-            "Sets logging levels for specific files or groups of files using | separated "
-            "key-value pairs (e.g., filename_pattern=level|pattern2=level)");
 
     object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number, NULL, NULL);
     object_class_property_set_description(oc, "serial_number", "The serial number of this emulator");

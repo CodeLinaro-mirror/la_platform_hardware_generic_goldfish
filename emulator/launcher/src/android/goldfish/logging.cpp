@@ -16,6 +16,10 @@ void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(launcherLogLevel);
 
+    if (int v_level; opts.V && absl::SimpleAtoi(opts.V, &v_level)) {
+        absl::SetGlobalVLogLevel(v_level);
+    }
+
     if (!opts.vmodule) {
         return;
     }

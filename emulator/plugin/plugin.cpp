@@ -12,29 +12,93 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdio>
-
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
+
+#include "android/base/system/System.h"
 
 #include "goldfish/adb/adb-device.h"
-#include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/avd-finalize.h"
-#include "goldfish/vsock/vsock_port_fwd.h"
-#include "goldfish/vsock/vsock_low_level.h"
+#include "goldfish/avd/avd-info.h"
 #include "goldfish/battery/goldfish_battery.h"
+#include "goldfish/grpc/grpc-service-device.h"
 #include "goldfish/input/virtio-input-android.h"
 #include "goldfish/net/virtio-wifi.h"
-#include "goldfish/netsim/netsim-netdev.h"
 #include "goldfish/netsim/netsim-chardev.h"
-#include "goldfish/grpc/grpc-service-device.h"
+#include "goldfish/netsim/netsim-netdev.h"
+#include "goldfish/vsock/vsock_low_level.h"
+#include "goldfish/vsock/vsock_port_fwd.h"
 
- // library and initialize the crashpad crash engine upon launch.
+// library and initialize the crashpad crash engine upon launch.
+#include "google/system/aemu_func_defs.h"
+
 #include "android/crashreport/crash-initializer.h"
 
-#include "google/system/aemu_func_defs.h"
+namespace {
+
+using android::base::System;
+
+void setup_debug_logging() {
+    std::string v_str = System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL");
+    if (!v_str.empty()) {
+        if (int v_level; !absl::SimpleAtoi(v_str, &v_level)) {
+            LOG(ERROR) << "AEMU_VLOG_LEVEL was set to an invalid value: " << v_str;
+        } else {
+          absl::SetGlobalVLogLevel(v_level);
+        }
+    }
+
+    if (std::string vmodule = System::get()->getEnvironmentVariable("AEMU_VMODULE");
+        !vmodule.empty()) {
+        // TODO share this with launcher.cpp / logging.cpp
+        for (const absl::string_view glob_level : absl::StrSplit(vmodule, ',')) {
+            const size_t eq = glob_level.rfind('=');
+            if (eq == glob_level.npos) continue;
+            const absl::string_view glob = glob_level.substr(0, eq);
+            int level;
+            if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
+
+            absl::SetVLogLevel(glob, level);
+            LOG(INFO) << "Setting module verbosity for " << glob << " to " << level;
+        }
+    }
+}
+
+int get_log_level() {
+    // Default to logging only error and fatal.
+    static const int default_log_level = 2;
+    std::string log_level_str = System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL");
+    if (log_level_str.empty()) {
+        return default_log_level;
+    }
+    int log_level;
+    if (!absl::SimpleAtoi(log_level_str, &log_level)) {
+        LOG(ERROR) << "AEMU_LOG_LEVEL was set to an invalid value: " << log_level_str;
+        return default_log_level;
+    }
+
+    if (log_level < 0 || log_level > 4) {
+        LOG(ERROR) << "AEMU_LOG_LEVEL should be in the range [0, 3] (info, warning, error, fatal), "
+                      "not: "
+                   << log_level;
+        return default_log_level;
+    }
+    return log_level;
+}
+
+void setup_logging() {
+    absl::InitializeLog();
+    absl::log_internal::EnableSymbolizeLogStackTrace(true);
+    absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+    absl::SetStderrThreshold(static_cast<absl::LogSeverityAtLeast>(get_log_level()));
+    setup_debug_logging();
+}
+
+}  // namespace
 
 extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     VLOG(1) << "Enter GF_REGISTER_TYPES";
@@ -52,20 +116,14 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     VLOG(1) << "Exit GF_REGISTER_TYPES";
 }
 
-extern "C" void GF_STARTUP_FUNC(int argc, char **argv) {
-  absl::InitializeLog();
-  absl::log_internal::EnableSymbolizeLogStackTrace(true);
-  // What should we log before the AVD module is loaded and configures it properly?
-  // TODO Decide what to set this to.
-  absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
-  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
+    setup_logging();
 
-  if (!crashhandler_init(argc, argv)) {
-    LOG(WARNING) << "Failed to initialize crashreporting.";
-  }
+    if (!crashhandler_init(argc, argv)) {
+        LOG(WARNING) << "Failed to initialize crashreporting.";
+    }
 
-  LOG(INFO) << "goldfish plugin initialization completed";
+    LOG(INFO) << "goldfish plugin initialization completed";
 }
 
-extern "C" void GF_SHUTDOWN_FUNC(void) {
-}
+extern "C" void GF_SHUTDOWN_FUNC(void) {}

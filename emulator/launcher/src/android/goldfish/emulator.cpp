@@ -112,11 +112,18 @@ absl::Status Emulator::addDevices() {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
-    absl::LogSeverityAtLeast pluginLogLevel =
-            mOpts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
+    int pluginLogLevel = static_cast<int>(mOpts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning);
 
     std::string vmodules = mOpts.vmodule ? mOpts.vmodule : "";
-    std::replace(vmodules.begin(), vmodules.end(), ',', '|');
+    if (System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
+        System::get()->setEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
+    }
+    if (System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
+        System::get()->setEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(mOpts.V ? mOpts.V : ""));
+    }
+    if (System::get()->getEnvironmentVariable("AEMU_VMODULE").empty()) {
+        System::get()->setEnvironmentVariable("AEMU_VMODULE", vmodules);
+    }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-nodefaults",
@@ -191,8 +198,7 @@ absl::Status Emulator::addDevices() {
     auto ini_path = System::pathAsString(mAvd->getIniFile());
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device",
-        absl::StrCat("avdstart,ini_path=", ini_path, ",vmodule=", vmodules,
-                     ",log_level=", pluginLogLevel, ",serial_number=", serial_number())});
+        absl::StrCat("avdstart,ini_path=", ini_path, ",serial_number=", serial_number())});
 
     std::string gpu_name = "gpu0";
     addDevice<GpuDevice>(gpu_name);

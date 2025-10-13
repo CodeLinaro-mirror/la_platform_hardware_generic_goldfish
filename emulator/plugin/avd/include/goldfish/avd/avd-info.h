@@ -37,10 +37,9 @@ extern "C" {
 struct AvdInfoDev {
     DeviceClass parent_class;
     std::string ini_path;
-    int log_level{2};     // Log only errors
-    std::string vmodule;  // Vlog filter
     int32_t serial_number{5554};
 };
+
 #define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
@@ -48,9 +47,8 @@ struct AvdInfoDev {
 template <typename Sink>
 void AbslStringify(Sink& sink, AvdInfoDev dev) {
     absl::Format(&sink,
-                 "AvdInfoDev: ini_path={%s}, log_level={%d}, vmodule={%s}, "
-                 "parent_class.fw_name={%s}",
-                 dev.ini_path, dev.log_level, dev.vmodule, dev.parent_class.fw_name);
+                 "AvdInfoDev: ini_path={%s}, parent_class.fw_name={%s}",
+                 dev.ini_path, dev.parent_class.fw_name);
 }
 
 namespace goldfish::avd_info {

@@ -409,6 +409,8 @@ OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
 OPT_FLAG(no_wifi, "disable wifi device")
 
+OPT_PARAM(V, "<v log level>", "Set the global vlog level to this integer value")
+
 #undef CFG_FLAG
 #undef CFG_PARAM
 #undef OPT_FLAG
