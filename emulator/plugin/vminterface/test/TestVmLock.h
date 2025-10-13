@@ -14,9 +14,9 @@
 #pragma once
 
 #include "aemu/base/synchronization/Lock.h"
-#include "host-common/VmLock.h"
+#include "vm/VmLock.h"
 
-namespace android {
+namespace android::goldfish {
 
 class TestVmLock : public VmLock {
   public:
@@ -75,4 +75,4 @@ class HostVmLock : public VmLock {
     bool mInstalled = false;
 };
 
-}  // namespace android
+}  // namespace android::goldfish

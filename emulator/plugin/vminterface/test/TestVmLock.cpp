@@ -14,7 +14,7 @@
 
 #include "TestVmLock.h"
 
-namespace android {
+namespace android::goldfish {
 
 static TestVmLock* sTestVmLock() {
     static TestVmLock instance;
@@ -35,4 +35,4 @@ HostVmLock* HostVmLock::getInstance() {
     return sHostVmLock();
 }
 
-}  // namespace android
+}  // namespace android::goldfish

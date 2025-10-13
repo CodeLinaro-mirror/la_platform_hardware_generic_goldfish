@@ -14,20 +14,21 @@
 #include <array>
 
 #include "android/goldfish/vm/VmInterface.h"
-#include "host-common/VmLock.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
 #include "qemu/osdep.h"
 #include "system/runstate.h"
-#include "vm/qemu-machine-info.h"
 }
 // IWYU pragma: end_keep
 // clang-format on
 
 // Remove leaked shutdown redefinition from external/qemu/include/sysemu/os-win32.h
 #undef shutdown
+
+#include "VmLock.h"
+#include "qemu-machine-info.h"
 
 namespace android {
 namespace goldfish {

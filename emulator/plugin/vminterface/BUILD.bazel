@@ -1,0 +1,106 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "vm_lock",
+    srcs = [
+        "src/vm/VmLock.cpp",
+        "src/vm/VmLock.h",
+    ],
+    includes = ["src"],
+    deps = [
+        "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//base:aemu-base-headers",
+    ],
+)
+
+cc_library(
+    name = "machine_info",
+    srcs = ["src/vm/qemu-machine-info.c"],
+    hdrs = ["src/vm/qemu-machine-info.h"],
+    includes = ["src"],
+    visibility = ["//visibility:public"],
+    deps = ["//third_party/qemu:qemu-headers"],
+)
+
+cc_library(
+    name = "fake_machine_info",
+    srcs = ["src/vm/fake-machine-info.c"],
+    hdrs = ["src/vm/qemu-machine-info.h"],
+    includes = ["src"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vminterface",
+    hdrs = ["include/android/goldfish/vm/VmInterface.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vm_ops",
+    srcs = ["src/vm/QemuVmOperations.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":machine_info",
+        ":vm_lock",
+        ":vminterface",
+        "//third_party/qemu:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "vm_ops_with_fake_machine_info",
+    srcs = ["src/vm/QemuVmOperations.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":fake_machine_info",
+        ":vm_lock",
+        ":vminterface",
+    ],
+)
+
+cc_library(
+    name = "vminterface-test",
+    testonly = True,
+    srcs = [
+        "test/TestVmLock.cpp",
+        "test/TestVmLock.h",
+        "test/vm-mock.c",
+        "test/vm-mock.h",
+    ],
+    hdrs = ["include/android/goldfish/vm/VmInterface.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":vm_lock",
+        ":vm_ops_with_fake_machine_info",
+    ],
+)
+
+cc_test(
+    name = "vminterface_unittests",
+    testonly = True,
+    srcs = [
+        "test/vm_unittest.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":vminterface-test",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "@aemu//base:aemu-base-headers",
+    ],
+)
+
+cc_library(
+    name = "test_vminterface",
+    testonly = True,
+    hdrs = [
+        "test/FakeVmOperations.h",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [":vminterface"],
+)

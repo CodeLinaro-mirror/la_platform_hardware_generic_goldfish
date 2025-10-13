@@ -13,11 +13,6 @@
 // limitations under the License.
 #pragma once
 
-#include <cstdint>
-#include <functional>
-#include <string>
-#include <vector>
-
 #include "absl/strings/str_format.h"
 
 namespace android {

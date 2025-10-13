@@ -20,7 +20,6 @@
 
 #include "FakeMultiDisplay.h"
 #include "FakePixmanDisplay.h"
-#include "aemu/base/events/EventWaiter.h"
 #include "android/emulation/control/DisplayService.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/display/MultiDisplay.h"
