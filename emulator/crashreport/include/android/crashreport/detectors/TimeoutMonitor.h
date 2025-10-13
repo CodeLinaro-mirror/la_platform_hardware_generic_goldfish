@@ -18,7 +18,7 @@
 #include <string>
 #include <thread>
 
-#include "host-common/crash-handler.h"
+#include "android/crashreport/crash-handler.h"
 
 namespace android {
 namespace crashreport {

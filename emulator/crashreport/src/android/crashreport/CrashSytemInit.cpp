@@ -11,10 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include <functional>
+
 #include <map>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -22,17 +21,11 @@
 #include "absl/log/absl_log.h"
 
 #include "aemu/base/Compiler.h"
-#include "aemu/base/async/RecurrentTask.h"
-#include "aemu/base/async/ThreadLooper.h"
-#include "aemu/base/files/PathUtils.h"
-#include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
 #include "aemu/base/system/Win32UnicodeString.h"
-#include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/crashreport/CrashConsent.h"
 #include "android/crashreport/CrashReporter.h"
-#include "android/crashreport/HangDetector.h"
 #include "android/crashreport/Uploader.h"
 #include "base/files/file_path.h"
 #include "client/crash_report_database.h"
@@ -45,10 +38,6 @@
 #include <io.h>
 #endif
 
-using android::base::Bazel;
-using android::base::PathUtils;
-using android::base::pj;
-using android::base::RecurrentTask;
 using android::base::System;
 using base::FilePath;
 using crashpad::CrashReportDatabase;
@@ -235,23 +224,7 @@ bool crashhandler_init(int argc, char** argv) {
 
     // Catch crashes in everything.
     // This promises to not launch any threads...
-    if (!CrashSystem::get()->initialize()) {
-        return false;
-    }
-
-    std::string arguments = "===== Command-line arguments =====\n";
-    for (int i = 0; i < argc; i++) {
-        arguments += argv[i];
-        arguments += ' ';
-    }
-    arguments += "\n===== Environment =====\n";
-    const auto allEnv = System::get()->envGetAll();
-    for (const std::string& env : allEnv) {
-        arguments += env;
-        arguments += '\n';
-    }
-
-    return true;
+    return CrashSystem::get()->initialize();
 }
 
 void upload_crashes(void) {
