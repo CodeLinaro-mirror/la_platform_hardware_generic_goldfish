@@ -47,7 +47,7 @@ filegroup(
 
 filegroup(
   name = "avd",
-  srcs = [":phone.ini", ":avd/config.ini"]
+  srcs = [":phone.ini", ":phone.avd/config.ini"]
 )
 
 

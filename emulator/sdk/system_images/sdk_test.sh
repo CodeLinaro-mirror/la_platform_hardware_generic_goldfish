@@ -17,6 +17,6 @@ fi
 
 echo "Configuration: "
 echo ""
-cat "${CONTENT_DIR}/avd/config.ini"
+cat "${CONTENT_DIR}/phone.avd/config.ini"
 echo ""
 echo "--- sdk_test.sh completed successfully ---"
