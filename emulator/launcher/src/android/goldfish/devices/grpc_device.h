@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
-#include <filesystem>
-#include <memory>
+
 #include <string>
 #include <vector>
 
@@ -21,10 +21,9 @@
 
 namespace android::goldfish {
 
-// Configures the kernel for qemu.
 class GrpcDevice : public Device {
   public:
-   explicit GrpcDevice() : Device("grpc"), mPort(8556) {}
+   explicit GrpcDevice() : Device("grpc") {}
 
    absl::Status initialize(const EmulatorConfig& emulator) override;
    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
@@ -32,4 +31,5 @@ class GrpcDevice : public Device {
   private:
    uint16_t mPort;
 };
+
 }  // namespace android::goldfish

@@ -24,13 +24,14 @@
 namespace android::goldfish::test {
 
 TEST(Grpc, DefaultPort) {
-    FakeEmulator emu;
+    EmulatorPorts ports{.serial_number=5560};
+    FakeEmulator emu(std::move(ports), {});
 
     GrpcDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-device"),
-                                     testing::StartsWith("grpc,port=8556,token=true,allowlist="),
+                                     testing::StartsWith("grpc,port=8560,token=true,allowlist="),
                                      testing::Eq("-trace"), testing::Eq("module_*")));
 }
 

@@ -14,15 +14,12 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
-#include <iostream>
 #include <memory>
-#include <random>
 #include <system_error>
 
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/str_format.h"
 
 #include "aemu/base/process/Process.h"
 #include "android/base/system/System.h"
@@ -92,26 +89,30 @@ static std::string generateToken(int cnt) {
 }
 
 bool initialize(GrpcDeviceConfiguration* device) {
-    auto avd = goldfish::avd_info::get_avd();
-    auto registry = &goldfish::avd_info::deviceRegistry();
+    auto *avdprops = goldfish::avd_info::get_avd();
+    if (!avdprops) {
+        // TODO error - probably we're being called before avdinfo module is inited
+    }
+
+    auto *registry = &goldfish::avd_info::deviceRegistry();
     auto adbPort =
             goldfish::DeviceRegistry::get().get(goldfish::properties::kAdbPort).value_or(5555);
     auto qemuLoop = QemuEventLoop::create();
 
     // TODO(jansene): Update with actual data.
-    EmulatorProperties props{{"port.serial", std::to_string(adbPort - 1)},
+    EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
                              {"emulator.build", "standalone-0"},
                              {"emulator.version", "50.0.0"},
                              {"port.adb", std::to_string(adbPort)},
-                             {"avd.name", avd->name()},
-                             {"avd.id", avd->display_name()},
-                             {"avd.dir", System ::pathAsString(avd->getContentPath())},
+                             {"avd.name", avdprops->avd->name()},
+                             {"avd.id", avdprops->avd->display_name()},
+                             {"avd.dir", System ::pathAsString(avdprops->avd->getContentPath())},
                              // TODO(jansene):
                              {"cmdline",
                               "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
                               "\"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avd, IMultiDisplay::instance(),
+            VmOperations::qemuVmOperations(), registry, avdprops->avd.get(), IMultiDisplay::instance(),
             qemuLoop.get());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)

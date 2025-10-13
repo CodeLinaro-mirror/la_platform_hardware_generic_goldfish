@@ -20,8 +20,9 @@
 
 #include "android/emulation/control/adb/AdbHostServer.h"
 #include "android/emulation/control/adb/AdbMessageLogger.h"
-#include "goldfish/device_registry/DeviceRegistry.h"
 
+#include "goldfish/avd/avd-info.h"
+#include "goldfish/device_registry/DeviceRegistry.h"
 // clang-format off
 // IWYU pragma: begin_keep
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -64,12 +65,17 @@ namespace {
 void adb_vsock_connected(VSockFwdDev* device) {
     auto adb_server = AdbHostServer::getClientPort();
     LOG(WARNING) << "Notifying adb server on port " << adb_server
-              << " that adbd for is available on localhost:" << device->host_port;
+              << " that adbd is available on localhost:" << device->host_port;
     AdbHostServer::notify(device->host_port, adb_server);
+
+    auto *avd = goldfish::avd_info::get_avd();
     // Make it easier for tests to find us.
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
-    LOG(WARNING) << "Expected adb serial number: emulator-" << (device->host_port - 1);
+    int expected_serial = device->host_port - 1;
+    if (avd->serial_number != expected_serial) {
+        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd->serial_number << " != " << expected_serial;
+    }
 }
 
 void adb_vsock_realize(DeviceState* dev, Error** errp) {

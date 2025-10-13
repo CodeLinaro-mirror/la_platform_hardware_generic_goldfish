@@ -10,6 +10,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/adb/logger",
         "//hardware/generic/goldfish/emulator/libs/device_registry",
+        "//hardware/generic/goldfish/emulator/plugin/avd",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )

@@ -8,12 +8,14 @@ namespace android::goldfish {
 
 class FakeEmulator {
   public:
-    explicit FakeEmulator(AndroidOptions opts) {
+    FakeEmulator(EmulatorPorts ports, AndroidOptions opts) {
         auto avd = std::make_unique<MockAvd>();
 
         mMockAvd = avd.get();
-        mEmulatorConfig = std::make_unique<EmulatorConfig>("", ResolvedInputPaths{}, std::move(avd), std::move(opts));
+        mEmulatorConfig = std::make_unique<EmulatorConfig>(std::move(ports), "", ResolvedInputPaths{}, std::move(avd), std::move(opts));
     }
+
+    explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
 
     FakeEmulator() : FakeEmulator(AndroidOptions{}) {}
 

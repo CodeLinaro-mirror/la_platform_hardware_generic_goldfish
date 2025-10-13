@@ -23,10 +23,15 @@
 
 namespace android::goldfish {
 
+struct EmulatorPorts {
+    int serial_number;
+    int adb_port;
+};
+
 class EmulatorConfig {
   public:
-    EmulatorConfig(const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
-        : mNetsimEndpoint(netsim_endpoint), mResolvedPaths(std::move(resolved_paths)), mAvd(std::move(avd)), mOpts(std::move(opts)) {}
+    EmulatorConfig(EmulatorPorts ports, const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
+        : mPorts(std::move(ports)), mNetsimEndpoint(netsim_endpoint), mResolvedPaths(std::move(resolved_paths)), mAvd(std::move(avd)), mOpts(std::move(opts)) {}
 
     // The resolved paths to input binaries and data
     const ResolvedInputPaths& paths() const { return mResolvedPaths; }
@@ -39,10 +44,11 @@ class EmulatorConfig {
 
     const std::string &netsim_endpoint() const { return mNetsimEndpoint; }
 
-    const std::string &serial_number() const { return mSerialNumber; }
+    int serial_number() const { return mPorts.serial_number; }
+    int adb_port() const { return mPorts.adb_port; }
 
   private:
-    std::string mSerialNumber{"5554"};  // TODO(whollins)
+    const EmulatorPorts mPorts;
     const std::string mNetsimEndpoint;
 
     const ResolvedInputPaths mResolvedPaths;

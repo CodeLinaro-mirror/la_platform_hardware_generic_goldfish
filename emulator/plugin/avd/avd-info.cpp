@@ -53,12 +53,15 @@ using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
 using goldfish::devices::camera::GrallocDetailsPtr;
 
-static std::unique_ptr<Avd> gAvd;
-
 namespace goldfish::avd_info {
+
+namespace {
 using devices::ConnectorRegistry;
 
-android::goldfish::Avd* get_avd() {
+std::unique_ptr<goldfish::avd_info::AvdProperties> gAvd;
+} // namespace
+
+const AvdProperties *get_avd() {
     if (gAvd) {
         return gAvd.get();
     }
@@ -87,15 +90,22 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
+    if (avd_info->serial_number <= 0) {
+        error_setg(errp, "serial_number is unspecified (it must be > 0): %d", avd_info->serial_number);
+        return;
+    }
+
     VLOG(1) << "Device configuration, avd_info: " << *avd_info;
     LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
-    gAvd = std::move(avd_status.value());
+    gAvd = std::make_unique<goldfish::avd_info::AvdProperties>();
+    gAvd->serial_number = avd_info->serial_number;
+    gAvd->avd = *std::move(avd_status);
 
-    auto clientLoop = goldfish::async::globalEventLoop();
+    auto *clientLoop = goldfish::async::globalEventLoop();
     gQemuLoop = goldfish::async::QemuEventLoop::create();
 
-    auto avd = gAvd.get();
-    auto registry = &goldfish::avd_info::deviceRegistry();
+    auto *avd = gAvd->avd.get();
+    auto *registry = &goldfish::avd_info::deviceRegistry();
 
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, clientLoop,
                                                              gQemuLoop.get());

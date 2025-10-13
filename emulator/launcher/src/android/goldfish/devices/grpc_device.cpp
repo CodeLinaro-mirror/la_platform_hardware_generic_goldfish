@@ -23,14 +23,13 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/bazel/bazel_info.h"
-#include "android/base/system/System.h"
 
 using android::base::Bazel;
-using android::base::System;
 
 namespace android::goldfish {
 
 absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
+    mPort = emulator.serial_number() + 3000;
     if (char* grpc = emulator.opts().grpc) {
         if (int grpcPort; absl::SimpleAtoi(grpc, &grpcPort)) {
             mPort = grpcPort;
@@ -43,9 +42,8 @@ absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-// TODO(jansene) add kernel versioning magic to add/subtract parameters,
 std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    fs::path allowlist = System::get()->getLauncherDirectory() / "lib" / "emulator_access.json";
+    fs::path allowlist = emulator.paths().launcher_directory / "lib" / "emulator_access.json";
 
     if (Bazel::inBazel()) {
         // Development environment, allow access to the emulator.

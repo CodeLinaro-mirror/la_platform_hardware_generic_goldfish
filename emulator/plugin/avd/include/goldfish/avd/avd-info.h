@@ -37,7 +37,7 @@ extern "C" {
 struct AvdInfoDev {
     DeviceClass parent_class;
     std::string ini_path;
-    int32_t serial_number{5554};
+    int32_t serial_number{0};
     int32_t quit_after_boot_timeout_seconds{0};
 };
 
@@ -54,7 +54,13 @@ void AbslStringify(Sink& sink, AvdInfoDev dev) {
 
 namespace goldfish::avd_info {
 
-::android::goldfish::Avd* get_avd();
+struct AvdProperties {
+    int serial_number;
+    // TODO(whollins): Add more stuff here.
+    std::unique_ptr<::android::goldfish::Avd> avd;
+};
+
+const AvdProperties *get_avd();
 
 devices::ConnectorRegistry& deviceRegistry();
 
