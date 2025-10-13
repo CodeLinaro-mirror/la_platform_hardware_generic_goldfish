@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "host-common/VmLock.h"
+#include "VmLock.h"
 
 #include <memory>
 
@@ -28,7 +28,7 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-namespace android {
+namespace android::goldfish {
 
 namespace {
 
@@ -97,4 +97,4 @@ VmLock* VmLock::set(VmLock* vmLock) {
     return old;
 }
 
-}  // namespace android
+}  // namespace android::goldfish

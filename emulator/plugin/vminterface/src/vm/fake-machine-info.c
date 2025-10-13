@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern const char* cpu_type_cwrap(void) {
+#include "vm/qemu-machine-info.h"
+
+const char* cpu_type_cwrap() {
     return "unknown";
 }
 
-extern const char* accel_name_cwrap() {
+const char* accel_name_cwrap() {
     return "unknown";
 }
 
-extern int cpu_count_cwrap() {
+int cpu_count_cwrap() {
     return 1;
 }

@@ -20,7 +20,6 @@
 
 #include "TestVmLock.h"
 #include "android/goldfish/vm/VmInterface.h"
-#include "host-common/VmLock.h"
 
 extern "C" {
 #include "vm-mock.h"

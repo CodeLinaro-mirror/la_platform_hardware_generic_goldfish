@@ -10,6 +10,5 @@ test_suite(
         "//hardware/generic/goldfish/emulator/hal/guest-status:guest-status_unittests",
         "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_adapter_unittests",
         "//hardware/generic/goldfish/emulator/hal/sensors:sensors_unittests",
-        "//hardware/generic/goldfish/emulator/hal/vminterface:vminterface_unittests",
     ],
 )

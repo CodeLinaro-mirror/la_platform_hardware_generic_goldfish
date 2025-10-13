@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "vm/qemu-machine-info.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "hw/boards.h"
 #include "qemu/accel.h"
-#include "sysemu/cpus.h"
-#include "vm/qemu-machine-info.h"
+#include "system/cpus.h"
 // IWYU pragma: end_keep
 // clang-format on
 
