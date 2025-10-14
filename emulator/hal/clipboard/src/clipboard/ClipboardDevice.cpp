@@ -128,7 +128,7 @@ class ClipboardDevice : public IClipboardDevice {
     mutable absl::Mutex mClipboardDataLock;  // protects mClipboardData
 };
 
-void IClipboardDevice::registerDevice(IConnectorRegistry* registry, Avd* avd, EventLoop* clientLoop,
+void IClipboardDevice::registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
                                       EventLoop* qemuLoop) {
     registry->registerHalDevice(std::string(IClipboardDevice::serviceName), clientLoop, qemuLoop,
                                 [] { return std::make_shared<ClipboardDevice>(); });
