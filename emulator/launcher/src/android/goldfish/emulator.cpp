@@ -27,6 +27,7 @@
 // Use ABSL_LOG to avoid conflict with crashpadh logging
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -198,9 +199,18 @@ absl::Status Emulator::addDevices() {
     }
 
     auto ini_path = System::pathAsString(mAvd->getIniFile());
+    std::string avd_params = absl::StrCat("ini_path=", ini_path, ",serial_number=", serial_number());
+    if (mOpts.quit_after_boot) {
+        if (int timeout; absl::SimpleAtoi(mOpts.quit_after_boot, &timeout)) {
+            absl::StrAppend(&avd_params, ",quit_after_boot_timeout=", timeout);
+        } else {
+            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -quit-after-boot parameter as int: ", mOpts.quit_after_boot));
+        }
+    }
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device",
-        absl::StrCat("avdstart,ini_path=", ini_path, ",serial_number=", serial_number())});
+        absl::StrCat("avdstart,", avd_params),
+    });
 
     std::string gpu_name = "gpu0";
     addDevice<GpuDevice>(gpu_name);

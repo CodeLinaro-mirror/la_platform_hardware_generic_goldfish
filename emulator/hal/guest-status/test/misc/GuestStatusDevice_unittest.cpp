@@ -49,7 +49,7 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mQemuLoop = TestEventLoop::create();
 
         IGuestStatusDevice::registerDevice(&registry, qemu_register_reset, mClientLoop.get(),
-                                           mQemuLoop.get());
+                                           mQemuLoop.get(), 0);
         device = registry.constructHalDevice<IGuestStatusDevice>();
         test_socket = registry.halSocket();
         clear();

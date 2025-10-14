@@ -103,7 +103,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
-            registry, qemu_register_reset, clientLoop, gQemuLoop.get());
+            registry, qemu_register_reset, clientLoop, gQemuLoop.get(), avd_info->quit_after_boot_timeout_seconds);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
                                                                        gQemuLoop.get());
     goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
@@ -153,6 +153,17 @@ void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void*
     avd_info->serial_number = value;
 }
 
+void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    int32_t value;
+
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+
+    avd_info->quit_after_boot_timeout_seconds = value;
+}
+
 void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
     object_class_property_set_description(oc, "ini_path",
@@ -160,6 +171,9 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
 
     object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number, NULL, NULL);
     object_class_property_set_description(oc, "serial_number", "The serial number of this emulator");
+
+    object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr, avd_info_set_quit_after_boot_timeout, NULL, NULL);
+    object_class_property_set_description(oc, "quit_after_boot_timeout", "For testing: shutdown the guest once boot complete or timeout (s) reached");
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

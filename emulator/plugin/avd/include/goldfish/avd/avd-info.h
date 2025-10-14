@@ -38,6 +38,7 @@ struct AvdInfoDev {
     DeviceClass parent_class;
     std::string ini_path;
     int32_t serial_number{5554};
+    int32_t quit_after_boot_timeout_seconds{0};
 };
 
 #define TYPE_AVD "avdstart"

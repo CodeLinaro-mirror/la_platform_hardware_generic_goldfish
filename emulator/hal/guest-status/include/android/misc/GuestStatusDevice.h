@@ -163,6 +163,6 @@ class IGuestStatusDevice : public HalPlug, public CallbackEventSource<AndroidGue
      */
     static void registerDevice(IConnectorRegistry* registry,
                                RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+                               EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds);
 };
 }  // namespace goldfish::devices::guest_status

@@ -24,6 +24,8 @@
 #include "absl/synchronization/mutex.h"
 
 #include "android/base/system/System.h"
+#include "android/goldfish/vm/VmInterface.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
@@ -48,8 +50,10 @@ static AndroidGuestStatus createHeartbeatEvent(uint64_t heartbeat) {
 
 class GuestStatusDevice : public IGuestStatusDevice {
   public:
-    GuestStatusDevice(RegisterEmulatorReset registerEmulatorReset)
-            : mHeartbeat(0)
+    GuestStatusDevice(RegisterEmulatorReset registerEmulatorReset, async::EventLoop *qemuLoop, int quitAfterBootTimeoutSeconds)
+            : mQemuLoop(qemuLoop)
+            , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds)
+            , mHeartbeat(0)
             , mBootTime(std::chrono::milliseconds(0))
             , mResetTimestampMs(std::chrono::milliseconds(0)) {
         VLOG(1) << "GuestStatus device has been created";
@@ -100,6 +104,14 @@ class GuestStatusDevice : public IGuestStatusDevice {
             // use WARNING, otherwise, logger does no flush and we don't know
             // it boot completes in timely manner
             LOG(WARNING) << "Boot completed in " << bootTime.count() << " ms";
+
+            if (mQuitAfterBootTimeoutSeconds > 0) {
+                LOG(WARNING) << "Shutting down guest due to boot complete";
+                // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
+                mQemuLoop->post([] () {
+                    android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
+                });
+            }
         } else {
             VLOG(1) << "Ignoring unknown message from guest (" << message.size() << "):" << message;
         }
@@ -126,6 +138,8 @@ class GuestStatusDevice : public IGuestStatusDevice {
         return std::chrono::milliseconds(System::get()->getProcessTimes().wallClockMs);
     }
 
+    async::EventLoop *mQemuLoop;
+    const int mQuitAfterBootTimeoutSeconds;
     SocketPtr mSocket;
     uint64_t mHeartbeat ABSL_GUARDED_BY(mStatusMutex);
     std::chrono::milliseconds mBootTime ABSL_GUARDED_BY(mStatusMutex);
@@ -136,11 +150,11 @@ class GuestStatusDevice : public IGuestStatusDevice {
 
 void IGuestStatusDevice::registerDevice(IConnectorRegistry* registry,
                                         RegisterEmulatorReset registerEmulatorReset,
-                                        EventLoop* clientLoop, EventLoop* qemuLoop) {
+                                        EventLoop* clientLoop, EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds) {
     registry->registerHalDevice(
             std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
-            [registerEmulatorReset = std::move(registerEmulatorReset)] {
-                return std::make_shared<GuestStatusDevice>(registerEmulatorReset);
+            [registerEmulatorReset = std::move(registerEmulatorReset), qemuLoop, quitAfterBootTimeoutSeconds] {
+                return std::make_shared<GuestStatusDevice>(registerEmulatorReset, qemuLoop, quitAfterBootTimeoutSeconds);
             });
 }
 
