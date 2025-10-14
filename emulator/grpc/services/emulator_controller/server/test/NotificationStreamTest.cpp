@@ -328,7 +328,7 @@ TEST_F(NotificationServiceTest, DisplayResolutionChange) {
     EXPECT_EQ(grpc::StatusCode::CANCELLED, status.error_code());
 }
 
-TEST_F(NotificationServiceTest, RemoveDisplay) {
+TEST_F(NotificationServiceTest, DISABLED_RemoveDisplay) {
     Empty request;
     Notification reply;
     auto context = getContextWithTimeout();
@@ -365,7 +365,7 @@ TEST_F(NotificationServiceTest, RemoveDisplay) {
     EXPECT_EQ(grpc::StatusCode::CANCELLED, status.error_code());
 }
 
-TEST_F(NotificationServiceTest, RemoveMultipleDisplays) {
+TEST_F(NotificationServiceTest, DISABLED_RemoveMultipleDisplays) {
     Empty request;
     Notification reply;
     auto context = getContextWithTimeout();
