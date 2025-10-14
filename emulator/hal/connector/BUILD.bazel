@@ -89,7 +89,7 @@ cc_library(
     ],
     deps = [
         "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/hal/connector:cable",
     ],
 )
 

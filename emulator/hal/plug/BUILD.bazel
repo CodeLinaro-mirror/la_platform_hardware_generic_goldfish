@@ -41,7 +41,7 @@ cc_library(
     deps = [
         ":hal_plug",
         "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/hal/connector:cable",
     ],
 )
 
@@ -54,7 +54,7 @@ cc_library(
         ":hal_plug",
         ":marshalling_hal_socket",
         "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/hal/connector:cable",
     ],
 )
 
@@ -69,12 +69,12 @@ cc_library(
     ],
     includes = ["test"],
     visibility = [
-        "//hardware/generic/goldfish/emulator/devices:__subpackages__",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:__subpackages__",
         "//hardware/generic/goldfish/emulator/hal:__subpackages__",
+        "//hardware/generic/goldfish/emulator/hal/connector:__subpackages__",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/hal/connector:cable",
         "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )
@@ -96,7 +96,7 @@ cc_test(
         "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/devices:connector_registry_impl",
+        "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_impl",
         "@abseil-cpp//absl/synchronization",
     ],
 )

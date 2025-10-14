@@ -8,7 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/devices:cable",
+        "//hardware/generic/goldfish/emulator/hal/connector:cable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
