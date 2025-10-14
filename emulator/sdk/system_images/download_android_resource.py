@@ -108,7 +108,7 @@ def download(url: str, dest_path: Path, expected_checksum: str = None) -> Path:
     logging.info(f"Downloading {url} to {dest_path}...")
     try:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(url) as response, open(dest_path, "wb") as out_file:
+        with urllib.request.urlopen(url, timeout=300) as response, open(dest_path, "wb") as out_file:
             total_size = int(response.headers.get("content-length", 0))
             bytes_so_far = 0
             while True:
