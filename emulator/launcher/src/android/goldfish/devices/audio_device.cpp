@@ -79,8 +79,16 @@ std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
     }
 }
 
+#if defined(__APPLE__)
+// coreaudio.m (coreaudio_audio_init)
+std::string AudioDevice::detectHostAudioBackend() {
+    using namespace std::literals;
+    return "coreaudio"s;
+}
+#else
 std::string AudioDevice::detectHostAudioBackend() {
     return {};  // TODO b/448177089
 }
+#endif
 
 }  // namespace android::goldfish
