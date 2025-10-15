@@ -22,6 +22,17 @@
 #include <string>
 #include <string_view>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+#include <DSound.h>
+#pragma comment(lib, "Dsound.lib")
+#include <objbase.h>
+#pragma comment(lib, "Ole32.lib")
+
+#include "goldfish/base/IntrusivePtr.h"
+#endif
+
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -29,6 +40,12 @@
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/device.h"
+
+#ifdef _WIN32
+void intrusive_ptr_add_ref(IUnknown* x) { x->AddRef(); }
+void intrusive_ptr_release(IUnknown* x) { x->Release(); }
+void intrusive_ptr_ctor(IUnknown* x) {}
+#endif
 
 namespace android::goldfish {
 
@@ -109,10 +126,48 @@ std::string AudioDevice::detectHostAudioBackend() {
 
     return "pa"s;
 }
-#else
-std::string AudioDevice::detectHostAudioBackend() {
-    return {};  // TODO b/448177089
+#elif defined(_WIN32)
+using ::goldfish::base::IntrusivePtr;
+
+template <class T> IntrusivePtr<T> CoCreateInstanceT(REFCLSID  rclsid,
+                                                     LPUNKNOWN pUnkOuter,
+                                                     DWORD     dwClsContext,
+                                                     REFIID    riid) {
+    void* instance;
+    HRESULT hr = ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, &instance);
+    if (FAILED(hr)) {
+        return {};
+    }
+
+    return IntrusivePtr<T>(static_cast<T*>(instance));
 }
+
+// dsoundaudio.c (dsound_audio_init)
+std::string AudioDevice::detectHostAudioBackend() {
+    using namespace std::literals;
+
+    ::CoInitialize(nullptr);
+
+    const auto dsound = CoCreateInstanceT<IDirectSound>(
+            CLSID_DirectSound, nullptr, CLSCTX_ALL, IID_IDirectSound);
+    if (!dsound || FAILED(dsound->Initialize(nullptr))) {
+        return {};
+    }
+
+    if (FAILED(dsound->SetCooperativeLevel(GetDesktopWindow(), DSSCL_PRIORITY))) {
+        return {};
+    }
+
+    const auto dsoundCapture = CoCreateInstanceT<IDirectSoundCapture>(
+            CLSID_DirectSoundCapture, nullptr, CLSCTX_ALL, IID_IDirectSoundCapture);
+    if (!dsoundCapture || FAILED(dsoundCapture->Initialize(nullptr))) {
+        return {};
+    }
+
+    return "dsound"s;
+}
+#else
+#error Unexpected platform
 #endif
 
 }  // namespace android::goldfish
