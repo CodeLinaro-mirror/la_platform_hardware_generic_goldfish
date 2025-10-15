@@ -71,15 +71,6 @@
  * @endcode
  */
 
-// Forward-declare the functions that users of this class must implement.
-// These are found via ADL.
-template <class T>
-void intrusive_ptr_add_ref(T* p);
-template <class T>
-void intrusive_ptr_release(T* p);
-template <class T>
-void intrusive_ptr_ctor(T* p);
-
 namespace goldfish::base {
 
 /**
