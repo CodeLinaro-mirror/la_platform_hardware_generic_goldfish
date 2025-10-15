@@ -11,8 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "audio_device.h"
 
+#include <cstdlib>
+#ifdef __linux__
+#include <filesystem>
+#endif
 #include <initializer_list>
 #include <string>
 #include <string_view>
@@ -75,7 +80,11 @@ std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
     if (audioBackendOpt && *audioBackendOpt) {
         return audioBackendOpt;
     } else {
-        return detectHostAudioBackend();
+        std::string backend = detectHostAudioBackend();
+        if (backend.empty()) {
+            LOG(WARNING) << "No audio backend detected, there will be no audio.";
+        }
+        return backend;
     }
 }
 
@@ -84,6 +93,21 @@ std::string AudioDevice::getAudioBackend(const AndroidOptions& opts) {
 std::string AudioDevice::detectHostAudioBackend() {
     using namespace std::literals;
     return "coreaudio"s;
+}
+#elif defined(__linux__)
+// paaudio.c (qpa_audio_init)
+std::string AudioDevice::detectHostAudioBackend() {
+    using namespace std::literals;
+    const char* runtime = std::getenv("XDG_RUNTIME_DIR");
+    if (!runtime) {
+        return {};
+    }
+
+    if (!std::filesystem::exists(absl::StrFormat("%s/pulse/pid", runtime))) {
+        return {};
+    }
+
+    return "pa"s;
 }
 #else
 std::string AudioDevice::detectHostAudioBackend() {
