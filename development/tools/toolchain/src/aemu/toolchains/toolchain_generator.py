@@ -183,7 +183,7 @@ class ToolchainGenerator:
         # Build pkg-config from source.
         self.bazel.build_target("@pkg-config")
         return (
-            f"PKG_CONFIG_PATH={self.pkgconfig_directory} "
+            f'PKG_CONFIG_PATH={self.pkgconfig_directory}  PKG_CONFIG_LIBDIR="" '
             f"{self.bazel.info['bazel-bin']}/external/pkg-config+/pkg-config",
             "",
         )
