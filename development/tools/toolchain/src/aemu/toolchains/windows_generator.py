@@ -40,6 +40,7 @@ class WindowsToWindowsGenerator(ToolchainGenerator):
 
     def __init__(self, aosp, dest, prefix):
         super().__init__(aosp, dest, prefix)
+        self.target_arch = "x86_64"
         self.env = {}
         for key in os.environ:
             self.env[key.upper()] = os.environ[key]

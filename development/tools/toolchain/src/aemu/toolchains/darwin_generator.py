@@ -194,4 +194,4 @@ class DarwinToDarwinGenerator(ToolchainGenerator):
 
 class DarwinToDarwinX64Generator(DarwinToDarwinGenerator):
     def __init__(self, aosp, dest, prefix) -> None:
-        super().__init__(aosp, dest, prefix, "x64")
+        super().__init__(aosp, dest, prefix, "x86_64")

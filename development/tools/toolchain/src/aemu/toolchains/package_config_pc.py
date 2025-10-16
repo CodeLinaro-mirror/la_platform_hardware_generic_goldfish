@@ -52,7 +52,20 @@ class PackageConfigPc:
         self.link_flags = shim.get("link_flags", "")
         self.archive = archive
         self.libdir = archive.parent.as_posix()
-        self.lib = archive.with_suffix("").name
+        if not archive.name:
+            if "Libs" not in shim:
+                raise KeyError(
+                    "The archive name cannot be derived, so a 'Libs' shim is required"
+                )
+            self.libs = shim.get("Libs")
+            self.lib = self.name
+        else:
+            self.lib = archive.with_suffix("").name
+            if self.archive.suffix == ".a":
+                self.libs = f"{self.archive} {self.link_flags}"
+            else:
+                self.libs = f"-L{self.libdir} -l{self.lib} {self.link_flags}"
+
         if self.lib.startswith("lib"):
             self.lib = self.lib[3:]
         self.shim = shim
@@ -71,11 +84,6 @@ class PackageConfigPc:
         return self.archive.suffix == ".a"
 
     def _template(self):
-        if self.archive.suffix == ".a":
-            libs = f"{self.archive} {self.link_flags}"
-        else:
-            libs = f"-L{self.libdir} -l{self.lib} {self.link_flags}"
-
         return f"""prefix={self.release_dir}
     includedir={self.include_dir}
     libdir={self.libdir}
@@ -87,7 +95,7 @@ class PackageConfigPc:
 
     Requires: {self.requires}
     Cflags: {self.cflags}
-    Libs: {libs}
+    Libs: {self.libs}
     """
 
     def _shim_link(self, archive, shim):

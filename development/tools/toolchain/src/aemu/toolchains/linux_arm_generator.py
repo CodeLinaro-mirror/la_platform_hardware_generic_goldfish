@@ -28,6 +28,10 @@ class LinuxToLinuxAarch64Generator(ToolchainGenerator):
     GCC_VER = 10
     GCC_PREFIX = "aarch64-linux-gnu-"
 
+    def __init__(self, aosp, dest, prefix):
+        super().__init__(aosp, dest, prefix)
+        self.target_arch = "aarch64"
+
     def _tool(self, tool):
         gcc = shutil.which(f"{self.GCC_PREFIX}{tool}")
         return gcc, ""

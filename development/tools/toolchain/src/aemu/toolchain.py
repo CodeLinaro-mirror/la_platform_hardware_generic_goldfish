@@ -25,12 +25,12 @@ import time
 import zipfile
 from pathlib import Path
 
-from aemu.configure.factory import get_builder
+from aemu.configure.meson_project_builder import MesonProjectBuilder
 from aemu.configure.shim import create_shim
 from aemu.log import configure_logging
 from aemu.process.bazel import Bazel
 from aemu.process.runner import run
-from aemu.toolchains.factory import get_toolchain_generator
+from aemu.toolchains.factory import get_toolchain_generator, get_target_alias
 from aemu.util import find_aosp_root, mkdirs
 
 
@@ -46,15 +46,22 @@ def _split_list(s):
 
 def setup_command(args):
     mkdirs(Path(args.out).absolute(), args.force)
-    builder = get_builder(
+    toolchain_generator = get_toolchain_generator(
         args.target,
-        get_build_dir(args.out),
         get_toolchain_dir(args.out),
         args.prefix,
         Path(args.aosp),
-        args.ccache,
-        _split_list(args.bazel_startup_options),
-        _split_list(args.bazel_build_options),
+    )
+    builder = MesonProjectBuilder(
+        config_file=args.config,
+        aosp=args.aosp,
+        dest=get_build_dir(args.out),
+        toolchain_dir=get_toolchain_dir(args.out),
+        ccache=args.ccache,
+        generator=toolchain_generator,
+        bazel_startup_options=_split_list(args.bazel_startup_options),
+        bazel_build_options=_split_list(args.bazel_build_options),
+        target=get_target_alias(args.target),
     )
     builder.configure_meson(args.meson)
     return builder
@@ -152,15 +159,22 @@ def bazel_command(args):
     if not build_dir:
         temp_build = tempfile.TemporaryDirectory(prefix="shadow")
         build_dir = Path(temp_build.__enter__()).resolve()
-        builder = get_builder(
+        toolchain_generator = get_toolchain_generator(
             args.target,
-            get_build_dir(build_dir),
             get_toolchain_dir(build_dir),
             "",
             Path(args.aosp),
-            args.ccache,
-            _split_list(args.bazel_startup_options),
-            _split_list(args.bazel_build_options),
+        )
+        builder = MesonProjectBuilder(
+            config_file=args.config,
+            aosp=args.aosp,
+            dest=get_build_dir(build_dir),
+            toolchain_dir=get_toolchain_dir(build_dir),
+            ccache=args.ccache,
+            generator=toolchain_generator,
+            bazel_startup_options=_split_list(args.bazel_startup_options),
+            bazel_build_options=_split_list(args.bazel_build_options),
+            target=get_target_alias(args.target),
         )
         builder.configure_meson([])
 
@@ -175,15 +189,22 @@ def bazel_command(args):
         else:
             shim_path = create_shim(Path(args.aosp), Path(build_dir))
 
-        builder = get_builder(
+        toolchain_generator = get_toolchain_generator(
             args.target,
-            get_build_dir(bazel_build_dir),
             get_toolchain_dir(bazel_build_dir),
             "",
             Path(args.aosp),
-            args.ccache,
-            _split_list(args.bazel_startup_options),
-            _split_list(args.bazel_build_options),
+        )
+        builder = MesonProjectBuilder(
+            config_file=args.config,
+            aosp=args.aosp,
+            dest=get_build_dir(bazel_build_dir),
+            toolchain_dir=get_toolchain_dir(bazel_build_dir),
+            ccache=args.ccache,
+            generator=toolchain_generator,
+            bazel_startup_options=_split_list(args.bazel_startup_options),
+            bazel_build_options=_split_list(args.bazel_build_options),
+            target=get_target_alias(args.target),
         )
         shim_file = shim_path.absolute()
         builder.configure_meson(
@@ -194,7 +215,7 @@ def bazel_command(args):
                 f"-Dbackend_shim={shim_file.as_posix()}",
             ]
         )
-        sys_id = f"{platform.system().lower()}-{platform.machine().lower()}"
+        sys_id = f"{toolchain_generator.host()}-{toolchain_generator.target_arch}"
         build_file = get_build_dir(bazel_build_dir) / "bazel" / "BUILD.bazel"
         build_file.rename(
             get_build_dir(bazel_build_dir) / "bazel" / "platform" / f"BUILD.{sys_id}"
@@ -311,10 +332,16 @@ def main():
 
     # Subparser for 'setup' command
     setup_parser = subparsers.add_parser(
-        "setup", help="Create wrappers for QEMU compilation"
+        "setup", help="Create wrappers for a meson project."
     )
     setup_parser.add_argument("out", type=str, help="Directory for toolchain wrappers")
     setup_parser.set_defaults(func=setup_command)
+    setup_parser.add_argument(
+        "--config",
+        required=True,
+        type=str,
+        help="Path to the build-config.jsonc file for the project.",
+    )
     setup_parser.add_argument(
         "--ccache",
         dest="ccache",
@@ -355,12 +382,14 @@ def main():
     )
 
     # Subparser for 'compile' command
-    compile_parser = subparsers.add_parser("compile", help="Compile the QEMU source")
+    compile_parser = subparsers.add_parser(
+        "compile", help="Compile the configured source"
+    )
     compile_parser.set_defaults(func=compile_command)
     compile_parser.add_argument("out", type=str, help="Configured compile directory")
 
     # Subparser for 'test' command
-    test_parser = subparsers.add_parser("test", help="Run QEMU tests")
+    test_parser = subparsers.add_parser("test", help="Run tests")
     test_parser.set_defaults(func=test_command)
     test_parser.add_argument("out", type=str, help="Configured compile directory")
 
@@ -375,6 +404,12 @@ def main():
     bazel_parser.set_defaults(func=bazel_command)
     bazel_parser.add_argument(
         "out", type=str, help="Directory with the final bazel zip"
+    )
+    bazel_parser.add_argument(
+        "--config",
+        required=True,
+        type=str,
+        help="Path to the build-config.jsonc file for the project.",
     )
     bazel_parser.add_argument(
         "--aosp",
