@@ -281,7 +281,7 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     int res = uv_loop_close(mLoop.get());
     if (res != 0) {
         LOG(WARNING) << "Failed to close uv_loop: " << uv_strerror(res);
-        if (mIsShuttingDown) {
+        if (!mIsShuttingDown) {
             LOG(WARNING) << "Shutdown was not called!";
         }
         LOG(WARNING) << "The following handles were leaked:";
