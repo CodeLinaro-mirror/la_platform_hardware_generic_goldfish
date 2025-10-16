@@ -264,3 +264,5 @@ cpp_link_args = []
             self.gen_script(cmd, self.dest / f"{self.prefix}{cmd}", fn)
 
         self.link_dirs()
+        self.write_toolchain_config()
+

@@ -83,8 +83,6 @@ class QemuBuilder:
         self.toolchain_generator.gen_toolchain()
 
         meson_flags = [] if meson_flags is None else meson_flags
-        # # Write toolchain and host configurations.
-        self.toolchain_generator.write_toolchain_config()
 
         # # Create pkgconfig .pc files for specified Bazel packages.
         for package in self.packages():
