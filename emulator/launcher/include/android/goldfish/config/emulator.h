@@ -14,8 +14,6 @@
 // limitations under the License.
 #pragma once
 
-#include <cstdint>
-#include <cstdio>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -27,6 +25,8 @@
 #include "android/cmdline-option.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/device.h"
+
+#include "goldfish/async/launch_config.h"
 
 #include "input_paths.h"
 
@@ -45,7 +45,7 @@ class Emulator {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts) : mResolvedPaths(resolved_paths), mAvd(std::move(avd)), mOpts(opts) {}
+    explicit Emulator(const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts) : mNetsimEndpoint(netsim_endpoint), mResolvedPaths(resolved_paths), mAvd(std::move(avd)), mOpts(opts) {}
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -123,15 +123,13 @@ class Emulator {
      */
     absl::Status initialize();
 
-    absl::Status launch_netsim();
-
     /**
      * @brief Launches the emulator using the configured QEMU command line.
      *
      * This method starts the QEMU process and logs its output (stdout/stderr).
      * @return absl::Status indicating success or failure.
      */
-    absl::Status launch();
+    absl::StatusOr<::goldfish::async::LaunchConfig> launch_config();
 
   private:
     absl::Status addDevices();
@@ -139,13 +137,12 @@ class Emulator {
     // Constructs the qemu command line.
     std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
-    std::string mVmodule;
 
     const ResolvedInputPaths mResolvedPaths;
     const std::unique_ptr<Avd> mAvd;
     const AndroidOptions mOpts;
     std::string mSerialNumber{"5554"};  // TODO(whollins)
-    std::string mNetsimEndpoint;
+    const std::string mNetsimEndpoint;
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;
 };

@@ -64,7 +64,7 @@ TEST(Machine, Basic_x86) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu));
@@ -88,7 +88,7 @@ TEST(Machine, Basic_arm64) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu));

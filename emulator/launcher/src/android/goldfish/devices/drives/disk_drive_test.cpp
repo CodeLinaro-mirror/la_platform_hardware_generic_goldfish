@@ -52,7 +52,7 @@ TEST(RoDrive, Basic_x86) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     RoDrive dev("system", "03.0", image_file);
     EXPECT_OK(dev.initialize(emu));
@@ -85,7 +85,7 @@ TEST(RoDrive, Basic_arm64) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     RoDrive dev("system", "03.0", image_file);
     EXPECT_OK(dev.initialize(emu));
@@ -108,7 +108,7 @@ TEST(RoDrive, MissingImage) {
     auto avd = std::make_unique<MockAvd>();
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     RoDrive dev("system", "03.0", image_file);
     EXPECT_THAT(dev.initialize(emu), StatusIs(absl::StatusCode::kInvalidArgument));
@@ -131,7 +131,7 @@ TEST(RwDrive, Basic_x86) {
         .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu));
@@ -162,7 +162,7 @@ TEST(RwDrive, Basic_arm) {
         .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu));

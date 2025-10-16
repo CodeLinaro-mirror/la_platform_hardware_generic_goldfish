@@ -25,7 +25,7 @@ TEST(AdbDeviceTest, DefaultPort) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -40,7 +40,7 @@ TEST(AdbDeviceTest, CustomPortFromPort) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.port = "6666"};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -55,7 +55,7 @@ TEST(AdbDeviceTest, CustomPortFromPorts) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.ports = "7777,8888"};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -70,7 +70,7 @@ TEST(AdbDeviceTest, InvalidPorts) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.ports = "1234"};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_FALSE(dev.initialize(emu).ok());
@@ -82,7 +82,7 @@ TEST(AdbDeviceTest, NonNumericPort) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.port = "abc"};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_FALSE(dev.initialize(emu).ok());
@@ -94,7 +94,7 @@ TEST(AdbDeviceTest, NonNumericPorts) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.ports = "123,abc"};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     AdbDevice dev;
     EXPECT_FALSE(dev.initialize(emu).ok());

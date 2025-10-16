@@ -47,7 +47,7 @@ TEST(Cpu, Basic_x86) {
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -74,7 +74,7 @@ TEST(Cpu, Basic_arm64) {
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -103,7 +103,7 @@ TEST(Cpu, NoAccel) {
     AndroidOptions opts{};
     opts.no_accel = true;
 
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -132,7 +132,7 @@ TEST(Cpu, AccelOff) {
     AndroidOptions opts{};
     opts.accel = "off";
 
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -159,7 +159,7 @@ TEST(Cpu, HostAndTargetMismatch) {
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     AndroidOptions opts{};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -187,7 +187,7 @@ TEST(Cpu, CoresFlagOverride) {
 
     AndroidOptions opts{};
     opts.cores = "5";
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu));
@@ -208,7 +208,7 @@ TEST(Cpu, CoresFlagInvalid) {
 
     AndroidOptions opts{};
     opts.cores = "nan";
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     CpuDevice dev;
     EXPECT_THAT(dev.initialize(emu), StatusIs(absl::StatusCode::kInvalidArgument));

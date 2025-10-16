@@ -42,7 +42,7 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncDisabled) {
 
     AndroidOptions opts{};
     opts.enable_vnc = false;
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     DisplayDevice dev("gpu0");
     EXPECT_OK(dev.initialize(emu));
@@ -72,7 +72,7 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncEnabled) {
     MockAvd* avd_ptr = avd.get();
 
     AndroidOptions opts{.enable_vnc = true};
-    Emulator emu({}, std::move(avd), std::move(opts));
+    Emulator emu("", {}, std::move(avd), std::move(opts));
 
     DisplayDevice dev("gpu0");
     EXPECT_OK(dev.initialize(emu));
