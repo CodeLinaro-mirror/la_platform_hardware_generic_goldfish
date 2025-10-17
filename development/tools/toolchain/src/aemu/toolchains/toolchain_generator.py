@@ -183,7 +183,7 @@ class ToolchainGenerator:
         # Build pkg-config from source.
         self.bazel.build_target("@pkg-config")
         return (
-            f"PKG_CONFIG_PATH={self.pkgconfig_directory} "
+            f'PKG_CONFIG_PATH={self.pkgconfig_directory}  PKG_CONFIG_LIBDIR="" '
             f"{self.bazel.info['bazel-bin']}/external/pkg-config+/pkg-config",
             "",
         )
@@ -245,6 +245,8 @@ cpp_link_args = []
             "ar": self.ar,
             "c++": self.cxx,
             "cc": self.cc,
+            "clang": self.cc,
+            "clang++": self.cxx,
             "g++": self.cxx,
             "gcc": self.cc,
             "lld": self.lld,
@@ -264,3 +266,5 @@ cpp_link_args = []
             self.gen_script(cmd, self.dest / f"{self.prefix}{cmd}", fn)
 
         self.link_dirs()
+        self.write_toolchain_config()
+

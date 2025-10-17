@@ -15,6 +15,8 @@ import logging
 import sys
 import os
 import platform
+from pathlib import Path
+from aemu.process.runner import run
 
 
 class ColorFormatter(logging.Formatter):
@@ -74,3 +76,34 @@ def configure_logging(logging_level):
     logging.root.setLevel(logging_level)
     logging.root.addHandler(logging_handler_out)
     logging.root.addHandler(logging_handler_err)
+
+
+def run_meson_command(cmd, build_dir, **kwargs):
+    """Runs a meson command and logs the meson log file on failure if verbose.
+
+    Args:
+        cmd: The command to execute.
+        build_dir: The Meson build directory.
+        **kwargs: Additional arguments to pass to the run command.
+    """
+    try:
+        run(cmd, **kwargs)
+    except:
+        log_meson_log_if_verbose(build_dir)
+        raise
+
+
+def log_meson_log_if_verbose(build_dir):
+    """If verbose logging is enabled, log the contents of meson-log.txt.
+
+    Args:
+        build_dir: The Meson build directory.
+    """
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        meson_log_file = build_dir / "meson-logs" / "meson-log.txt"
+        if meson_log_file.exists():
+            logging.debug("--- start of meson log: %s ---", meson_log_file)
+            with open(meson_log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    logging.debug(line.strip())
+            logging.debug("--- end of meson log: %s ---", meson_log_file)

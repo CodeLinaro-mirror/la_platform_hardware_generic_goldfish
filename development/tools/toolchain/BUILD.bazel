@@ -6,6 +6,7 @@ py_library(
     name = "amc_common_lib",
     srcs = [
         "src/aemu/__init__.py",
+        "src/aemu/jsonc.py",
         "src/aemu/log.py",
         "src/aemu/process/__init__.py",
         "src/aemu/process/runner.py",
@@ -39,14 +40,9 @@ py_library(
     name = "amc_qemu_configure_lib",
     srcs = [
         "src/aemu/configure/__init__.py",
-        "src/aemu/configure/base_builder.py",
-        "src/aemu/configure/darwin_builder.py",
-        "src/aemu/configure/factory.py",
         "src/aemu/configure/libraries.py",
-        "src/aemu/configure/linux_builder.py",
+        "src/aemu/configure/meson_project_builder.py",
         "src/aemu/configure/shim.py",
-        "src/aemu/configure/trusty_builder.py",
-        "src/aemu/configure/windows_builder.py",
     ],
     imports = ["src"],
     deps = [":amc_common_lib"],

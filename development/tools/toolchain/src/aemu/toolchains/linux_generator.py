@@ -19,6 +19,10 @@ from aemu.toolchains.toolchain_generator import ToolchainGenerator
 class LinuxToLinuxGenerator(ToolchainGenerator):
     COMPAT_ARCHIVE = "//third_party/qemu/google/compat/linux:compat"
 
+    def __init__(self, aosp, dest, prefix):
+        super().__init__(aosp, dest, prefix)
+        self.target_arch = "x86_64"
+
     def initialize(self):
         if hasattr(self, "initialized"):
             return

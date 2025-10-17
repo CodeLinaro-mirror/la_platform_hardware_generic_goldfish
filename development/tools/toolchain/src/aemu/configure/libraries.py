@@ -21,14 +21,11 @@ from aemu.toolchains.package_config_pc import PackageConfigPc
 
 # Base class for shared properties
 class Lib:
-    def __init__(self, target, version, shim):
+    def __init__(self, builder, target, version, shim):
+        self.builder = builder
         self.version = version
         self.shim = shim
         self.target = target
-
-    @classmethod
-    def get_builder(cls):
-        return cls.builder
 
     def get_library_config(
         self, builder, bazel_target: str, shim: Dict[str, str]
@@ -81,7 +78,7 @@ class Lib:
             shim (Dict[str, str]): Shims to apply during the generation process.
         """
         # Build the specified Bazel target.
-        builder = self.__class__.get_builder()
+        builder = self.builder
 
         # Retrieve the information associated with the target.
         includes, archive = self.get_library_config(builder, self.target, self.shim)
@@ -105,21 +102,17 @@ class Lib:
 
 # BazelLib class with additional Bazel-specific property
 class BazelLib(Lib):
-    builder = None
-
-    def __init__(self, target, version, shim):
-        super().__init__(target, version, shim)
+    def __init__(self, builder, target, version, shim):
+        super().__init__(builder, target, version, shim)
 
 
 # CMakeLib class inherits from Lib
 class CMakeLib(Lib):
-    builder = None
-
-    def __init__(self, target, version, shim):
-        super().__init__(target, version, shim)
+    def __init__(self, builder, target, version, shim):
+        super().__init__(builder, target, version, shim)
 
     def generate_pkg_config(self, dest, pkg_config_dir):
-        builder = self.__class__.get_builder()
+        builder = self.builder
         output = builder.build_target(self.target)
         pkglib_name = self.target[self.target.rfind(":") + 1 :]
 
