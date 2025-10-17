@@ -264,3 +264,25 @@ cc_test(
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )
+
+cc_library(
+    name = "launch_config",
+    hdrs = ["include/goldfish/async/launch_config.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libuv_process_launcher",
+    srcs = ["src/libuv_process_launcher.cpp"],
+    hdrs = ["include/goldfish/async/libuv_process_launcher.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":launch_config",
+        ":uv_to_absl",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@libuv",
+    ],
+)
