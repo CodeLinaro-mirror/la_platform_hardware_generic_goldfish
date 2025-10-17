@@ -297,6 +297,11 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
 #endif
     }
 
+// lavapipe does not work on older version of mac, such as 12, TODO: get it work
+#if defined(__APPLE__)
+      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
+#endif
+
     fs::path exe_path = qemu_exe_path();
     std::vector<std::string> args = getCmdline();
     {
