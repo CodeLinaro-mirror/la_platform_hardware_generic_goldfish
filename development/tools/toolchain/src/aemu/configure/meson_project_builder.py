@@ -161,6 +161,19 @@ class MesonProjectBuilder:
         else:
             return platform_config
 
+    def generate_pkg_config_files(self):
+        """Generates pkg-config files for all defined dependencies.
+
+        This method iterates through the packages defined in the configuration
+        and generates their corresponding `pkg-config` (.pc) files in the
+        toolchain's pkg-config directory.
+        """
+        for package in self.packages():
+            package.generate_pkg_config(
+                self.dest,
+                self.toolchain / ToolchainGenerator.PKGCFG_DIR,
+            )
+
     def configure_meson(self, meson_flags):
         """Orchestrates the Meson build configuration process.
 
@@ -179,11 +192,7 @@ class MesonProjectBuilder:
 
         meson_flags = [] if meson_flags is None else meson_flags
 
-        for package in self.packages():
-            package.generate_pkg_config(
-                self.dest,
-                self.toolchain / ToolchainGenerator.PKGCFG_DIR,
-            )
+        self.generate_pkg_config_files()
 
         self.generate_files()
 

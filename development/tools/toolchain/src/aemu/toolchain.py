@@ -93,6 +93,21 @@ def toolchain_command(args):
 
     toolchain.gen_toolchain()
 
+    if args.config:
+        # If a config file is provided, also generate pkg-config files.
+        builder = MesonProjectBuilder(
+            config_file=args.config,
+            aosp=Path(args.aosp),
+            dest=get_build_dir(args.out),
+            toolchain_dir=toolchain_dir,
+            ccache=args.ccache,
+            generator=toolchain,
+            bazel_startup_options=_split_list(args.bazel_startup_options),
+            bazel_build_options=_split_list(args.bazel_build_options),
+            target=get_target_alias(args.target),
+        )
+        builder.generate_pkg_config_files()
+
 
 def compile_command(args):
     """Compile the QEMU source by invoking Meson.
@@ -340,6 +355,11 @@ def main():
         type=str,
         default=platform.system().lower(),
         help="Toolchain target, the host you wish to run the executables on",
+    )
+    toolchain_parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to the build-config.jsonc file for the project (optional).",
     )
 
     # Subparser for 'setup' command
