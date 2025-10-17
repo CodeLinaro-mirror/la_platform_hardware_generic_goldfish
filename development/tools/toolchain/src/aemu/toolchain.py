@@ -27,7 +27,7 @@ from pathlib import Path
 
 from aemu.configure.meson_project_builder import MesonProjectBuilder
 from aemu.configure.shim import create_shim
-from aemu.log import configure_logging
+from aemu.log import configure_logging, run_meson_command
 from aemu.process.bazel import Bazel
 from aemu.process.runner import run
 from aemu.toolchains.factory import get_toolchain_generator, get_target_alias
@@ -99,44 +99,56 @@ def compile_command(args):
 
     This method compiles the QEMU source by invoking Meson's compile command.
     """
-    run(
-        [
-            get_toolchain_dir(args.out) / "meson",
-            "compile",
-            "-C",
-            get_build_dir(args.out),
-        ],
-        cwd=get_build_dir(args.out),
-        toolchain_path=get_toolchain_dir(args.out),
+    build_dir = get_build_dir(args.out)
+    toolchain_dir = get_toolchain_dir(args.out)
+    cmd = [
+        toolchain_dir / "meson",
+        "compile",
+        "-C",
+        build_dir,
+    ]
+    run_meson_command(
+        cmd,
+        build_dir,
+        cwd=build_dir,
+        toolchain_path=toolchain_dir,
     )
 
 
 def test_command(args):
     """Run the QEMU tests by invoking Meson."""
-    run(
-        [
-            get_toolchain_dir(args.out) / "meson",
-            "test",
-            "--print-errorlogs",
-            "-C",
-            get_build_dir(args.out),
-        ],
-        cwd=get_build_dir(args.out),
-        toolchain_path=get_toolchain_dir(args.out),
+    build_dir = get_build_dir(args.out)
+    toolchain_dir = get_toolchain_dir(args.out)
+    cmd = [
+        toolchain_dir / "meson",
+        "test",
+        "--print-errorlogs",
+        "-C",
+        build_dir,
+    ]
+    run_meson_command(
+        cmd,
+        build_dir,
+        cwd=build_dir,
+        toolchain_path=toolchain_dir,
     )
 
 
 def release_command(args):
     """Run the QEMU tests by invoking Meson."""
-    run(
-        [
-            get_toolchain_dir(args.out) / "meson",
-            "install",
-            "-C",
-            get_build_dir(args.out),
-        ],
-        cwd=get_build_dir(args.out),
-        toolchain_path=get_toolchain_dir(args.out),
+    build_dir = get_build_dir(args.out)
+    toolchain_dir = get_toolchain_dir(args.out)
+    cmd = [
+        toolchain_dir / "meson",
+        "install",
+        "-C",
+        build_dir,
+    ]
+    run_meson_command(
+        cmd,
+        build_dir,
+        cwd=build_dir,
+        toolchain_path=toolchain_dir,
     )
 
     logging.info("Creating %s", args.release)

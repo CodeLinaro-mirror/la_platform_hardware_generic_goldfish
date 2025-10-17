@@ -21,6 +21,7 @@ from aemu.configure.libraries import BazelLib, CMakeLib
 from aemu.toolchains.toolchain_generator import ToolchainGenerator
 from aemu.process.runner import run
 from aemu.process.cmake import CMake
+from aemu.log import run_meson_command
 
 
 class MesonProjectBuilder:
@@ -197,7 +198,7 @@ class MesonProjectBuilder:
         cmd.append(f"-Dprefix={prefix}")
         cmd.extend(meson_flags)
 
-        run(cmd, cwd=source_path, toolchain_path=self.toolchain)
+        run_meson_command(cmd, self.dest, cwd=source_path, toolchain_path=self.toolchain)
 
     def packages(self):
         """Constructs a list of dependency library objects for the current target.
