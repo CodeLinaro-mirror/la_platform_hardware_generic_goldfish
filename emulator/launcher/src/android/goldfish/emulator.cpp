@@ -147,7 +147,7 @@ absl::Status Emulator::addDevices() {
     // No ethernet device for now:
     // addDevice<NetworkDevice>("0a.0");
 
-    if (!mOpts.no_wifi) {
+    if (!mOpts.no_netsim && !mOpts.no_wifi) {
       addDevice<WifiDevice>("0b.0");
     }
 
@@ -179,17 +179,19 @@ absl::Status Emulator::addDevices() {
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev", "null,id=forhvc1"});
     }
 
-    // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
-    // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
-    // /dev/vport8p3 for bt (4th port)
-    // TODO(b/450338546): this isn't currently working and instead there is a hack in avd-info.cpp to workaround.
-    addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
-        "-device", "virtconsole,chardev=uwb,name=uwb",
+    if (!mOpts.no_netsim) {
+        // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
+        // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
+        // /dev/vport8p3 for bt (4th port)
+        // TODO(b/450338546): this isn't currently working and instead there is a hack in avd-info.cpp to workaround.
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
+            "-device", "virtconsole,chardev=uwb,name=uwb",
 
-        "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
-        "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
-    });
+            "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
+            "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
+        });
+    }
 
     if (mOpts.show_kernel) {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});

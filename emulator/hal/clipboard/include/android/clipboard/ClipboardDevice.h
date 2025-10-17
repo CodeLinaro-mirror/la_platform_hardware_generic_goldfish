@@ -16,13 +16,11 @@
 #include <string_view>
 
 #include "aemu/base/events/EventSources.h"
-#include "android/goldfish/config/avd.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::clipboard {
 
 using android::base::eventing::CallbackEventSource;
-using android::goldfish::Avd;
 using goldfish::async::EventLoop;
 
 using ClipboardData = std::string_view;
@@ -125,22 +123,20 @@ class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardDat
      *
      * This function registers the clipboard device with the provided
      * `IConnectorRegistry` instance, making it available for connection
-     * through the qemud pipe.  The provided `Avd` object supplies
-     * configuration information for the clipboard device. The `clientLoop` and
-     * `qemuLoop` manage the asynchronous operations.
+     * through the qemud pipe. The `clientLoop` and `qemuLoop` manage the
+     * asynchronous operations.
      *
      * @param registry The `IConnectorRegistry` instance to register with.
-     * @param avd The `Avd` object containing the AVD configuration.
      * @param clientLoop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      *
-     * @note The `avd`, `clientLoop`, and `qemuLoop` objects are expected to
+     * @note The `clientLoop`, and `qemuLoop` objects are expected to
      * remain valid for the lifetime of the registry. Their lifecycles should be
      * managed externally to ensure they outlive the registry.
      *
      * @note A clipboard device is not a qemud device.
      */
-    static void registerDevice(IConnectorRegistry* registry, Avd* avd, EventLoop* clientLoop,
+    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
                                EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::clipboard

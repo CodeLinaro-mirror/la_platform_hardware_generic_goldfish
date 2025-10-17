@@ -16,7 +16,6 @@
 
 #include "gmock/gmock.h"
 
-#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
 
@@ -33,8 +32,7 @@ class ClipboardDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        android::goldfish::FakeAvd avd;
-        IClipboardDevice::registerDevice(&registry, &avd, mClientLoop.get(), mQemuLoop.get());
+        IClipboardDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
         device = registry.constructHalDevice<IClipboardDevice>();
 
         test_socket = registry.halSocket();

@@ -100,7 +100,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, clientLoop,
                                                              gQemuLoop.get());
-    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, avd, clientLoop,
+    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
             registry, qemu_register_reset, clientLoop, gQemuLoop.get());
