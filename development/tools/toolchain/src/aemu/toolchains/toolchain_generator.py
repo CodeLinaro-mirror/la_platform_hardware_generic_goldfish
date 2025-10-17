@@ -245,6 +245,8 @@ cpp_link_args = []
             "ar": self.ar,
             "c++": self.cxx,
             "cc": self.cc,
+            "clang": self.cc,
+            "clang++": self.cxx,
             "g++": self.cxx,
             "gcc": self.cc,
             "lld": self.lld,
