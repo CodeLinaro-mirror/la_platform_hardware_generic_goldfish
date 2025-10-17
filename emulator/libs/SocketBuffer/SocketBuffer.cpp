@@ -17,38 +17,146 @@
 #include "goldfish/debug.h"
 
 namespace goldfish {
+namespace {
+size_t getCapacity(const size_t size) {
+    return std::max(SocketBuffer::kMinCapacity, size * 3U / 2U);
+}
+}  // namespace
 
-void SocketBuffer::append(const void* data, size_t size) {
-    if (mConsumed > 0) {
-        mBuf.erase(mBuf.begin(), mBuf.begin() + mConsumed);
-        mConsumed = 0;
+size_t SocketBuffer::append(const void* const appendData, const size_t appendSize) {
+    assert(mSize <= mCapacity);
+
+    const size_t newSize = mSize + appendSize;
+    if (newSize > mCapacity) {
+        const size_t newCapacity = getCapacity(newSize);
+        assert(newCapacity >= newSize);
+        std::unique_ptr<char[]> newData = std::make_unique<char[]>(newCapacity);
+
+        if (mSize > 0) {
+            assert(mConsume < mCapacity);
+            assert(mData);
+
+            if ((mConsume + mSize) <= mCapacity) {
+                memcpy(&newData[0], &mData[mConsume], mSize);
+            } else {
+                const size_t sz = mCapacity - mConsume;
+                memcpy(&newData[0], &mData[mConsume], sz);
+                memcpy(&newData[sz], &mData[0], mSize - sz);
+            }
+        }
+
+        memcpy(&newData[mSize], appendData, appendSize);
+
+        mData = std::move(newData);
+        mCapacity = newCapacity;
+        mProduce = newSize;
+        mConsume = 0;
+    } else if (newSize == 0) {
+        // do nothing
+    } else if ((mProduce + appendSize) <= mCapacity) {
+        assert(mCapacity > 0);
+        assert(mProduce < mCapacity);
+        assert(mData);
+
+        memcpy(&mData[mProduce], appendData, appendSize);
+        mProduce = (mProduce + appendSize) % mCapacity;
+    } else {
+        assert(mCapacity > 0);
+        assert(mProduce < mCapacity);
+        assert(mData);
+
+        const char* appendData8 = static_cast<const char*>(appendData);
+        const size_t sz1 = mCapacity - mProduce;
+        assert(appendSize > sz1);
+        const size_t sz2 = appendSize - sz1;
+
+        memcpy(&mData[mProduce], appendData8, sz1);
+        memcpy(&mData[0], appendData8 + sz1, sz2);
+        mProduce = sz2;
     }
 
-    const uint8_t* data8 = static_cast<const uint8_t*>(NOT_NULL(data));
-    mBuf.insert(mBuf.end(), data8, data8 + size);
+    mSize = newSize;
+    return newSize;
 }
 
 std::pair<const void*, size_t> SocketBuffer::peek() const {
-    assert(mConsumed <= mBuf.size());
-    return {mBuf.data() + mConsumed, mBuf.size() - mConsumed};
+    assert(mSize <= mCapacity);
+    if (mSize > 0) {
+        assert(mConsume < mCapacity);
+        assert(mData);
+
+        return {&mData[mConsume], std::min(mSize, mCapacity - mConsume)};
+    } else {
+        return {nullptr, 0};
+    }
 }
 
 void SocketBuffer::consume(const size_t size) {
-    assert((mConsumed + size) <= mBuf.size());
-    mConsumed += size;
+    assert(mSize <= mCapacity);
+    assert(size <= mSize);
+
+    if (mCapacity) {
+        if (mSize == size) {
+            clear(mCapacity >= kLargeCapacityReleaseIfEmpty);
+        } else {
+            mSize -= size;
+            mConsume = (mConsume + size) % mCapacity;
+        }
+    } else {
+        assert(size == 0);
+    }
+}
+
+void SocketBuffer::clear(const bool alsoFreeMemory) {
+    mSize = 0;
+    mProduce = 0;
+    mConsume = 0;
+
+    if (alsoFreeMemory) {
+        mData.reset();
+        mCapacity = 0;
+    }
 }
 
 void SocketBuffer::saveToSnapshot(archive::IWriter& writer) const {
-    const auto x = peek();
-    writer << x.second;
-    writer.write(x.first, x.second);
+    assert(mSize <= mCapacity);
+
+    writer << mSize;
+    if (mSize) {
+        assert(mConsume < mCapacity);
+        assert(mData);
+
+        if ((mConsume + mSize) <= mCapacity) {
+            writer.write(&mData[mConsume], mSize);
+        } else {
+            const size_t sz = mCapacity - mConsume;
+            writer.write(&mData[mConsume], sz);
+            writer.write(&mData[0], mSize - sz);
+        }
+    }
 }
 
 int SocketBuffer::loadFromSnapshot(archive::IReader& reader) {
-    mConsumed = 0;
-    const uint32_t size = getUnsigned(reader);
-    mBuf.resize(size);
-    return (reader.read(mBuf.data(), size) == size) ? 0 : 1;
+    const size_t newSize = getUnsigned(reader);
+    if (newSize == 0) {
+        clear(true);
+        return 0;
+    }
+
+    const size_t newCapacity = getCapacity(newSize);
+    assert(newCapacity >= newSize);
+    std::unique_ptr<char[]> newData = std::make_unique<char[]>(newCapacity);
+
+    if (reader.read(newData.get(), newSize) != newSize) {
+        return 1;
+    }
+
+    mData = std::move(newData);
+    mCapacity = newCapacity;
+    mSize = newSize;
+    mProduce = newSize;
+    mConsume = 0;
+    return 0;
 }
 
 }  // namespace goldfish
