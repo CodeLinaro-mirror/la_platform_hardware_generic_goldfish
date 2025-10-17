@@ -9,6 +9,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/grpc/client:emulator_grpc_client",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/log",
+        "@grpc//:grpc++",
         "@netsim//:netsimd_cc_grpc",
     ],
 )
