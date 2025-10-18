@@ -7,8 +7,16 @@ load("version_info.bzl", "version_info_header")
 
 cc_library(
     name = "input_paths",
-    hdrs = ["include/android/goldfish/config/input_paths.h"],
-    visibility = ["//visibility:public"],
+    srcs = ["src/android/goldfish/input_paths.cpp"],
+    hdrs = ["include/android/goldfish/input_paths.h"],
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/config",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@aemu//base:aemu-base",
+    ],
 )
 
 cc_library(
@@ -59,17 +67,11 @@ cc_test(
 
 cc_library(
     name = "bootconfig",
-    srcs = [
-        "src/android/goldfish/bootconfig.cpp",
-    ],
-    hdrs = [
-        "src/android/goldfish/bootconfig.h",
-    ],
+    srcs = ["src/android/goldfish/bootconfig.cpp"],
+    hdrs = ["src/android/goldfish/bootconfig.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//hardware/generic/goldfish/android/system",
-    ],
+    deps = ["//hardware/generic/goldfish/android/system"],
 )
 
 cc_test(
@@ -287,6 +289,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator",
+        ":input_paths",
         ":logconfig",
         ":netsimd",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",

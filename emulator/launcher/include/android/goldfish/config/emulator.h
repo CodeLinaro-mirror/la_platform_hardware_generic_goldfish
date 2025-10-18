@@ -25,10 +25,10 @@
 #include "android/cmdline-option.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/devices/device.h"
+#include "android/goldfish/input_paths.h"
 
 #include "goldfish/async/launch_config.h"
 
-#include "input_paths.h"
 
 namespace android::goldfish {
 

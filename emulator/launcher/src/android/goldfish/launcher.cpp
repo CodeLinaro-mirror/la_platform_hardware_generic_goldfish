@@ -19,25 +19,21 @@
 #include "absl/log/initialize.h"
 #include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_cat.h"
 
 #include "aemu_version.h"
-#include "aemu/base/utils/status_macros.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
 #include "android/crashreport/CrashReporter.h"
 #include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator.h"
 #include "android/goldfish/logging.h"
 #include "android/goldfish/netsimd.h"
 #include "android/main-help.h"
 
-#include "android/goldfish/config/input_paths.h"
+#include "android/goldfish/input_paths.h"
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -49,7 +45,9 @@ using android::base::System;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
 
+namespace android::goldfish {
 namespace {
+
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
     std::cout << "              .: .          \n";
@@ -62,112 +60,9 @@ static void show_banner() {
     std::cout << "    = _ _.*= .            \n";
 }
 
-absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view description) {
-    if (!fs::exists(path)) {
-        return absl::NotFoundError(absl::StrCat("Path for \"", description, "\" does not exist: ", path.string()));
-    }
-    VLOG(1) << "Path for \"" << description << "\" exists: " << path.string();
-    return path;
-}
-
-absl::StatusOr<fs::path> canonicalize(const fs::path &path) {
-    std::error_code ec;
-    auto canon = fs::canonical(path, ec);
-    if (ec) {
-        return absl::InternalError(absl::StrCat("Failed to canonicalise path: ", path.string(), " - ", ec.message()));
-    }
-    if (canon != path) {
-        VLOG(1) << "binary is a symlink, replacing with real path: " << path << " -> " << canon;
-    }
-    return fs::path(canon);
-}
-
-std::string add_binary_suffix(std::string binary) {
-#ifdef _WIN32
-    constexpr std::string_view kExe = ".exe";
-    absl::StrAppend(&binary, kExe);
-#endif
-    return binary;
-}
-
-std::string add_qemu_binary_suffix(std::string binary) {
-    // Note that this behaviour is currently defined here:
-    // https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
-#ifdef __APPLE__
-    if (Bazel::inBazel()) {
-        constexpr std::string_view kSigned = ".signed";
-        absl::StrAppend(&binary, kSigned);
-    }
-#endif
-    return add_binary_suffix(std::move(binary));
-}
-
-absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
-    ResolvedInputPaths paths;
-    ASSIGN_OR_RETURN(paths.launcher_binary, check_exists(System::getProgramBinaryPath(), "launcher binary"));
-
-    if (auto d = System::getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
-        paths.launcher_directory = fs::path(d);
-        // Sanity check launcher directory
-        if (auto launcher = paths.launcher_directory / add_binary_suffix("goldfish"); !fs::exists(launcher)) {
-            LOG(WARNING) << "launcher does not appear to exist within overridden launcher directory: " << launcher.string();
-        } else if (auto canon = canonicalize(launcher); !canon.ok()) {
-            LOG(WARNING) << "unable to canonicalize launcher binary in overridden launcher directory: " << launcher.string();
-        } else if (*canon != paths.launcher_binary) {
-            LOG(WARNING) << "launcher binary in overridden launcher directory does not seem to match the current binary: " << canon->string() << " vs " << launcher.string();
-        }
-    } else {
-        paths.launcher_directory = paths.launcher_binary.parent_path();
-        // Only set this if it wasn't already set as some integrators set it externally.
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                              System::pathAsString(paths.launcher_directory));
-    }
-    RETURN_IF_ERROR(check_exists(paths.launcher_directory, "launcher directory").status());
-
-    // TODO Add a debug option to recursively list files in the launcher dir.
-
-    ASSIGN_OR_RETURN(paths.binary_directory, check_exists(paths.launcher_directory / "bin", "binary directory"));
-    ASSIGN_OR_RETURN(paths.library_directory, check_exists(paths.launcher_directory / "lib" / "qemu", "library directory"));
-    ASSIGN_OR_RETURN(paths.lib64_directory, check_exists(paths.launcher_directory / "lib64", "lib64 directory"));
-    // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
-    // It is also used by gfxstream to locate the GL and Vulkan libraries.
-    System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR", System::pathAsString(paths.library_directory));
-    ASSIGN_OR_RETURN(paths.bios_directory, check_exists(paths.launcher_directory / "share" / "qemu", "bios directory"));
-
-    ASSIGN_OR_RETURN(paths.discovery_directory, check_exists(android::goldfish::ConfigDirs::getDiscoveryDirectory(), "discovery directory"));
-    ASSIGN_OR_RETURN(paths.sdk_directory, check_exists(android::goldfish::ConfigDirs::getSdkRootDirectory(verbose_sdk_search), "sdk directory"));
-    ASSIGN_OR_RETURN(paths.avd_directory, check_exists(android::goldfish::ConfigDirs::getAvdRootDirectory(), "avd directory"));
-
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-x86_64"), "qemu-system-x86_64"));
-#ifndef _WIN32
-    ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-aarch64"), "qemu-system-aarch64"));
-    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
-#endif
-    ASSIGN_OR_RETURN(paths.qemu_img_binary, check_exists(paths.binary_directory / add_binary_suffix("qemu-img"), "qemu-img"));
-    ASSIGN_OR_RETURN(paths.netsim_binary, check_exists(paths.binary_directory / add_binary_suffix("netsimd"), "netsimd"));
-    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, check_exists(paths.binary_directory / add_binary_suffix("crashpad_handler"), "crashpad handler"));
-
-#ifdef _WIN32
-    // Canonicalize binaries as Windows cannot execute a symlink.
-    // Note that Forge seems to break if we do this for Linux.
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, canonicalize(paths.qemu_system_x86_binary));
-    // ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, canonicalize(paths.qemu_system_arm_binary));
-    // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, canonicalize(paths.qemu_system_riscv_binary));
-    ASSIGN_OR_RETURN(paths.qemu_img_binary, canonicalize(paths.qemu_img_binary));
-    ASSIGN_OR_RETURN(paths.netsim_binary, canonicalize(paths.netsim_binary));
-    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, canonicalize(paths.crashpad_handler_binary));
-#endif
-
-    // Make sure the child process is using the same crashpad handler as we are using.
-    // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
-    System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
-
-    return paths;
-}
-
-class Launcher : public goldfish::async::UvProcessLauncher {
+class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
-    Launcher(goldfish::async::EventLoop &event_loop, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
+    Launcher(::goldfish::async::EventLoop &event_loop, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
     : UvProcessLauncher(static_cast<uv_loop_t *>(event_loop.getRawLoop()))
     , mEventLoop(event_loop)
     , mResolvedPaths(std::move(resolved_paths))
@@ -207,13 +102,13 @@ class Launcher : public goldfish::async::UvProcessLauncher {
     }
 
     void launch_netsimd() {
-        mExistingNetsimdPort = android::goldfish::read_netsim_port();
+        mExistingNetsimdPort = read_netsim_port();
         if (mExistingNetsimdPort != 0) {
             LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd "
                             "still running or it died without cleanup: " << mExistingNetsimdPort;
         }
 
-        if (auto netsim_config = android::goldfish::netsimd_launch_config(mResolvedPaths.netsim_binary, mOpts); netsim_config.ok()) {
+        if (auto netsim_config = netsimd_launch_config(mResolvedPaths.netsim_binary, mOpts); netsim_config.ok()) {
             if (auto s = launch(*std::move(netsim_config), &netsimd_exit); s.ok()) {
                 mNetsimdProcess = *std::move(s);
                 VLOG(1) << "Running netsimd as pid: " << get_pid(mNetsimdProcess);
@@ -252,7 +147,7 @@ class Launcher : public goldfish::async::UvProcessLauncher {
             }
         }
 
-        int port = android::goldfish::read_netsim_port();
+        int port = read_netsim_port();
         if (port == 0) {
             VLOG(1) << "netsimd: Port not yet available";
             return;
@@ -276,7 +171,7 @@ class Launcher : public goldfish::async::UvProcessLauncher {
 
         // Blocking
         VLOG(1) << "Trying to connect to netsimd at: " << netsimd_endpoint;
-        if (auto connection = android::goldfish::connect_to_netsim(netsimd_endpoint, kConnectionDeadline); connection.ok()) {
+        if (auto connection = connect_to_netsim(netsimd_endpoint, kConnectionDeadline); connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
             mEventLoop.post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
@@ -314,7 +209,7 @@ class Launcher : public goldfish::async::UvProcessLauncher {
         }
     }
 
-    goldfish::async::EventLoop &mEventLoop;
+    ::goldfish::async::EventLoop &mEventLoop;
 
     ResolvedInputPaths mResolvedPaths;
     std::unique_ptr<Avd> mAvd;
@@ -322,9 +217,9 @@ class Launcher : public goldfish::async::UvProcessLauncher {
 
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.
-    android::goldfish::NetsimConnection_ptr mNetsimdConnection;
+    NetsimConnection_ptr mNetsimdConnection;
 
-    std::shared_ptr<goldfish::async::EventLoop::Timer> mFindNetsimd;
+    std::shared_ptr<::goldfish::async::EventLoop::Timer> mFindNetsimd;
 
     ProcessHandle mNetsimdProcess;
     ProcessHandle mEmulatorProcess;
@@ -336,6 +231,7 @@ class Launcher : public goldfish::async::UvProcessLauncher {
 };
 
 } // namespace
+} // namespace android::goldfish
 
 int main(int argc, char** argv) {
     // libuv recommends calling this from the parent before spawning any children.
@@ -377,7 +273,7 @@ int main(int argc, char** argv) {
     }
 
     Bazel::storeCommandLineArgs(argc, argv);
-    show_banner();
+    android::goldfish::show_banner();
 
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
@@ -388,7 +284,7 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = resolve_paths(opts.verbose);
+    auto resolved_paths = android::goldfish::resolve_paths(opts.verbose);
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;
@@ -442,7 +338,7 @@ int main(int argc, char** argv) {
 
     auto event_loop = goldfish::async::LibuvEventLoop::create();
 
-    Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
 
     LOG(WARNING) << event_loop->run();
 
