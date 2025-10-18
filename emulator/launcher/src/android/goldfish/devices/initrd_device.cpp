@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "initrd_device.h"
 
 #include <assert.h>
@@ -27,13 +28,10 @@
 
 #include "aemu/base/utils/status_macros.h"
 
-#include "android/base/system/System.h"
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/bootconfig.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 namespace {
@@ -260,7 +258,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     return params;
 }
 
-std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
+std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     auto arch = avd.detectArchitecture();
     // auto drive = emulator.get<PciDevice>("system");
@@ -279,7 +277,7 @@ std::string getDynamicPartitionBootDevice(const Emulator& emulator) {
     return "a003e00.virtio_mmio";
 }
 
-std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
+std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
     // Get verified boot kernel parameters, if they exist.
     // If this is not a playstore image, then -writable_system will
     // disable verified boot
@@ -312,7 +310,7 @@ std::vector<std::string> getVerifiedBootparams(const Emulator& emulator) {
 
 }  // namespace
 
-std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulator& emulator) {
+std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
 
@@ -327,7 +325,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
                                       emulator.opts());
 }
 
-absl::Status InitrdDevice::initialize(const Emulator& emulator) {
+absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
     auto properties = getBootProperties(emulator);
 
     const Avd& avd = emulator.avd();
@@ -356,7 +354,7 @@ absl::Status InitrdDevice::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,
-std::vector<std::string> InitrdDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> InitrdDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {"-initrd", mUserRamdisk.string()};
 }
 

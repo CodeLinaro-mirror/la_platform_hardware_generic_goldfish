@@ -8,13 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "cpu_device.h"
 
-#include <android/base/system/System.h>
-#include <android/goldfish/config/hardware_config.h>
 #include <gtest/gtest.h>
-
-#include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -22,196 +17,161 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
-#include "mock_avd.h"
+
+#include "cpu_device.h"
+#include "fake_emulator.h"
 
 namespace android::goldfish::test {
 
 using ::absl_testing::StatusIs;
 
 TEST(Cpu, Basic_x86) {
+    FakeEmulator emu;
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
 
-    auto avd = std::make_unique<MockAvd>();
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("kvm")));
 }
 
 TEST(Cpu, Basic_arm64) {
+    FakeEmulator emu;
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("cortex-a53"),
                                      testing::Eq("-accel"), testing::Eq("hvf")));
 }
 
 TEST(Cpu, NoAccel) {
+    AndroidOptions opts{.no_accel = true};
+    FakeEmulator emu(std::move(opts));
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
-    AndroidOptions opts{};
-    opts.no_accel = true;
-
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("cortex-a53"),
                                      testing::Eq("-accel"), testing::Eq("tcg")));
 }
 
 TEST(Cpu, AccelOff) {
+    AndroidOptions opts{.accel = "off"};
+    FakeEmulator emu(std::move(opts));
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
-    AndroidOptions opts{};
-    opts.accel = "off";
-
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("cortex-a53"),
                                      testing::Eq("-accel"), testing::Eq("tcg")));
 }
 
 TEST(Cpu, HostAndTargetMismatch) {
+    FakeEmulator emu;
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
                                      testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("tcg")));
 }
 
 TEST(Cpu, CoresFlagOverride) {
+    AndroidOptions opts{.cores = "5"};
+    FakeEmulator emu(std::move(opts));
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
 
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
-    AndroidOptions opts{};
-    opts.cores = "5";
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"),
                                      testing::Eq("-cpu"), testing::Eq("SandyBridge"),
                                      testing::Eq("-accel"), testing::Eq("kvm")));
 }
 
 TEST(Cpu, CoresFlagInvalid) {
+    AndroidOptions opts{.cores = "nan"};
+    FakeEmulator emu(std::move(opts));
+
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
-
-    AndroidOptions opts{};
-    opts.cores = "nan";
-    Emulator emu("", {}, std::move(avd), std::move(opts));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     CpuDevice dev;
-    EXPECT_THAT(dev.initialize(emu), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 }  // namespace android::goldfish::test

@@ -33,13 +33,13 @@
 #include "goldfish/base/IntrusivePtr.h"
 #endif
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 #ifdef _WIN32
 void intrusive_ptr_add_ref(IUnknown* x) { x->AddRef(); }
@@ -49,11 +49,11 @@ void intrusive_ptr_ctor(IUnknown* x) {}
 
 namespace android::goldfish {
 
-absl::Status AudioDevice::initialize(const Emulator& emulator) {
+absl::Status AudioDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> AudioDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> AudioDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     using namespace std::literals;
     const std::string_view kID = "id=mainaudiodev"sv;
 

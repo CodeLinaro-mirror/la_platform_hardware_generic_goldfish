@@ -5,11 +5,11 @@
 
 namespace android::goldfish {
 
-absl::Status WifiDevice::initialize(const Emulator& emulator) {
+absl::Status WifiDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> WifiDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> WifiDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {
             "-device", absl::StrCat("netsim-netdev,id=wifi,grpc_endpoint=", emulator.netsim_endpoint()),
             "-device", absl::StrCat("virtio-wifi-pci,netdev=wifi,addr=", addr(), ",mac_prefix=", emulator.serial_number()),

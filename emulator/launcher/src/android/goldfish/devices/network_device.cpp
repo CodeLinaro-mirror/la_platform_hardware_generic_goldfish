@@ -7,7 +7,7 @@
 
 namespace android::goldfish {
 
-absl::Status NetworkDevice::initialize(const Emulator& emulator) {
+absl::Status NetworkDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
@@ -28,7 +28,7 @@ std::string network_device_type(const Avd &avd, std::string_view addr) {
 }
 } // namespace
 
-std::vector<std::string> NetworkDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> NetworkDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {
             // First basic ethernet.
             // TODO(whollins): The hubport backend doesn't provide any connectivity.

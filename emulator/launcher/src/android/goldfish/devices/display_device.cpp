@@ -1,5 +1,4 @@
 #include "display_device.h"
-#include <android/cmdline-definitions.h>
 
 #include <vector>
 
@@ -7,13 +6,15 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/cmdline-definitions.h"
+
 namespace android::goldfish {
 
-absl::Status DisplayDevice::initialize(const Emulator& emulator) {
+absl::Status DisplayDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> DisplayDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> DisplayDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     bool enable_vnc = false;
 #if defined(__linux__) || defined(__APPLE__)
     enable_vnc = emulator.opts().enable_vnc;

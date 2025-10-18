@@ -11,9 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "kernel_device.h"
 
-#include <android/cmdline-definitions.h>
+#include "kernel_device.h"
 
 #include <fstream>
 #include <initializer_list>
@@ -28,10 +27,9 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/system/System.h"
+#include "android/cmdline-definitions.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
@@ -105,7 +103,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
 }
 }  // namespace
 
-absl::Status KernelDevice::initialize(const Emulator& emulator) {
+absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     const AndroidOptions& opts = emulator.opts();
     ASSIGN_OR_RETURN(auto k, kernel_image(avd, opts));
@@ -116,7 +114,7 @@ absl::Status KernelDevice::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string> KernelDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> KernelDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {"-kernel", mDiskImage, "-append", mCommandLine};
 }
 

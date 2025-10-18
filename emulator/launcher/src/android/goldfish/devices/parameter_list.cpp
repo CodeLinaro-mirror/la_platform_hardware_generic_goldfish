@@ -11,10 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "parameter_list.h"
 
-#include <android/goldfish/config/emulator.h>
-#include <android/goldfish/devices/device.h>
+#include "parameter_list.h"
 
 #include <string>
 #include <vector>
@@ -22,18 +20,18 @@
 #include "absl/status/status.h"
 
 namespace android::goldfish {
-class Emulator;
 
-std::vector<std::string> ParameterList::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> ParameterList::getQemuParameters(const EmulatorConfig& emulator) const {
     return mParams;
 }
 
 int ParameterList::gIdCounter = 0;
 
-absl::Status ParameterList::initialize(const Emulator& emulator) {
+absl::Status ParameterList::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
 ParameterList::ParameterList(std::vector<std::string> params)
     : Device("params_" + std::to_string(++gIdCounter)), mParams(params) {}
+
 }  // namespace android::goldfish

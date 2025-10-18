@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
@@ -23,8 +23,8 @@ class AudioDevice : public PciDevice {
   public:
     explicit AudioDevice(std::string addr) : PciDevice("audio", addr) {}
 
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
     static std::string getAudioBackend(const AndroidOptions& opts);
     static std::string detectHostAudioBackend();

@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 // Configures the "motherboard", it will determine the qemu binary needed to run
 // and will also setup the proper motherboard configuration, including magical
@@ -29,8 +29,8 @@ class Machine : public Device {
     explicit Machine() : Device("machine") {}
 
     fs::path qemu_binary() { return mBinary; }
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
     fs::path mBinary;

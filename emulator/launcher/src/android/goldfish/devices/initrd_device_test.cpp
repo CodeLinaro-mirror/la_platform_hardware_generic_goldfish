@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "initrd_device.h"
-
-#include <android/base/system/System.h>
-#include <android/goldfish/config/hardware_config.h>
 #include <gtest/gtest.h>
-#include <string.h>
 
-#include <memory>
 #include <fstream>
 
 #include "gmock/gmock.h"
@@ -27,8 +21,9 @@
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/cmdline-definitions.h"
-#include "android/goldfish/config/emulator.h"
-#include "mock_avd.h"
+
+#include "initrd_device.h"
+#include "fake_emulator.h"
 
 namespace android::goldfish::test {
 
@@ -36,21 +31,16 @@ TEST(BootProperties, Basic) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
 
+    FakeEmulator emu;
+
     auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
-    EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{
+    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{
         std::pair{"androidboot.hardware", "ranchu"},
         std::pair{"androidboot.logcat", "*:V"},
     }));
@@ -60,41 +50,34 @@ TEST(BootProperties, NoBootAnim) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
 
+    AndroidOptions opts{.no_boot_anim = true};
+    FakeEmulator emu(std::move(opts));
+
     auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{.no_boot_anim = true};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
-    EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
+    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
 }
 
 TEST(BootProperties, Logcat) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
 
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
+    AndroidOptions opts{.logcat = "*:S Zygote:E"};
+    FakeEmulator emu(std::move(opts));
 
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{.logcat = "*:S Zygote:E"};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
-    EXPECT_THAT(getBootProperties(emu), testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
+    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
 }
 
 TEST(Initrd, Basic) {
@@ -107,27 +90,22 @@ TEST(Initrd, Basic) {
     auto system_initrd = launcher_path / "system/ramdisk.img";
     std::ofstream{system_initrd};
 
+    FakeEmulator emu;
+
     auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::RAMDISK))
+    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
             .Times(1).WillRepeatedly(testing::Return(system_initrd.string()));
-    EXPECT_CALL(*avd_ptr, getContentPath())
+    EXPECT_CALL(emu.mock_avd(), getContentPath())
             .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     InitrdDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
                                      testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
 }
@@ -145,29 +123,25 @@ TEST(Initrd, RamdiskFlag) {
     auto override_initrd = launcher_path / "system/other-initrd";
     std::ofstream{override_initrd} << "abc";
 
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-    MockAvd* avd_ptr = avd.get();
-    EXPECT_CALL(*avd_ptr, name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(*avd_ptr, hw()).WillRepeatedly(testing::ReturnRef(hw));
-
-    EXPECT_CALL(*avd_ptr, getSystemImageFilePath(Avd::ImageType::RAMDISK))
-            .Times(0).WillRepeatedly(testing::Return(system_initrd.string()));
-    EXPECT_CALL(*avd_ptr, getContentPath())
-            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
-            .Times(1)
-            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
-
     char override_str[1024];
     strncpy(override_str, override_initrd.c_str(), 1024);
     AndroidOptions opts{.ramdisk = override_str};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
+    FakeEmulator emu(std::move(opts));
+
+    auto hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
+            .Times(0).WillRepeatedly(testing::Return(system_initrd.string()));
+    EXPECT_CALL(emu.mock_avd(), getContentPath())
+            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     InitrdDevice dev;
-    EXPECT_OK(dev.initialize(emu));
-    auto params = dev.getQemuParameters(emu);
+    EXPECT_OK(dev.initialize(emu.config()));
+    auto params = dev.getQemuParameters(emu.config());
     EXPECT_THAT(params, testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
     std::string contents;
     std::ifstream{params[1]} >> contents;

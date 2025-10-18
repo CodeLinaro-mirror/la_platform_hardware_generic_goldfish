@@ -30,7 +30,6 @@
 #include "android/base/system/System.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 
 namespace android::goldfish {
@@ -101,7 +100,7 @@ absl::Status convertImgToQcow2(const fs::path &qemu_img_binary, fs::path ext4_im
 
 }  // namespace
 
-absl::Status RoDrive::initialize(const Emulator& emulator) {
+absl::Status RoDrive::initialize(const EmulatorConfig& emulator) {
     if (!System::get()->pathIsFile(mImagePath)) {
         return absl::InvalidArgumentError(absl::StrCat("Unable to initialize drive as image isn't a file: ", mImagePath.string()));
     }
@@ -111,13 +110,13 @@ absl::Status RoDrive::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> RoDrive::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulator) const {
     const Avd& avd = emulator.avd();
     return {"-device", getDeviceParam(avd, id(), addr()), "-blockdev",
             absl::StrCat("driver=raw,node-name=", id(), ",read-only=on,driver=file,filename=", mImagePath.string())};
 }
 
-absl::Status RwDrive::initialize(const Emulator& emulator) {
+absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
     if (mWipeExisting) {
         fs::remove(mQcow2Image);
         fs::remove(mDestinationImage);
@@ -145,7 +144,7 @@ absl::Status RwDrive::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> RwDrive::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> RwDrive::getQemuParameters(const EmulatorConfig& emulator) const {
     return {"-device",
             absl::StrCat(getDeviceParam(emulator.avd(), id(), addr()), ",write-cache=on"),
             "-blockdev",

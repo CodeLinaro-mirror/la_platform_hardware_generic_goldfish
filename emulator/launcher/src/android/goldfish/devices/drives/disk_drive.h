@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
@@ -30,8 +30,8 @@ class RoDrive : public PciDevice {
   explicit RoDrive(std::string id, std::string addr, fs::path image_path)
       : PciDevice(id, addr), mImagePath(image_path) {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+  absl::Status initialize(const EmulatorConfig& emulator) override;
+  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
  protected:
   fs::path mImagePath;
@@ -53,8 +53,8 @@ class RwDrive : public PciDevice {
         mSizeBytes(size_bytes),
         mWipeExisting(wipe_existing) {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+  absl::Status initialize(const EmulatorConfig& emulator) override;
+  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
  protected:
   std::optional<fs::path> mSourcePath;

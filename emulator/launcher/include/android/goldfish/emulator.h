@@ -12,6 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
 
 #include <memory>
@@ -22,21 +23,16 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
-#include "android/cmdline-option.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/devices/device.h"
-#include "android/goldfish/input_paths.h"
+#include "android/goldfish/device.h"
+#include "android/goldfish/emulator_config.h"
 
 #include "goldfish/async/launch_config.h"
 
-
 namespace android::goldfish {
-
-class Device;
 
 // Represents an emulator that can launch qemu with the proper parameters based
 // on an avd.
-class Emulator {
+class Emulator : public EmulatorConfig {
   public:
     /**
      * @brief Constructs an emulator with the given avd and optional additional
@@ -45,7 +41,34 @@ class Emulator {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts) : mNetsimEndpoint(netsim_endpoint), mResolvedPaths(resolved_paths), mAvd(std::move(avd)), mOpts(opts) {}
+    explicit Emulator(const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts) : EmulatorConfig(netsim_endpoint, std::move(resolved_paths), std::move(avd), std::move(opts)) {}
+
+    /**
+     * @brief Clears the device's persistent state and prepares it for
+     * re-initialization.
+     *
+     * This method erases any persistent state associated with the device. This is
+     * analogous to formatting a disk drive or resetting a device to factory
+     * defaults.
+     */
+    void clear();
+
+    /**
+     * @brief Initializes and prepares the emulator and its devices for launch.
+     *
+     * This step involves device validation and potential setup actions, such
+     * as creating backends (e.g., disk images).
+     * @return absl::Status indicating success or failure.
+     */
+    absl::Status initialize();
+
+    /**
+     * @brief Launches the emulator using the configured QEMU command line.
+     *
+     * This method starts the QEMU process and logs its output (stdout/stderr).
+     * @return absl::Status indicating success or failure.
+     */
+    absl::StatusOr<::goldfish::async::LaunchConfig> launch_config();
 
     /**
      * @brief Retrieves a device driver of a specified type.
@@ -91,58 +114,13 @@ class Emulator {
         mDevices.push_back(std::move(newDevice));
     }
 
-    // The resolved paths to input binaries and data
-    const ResolvedInputPaths& paths() const { return mResolvedPaths; }
-
-    // The avd description used to configure this emulator
-    const Avd& avd() const { return *mAvd; }
-
-    // The android options used to configure this emulator
-    const AndroidOptions& opts() const { return mOpts; }
-
-    const std::string &netsim_endpoint() const { return mNetsimEndpoint; }
-
-    const std::string &serial_number() const { return mSerialNumber; }
-
-    /**
-     * @brief Clears the device's persistent state and prepares it for
-     * re-initialization.
-     *
-     * This method erases any persistent state associated with the device. This is
-     * analogous to formatting a disk drive or resetting a device to factory
-     * defaults.
-     */
-    void clear();
-
-    /**
-     * @brief Initializes and prepares the emulator and its devices for launch.
-     *
-     * This step involves device validation and potential setup actions, such
-     * as creating backends (e.g., disk images).
-     * @return absl::Status indicating success or failure.
-     */
-    absl::Status initialize();
-
-    /**
-     * @brief Launches the emulator using the configured QEMU command line.
-     *
-     * This method starts the QEMU process and logs its output (stdout/stderr).
-     * @return absl::Status indicating success or failure.
-     */
-    absl::StatusOr<::goldfish::async::LaunchConfig> launch_config();
-
-  private:
+  private: 
     absl::Status addDevices();
 
     // Constructs the qemu command line.
     std::string qemu_exe_path() const;
     std::vector<std::string> getCmdline() const;
 
-    const ResolvedInputPaths mResolvedPaths;
-    const std::unique_ptr<Avd> mAvd;
-    const AndroidOptions mOpts;
-    std::string mSerialNumber{"5554"};  // TODO(whollins)
-    const std::string mNetsimEndpoint;
     std::vector<std::unique_ptr<Device>> mDevices;
     std::unordered_map<std::string, Device*> mDeviceMap;
 };

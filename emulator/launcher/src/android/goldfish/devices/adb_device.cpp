@@ -1,5 +1,4 @@
 #include "adb_device.h"
-#include <android/cmdline-definitions.h>
 
 #include <vector>
 
@@ -8,9 +7,11 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/cmdline-definitions.h"
+
 namespace android::goldfish {
 
-absl::Status AdbDevice::initialize(const Emulator& emulator) {
+absl::Status AdbDevice::initialize(const EmulatorConfig& emulator) {
     int adbPort = 5555;
 
     auto opts = emulator.opts();
@@ -36,7 +37,7 @@ absl::Status AdbDevice::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> AdbDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> AdbDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     std::string_view monitor = emulator.opts().monitor_adb ? ",monitor=true" : "";
     return {"-device", absl::StrCat("virtio-goldfish-adb,host_port=", mPort, monitor)};
 }

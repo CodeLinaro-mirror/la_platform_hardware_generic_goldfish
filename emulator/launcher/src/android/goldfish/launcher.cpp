@@ -28,7 +28,7 @@
 #include "android/crashreport/CrashReporter.h"
 #include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/emulator.h"
 #include "android/goldfish/logging.h"
 #include "android/goldfish/netsimd.h"
 #include "android/main-help.h"

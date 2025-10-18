@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
@@ -25,8 +25,8 @@ class MemoryDevice : public Device {
   public:
     explicit MemoryDevice() : Device("memory") {}
 
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
     uint64_t mMemorySizeMiB;

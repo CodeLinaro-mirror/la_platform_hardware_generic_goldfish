@@ -20,18 +20,23 @@ cc_library(
 )
 
 cc_library(
-    name = "headers",
-    srcs = [
-        "include/android/goldfish/config/emulator.h",
-        "include/android/goldfish/devices/device.h",
-    ],
+    name = "emulator_config",
+    hdrs = ["include/android/goldfish/emulator_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
-        "//hardware/generic/goldfish/android/async:launch_config",
         "//hardware/generic/goldfish/emulator/cmdline",
-        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "device",
+    hdrs = ["include/android/goldfish/device.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":emulator_config",
     ],
 )
 
@@ -87,11 +92,15 @@ cc_test(
 
 cc_library(
     name = "emulator",
-    srcs = ["src/android/goldfish/emulator.cpp"],
+    srcs = [
+        "include/android/goldfish/emulator.h",
+        "src/android/goldfish/emulator.cpp",
+    ],
     # Qemu roms needed for unittests - Emulator check that it is available.
     data = ["//third_party/qemu:qemu-roms"],
     visibility = ["//visibility:public"],
     deps = [
+        ":emulator_config",
         ":input_paths",
         "//hardware/generic/goldfish/android/async:launch_config",
         "//hardware/generic/goldfish/android/system",
