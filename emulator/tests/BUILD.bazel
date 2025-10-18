@@ -31,6 +31,7 @@ java_test(
     }),
     tags = [
         "block-network",
+        "manual",
     ],
     target_compatible_with = [
         # Currently launch and boot tests fail on Mac.
@@ -39,4 +40,12 @@ java_test(
     ],
     test_class = "com.android.tools.idea.EmulatorTest",
     runtime_deps = ["//tools/emulator/tests:emulator.tests"],
+)
+
+test_suite(
+    name = "integration_tests",
+    tags = ["manual"],
+    tests = [
+        ":boot_test",
+    ],
 )

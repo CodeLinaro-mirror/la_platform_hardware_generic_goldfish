@@ -290,6 +290,7 @@ native_symbols_pkg(
 
 build_test(
     name = "release_build_test",
+    tags = ["manual"],
     targets = [":release"],
 )
 
@@ -307,26 +308,5 @@ test_suite(
         "@com_google_crashpad//:crashpad_tests",
         "@libyuv//:libyuv_unittest",
         "@pffft//:pffft_test",
-    ],
-)
-
-test_suite(
-    name = "emulator_unit_tests",
-    tests = [
-        "//hardware/generic/goldfish/android:emulator_android_tests",
-        "//hardware/generic/goldfish/android/async:eventloop_unittests",
-        "//hardware/generic/goldfish/android/async:sockets_unittests",
-        "//hardware/generic/goldfish/emulator/adb/host:host_unitests",
-        "//hardware/generic/goldfish/emulator/adb/logger:logger_unitests",
-        "//hardware/generic/goldfish/emulator/cmdline:cmdline_unittests",
-        "//hardware/generic/goldfish/emulator/config:config_unittests",
-        "//hardware/generic/goldfish/emulator/crashreport:crashreport_test",
-        "//hardware/generic/goldfish/emulator/grpc:grpc-unit-tests",
-        "//hardware/generic/goldfish/emulator/grpc/absl:translate_test",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/input:input_unittests",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service_unittests",
-        "//hardware/generic/goldfish/emulator/hal:hal_unittests",
-        "//hardware/generic/goldfish/emulator/launcher:launcher_unittests",
-        "//hardware/generic/goldfish/emulator/libs:libs_unittests",
     ],
 )

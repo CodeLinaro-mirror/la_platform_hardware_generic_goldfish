@@ -89,14 +89,6 @@ cc_test(
     ],
 )
 
-test_suite(
-    name = "camera_unittests",
-    tests = [
-        ":camera_impl_unittests",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers:image_providers_unittests",
-    ],
-)
-
 cc_library(
     name = "test_camera",
     hdrs = [

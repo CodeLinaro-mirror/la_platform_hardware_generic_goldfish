@@ -41,7 +41,9 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
         size = "medium",
         timeout = "moderate",
         srcs = ["src/launch_kernel.py"],
-        tags = ["exclusive-if-local"],
+        # These tests are marked as manual so that they aren't included when using //...
+        # Instead they must be explicitly named (including as part of a test_suite).
+        tags = ["manual", "exclusive-if-local"],
         args = select({
             "@platforms//os:macos": [
                 "--abi",

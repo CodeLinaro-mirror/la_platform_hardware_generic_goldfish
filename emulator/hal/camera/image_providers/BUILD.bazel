@@ -1,9 +1,0 @@
-test_suite(
-    name = "image_providers_unittests",
-    tests = [
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/imagefile:imagefile_unittests",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/videofile:videofile_unittests",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/virtualscene:virtualscene_unittests",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/webcam:webcam_unittests",
-    ],
-)
