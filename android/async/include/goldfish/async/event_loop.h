@@ -236,7 +236,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @brief Gets the current state of the event loop.
      * @return The current state.
      */
-    LooperStatusEvent::State getState() const { return mState; }
+    virtual LooperStatusEvent::State getState() const { return mState; }
 
   protected:
     virtual void postImpl(Task task, std::chrono::milliseconds delay) = 0;

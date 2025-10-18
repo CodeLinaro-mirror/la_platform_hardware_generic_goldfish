@@ -96,6 +96,10 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
 
     std::thread::id get_id() const override { return mRunner.get_id(); }
 
+    LooperStatusEvent::State getState() const override {
+        return mLoop->getState();
+    }
+
   private:
     std::thread mRunner;
     std::unique_ptr<EventLoop> mLoop;

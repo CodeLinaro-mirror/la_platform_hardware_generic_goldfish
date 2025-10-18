@@ -61,6 +61,12 @@ class ThreadedEventLoop : public EventLoop {
     }
 
     /**
+     * @brief Gets the current state of the event loop.
+     * @return The current state.
+     */
+    LooperStatusEvent::State getState() const override = 0;
+
+    /**
      * @brief Creates and starts a new ThreadedEventLoop.
      *
      * This factory function constructs the event loop, starts its background
