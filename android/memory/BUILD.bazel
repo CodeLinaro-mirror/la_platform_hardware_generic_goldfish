@@ -51,6 +51,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
     ],
 )

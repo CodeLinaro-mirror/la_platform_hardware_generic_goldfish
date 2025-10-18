@@ -17,7 +17,7 @@ class SocketBenchmark : public ::benchmark::Fixture {
   public:
     void SetUp(const ::benchmark::State& state) override {
         factory_ = std::make_unique<LibuvAsyncSocketFactory>();
-        loop_ = std::make_unique<LibuvEventLoop>();
+        loop_ = LibuvEventLoop::create();
         loop_thread_ = std::thread([&]() { loop_->run(); });
     }
 

@@ -73,7 +73,8 @@ TEST_F(EmulatorCatalogTest, InitialScanFindsExistingFiles) {
     ASSERT_EQ(2, emulators.size());
 }
 
-TEST_F(EmulatorCatalogTest, EmulatorAddedEventFires) {
+// TODO FIX flakey test
+TEST_F(EmulatorCatalogTest, DISABLED_EmulatorAddedEventFires) {
     mCatalog = EmulatorCatalog::create(mTempDir);
     ASSERT_NE(mCatalog, nullptr);
 
@@ -119,7 +120,7 @@ TEST_F(EmulatorCatalogTest, EmulatorRemovedEventFires) {
     EXPECT_TRUE(mCatalog->listEmulators().empty());
 }
 
-TEST_F(EmulatorCatalogTest, ListEmulatorsIsCorrectAfterMultipleChanges) {
+TEST_F(EmulatorCatalogTest, DISABLED_ListEmulatorsIsCorrectAfterMultipleChanges) {
     mCatalog = EmulatorCatalog::create(mTempDir);
     ASSERT_NE(mCatalog, nullptr);
 

@@ -60,6 +60,10 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
         if (mLoopType == "libuv") {
             loop_thread = std::thread([this]() { (void)loop->run(); });
         }
+        // Wait for it to actually start.
+        while (loop->getState() != LooperStatusEvent::State::RUNNING) {
+            std::this_thread::sleep_for(10ms);
+        }
     }
 
     // Processes events until a future is fulfilled.

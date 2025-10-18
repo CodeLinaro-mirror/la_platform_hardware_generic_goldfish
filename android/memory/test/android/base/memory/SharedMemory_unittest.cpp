@@ -16,17 +16,28 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <thread>
 #include <type_traits>
 #include <utility>
+
+#include "absl/random/random.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/base/testing/TestSystem.h"
 
 namespace android {
 namespace base {
 
+int get_random() {
+    absl::BitGen bitgen;
+    return absl::uniform_int_distribution<int>(0, 1000000)(bitgen);
+}
+
 TEST(SharedMemory, ShareVisibleWithinSameProc) {
     const mode_t user_read_only = 0600;
-    std::string unique_name = "tst_21654869810548";
+    std::string unique_name = absl::StrCat("tst_21654869810548-", get_random());
+    
     std::string message = "Hello World!";
     base::SharedMemory mWriter(unique_name, message.size());
     base::SharedMemory mReader(unique_name, message.size());
@@ -157,7 +168,7 @@ TEST(SharedMemory, CanShare4KVideo) {
 
 TEST(SharedMemory, CannotOpenTwice) {
     const mode_t user_read_only = 0600;
-    std::string unique_name = "tst_21654869810548";
+    std::string unique_name = absl::StrCat("tst_21654869810548-", get_random());
     std::string message = "Hello World!";
     base::SharedMemory mWriter(unique_name, message.size());
     base::SharedMemory mReader(unique_name, message.size());
@@ -177,7 +188,7 @@ TEST(SharedMemory, CannotOpenTwice) {
 
 TEST(SharedMemory, CreateNoMapping) {
     const mode_t user_read_write = 0755;
-    std::string name = "tst_21654869810548";
+    std::string name = absl::StrCat("tst_21654869810548-", get_random());
     base::SharedMemory mem(name, 256);
 
     ASSERT_FALSE(mem.isOpen());

@@ -218,7 +218,7 @@ cc_test(
 
 cc_test(
     name = "event_loop_dispatcher_test",
-    size = "small",
+    size = "medium",
     srcs = [
         "test/event_loop_dispatcher_test.cpp",
     ],

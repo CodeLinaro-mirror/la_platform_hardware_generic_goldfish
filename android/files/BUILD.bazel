@@ -58,7 +58,7 @@ cc_library(
 
 cc_test(
     name = "files_unittests",
-    size = "small",
+    size = "medium",
     srcs = [
         "test/FileSystemWatcher_unittest.cpp",
         "test/aemu/base/files/FileShareOpen_unittest.cpp",

@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "absl-c-bridge",
@@ -81,9 +81,8 @@ cc_test(
     ],
 )
 
-cc_test(
+cc_binary(
     name = "log_bridge_perf",
-    size = "small",
     srcs = ["test/android/base/logging/AbseilLogBridge_perf.cpp"],
     copts = ["-Wno-deprecated-declarations"],
     deps = [
