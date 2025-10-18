@@ -21,7 +21,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
+        "//hardware/generic/goldfish/android/async:launch_config",
         "//hardware/generic/goldfish/emulator/cmdline",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -89,7 +91,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
-        "//hardware/generic/goldfish/android/network",
+        "//hardware/generic/goldfish/android/async:launch_config",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/config",
@@ -133,6 +135,20 @@ test_suite(
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:machine_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:network_device_test",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:disk_drive_test",
+    ],
+)
+
+cc_library(
+    name = "netsimd",
+    srcs = ["src/android/goldfish/netsimd.cpp"],
+    hdrs = ["include/android/goldfish/netsimd.h"],
+    includes = ["include"],
+    deps = [
+        "//hardware/generic/goldfish/android/async:launch_config",
+        "//hardware/generic/goldfish/android/network",
+        "//hardware/generic/goldfish/emulator/cmdline",
+        "//hardware/generic/goldfish/emulator/grpc/client:emulator_grpc_client",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -288,6 +304,9 @@ cc_binary(
     deps = [
         ":emulator",
         ":logconfig",
+        ":netsimd",
+        "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:libuv_process_launcher",
         "//hardware/generic/goldfish/android/cpu",
         "//hardware/generic/goldfish/android/filesystems",
         "//hardware/generic/goldfish/android/system",
