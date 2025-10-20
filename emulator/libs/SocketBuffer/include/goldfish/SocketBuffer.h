@@ -13,7 +13,7 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <memory>
 
 #include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
@@ -21,15 +21,38 @@
 namespace goldfish {
 
 struct SocketBuffer {
-  void append(const void* data, size_t size);
+  constexpr static size_t kMinCapacity = 1024;
+  constexpr static size_t kLargeCapacityReleaseIfEmpty = 4U << 20;
+
+  size_t size() const { return mSize; }
+  size_t capacity() const { return mCapacity; }
+
+  size_t append(const void* data, size_t size);
+
+  // Returns the contiguous portion of the buffer, it could be shorter than the whole buffer.
   std::pair<const void*, size_t> peek() const;
+
+  // Consumes the `size` bytes from the buffer.
+  // It must the less or equal than the value returned by `peek`.
   void consume(size_t size);
+
+  void clear(bool alsoFreeMemory = false);
+
   void saveToSnapshot(archive::IWriter& writer) const;
   int loadFromSnapshot(archive::IReader& reader);
 
+  SocketBuffer() = default;
+  SocketBuffer(const SocketBuffer&) = delete;
+  SocketBuffer(SocketBuffer&&) = delete;
+  SocketBuffer& operator=(const SocketBuffer&) = delete;
+  SocketBuffer& operator=(SocketBuffer&&) = delete;
+
  private:
-  std::vector<uint8_t> mBuf;
-  size_t mConsumed = 0;
+  std::unique_ptr<char[]> mData;
+  size_t mCapacity = 0;
+  size_t mSize = 0;
+  size_t mProduce = 0;
+  size_t mConsume = 0;
 };
 
 }  // namespace goldfish
