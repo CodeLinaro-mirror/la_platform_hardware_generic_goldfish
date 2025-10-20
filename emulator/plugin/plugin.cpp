@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/debugging/failure_signal_handler.h"
+#include "absl/debugging/symbolize.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
@@ -92,7 +93,6 @@ int get_log_level() {
 
 void setup_logging() {
     absl::InitializeLog();
-    absl::log_internal::EnableSymbolizeLogStackTrace(true);
     absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
     absl::SetStderrThreshold(static_cast<absl::LogSeverityAtLeast>(get_log_level()));
     setup_debug_logging();
@@ -117,11 +117,18 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
 }
 
 extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
+    absl::InitializeSymbolizer(argv[0]);
+
     setup_logging();
 
     if (!crashhandler_init(argc, argv)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
+
+    absl::FailureSignalHandlerOptions options;
+    // Call crashpad after printing stack trace.
+    options.call_previous_handler = true;
+    absl::InstallFailureSignalHandler(options);
 
     LOG(INFO) << "goldfish plugin initialization completed";
 }

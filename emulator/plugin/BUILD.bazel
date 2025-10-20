@@ -26,6 +26,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
                 "//hardware/generic/goldfish/emulator/plugin/virtio-wifi",
                 "//hardware/generic/goldfish/emulator/plugin/vminterface:vm_ops",
                 "//third_party/qemu:aemu_func_defs",
+                "@abseil-cpp//absl/debugging:failure_signal_handler",
+                "@abseil-cpp//absl/debugging:symbolize",
                 "@abseil-cpp//absl/log",
                 "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
             ] + select({

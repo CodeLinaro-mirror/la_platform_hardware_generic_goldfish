@@ -286,11 +286,7 @@ cc_binary(
         ":vulkan_icds",
         "//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access",
     ],
-    includes = [
-        ".",
-        "include",
-        "src",
-    ],
+    includes = ["."],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
@@ -311,6 +307,8 @@ cc_binary(
         "//hardware/generic/goldfish/emulator/crashreport:init",
         "//hardware/generic/goldfish/third_party/json",
         "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
