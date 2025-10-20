@@ -126,8 +126,8 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             /// @note we are on the client loop, so no-one is touching mHostBuffer.
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
-            socket()->send(mHostBuffer);
-            mHostBuffer.clear();
+            (void)socket()->send(std::move(mHostBuffer));
+            assert(mHostBuffer.empty());
         }
     }
 
