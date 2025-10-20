@@ -39,6 +39,10 @@
 
 #include "android/crashreport/crash-initializer.h"
 
+extern "C" {
+    #include "qemu/error-report.h"
+}
+
 namespace {
 
 using android::base::System;
@@ -94,8 +98,12 @@ int get_log_level() {
 void setup_logging() {
     absl::InitializeLog();
     absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
-    absl::SetStderrThreshold(static_cast<absl::LogSeverityAtLeast>(get_log_level()));
+    int log_level = get_log_level();
+    absl::SetStderrThreshold(static_cast<absl::LogSeverityAtLeast>(log_level));
     setup_debug_logging();
+
+    // Disable Qemu info level logging if necessary.
+    error_set_log_info(log_level == 0);
 }
 
 }  // namespace
