@@ -10,6 +10,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
                 "//conditions:default": [],
             }),
             linkshared = True,
+            target_compatible_with = select({
+                # We only support x86 on Windows currently.
+                "@platforms//os:windows": [] if arch == "x86_64" else ["@platforms//:incompatible"],
+                "//conditions:default": [],
+            }),
             visibility = ["//visibility:public"],
             win_def_file = select({
                 "@platforms//os:windows": "goldfish_" + arch + ".def",
