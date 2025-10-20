@@ -25,7 +25,6 @@
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
-#include "android/crashreport/CrashReporter.h"
 #include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/emulator.h"
@@ -60,6 +59,23 @@ static void show_banner() {
     std::cout << "    = _ _.*= .            \n";
 }
 
+class UvSignalHandler {
+  public:
+    UvSignalHandler(uv_loop_t* uv_loop, int signal, void *data, uv_signal_cb signal_cb) {
+        uv_signal_init(uv_loop, &mSignalHandler);
+        mSignalHandler.data = data;
+        uv_signal_start(&mSignalHandler, signal_cb, signal);
+    }
+
+    ~UvSignalHandler() {
+        uv_signal_stop(&mSignalHandler);
+        uv_close((uv_handle_t*)&mSignalHandler, nullptr);
+    }
+
+  private:
+    uv_signal_t mSignalHandler;
+};
+
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::EventLoop &event_loop, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
@@ -67,12 +83,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     , mEventLoop(event_loop)
     , mResolvedPaths(std::move(resolved_paths))
     , mAvd(std::move(avd))
-    , mOpts(std::move(opts)) {
-        // TODO(whollins): Wrap this to make it simpler.
-        mTermSignalHandler.data = this;
-        uv_signal_init(static_cast<uv_loop_t *>(mEventLoop.getRawLoop()), &mTermSignalHandler);
-        uv_signal_start(&mTermSignalHandler, forwarding_signal_handler, SIGTERM);
-
+    , mOpts(std::move(opts))
+    , mSignalHandlerHup(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGHUP, this, forwarding_signal_handler)
+    , mSignalHandlerInt(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGINT, this, forwarding_signal_handler)
+    , mSignalHandlerQuit(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGQUIT, this, forwarding_signal_handler)
+    , mSignalHandlerTerm(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGTERM, this, forwarding_signal_handler) {
         mEventLoop.post([this] {
             if (mOpts.no_netsim) {
                 launch_emulator(std::string());
@@ -84,15 +99,15 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         });
     }
 
+    int emulator_exit_status() const { return mEmulatorExitStatus; }
+
   private:
     static void forwarding_signal_handler(uv_signal_t *handle, int signum) {
-        LOG(INFO) << "Signal received, forwarding to emulator:" << signum;
+        LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
         Launcher *l = static_cast<Launcher *>(handle->data);
         if (auto *p = l->mEmulatorProcess.get()) {
             uv_process_kill(p, signum);
         }
-        uv_signal_stop(handle);
-        uv_close((uv_handle_t*)handle, nullptr);
     }
 
     static void netsimd_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
@@ -185,12 +200,17 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     static void emulator_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
         LOG(INFO) << "emulator exited with status " << exit_status <<  ", signal " << term_signal;
         Launcher &l = static_cast<Launcher&>(get_launcher(*req));
+        l.mEmulatorExitStatus = exit_status;
         close_handle(std::move(l.mEmulatorProcess));
 
         VLOG(1) << "Shutting down";
         std::thread([&l] {
             // This has to be a separate thread apparently.
-            LOG(WARNING) << "Shutdown result: " << l.mEventLoop.shutdown(std::chrono::seconds(10)).get();
+            if (auto s = l.mEventLoop.shutdown(std::chrono::seconds(10)).get(); s.ok()) {
+                VLOG(1) << "Event loop shutdown succeeded";
+            } else {
+                LOG(ERROR) << "Event loop shutdown returned error: " << s;
+            }
         }).detach();
     }
 
@@ -215,6 +235,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     std::unique_ptr<Avd> mAvd;
     AndroidOptions mOpts;
 
+    UvSignalHandler mSignalHandlerHup;
+    UvSignalHandler mSignalHandlerInt;
+    UvSignalHandler mSignalHandlerQuit;
+    UvSignalHandler mSignalHandlerTerm;
+
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.
     NetsimConnection_ptr mNetsimdConnection;
@@ -224,10 +249,10 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     ProcessHandle mNetsimdProcess;
     ProcessHandle mEmulatorProcess;
 
-    uv_signal_t mTermSignalHandler;
-
     int mExistingNetsimdPort = 0;
     int mRetryCountDown = 10;
+
+    int mEmulatorExitStatus = 0;
 };
 
 } // namespace
@@ -340,7 +365,10 @@ int main(int argc, char** argv) {
 
     android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
 
-    LOG(WARNING) << event_loop->run();
+    if (auto s = event_loop->run(); !s.ok()) {
+        LOG(ERROR) << "Event loop run failed with error: " << s;
+        return 1;
+    }
 
-    return 0;
+    return l.emulator_exit_status();
 }
