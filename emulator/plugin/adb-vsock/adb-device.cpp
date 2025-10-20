@@ -63,13 +63,13 @@ namespace {
 // QEMU device configuration logic
 void adb_vsock_connected(VSockFwdDev* device) {
     auto adb_server = AdbHostServer::getClientPort();
-    LOG(INFO) << "Notifying adb server on port " << adb_server
+    LOG(WARNING) << "Notifying adb server on port " << adb_server
               << " that adbd for is available on localhost:" << device->host_port;
     AdbHostServer::notify(device->host_port, adb_server);
     // Make it easier for tests to find us.
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
-    LOG(INFO) << "Expected adb serial number: emulator-" << (device->host_port - 1);
+    LOG(WARNING) << "Expected adb serial number: emulator-" << (device->host_port - 1);
 }
 
 void adb_vsock_realize(DeviceState* dev, Error** errp) {
