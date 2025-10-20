@@ -198,7 +198,7 @@ bool IniFile::read(bool keepComments) {
 
     ifstream inFile(mBackingFilePath, ios_base::in | ios_base::ate);
     if (!inFile) {
-        LOG(WARNING) << "Failed to process .ini file " << mBackingFilePath << " for reading.";
+        VLOG(1) << "Failed to process .ini file " << mBackingFilePath << " for reading.";
         return false;
     }
 

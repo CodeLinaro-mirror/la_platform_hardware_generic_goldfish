@@ -15,6 +15,7 @@
 #include "NetsimTransport.h"
 
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/support/status.h>
 
 #include <memory>
 #include <string>
@@ -138,15 +139,19 @@ void NetsimTransport::OnReadDone(bool ok) {
         }
     } else {
         // Reading finished
-        LOG(WARNING) << "Reading terminated";
+        LOG(INFO) << "Reading terminated";
         std::lock_guard<std::mutex> lock(mReadlock);
         mReadDone = true;
     }
 }
 
 void NetsimTransport::OnDone(const grpc::Status& s) {
-    LOG(WARNING) << "Netsim Transport " << mStreamPacketsContext->peer() << " is gone due to "
-                 << s.error_message();
+    if (s.error_code() == grpc::StatusCode::CANCELLED) {
+        LOG(INFO) << "Netsim Transport " << mStreamPacketsContext->peer() << " was cancelled";
+    } else {
+        LOG(WARNING) << "Netsim Transport " << mStreamPacketsContext->peer() << " is gone due to "
+                    << s.error_message();
+    }
     mDone.Notify();
 }
 
