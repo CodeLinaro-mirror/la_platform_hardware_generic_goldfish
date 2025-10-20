@@ -16,8 +16,9 @@
 #include <filesystem>
 #include <string>
 
+#include "absl/debugging/failure_signal_handler.h"
+#include "absl/debugging/symbolize.h"
 #include "absl/log/initialize.h"
-#include "absl/log/internal/globals.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
@@ -259,11 +260,12 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 } // namespace android::goldfish
 
 int main(int argc, char** argv) {
+    absl::InitializeSymbolizer(argv[0]);
+
     // libuv recommends calling this from the parent before spawning any children.
     uv_disable_stdio_inheritance();
 
     absl::InitializeLog();
-    absl::log_internal::EnableSymbolizeLogStackTrace(true);
 
     for (int nn = 1; nn < argc; nn++) {
         const char* opt = argv[nn];
@@ -318,6 +320,11 @@ int main(int argc, char** argv) {
     if (!crashhandler_init(argc, argv)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
+
+    absl::FailureSignalHandlerOptions options;
+    // Call crashpad after printing stack trace.
+    options.call_previous_handler = true;
+    absl::InstallFailureSignalHandler(options);
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.
