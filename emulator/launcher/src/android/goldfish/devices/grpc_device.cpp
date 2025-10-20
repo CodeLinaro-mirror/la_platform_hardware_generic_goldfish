@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "grpc_device.h"
 
 #include <filesystem>
@@ -23,15 +24,13 @@
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/emulator.h"
-#include "android/goldfish/devices/device.h"
 
 using android::base::Bazel;
 using android::base::System;
 
 namespace android::goldfish {
 
-absl::Status GrpcDevice::initialize(const Emulator& emulator) {
+absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
     if (char* grpc = emulator.opts().grpc) {
         if (int grpcPort; absl::SimpleAtoi(grpc, &grpcPort)) {
             mPort = grpcPort;
@@ -45,7 +44,7 @@ absl::Status GrpcDevice::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string> GrpcDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     fs::path allowlist = System::get()->getLauncherDirectory() / "lib" / "emulator_access.json";
 
     if (Bazel::inBazel()) {

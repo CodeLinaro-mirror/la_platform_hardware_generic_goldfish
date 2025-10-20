@@ -11,8 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#include "gpu_device.h"
+
 #include <initializer_list>
-#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -20,16 +22,14 @@
 
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
-#include "gpu_device.h"
 
 namespace android::goldfish {
 
-absl::Status GpuDevice::initialize(const Emulator& emulator) {
+absl::Status GpuDevice::initialize(const EmulatorConfig& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> GpuDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     const auto& hw = emulator.avd().hw();
     const AndroidOptions& opts = emulator.opts();
     return {

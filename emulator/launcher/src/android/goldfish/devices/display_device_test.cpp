@@ -8,25 +8,18 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "display_device.h"
 
-#include <android/base/system/System.h>
-#include <android/goldfish/config/hardware_config.h>
 #include <gtest/gtest.h>
 
-#include <memory>
-
-#include "absl/log/globals.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/base/testing/TestSystem.h"
 #include "android/cmdline-definitions.h"
-#include "android/goldfish/config/emulator.h"
-#include "mock_avd.h"
+
+#include "display_device.h"
+#include "fake_emulator.h"
 
 namespace android::goldfish::test {
 
@@ -35,19 +28,13 @@ using ::testing::Eq;
 using ::testing::StartsWith;
 
 TEST(DisplayDeviceTest, GetQemuParameters_VncDisabled) {
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
-    AndroidOptions opts{};
-    opts.enable_vnc = false;
-    Emulator emu("", {}, std::move(avd), std::move(opts));
+    AndroidOptions opts{.enable_vnc = false};
+    FakeEmulator emu(std::move(opts));
 
     DisplayDevice dev("gpu0");
-    EXPECT_OK(dev.initialize(emu));
+    EXPECT_OK(dev.initialize(emu.config()));
 
-    const auto params = dev.getQemuParameters(emu);
+    const auto params = dev.getQemuParameters(emu.config());
     EXPECT_THAT(params,
                 ElementsAre(Eq("-display"), Eq("android"), Eq("-device"),
                             Eq("virtio-keyboard-pci,display=gpu0,head=0"), Eq("-device"),
@@ -66,18 +53,13 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncDisabled) {
 
 #if defined(__linux__) || defined(__APPLE__)
 TEST(DisplayDeviceTest, GetQemuParameters_VncEnabled) {
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
     AndroidOptions opts{.enable_vnc = true};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
+    FakeEmulator emu(std::move(opts));
 
     DisplayDevice dev("gpu0");
-    EXPECT_OK(dev.initialize(emu));
+    EXPECT_OK(dev.initialize(emu.config()));
 
-    const auto params = dev.getQemuParameters(emu);
+    const auto params = dev.getQemuParameters(emu.config());
     EXPECT_THAT(params,
                 ElementsAre(Eq("-display"),
                             StartsWith("vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0"),

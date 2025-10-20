@@ -8,27 +8,20 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "machine.h"
 
-#include <android/base/system/System.h>
-#include <android/goldfish/config/hardware_config.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
 
 #include <filesystem>
-#include <fstream>
-#include <memory>
 
-#include "absl/log/globals.h"
 #include "absl/status/status_matchers.h"
-#include "absl/strings/str_cat.h"
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
-#include "android/cmdline-definitions.h"
-#include "android/goldfish/config/emulator.h"
-#include "mock_avd.h"
+
+#include "machine.h"
+#include "fake_emulator.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
@@ -53,22 +46,14 @@ TEST(Machine, Basic_x86) {
 
     base::TestSystem sys(launcher_path);
 
-    auto hw = HardwareConfig();
-
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     Machine dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu), testing::ElementsAre(testing::StartsWith("-machine"),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(testing::StartsWith("-machine"),
                                                                  testing::StartsWith("goldfish")));
 }
 
@@ -77,22 +62,14 @@ TEST(Machine, Basic_arm64) {
 
     base::TestSystem sys(launcher_path);
 
-    auto hw = HardwareConfig();
-
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     Machine dev;
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::StartsWith("-machine"),
                                      testing::StartsWith("goldfish-arm")));
 }

@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/config/emulator.h"
+
+#include "android/goldfish/emulator.h"
 
 #include <algorithm>
 #include <cctype>
@@ -56,14 +57,16 @@ absl::Status Emulator::addDevices() {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
-    int pluginLogLevel = static_cast<int>(mOpts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning);
+    const auto &o = opts();
+    const auto &a = avd();
+    int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning);
 
-    std::string vmodules = mOpts.vmodule ? mOpts.vmodule : "";
+    std::string vmodules = o.vmodule ? o.vmodule : "";
     if (System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
         System::get()->setEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
     }
     if (System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(mOpts.V ? mOpts.V : ""));
+        System::get()->setEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
     }
     if (System::get()->getEnvironmentVariable("AEMU_VMODULE").empty()) {
         System::get()->setEnvironmentVariable("AEMU_VMODULE", vmodules);
@@ -77,7 +80,7 @@ absl::Status Emulator::addDevices() {
     });
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-name", absl::StrFormat("%s,debug-threads=on", mAvd->name())});
+            "-name", absl::StrFormat("%s,debug-threads=on", a.name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -91,7 +94,7 @@ absl::Status Emulator::addDevices() {
     // No ethernet device for now:
     // addDevice<NetworkDevice>("0a.0");
 
-    if (!mOpts.no_netsim && !mOpts.no_wifi) {
+    if (!o.no_netsim && !o.no_wifi) {
       addDevice<WifiDevice>("0b.0");
     }
 
@@ -111,23 +114,23 @@ absl::Status Emulator::addDevices() {
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device", "virtconsole,chardev=forhvc0,name=logcat_null", "-chardev", "null,id=forhvc0",
     });
-    if (mOpts.logcat_output) {
+    if (o.logcat_output) {
         // virtio logcat consoles, note that order matters here!
         addDevice<ParameterList>(std::initializer_list<std::string>{
             // Actual logcat location.
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev",
-            absl::StrCat("file,id=forhvc1,path=", mOpts.logcat_output)});
+            absl::StrCat("file,id=forhvc1,path=", o.logcat_output)});
     } else {
         addDevice<ParameterList>(std::initializer_list<std::string>{
             // Actual logcat location.
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev", "null,id=forhvc1"});
     }
 
-    if (!mOpts.no_netsim) {
+    if (!o.no_netsim) {
         // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
         // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // /dev/vport8p3 for bt (4th port)
-        // TODO(b/450338546): this isn't currently working and instead there is a hack in avd-info.cpp to workaround.
+        // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp to workaround.
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
             "-device", "virtconsole,chardev=uwb,name=uwb",
@@ -137,17 +140,17 @@ absl::Status Emulator::addDevices() {
         });
     }
 
-    if (mOpts.show_kernel) {
+    if (o.show_kernel) {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
     }
 
-    auto ini_path = System::pathAsString(mAvd->getIniFile());
+    auto ini_path = System::pathAsString(a.getIniFile());
     std::string avd_params = absl::StrCat("ini_path=", ini_path, ",serial_number=", serial_number());
-    if (mOpts.quit_after_boot) {
-        if (int timeout; absl::SimpleAtoi(mOpts.quit_after_boot, &timeout)) {
+    if (o.quit_after_boot) {
+        if (int timeout; absl::SimpleAtoi(o.quit_after_boot, &timeout)) {
             absl::StrAppend(&avd_params, ",quit_after_boot_timeout=", timeout);
         } else {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -quit-after-boot parameter as int: ", mOpts.quit_after_boot));
+            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -quit-after-boot parameter as int: ", o.quit_after_boot));
         }
     }
     addDevice<ParameterList>(std::initializer_list<std::string>{
@@ -182,18 +185,18 @@ absl::Status Emulator::addDevices() {
         // This is necessary because Qemu searches relative to the current executable path which is
         // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is composed
         // of symlinks so the link to the launcher directory is lost.
-        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", System::pathAsString(mResolvedPaths.bios_directory)});
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", System::pathAsString(paths().bios_directory)});
     }
 
-    if (mOpts.qemu_telnet) {
+    if (o.qemu_telnet) {
         // Debug monitor
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-monitor", "telnet::15454,server,nowait",
         });
     }
 
-    if (mOpts.qemu) {
-        addDevice<ParameterList>(absl::StrSplit(mOpts.qemu, ' '));
+    if (o.qemu) {
+        addDevice<ParameterList>(absl::StrSplit(o.qemu, ' '));
     }
 
     return absl::OkStatus();
@@ -220,14 +223,15 @@ absl::Status Emulator::initialize() {
 }
 
 std::string Emulator::qemu_exe_path() const {
+    auto const &p = paths();
     std::string base;
-    switch (mAvd->detectArchitecture()) {
+    switch (avd().detectArchitecture()) {
         case Avd::CpuArchitecture::kX86:
-            return mResolvedPaths.qemu_system_x86_binary.string();
+            return p.qemu_system_x86_binary.string();
         case Avd::CpuArchitecture::kArm:
-            return mResolvedPaths.qemu_system_arm_binary.string();
+            return p.qemu_system_arm_binary.string();
         case Avd::CpuArchitecture::kRiscV:
-            return mResolvedPaths.qemu_system_riscv_binary.string();
+            return p.qemu_system_riscv_binary.string();
         default:
             return "unknown";
     }
@@ -247,7 +251,9 @@ std::vector<std::string> Emulator::getCmdline() const {
 }
 
 absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
-    ABSL_LOG(INFO) << "Preparing " << mAvd->details(true);
+    const auto &o = opts();
+    const auto &a = avd();
+    ABSL_LOG(INFO) << "Preparing " << a.details(true);
     auto status = initialize();
     if (!status.ok()) {
         ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();
@@ -293,7 +299,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     // now all default to lavapipe
     System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 
-    if (bool gpu_host = mOpts.gpu && std::string(mOpts.gpu) == "host"; gpu_host) {
+    if (bool gpu_host = o.gpu && std::string(o.gpu) == "host"; gpu_host) {
       System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
       System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");

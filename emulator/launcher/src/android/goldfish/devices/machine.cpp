@@ -11,19 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "machine.h"
 
-#include <initializer_list>
-#include <string_view>
+#include "machine.h"
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_join.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
@@ -42,7 +38,7 @@ absl::StatusOr<std::string> machine(const Avd& avd) {
 }
 }  // namespace
 
-absl::Status Machine::initialize(const Emulator& emulator) {
+absl::Status Machine::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     if (auto m = machine(avd); m.ok()) {
         mMachine = *m;
@@ -53,7 +49,7 @@ absl::Status Machine::initialize(const Emulator& emulator) {
 }
 
 // TODO(jansene) add kernel versioning magic to add/subtract parameters,
-std::vector<std::string> Machine::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> Machine::getQemuParameters(const EmulatorConfig& emulator) const {
     return {"-machine", mMachine};
 }
 

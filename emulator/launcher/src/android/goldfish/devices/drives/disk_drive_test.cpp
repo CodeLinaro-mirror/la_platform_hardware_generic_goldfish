@@ -8,7 +8,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "disk_drive.h"
 
 #include <filesystem>
 #include <fstream>
@@ -22,12 +21,10 @@
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/base/system/System.h"
-#include "android/goldfish/config/hardware_config.h"
 #include "android/base/testing/TestSystem.h"
-#include "android/cmdline-definitions.h"
-#include "android/goldfish/config/emulator.h"
-#include "android/goldfish/devices/mock_avd.h"
+#include "android/goldfish/devices/fake_emulator.h"
+
+#include "disk_drive.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
@@ -41,23 +38,15 @@ TEST(RoDrive, Basic_x86) {
 
     std::ofstream{image_file};
 
-    auto hw = HardwareConfig();
-
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     RoDrive dev("system", "03.0", image_file);
-    EXPECT_OK(dev.initialize(emu));
+    EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
-            dev.getQemuParameters(emu),
+            dev.getQemuParameters(emu.config()),
             testing::ElementsAre(
                     testing::Eq("-device"), testing::Eq("virtio-blk-pci,addr=03.0,drive=system"),
                     testing::Eq("-blockdev"),
@@ -74,22 +63,14 @@ TEST(RoDrive, Basic_arm64) {
     // TODO(whollins): clean-up created files and directories.
     std::ofstream{image_file};
 
-    auto hw = HardwareConfig();
-
-    auto avd = std::make_unique<MockAvd>();
-
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     RoDrive dev("system", "03.0", image_file);
-    EXPECT_OK(dev.initialize(emu));
-    EXPECT_THAT(dev.getQemuParameters(emu),
+    EXPECT_OK(dev.initialize(emu.config()));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(
                         testing::Eq("-device"), testing::Eq("virtio-blk-device,drive=system"),
                         testing::Eq("-blockdev"),
@@ -103,15 +84,10 @@ TEST(RoDrive, MissingImage) {
     base::TestSystem sys(launcher_path);
     auto image_file = launcher_path / "disk-image-not-found";
 
-    auto hw = HardwareConfig();
-
-    auto avd = std::make_unique<MockAvd>();
-
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
+    FakeEmulator emu;
 
     RoDrive dev("system", "03.0", image_file);
-    EXPECT_THAT(dev.initialize(emu), StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 
@@ -123,20 +99,14 @@ TEST(RwDrive, Basic_x86) {
     std::ofstream(userData).close();
     std::ofstream(qcow2Image).close();
 
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
         .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
-    EXPECT_OK(dev.initialize(emu));
+    EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
-            dev.getQemuParameters(emu),
+            dev.getQemuParameters(emu.config()),
             testing::ElementsAre(
                     "-device", "virtio-blk-pci,addr=04.0,drive=userdata,write-cache=on",
                     "-blockdev",
@@ -154,20 +124,14 @@ TEST(RwDrive, Basic_arm) {
     std::ofstream(userData).close();
     std::ofstream(qcow2Image).close();
 
-    auto hw = HardwareConfig();
-    auto avd = std::make_unique<MockAvd>();
-    MockAvd* avd_ptr = avd.get();
-
-    EXPECT_CALL(*avd_ptr, detectArchitecture())
+    FakeEmulator emu;
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
         .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    AndroidOptions opts{};
-    Emulator emu("", {}, std::move(avd), std::move(opts));
-
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
-    EXPECT_OK(dev.initialize(emu));
+    EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
-            dev.getQemuParameters(emu),
+            dev.getQemuParameters(emu.config()),
             testing::ElementsAre(
                     "-device", "virtio-blk-device,drive=userdata,write-cache=on", "-blockdev",
                     absl::StrCat("driver=qcow2,node-name=userdata,file.driver=file,file.filename=",

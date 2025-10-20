@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "cpu_device.h"
 
 #include <initializer_list>
@@ -22,13 +23,12 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
-#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
-absl::Status CpuDevice::initialize(const Emulator& emulator) {
+
+absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     // TODO(jansene): do a series of checks.
     // TODO(invoking qemu --accel help will give supported hypervisors)
     // TODO(invoking qemu --cpu help will give supported cpus)
@@ -69,7 +69,7 @@ void CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture arch) {
     the_forced_arch = arch;
 }
 
-std::vector<std::string> CpuDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> CpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
 

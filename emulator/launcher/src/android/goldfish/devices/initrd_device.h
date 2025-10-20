@@ -16,12 +16,12 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
 // Exposed for testing.
-std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulator& emulator);
+std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator);
 
 /**
  * @brief Represents the initial RAM disk (initrd) used by the kernel.
@@ -33,8 +33,8 @@ class InitrdDevice : public Device {
  public:
   explicit InitrdDevice() : Device("initrd") {}
 
-  absl::Status initialize(const Emulator& emulator) override;
-  std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+  absl::Status initialize(const EmulatorConfig& emulator) override;
+  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
  private:
   fs::path mUserRamdisk;

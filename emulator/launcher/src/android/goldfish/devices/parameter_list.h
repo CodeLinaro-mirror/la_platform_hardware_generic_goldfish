@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
@@ -36,8 +36,8 @@ class ParameterList : public Device {
     explicit ParameterList(std::vector<std::string> params);
     ~ParameterList() override = default;
 
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
-    absl::Status initialize(const Emulator& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
 
   private:
     std::vector<std::string> mParams;

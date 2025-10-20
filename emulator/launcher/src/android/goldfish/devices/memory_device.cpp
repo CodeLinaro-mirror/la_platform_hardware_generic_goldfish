@@ -12,12 +12,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "memory_device.h"
 
-#include <android/base/system/System.h>
-#include <android/base/system/storage_capacity.h>
-
-#include <filesystem>
 #include <initializer_list>
 
 #include "absl/log/log.h"
@@ -25,15 +22,14 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/process/Command.h"
+#include "android/base/system/System.h"
+#include "android/base/system/storage_capacity.h"
 #include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/emulator.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/devices/device.h"
 
 namespace android::goldfish {
 
-absl::Status MemoryDevice::initialize(const Emulator& emulator) {
+absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     auto hw = avd.hw();
     mMemorySizeMiB = hw.hw_ramSize;
@@ -119,7 +115,7 @@ absl::Status MemoryDevice::initialize(const Emulator& emulator) {
     return absl::OkStatus();
 }
 
-std::vector<std::string> MemoryDevice::getQemuParameters(const Emulator& emulator) const {
+std::vector<std::string> MemoryDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     auto hw = emulator.avd().hw();
     return {
             "-m", std::to_string(mMemorySizeMiB)

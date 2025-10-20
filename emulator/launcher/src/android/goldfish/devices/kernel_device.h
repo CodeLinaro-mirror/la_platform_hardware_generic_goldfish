@@ -17,18 +17,17 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
-namespace fs = std::filesystem;
 
 // Configures the kernel for qemu.
 class KernelDevice : public Device {
   public:
     explicit KernelDevice() : Device("kernel") {}
 
-    absl::Status initialize(const Emulator& emulator) override;
-    std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
     std::string mDiskImage;

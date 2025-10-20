@@ -12,17 +12,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
+
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
 
-#include "android/goldfish/config/emulator.h"
+#include "android/goldfish/emulator_config.h"
 
 namespace android::goldfish {
-
-class Emulator;
 
 /**
  * @brief Abstract base class representing a "device" the Goldfish emulator.
@@ -41,14 +41,14 @@ class Device {
      * @param emulator Pointer to the parent Emulator.
      * @return A vector of QEMU parameter strings.
      */
-    virtual std::vector<std::string> getQemuParameters(const Emulator& emulator) const = 0;
+    virtual std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const = 0;
 
     /**
      * @brief Prepares the device for emulation.
      * @param emulator Pointer to the parent Emulator.
      * @return absl::Status indicating success or failure.
      */
-    virtual absl::Status initialize(const Emulator& emulator) = 0;
+    virtual absl::Status initialize(const EmulatorConfig& emulator) = 0;
 
     /**
      * @brief Clears the device's persistent state and prepares it for

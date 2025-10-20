@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "android/goldfish/devices/device.h"
+#include "android/goldfish/device.h"
 
 namespace android::goldfish {
 
@@ -25,8 +25,8 @@ class GpuDevice : public PciDevice {
   public:
    explicit GpuDevice(std::string_view gpu_name) : PciDevice("gpu", "01.0"), mGpuName(gpu_name) {}
 
-   absl::Status initialize(const Emulator& emulator) override;
-   std::vector<std::string> getQemuParameters(const Emulator& emulator) const override;
+   absl::Status initialize(const EmulatorConfig& emulator) override;
+   std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
    std::string mGpuName;
