@@ -245,7 +245,7 @@ class StorageCapacity {
  * @param value The value to convert to bytes.
  * @return StorageCapacity object representing the capacity in bytes.
  */
-constexpr StorageCapacity operator"" _B(unsigned long long value) {
+constexpr StorageCapacity operator""_B(unsigned long long value) {
     return StorageCapacity(value);
 }
 
@@ -254,7 +254,7 @@ constexpr StorageCapacity operator"" _B(unsigned long long value) {
  * @param value The value to convert to kilobytes.
  * @return StorageCapacity object representing the capacity in kilobytes.
  */
-constexpr StorageCapacity operator"" _KiB(unsigned long long value) {
+constexpr StorageCapacity operator""_KiB(unsigned long long value) {
     return StorageCapacity(value, StorageCapacity::Unit::KiB);
 }
 
@@ -263,7 +263,7 @@ constexpr StorageCapacity operator"" _KiB(unsigned long long value) {
  * @param value The value to convert to megabytes.
  * @return StorageCapacity object representing the capacity in megabytes.
  */
-constexpr StorageCapacity operator"" _MiB(unsigned long long value) {
+constexpr StorageCapacity operator""_MiB(unsigned long long value) {
     return StorageCapacity(value, StorageCapacity::Unit::MiB);
 }
 
@@ -272,7 +272,7 @@ constexpr StorageCapacity operator"" _MiB(unsigned long long value) {
  * @param value The value to convert to gigabytes.
  * @return StorageCapacity object representing the capacity in gigabytes.
  */
-constexpr StorageCapacity operator"" _GiB(unsigned long long value) {
+constexpr StorageCapacity operator""_GiB(unsigned long long value) {
     return StorageCapacity(value, StorageCapacity::Unit::GiB);
 }
 
@@ -281,7 +281,7 @@ constexpr StorageCapacity operator"" _GiB(unsigned long long value) {
  * @param value The value to convert to gigabytes.
  * @return StorageCapacity object representing the capacity in gigabytes.
  */
-constexpr StorageCapacity operator"" _TiB(unsigned long long value) {
+constexpr StorageCapacity operator""_TiB(unsigned long long value) {
     return StorageCapacity(value, StorageCapacity::Unit::TiB);
 }
 
