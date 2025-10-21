@@ -82,7 +82,7 @@ namespace goldfish::async {
  *
  * // 3. Post tasks to the loop to configure and use the socket.
  * loop->post([&]() {
- * client->setOnReadCallback([&](std::string_view data, absl::Status err) {
+ * client->setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
  * if (!err.ok()) {
  * std::cerr << "Read error: " << err << std::endl;
  * return;
@@ -153,7 +153,7 @@ class AsyncSocket {
      * @param cb The function to call with incoming data or a read error.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void setOnReadCallback(OnReadCallback cb) = 0;
+    virtual void setOnReadCallbackNoFlowControl(OnReadCallback cb) = 0;
 
     /**
      * @brief Sets the callback for when the socket is fully closed.

@@ -99,7 +99,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     // --- Configuration Methods ---
-    void setOnReadCallback(OnReadCallback cb) override {
+    void setOnReadCallbackNoFlowControl(OnReadCallback cb) override {
         assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
         mOnRead = std::move(cb);
     }

@@ -86,7 +86,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
         auto connection = std::make_shared<HostToGuestConnection>(std::move(hostSocket));
         connection->mSelf = connection->shared_from_this();
-        connection->mHostSocket->setOnReadCallback(
+        connection->mHostSocket->setOnReadCallbackNoFlowControl(
                 [pThis = connection.get()](std::string_view data, absl::Status status) {
                     pThis->onSocketReadCallback(data, status);
                 });

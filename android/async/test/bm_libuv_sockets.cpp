@@ -44,9 +44,10 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     std::string test_message = "ping";
     ScopedAsyncServer server(postAndWait([&](void) {
         return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
-            socket->setOnReadCallback([s = socket](std::string_view data, auto status) {
-                if (status.ok()) s->send(data.data(), data.size());
-            });
+            socket->setOnReadCallbackNoFlowControl(
+                    [s = socket](std::string_view data, auto status) {
+                        if (status.ok()) s->send(data.data(), data.size());
+                    });
             // Let the test own the connection's lifetime.
             return true;
         });
@@ -61,7 +62,7 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     absl::Notification connect_notification;
     loop_->post([&]() {
         client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallback([&](std::string_view data, absl::Status err) {});
+            socket.setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
             connect_notification.Notify();
         });
         client->connect();
@@ -72,7 +73,7 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
         state.PauseTiming();
         absl::Notification pong_notification;
         loop_->post([&]() {
-            client->setOnReadCallback([&](auto, auto) { pong_notification.Notify(); });
+            client->setOnReadCallbackNoFlowControl([&](auto, auto) { pong_notification.Notify(); });
         });
         state.ResumeTiming();
 
@@ -91,7 +92,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     ScopedAsyncServer server(postAndWait([&] {
         return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
             server_socket = ScopedAsyncSocket(socket);
-            socket->setOnReadCallback([](auto, auto) {});  // Discard data.
+            socket->setOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
             return true;
         });
     }));
@@ -104,7 +105,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     absl::Notification connected_notification;
     loop_->post([&]() {
         client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallback([&](std::string_view data, absl::Status err) {});
+            socket.setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
             connected_notification.Notify();
         });
         client->connect();

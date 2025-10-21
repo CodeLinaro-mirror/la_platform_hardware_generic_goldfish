@@ -81,7 +81,7 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
     auto client_closed_future = client_closed_promise.get_future();
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([](std::string_view data, absl::Status err) {});
+        socket->setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
 
         connected_promise.set_value();
         LOG(INFO) << "Server received connection, closing incoming.";
@@ -106,7 +106,7 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
     mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
             LOG(INFO) << err;
-            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+            socket.setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
         });
         client->setOnCloseCallback([&] {
             LOG(INFO) << "Client is closed";
@@ -132,7 +132,7 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
     std::mutex server_sockets_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([&](std::string_view data, absl::Status err) {
+        socket->setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
             if (err.ok()) received_promise.set_value(std::string(data));
         });
 
@@ -158,7 +158,7 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
         client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
             ASSERT_EQ(&socket, client.get());
 
-            client->setOnReadCallback([](std::string_view data, absl::Status err) {});
+            client->setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
 
             ASSERT_THAT(client->send(sent_message.data(), sent_message.size(),
                                      [&](auto) { client->close(); }),
@@ -181,7 +181,7 @@ TEST_F(AsyncSocketTest, EchoTest) {
     std::mutex server_sockets_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback(
+        socket->setOnReadCallbackNoFlowControl(
                 [sock = socket.get()](std::string_view data, absl::Status err) {
                     ASSERT_THAT(sock->send(data.data(), data.size()), IsOk());
                 });
@@ -204,15 +204,15 @@ TEST_F(AsyncSocketTest, EchoTest) {
     ASSERT_NE(client, nullptr);
 
     mRawEventLoop->post([&]() {
-        client->setOnReadCallback(
-                [&](std::string_view data, absl::Status err) {
-                    echo_promise.set_value(std::string(data));
-                });
+        client->setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            echo_promise.set_value(std::string(data));
+        });
         client->setOnConnectedCallback([&original_message, &echo_promise](AsyncSocket& socket,
                                                                           absl::Status err) {
-            socket.setOnReadCallback([&echo_promise](std::string_view data, absl::Status err) {
-                echo_promise.set_value(std::string(data));
-            });
+            socket.setOnReadCallbackNoFlowControl(
+                    [&echo_promise](std::string_view data, absl::Status err) {
+                        echo_promise.set_value(std::string(data));
+                    });
 
             ASSERT_THAT(socket.send(original_message.data(), original_message.size()), IsOk());
         });
@@ -236,7 +236,7 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
     std::mutex received_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([&](std::string_view data, absl::Status err) {
+        socket->setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
             std::lock_guard<std::mutex> lock(received_mutex);
             received_data << data;
         });
@@ -265,7 +265,7 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
         client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
             ASSERT_EQ(&socket, client.get());
 
-            client->setOnReadCallback([](std::string_view data, absl::Status err) {});
+            client->setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
 
             ASSERT_THAT(client->send(large_message.data(), large_message.size(),
                                      [&](auto) { client->close(); }),
@@ -291,7 +291,7 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     ScopedAsyncSocket server_socket;  // To hold the server-side socket
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([&](std::string_view data, absl::Status err) {
+        socket->setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
             std::lock_guard<std::mutex> lock(received_mutex);
             received_data << data;
         });
@@ -318,7 +318,7 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     absl::Notification connected;
     mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([&connected](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+            socket.setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
             connected.Notify();
         });
         ASSERT_THAT(client->connect(), IsOk());
@@ -364,7 +364,7 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
     auto client_closed_future = client_closed_promise.get_future();
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([](std::string_view data, absl::Status err) {});
+        socket->setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
         connected_promise.set_value();
         LOG(INFO) << "Server received connection, closing incoming.";
         // Let's be alive a bit so we don't get crazy concurrency.
@@ -385,7 +385,7 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
 
     mRawEventLoop->post([&]() {
         client->setOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+            socket.setOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
             LOG(INFO) << err;
         });
         client->setOnCloseCallback([&] {
@@ -428,9 +428,10 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     std::mutex server_sockets_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->setOnReadCallback([sock = socket.get()](std::string_view data, absl::Status err) {
-            ASSERT_THAT(sock->send(data.data(), data.size()), IsOk());
-        });
+        socket->setOnReadCallbackNoFlowControl(
+                [sock = socket.get()](std::string_view data, absl::Status err) {
+                    ASSERT_THAT(sock->send(data.data(), data.size()), IsOk());
+                });
         // Keep the socket alive by moving it into the scoped vector
         std::lock_guard<std::mutex> lock(server_sockets_mutex);
         server_sockets.emplace_back(std::move(socket));
@@ -451,9 +452,10 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
         client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
             ASSERT_EQ(&socket, client.get());
 
-            client->setOnReadCallback([&echo_promise](std::string_view data, absl::Status err) {
-                echo_promise.set_value(std::string(data));
-            });
+            client->setOnReadCallbackNoFlowControl(
+                    [&echo_promise](std::string_view data, absl::Status err) {
+                        echo_promise.set_value(std::string(data));
+                    });
 
             ASSERT_THAT(client->send(original_message.data(), original_message.size()), IsOk());
         });
