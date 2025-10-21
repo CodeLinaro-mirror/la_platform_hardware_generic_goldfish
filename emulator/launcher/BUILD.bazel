@@ -11,11 +11,13 @@ cc_library(
     hdrs = ["include/android/goldfish/input_paths.h"],
     includes = ["include"],
     deps = [
+        "//hardware/generic/goldfish/android/async:uv_to_absl",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/config",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@aemu//base:aemu-base",
+        "@libuv",
     ],
 )
 

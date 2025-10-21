@@ -25,10 +25,30 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
 
+#include "goldfish/async/uv_to_absl.h"
+
+#include "uv.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_MAX MAX_PATH
+#else
+#include <limits.h>
+#endif
+
 namespace android::goldfish {
 namespace {
 
 using android::base::System;
+
+absl::StatusOr<fs::path> get_program_path() {
+    char buf[PATH_MAX];
+    size_t size = sizeof(buf);
+    if (int res = uv_exepath(buf, &size); res < 0) {
+        return ::goldfish::async::UvErrToAbslStatus(res);
+    }
+    return fs::path(std::string_view(buf, size));
+}
 
 absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view description) {
     if (!fs::exists(path)) {
@@ -42,7 +62,7 @@ absl::StatusOr<fs::path> canonicalize(const fs::path &path) {
     std::error_code ec;
     auto canon = fs::canonical(path, ec);
     if (ec) {
-        return absl::InternalError(absl::StrCat("Failed to canonicalise path: ", path.string(), " - ", ec.message()));
+        return absl::InternalError(absl::StrCat("Failed to canonicalize path: ", path.string(), " - ", ec.message()));
     }
     if (canon != path) {
         VLOG(1) << "binary is a symlink, replacing with real path: " << path << " -> " << canon;
@@ -74,7 +94,8 @@ std::string add_qemu_binary_suffix(std::string binary) {
 
 absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     ResolvedInputPaths paths;
-    ASSIGN_OR_RETURN(paths.launcher_binary, check_exists(System::getProgramBinaryPath(), "launcher binary"));
+    ASSIGN_OR_RETURN(fs::path program_path, get_program_path());
+    ASSIGN_OR_RETURN(paths.launcher_binary, check_exists(program_path, "launcher binary"));
 
     if (auto d = System::getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
         paths.launcher_directory = fs::path(d);
@@ -89,8 +110,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     } else {
         paths.launcher_directory = paths.launcher_binary.parent_path();
         // Only set this if it wasn't already set as some integrators set it externally.
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
-                                              System::pathAsString(paths.launcher_directory));
+        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", paths.launcher_directory.string());
     }
     RETURN_IF_ERROR(check_exists(paths.launcher_directory, "launcher directory").status());
 
