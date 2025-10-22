@@ -19,10 +19,9 @@
 #include <string>
 #include <vector>
 
+#include "grpc_endpoint_description.pb.h"
 #include "grpcpp/impl/codegen/service_type.h"
 #include "grpcpp/security/server_credentials.h"
-
-#include "hardware/generic/goldfish/emulator/grpc/client/proto/grpc_endpoint_description.pb.h"
 
 #ifdef _MSC_VER
 #include "msvc-posix.h"

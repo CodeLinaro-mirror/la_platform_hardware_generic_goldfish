@@ -38,7 +38,7 @@ cc_library(
     deps = [
         ":keyconversion",
         "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",

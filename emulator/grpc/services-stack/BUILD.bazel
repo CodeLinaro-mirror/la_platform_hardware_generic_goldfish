@@ -10,7 +10,7 @@ cc_library(
     visibility = ["//hardware/generic/goldfish/emulator/plugin/grpc:__subpackages__"],
     deps = [
         "//hardware/generic/goldfish/emulator/adb/secrets",
-        "//hardware/generic/goldfish/emulator/grpc/client/proto:grpc_endpoint_description_cc_proto",
+        "//hardware/generic/goldfish/emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//hardware/generic/goldfish/emulator/grpc/interceptors",
         "//hardware/generic/goldfish/emulator/grpc/security",
         "//hardware/generic/goldfish/emulator/grpc/services/adb/server:adb-service",

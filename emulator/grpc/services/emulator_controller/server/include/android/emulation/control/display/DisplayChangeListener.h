@@ -13,7 +13,7 @@
 // limitations under the License.
 #pragma once
 #include "android/emulation/control/utils/GrpcEventStreamSupport.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.pb.h"
+#include "emulator_controller.pb.h"
 
 namespace android {
 namespace emulation {

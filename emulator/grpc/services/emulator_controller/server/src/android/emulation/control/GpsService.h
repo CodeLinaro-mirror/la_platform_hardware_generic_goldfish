@@ -15,8 +15,8 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {

@@ -31,8 +31,8 @@
 #include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 extern "C" {
 QemuConsole* qemu_console_lookup_by_index(unsigned int index);

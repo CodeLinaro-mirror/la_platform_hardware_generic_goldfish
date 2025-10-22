@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-#include "hardware/generic/goldfish/emulator/grpc/client/proto/grpc_endpoint_description.pb.h"
+#include "grpc_endpoint_description.pb.h"
 
 namespace android {
 namespace emulation {
