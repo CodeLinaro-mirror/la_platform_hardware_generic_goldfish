@@ -60,7 +60,10 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     // Connect and wait for it to be established before starting the benchmark.
     absl::Notification connect_notification;
     loop_->post([&]() {
-        client->setOnConnectedCallback([&](auto) { connect_notification.Notify(); });
+        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            socket.setOnReadCallback([&](std::string_view data, absl::Status err) {});
+            connect_notification.Notify();
+        });
         client->connect();
     });
     connect_notification.WaitForNotification();
@@ -100,7 +103,10 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
 
     absl::Notification connected_notification;
     loop_->post([&]() {
-        client->setOnConnectedCallback([&](auto) { connected_notification.Notify(); });
+        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            socket.setOnReadCallback([&](std::string_view data, absl::Status err) {});
+            connected_notification.Notify();
+        });
         client->connect();
     });
     connected_notification.WaitForNotification();

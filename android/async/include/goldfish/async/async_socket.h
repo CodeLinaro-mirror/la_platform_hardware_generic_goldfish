@@ -124,12 +124,24 @@ class AsyncSocket {
 
     /// @brief Callback for read events. If `err` is not OK, `data` is empty.
     using OnReadCallback = std::function<void(std::string_view data, absl::Status err)>;
-    /// @brief Callback for when a socket is fully closed.
-    using OnCloseCallback = std::function<void()>;
-    /// @brief Callback for the result of a connection attempt.
-    using OnConnectCallback = std::function<void(absl::Status err)>;
     /// @brief Callback for the result of a send operation.
     using OnSendCallback = std::function<void(absl::Status err)>;
+    /// @brief Callback for when a socket is fully closed.
+    using OnCloseCallback = std::function<void()>;
+
+    /**
+     * @brief Callback for the result of a connection attempt.
+     *
+     * This callback **MUST** set the reading callback in `sock` to prevent loss of data.
+     * The process will abort intentionally otherwise.
+     *
+     * It is a good idea to set all the required callbacks (see above) in this one.
+     *
+     * @param sock The socket which just connected.
+     * @param err The connect call result.
+     * @warning This method must be called from the socket's event loop thread.
+     */
+    using OnConnectCallback = std::function<void(AsyncSocket& sock, absl::Status err)>;
 
     /**
      * @brief Sets the callback for read events.

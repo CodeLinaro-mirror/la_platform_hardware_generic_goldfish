@@ -49,6 +49,9 @@ class AsyncSocketServer {
      * This callback is the primary mechanism for handling new clients. It is
      * executed on the server's event loop thread.
      *
+     * This callback **MUST** set the reading callback in `sock` to prevent loss of data.
+     * The process will abort intentionally otherwise.
+     *
      * @param socket A `std::shared_ptr` to the newly accepted `AsyncSocket`.
      * @return Return `true` to accept the connection, or `false` to
      * immediately reject and close it.

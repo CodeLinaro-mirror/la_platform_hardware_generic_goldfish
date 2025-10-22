@@ -81,6 +81,8 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
     auto client_closed_future = client_closed_promise.get_future();
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->setOnReadCallback([](std::string_view data, absl::Status err) {});
+
         connected_promise.set_value();
         LOG(INFO) << "Server received connection, closing incoming.";
         // Let's be alive a bit so we don't get crazy concurrency.
@@ -102,8 +104,10 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
     ASSERT_NE(client, nullptr);
 
     mRawEventLoop->post([&]() {
-        client->setOnConnectedCallback(
-                [&](absl::Status err) { LOG(INFO) << err; });
+        client->setOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
+            LOG(INFO) << err;
+            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+        });
         client->setOnCloseCallback([&] {
             LOG(INFO) << "Client is closed";
             client_closed_promise.set_value();
@@ -151,7 +155,11 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
 
     mRawEventLoop->post([&]() {
         client->setOnCloseCallback([&] { closed_promise.set_value(); });
-        client->setOnConnectedCallback([&](auto) {
+        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            ASSERT_EQ(&socket, client.get());
+
+            client->setOnReadCallback([](std::string_view data, absl::Status err) {});
+
             ASSERT_THAT(client->send(sent_message.data(), sent_message.size(),
                                      [&](auto) { client->close(); }),
                         IsOk());
@@ -200,13 +208,13 @@ TEST_F(AsyncSocketTest, EchoTest) {
                 [&](std::string_view data, absl::Status err) {
                     echo_promise.set_value(std::string(data));
                 });
-        client->setOnConnectedCallback([&](auto) {
-            ASSERT_THAT(client->send(original_message.data(), original_message.size()), IsOk());
-        });
-        client->setOnConnectedCallback([&](auto) {
-            ASSERT_THAT(
-                    client->send(original_message.data(), original_message.size()),
-                    IsOk());
+        client->setOnConnectedCallback([&original_message, &echo_promise](AsyncSocket& socket,
+                                                                          absl::Status err) {
+            socket.setOnReadCallback([&echo_promise](std::string_view data, absl::Status err) {
+                echo_promise.set_value(std::string(data));
+            });
+
+            ASSERT_THAT(socket.send(original_message.data(), original_message.size()), IsOk());
         });
         ASSERT_THAT(client->connect(), IsOk());
     });
@@ -254,7 +262,11 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
     ASSERT_NE(client, nullptr);
 
     mRawEventLoop->post([&]() {
-        client->setOnConnectedCallback([&](auto) {
+        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            ASSERT_EQ(&socket, client.get());
+
+            client->setOnReadCallback([](std::string_view data, absl::Status err) {});
+
             ASSERT_THAT(client->send(large_message.data(), large_message.size(),
                                      [&](auto) { client->close(); }),
                         IsOk());
@@ -305,7 +317,10 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     std::vector<std::thread> threads;
     absl::Notification connected;
     mRawEventLoop->post([&]() {
-        client->setOnConnectedCallback([&](auto) { connected.Notify(); });
+        client->setOnConnectedCallback([&connected](AsyncSocket& socket, absl::Status err) {
+            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+            connected.Notify();
+        });
         ASSERT_THAT(client->connect(), IsOk());
     });
 
@@ -349,6 +364,7 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
     auto client_closed_future = client_closed_promise.get_future();
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->setOnReadCallback([](std::string_view data, absl::Status err) {});
         connected_promise.set_value();
         LOG(INFO) << "Server received connection, closing incoming.";
         // Let's be alive a bit so we don't get crazy concurrency.
@@ -368,7 +384,10 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
     ASSERT_NE(client, nullptr);
 
     mRawEventLoop->post([&]() {
-        client->setOnConnectedCallback([&](absl::Status err) { LOG(INFO) << err; });
+        client->setOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
+            socket.setOnReadCallback([](std::string_view data, absl::Status err) {});
+            LOG(INFO) << err;
+        });
         client->setOnCloseCallback([&] {
             LOG(INFO) << "Client is closed";
             client_closed_promise.set_value();
@@ -429,10 +448,13 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     ASSERT_NE(client, nullptr);
 
     mRawEventLoop->post([&]() {
-        client->setOnReadCallback([&](std::string_view data, absl::Status err) {
-            echo_promise.set_value(std::string(data));
-        });
-        client->setOnConnectedCallback([&](auto) {
+        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            ASSERT_EQ(&socket, client.get());
+
+            client->setOnReadCallback([&echo_promise](std::string_view data, absl::Status err) {
+                echo_promise.set_value(std::string(data));
+            });
+
             ASSERT_THAT(client->send(original_message.data(), original_message.size()), IsOk());
         });
         ASSERT_THAT(client->connect(), IsOk());
@@ -441,4 +463,5 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     runUntil(echo_future);
     EXPECT_EQ(echo_future.get(), original_message);
 }
+
 }  // namespace goldfish::async

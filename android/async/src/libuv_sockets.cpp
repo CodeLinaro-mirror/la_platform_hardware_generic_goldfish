@@ -242,17 +242,14 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void on_read(ssize_t nread, const uv_buf_t* buf) {
+        assert(mOnRead && "`mOnRead` must be set set to prevent loss of data.");
         VLOG(2) << "on_read: " << nread << " : " << UvErrToAbslStatus(nread);
         if (nread >= 0) {
             // Success path (nread > 0) or no-op (nread == 0).
-            if (mOnRead) {
-                mOnRead({buf->base, (size_t)nread}, absl::OkStatus());
-            }
+            mOnRead({buf->base, (size_t)nread}, absl::OkStatus());
         } else {
             // Error path (nread < 0). This is a fatal, unrecoverable stream error.
-            if (mOnRead) {
-                mOnRead({}, UvErrToAbslStatus(nread));
-            }
+            mOnRead({}, UvErrToAbslStatus(nread));
             close();
         }
     }
@@ -262,11 +259,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         if (mOnConnected) {
             if (status == 0) {
                 mIsConnected = true;
-                mOnConnected(absl::OkStatus());
+                mOnConnected(*this, absl::OkStatus());
+                CHECK(mOnRead)
+                        << "`mOnRead` must be set by `mOnConnected` to prevent loss of data.";
                 startReading();
             } else {
                 // Failure case
-                mOnConnected(UvErrToAbslStatus(status));
+                mOnConnected(*this, UvErrToAbslStatus(status));
             }
         }
     }
@@ -414,6 +413,8 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                              << "to prevent it from being abandoned.";
                 client->close();
             } else {
+                CHECK(client->mOnRead)
+                        << "`mOnRead` must be set by `mConnectCallback` to prevent loss of data.";
                 client->startReading();
             }
         } else {
