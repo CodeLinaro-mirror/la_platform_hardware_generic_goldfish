@@ -22,9 +22,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "grpc_endpoint_description.pb.h"
 
 #include "aemu/base/events/EventSources.h"
-#include "hardware/generic/goldfish/emulator/grpc/client/proto/grpc_endpoint_description.pb.h"
 
 namespace android {
 namespace emulation {

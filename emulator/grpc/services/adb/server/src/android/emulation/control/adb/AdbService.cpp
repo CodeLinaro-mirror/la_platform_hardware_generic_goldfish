@@ -18,10 +18,10 @@
 #include <fstream>
 #include <sstream>
 
+#include "adb_service.grpc.pb.h"
+#include "adb_service.pb.h"
 #include "aemu/base/files/PathUtils.h"
 #include "android/emulation/control/adb/adbkey.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/adb/proto/adb_service.grpc.pb.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/adb/proto/adb_service.pb.h"
 
 namespace google {
 namespace protobuf {

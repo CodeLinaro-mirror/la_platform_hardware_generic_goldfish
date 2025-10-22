@@ -10,7 +10,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/emulator/adb/secrets",
         "//hardware/generic/goldfish/emulator/grpc/async",
-        "//hardware/generic/goldfish/emulator/grpc/services/adb/proto:adb_service_cc_grpc",
+        "//hardware/generic/goldfish/emulator/grpc/services/adb:adb_service_cc_grpc",
         "@aemu//base:aemu-base",
     ],
 )

@@ -34,7 +34,7 @@ cc_test(
         "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_proto",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_proto",
         "@googletest//:gtest",
     ],
 )

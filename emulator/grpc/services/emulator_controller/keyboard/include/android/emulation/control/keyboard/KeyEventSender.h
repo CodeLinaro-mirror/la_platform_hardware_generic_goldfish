@@ -16,8 +16,8 @@
 #pragma once
 #include <memory>
 
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 // Necessary on Windows.
 #undef send

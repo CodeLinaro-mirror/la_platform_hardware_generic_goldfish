@@ -24,10 +24,10 @@
 #include "FakePixmanDisplay.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/NotificationStream.h"
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/test_fake_connector_registry.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android::emulation::control {
 

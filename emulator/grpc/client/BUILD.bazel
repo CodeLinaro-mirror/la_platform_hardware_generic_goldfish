@@ -1,6 +1,20 @@
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "grpc_endpoint_description_proto",
+    srcs = ["proto/grpc_endpoint_description.proto"],
+    strip_import_prefix = "proto",
+    deps = ["@protobuf//:empty_proto"],
+)
+
+cc_proto_library(
+    name = "grpc_endpoint_description_cc_proto",
+    deps = [":grpc_endpoint_description_proto"],
+)
 
 cc_library(
     name = "emulator_grpc_client",
@@ -20,9 +34,9 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/emulator/config",
-        "//hardware/generic/goldfish/emulator/grpc/client/proto:grpc_endpoint_description_cc_proto",
+        "//hardware/generic/goldfish/emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//hardware/generic/goldfish/emulator/grpc/security",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
@@ -40,7 +54,7 @@ cc_test(
         ":emulator_grpc_client",
         "//hardware/generic/goldfish/android/sockets",
         "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
         "@grpc//:grpc++",

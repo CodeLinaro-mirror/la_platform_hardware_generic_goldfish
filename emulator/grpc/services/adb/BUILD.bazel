@@ -6,7 +6,8 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpa
 
 proto_library(
     name = "adb_service_proto",
-    srcs = ["adb_service.proto"],
+    srcs = ["proto/adb_service.proto"],
+    strip_import_prefix = "proto",
     deps = ["@protobuf//:empty_proto"],
 )
 

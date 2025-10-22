@@ -20,8 +20,8 @@
 #include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/PointerEventDispatcher.h"
 #include "android/goldfish/display/MultiDisplay.h"
+#include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
 
 namespace android::emulation::control {
 

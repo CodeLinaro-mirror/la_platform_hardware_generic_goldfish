@@ -22,7 +22,7 @@
 
 #include "android/emulation/control/VmService.h"
 #include "android/goldfish/vm/VmInterface.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
+#include "emulator_controller.grpc.pb.h"
 
 namespace android {
 namespace emulation {

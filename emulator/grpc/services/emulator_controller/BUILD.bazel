@@ -1,5 +1,4 @@
 load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
-#load("@grpc//bazel:python_rules.bzl", "py_grpc_library", "py_proto_library")
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -7,7 +6,8 @@ package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpa
 
 proto_library(
     name = "emulator_controller_proto",
-    srcs = ["emulator_controller.proto"],
+    srcs = ["proto/emulator_controller.proto"],
+    strip_import_prefix = "proto",
     deps = [
         "@protobuf//:empty_proto",
         "@protobuf//:wrappers_proto",

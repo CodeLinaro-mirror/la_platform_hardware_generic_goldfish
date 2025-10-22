@@ -17,7 +17,7 @@
 #include <map>
 #include <memory>
 
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.pb.h"
+#include "emulator_controller.pb.h"
 
 namespace android {
 namespace control {

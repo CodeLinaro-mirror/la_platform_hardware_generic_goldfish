@@ -33,7 +33,7 @@
 
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
-#include "hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto/emulator_controller.grpc.pb.h"
+#include "emulator_controller.grpc.pb.h"
 
 using android::emulation::control::BlockingEmulatorGrpcClient;
 using android::emulation::control::CallbackEmulatorGrpcClient;

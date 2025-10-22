@@ -18,7 +18,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/proto:emulator_controller_cc_grpc",
+        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/hal/display:headers",
         "//third_party/qemu:qemu-headers",
