@@ -218,6 +218,9 @@ class FakeAvd : public Avd {
     CpuArchitecture detectArchitecture() const override { return mCpuArchitecture; }
     void setCpuArchitecture(CpuArchitecture arch) { mCpuArchitecture = arch; }
 
+    fs::path getSdkPath() const override {}
+    fs::path getAvdPath() const override {}
+
     const HardwareConfig& hw() const override { return mHwCfg; }
     HardwareConfig& mutable_hw() { return mHwCfg; }
 
@@ -233,7 +236,7 @@ class FakeAvd : public Avd {
     std::string apiDescription() const override { return mApiDescription; }
     void setApiDescription(const std::string& description) { mApiDescription = description; }
 
-    fs::path getIniFile() const override { return mIniFile; }
+    fs::path getConfigIniPath() const override { return mIniFile; }
     void setIniFile(const fs::path& iniFile) { mIniFile = iniFile; }
 
     std::string display_name() const override { return mDisplayName; }

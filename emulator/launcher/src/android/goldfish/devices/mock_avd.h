@@ -39,12 +39,15 @@ class MockAvd : public Avd {
     MOCK_METHOD(bool, hasEncryptionKey, (), (const override));
     MOCK_METHOD(CpuArchitecture, detectArchitecture, (), (const override));
 
+    MOCK_METHOD(fs::path, getSdkPath, (), (const override));
+    MOCK_METHOD(fs::path, getAvdPath, (), (const override));
+
     MOCK_METHOD(const HardwareConfig&, hw, (), (const override));
     MOCK_METHOD(bool, playstore, (), (const override));
     MOCK_METHOD(int, apiLevel, (), (const override));
     MOCK_METHOD(std::string, dessert, (), (const override));
     MOCK_METHOD(std::string, apiDescription, (), (const override));
-    MOCK_METHOD(fs::path, getIniFile, (), (const override));
+    MOCK_METHOD(fs::path, getConfigIniPath, (), (const override));
     MOCK_METHOD(std::string, display_name, (), (const override));
 };
 

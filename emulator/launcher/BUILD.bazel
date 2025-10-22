@@ -10,10 +10,11 @@ cc_library(
     srcs = ["src/android/goldfish/input_paths.cpp"],
     hdrs = ["include/android/goldfish/input_paths.h"],
     includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/async:uv_to_absl",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:config_dirs",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@aemu//base:aemu-base",

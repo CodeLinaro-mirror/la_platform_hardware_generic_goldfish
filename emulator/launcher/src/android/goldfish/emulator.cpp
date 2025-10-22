@@ -144,8 +144,8 @@ absl::Status Emulator::addDevices() {
         addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
     }
 
-    auto ini_path = System::pathAsString(a.getIniFile());
-    std::string avd_params = absl::StrCat("ini_path=", ini_path, ",serial_number=", serial_number());
+    auto config_ini_path = a.getConfigIniPath().string();
+    std::string avd_params = absl::StrCat("ini_path=", config_ini_path, ",serial_number=", serial_number());
     if (o.quit_after_boot) {
         if (int timeout; absl::SimpleAtoi(o.quit_after_boot, &timeout)) {
             absl::StrAppend(&avd_params, ",quit_after_boot_timeout=", timeout);

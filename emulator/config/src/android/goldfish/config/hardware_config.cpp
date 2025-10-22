@@ -47,10 +47,10 @@ void HardwareConfig::load(IniFile* ini) {
 
 void HardwareConfig::applyDefaults(const Avd &avd) {
     if (android_sdk_root.empty()) {
-        android_sdk_root = ConfigDirs::getSdkRootDirectory().string();
+        android_sdk_root = avd.getSdkPath().string();
     }
     if (android_avd_home.empty()) {
-        android_avd_home = ConfigDirs::getAvdRootDirectory().string();
+        android_avd_home = avd.getAvdPath().string();
     }
 
     /* Bug: 307296354
