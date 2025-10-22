@@ -80,8 +80,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     // Set the system clock to the QEMU implementation.
     android::base::IClock::set(std::make_unique<android::base::QemuClock>());
 
-    auto avd_status = android::goldfish::FileBackedAvd::parse(avd_info->ini_path,
-                                                              /*sysdir_override=*/std::string());
+    auto avd_status = android::goldfish::FileBackedAvd::parse(/*name=*/"TODO", avd_info->ini_path, /*sdk_path=*/{}, /*avd_path=*/{}, /*content_path=*/{});
     if (!avd_status.ok()) {
         LOG(FATAL) << "Unable to load: " << avd_info->ini_path
                    << " due to: " << avd_status.status().message();

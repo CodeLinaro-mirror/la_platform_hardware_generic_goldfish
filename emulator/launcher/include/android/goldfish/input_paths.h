@@ -33,8 +33,9 @@ struct ResolvedInputPaths {
     fs::path lib64_directory;
     fs::path bios_directory;
 
-    fs::path sdk_directory;
+    fs::path user_directory;
     fs::path avd_directory;
+    fs::path sdk_directory;
     fs::path discovery_directory;
 
     fs::path qemu_system_x86_binary;

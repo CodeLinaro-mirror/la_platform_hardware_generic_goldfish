@@ -22,6 +22,7 @@
 #include "aemu/base/files/IniFile.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/config/image_list.h"
+#include "android/goldfish/input_paths.h"
 
 namespace android::goldfish {
 namespace fs = std::filesystem;
@@ -89,6 +90,9 @@ class Avd {
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
     virtual DeviceType getDeviceType() const = 0;
+
+    virtual fs::path getSdkPath() const = 0;
+    virtual fs::path getAvdPath() const = 0;
 
     /**
      * @brief Returns the path to the AVD's content directory. This is typically
@@ -174,11 +178,11 @@ class Avd {
      * @brief Returns the path to the AVD's configuration file.
      *
      * This method returns the path to the AVD's configuration file, which is
-     * typically located in ~/.android/avd/
+     * typically ~/.android/avd/<name>.avd/config.ini
      *
      * @return Path to the avd configuration file
      */
-    virtual fs::path getIniFile() const = 0;
+    virtual fs::path getConfigIniPath() const = 0;
 
     /**
      * @brief Returns the AVD's display name if set, otherwise the name.
@@ -205,7 +209,7 @@ class Avd {
      *
      * @return A std::vector containing the names of discovered AVDs.
      */
-    static std::vector<std::string> list();
+    static std::vector<std::string> list(const fs::path &avd_directory);
 
     /**
      * @brief Constructs an AVD object from its name.
@@ -218,7 +222,7 @@ class Avd {
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<std::unique_ptr<Avd>> fromName(std::string name,
+    static absl::StatusOr<std::unique_ptr<Avd>> fromName(const android::goldfish::ResolvedInputPaths &paths, std::string name,
                                                          fs::path sysdir_override = {},
                                                          fs::path writable_content_override = {});
 
@@ -232,9 +236,12 @@ class FileBackedAvd : public Avd {
   public:
     std::string details(bool verbose) const override;
 
+    fs::path getSdkPath() const override { return mSdkPath; }
+    fs::path getAvdPath() const override { return mAvdPath; }
+
     std::string name() const override { return mName; }
     DeviceType getDeviceType() const override;
-    fs::path getContentPath() const override { return mWritableContentOverride.empty() ? mContentPath : mWritableContentOverride; };
+    fs::path getContentPath() const override { return mContentPath; };
     absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const override;
     CpuArchitecture detectArchitecture() const override;
     const HardwareConfig& hw() const override { return mHwCfg; }
@@ -242,27 +249,23 @@ class FileBackedAvd : public Avd {
     int apiLevel() const override;
     std::string dessert() const override;
     std::string apiDescription() const override;
-    fs::path getIniFile() const override { return mTarget->getBackingFile(); }
+    fs::path getConfigIniPath() const override { return mConfig->getBackingFile(); }
     std::string display_name() const override {
         return mConfig->getString("avd.ini.displayname", name());
     }
 
-    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(fs::path ini_file,
-                                                                fs::path sysdir_override = {},
-                                                                fs::path writable_content_override = {});
+    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override = {});
 
    private:
-    FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
-                                std::unique_ptr<IniFile> config, std::string name,
-                                fs::path sysdir_override, fs::path writable_content_override);
+    FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path, fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
 
     std::string mName;
-    fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
-    std::unique_ptr<IniFile> mTarget;
     std::unique_ptr<IniFile> mConfig;
+    fs::path mSdkPath;
+    fs::path mAvdPath;
+    fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
+    std::vector<fs::path> mSysImagePaths;
     HardwareConfig mHwCfg;
-    fs::path mSysdirOverride;
-    fs::path mWritableContentOverride;
 };
 
 }  // namespace android::goldfish

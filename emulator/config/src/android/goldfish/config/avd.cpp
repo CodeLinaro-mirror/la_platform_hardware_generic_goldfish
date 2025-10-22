@@ -13,9 +13,6 @@
 // limitations under the License.
 #include "android/goldfish/config/avd.h"
 
-#include "absl/log/log.h"
-
-#include <android/goldfish/config/hardware_config.h>
 
 #include <cctype>
 #include <filesystem>
@@ -26,7 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/absl_log.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
@@ -39,7 +36,10 @@
 #include "aemu/base/files/IniFile.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/config/keys.h"
+#include "android/goldfish/input_paths.h"
+
 #include "host-common/constants.h"
 
 /* technical note on how all of this is supposed to work:
@@ -254,13 +254,13 @@ DeviceType FileBackedAvd::getDeviceType() const {
 
     auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
     if (!buildprop.ok()) {
-        ABSL_LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
+        LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
                           << ", using unknown avd device type.";
         return DeviceType::kUnknown;
     }
 
     if (!System::get()->pathExists(*buildprop) || !System::get()->pathCanRead(*buildprop)) {
-        ABSL_LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
+        LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
                           << ", using unknown device type.";
         return DeviceType::kUnknown;
     }
@@ -285,41 +285,22 @@ DeviceType FileBackedAvd::getDeviceType() const {
 }
 
 absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType imgType) const {
-    auto make_path = [imgType](const fs::path& p) {
-        return p / _imageFileNames[static_cast<uint8_t>(imgType)];
-    };
+    auto image_file_name = getImageFilename(imgType);
 
     auto check_path = [](const fs::path& p) {
         return System::get()->pathExists(p) && System::get()->pathCanRead(p);
     };
 
-    if (!mSysdirOverride.empty()) {
-        if (auto p = make_path(mSysdirOverride); check_path(p)) {
-            VLOG(1) << "Found in sysdir override: " << p;
-            return p;
-        } else {
-            return absl::NotFoundError(
-                    absl::StrCat("Path ", p.string(), " using sysdir override does not exist"));
-        }
-    }
-    auto sdk = ConfigDirs::getSdkRootDirectory();
-    VLOG(1) << "SDK Root path: " << sdk;
+    VLOG(1) << "Searching for sys image: " << image_file_name;
     fs::path path = "no-sysimg";
-    std::string key;
-    for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
-        key = absl::StrFormat("%s%d", SEARCH_PREFIX, n);
-        if (!mConfig->hasKey(key)) {
-            continue;
-        }
-        if (path = make_path(sdk / mConfig->getString(key, "unused")); check_path(path)) {
-            VLOG(1) << "Found in system dir: " << path;
+    for (const auto &sys_path: mSysImagePaths) {
+        if (path = sys_path / image_file_name; check_path(path)) {
+            VLOG(1) << "Found image in system dir: " << path;
             return path;
         }
         VLOG(1) << "Not found in system dir: " << path;
     }
-    return absl::NotFoundError(absl::StrFormat("Path %s specified in %s does not exist (key=%s)",
-                                               path.string(), mConfig->getBackingFile().string(),
-                                               key));
+    return absl::NotFoundError(absl::StrCat("System image not found: ", image_file_name.string(), " (last checked ", path.string(), ")"));
 }
 
 std::string FileBackedAvd::details(const bool verbose) const {
@@ -332,15 +313,13 @@ std::string FileBackedAvd::details(const bool verbose) const {
     }
 }
 
-FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> target,
-                             std::unique_ptr<IniFile> config, std::string name,
-                             fs::path sysdir_override, fs::path writable_content_override)
+FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path, fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths)
         : mName(name)
-        , mContentPath(content_path)
-        , mTarget(std::move(target))
         , mConfig(std::move(config))
-        , mSysdirOverride(std::move(sysdir_override))
-        , mWritableContentOverride(std::move(writable_content_override)) {
+        , mSdkPath(std::move(sdk_path))
+        , mAvdPath(std::move(avd_path))
+        , mContentPath(std::move(content_path))
+        , mSysImagePaths(std::move(sys_image_paths)) {
     mHwCfg.load(mConfig.get());
 
     // TODO also load skin hardware.ini if present?
@@ -366,42 +345,29 @@ FileBackedAvd::FileBackedAvd(fs::path content_path, std::unique_ptr<IniFile> tar
 }
 
 // static
-absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(fs::path ini_file,
-                                                                    fs::path sysdir_override,
-                                                                    fs::path writable_content_override) {
+absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override) {
     auto* sys = System::get();
-    if (!sys->pathExists(ini_file) || !sys->pathCanRead(ini_file)) {
-        return absl::NotFoundError(absl::StrCat("No access to: ", System::pathAsString(ini_file)));
+    if (!sys->pathExists(config_ini_path) || !sys->pathCanRead(config_ini_path)) {
+        return absl::NotFoundError(absl::StrCat("Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
     }
 
-    auto ini = std::make_unique<IniFile>(ini_file);
-    if (!ini->read()) {
-        return absl::InternalError(
-                absl::StrCat("Unable to parse ini file: ", System::pathAsString(ini_file)));
-    }
-
-    // Extract the avd name from the .ini file.
-    std::string name = System::pathAsString(ini_file.stem());
-
-    fs::path content_path = fs::path(ini->get<std::string>("path", ""));
-    if (!sys->pathExists(content_path) || !sys->pathCanRead(content_path)) {
-        auto rel_path = ini->get<std::string>("path.rel", "");
-        content_path = ConfigDirs::getUserDirectory() / rel_path;
-    }
-    fs::path cfg_ini = content_path / "config.ini";
-
-    if (!sys->pathExists(cfg_ini) || !sys->pathCanRead(cfg_ini)) {
-        return absl::NotFoundError(absl::StrFormat("Unable to parse %s, no access to config: %s",
-                                                   name, cfg_ini.string()));
-    }
-
-    auto config = std::make_unique<IniFile>(cfg_ini);
+    auto config = std::make_unique<IniFile>(config_ini_path);
     if (!config->read()) {
-        return absl::InternalError("Unable to parse ini file: " + cfg_ini.string());
+        return absl::InternalError(absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
     }
-    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(content_path, std::move(ini),
-                                                            std::move(config), name,
-                                                            std::move(sysdir_override), std::move(writable_content_override)));
+
+    std::vector<fs::path> sys_image_paths;
+    if (!sysdir_override.empty()) {
+        sys_image_paths.push_back(sysdir_override);
+    } else {
+        for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
+            if (std::string s = config->getString(absl::StrCat(SEARCH_PREFIX, n), ""); !s.empty()) {
+                sys_image_paths.push_back(sdk_path / s);
+            }
+        }
+    }
+
+    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(std::move(name), std::move(config), std::move(sdk_path), std::move(avd_path), std::move(content_path), std::move(sys_image_paths)));
 }
 
 namespace {
@@ -416,12 +382,11 @@ bool _checkAvdName(const std::string& name) {
 }  // namespace
 
 // static
-std::vector<std::string> Avd::list() {
+std::vector<std::string> Avd::list(const fs::path &avd_directory) {
     std::vector<std::string> avds;
     auto pattern = std::regex(".*.ini");
-    auto directory_path = ConfigDirs::getAvdRootDirectory();
 
-    for (const auto& entry : fs::directory_iterator(directory_path)) {
+    for (const auto& entry : fs::directory_iterator(avd_directory)) {
         const auto& filename = entry.path().filename().string();
 
         // Simple pattern matching
@@ -437,12 +402,33 @@ std::vector<std::string> Avd::list() {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(std::string name, fs::path sysdir_override,
+absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(const android::goldfish::ResolvedInputPaths &paths, std::string name, fs::path sysdir_override,
                                                    fs::path writable_content_override) {
 
-    auto directory_path = ConfigDirs::getAvdRootDirectory();
-    return FileBackedAvd::parse(directory_path / (name + ".ini"), std::move(sysdir_override),
-                                std::move(writable_content_override));
+    auto ini_path = paths.avd_directory / (name + ".ini");
+
+    auto* sys = System::get();
+    if (!sys->pathExists(ini_path) || !sys->pathCanRead(ini_path)) {
+        return absl::NotFoundError(absl::StrCat("No access to: ", ini_path.string()));
+    }
+
+    auto ini = std::make_unique<IniFile>(ini_path);
+    if (!ini->read()) {
+        return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
+    }
+
+    fs::path content_path = fs::path(ini->get<std::string>("path", ""));
+    if (!sys->pathExists(content_path) || !sys->pathCanRead(content_path)) {
+        auto rel_path = ini->get<std::string>("path.rel", "");
+        content_path = paths.user_directory / rel_path;
+    }
+    fs::path config_ini_path = content_path / "config.ini";
+
+    if (!writable_content_override.empty()) {
+        content_path = std::move(writable_content_override);
+    }
+
+    return FileBackedAvd::parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory, std::move(content_path), std::move(sysdir_override));
 }
 
 // static

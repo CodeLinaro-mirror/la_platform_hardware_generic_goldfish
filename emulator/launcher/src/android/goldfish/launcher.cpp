@@ -256,6 +256,18 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     int mEmulatorExitStatus = 0;
 };
 
+void list_avds(const ResolvedInputPaths &resolved_paths, bool verbose, char *sysdir_override) {
+    auto avds = Avd::list(resolved_paths.avd_directory);
+    for (const auto& name : avds) {
+        auto a = Avd::fromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
+        if (!a.status().ok()) {
+            std::cout << name << "is not valid: " << a.status().message();
+        } else {
+            std::cout << (*a)->details(verbose) << '\n';
+        }
+    }
+}
+
 } // namespace
 } // namespace android::goldfish
 
@@ -286,19 +298,6 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
 
-    if (opts.list_avds) {
-        auto avds = Avd::list();
-        for (const auto& name : avds) {
-            auto a = Avd::fromName(name, opts.sysdir ? opts.sysdir : "");
-            if (!a.status().ok()) {
-                std::cout << name << "is not valid: " << a.status().message();
-            } else {
-                std::cout << (*a)->details(opts.verbose) << '\n';
-            }
-        }
-        return 0;
-    }
-
     Bazel::storeCommandLineArgs(argc, argv);
     android::goldfish::show_banner();
 
@@ -315,6 +314,11 @@ int main(int argc, char** argv) {
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;
+    }
+
+    if (opts.list_avds) {
+        android::goldfish::list_avds(*resolved_paths, opts.verbose, opts.sysdir);
+        return 0;
     }
 
     if (!crashhandler_init(argc, argv)) {
@@ -362,7 +366,7 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = Avd::fromName(name, sysdir_override, writable_content_override);
+    auto avd = Avd::fromName(*resolved_paths, name, sysdir_override, writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
