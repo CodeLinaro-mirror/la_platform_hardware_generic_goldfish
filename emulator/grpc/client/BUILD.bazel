@@ -33,7 +33,6 @@ cc_library(
     ],
     deps = [
         "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/emulator/config",
         "//hardware/generic/goldfish/emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//hardware/generic/goldfish/emulator/grpc/security",
         "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",

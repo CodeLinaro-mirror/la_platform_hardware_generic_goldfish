@@ -30,6 +30,7 @@ cc_library(
     deps = [
         ":input_paths",
         "//hardware/generic/goldfish/emulator/cmdline",
+        "//hardware/generic/goldfish/emulator/config:avd",
     ],
 )
 
@@ -108,7 +109,7 @@ cc_library(
         "//hardware/generic/goldfish/android/async:launch_config",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/cmdline",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:avd",
         "//hardware/generic/goldfish/emulator/crashreport:detectors",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:adb_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:audio_device",

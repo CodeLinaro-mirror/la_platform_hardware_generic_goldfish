@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
 
 #include <memory>         // for make_unique, unique_ptr
@@ -18,9 +19,7 @@
 #include <unordered_map>  // for unordered_map
 #include <vector>         // for vector
 
-#include "aemu/base/Compiler.h"  // for DISALLOW_COPY_AND_ASSIGN
 #include "aemu/base/process/Process.h"
-#include "android/base/system/System.h"
 
 namespace android {
 namespace goldfish {

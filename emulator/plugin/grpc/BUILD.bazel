@@ -25,6 +25,7 @@ cc_library(
     deps = [
         ":headers",
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
+        "//hardware/generic/goldfish/emulator/config:emulator_advertisement",
         "//hardware/generic/goldfish/emulator/grpc/event-stream",
         "//hardware/generic/goldfish/emulator/grpc/services-stack",
         "//hardware/generic/goldfish/emulator/libs/device_registry",

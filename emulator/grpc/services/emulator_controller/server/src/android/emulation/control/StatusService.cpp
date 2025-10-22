@@ -39,7 +39,7 @@ std::unordered_map<std::string, std::string> getQemuConfig(Avd* avd) {
 #define HWCFG_DOUBLE(n, s, d, a, t) cfg[s] std::to_string(config.n);
 #define HWCFG_DISKSIZE(n, s, d, a, t) cfg[s] = config.n.string();
 
-#include "host-common/hw-config-defs.h"
+#include "avd/hw-config-defs.h"
 
     cfg["avd.api_level"] = std::to_string(avd->apiLevel());
 

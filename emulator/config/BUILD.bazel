@@ -11,7 +11,7 @@ genrule(
     name = "hw-config-gen",
     srcs = ["data/hardware-properties.ini"],
     outs = ["include/avd/hw-config-defs.h"],
-    cmd = "$(location :gen-hw-config)  $(location data/hardware-properties.ini) $(location include/avd/hw-config-defs.h)",
+    cmd = "$(location :gen-hw-config) $(location data/hardware-properties.ini) $(location include/avd/hw-config-defs.h)",
     tools = [":gen-hw-config"],
 )
 
@@ -29,33 +29,53 @@ cc_library(
 )
 
 cc_library(
-    name = "config",
+    name = "hardware_config",
     srcs = [
-        "src/android/goldfish/config/avd.cpp",
-        "src/android/goldfish/config/emulator_advertisement.cpp",
         "src/android/goldfish/config/hardware_config.cpp",
-        "src/android/goldfish/config/keys.h",
+        ":hw-config-gen",
     ],
-    hdrs = [
-        "include/android/goldfish/config/avd.h",
-        "include/android/goldfish/config/emulator_advertisment.h",
-        "include/android/goldfish/config/hardware_config.h",
-        "include/android/goldfish/config/image_list.h",
+    hdrs = ["include/android/goldfish/config/hardware_config.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/files",
+        "@aemu//base:aemu-base",
     ],
-    includes = [
-        "include",
-        "src",
-    ],
+)
+
+cc_library(
+    name = "emulator_advertisement",
+    srcs = ["src/android/goldfish/config/emulator_advertisement.cpp"],
+    hdrs = ["include/android/goldfish/config/emulator_advertisment.h"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":config_dirs",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/android/system",
+        "@aemu//base:aemu-base",
+    ],
+)
+
+cc_library(
+    name = "avd",
+    srcs = [
+        "src/android/goldfish/config/avd.cpp",
+        "src/android/goldfish/config/keys.h",
+    ],
+    hdrs = [
+        "include/android/goldfish/config/avd.h",
+        "include/android/goldfish/config/image_list.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":config_dirs",
+        ":hardware_config",
+        "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/emulator/launcher:input_paths",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:absl_log",
         "@aemu//base:aemu-base",
     ],
 )
@@ -70,7 +90,7 @@ cc_library(
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
-        ":config",
+        ":avd",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -90,8 +110,8 @@ cc_test(
         "//conditions:default": [],
     }),
     deps = [
+        ":avd",
         ":avd-test",
-        ":config",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",

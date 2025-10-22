@@ -58,7 +58,7 @@ cc_library(
     deps = [
         ":gralloc_details",
         ":image_provider_api",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:avd",
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers/imagefile",
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers/videofile",
         "//hardware/generic/goldfish/emulator/hal/camera/image_providers/virtualscene",

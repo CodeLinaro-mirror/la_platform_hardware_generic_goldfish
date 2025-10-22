@@ -11,13 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "android/goldfish/config/hardware_config.h"
 
-#include <android/base/system/storage_capacity.h>
+#include <filesystem>
 
 #include "aemu/base/files/IniFile.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/config_dirs.h"
+
+#include "android/base/system/storage_capacity.h"
 
 namespace android::goldfish {
 
@@ -28,7 +29,7 @@ HardwareConfig::HardwareConfig() {
 #define HWCFG_DOUBLE(n, s, d, a, t) n = 0.0;
 #define HWCFG_DISKSIZE(n, s, d, a, t) n = 0;
 
-#include "host-common/hw-config-defs.h"
+#include "avd/hw-config-defs.h"
 }
 
 void HardwareConfig::load(IniFile* ini) {
@@ -39,18 +40,18 @@ void HardwareConfig::load(IniFile* ini) {
 #define HWCFG_DOUBLE(n, s, d, a, t) (n) = ini->getDouble(s, d);
 #define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini->getDiskSize(s, d);
 
-#include "host-common/hw-config-defs.h"
+#include "avd/hw-config-defs.h"
 
     hw_sdCard = ini->getDiskSize("sdcard.size", 0) > 0;
     hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
 }
 
-void HardwareConfig::applyDefaults(const Avd &avd) {
+void HardwareConfig::applyDefaults(const fs::path &sdk_root_path, const fs::path &avd_home_path) {
     if (android_sdk_root.empty()) {
-        android_sdk_root = avd.getSdkPath().string();
+        android_sdk_root = sdk_root_path.string();
     }
     if (android_avd_home.empty()) {
-        android_avd_home = avd.getAvdPath().string();
+        android_avd_home = avd_home_path.string();
     }
 
     /* Bug: 307296354
@@ -77,7 +78,7 @@ void HardwareConfig::write(IniFile* ini) {
 #define   HWCFG_DOUBLE(n,s,d,a,t)     ini->setDouble(s, n);
 #define   HWCFG_DISKSIZE(n,s,d,a,t)   ini->setDiskSize(s, static_cast<IniFile::DiskSize>(n));
 
-#include "host-common/hw-config-defs.h"
+#include "avd/hw-config-defs.h"
 
     ini->setDiskSize("sdcard.size", hw_sdCard_size.bytes());
 }

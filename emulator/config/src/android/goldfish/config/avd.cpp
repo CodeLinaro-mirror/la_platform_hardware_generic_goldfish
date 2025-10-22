@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/goldfish/config/avd.h"
 
+#include "android/goldfish/config/avd.h"
 
 #include <cctype>
 #include <filesystem>
@@ -37,10 +37,11 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/config/keys.h"
 #include "android/goldfish/input_paths.h"
 
 #include "host-common/constants.h"
+
+#include "keys.h"
 
 /* technical note on how all of this is supposed to work:
  *
@@ -334,7 +335,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
         }
     }
 
-    mHwCfg.applyDefaults(*this);
+    mHwCfg.applyDefaults(getSdkPath(), getAvdPath());
 
     // save to CORE_HARDWARE_INI as well, embedded ui needs it
     {

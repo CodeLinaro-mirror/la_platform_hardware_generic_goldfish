@@ -11,19 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#pragma once
-#include <cstdint>
-#include <string>
 
-#include "absl/status/status.h"
+#pragma once
+
+#include <string>
 
 #include "aemu/base/files/IniFile.h"
 #include "android/base/system/storage_capacity.h"
+
 namespace android::goldfish {
+
+namespace fs = std::filesystem;
 
 using base::StorageCapacity;
 using base::operator""_MiB;
-class Avd;
 
 // describes the properties of a given virtual device configuration file.
 class HardwareConfig {
@@ -31,7 +32,7 @@ class HardwareConfig {
     HardwareConfig();
     ~HardwareConfig() = default;
 
-    void applyDefaults(const Avd &avd);
+    void applyDefaults(const fs::path &sdk_root_path, const fs::path &avd_home_path);
     void load(IniFile* ini);
 
     // this is needed as studio embedded ui expects a file called 'hardware-qemu.ini'
@@ -44,7 +45,7 @@ class HardwareConfig {
 #define HWCFG_DOUBLE(n, s, d, a, t) double n;
 #define HWCFG_DISKSIZE(n, s, d, a, t) StorageCapacity n;
 
-#include "host-common/hw-config-defs.h"
+#include "avd/hw-config-defs.h"
     StorageCapacity hw_sdCard_size{512_MiB};
 };
 

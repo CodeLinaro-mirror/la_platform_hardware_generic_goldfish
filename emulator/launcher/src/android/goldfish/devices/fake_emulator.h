@@ -1,8 +1,8 @@
-#include <android/cmdline-definitions.h>
 #include <memory>
 
+#include "android/cmdline-definitions.h"
+#include "android/goldfish/devices/mock_avd.h"
 #include "android/goldfish/emulator_config.h"
-#include "mock_avd.h"
 
 namespace android::goldfish {
 

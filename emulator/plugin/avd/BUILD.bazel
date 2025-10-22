@@ -85,7 +85,7 @@ cc_library(
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
         "//hardware/generic/goldfish/emulator/adb/host",
         "//hardware/generic/goldfish/emulator/adb/logger",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:avd",
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
         "//hardware/generic/goldfish/emulator/hal/camera",
         "//hardware/generic/goldfish/emulator/hal/clipboard",

@@ -8,7 +8,8 @@ cc_library(
     hdrs = ["include/goldfish/catalog/emulator_catalog.h"],
     includes = ["include"],
     deps = [
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:config_dirs",
+        "//hardware/generic/goldfish/emulator/config:emulator_advertisement",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",

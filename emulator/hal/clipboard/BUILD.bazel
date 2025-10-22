@@ -26,7 +26,7 @@ cc_library(
         ":headers",
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:avd",
         "//hardware/generic/goldfish/emulator/hal/connector:PingTopic",
         "//hardware/generic/goldfish/emulator/hal/connector:cable",
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",

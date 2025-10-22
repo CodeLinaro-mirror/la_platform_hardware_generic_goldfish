@@ -18,13 +18,11 @@
 #include <string_view>
 
 #include "aemu/base/events/EventSources.h"
-#include "android/goldfish/config/avd.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::guest_status {
 
 using android::base::eventing::CallbackEventSource;
-using android::goldfish::Avd;
 using goldfish::async::EventLoop;
 using namespace std::string_view_literals;
 

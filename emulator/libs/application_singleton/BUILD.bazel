@@ -13,7 +13,7 @@ cc_library(
             "//hardware/generic/goldfish/android/system",
         ],
         "//conditions:default": [
-            "//hardware/generic/goldfish/emulator/config",
+            "//hardware/generic/goldfish/emulator/config:avd",
         ],
     }),
 )
@@ -43,7 +43,7 @@ cc_test(
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/config",
+        "//hardware/generic/goldfish/emulator/config:avd",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )
