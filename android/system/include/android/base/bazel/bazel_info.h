@@ -25,6 +25,10 @@ class Bazel {
 
     // Returns true if this executable is running in a bazel environment
     static bool inBazel();
+
+    static void setNotInBazel();
+
+    static bool s_notInBazel;
 };
 }  // namespace base
 }  // namespace android

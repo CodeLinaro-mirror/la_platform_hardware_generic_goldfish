@@ -1640,6 +1640,10 @@ static void help_skiavk(stralloc_t* out) {
     PRINTF(" Enables skiavk for hwui, using Vulkan to render on the host.\n");
 }
 
+static void help_not_in_bazel(stralloc_t* out) {
+    PRINTF(" Run emulator assuming not in bazel build environment.\n");
+}
+
 static void help_renderer_features(stralloc_t* out) {
     PRINTF(" Passing renderer features to gfxstream, e.g., featureA:enabled;featureB:disabled\n");
 }

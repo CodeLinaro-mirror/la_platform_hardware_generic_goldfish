@@ -319,6 +319,7 @@ OPT_FLAG(no_mouse_reposition,
 OPT_FLAG(guest_angle, "Enable guest ANGLE as system driver.")
 
 OPT_FLAG(skiavk, "Enable skia vk as hwui renderer.")
+OPT_FLAG(not_in_bazel, "Run as if not in bazel build environment.")
 
 OPT_PARAM(renderer_features, "FeatureName:disabled|enabled;...",
           "Enable or disable features of gfxstream renderer.")
