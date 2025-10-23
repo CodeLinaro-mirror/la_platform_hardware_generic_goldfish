@@ -31,7 +31,7 @@
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/settings.h"
-#include "hardware/generic/goldfish/emulator/launcher/aemu_version.h"
+#include "goldfish/tools/aemu_version.h"
 #include "util/misc/uuid.h"
 
 #ifdef _WIN32

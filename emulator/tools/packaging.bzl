@@ -201,11 +201,11 @@ symbol_zipper = rule(
             mandatory = True,
         ),
         "_symbol_zipper_exe": attr.label(
-            default = Label("//hardware/generic/goldfish/emulator:symbol_zipper"),
+            default = Label("//hardware/generic/goldfish/emulator/tools:symbol_zipper"),
             allow_files = True,
             executable = True,
             cfg = "exec",
-            doc = "The symbol_zipper executable. Defaults to //hardware/generic/goldfish/emulator:symbol_zipper.",
+            doc = "The symbol_zipper executable. Defaults to //hardware/generic/goldfish/emulator/tools:symbol_zipper.",
         ),
     },
 )

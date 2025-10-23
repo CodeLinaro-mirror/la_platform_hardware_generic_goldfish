@@ -24,7 +24,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu_version.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
@@ -39,6 +38,7 @@
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
+#include "goldfish/tools/aemu_version.h"
 
 namespace fs = std::filesystem;
 

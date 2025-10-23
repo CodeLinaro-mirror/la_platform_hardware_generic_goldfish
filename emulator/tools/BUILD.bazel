@@ -1,0 +1,55 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_python//python:defs.bzl", "py_binary")
+load(":packaging.bzl", "aemu_naming")
+load(":version_info.bzl", "version_info_header")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "dbg",
+    values = {"compilation_mode": "dbg"},
+)
+
+config_setting(
+    name = "opt",
+    values = {"compilation_mode": "opt"},
+)
+
+py_binary(
+    name = "symbol_zipper",
+    srcs = ["symbol_zipper.py"],
+)
+
+aemu_naming(
+    name = "aemu_version_info",
+    build_id_dep = "//hardware/generic/goldfish/emulator:build_id",
+    platform = select({
+        "@platforms//os:windows": "windows",
+        "@platforms//os:macos": "darwin_aarch64",
+        "@platforms//os:linux": "linux",
+        "//conditions:default": "unknown",
+    }),
+    product_name = select({
+        "//conditions:default": "",
+        ":dbg": "emulator-debug",
+        ":opt": "emulator",
+    }),
+    version = "0.0.1",
+)
+
+version_info_header(
+    name = "version_info",
+    outs = "aemu_version.h",
+    template = "version_template.h.in",
+    version_info = ":aemu_version_info",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "aemu_version",
+    hdrs = ["aemu_version.h"],
+    include_prefix = "goldfish/tools",
+    visibility = ["//visibility:public"],
+)
