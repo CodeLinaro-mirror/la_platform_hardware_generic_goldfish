@@ -1,0 +1,12 @@
+load("//build/bazel/rules:kotlin.bzl", "kotlin_test")
+
+kotlin_test(
+    name = "discovery_test",
+    size = "small",
+    srcs = ["DiscoveryTest.kt"],
+    test_class = "com.android.tools.testlib.emu.DiscoveryTest",
+    deps = [
+        "//hardware/generic/goldfish/testlib/java/com/android/tools/testlib/emu:discovery",
+        "@bazel_tools//tools/jdk:TestRunner",
+    ],
+)
