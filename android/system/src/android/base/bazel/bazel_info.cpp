@@ -31,6 +31,8 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 
 std::vector<std::string> g_argv;
 
+bool Bazel::s_notInBazel{false};
+
 std::string Bazel::runfilesPath(const std::string& path) {
     std::string error;
     const char* workspace_dir = getenv("TEST_WORKSPACE");
@@ -55,7 +57,14 @@ std::string Bazel::runfilesPath(const std::string& path) {
     return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
 }
 
+void Bazel::setNotInBazel() {
+    s_notInBazel = true;
+}
+
 bool Bazel::inBazel() {
+    if (s_notInBazel) {
+        return false;
+    }
     std::array<std::string, 3> markers = {
             "BUILD_WORKING_DIRECTORY",
             "TEST_BINARY",

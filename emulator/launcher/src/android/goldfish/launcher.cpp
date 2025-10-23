@@ -340,6 +340,13 @@ int main(int argc, char** argv) {
     Bazel::storeCommandLineArgs(argc, argv);
     android::goldfish::show_banner();
 
+    // we will use bazel to run emulator in normal mode,
+    // this -not-in-bazel option is used to force inBazel
+    // to return false;
+    if (opts.not_in_bazel) {
+        Bazel::setNotInBazel();
+    }
+
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
         auto launcher_dir = fs::path(
