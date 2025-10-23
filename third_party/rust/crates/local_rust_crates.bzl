@@ -67,7 +67,7 @@ def _lrc_impl(module_ctx):
     new_local_repository(
         name = "pica",
         build_file = "@goldfish_crates//:netsim_build/pica.BUILD.bazel",
-        path = "third_party/rust/pica",
+        path = "third_party/rust/crates/pica",
     )
 
     for crate in [
