@@ -4,10 +4,8 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
-load("@rules_python//python:defs.bzl", "py_binary")
 load(
-    ":packaging.bzl",
-    "aemu_naming",
+    "//hardware/generic/goldfish/emulator/tools:packaging.bzl",
     "breakpad_symbols_pkg",
     "build_id_from_command_line",
     "native_symbols_pkg",
@@ -17,16 +15,6 @@ load(
 package(
     default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
-)
-
-config_setting(
-    name = "dbg",
-    values = {"compilation_mode": "dbg"},
-)
-
-config_setting(
-    name = "opt",
-    values = {"compilation_mode": "opt"},
 )
 
 license(
@@ -49,27 +37,6 @@ license_kind(
 build_id_from_command_line(
     name = "build_id",
     build_setting_default = "developer",
-)
-
-py_binary(
-    name = "symbol_zipper",
-    srcs = ["symbol_zipper.py"],
-)
-
-aemu_naming(
-    name = "aemu_version_info",
-    build_id_dep = ":build_id",
-    platform = select({
-        "@platforms//os:windows": "windows",
-        "@platforms//os:macos": "darwin_aarch64",
-        "@platforms//os:linux": "linux",
-        "//conditions:default": "unknown",
-    }),
-    product_name = select({
-        "//conditions:default": "",
-        ":dbg": "emulator-debug",
-        ":opt": "emulator",
-    }),
 )
 
 launcher_binaries = [
@@ -261,7 +228,7 @@ pkg_zip(
         "//third_party/qemu:qemu-roms",
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
-    package_variables = ":aemu_version_info",
+    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
     tags = ["manual"],
 )
 
@@ -274,7 +241,7 @@ breakpad_symbols_pkg(
     name = "package_goldfish_symbols",
     binaries = all_binaries,
     package_file_name = "sdk-repo-{platform}-{product_name}-breakpad-symbols-{build_id}.zip",
-    package_variables = ":aemu_version_info",
+    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
 )
 
 native_symbols_pkg(
@@ -286,7 +253,7 @@ native_symbols_pkg(
         "plugins": ":plugins",
     },
     package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
-    package_variables = ":aemu_version_info",
+    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
 )
 
 build_test(

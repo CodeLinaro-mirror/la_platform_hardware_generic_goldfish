@@ -1,9 +1,8 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+load("//hardware/generic/goldfish/emulator/tools:plugins.bzl", "collect_plugins")
 load("launcher_test.bzl", "create_launch_emulator_test")
-load("plugins.bzl", "collect_plugins")
-load("version_info.bzl", "version_info_header")
 
 cc_library(
     name = "input_paths",
@@ -278,7 +277,6 @@ collect_plugins(
 cc_binary(
     name = "goldfish",
     srcs = [
-        "aemu_version.h",
         "src/android/goldfish/launcher.cpp",
     ],
     data = [
@@ -309,6 +307,7 @@ cc_binary(
         "//hardware/generic/goldfish/emulator/adb/secrets",
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/crashreport:init",
+        "//hardware/generic/goldfish/emulator/tools:aemu_version",
         "//hardware/generic/goldfish/third_party/json",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
@@ -318,20 +317,6 @@ cc_binary(
         "@abseil-cpp//absl/log:initialize",
         "@aemu//base:aemu-base",
     ],
-)
-
-version_info_header(
-    name = "version_info",
-    outs = "aemu_version.h",
-    template = "src/version_template.h.in",
-    version_info = "//hardware/generic/goldfish/emulator:aemu_version_info",
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "aemu_version",
-    hdrs = ["aemu_version.h"],
-    visibility = ["//visibility:public"],
 )
 
 create_launch_emulator_test(

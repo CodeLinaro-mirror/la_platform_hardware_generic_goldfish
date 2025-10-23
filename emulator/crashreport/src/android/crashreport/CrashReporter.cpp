@@ -31,7 +31,7 @@
 #include "android/crashreport/SimpleStringAnnotation.h"
 #include "base/files/file_path.h"
 #include "client/annotation.h"
-#include "hardware/generic/goldfish/emulator/launcher/aemu_version.h"
+#include "goldfish/tools/aemu_version.h"
 #include "android/crashreport/crash-handler.h"
 
 #ifdef _WIN32
@@ -53,8 +53,6 @@ namespace android {
 namespace crashreport {
 
 const constexpr char kCrashpadDatabase[] = "emu-dev-crash-" VERSION ".db";
-// The crashpad handler binary, as shipped with the emulator.
-const constexpr char kCrashpadHandler[] = "crashpad_handler";
 
 using DefaultStringAnnotation = crashpad::StringAnnotation<1024>;
 
