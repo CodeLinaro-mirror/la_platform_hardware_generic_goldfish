@@ -91,7 +91,7 @@ std::pair<const void*, size_t> SocketBuffer::peek() const {
     }
 }
 
-void SocketBuffer::consume(const size_t size) {
+size_t SocketBuffer::consume(const size_t size) {
     assert(mSize <= mCapacity);
     assert(size <= mSize);
 
@@ -105,6 +105,8 @@ void SocketBuffer::consume(const size_t size) {
     } else {
         assert(size == 0);
     }
+
+    return mSize;
 }
 
 void SocketBuffer::clear(const bool alsoFreeMemory) {

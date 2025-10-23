@@ -101,6 +101,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             socket()->close();
             return;
         }
+
         if (mGuestConnected) {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") " << data;
             socket()->send(std::string(data));
@@ -139,6 +140,10 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     void onClose() override {
         VLOG(1) << "Guest (vsock) closed, closing: " << *mHostSocket;
         mHostSocket->close();
+    }
+
+    const std::shared_ptr<goldfish::async::AsyncSocket> getHostSocket() const {
+        return mHostSocket;
     }
 
   protected:
@@ -205,10 +210,19 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {
+        auto weakHostSocket =
+                std::weak_ptr<goldfish::async::AsyncSocket>(hostToGuest->getHostSocket());
+        auto onFlowControlEvent = [weakHostSocket = std::move(weakHostSocket)](bool enableReading) {
+            if (const auto hostSocket = weakHostSocket.lock()) {
+                hostSocket->onFlowControlEvent(enableReading);
+            }
+        };
+
         VLOG(1) << "Received an incoming connection socket connection!";
         auto adapter = HalPlugFactory::connect(
                 mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
-                mClientLoop.get(), mQemuLoop.get(), mDevice->data_sniffer_factory);
+                mClientLoop.get(), mQemuLoop.get(), std::move(onFlowControlEvent),
+                mDevice->data_sniffer_factory);
         VLOG(1) << "Adapter registered: " << adapter;
         return true;
     }

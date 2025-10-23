@@ -58,10 +58,14 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     VsockStream(GoldfishVirtioVsockDevice& dev, const uint32_t guest, const uint32_t host)
         : vsockDev(dev), guestPort(guest), hostPort(host) {}
 
+    static constexpr size_t kBufferSizeHighWatermark = size_t(4) << 20;  // 4 MiB
+    static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 3;
+
     GoldfishVirtioVsockDevice& vsockDev;
     PlugPtr plug;
     std::unique_ptr<IDataSniffer> dataSniffer;
     goldfish::SocketBuffer hostToGuestBuf;
+    OnFlowControlEvent onFlowControlEvent;
     const uint32_t guestPort;
     const uint32_t hostPort;
     uint32_t guestBufAlloc = 0;  // guest's buffer size
@@ -70,8 +74,12 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     uint32_t hostFwdCnt = 0;     // how much the host received
     uint8_t sendOpMask = 0;      // bitmask of OPs to send
     bool isConnected = false;
+    std::atomic<bool> hostToGuestBufHighWatermark = false;
+
+    void setOnFlowControlEvent(OnFlowControlEvent fce) override;
 
     void sendAsync(const void* data, size_t size) override;
+
     PlugPtr unplugImpl() override;
 
     PlugPtr switchPlug(PlugPtr newPlug) override {
@@ -178,7 +186,13 @@ struct GoldfishVirtioVsockDevice {
                 stream.dataSniffer->toSocket(data, size);
             }
 
-            stream.hostToGuestBuf.append(data, size);
+            if (stream.hostToGuestBuf.append(data, size) >= stream.kBufferSizeHighWatermark) {
+                if (stream.onFlowControlEvent &&
+                    !stream.hostToGuestBufHighWatermark.exchange(true)) {
+                    stream.onFlowControlEvent(false);
+                }
+            }
+
             sendPacketsAndNotifyLocked();
         }
     }
@@ -489,7 +503,13 @@ struct GoldfishVirtioVsockDevice {
                 sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr, data);
 
                 const size_t sentSize = VirtIOVSockSentSize(sendResult);
-                stream.hostToGuestBuf.consume(sentSize);
+                if (stream.hostToGuestBuf.consume(sentSize) < stream.kBufferSizeLowWatermark) {
+                    if (stream.onFlowControlEvent &&
+                        stream.hostToGuestBufHighWatermark.exchange(false)) {
+                        stream.onFlowControlEvent(true);  // enable reading
+                    }
+                }
+
                 stream.hostSentCnt += sentSize;
                 guestAvailSize -= sentSize;
 
@@ -624,6 +644,7 @@ struct GoldfishVirtioVsockDevice {
                     stream.sendOpMask = flags & ~1U;
                 }
                 stream.hostToGuestBuf.loadFromSnapshot(reader);
+                stream.hostToGuestBufHighWatermark.store(false);
 
                 if (std::visit(PlugOrSocketVisitor(stream),
                                loadPlugFromSnapshot(SocketPtr(&stream), reader))) {
@@ -693,6 +714,13 @@ struct GoldfishVirtioVsockDevice {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+void VsockStream::setOnFlowControlEvent(OnFlowControlEvent fce) {
+    assert(fce);
+
+    const std::lock_guard<std::recursive_mutex> lock(vsockDev.mStateMutex);
+    onFlowControlEvent = std::move(fce);
+}
+
 void VsockStream::sendAsync(const void* data, size_t size) {
     DEBUG_MSG("this=%p vsockDev=%p size=%zu", this, &vsockDev, size);
     return vsockDev.sendAsyncImpl(*this, data, size);

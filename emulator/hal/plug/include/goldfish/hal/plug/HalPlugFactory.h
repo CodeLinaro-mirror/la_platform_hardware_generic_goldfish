@@ -81,7 +81,9 @@ class HalPlugFactory {
      * @return A `PlugPtr` representing the connection, or `nullptr` on failure.
      */
     static PlugPtr connect(int port, HalDeviceFactory halFactory, EventLoop* clientLoop,
-                           EventLoop* qemuLoop, SnifferFactory dataSnifferFactory = nullptr);
+                           EventLoop* qemuLoop,
+                           cable::ISocket::OnFlowControlEvent onFlowControlEvent,
+                           SnifferFactory dataSnifferFactory = nullptr);
 
     /**
      * @brief Listens for incoming vsock connections on a specified port.

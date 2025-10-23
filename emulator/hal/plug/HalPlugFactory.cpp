@@ -51,13 +51,16 @@ PlugPtr HalPlugFactory::wrapHalPlug(SocketPtr qemuSocket, HalDeviceFactory halFa
 }
 
 PlugPtr HalPlugFactory::connect(int port, HalDeviceFactory halFactory, EventLoop* clientLoop,
-                                EventLoop* qemuLoop, SnifferFactory dataSnifferFactory) {
+                                EventLoop* qemuLoop,
+                                cable::ISocket::OnFlowControlEvent onFlowControlEvent,
+                                SnifferFactory dataSnifferFactory) {
     std::shared_ptr<HalPlug> realHalPlug = halFactory();
     auto plug = std::make_shared<HalPlugToIPlugAdapter>(clientLoop, realHalPlug);
     auto socket = vsock::connect(port, plug);
     if (!socket) {
         return nullptr;
     }
+    socket->setOnFlowControlEvent(std::move(onFlowControlEvent));
     if (dataSnifferFactory) {
         socket->setDataSniffer(dataSnifferFactory());
     }

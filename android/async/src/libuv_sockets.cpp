@@ -105,6 +105,19 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         mOnRead = std::move(cb);
     }
 
+    void onFlowControlEvent(const bool enableReading) override {
+        auto weakSelf = std::weak_ptr<LibuvSocket>(shared_from_this());
+        mEventLoop->post([enableReading, weakSelf = std::move(weakSelf)]() {
+            if (const auto self = weakSelf.lock()) {
+                if (enableReading) {
+                    self->startReading();
+                } else {
+                    uv_read_stop((uv_stream_t*)&(self->mTcpHandle));
+                }
+            }
+        });
+    }
+
     void setOnCloseCallback(OnCloseCallback cb) override {
         assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
         mOnClose = std::move(cb);
@@ -275,7 +288,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void on_read(ssize_t nread, const uv_buf_t* buf) {
-        assert(mOnRead && "`mOnRead` must be set set to prevent loss of data.");
+        assert(mOnRead && "`mOnRead` must be set to prevent loss of data.");
+
         VLOG(2) << "on_read: " << nread << " : " << UvErrToAbslStatus(nread);
         if (nread >= 0) {
             // Success path (nread > 0) or no-op (nread == 0).
