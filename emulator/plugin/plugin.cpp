@@ -33,6 +33,7 @@
 #include "goldfish/netsim/netsim-netdev.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
+#include "goldfish/tools/aemu_version.h"
 
 // library and initialize the crashpad crash engine upon launch.
 #include "google/system/aemu_func_defs.h"
@@ -129,6 +130,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
     setup_logging();
 
+    VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
     if (!crashhandler_init(argc, argv)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }

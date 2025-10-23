@@ -29,12 +29,14 @@
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
+
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/device_registry/DeviceRegistry.h"
 #include "goldfish/grpc/grpc-service-device.h"
+#include "goldfish/tools/aemu_version.h"
 
 namespace fs = std::filesystem;
 using android::base::System;
@@ -101,8 +103,8 @@ bool initialize(GrpcDeviceConfiguration* device) {
 
     // TODO(jansene): Update with actual data.
     EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
-                             {"emulator.build", "standalone-0"},
-                             {"emulator.version", "50.0.0"},
+                             {"emulator.build", BUILD_ID},
+                             {"emulator.version", VERSION},
                              {"port.adb", std::to_string(adbPort)},
                              {"avd.name", avdprops->avd->name()},
                              {"avd.id", avdprops->avd->display_name()},

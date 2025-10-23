@@ -27,6 +27,7 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/emulation/control/utils/emulator_grpc_client.h"
+#include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
@@ -62,7 +63,7 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     // avd.ini.displayname otherwise avd name.
     device_info->set_name("emulator-name");
     device_info->set_kind("EMULATOR");
-    // device_info->set_version("emulator-version-string");
+    device_info->set_version(VERSION);
     //  TODO(whollins): read build.prop file from sdk and set.
     // device_info->set_sdk_version("35"); // ro.build.version.sdk
     // device_info->set_build_id("ZP1A.250125.001"); // ro.build.id

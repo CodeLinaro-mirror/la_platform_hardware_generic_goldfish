@@ -4,7 +4,9 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
     [
         cc_binary(
             name = "goldfish_" + arch,
-            srcs = ["plugin.cpp"],
+            srcs = [
+                "plugin.cpp",
+            ],
             linkopts = select({
                 "@platforms//os:macos": ["-undefined dynamic_lookup"],
                 "//conditions:default": [],
@@ -30,6 +32,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
                 "//hardware/generic/goldfish/emulator/plugin/virtio-input-android",
                 "//hardware/generic/goldfish/emulator/plugin/virtio-wifi",
                 "//hardware/generic/goldfish/emulator/plugin/vminterface:vm_ops",
+                "//hardware/generic/goldfish/emulator/tools:aemu_version",
                 "//third_party/qemu:aemu_func_defs",
                 "//third_party/qemu:qemu-headers",
                 "@abseil-cpp//absl/debugging:failure_signal_handler",

@@ -7,6 +7,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/emulator/grpc/client:emulator_grpc_client",
+        "//hardware/generic/goldfish/emulator/tools:aemu_version",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/log",
         "@grpc//:grpc++",
