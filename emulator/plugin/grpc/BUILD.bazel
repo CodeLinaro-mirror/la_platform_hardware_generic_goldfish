@@ -32,6 +32,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/plugin/avd",
         "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
         "//hardware/generic/goldfish/emulator/plugin/avd:global-event-loop",
+        "//hardware/generic/goldfish/emulator/tools:aemu_version",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/strings",
         "@grpc//:grpc++_reflection",
