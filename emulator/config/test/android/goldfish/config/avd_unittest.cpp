@@ -15,21 +15,16 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <memory>
 
 #include "absl/log/globals.h"
 #include "absl/status/status_matchers.h"
 
-#include "aemu/base/ArraySize.h"
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
-#include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/input_paths.h"
-#include "hardware/generic/goldfish/emulator/launcher/include/android/goldfish/input_paths.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;

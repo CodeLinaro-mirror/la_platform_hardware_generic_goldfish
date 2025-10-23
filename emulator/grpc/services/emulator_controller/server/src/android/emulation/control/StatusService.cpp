@@ -16,7 +16,7 @@
 #include "absl/log/log.h"
 
 #include "android/base/system/System.h"
-#include "android/grpc/utils/AbslStatusTranslate.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "android/misc/GuestStatusDevice.h"
 
 namespace android {
@@ -27,27 +27,25 @@ using android::base::System;
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::guest_status::IGuestStatusDevice;
 
-std::unordered_map<std::string, std::string> getQemuConfig(Avd* avd) {
+std::unordered_map<std::string, std::string> getQemuConfig(int api_level, const android::goldfish::HardwareConfig &hw) {
     std::unordered_map<std::string, std::string> cfg;
 
     /* use the magic of macros to implement the hardware configuration loaded */
-    auto config = avd->hw();
-
-#define HWCFG_BOOL(n, s, d, a, t) cfg[s] = config.n ? "true" : "false";
-#define HWCFG_INT(n, s, d, a, t) cfg[s] = std::to_string(config.n);
-#define HWCFG_STRING(n, s, d, a, t) cfg[s] = config.n;
-#define HWCFG_DOUBLE(n, s, d, a, t) cfg[s] std::to_string(config.n);
-#define HWCFG_DISKSIZE(n, s, d, a, t) cfg[s] = config.n.string();
+#define HWCFG_BOOL(n, s, d, a, t) cfg[s] = hw.n ? "true" : "false";
+#define HWCFG_INT(n, s, d, a, t) cfg[s] = std::to_string(hw.n);
+#define HWCFG_STRING(n, s, d, a, t) cfg[s] = hw.n;
+#define HWCFG_DOUBLE(n, s, d, a, t) cfg[s] std::to_string(hw.n);
+#define HWCFG_DISKSIZE(n, s, d, a, t) cfg[s] = hw.n.string();
 
 #include "avd/hw-config-defs.h"
 
-    cfg["avd.api_level"] = std::to_string(avd->apiLevel());
+    cfg["avd.api_level"] = std::to_string(api_level);
 
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, Avd* avd)
-    : mRegistry(connectorRegistry), mAvd(avd) {}
+StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw)
+    : mRegistry(connectorRegistry), mApiLevel(api_level), mHw(hw) {}
 
 grpc::Status StatusServiceImpl::getStatus(ServerContext* context,
                                           const ::google::protobuf::Empty* request,
@@ -63,7 +61,7 @@ grpc::Status StatusServiceImpl::getStatus(ServerContext* context,
         reply->set_heartbeat(status->heartbeat());
     }
 
-    auto cnf = getQemuConfig(mAvd);
+    auto cnf = getQemuConfig(mApiLevel, mHw);
 
     auto entries = reply->mutable_hardwareconfig();
     for (const auto& entry : cnf) {

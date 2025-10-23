@@ -34,6 +34,7 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "devices/adb_device.h"
+#include "devices/avd_info_device.h"
 #include "devices/audio_device.h"
 #include "devices/cpu_device.h"
 #include "devices/display_device.h"
@@ -91,13 +92,6 @@ absl::Status Emulator::addDevices() {
 
     addDevice<AudioDevice>("09.0");
 
-    // No ethernet device for now:
-    // addDevice<NetworkDevice>("0a.0");
-
-    if (!o.no_netsim && !o.no_wifi) {
-      addDevice<WifiDevice>("0b.0");
-    }
-
     // Hardware RNG device
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-device", "virtio-rng-pci",
@@ -126,37 +120,32 @@ absl::Status Emulator::addDevices() {
             "-device", "virtconsole,chardev=forhvc1,name=logcat", "-chardev", "null,id=forhvc1"});
     }
 
+    if (o.show_kernel) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
+    }
+
+    addDevice<AvdInfoDevice>();
+
+    // No ethernet device for now:
+    // addDevice<NetworkDevice>("0a.0");
+
     if (!o.no_netsim) {
+        if (!o.no_wifi) {
+            addDevice<WifiDevice>("0b.0");
+        }
         // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
         // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // /dev/vport8p3 for bt (4th port)
         // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp to workaround.
-        addDevice<ParameterList>(std::initializer_list<std::string>{
+        // TODO(whollins): temporarily disabled as the chardev backend is created before the avd device.
+        /*addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
             "-device", "virtconsole,chardev=uwb,name=uwb",
 
             "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
             "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
-        });
+        });*/
     }
-
-    if (o.show_kernel) {
-        addDevice<ParameterList>(std::initializer_list<std::string>{"-serial", "stdio"});
-    }
-
-    auto config_ini_path = a.getConfigIniPath().string();
-    std::string avd_params = absl::StrCat("ini_path=", config_ini_path, ",serial_number=", serial_number());
-    if (o.quit_after_boot) {
-        if (int timeout; absl::SimpleAtoi(o.quit_after_boot, &timeout)) {
-            absl::StrAppend(&avd_params, ",quit_after_boot_timeout=", timeout);
-        } else {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -quit-after-boot parameter as int: ", o.quit_after_boot));
-        }
-    }
-    addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-device",
-        absl::StrCat("avdstart,", avd_params),
-    });
 
     std::string gpu_name = "gpu0";
     addDevice<GpuDevice>(gpu_name);

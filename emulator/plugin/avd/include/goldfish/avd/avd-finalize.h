@@ -9,20 +9,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
-#include <string>
+
+#include <cstdbool>
 
 // clang-format off
 // IWYU pragma: begin_keep
-
-extern "C" {
 #include "qemu/osdep.h"
+extern "C" {
 #include "hw/qdev-core.h"
 #include "qom/object.h"
-#include "qapi/error.h"
-#include <stdlib.h>
-#include <string.h>
 }
+#undef listen
+#undef send
+#undef connect
 // IWYU pragma: end_keep
 // clang-format on
 

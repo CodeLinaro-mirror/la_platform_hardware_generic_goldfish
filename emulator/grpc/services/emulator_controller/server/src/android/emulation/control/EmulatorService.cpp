@@ -11,11 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "android/emulation/control/EmulatorService.h"
 
 #include <grpcpp/grpcpp.h>
 
-#include <chrono>
 #include <memory>
 
 #include "absl/log/log.h"
@@ -29,6 +29,7 @@
 #include "android/emulation/control/VmService.h"
 #include "android/emulation/control/input/EventSender.h"
 #include "android/emulation/control/keyboard/KeyEventSender.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "android/grpc/utils/AbslStatusTranslate.h"
 #include "emulator_controller.grpc.pb.h"
@@ -57,8 +58,8 @@ class EmulatorControllerImpl final
                                           EmulatorController::WithCallbackMethod_streamNotification<
                                                   EmulatorController::Service>>>>> {
   public:
-    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
-                           android::goldfish::Avd* avd, IMultiDisplay* multidisplay,
+    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
+                           const android::goldfish::HardwareConfig &hw, IMultiDisplay* multidisplay,
                            ::goldfish::async::EventLoop* qemuLoop)
             : mKeyEventSender(
                       keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
@@ -68,7 +69,7 @@ class EmulatorControllerImpl final
             , mGpsService(connectorRegistry)
             , mInputEventSender(multidisplay)
             , mSensorService(connectorRegistry)
-            , mStatusService(connectorRegistry, avd)
+            , mStatusService(connectorRegistry, avd_api_level, hw)
             , mVmService(vm) {}
 
     Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
@@ -213,11 +214,10 @@ class EmulatorControllerImpl final
     VmServiceImpl mVmService;
 };
 
-grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry,
-                                     android::goldfish::Avd* avd, IMultiDisplay* multidisplay,
-
+grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
+                                     const android::goldfish::HardwareConfig &hw, IMultiDisplay* multidisplay,
                                      ::goldfish::async::EventLoop* qemuLoop) {
-    return new EmulatorControllerImpl(vm, connectorRegistry, avd, multidisplay, qemuLoop);
+    return new EmulatorControllerImpl(vm, connectorRegistry, avd_api_level, hw, multidisplay, qemuLoop);
 }
 
 }  // namespace control

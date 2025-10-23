@@ -19,7 +19,7 @@
 #include <string>
 
 #include "android/camera/GrallocDetails.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::camera {
@@ -27,6 +27,6 @@ namespace goldfish::devices::camera {
 using GrallocProvider = std::function<GrallocDetailsPtr()>;
 
 void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GrallocProvider);
+                    const android::goldfish::HardwareConfig& hw, GrallocProvider);
 
 }  // namespace goldfish::devices::camera

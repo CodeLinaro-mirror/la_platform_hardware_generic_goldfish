@@ -144,11 +144,11 @@ err:
 }  // namespace
 
 void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
-                    const android::goldfish::Avd& avd, GrallocProvider grallocProvider) {
-    const auto [frontCameraId, frontCameraParams] = split2(avd.hw().hw_camera_front, ':');
+                    const android::goldfish::HardwareConfig& hw, GrallocProvider grallocProvider) {
+    const auto [frontCameraId, frontCameraParams] = split2(hw.hw_camera_front, ':');
     CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
 
-    const auto [backCameraId, backCameraParams] = split2(avd.hw().hw_camera_back, ':');
+    const auto [backCameraId, backCameraParams] = split2(hw.hw_camera_back, ':');
     CameraImageSource backCameraSource = getCameraImageSourceFromName(backCameraId);
 
     *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraSource, backCameraSource);

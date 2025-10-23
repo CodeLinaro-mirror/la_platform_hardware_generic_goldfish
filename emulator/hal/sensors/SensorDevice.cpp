@@ -14,8 +14,6 @@
 
 #include "goldfish/devices/sensor/SensorDevice.h"
 
-#include <goldfish/async/event_loop.h>
-
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -37,7 +35,8 @@
 
 #include "aemu/base/async/Looper.h"
 #include "android/base/system/clock.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/devices/sensor/PhysicalModel.h"
@@ -47,7 +46,6 @@
 namespace goldfish::devices::sensor {
 
 using android::base::Looper;
-using android::goldfish::Avd;
 using goldfish::physics::SkinRotation;
 
 namespace {  // Anonymous namespace for internal helpers
@@ -161,58 +159,58 @@ void _sanitizeSensorString(char* string, int maxlen) {
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(const android::goldfish::Avd& avd, EventLoop* eventLoop,
+    SensorDevice(const android::goldfish::HardwareConfig& hw, EventLoop* eventLoop,
                  ::android::base::IClock* clock)
-            : mPhysicalModel(new PhysicalModel(avd))
+            : mPhysicalModel(std::make_unique<PhysicalModel>(hw))
             , mLoop(eventLoop)
             , mClock(clock)
             , mQemudParser([this](const void* data, size_t size) {
                 return handleMessage(std::string_view(static_cast<const char*>(data), size));
             }) {
         // Initialize sensors based on AVD configuration
-        if (avd.hw().hw_accelerometer) {
+        if (hw.hw_accelerometer) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
         }
-        if (avd.hw().hw_accelerometer_uncalibrated) {
+        if (hw.hw_accelerometer_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION_UNCALIBRATED)].enabled = true;
         }
-        if (avd.hw().hw_gyroscope) {
+        if (hw.hw_gyroscope) {
             mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE)].enabled = true;
         }
-        if (avd.hw().hw_sensors_proximity) {
+        if (hw.hw_sensors_proximity) {
             mSensors[static_cast<size_t>(AndroidSensor::PROXIMITY)].enabled = true;
         }
-        if (avd.hw().hw_sensors_magnetic_field) {
+        if (hw.hw_sensors_magnetic_field) {
             mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
         }
-        if (avd.hw().hw_sensors_magnetic_field_uncalibrated) {
+        if (hw.hw_sensors_magnetic_field_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled =
                     true;
         }
-        if (avd.hw().hw_sensors_gyroscope_uncalibrated) {
+        if (hw.hw_sensors_gyroscope_uncalibrated) {
             mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
         }
-        if (avd.hw().hw_sensors_orientation) {
+        if (hw.hw_sensors_orientation) {
             mSensors[static_cast<size_t>(AndroidSensor::ORIENTATION)].enabled = true;
         }
-        if (avd.hw().hw_sensors_temperature) {
+        if (hw.hw_sensors_temperature) {
             mSensors[static_cast<size_t>(AndroidSensor::TEMPERATURE)].enabled = true;
         }
-        if (avd.hw().hw_sensors_light) {
+        if (hw.hw_sensors_light) {
             mSensors[static_cast<size_t>(AndroidSensor::LIGHT)].enabled = true;
         }
-        if (avd.hw().hw_sensors_pressure) {
+        if (hw.hw_sensors_pressure) {
             mSensors[static_cast<size_t>(AndroidSensor::PRESSURE)].enabled = true;
         }
-        if (avd.hw().hw_sensors_humidity) {
+        if (hw.hw_sensors_humidity) {
             mSensors[static_cast<size_t>(AndroidSensor::HUMIDITY)].enabled = true;
         }
-        if (avd.hw().hw_sensors_rgbclight) {
+        if (hw.hw_sensors_rgbclight) {
             mSensors[static_cast<size_t>(AndroidSensor::RGBC_LIGHT)].enabled = true;
         }
-        if (avd.hw().hw_sensor_hinge) {
+        if (hw.hw_sensor_hinge) {
             mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE0)].enabled = true;
-            switch (avd.hw().hw_sensor_hinge_count) {
+            switch (hw.hw_sensor_hinge_count) {
             case 3:
                 mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
             case 2:
@@ -221,16 +219,18 @@ class SensorDevice : public ISensorDevice {
             }
         }
 
+        // TODO(whollins): Fix this.
+        /*
         bool modernWearDevice =
-                avd.getDeviceType() == Avd::DeviceType::kWear && avd.apiLevel() >= 28;
+                avd_device_type == Avd::DeviceType::kWear && avd_api_level >= 28;
 
-        if (avd.hw().hw_sensors_heart_rate || modernWearDevice) {
+        if (hw.hw_sensors_heart_rate || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
         }
 
-        if (avd.hw().hw_sensors_wrist_tilt || modernWearDevice) {
+        if (hw.hw_sensors_wrist_tilt || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
-        }
+        }*/
 
         /* XXX: TODO: Add other tests when we add the corresponding
          * properties to hardware-properties.ini et al. */
@@ -777,20 +777,20 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd,
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop,
                                    ::android::base::IClock* clock) {
     registry->registerHalQemuDevice(std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
-                                    [&avd, clientLoop, clock]() {
-                                        return std::make_shared<SensorDevice>(avd, clientLoop,
+                                    [&hw, clientLoop, clock]() {
+                                        return std::make_shared<SensorDevice>(hw, clientLoop,
                                                                               clock);
                                     });
 }
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const Avd& avd,
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registerDevice(registry, avd, clientLoop, qemuLoop, &::android::base::IClock::get());
+    registerDevice(registry, hw, clientLoop, qemuLoop, &::android::base::IClock::get());
 }
 
 SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)

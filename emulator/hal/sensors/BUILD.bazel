@@ -23,7 +23,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/logging:absl-c-bridge",
         "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config:avd",
+        "//hardware/generic/goldfish/emulator/config:hardware_config",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",
         "//hardware/generic/goldfish/emulator/hal/plug:hal_plug",

@@ -25,7 +25,6 @@
 #include "android/base/system/System.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/GrpcServices.h"
-#include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
@@ -34,14 +33,12 @@
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
-#include "goldfish/device_registry/DeviceRegistry.h"
 #include "goldfish/grpc/grpc-service-device.h"
 #include "goldfish/tools/aemu_version.h"
 
 namespace fs = std::filesystem;
 using android::base::System;
 using android::emulation::control::EmulatorControllerService;
-using android::goldfish::Avd;
 using android::goldfish::EmulatorAdvertisement;
 using android::goldfish::EmulatorProperties;
 using android::goldfish::IMultiDisplay;
@@ -96,25 +93,22 @@ bool initialize(GrpcDeviceConfiguration* device) {
         // TODO error - probably we're being called before avdinfo module is inited
     }
 
-    auto *registry = &goldfish::avd_info::deviceRegistry();
-    auto adbPort =
-            goldfish::DeviceRegistry::get().get(goldfish::properties::kAdbPort).value_or(5555);
+    auto *registry = &goldfish::avd_info::connector_registry();
     auto qemuLoop = QemuEventLoop::create();
 
-    // TODO(jansene): Update with actual data.
-    EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
+    EmulatorProperties props{{"port.serial", std::to_string(avdprops->avd_info->serial_number)},
                              {"emulator.build", BUILD_ID},
                              {"emulator.version", VERSION},
-                             {"port.adb", std::to_string(adbPort)},
-                             {"avd.name", avdprops->avd->name()},
-                             {"avd.id", avdprops->avd->display_name()},
-                             {"avd.dir", System ::pathAsString(avdprops->avd->getContentPath())},
+                             {"port.adb", std::to_string(avdprops->avd_info->adb_port)},
+                             {"avd.name", avdprops->avd_info->avd_name},
+                             {"avd.id", avdprops->avd_info->avd_id},
+                             {"avd.dir", avdprops->avd_info->avd_content_path.string()},
                              // TODO(jansene):
                              {"cmdline",
                               "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
                               "\"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avdprops->avd.get(), IMultiDisplay::instance(),
+            VmOperations::qemuVmOperations(), registry, avdprops->avd_info->avd_api, avdprops->hw_config, IMultiDisplay::instance(),
             qemuLoop.get());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)

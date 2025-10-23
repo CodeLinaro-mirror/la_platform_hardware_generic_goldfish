@@ -243,6 +243,23 @@ std::string FileBackedAvd::apiDescription() const {
     return getFullApiName(apiLevel());
 }
 
+bool FileBackedAvd::loadBuildProps() {
+    auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
+    if (!buildprop.ok()) {
+        LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
+                          << ", using unknown avd device type.";
+        return false;
+    }
+
+    if (!System::get()->pathExists(*buildprop) || !System::get()->pathCanRead(*buildprop)) {
+        LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
+                          << ", using unknown device type.";
+        return false;
+    }
+    mBuildIni.setBackingFile(*buildprop);
+    return mBuildIni.read();
+}
+
 DeviceType FileBackedAvd::getDeviceType() const {
     DeviceType res = DeviceType::kUnknown;
 
@@ -253,27 +270,12 @@ DeviceType FileBackedAvd::getDeviceType() const {
 
     const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
 
-    auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
-    if (!buildprop.ok()) {
-        LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
-                          << ", using unknown avd device type.";
-        return DeviceType::kUnknown;
-    }
-
-    if (!System::get()->pathExists(*buildprop) || !System::get()->pathCanRead(*buildprop)) {
-        LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
-                          << ", using unknown device type.";
-        return DeviceType::kUnknown;
-    }
-    IniFile buildIni(*buildprop);
-    buildIni.read();
-
     for (const auto& prop : props) {
-        if (!buildIni.hasKey(prop)) {
+        if (!mBuildIni.hasKey(prop)) {
             continue;
         }
 
-        auto build = buildIni.getString(prop, "_unused");
+        auto build = mBuildIni.getString(prop, "_unused");
         for (const auto& [key, val] : labelMap) {
             if (build.find(key) != std::string::npos) {
                 return val;
@@ -321,6 +323,11 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
         , mAvdPath(std::move(avd_path))
         , mContentPath(std::move(content_path))
         , mSysImagePaths(std::move(sys_image_paths)) {
+    if (!loadBuildProps()) {
+        LOG(ERROR) << "Failed to load build properties from file";
+    }
+    // check abi
+
     mHwCfg.load(mConfig.get());
 
     // TODO also load skin hardware.ini if present?

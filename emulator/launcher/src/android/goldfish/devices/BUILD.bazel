@@ -60,6 +60,33 @@ cc_test(
 )
 
 cc_library(
+    name = "avd_info_device",
+    srcs = ["avd_info_device.cpp"],
+    hdrs = ["avd_info_device.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/emulator/launcher:device",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "avd_info_device_test",
+    srcs = ["avd_info_device_test.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd_info_device",
+        ":fake_emulator",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/android/system:test-headers",
+        "//hardware/generic/goldfish/emulator/launcher:device",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "cpu_device",
     srcs = ["cpu_device.cpp"],
     hdrs = ["cpu_device.h"],
