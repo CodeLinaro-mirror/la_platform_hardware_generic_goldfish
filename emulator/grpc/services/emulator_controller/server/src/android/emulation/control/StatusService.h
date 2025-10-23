@@ -16,7 +16,7 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
 
@@ -24,7 +24,6 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using android::goldfish::Avd;
 using ::goldfish::devices::ConnectorRegistry;
 using grpc::ServerContext;
 using grpc::Status;
@@ -34,14 +33,15 @@ using grpc::Status;
  */
 class StatusServiceImpl {
   public:
-    StatusServiceImpl(ConnectorRegistry* connectorRegistry, Avd* avd);
+    StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw);
 
     Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
                      EmulatorStatus* reply);
 
   private:
     ConnectorRegistry* mRegistry;
-    Avd* mAvd;
+    int mApiLevel;
+    const android::goldfish::HardwareConfig &mHw;
 };
 
 }  // namespace control

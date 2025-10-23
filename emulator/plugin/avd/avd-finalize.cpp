@@ -18,25 +18,18 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-// Make sure qemu doesn't override our listen method.
-
-extern "C" {
 #include "qemu/osdep.h"
+extern "C" {
 #include "hw/qdev-core.h"
-
-// #ifdef QEMU_OS_WIN32_H
-// #undef listen
-// #endif
-#include "goldfish/devices/connector_registry.h"
-
 }
+#undef listen
 // IWYU pragma: end_keep
 // clang-format on
 
 namespace goldfish::avd_finalize {
 namespace {
 void avd_finalize_realize(DeviceState* dev, Error** errp) {
-    goldfish::avd_info::deviceRegistry().listen(5000);
+    goldfish::avd_info::connector_registry().listen(5000);
 }
 
 void avd_finalize_class_init(ObjectClass* oc, void* data) {

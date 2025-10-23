@@ -11,10 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
+
 #include <grpc++/grpc++.h>
 
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "goldfish/async/event_loop.h"
@@ -26,7 +28,8 @@ namespace control {
 
 grpc::Service* getEmulatorController(android::goldfish::VmOperations* vmInterface,
                                      ::goldfish::devices::ConnectorRegistry* connectorRegistry,
-                                     android::goldfish::Avd* avd,
+                                     int avd_api_level,
+                                     const android::goldfish::HardwareConfig &hw,
                                      android::goldfish::IMultiDisplay* multiDisplay,
                                      ::goldfish::async::EventLoop* qemuLoop);
 

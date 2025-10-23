@@ -112,6 +112,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/crashreport:detectors",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:adb_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:audio_device",
+        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:avd_info_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:cpu_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:display_device",
         "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:gpu_device",

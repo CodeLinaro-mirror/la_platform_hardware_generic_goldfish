@@ -242,6 +242,26 @@ class FakeAvd : public Avd {
     std::string display_name() const override { return mDisplayName; }
     void setDisplayName(const std::string& displayName) { mDisplayName = displayName; }
 
+    std::string id() const override {
+        return name();
+    }
+
+    std::string abi() const override {
+        return "";
+    }
+
+    std::string build_sdk() const override {
+        return "";
+    }
+
+    std::string build_id() const override {
+        return "";
+    }
+
+    std::string build_flavour() const override {
+        return "";
+    }
+
   private:
     std::string mName;
     DeviceType mDeviceType = DeviceType::kPhone;

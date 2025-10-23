@@ -20,7 +20,7 @@
 #include "absl/status/statusor.h"
 
 #include "aemu/base/events/EventSources.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
@@ -35,7 +35,6 @@ class IClock;
 namespace goldfish::devices::sensor {
 
 using android::base::eventing::CallbackEventSource;
-using android::goldfish::Avd;
 using goldfish::async::EventLoop;
 using goldfish::physics::Rotation;
 
@@ -130,10 +129,10 @@ class ISensorDevice : public HalPlug,
      * the lifetime of the registry.  Their lifecycles should be managed
      * externally to ensure they outlive the registry.
      */
-    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, EventLoop* clientLoop,
+    static void registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
                                EventLoop* qemuLoop);
     // Test seam
-    static void registerDevice(IConnectorRegistry* registry, const Avd& avd, EventLoop* clientLoop,
+    static void registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
                                EventLoop* qemuLoop, ::android::base::IClock* clock);
 };
 

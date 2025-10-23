@@ -23,41 +23,41 @@
 
 namespace goldfish::devices::sensor {
 
-void FoldableModel::initFoldableRoll(const Avd& avd) {
-    if (!avd.hw().hw_sensor_roll) {
+void FoldableModel::initFoldableRoll(const android::goldfish::HardwareConfig& hw) {
+    if (!hw.hw_sensor_roll) {
         mState.config.numRolls = 0;
         return;
     }
 
     struct FoldableConfig& config = mState.config;
-    FoldableDisplayType type = static_cast<FoldableDisplayType>(avd.hw().hw_sensor_hinge_type);
+    FoldableDisplayType type = static_cast<FoldableDisplayType>(hw.hw_sensor_hinge_type);
     if (type >= FoldableDisplayType::TYPE_MAX) {
         type = FoldableDisplayType::HORIZONTAL_ROLL;
     }
     config.type = type;
 
     // number
-    int numRolls = avd.hw().hw_sensor_roll_count;
+    int numRolls = hw.hw_sensor_roll_count;
     if (numRolls < 0 || numRolls > ANDROID_FOLDABLE_MAX_ROLLS) {
         numRolls = 0;
-        LOG(WARNING) << "Incorrect roll count " << avd.hw().hw_sensor_roll_count
+        LOG(WARNING) << "Incorrect roll count " << hw.hw_sensor_roll_count
                      << ", default to 0";
     }
     config.numRolls = numRolls;
 
     // resize at postures
     config.resizeAtPosture[0] =
-            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_1_at_posture;
+            (enum FoldablePostures)hw.hw_sensor_roll_resize_to_displayRegion_0_1_at_posture;
     config.resizeAtPosture[1] =
-            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_2_at_posture;
+            (enum FoldablePostures)hw.hw_sensor_roll_resize_to_displayRegion_0_2_at_posture;
     config.resizeAtPosture[2] =
-            (enum FoldablePostures)avd.hw().hw_sensor_roll_resize_to_displayRegion_0_3_at_posture;
+            (enum FoldablePostures)hw.hw_sensor_roll_resize_to_displayRegion_0_3_at_posture;
 
     // hinge angle ranges and defaults
-    std::string rollRanges(avd.hw().hw_sensor_roll_ranges);
-    std::string rollDefaults(avd.hw().hw_sensor_roll_defaults);
-    std::string rollRadius(avd.hw().hw_sensor_roll_radius);
-    std::string rollDirection(avd.hw().hw_sensor_roll_direction);
+    std::string rollRanges(hw.hw_sensor_roll_ranges);
+    std::string rollDefaults(hw.hw_sensor_roll_defaults);
+    std::string rollRadius(hw.hw_sensor_roll_radius);
+    std::string rollDirection(hw.hw_sensor_roll_direction);
     std::vector<std::string> rollRangeTokens = absl::StrSplit(rollRanges, ",");
     std::vector<std::string> rollDefaultTokens = absl::StrSplit(rollDefaults, ",");
     std::vector<std::string> rollRadiusTokens = absl::StrSplit(rollRadius, ",");
@@ -91,8 +91,8 @@ void FoldableModel::initFoldableRoll(const Avd& avd) {
     }
 }
 
-FoldableModel::FoldableModel(const Avd& avd) {
-    initFoldableRoll(avd);
+FoldableModel::FoldableModel(const android::goldfish::HardwareConfig& hw) {
+    initFoldableRoll(hw);
 }
 
 void FoldableModel::setHingeAngle(uint32_t hingeIndex, float degrees, PhysicalInterpolation mode,

@@ -17,15 +17,15 @@
 #include <memory>
 
 #include "absl/log/log.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
+#include "aemu/base/files/IniFile.h"
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
@@ -37,8 +37,8 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-extern "C" {
 #include "qemu/osdep.h"
+extern "C" {
 #include "hw/qdev-core.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
@@ -47,7 +47,8 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-using android::goldfish::Avd;
+#define CORE_HARDWARE_INI "hardware-qemu.ini"
+
 using goldfish::avd_info::getGrallocImpl;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
@@ -68,7 +69,7 @@ const AvdProperties *get_avd() {
     return nullptr;
 }
 
-ConnectorRegistry& deviceRegistry() {
+ConnectorRegistry& connector_registry() {
     return ConnectorRegistry::defaultRegistry();
 }
 
@@ -83,31 +84,34 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     // Set the system clock to the QEMU implementation.
     android::base::IClock::set(std::make_unique<android::base::QemuClock>());
 
-    auto avd_status = android::goldfish::FileBackedAvd::parse(/*name=*/"TODO", avd_info->ini_path, /*sdk_path=*/{}, /*avd_path=*/{}, /*content_path=*/{});
-    if (!avd_status.ok()) {
-        LOG(FATAL) << "Unable to load: " << avd_info->ini_path
-                   << " due to: " << avd_status.status().message();
-        return;
-    }
-
     if (avd_info->serial_number <= 0) {
         error_setg(errp, "serial_number is unspecified (it must be > 0): %d", avd_info->serial_number);
         return;
     }
+    if (avd_info->adb_port <= 0) {
+        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", avd_info->adb_port);
+        return;
+    }
 
     VLOG(1) << "Device configuration, avd_info: " << *avd_info;
-    LOG(INFO) << "Loaded avd:" << avd_info->ini_path;
+    LOG(INFO) << "Loaded avd: " << avd_info->avd_content_path;
     gAvd = std::make_unique<goldfish::avd_info::AvdProperties>();
-    gAvd->serial_number = avd_info->serial_number;
-    gAvd->avd = *std::move(avd_status);
+    gAvd->avd_info = avd_info;
+
+    auto hw_path = avd_info->avd_content_path / CORE_HARDWARE_INI;
+    auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
+    if (!hw_ini->read()) {
+        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", avd_info->adb_port);
+        // TODO
+    }
+    gAvd->hw_config.load(hw_ini.get());
 
     auto *clientLoop = goldfish::async::globalEventLoop();
     gQemuLoop = goldfish::async::QemuEventLoop::create();
 
-    auto *avd = gAvd->avd.get();
-    auto *registry = &goldfish::avd_info::deviceRegistry();
+    auto *registry = &connector_registry();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, *avd, clientLoop,
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, gAvd->hw_config, clientLoop,
                                                              gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
@@ -118,8 +122,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
-    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, *avd,
-                                              []() { return getGrallocImpl(); });
+    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, gAvd->hw_config, []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
     goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
@@ -146,20 +149,71 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 }
 
-void avd_info_set_ini_path(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->ini_path = value;
-}
-
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
-
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-
     avd_info->serial_number = value;
+}
+
+void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    int32_t value;
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+    avd_info->adb_port = value;
+}
+
+void avd_info_set_avd_name(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->avd_name = value;
+}
+
+void avd_info_set_avd_id(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->avd_id = value;
+}
+
+void avd_info_set_avd_abi(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->avd_abi = value;
+}
+
+void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    int32_t value;
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+    avd_info->avd_api = value;
+}
+
+void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    std::filesystem::path dir(value);
+    if (!std::filesystem::is_directory(dir)) {
+        error_setg(errp, "avd_dir specified is not a valid directory: %s", value);
+        return;
+    }
+    avd_info->avd_content_path = dir;
+}
+
+void avd_info_set_build_sdk(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->build_sdk = value;
+}
+
+void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->build_id = value;
+}
+
+void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->build_flavour = value;
 }
 
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -174,15 +228,20 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
 }
 
 void avd_info_class_init(ObjectClass* oc, void* data) {
-    object_class_property_add_str(oc, "ini_path", NULL, avd_info_set_ini_path);
-    object_class_property_set_description(oc, "ini_path",
-                                          "the path to the AVD's configuration (.ini) file.");
+    object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number, nullptr, nullptr);
+    object_class_property_add(oc, "adb_port", "int", nullptr, avd_info_set_adb_port, nullptr, nullptr);
 
-    object_class_property_add(oc, "serial_number", "int", nullptr, avd_info_set_serial_number, NULL, NULL);
-    object_class_property_set_description(oc, "serial_number", "The serial number of this emulator");
+    object_class_property_add_str(oc, "avd_name", nullptr, avd_info_set_avd_name);
+    object_class_property_add_str(oc, "avd_id", nullptr, avd_info_set_avd_id);
+    object_class_property_add_str(oc, "avd_abi", nullptr, avd_info_set_avd_abi);
+    object_class_property_add(oc, "avd_api", "int", nullptr, avd_info_set_avd_api, nullptr, nullptr);
+    object_class_property_add_str(oc, "avd_dir", nullptr, avd_info_set_avd_dir);
 
-    object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr, avd_info_set_quit_after_boot_timeout, NULL, NULL);
-    object_class_property_set_description(oc, "quit_after_boot_timeout", "For testing: shutdown the guest once boot complete or timeout (s) reached");
+    object_class_property_add_str(oc, "build_sdk", nullptr, avd_info_set_build_sdk);
+    object_class_property_add_str(oc, "build_id", nullptr, avd_info_set_build_id);
+    object_class_property_add_str(oc, "build_flavour", nullptr, avd_info_set_build_flavour);
+
+    object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr, avd_info_set_quit_after_boot_timeout, nullptr, nullptr);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

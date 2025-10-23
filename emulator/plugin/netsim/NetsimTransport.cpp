@@ -27,6 +27,7 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/emulation/control/utils/emulator_grpc_client.h"
+#include "goldfish/avd/avd-info.h"
 #include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
@@ -50,25 +51,33 @@ NetsimTransport::~NetsimTransport() {
 }
 
 void NetsimTransport::cancel() {
-    mStreamPacketsContext->TryCancel();
-    mGrpcClient->disconnect();
+    if (mStreamPacketsContext) {
+        mStreamPacketsContext->TryCancel();
+    } else {
+        // We'll never be notified if the context was never created.
+        mDone.Notify();
+    }
+    if (mGrpcClient) {
+        mGrpcClient->disconnect();
+    }
 }
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
+    auto *avdprops = goldfish::avd_info::get_avd();
+    if (!avdprops) {
+        return absl::NotFoundError("serious error - no avd properties available");
+    }
     ::netsim::packet::PacketRequest initial_request;
     auto *initial_info = initial_request.mutable_initial_info();
     *initial_info->mutable_chip() = std::move(chip);
     auto *device_info = initial_info->mutable_device_info();
-    // TODO(whollins): set these from properties passed by the launcher.
-    // avd.ini.displayname otherwise avd name.
-    device_info->set_name("emulator-name");
+    device_info->set_name(avdprops->avd_info->avd_name);
     device_info->set_kind("EMULATOR");
     device_info->set_version(VERSION);
-    //  TODO(whollins): read build.prop file from sdk and set.
-    // device_info->set_sdk_version("35"); // ro.build.version.sdk
-    // device_info->set_build_id("ZP1A.250125.001"); // ro.build.id
-    // device_info->set_variant("sdk_gphone64_x86_64_minigbm-userdebug"); // ro.build.flavor
-    // device_info->set_arch("x86_64");  // ro.product.cpu.abi
+    device_info->set_sdk_version(avdprops->avd_info->build_sdk);
+    device_info->set_build_id(avdprops->avd_info->build_id);
+    device_info->set_variant(avdprops->avd_info->build_flavour);
+    device_info->set_arch(avdprops->avd_info->avd_abi);
 
     VLOG(1) << "Creating gRPC channel to netsimd endpoint: " << mEndpoint;
     android::emulation::control::Endpoint endpoint_config;

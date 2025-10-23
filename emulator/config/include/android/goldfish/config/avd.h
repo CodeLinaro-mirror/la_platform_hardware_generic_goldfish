@@ -87,6 +87,12 @@ class Avd {
      */
     virtual std::string name() const = 0;
 
+    virtual std::string id() const = 0;
+    virtual std::string abi() const = 0;
+    virtual std::string build_sdk() const = 0;
+    virtual std::string build_id() const = 0;
+    virtual std::string build_flavour() const = 0;
+
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
     virtual DeviceType getDeviceType() const = 0;
@@ -253,11 +259,34 @@ class FileBackedAvd : public Avd {
     std::string display_name() const override {
         return mConfig->getString("avd.ini.displayname", name());
     }
+    std::string id() const override {
+        // TODO allow override with opts.id
+        return name();
+    }
+
+    std::string abi() const override {
+        // TODO check against detected arch.
+        return mBuildIni.getString("ro.product.cpu.abi", "unknown");
+    }
+
+    std::string build_sdk() const override {
+        return mBuildIni.getString("ro.build.version.sdk", "unknown");
+    }
+
+    std::string build_id() const override {
+        return mBuildIni.getString("ro.build.id", "unknown");
+    }
+
+    std::string build_flavour() const override {
+        return mBuildIni.getString("ro.build.flavor", "unknown");
+    }
 
     static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override = {});
 
    private:
     FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path, fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
+
+    bool loadBuildProps();
 
     std::string mName;
     std::unique_ptr<IniFile> mConfig;
@@ -266,6 +295,7 @@ class FileBackedAvd : public Avd {
     fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
     std::vector<fs::path> mSysImagePaths;
     HardwareConfig mHwCfg;
+    IniFile mBuildIni;
 };
 
 }  // namespace android::goldfish

@@ -90,8 +90,8 @@ absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions &opts) {
     if (ports.adb_port < 5555 || ports.adb_port > 5585) {
         LOG(WARNING) << "ADB port specified is out of range [5555,5585], adb may not work properly: " << ports.adb_port;
     }
-    if (ports.adb_port % 2 != 0) {
-        LOG(WARNING) << "ADB port specified is not an even number, adb may not work properly: " << ports.adb_port;
+    if (ports.adb_port % 2 != 1) {
+        LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: " << ports.adb_port;
     }
 
     return ports;

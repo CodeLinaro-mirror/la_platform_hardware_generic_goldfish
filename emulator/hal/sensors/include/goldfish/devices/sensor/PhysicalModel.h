@@ -22,7 +22,7 @@
 
 #include "aemu/base/EventNotificationSupport.h"
 #include "aemu/base/events/EventSources.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "goldfish/devices/sensor/Foldable.h"
 #include "goldfish/devices/sensor/FoldableModel.h"
 #include "goldfish/devices/sensor/Sensors.h"
@@ -78,7 +78,7 @@ struct PhysicalModelChangeEvent {
  */
 class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
   public:
-    PhysicalModel(const android::goldfish::Avd& avd);
+    PhysicalModel(const android::goldfish::HardwareConfig& hw);
     ~PhysicalModel() = default;
 
     /**

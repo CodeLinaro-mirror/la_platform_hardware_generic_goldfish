@@ -41,7 +41,7 @@ static constexpr vec3 kDefaultAccelerometer = {0.f, 9.81f, 0.f};
 
 class PhysicalModelTest : public ::testing::Test {
   protected:
-    void SetUp() override { model = std::make_unique<PhysicalModel>(mAvd); }
+    void SetUp() override { model = std::make_unique<PhysicalModel>(mAvd.hw()); }
 
     std::unique_ptr<PhysicalModel> model;
     android::goldfish::FakeAvd mAvd;

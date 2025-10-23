@@ -30,7 +30,7 @@
 #include "aemu/base/utils/stream.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/config/hardware_config.h"
 #include "goldfish/devices/sensor/FoldableModel.h"
 #include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/physics/AmbientEnvironment.h"
@@ -93,7 +93,7 @@ static vec4 fromGlm(glm::vec4 input) {
     return value;
 }
 
-PhysicalModel::PhysicalModel(const android::goldfish::Avd& avd) : mFoldableModel(avd) {}
+PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : mFoldableModel(hw) {}
 
 void PhysicalModel::setCurrentTime(int64_t time_ns) {
     bool stateStabilized = false;

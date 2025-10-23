@@ -22,7 +22,6 @@
 #include "android/emulation/control/adb/AdbMessageLogger.h"
 
 #include "goldfish/avd/avd-info.h"
-#include "goldfish/device_registry/DeviceRegistry.h"
 // clang-format off
 // IWYU pragma: begin_keep
 #include "goldfish/vsock/vsock_port_fwd.h"
@@ -73,8 +72,11 @@ void adb_vsock_connected(VSockFwdDev* device) {
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
     int expected_serial = device->host_port - 1;
-    if (avd->serial_number != expected_serial) {
-        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd->serial_number << " != " << expected_serial;
+    if (avd->avd_info->serial_number != expected_serial) {
+        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd->avd_info->serial_number << " != " << expected_serial;
+    }
+    if (avd->avd_info->adb_port != device->host_port) {
+        LOG(ERROR) << "Serious configuration error - adb_port defined with different values: " << avd->avd_info->adb_port << " != " << device->host_port;
     }
 }
 
@@ -101,7 +103,6 @@ void adb_vsock_realize(DeviceState* dev, Error** errp) {
 
     // Initialize the vsock port forwarder.
     adc->vsock_port_fwd_realize(dev, errp);
-    DeviceRegistry::get().setOnce(properties::kAdbPort, vsock_fwd_dev->host_port);
 }
 
 void adb_vsock_set_monitor(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {

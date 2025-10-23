@@ -52,7 +52,7 @@ class SensorDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        ISensorDevice::registerDevice(&registry, mAvd, mClientLoop.get(), mQemuLoop.get(), &mClock);
+        ISensorDevice::registerDevice(&registry, mAvd.hw(), mClientLoop.get(), mQemuLoop.get(), &mClock);
         device = registry.constructHalDevice<ISensorDevice>();
         test_socket = registry.halSocket();
         clear();

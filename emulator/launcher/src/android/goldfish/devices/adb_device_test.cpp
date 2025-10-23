@@ -1,4 +1,3 @@
-#include <android/goldfish/emulator_config.h>
 #include <gtest/gtest.h>
 
 #include "absl/status/status_matchers.h"
