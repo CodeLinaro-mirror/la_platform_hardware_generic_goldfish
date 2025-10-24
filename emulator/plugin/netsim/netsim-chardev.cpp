@@ -22,11 +22,11 @@ extern "C" {
 // clang-format on
 #include "chardev/char.h"
 #include "qapi/error.h"
+#include "qemu/error-report.h"
 #include "qemu/option.h"
 }
 
 #undef send
-
 #include "NetsimTransport.h"
 #include "android/grpc/utils/EnumTranslate.h"
 #include "h4_parser.h"
@@ -242,33 +242,48 @@ struct NetsimChardev {
 int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
-    NetsimChardev* nc = NETSIM_CHARDEV(chr);
+    auto *state = NETSIM_CHARDEV(chr)->state;
 
     // parser writes into parser_packet_queue
     uint64_t left = len;
     while (left > 0) {
         uint64_t send = std::min<uint64_t>(
-                left, nc->state->protocol->guest_to_netsim_parser_bytes_requested());
-        nc->state->protocol->guest_to_netsim_parser_consume(buf, send);
+                left, state->protocol->guest_to_netsim_parser_bytes_requested());
+        state->protocol->guest_to_netsim_parser_consume(buf, send);
         buf += send;
         left -= send;
     }
 
-    for (auto& packet : nc->state->parser_packet_queue) {
-        nc->state->transport->send(std::move(packet));
+    for (auto& packet : state->parser_packet_queue) {
+        state->transport->send(std::move(packet));
     }
-    nc->state->parser_packet_queue.clear();
+    state->parser_packet_queue.clear();
 
     return len;
 }
 
 void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
-    if (fe_open) {
-        VLOG(1) << "NETSIM: guest opened device, sending reset: " << chr->label;
-        NetsimChardev* nc = NETSIM_CHARDEV(chr);
-        // Send reset sequence to guest.
-        nc->state->protocol->reset_guest(chr);
+    if (!fe_open) {
+        return;
     }
+
+    VLOG(1) << "NETSIM chardev: frontend connected, sending reset: " << chr->label;
+    auto *state = NETSIM_CHARDEV(chr)->state;
+
+    // TODO maybe connect in background
+    // TODO maybe reconnect - ondone callback and then call initialize again (also send reset to
+    // guest).
+    state->protocol->reset();
+
+    if (auto status = state->transport->initialize(state->protocol->chip_info());
+        !status.ok()) {
+        error_printf("failed to initialize netsim transport %s: %s", chr->label,
+                status.ToString().c_str());
+        return;
+    }
+
+    // Send reset sequence to guest.
+    state->protocol->reset_guest(chr);
 }
 
 void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened, Error** errp) {
@@ -290,22 +305,10 @@ void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened,
                 return true;
             });
 
-    // TODO maybe connect in background
-    // TODO maybe reconnect - ondone callback and then call initialize again (also send reset to
-    // guest).
-    nc->state->protocol->reset();
-
-    if (auto status = nc->state->transport->initialize(nc->state->protocol->chip_info());
-        !status.ok()) {
-        error_setg(errp, "failed to initialize netsim transport %s: %s", chr->label,
-                   status.ToString().c_str());
-        return;
-    }
-
-    // Maybe send reset sequence to guest?
-    // nc->state->protocol->reset_guest();
-
-    *be_opened = true;
+    // Note that we don't initialize the connection to Netsimd here.
+    // This is because chardevs are opened way before "device"s and so no AVD information is yet available.
+    // However, the frontend is also a device and ordered after the device. So we connect to Netsimd at that point
+    // (netsim_chardev_set_fe_open).
 }
 
 void netsim_chardev_parse(QemuOpts* opts, ChardevBackend* backend, Error** errp) {

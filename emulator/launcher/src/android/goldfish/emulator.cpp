@@ -137,14 +137,13 @@ absl::Status Emulator::addDevices() {
         // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // /dev/vport8p3 for bt (4th port)
         // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp to workaround.
-        // TODO(whollins): temporarily disabled as the chardev backend is created before the avd device.
-        /*addDevice<ParameterList>(std::initializer_list<std::string>{
+        addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
             "-device", "virtconsole,chardev=uwb,name=uwb",
 
             "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
             "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
-        });*/
+        });
     }
 
     std::string gpu_name = "gpu0";
