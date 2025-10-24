@@ -23,6 +23,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -198,11 +199,42 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
   private:
+    template <size_t kMaxAllocs> struct ReadBufferAllocator {
+        ReadBufferAllocator(uint32_t bufSize) : mBufferSize(bufSize) {}
+
+        // https://docs.libuv.org/en/v1.x/handle.html#c.uv_alloc_cb
+        // A suggested size ... is provided, but it’s just an indication ...
+        // The user is free to allocate the amount of memory they decide.
+        uv_buf_t alloc(size_t /*suggestedSize*/) {
+            if (mAllocsSize) {
+                --mAllocsSize;
+                std::unique_ptr<char[]> mem = std::move(mAllocs[mAllocsSize]);
+                return uv_buf_init(mem.release(), mBufferSize);
+            } else {
+                return uv_buf_init(new char[mBufferSize], mBufferSize);
+            }
+        }
+
+        void free(const uv_buf_t& buf) {
+            std::unique_ptr<char[]> mem = std::unique_ptr<char[]>(buf.base);
+
+            if (mAllocsSize < kMaxAllocs) {
+                mAllocs[mAllocsSize] = std::move(mem);
+                ++mAllocsSize;
+            }
+        }
+
+        std::array<std::unique_ptr<char[]>, kMaxAllocs> mAllocs;
+        const uint32_t mBufferSize;
+        uint32_t mAllocsSize = 0;
+    };
+
     friend class LibuvServer;
 
     LibuvSocket(EventLoop* loop, const bool isIncoming)
             : mEventLoop(loop)
             , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
+            , mReadBufferAllocator(16384)
             , mIsIncoming(isIncoming) {
         uv_tcp_init(mLoop, &mTcpHandle);
         mTcpHandle.data = this;
@@ -213,13 +245,14 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         if (uv_is_closing((const uv_handle_t*)&mTcpHandle)) return;
 
         uv_read_start((uv_stream_t*)&mTcpHandle,
-                      [](uv_handle_t*, size_t size, uv_buf_t* buf) {
-                          *buf = uv_buf_init(new char[size], size);
+                      [](uv_handle_t* h, size_t suggestedSize, uv_buf_t* buf) {
+                          LibuvSocket* ctx = static_cast<LibuvSocket*>(h->data);
+                          *buf = ctx->mReadBufferAllocator.alloc(suggestedSize);
                       },
                       [](uv_stream_t* s, ssize_t n, const uv_buf_t* b) {
                           LibuvSocket* ctx = static_cast<LibuvSocket*>(s->data);
                           ctx->on_read(n, b);
-                          delete[] b->base;
+                          ctx->mReadBufferAllocator.free(*b);
                       });
     }
 
@@ -272,6 +305,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     EventLoop* const mEventLoop;
     uv_loop_t* const mLoop;
+    ReadBufferAllocator<4> mReadBufferAllocator;
     uv_tcp_t mTcpHandle;
     sockaddr_storage mAddr;
 
