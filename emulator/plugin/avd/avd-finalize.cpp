@@ -28,6 +28,15 @@ extern "C" {
 
 namespace goldfish::avd_finalize {
 namespace {
+
+struct AvdEndDev {
+    DeviceClass parent_class;
+};
+
+#define TYPE_AVD_FINAL "avdend"
+#define AVD_FINAL_INFO_DEV(obj) OBJECT_CHECK(AvdEndDev, (obj), TYPE_AVD_FINAL)
+#define AVD_FINAL_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdEndDev, obj, TYPE_AVD_FINAL)
+
 void avd_finalize_realize(DeviceState* dev, Error** errp) {
     goldfish::avd_info::connector_registry().listen(5000);
 }
@@ -43,9 +52,11 @@ const TypeInfo avd_finalize_type_info = {
         .instance_size = sizeof(AvdEndDev),
         .class_init = avd_finalize_class_init,
 };
+
 }  // namespace
 
 void avd_finalize_register_types(void) {
     type_register_static(&avd_finalize_type_info);
 }
+
 }  // namespace goldfish::avd_finalize

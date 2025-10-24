@@ -91,7 +91,10 @@ static QemuDisplay qemu_display_android = {
 
 static void grpc_realize(DeviceState* dev, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
-    initialize(&grpc_device->config);
+    if(!initialize(&grpc_device->config)) {
+        error_setg(errp, "failed to initialize grpc");
+        return;
+    }
 }
 
 static void grpc_unrealize(DeviceState* dev) {

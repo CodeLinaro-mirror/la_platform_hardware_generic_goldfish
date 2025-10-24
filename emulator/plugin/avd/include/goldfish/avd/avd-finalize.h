@@ -12,29 +12,8 @@
 
 #pragma once
 
-#include <cstdbool>
-
-// clang-format off
-// IWYU pragma: begin_keep
-#include "qemu/osdep.h"
-extern "C" {
-#include "hw/qdev-core.h"
-#include "qom/object.h"
-}
-#undef listen
-#undef send
-#undef connect
-// IWYU pragma: end_keep
-// clang-format on
-
 namespace goldfish::avd_finalize {
-struct AvdEndDev {
-    DeviceClass parent_class;
-};
 
 void avd_finalize_register_types(void);
-}  // namespace goldfish::avd_finalize
 
-#define TYPE_AVD_FINAL "avdend"
-#define AVD_FINAL_INFO_DEV(obj) OBJECT_CHECK(AvdEndDev, (obj), TYPE_AVD_FINAL)
-#define AVD_FINAL_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdEndDev, obj, TYPE_AVD_FINAL)
+}  // namespace goldfish::avd_finalize

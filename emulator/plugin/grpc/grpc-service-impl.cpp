@@ -90,25 +90,27 @@ static std::string generateToken(int cnt) {
 bool initialize(GrpcDeviceConfiguration* device) {
     auto *avdprops = goldfish::avd_info::get_avd();
     if (!avdprops) {
-        // TODO error - probably we're being called before avdinfo module is inited
+        //return absl::NotFoundError("serious error - no avd properties available");
+        LOG(ERROR) << "no avd properties available";
+        return false;
     }
 
     auto *registry = &goldfish::avd_info::connector_registry();
     auto qemuLoop = QemuEventLoop::create();
 
-    EmulatorProperties props{{"port.serial", std::to_string(avdprops->avd_info->serial_number)},
+    EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
                              {"emulator.build", BUILD_ID},
                              {"emulator.version", VERSION},
-                             {"port.adb", std::to_string(avdprops->avd_info->adb_port)},
-                             {"avd.name", avdprops->avd_info->avd_name},
-                             {"avd.id", avdprops->avd_info->avd_id},
-                             {"avd.dir", avdprops->avd_info->avd_content_path.string()},
+                             {"port.adb", std::to_string(avdprops->adb_port)},
+                             {"avd.name", avdprops->avd_name},
+                             {"avd.id", avdprops->avd_id},
+                             {"avd.dir", avdprops->avd_content_path.string()},
                              // TODO(jansene):
                              {"cmdline",
                               "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
                               "\"-grpc-use-token\""}};
     auto emulator = android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avdprops->avd_info->avd_api, avdprops->hw_config, IMultiDisplay::instance(),
+            VmOperations::qemuVmOperations(), registry, avdprops->avd_api, avdprops->hw_config, IMultiDisplay::instance(),
             qemuLoop.get());
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
@@ -153,6 +155,8 @@ bool initialize(GrpcDeviceConfiguration* device) {
         if (device->tls_ca) {
             props["grpc.ca_root"] = device->tls_ca;
         }
+    } else {
+        // Should this be a startup error?
     }
 
     device->cppState = new GrpcDeviceConfigurationCpp(std::move(grpcService), std::move(props),

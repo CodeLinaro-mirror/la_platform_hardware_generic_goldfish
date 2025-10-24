@@ -72,11 +72,11 @@ void adb_vsock_connected(VSockFwdDev* device) {
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
     int expected_serial = device->host_port - 1;
-    if (avd->avd_info->serial_number != expected_serial) {
-        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd->avd_info->serial_number << " != " << expected_serial;
+    if (avd->serial_number != expected_serial) {
+        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd->serial_number << " != " << expected_serial;
     }
-    if (avd->avd_info->adb_port != device->host_port) {
-        LOG(ERROR) << "Serious configuration error - adb_port defined with different values: " << avd->avd_info->adb_port << " != " << device->host_port;
+    if (avd->adb_port != device->host_port) {
+        LOG(ERROR) << "Serious configuration error - adb_port defined with different values: " << avd->adb_port << " != " << device->host_port;
     }
 }
 
