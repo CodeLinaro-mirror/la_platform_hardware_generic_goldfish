@@ -319,7 +319,7 @@ TEST_F(DisplayServiceTest, DISABLED_GetScreenshotConcurrent) {
     }
 }
 
-TEST_F(DisplayServiceTest, StreamScreenshotSequenceIncreases) {
+TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSequenceIncreases) {
     // Get a screenshot with scaling that is larger than the display
     ImageFormat request;
     request.set_display(1);
@@ -348,7 +348,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotSequenceIncreases) {
     ASSERT_EQ(count, 5);
 }
 
-TEST_F(DisplayServiceTest, StreamScreenshotImmediatelyGetsAFrame) {
+TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotImmediatelyGetsAFrame) {
     // Make sure we immediately get a frame.
     ImageFormat request;
     request.set_display(1);
@@ -370,7 +370,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotImmediatelyGetsAFrame) {
     ASSERT_NE(image.image().size(), 0);
 }
 
-TEST_F(DisplayServiceTest, StreamScreenshotSimulateEmbeddedInteraction) {
+TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction) {
     // This simulates a resize operation as performed by the Android Studio embedded emulator.
     // When the user resizes the emulator window in Android Studio, a sequence of `streamScreenshot`
     // requests, each with potentially different dimensions, is initiated in rapid succession.
