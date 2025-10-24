@@ -12,6 +12,8 @@
 namespace goldfish::async {
 namespace {
 
+using network::Endpoint;
+
 // Test fixture to manage common setup and teardown for socket benchmarks.
 class SocketBenchmark : public ::benchmark::Fixture {
   public:
@@ -43,7 +45,8 @@ class SocketBenchmark : public ::benchmark::Fixture {
 BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     std::string test_message = "ping";
     ScopedAsyncServer server(*postAndWait([&](void) {
-        return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
+        auto endpoint = Endpoint::create("127.0.0.1", 0).value();
+        return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
             socket->setOnReadCallbackNoFlowControl(
                     [s = socket](std::string_view data, auto status) {
                         if (status.ok()) s->send(data.data(), data.size());
@@ -55,7 +58,8 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     int port = *postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(*postAndWait([&] {
-        return factory_->createSocket(loop_.get(), "127.0.0.1:" + std::to_string(port));
+        auto endpoint = Endpoint::create("127.0.0.1", port).value();
+        return factory_->createSocket(loop_.get(), endpoint);
     }));
 
     // Connect and wait for it to be established before starting the benchmark.
@@ -69,7 +73,7 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     });
     connect_notification.WaitForNotification();
 
-    for (auto _ : state) {
+    for (const auto& _ : state) {
         state.PauseTiming();
         absl::Notification pong_notification;
         loop_->post([&]() {
@@ -90,7 +94,8 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     ScopedAsyncSocket server_socket;
 
     ScopedAsyncServer server(*postAndWait([&] {
-        return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
+        auto endpoint = Endpoint::create("127.0.0.1", 0).value();
+        return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
             server_socket = ScopedAsyncSocket(socket);
             socket->setOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
             return true;
@@ -99,7 +104,8 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     int port = *postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(*postAndWait([&] {
-        return factory_->createSocket(loop_.get(), "127.0.0.1:" + std::to_string(port));
+        auto endpoint = Endpoint::create("127.0.0.1", port).value();
+        return factory_->createSocket(loop_.get(), endpoint);
     }));
 
     absl::Notification connected_notification;
@@ -112,7 +118,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     });
     connected_notification.WaitForNotification();
 
-    for (auto _ : state) {
+    for (const auto& _ : state) {
         sendSynchronously(client.get(), buffer.data(), buffer.size());
     }
 

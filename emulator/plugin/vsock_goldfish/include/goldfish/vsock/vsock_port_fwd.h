@@ -20,6 +20,14 @@
 extern "C" {
 #include "qemu/osdep.h"
 #include "hw/qdev-core.h"
+
+// Remove windows compatibility defines.
+#ifdef _WIN32
+#undef send
+#undef connect
+#undef close
+#undef socket
+#endif
 }
 // IWYU pragma: end_keep
 // clang-format on
@@ -35,6 +43,7 @@ struct VSockFwdDev {
     DeviceClass parent_class;
     int host_port;
     int guest_port;
+    char* address;
     VSockProxy* forwarder;
     OnVsockHostConnectFn on_connect;
     SnifferFactory data_sniffer_factory;
