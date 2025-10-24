@@ -64,7 +64,7 @@ class DiscoveryTest {
                      EnvDir("HOME", arrayOf("Library", "Caches", "TemporaryItems")))) {
       val baseDir = tempFolder.newFolder(e.name, *e.subPath)
       createEmulatorIn(Paths.get(baseDir.toString()), "$serial")
-      env[e.name] = baseDir.toString()
+      env[e.name] = Paths.get(tempFolder.getRoot().toString(), e.name).toString()
     }
     // Now increase the serial every emulator since these will all show up.
     for (e in listOf(EnvDir("ANDROID_EMULATOR_HOME", arrayOf()), EnvDir("ANDROID_AVD_HOME", arrayOf()),
