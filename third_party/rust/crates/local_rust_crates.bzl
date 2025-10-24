@@ -70,6 +70,12 @@ def _lrc_impl(module_ctx):
         path = "third_party/rust/crates/pica",
     )
 
+    new_local_repository(
+        name = "rustutils",
+        build_file = "@goldfish_crates//:netsim_build/rustutils.BUILD.bazel",
+        path = "system/librustutils/rustutils",
+    )
+
     for crate in [
         "aho-corasick",
         "android_log-sys",
@@ -124,7 +130,9 @@ def _lrc_impl(module_ctx):
         "lock_api",
         "log",
         "memchr",
+        "minimal-lexical",
         "mio",
+        "nom",
         "num_cpus",
         "num-bigint",
         "num-derive",
@@ -153,6 +161,7 @@ def _lrc_impl(module_ctx):
         "regex",
         "regex-automata",
         "regex-syntax",
+        "rustix",
         "ryu",
         "scopeguard",
         "serde",
