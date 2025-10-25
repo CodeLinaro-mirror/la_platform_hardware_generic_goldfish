@@ -31,6 +31,10 @@ PlugLoadersMap& getLoaders() {
 }
 }  // namespace
 
+void ISocket::setOnFlowControlEvent(ISocket::OnFlowControlEvent) {
+    // Do nothing. Or maybe log that flow control is not supported here.
+}
+
 bool registerPlugLoader(IPlug::TypeId typeId, PlugLoader loader) {
     return getLoaders().insert({std::move(typeId), std::move(loader)}).second;
 }

@@ -26,6 +26,8 @@ namespace goldfish {
 namespace devices {
 namespace {
 
+void onFlowControlEvent(bool /*enableReading*/) {}
+
 using ::goldfish::async::testing::TestEventLoop;
 
 // Mock for the real ISocket that lives on the QEMU thread.
@@ -118,7 +120,8 @@ TEST_F(HalPlugFactoryTest, ConnectSuccess) {
         return cable::SocketPtr(mockSocketRaw);
     });
 
-    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get());
+    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
+                                        onFlowControlEvent);
 
     EXPECT_TRUE(factoryCalled);
     EXPECT_TRUE(connectCalled);
@@ -148,7 +151,8 @@ TEST_F(HalPlugFactoryTest, ConnectFailure) {
         return nullptr;
     });
 
-    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get());
+    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
+                                        onFlowControlEvent);
 
     EXPECT_TRUE(factoryCalled);
     EXPECT_TRUE(connectCalled);

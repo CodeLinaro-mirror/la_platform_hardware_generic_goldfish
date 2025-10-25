@@ -95,7 +95,7 @@ TEST(SocketBuffer, append_peek_consume) {
         EXPECT_EQ(::strncmp(static_cast<const char*>(ptr), "Hello, world!", 13), 0);
     }
 
-    buffer.consume(7);
+    EXPECT_EQ(buffer.consume(7), 5 + 8 - 7);
 
     {
         DequeArchive archive;
@@ -109,7 +109,8 @@ TEST(SocketBuffer, append_peek_consume) {
         EXPECT_EQ(::strncmp(static_cast<const char*>(ptr), "world!", 6), 0);
     }
 
-    buffer.consume(6);
+    EXPECT_EQ(buffer.consume(6), 5 + 8 - 7 - 6);
+
     EXPECT_EQ(buffer.size(), 0);
     EXPECT_EQ(buffer.peek().second, 0);
     EXPECT_EQ(buffer.capacity(), capacity);  // see release_large_buffer

@@ -21,6 +21,7 @@
 
 #include "goldfish/archive/Reader.h"
 #include "goldfish/archive/Writer.h"
+
 namespace goldfish {
 namespace devices {
 namespace cable {
@@ -45,7 +46,11 @@ using PlugPtr = std::shared_ptr<IPlug>;
  * `~SocketPtr`.
  */
 struct ISocket {
-    virtual ~ISocket() {}
+    virtual ~ISocket() = default;
+
+    using OnFlowControlEvent = std::function<void(bool enableReading)>;
+
+    virtual void setOnFlowControlEvent(OnFlowControlEvent);
 
     /* `sendAsync` appends data to the outgoing queue and
      * asks the socket manager to send data (if connected,

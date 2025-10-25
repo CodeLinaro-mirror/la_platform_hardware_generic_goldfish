@@ -155,6 +155,8 @@ class AsyncSocket {
      */
     virtual void setOnReadCallbackNoFlowControl(OnReadCallback cb) = 0;
 
+    virtual void onFlowControlEvent(bool enableReading) = 0;
+
     /**
      * @brief Sets the callback for when the socket is fully closed.
      *
