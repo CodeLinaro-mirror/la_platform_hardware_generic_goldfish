@@ -17,7 +17,6 @@
 #include <mutex>
 #include <set>
 #include <unordered_map>
-#include <vector>
 
 #include "absl/strings/str_format.h"
 
@@ -74,7 +73,7 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     uint32_t hostFwdCnt = 0;     // how much the host received
     uint8_t sendOpMask = 0;      // bitmask of OPs to send
     bool isConnected = false;
-    std::atomic<bool> hostToGuestBufHighWatermark = false;
+    bool producerEnabled = true;
 
     void setOnFlowControlEvent(OnFlowControlEvent fce) override;
 
@@ -95,6 +94,14 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
         assert(op > VIRTIO_VSOCK_OP_INVALID);
         assert(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
         sendOpMask |= (1U << op);
+    }
+
+    void setProducerEnabled(const bool newValue) {
+        // We don't want to spam the producer with the same value.
+        if ((producerEnabled != newValue) && onFlowControlEvent) {
+            producerEnabled = newValue;
+            onFlowControlEvent(newValue);
+        }
     }
 
     void AbslStringifyImpl(absl::FormatSink& sink) const override {
@@ -187,10 +194,7 @@ struct GoldfishVirtioVsockDevice {
             }
 
             if (stream.hostToGuestBuf.append(data, size) >= stream.kBufferSizeHighWatermark) {
-                if (stream.onFlowControlEvent &&
-                    !stream.hostToGuestBufHighWatermark.exchange(true)) {
-                    stream.onFlowControlEvent(false);
-                }
+                stream.setProducerEnabled(false);
             }
 
             sendPacketsAndNotifyLocked();
@@ -504,10 +508,7 @@ struct GoldfishVirtioVsockDevice {
 
                 const size_t sentSize = VirtIOVSockSentSize(sendResult);
                 if (stream.hostToGuestBuf.consume(sentSize) < stream.kBufferSizeLowWatermark) {
-                    if (stream.onFlowControlEvent &&
-                        stream.hostToGuestBufHighWatermark.exchange(false)) {
-                        stream.onFlowControlEvent(true);  // enable reading
-                    }
+                    stream.setProducerEnabled(true);
                 }
 
                 stream.hostSentCnt += sentSize;
@@ -644,7 +645,7 @@ struct GoldfishVirtioVsockDevice {
                     stream.sendOpMask = flags & ~1U;
                 }
                 stream.hostToGuestBuf.loadFromSnapshot(reader);
-                stream.hostToGuestBufHighWatermark.store(false);
+                stream.producerEnabled = true;
 
                 if (std::visit(PlugOrSocketVisitor(stream),
                                loadPlugFromSnapshot(SocketPtr(&stream), reader))) {
