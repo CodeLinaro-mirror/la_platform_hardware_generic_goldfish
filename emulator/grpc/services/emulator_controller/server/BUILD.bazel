@@ -73,7 +73,7 @@ cc_test(
         "//hardware/generic/goldfish/emulator/hal/display:test-display",
         "//hardware/generic/goldfish/emulator/hal/plug:fake_vsock",
         "//hardware/generic/goldfish/emulator/hal/sensors",
-        "//hardware/generic/goldfish/emulator/plugin/vminterface:vm_ops_with_fake_machine_info",
+        "//hardware/generic/goldfish/emulator/plugin/vminterface:test_vminterface",
         "//hardware/generic/goldfish/emulator/plugin/vminterface:vminterface-test",
         "@aemu//base:aemu-base",
     ],

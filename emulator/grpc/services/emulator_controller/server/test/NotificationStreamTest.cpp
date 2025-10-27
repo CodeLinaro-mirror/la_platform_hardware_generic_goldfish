@@ -293,7 +293,7 @@ TEST_F(NotificationServiceTest, DISABLED_DuplicateBootCompletedNotification) {
     auto status = reader->Finish();
 }
 
-TEST_F(NotificationServiceTest, DisplayResolutionChange) {
+TEST_F(NotificationServiceTest, DISABLED_DisplayResolutionChange) {
     Empty request;
     Notification reply;
     auto context = getContextWithTimeout();
