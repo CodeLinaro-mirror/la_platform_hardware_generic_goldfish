@@ -1,6 +1,6 @@
 load("//build/bazel/rules:kotlin.bzl", "kotlin_library")
 
-package(default_visibility = ["//hardware/generic/goldfish/testlib:__subpackages__"])
+package(default_visibility = ["//hardware/generic/goldfish:__subpackages__"])
 
 kotlin_library(
     name = "discovery",
