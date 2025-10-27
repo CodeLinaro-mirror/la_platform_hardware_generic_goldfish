@@ -57,8 +57,8 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     VsockStream(GoldfishVirtioVsockDevice& dev, const uint32_t guest, const uint32_t host)
         : vsockDev(dev), guestPort(guest), hostPort(host) {}
 
-    static constexpr size_t kBufferSizeHighWatermark = size_t(4) << 20;  // 4 MiB
-    static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 3;
+    static constexpr size_t kBufferSizeHighWatermark = size_t(8) << 20;  // 8 MiB
+    static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 2;
 
     GoldfishVirtioVsockDevice& vsockDev;
     PlugPtr plug;
