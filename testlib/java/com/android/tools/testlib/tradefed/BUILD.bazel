@@ -1,0 +1,19 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+
+package(default_visibility = ["//hardware/generic/goldfish/tests/java/com/android/tools/e2etests:__pkg__"])
+
+java_library(
+    name = "xml_reporter",
+    srcs = ["XtsXmlFormattedGeneratorReporter.java"],
+    deps = [
+        "@tradefed//:tradefed_jars",
+    ],
+)
+
+java_library(
+    name = "log_saver",
+    srcs = ["XtsFileSystemLogSaver.java"],
+    deps = [
+        "@tradefed//:tradefed_jars",
+    ],
+)
