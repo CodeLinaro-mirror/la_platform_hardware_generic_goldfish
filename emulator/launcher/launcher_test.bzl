@@ -75,9 +75,8 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
             ":emulator_lib",
             "@rules_python//python/runfiles",
         ],
-        target_compatible_with = [
-            # Currently launch and boot tests fail on Mac.
-            # TODO(b/435653752): Fix and re-enable for other platforms.
-            "@platforms//os:linux",
-        ],
+        target_compatible_with = select({
+            "@platforms//os:windows": ["@platforms//:incompatible"],
+            "//conditions:default": [],
+        }),
     )
