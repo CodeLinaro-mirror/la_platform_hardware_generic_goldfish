@@ -214,10 +214,10 @@ class EmulatorControllerImpl final
     VmServiceImpl mVmService;
 };
 
-grpc::Service* getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
+std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
                                      const android::goldfish::HardwareConfig &hw, IMultiDisplay* multidisplay,
                                      ::goldfish::async::EventLoop* qemuLoop) {
-    return new EmulatorControllerImpl(vm, connectorRegistry, avd_api_level, hw, multidisplay, qemuLoop);
+    return std::make_shared<EmulatorControllerImpl>(vm, connectorRegistry, avd_api_level, hw, multidisplay, qemuLoop);
 }
 
 }  // namespace control

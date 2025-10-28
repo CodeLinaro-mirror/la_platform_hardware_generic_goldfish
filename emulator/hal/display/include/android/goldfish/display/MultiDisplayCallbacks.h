@@ -1,4 +1,4 @@
-// Copyright 2024 The Android Open Source Project
+// Copyright 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,36 +11,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#pragma once
+
 #include <stdbool.h>
 
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
-struct GrpcDeviceConfigurationCpp;
+// clang-format off
+// IWYU pragma: begin_keep
+#include "qemu/osdep.h"
+#include "ui/console.h"
+#include "ui/surface.h"
+//#include "qapi/error.h"
+// IWYU pragma: end_keep
+// clang-format on
 
-typedef struct DisplayChangeListener;
-typedef struct DisplaySurface;
-typedef struct GrpcDeviceConfiguration {
-    struct GrpcDeviceConfigurationCpp* cppState;
-    char* addr;
-    char* tls_cer;
-    char* tls_key;
-    char* tls_ca;
-    char* allowlist;
-    char* avd;
-    bool use_token;
-    int idle_timeout;
-    int port;
-} GrpcDeviceConfiguration;
-
-bool initialize(GrpcDeviceConfiguration* device);
-void finalize(GrpcDeviceConfiguration* device);
-
-// UI related callbacks
 void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h);
-void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);
 
-void grpc_register_types(void);
+void grpc_dpy_gfz_refresh(struct DisplayChangeListener* dcl);
+
+void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);
 
 __END_DECLS
