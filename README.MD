@@ -67,7 +67,7 @@ bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -verb
 For more advanced scenarios where you need to specify every parameter manually (like the AVD name), you can run the `goldfish` binary directly:
 
 ```sh
-bazel run --config debug //hardware/generic/goldfish/emulator/launcher:goldfish -- -avd MyAVD
+bazel run --config debug //hardware/generic/goldfish/emulator/launcher -- -avd MyAVD
 ```
 
 This will launch the goldfish emulator with avd *MyAVD*.
@@ -151,7 +151,7 @@ source ./asan_exports.sh
 Next you can run the emulator under asan as:
 
 ```bash
-bazel run --config asan //hardware/generic/goldfish/emulator/launcher:goldfish  -- --avd V
+bazel run --config asan //hardware/generic/goldfish/emulator/launcher -- --avd V
 ```
 
 *Note: If you are not seeing memory address translated to stackframes you might have to update the [asan_exports.sh](./asan_exports.sh) shell script to point to the proper symbolizer.*
@@ -197,6 +197,6 @@ The following targets might be of interrest if you wish to add new functionality
 
 - `//hardware/generic/goldfish/emulator:emulator_unit_tests`: This target contains all the test suites that will be run as part of the build. Make sure your tests are added to this suite.
 - `//hardware/generic/goldfish/emulator:release`: The release target. This constructs the zip file with everything that will be distributed. You will need to modify this if you wish to distribute new files.
-- `//hardware/generic/goldfish/emulator/launcher:goldfish`: The QEMU launcher. This binary is responsible for configuring the AVD and invoking the qemu emulator with the proper configuration. This is where you configure the drivers, setup the qcow2 images, verify that your system meets the requirements etc..
+- `//hardware/generic/goldfish/emulator/launcher`: The QEMU launcher. This binary is responsible for configuring the AVD and invoking the qemu emulator with the proper configuration. This is where you configure the drivers, setup the qcow2 images, verify that your system meets the requirements etc..
 
 See [emulator/plugin/README.MD](emulator/plugin/README.MD) if you wish to add additional plugins that need to be loaded into QEMU.

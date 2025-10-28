@@ -276,10 +276,8 @@ collect_plugins(
 )
 
 cc_binary(
-    name = "goldfish",
-    srcs = [
-        "src/android/goldfish/launcher.cpp",
-    ],
+    name = "launcher",
+    srcs = ["src/android/goldfish/launcher.cpp"],
     data = [
         ":binaries",
         ":keymaps",
@@ -387,7 +385,7 @@ py_binary(
     name = "launch_emulator",
     srcs = ["src/launch_kernel.py"],
     data = [
-        ":goldfish",
+        ":launcher",
     ] + select({
         "@platforms//os:macos": [
             "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",

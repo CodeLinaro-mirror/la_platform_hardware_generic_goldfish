@@ -56,9 +56,6 @@ class EmulatorLocator:
         self._locate_marker_files()
 
     async def _locate_goldfish_exec(self):
-        goldfish_exec_name = "goldfish"
-        if platform.system() == "Windows":
-            goldfish_exec_name = "goldfish.exe"
         if self.use_zip:
             zip_path = Path(
                 self.r.Rlocation("_main/hardware/generic/goldfish/emulator/release.zip")
@@ -78,13 +75,16 @@ class EmulatorLocator:
                     stderr=asyncio.subprocess.STDOUT,
                 )
                 await process.wait()
-            self.goldfish_exec = extract_path / goldfish_exec_name
+            self.goldfish_exec = extract_path / "emulator"
         else:
             self.goldfish_exec = Path(
                 self.r.Rlocation(
-                    "_main/hardware/generic/goldfish/emulator/launcher/" + goldfish_exec_name
+                    "_main/hardware/generic/goldfish/emulator/launcher/launcher"
                 )
             )
+
+        if platform.system() == "Windows":
+            self.goldfish_exec += ".exe"
 
         if not self.goldfish_exec.exists():
             raise FileNotFoundError(

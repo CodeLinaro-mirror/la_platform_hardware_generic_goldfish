@@ -3,7 +3,7 @@ load("@rules_java//java:java_test.bzl", "java_test")
 java_test(
     name = "boot_test",
     data = [
-        "//hardware/generic/goldfish/emulator/launcher:goldfish",
+        "//hardware/generic/goldfish/emulator/launcher",
     ] + select({
         "@platforms//os:linux": [
             "//prebuilts/android-emulator-build/sdkhome-linux:sdkhome",
@@ -16,7 +16,7 @@ java_test(
         "//conditions:default": [],
     }),
     jvm_flags = [
-        "-Demulator.test.emulator.path=hardware/generic/goldfish/emulator/launcher/goldfish",
+        "-Demulator.test.emulator.path=hardware/generic/goldfish/emulator/launcher/launcher",
         "-Demulator.test.emulator.is-emu-next=1",
     ] + select({
         "@platforms//os:linux": [
