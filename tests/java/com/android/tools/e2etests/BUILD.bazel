@@ -1,3 +1,4 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("//build/bazel/rules:kotlin.bzl", "kotlin_library")
 
 kotlin_library(
@@ -6,5 +7,18 @@ kotlin_library(
     deps = [
         "//hardware/generic/goldfish/testlib/java/com/android/tools/testlib/emu:discovery",
         "@tradefed//:tradefed_jars",
+    ],
+)
+
+# This rule is not meant to be run directly, but as a means to get a single jar file containing all
+# of e2e test dependencies.
+java_binary(
+    name = "e2e_tests",
+    use_launcher = False,
+    visibility = ["//hardware/generic/goldfish/tests:__pkg__"],
+    runtime_deps = [
+        ":display_name_test",
+        "//hardware/generic/goldfish/testlib/java/com/android/tools/testlib/tradefed:log_saver",
+        "//hardware/generic/goldfish/testlib/java/com/android/tools/testlib/tradefed:xml_reporter",
     ],
 )
