@@ -636,17 +636,17 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
     std::vector<std::unique_ptr<Process>> processes;
 
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    PROCESSENTRY32 process = {0};
+    PROCESSENTRY32W process = {0};
     process.dwSize = sizeof(process);
 
-    if (!Process32First(snapshot, &process)) {
+    if (!Process32FirstW(snapshot, &process)) {
         return processes;
     }
     do {
-        if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
+	if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
             processes.push_back(fromPid(process.th32ProcessID));
         }
-    } while (Process32Next(snapshot, &process));
+    } while (Process32NextW(snapshot, &process));
 
     CloseHandle(snapshot);
     return processes;

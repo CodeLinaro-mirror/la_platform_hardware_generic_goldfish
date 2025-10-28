@@ -1440,7 +1440,7 @@ bool System::deleteFileInternal(fs::path path) {
 bool System::pathFreeSpaceInternal(fs::path path, FileSize* spaceInBytes) {
 #ifdef _WIN32
     ULARGE_INTEGER freeBytesAvailableToUser;
-    bool result = GetDiskFreeSpaceEx(path.c_str(), &freeBytesAvailableToUser, NULL, NULL);
+    bool result = GetDiskFreeSpaceExW(path.c_str(), &freeBytesAvailableToUser, NULL, NULL);
     if (!result) {
         return false;
     }
