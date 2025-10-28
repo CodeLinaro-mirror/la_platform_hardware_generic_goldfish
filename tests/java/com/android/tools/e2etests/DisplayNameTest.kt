@@ -35,7 +35,7 @@ class DisplayNameTest : BaseHostJUnit4Test() {
         Assert.assertNotNull(discovery)
         if (discovery != null) {
             Assert.assertNotNull(discovery.discoveryIni["avd.name"])
-            Assert.assertEquals(discovery.discoveryIni["avd.name"], discovery.configIni["avd.name"])
+            Assert.assertEquals(discovery.discoveryIni["avd.name"], discovery.configIni["avd.ini.displayname"])
         }
     }
 
