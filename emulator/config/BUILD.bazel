@@ -50,7 +50,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":config_dirs",
         "//hardware/generic/goldfish/android/files",
         "//hardware/generic/goldfish/android/sockets",
         "@aemu//base:aemu-base",
@@ -77,7 +76,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":config_dirs",
         ":device_type",
         ":hardware_config",
         "//hardware/generic/goldfish/android/files",
