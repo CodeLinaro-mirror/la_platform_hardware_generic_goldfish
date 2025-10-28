@@ -40,7 +40,7 @@ build_id_from_command_line(
 )
 
 launcher_binaries = [
-    "//hardware/generic/goldfish/emulator/launcher:goldfish",
+    "//hardware/generic/goldfish/emulator/launcher",
 ]
 
 binaries = [
@@ -143,6 +143,14 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0755",
     ),
+    renames = select({
+        "@platforms//os:windows": {
+            "//hardware/generic/goldfish/emulator/launcher": "emulator.exe",
+        },
+        "//conditions:default": {
+            "//hardware/generic/goldfish/emulator/launcher": "emulator",
+        },
+    }),
 )
 
 remapped_pkg_files(

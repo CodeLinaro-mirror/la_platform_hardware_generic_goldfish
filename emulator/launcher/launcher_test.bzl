@@ -28,7 +28,7 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
         args += params
     if timeout_seconds:
         args.extend(["--timeout_seconds", str(timeout_seconds)])
-    _create_launch_emulator_test(name, args, ":goldfish")
+    _create_launch_emulator_test(name, args, "//hardware/generic/goldfish/emulator/launcher")
     _create_launch_emulator_test(
         name + "_zip",
         args + ["--use_zip"],
