@@ -21,7 +21,7 @@ namespace goldfish::os {
 namespace {
 #if defined(_WIN32)
 HMODULE loadLibraryImpl(const std::filesystem::path& path) {
-    return ::LoadLibrary(path.c_str());
+    return ::LoadLibraryA(path.string().c_str());
 }
 
 void* getProcAddressImpl(HMODULE lib, const char* func) {
