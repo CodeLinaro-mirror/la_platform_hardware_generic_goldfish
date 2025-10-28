@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cctype>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -304,9 +305,10 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     fs::path exe_path = qemu_exe_path();
     std::vector<std::string> args = getCmdline();
     {
-        std::vector<std::string> printableArgs(args.size()+1);
+        std::vector<std::string> printableArgs;
+        printableArgs.reserve(args.size()+1);
         printableArgs.push_back(exe_path.string());
-        std::transform(args.begin(), args.end(), printableArgs.begin(),
+        std::transform(args.begin(), args.end(), std::back_inserter(printableArgs),
                        [](const std::string& a) -> std::string {
                            if (std::any_of(a.begin(), a.end(),
                                            [](const char c) { return std::isspace(c); })) {
