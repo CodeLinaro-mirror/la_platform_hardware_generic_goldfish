@@ -172,7 +172,7 @@ TEST(FakeAvdTest, DefaultValues) {
     EXPECT_EQ(avd.dessert(), "V");
     EXPECT_EQ(avd.apiDescription(), "15.0 (V) - API 35");
     EXPECT_TRUE(avd.playstore());
-    EXPECT_EQ(avd.getDeviceType(), Avd::DeviceType::kPhone);
+    EXPECT_EQ(avd.getDeviceType(), DeviceType::kPhone);
     EXPECT_EQ(avd.detectArchitecture(), Avd::CpuArchitecture::kArm);
 
     // Check some HardwareConfig values
@@ -207,8 +207,8 @@ TEST(FakeAvdTest, SettersAndGetters) {
     avd.setPlaystore(false);
     EXPECT_FALSE(avd.playstore());
 
-    avd.setDeviceType(Avd::DeviceType::kTv);
-    EXPECT_EQ(avd.getDeviceType(), Avd::DeviceType::kTv);
+    avd.setDeviceType(DeviceType::kTv);
+    EXPECT_EQ(avd.getDeviceType(), DeviceType::kTv);
 
     avd.setCpuArchitecture(Avd::CpuArchitecture::kX86);
     EXPECT_EQ(avd.detectArchitecture(), Avd::CpuArchitecture::kX86);

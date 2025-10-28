@@ -24,6 +24,8 @@
 #include "android/goldfish/config/image_list.h"
 #include "android/goldfish/input_paths.h"
 
+#include "device_type.h"
+
 namespace android::goldfish {
 namespace fs = std::filesystem;
 
@@ -50,14 +52,6 @@ namespace fs = std::filesystem;
  */
 class Avd {
   public:
-    enum class DeviceType : uint8_t {
-        kPhone = 0,
-        kTv = 1,
-        kWear = 2,
-        kAndroidAuto = 3,
-        kDesktop = 4,
-        kUnknown = 255,
-    };
 
 /* define the enumared values corresponding to each AVD image type
  * examples are: KERNEL, SYSTEM, etc..

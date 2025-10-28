@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "goldfish/avd/avd-info.h"
+#include <android/goldfish/config/device_type.h>
 
 #include <memory>
 
@@ -124,7 +125,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     auto *registry = &connector_registry();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd_info->props->hw_config, clientLoop,
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd_info->props->avd_type, avd_info->props->avd_api, avd_info->props->hw_config, clientLoop,
                                                              gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
@@ -204,6 +205,15 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
     avd_info->props->avd_api = value;
 }
 
+void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    int32_t value;
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+    avd_info->props->avd_type = static_cast<android::goldfish::DeviceType>(value);
+}
+
 void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     std::filesystem::path dir(value);
@@ -252,6 +262,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "avd_id", nullptr, avd_info_set_avd_id);
     object_class_property_add_str(oc, "avd_abi", nullptr, avd_info_set_avd_abi);
     object_class_property_add(oc, "avd_api", "int", nullptr, avd_info_set_avd_api, nullptr, nullptr);
+    object_class_property_add(oc, "avd_type", "int", nullptr, avd_info_set_avd_type, nullptr, nullptr);
     object_class_property_add_str(oc, "avd_dir", nullptr, avd_info_set_avd_dir);
 
     object_class_property_add_str(oc, "build_sdk", nullptr, avd_info_set_build_sdk);

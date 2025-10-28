@@ -35,6 +35,7 @@
 
 #include "aemu/base/async/Looper.h"
 #include "android/base/system/clock.h"
+#include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
@@ -159,7 +160,7 @@ void _sanitizeSensorString(char* string, int maxlen) {
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(const android::goldfish::HardwareConfig& hw, EventLoop* eventLoop,
+    SensorDevice(android::goldfish::DeviceType avd_type, int avd_api, const android::goldfish::HardwareConfig& hw, EventLoop* eventLoop,
                  ::android::base::IClock* clock)
             : mPhysicalModel(std::make_unique<PhysicalModel>(hw))
             , mLoop(eventLoop)
@@ -219,10 +220,7 @@ class SensorDevice : public ISensorDevice {
             }
         }
 
-        // TODO(whollins): Fix this.
-        /*
-        bool modernWearDevice =
-                avd_device_type == Avd::DeviceType::kWear && avd_api_level >= 28;
+        bool modernWearDevice = avd_type == android::goldfish::DeviceType::kWear && avd_api >= 28;
 
         if (hw.hw_sensors_heart_rate || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
@@ -230,7 +228,7 @@ class SensorDevice : public ISensorDevice {
 
         if (hw.hw_sensors_wrist_tilt || modernWearDevice) {
             mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
-        }*/
+        }
 
         /* XXX: TODO: Add other tests when we add the corresponding
          * properties to hardware-properties.ini et al. */
@@ -777,20 +775,19 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw,
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, android::goldfish::DeviceType avd_type, int avd_api, const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop,
                                    ::android::base::IClock* clock) {
     registry->registerHalQemuDevice(std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
-                                    [&hw, clientLoop, clock]() {
-                                        return std::make_shared<SensorDevice>(hw, clientLoop,
-                                                                              clock);
+                                    [avd_type, avd_api, &hw, clientLoop, clock]() {
+                                        return std::make_shared<SensorDevice>(avd_type, avd_api, hw, clientLoop, clock);
                                     });
 }
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry, const android::goldfish::HardwareConfig& hw,
+void ISensorDevice::registerDevice(IConnectorRegistry* registry, android::goldfish::DeviceType avd_type, int avd_api, const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registerDevice(registry, hw, clientLoop, qemuLoop, &::android::base::IClock::get());
+    registerDevice(registry, avd_type, avd_api, hw, clientLoop, qemuLoop, &::android::base::IClock::get());
 }
 
 SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)

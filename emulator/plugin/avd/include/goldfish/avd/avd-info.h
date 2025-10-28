@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <string>
 
+#include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "goldfish/devices/connector_registry.h"
 
@@ -25,7 +26,8 @@ struct AvdProperties {
     std::string avd_name;
     std::string avd_id;
     std::string avd_abi;
-    int avd_api;
+    int avd_api{0};
+    android::goldfish::DeviceType avd_type{android::goldfish::DeviceType::kUnknown};
     std::filesystem::path avd_content_path;
     std::string build_sdk;
     std::string build_id;

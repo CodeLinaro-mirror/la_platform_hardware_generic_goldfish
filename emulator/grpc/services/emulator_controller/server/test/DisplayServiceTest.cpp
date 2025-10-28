@@ -54,7 +54,8 @@ class DisplayServiceTest : public GrcpServiceTest {
         // Clear all displays except the default one before each test
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mMultiDisplay->clear();
-        ISensorDevice::registerDevice(&mRegistry, mAvd.hw(), mLoop.get(), mQemuLoop.get());
+        ISensorDevice::registerDevice(&mRegistry, /*avd_type=*/android::goldfish::DeviceType::kPhone,
+                                      /*avd_api=*/30, mAvd.hw(), mLoop.get(), mQemuLoop.get());
         mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), &mRegistry);
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());

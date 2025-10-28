@@ -77,7 +77,6 @@ namespace android::goldfish {
 
 using android::base::System;
 using PropertyList = const std::array<std::string, 3>;
-using DeviceType = Avd::DeviceType;
 
 namespace {
 

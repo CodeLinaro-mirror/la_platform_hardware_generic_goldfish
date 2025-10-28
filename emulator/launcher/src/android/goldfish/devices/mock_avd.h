@@ -29,7 +29,7 @@ class MockAvd : public Avd {
   public:
     MOCK_METHOD(std::string, details, (bool verbose), (const override));
     MOCK_METHOD(std::string, name, (), (const override));
-    MOCK_METHOD(Avd::DeviceType, getDeviceType, (), (const override));
+    MOCK_METHOD(DeviceType, getDeviceType, (), (const override));
     MOCK_METHOD(fs::path, getContentPath, (), (const override));
     MOCK_METHOD(absl::StatusOr<fs::path>, getImageFilePath, (Avd::ImageType imgType),
                 (const override));
