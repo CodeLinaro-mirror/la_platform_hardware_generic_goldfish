@@ -59,7 +59,7 @@ namespace {
 
 struct AvdInfoDev {
     DeviceClass parent_class;
-    AvdProperties props;
+    AvdProperties *props;
 };
 
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
@@ -69,7 +69,7 @@ template <typename Sink>
 void AbslStringify(Sink& sink, AvdInfoDev dev) {
     absl::Format(&sink,
                  "AvdInfoDev: name={%s}, parent_class.fw_name={%s}",
-                 dev.props.avd_name, dev.parent_class.fw_name);
+                 dev.props->avd_name, dev.parent_class.fw_name);
 }
 
 using devices::ConnectorRegistry;
@@ -97,45 +97,45 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     // Set the system clock to the QEMU implementation.
     android::base::IClock::set(std::make_unique<android::base::QemuClock>());
 
-    if (avd_info->props.serial_number <= 0) {
-        error_setg(errp, "serial_number is unspecified (it must be > 0): %d", avd_info->props.serial_number);
+    if (avd_info->props->serial_number <= 0) {
+        error_setg(errp, "serial_number is unspecified (it must be > 0): %d", avd_info->props->serial_number);
         return;
     }
-    if (avd_info->props.adb_port <= 0) {
-        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", avd_info->props.adb_port);
+    if (avd_info->props->adb_port <= 0) {
+        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", avd_info->props->adb_port);
         return;
     }
 
     VLOG(1) << "Device configuration, avd_info: " << *avd_info;
 
-    std::filesystem::path hw_path = avd_info->props.avd_content_path / CORE_HARDWARE_INI;
+    std::filesystem::path hw_path = avd_info->props->avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
     if (!hw_ini->read()) {
         error_setg(errp, "Failed to parse hardware ini: %s", hw_path.string().c_str());
         return;
     }
-    avd_info->props.hw_config.load(hw_ini.get());
+    avd_info->props->hw_config.load(hw_ini.get());
 
-    LOG(INFO) << "Loaded avd directory: " << avd_info->props.avd_content_path;
-    gAvd = &avd_info->props;
+    LOG(INFO) << "Loaded avd directory: " << avd_info->props->avd_content_path;
+    gAvd = avd_info->props;
 
     auto *clientLoop = goldfish::async::globalEventLoop();
     gQemuLoop = goldfish::async::QemuEventLoop::create();
 
     auto *registry = &connector_registry();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd_info->props.hw_config, clientLoop,
+    goldfish::devices::sensor::ISensorDevice::registerDevice(registry, avd_info->props->hw_config, clientLoop,
                                                              gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
-            registry, qemu_register_reset, clientLoop, gQemuLoop.get(), avd_info->props.quit_after_boot_timeout_seconds);
+            registry, qemu_register_reset, clientLoop, gQemuLoop.get(), avd_info->props->quit_after_boot_timeout_seconds);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
                                                                        gQemuLoop.get());
     goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
-    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, avd_info->props.hw_config, []() { return getGrallocImpl(); });
+    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp, avd_info->props->hw_config, []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
     goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
@@ -144,7 +144,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 {"qemu.sf.fake_camera"s, emulatedCameraProp},
                 {"qemu.sf.lcd_density"s, "420"s},
                 // This is the same value that is passed to the virtio-wifi module.
-                {"net.wifi_mac_prefix"s, absl::StrCat(avd_info->props.serial_number)},
+                {"net.wifi_mac_prefix"s, absl::StrCat(avd_info->props->serial_number)},
                 // TODO(b/450338546): hack hack hack
                 // These properties should be added automatically by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
                 // But it isn't currently working so we hack them in here.
@@ -168,7 +168,7 @@ void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void*
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props.serial_number = value;
+    avd_info->props->serial_number = value;
 }
 
 void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -177,22 +177,22 @@ void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaq
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props.adb_port = value;
+    avd_info->props->adb_port = value;
 }
 
 void avd_info_set_avd_name(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.avd_name = value;
+    avd_info->props->avd_name = value;
 }
 
 void avd_info_set_avd_id(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.avd_id = value;
+    avd_info->props->avd_id = value;
 }
 
 void avd_info_set_avd_abi(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.avd_abi = value;
+    avd_info->props->avd_abi = value;
 }
 
 void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -201,7 +201,7 @@ void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaqu
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props.avd_api = value;
+    avd_info->props->avd_api = value;
 }
 
 void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
@@ -211,22 +211,22 @@ void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
         error_setg(errp, "avd_dir specified is not a valid directory: %s", value);
         return;
     }
-    avd_info->props.avd_content_path = dir;
+    avd_info->props->avd_content_path = dir;
 }
 
 void avd_info_set_build_sdk(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.build_sdk = value;
+    avd_info->props->build_sdk = value;
 }
 
 void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.build_id = value;
+    avd_info->props->build_id = value;
 }
 
 void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props.build_flavour = value;
+    avd_info->props->build_flavour = value;
 }
 
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
@@ -237,7 +237,11 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
         return;
     }
 
-    avd_info->props.quit_after_boot_timeout_seconds = value;
+    avd_info->props->quit_after_boot_timeout_seconds = value;
+}
+
+void avd_info_unrealize(DeviceState* dev) {
+    gAvd = nullptr;
 }
 
 void avd_info_class_init(ObjectClass* oc, void* data) {
@@ -258,12 +262,25 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;
+    dc->unrealize = avd_info_unrealize;
+}
+
+static void avd_info_instance_init(Object* obj) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    avd_info->props = new AvdProperties{};
+}
+
+static void avd_info_instance_finalize(Object* obj) {
+    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    delete avd_info->props;
 }
 
 const TypeInfo avd_info_type_info = {
     .name = TYPE_AVD,
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(AvdInfoDev),
+    .instance_init = avd_info_instance_init,
+    .instance_finalize = avd_info_instance_finalize,
     .class_init = avd_info_class_init,
 };
 
