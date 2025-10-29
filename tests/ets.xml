@@ -1,0 +1,17 @@
+<!-- Initial tradefed xml configuration running a single test. -->
+<configuration description="A basic Tradefed test configuration">
+
+  <test class="com.android.tradefed.testtype.HostTest" >
+    <option name="class" value="com.android.tools.e2etests.DisplayNameTest" />
+  </test>
+
+  <result_reporter class="com.android.tradefed.result.ConsoleResultReporter" />
+  <result_reporter class="com.android.tools.testlib.tradefed.XtsXmlFormattedGeneratorReporter">
+    <option name="results-dir" value="results" />
+  </result_reporter>
+
+  <log_saver class="com.android.tools.testlib.tradefed.XtsFileSystemLogSaver">
+    <option name="logs-dir" value="logs" />
+  </log_saver>
+
+</configuration>

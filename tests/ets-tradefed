@@ -1,0 +1,4 @@
+#!/bin/bash
+# We want to $PWD to be the parent directory of this file.
+cd $(dirname $(dirname $(realpath ${BASH_SOURCE[0]})))
+exec ./tools/tradefed.sh "$@"
