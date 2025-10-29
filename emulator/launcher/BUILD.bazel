@@ -385,7 +385,7 @@ py_library(
 
 py_binary(
     name = "launch_emulator",
-    srcs = ["src/launch_kernel.py"],
+    srcs = ["src/launch_emulator.py"],
     data = [
         ":launcher",
     ] + select({
@@ -400,7 +400,6 @@ py_binary(
     }) + [
         "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
     ],
-    main = "src/launch_kernel.py",
     deps = [
         ":emulator_lib",
         "@rules_python//python/runfiles",

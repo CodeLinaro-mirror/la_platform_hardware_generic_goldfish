@@ -40,10 +40,9 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
         name = name,
         size = "medium",
         timeout = "moderate",
-        srcs = ["src/launch_kernel.py"],
         # These tests are marked as manual so that they aren't included when using //...
         # Instead they must be explicitly named (including as part of a test_suite).
-        tags = ["manual", "exclusive-if-local"],
+        tags = ["manual", "exclusive-if-local", "requires-network"],
         args = select({
             "@platforms//os:macos": [
                 "--abi",
@@ -58,23 +57,10 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
             "-verbose",
             "-read-only",
         ],
-        data = [goldfish_dep] + select({
-            "@platforms//os:macos": [
-                "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
-                "@android_minigbm-arm64-v8a//:system_image",
-            ],
-            "//conditions:default": [
-                "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-x86_64:minigbm",
-                "@android_minigbm-x86_64//:system_image",
-            ],
-        }) + [
-            "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
-        ],
-        main = "src/launch_kernel.py",
-        deps = [
-            ":emulator_lib",
-            "@rules_python//python/runfiles",
-        ],
+        main_module = "launch_emulator",
+        deps = ["//hardware/generic/goldfish/emulator/launcher:launch_emulator"],
+        data = [goldfish_dep],
+        imports = ["src"],
         target_compatible_with = select({
             "@platforms//os:windows": ["@platforms//:incompatible"],
             "//conditions:default": [],
