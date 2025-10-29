@@ -6,13 +6,13 @@ load(
 package(default_visibility = ["//visibility:public"])
 
 sysroot(
-    name = "system_image",
-    all_files = glob(["x86_64/**"]),
+    name = "build-tools",
+    all_files = glob(["android-Baklava/**"]),
     path = "",
 )
 
 sysroot(
-    name = "systemimg",
-    all_files = ["x86_64/system.img"],
+    name = "aapt",
+    all_files = ["android-Baklava/aapt"],
     path = "",
 )

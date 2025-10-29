@@ -6,13 +6,13 @@ load(
 package(default_visibility = ["//visibility:public"])
 
 sysroot(
-    name = "system_image",
-    all_files = glob(["x86_64/**"]),
+    name = "test_seq_files",
+    all_files = glob(["test_seq/**"]),
     path = "",
 )
 
 sysroot(
-    name = "systemimg",
-    all_files = ["x86_64/system.img"],
+    name = "test_seq",
+    all_files = ["test_seq/test_seq"],
     path = "",
 )
