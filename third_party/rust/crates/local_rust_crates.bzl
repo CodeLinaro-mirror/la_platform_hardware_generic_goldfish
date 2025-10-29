@@ -132,6 +132,7 @@ def _lrc_impl(module_ctx):
         "memchr",
         "minimal-lexical",
         "mio",
+        "named-lock",
         "nom",
         "num_cpus",
         "num-bigint",
