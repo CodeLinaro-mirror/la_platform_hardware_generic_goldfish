@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <grpc++/grpc++.h>
 
 #include "android/goldfish/config/hardware_config.h"
@@ -26,7 +28,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-grpc::Service* getEmulatorController(android::goldfish::VmOperations* vmInterface,
+std::shared_ptr<grpc::Service> getEmulatorController(android::goldfish::VmOperations* vmInterface,
                                      ::goldfish::devices::ConnectorRegistry* connectorRegistry,
                                      int avd_api_level,
                                      const android::goldfish::HardwareConfig &hw,

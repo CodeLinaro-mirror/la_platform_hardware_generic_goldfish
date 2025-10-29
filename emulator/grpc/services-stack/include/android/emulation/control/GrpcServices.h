@@ -15,6 +15,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -37,6 +38,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
+namespace fs = std::filesystem;
 using ::goldfish::async::EventLoop;
 using grpc::ServerCompletionQueue;
 
@@ -77,8 +79,8 @@ class EmulatorControllerService::Builder {
     // The certificate chain and private key that should be used. Setting a
     // certificate chain and private key will enable TLS, not calling this will
     // start the service in an unsecure fashion.
-    Builder& withCertAndKey(const char* certfile, const char* privateKeyFile,
-                            const char* certAuthority);
+    Builder& withCertAndKey(fs::path certfile, fs::path privateKeyFile,
+                            fs::path certAuthority);
 
     // Reject any request with the status UNAUTHORIZED if the following header
     // is not present: Authorization: Bearer <token>
@@ -98,7 +100,7 @@ class EmulatorControllerService::Builder {
     // valid JSON web keys used to validate the JWT.
     // |jwkLoadedPath| The path to a file where the emulator will write the
     // set of loaded public web keys.
-    Builder& withJwtAuthDiscoveryDir(std::string jwks, std::string jwkLoadedPath);
+    Builder& withJwtAuthDiscoveryDir(fs::path jwks, fs::path jwkLoadedPath);
 
     // Enables the gRPC service that binds on the given address on the first
     // port available in the port range [startPart, endPort).
@@ -114,12 +116,12 @@ class EmulatorControllerService::Builder {
 
     // The json allowlist used to protect the grpc endpoint.
     // defaults to <program-dir>/lib/emulator_access.json
-    Builder& withAllowList(const char* path);
+    Builder& withAllowList(fs::path path);
 
-    Builder& withService(::grpc::Service* service);
+    Builder& withService(std::shared_ptr<::grpc::Service> service);
 
     // Add a service only if tls and client-ca is enabled.
-    Builder& withSecureService(::grpc::Service* service);
+    Builder& withSecureService(std::shared_ptr<::grpc::Service> service);
 
     // Shutdown the emulator after timeout seconds of gRPC inactivity.
     // The timeout should be at least 1 second, otherwise it will
@@ -132,10 +134,10 @@ class EmulatorControllerService::Builder {
 
     Builder& withLogging(bool logging);
 
-    std::string allowlist() { return mEmulatorAccessPath; }
+    fs::path allowlist() { return mEmulatorAccessPath; }
 
   private:
-    std::string readSecrets(const char* fname);
+    std::string readSecrets(const fs::path &path);
 
     int port();
     int mPort{-1};
@@ -145,11 +147,11 @@ class EmulatorControllerService::Builder {
     Security mSecurity{Security::Insecure};
     std::shared_ptr<grpc::ServerCredentials> mCredentials;
     std::string mBindAddress{"127.0.0.1"};
-    std::string mCertfile;
+    fs::path mCertfile;
     std::string mAuthToken;
-    std::string mJwkPath;
-    std::string mJwkLoadedPath;
-    std::string mEmulatorAccessPath;
+    fs::path mJwkPath;
+    fs::path mJwkLoadedPath;
+    fs::path mEmulatorAccessPath;
     Authorization mAuthMode{Authorization::None};
     EventLoop* mEventLoop{nullptr};
     bool mValid{true};

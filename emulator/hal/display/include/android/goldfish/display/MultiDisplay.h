@@ -13,12 +13,11 @@
 // limitations under the License.
 #pragma once
 
-#include <goldfish/async/event_loop.h>
-
 #include <atomic>
 #include <vector>
 
 #include "android/goldfish/display/Display.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/async/event_loop_dispatcher.h"
 
 namespace android::goldfish {

@@ -26,7 +26,7 @@
 #include "goldfish/avd/avd-finalize.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/battery/goldfish_battery.h"
-#include "goldfish/grpc/grpc-service-device.h"
+#include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio-input-android.h"
 #include "goldfish/net/virtio-wifi.h"
 #include "goldfish/netsim/netsim-chardev.h"
@@ -118,7 +118,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     goldfish::avd_finalize::avd_finalize_register_types();
     goldfish::adb_device::adb_device_register_types();
     virtio_input_android_register_types();
-    grpc_register_types();
+    goldfish::grpc::grpc_register_types();
     virtio_wifi_register_types();
     goldfish::netsim::netsim_netdev_register_types();
     goldfish::netsim::netsim_chardev_register_types();

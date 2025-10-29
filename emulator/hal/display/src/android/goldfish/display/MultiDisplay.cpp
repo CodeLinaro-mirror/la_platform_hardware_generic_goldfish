@@ -11,16 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "android/goldfish/display/MultiDisplay.h"
+#include "android/goldfish/display/MultiDisplayCallbacks.h"
 
 #include <misc.h>
 
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <mutex>
-#include <thread>
 #include <unordered_map>
 #include <utility>
 
@@ -28,8 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
-#include "absl/time/time.h"
 
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/QemuDisplay.h"

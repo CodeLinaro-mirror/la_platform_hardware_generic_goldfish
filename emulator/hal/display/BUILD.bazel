@@ -6,6 +6,7 @@ cc_library(
         "include/android/goldfish/display/Display.h",
         "include/android/goldfish/display/FpsCalculator.h",
         "include/android/goldfish/display/MultiDisplay.h",
+        "include/android/goldfish/display/MultiDisplayCallbacks.h",
         "include/android/goldfish/display/PixmanDisplay.h",
         "include/android/goldfish/display/PixmanImagePtr.h",
     ],

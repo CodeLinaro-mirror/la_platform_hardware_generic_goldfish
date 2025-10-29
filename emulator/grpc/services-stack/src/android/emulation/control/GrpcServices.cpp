@@ -45,6 +45,7 @@ namespace emulation {
 namespace control {
 
 using Builder = EmulatorControllerService::Builder;
+namespace fs = std::filesystem;
 using namespace android::base;
 using namespace android::control::interceptor;
 using android::base::PathUtils;
@@ -76,9 +77,9 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     }
 
     EmulatorControllerServiceImpl(int port, std::vector<std::shared_ptr<Service>> services,
-                                  std::unique_ptr<AllowList> allowlist, grpc::Server* server,
+                                  std::unique_ptr<AllowList> allowlist, std::unique_ptr<grpc::Server> server,
                                   remote::Endpoint description)
-            : mServer(server)
+            : mServer(std::move(server))
             , mAllowList(std::move(allowlist))
             , mRegisteredServices(services)
             , mEndpoint(description)
@@ -101,47 +102,46 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
 // Returns the whole file contents, or empty if the file could not be read
 // or is empty. Will set the valid flag to false if the file cannot be read
 // or is empty.
-std::string Builder::readSecrets(const char* fname) {
-    if (!fname) {
+std::string Builder::readSecrets(const fs::path &path) {
+    if (path.empty()) {
         LOG(ERROR) << "Cannot read secrets from nothing.";
         mValid = false;
         return "";
     }
-    if (!System::get()->pathExists(fname)) {
-        LOG(ERROR) << "File " << fname << " does not exist or is unreadable";
+    if (!System::get()->pathExists(path)) {
+        LOG(ERROR) << "File " << path.string() << " does not exist or is unreadable";
         mValid = false;
         return "";
     }
-    std::ifstream fstream(PathUtils::asUnicodePath(fname).c_str());
+    std::ifstream fstream(path);
     auto contents =
             std::string(std::istreambuf_iterator<char>(fstream), std::istreambuf_iterator<char>());
 
     if (fstream.fail()) {
-        LOG(ERROR) << "Failure while reading from: " << fname;
+        LOG(ERROR) << "Failure while reading from: " << path.string();
         mValid = false;
     } else if (contents.empty()) {
-        LOG(ERROR) << "The file " << fname << " is empty.";
+        LOG(ERROR) << "The file " << path.string() << " is empty.";
         mValid = true;
     }
 
     return contents;
 }
 
-Builder::Builder() {
-    mEmulatorAccessPath =
-            (std::filesystem::path(System::get()->getLauncherDirectory()) / "lib" / "emulator_access.json").string();
-};
+Builder::Builder() {};
 
 int Builder::port() {
     return mPort;
 }
 
-Builder& Builder::withService(Service* service) {
-    if (service != nullptr) mServices.emplace_back(std::shared_ptr<Service>(service));
+Builder& Builder::withService(std::shared_ptr<Service> service) {
+    if (service) {
+        mServices.emplace_back(std::move(service));
+    }
     return *this;
 }
 
-Builder& Builder::withSecureService(Service* service) {
+Builder& Builder::withSecureService(std::shared_ptr<Service> service) {
     if (service != nullptr) mSecureServices.emplace_back(std::shared_ptr<Service>(service));
     return *this;
 }
@@ -153,21 +153,21 @@ Builder& Builder::withAuthToken(std::string token) {
     return *this;
 }
 
-Builder& Builder::withJwtAuthDiscoveryDir(std::string jwks, std::string jwkLoadedPath) {
-    mJwkPath = jwks;
-    mJwkLoadedPath = jwkLoadedPath;
-    mValid = System::get()->pathExists(jwks) && System::get()->pathCanRead(jwks);
+Builder& Builder::withJwtAuthDiscoveryDir(fs::path jwks, fs::path jwkLoadedPath) {
+    mJwkPath = std::move(jwks);
+    mJwkLoadedPath = std::move(jwkLoadedPath);
+    mValid = System::get()->pathExists(mJwkPath) && System::get()->pathCanRead(mJwkPath);
     mAuthMode = mAuthMode | Authorization::JwtToken;
     return *this;
 }
 
-Builder& Builder::withCertAndKey(const char* certfile, const char* privateKeyFile,
-                                 const char* caFile) {
-    if (!certfile) {
+Builder& Builder::withCertAndKey(fs::path certfile, fs::path privateKeyFile,
+                                 fs::path caFile) {
+    if (certfile.empty()) {
         return *this;
     }
 
-    if (!privateKeyFile) {
+    if (privateKeyFile.empty()) {
         return *this;
     }
 
@@ -180,7 +180,7 @@ Builder& Builder::withCertAndKey(const char* certfile, const char* privateKeyFil
     ssl_opts.pem_key_cert_pairs.push_back(keycert);
 
     // Register the certificate authority if one exists.
-    if (caFile) {
+    if (!caFile.empty()) {
         auto ca = readSecrets(caFile);
         ssl_opts.pem_root_certs = ca;
         ssl_opts.client_certificate_request =
@@ -233,9 +233,9 @@ Builder& Builder::withPortRange(int start, int end) {
     return *this;
 }
 
-Builder& Builder::withAllowList(const char* path) {
-    if (path) {
-        mEmulatorAccessPath = path;
+Builder& Builder::withAllowList(fs::path path) {
+    if (!path.empty()) {
+        mEmulatorAccessPath = std::move(path);
     }
     return *this;
 }
@@ -256,8 +256,8 @@ void AbslStringify(Sink& sink, const Builder::Security value) {
     absl::Format(&sink, "%s", s);
 }
 
-std::unique_ptr<AllowList> loadAllowlist(std::string path) {
-    auto emulator_access = std::ifstream(PathUtils::asUnicodePath(path.c_str()).c_str());
+std::unique_ptr<AllowList> loadAllowlist(const fs::path &path) {
+    auto emulator_access = std::ifstream(path);
 
     if (!emulator_access.good()) {
         LOG(WARNING) << "Cannot find access file " << path << ", blocking all access.";
@@ -266,7 +266,7 @@ std::unique_ptr<AllowList> loadAllowlist(std::string path) {
 
     LOG(INFO) << "Using security allow list from: " << path;
     auto list = AllowList::fromStream(emulator_access);
-    list->setSource(path);
+    list->setSource(path.string());
 
     return list;
 }
@@ -313,7 +313,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
         }
         if (!mJwkPath.empty()) {
             anyauth.emplace_back(
-                    std::make_unique<JwtTokenAuth>(mJwkPath, mJwkLoadedPath, allowList.get()));
+                    std::make_unique<JwtTokenAuth>(mJwkPath.string(), mJwkLoadedPath.string(), allowList.get()));
         }
         mCredentials->SetAuthMetadataProcessor(
                 std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
@@ -354,14 +354,15 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     builder.experimental().SetInterceptorCreators(std::move(creators));
 
     auto service = builder.BuildAndStart();
-    if (!service) return nullptr;
+    if (!service) {
+        return nullptr;
+    }
 
     endpoint.set_target(server_address);
 
     LOG(INFO) << "Started GRPC server at " << server_address.c_str() << ", security: " << mSecurity
               << ", auth: " << mAuthMode;
-    return std::unique_ptr<EmulatorControllerService>(new EmulatorControllerServiceImpl(
-            mPort, std::move(mServices), std::move(allowList), service.release(), endpoint));
+    return std::make_unique<EmulatorControllerServiceImpl>(mPort, std::move(mServices), std::move(allowList), std::move(service), endpoint);
 }
 }  // namespace control
 }  // namespace emulation
