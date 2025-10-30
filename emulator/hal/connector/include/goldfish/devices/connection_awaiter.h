@@ -36,6 +36,8 @@ namespace async = goldfish::async;
  * callback mechanism to notify the user when the connection is successfully established.
  */
 class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<ConnectionAwaiter> {
+    struct Private {};
+
   public:
     /**
      * @brief A function type representing a connection creation attempt.
@@ -51,6 +53,18 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      * This function takes a `SocketPtr` as input, representing the established connection.
      */
     using ConnectionCallback = std::function<void(SocketPtr)>;
+
+    /**
+     * @brief Constructor. Initializes the `ConnectionAwaiter` and starts the retry task.
+     *
+     * @param eventLoop The event loop instance for scheduling tasks.
+     * @param createConnection The function to create a connection.
+     * @param onConnected The callback to invoke upon successful connection.
+     * @param interval The retry interval.
+     */
+    ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
+                      ConnectionCallback onConnected, std::chrono::milliseconds interval,
+                      Private);
 
     /**
      * @brief Destructor. Stops the connection retry task.
@@ -100,17 +114,6 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
             ConnectionCallback onConnected, std::chrono::milliseconds interval);
 
   private:
-    /**
-     * @brief Constructor. Initializes the `ConnectionAwaiter` and starts the retry task.
-     *
-     * @param eventLoop The event loop instance for scheduling tasks.
-     * @param createConnection The function to create a connection.
-     * @param onConnected The callback to invoke upon successful connection.
-     * @param interval The retry interval.
-     */
-    ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
-                      ConnectionCallback onConnected, std::chrono::milliseconds interval);
-
     /**
      * @brief Attempts to establish a connection.
      *
