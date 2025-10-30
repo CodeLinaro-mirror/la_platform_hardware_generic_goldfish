@@ -20,7 +20,6 @@
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/process/Command.h"
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
@@ -30,7 +29,6 @@
 #include "client/settings.h"
 
 using android::base::Command;
-using android::base::PathUtils;
 using android::base::System;
 using crashpad::CrashReportDatabase;
 using namespace std::chrono_literals;
@@ -75,7 +73,7 @@ class CrashTest : public ::testing::Test {
             System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
-        auto crashDatabasePath = android::base::pj(System::get()->getTempDir(), kCrashpadDatabase);
+        //auto crashDatabasePath = System::get()->getTempDir() / kCrashpadDatabase;
         auto handler_path = CrashReporter::handlerExe();
         auto database_path = CrashReporter::databaseDirectory();
         auto crashDatabase = crashpad::CrashReportDatabase::Initialize(database_path);
@@ -90,7 +88,7 @@ class CrashTest : public ::testing::Test {
         if (!Bazel::inBazel()) {
             executable = System::get()->findBundledExecutable(kCrashMe);
         }
-        auto proc = Command::create({executable, "--delay_ms", "1000"})
+        auto proc = Command::create({executable.string(), "--delay_ms", "1000"})
                             .inherit()
                             .withStderrBuffer(4096, 10ms)
                             .execute();

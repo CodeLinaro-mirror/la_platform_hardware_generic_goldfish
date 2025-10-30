@@ -18,7 +18,7 @@
 #ifdef _WIN32
 #include <windows.h>
 
-#include "android/base/strings/Win32UnicodeString.h"
+#include "android/base/system/Win32UnicodeString.h"
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -60,7 +60,7 @@ ApplicationSingleton::ApplicationSingleton(const std::string& appName)
         : mImpl(std::make_unique<Impl>()) {
 #ifdef _WIN32
     android::base::Win32UnicodeString local("Local\\\\" + appName);
-    mImpl->mLockHandle = CreateMutex(NULL, TRUE, local.c_str());
+    mImpl->mLockHandle = CreateMutexW(NULL, TRUE, local.c_str());
     if (mImpl->mLockHandle == NULL) {
         throw std::runtime_error("Failed to create application mutex.");
     }

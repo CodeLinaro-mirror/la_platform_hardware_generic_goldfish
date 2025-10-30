@@ -25,7 +25,6 @@
 
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "android/base/testing/TestTempDir.h"
 #include "nlohmann/json.hpp"
 #include "tink/config/tink_config.h"
@@ -48,7 +47,6 @@ namespace emulation {
 namespace control {
 
 namespace tink = crypto::tink;
-using android::base::pj;
 using android::base::TestTempDir;
 using json = nlohmann::json;
 using Path = std::string;
@@ -79,7 +77,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
     void write(Path fname, json snippet) { write(fname, snippet.dump(2)); }
 
     void write(Path fname, std::string snippet) {
-        std::ofstream out(pj(mTempDir->path(), fname));
+        std::ofstream out(mTempDir->path() / fname);
         out << snippet;
         out.close();
     }
@@ -106,7 +104,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
 TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     JwkKeyLoader loader;
     write("foo", std::string(8196 * 2, 'x'));
-    auto status = loader.add(pj(mTempDir->path(), "foo"));
+    auto status = loader.add((mTempDir->path() / "foo").string());
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
 }
@@ -117,7 +115,7 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     JwkKeyLoader loader;
     write("foo", std::string(0, 'x'));
     auto start = std::chrono::system_clock::now();
-    auto status = loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 8, 10ms);
+    auto status = loader.addWithRetryForEmpty((mTempDir->path() / "foo").string(), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -157,7 +155,7 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
     });
 
     auto start = std::chrono::system_clock::now();
-    auto status = loader.addWithRetryForEmpty(pj(mTempDir->path(), "foo"), 100, 10ms);
+    auto status = loader.addWithRetryForEmpty((mTempDir->path() / "foo").string(), 100, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -267,7 +265,7 @@ TEST_F(JwkKeyLoaderTest, accepts_json_in_file) {
         })##";
 
     write("sample.jwk", b273331311);
-    auto status = loader.add(pj(mTempDir->path(), "sample.jwk"));
+    auto status = loader.add((mTempDir->path() / "sample.jwk").string());
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
     EXPECT_EQ(loader.size(), 1);
 

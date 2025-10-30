@@ -49,7 +49,6 @@ namespace emulation {
 namespace control {
 
 namespace tink = crypto::tink;
-using android::base::pj;
 using android::base::TestTempDir;
 using json = nlohmann::json;
 using Path = std::string;
@@ -110,7 +109,7 @@ class AuthErrorsTest : public ::testing::Test {
     void write(Path fname, json snippet) { write(fname, snippet.dump(2)); }
 
     void write(Path fname, std::string snippet) {
-        std::ofstream out(pj(mTempDir->path(), fname));
+        std::ofstream out(mTempDir->path() / fname);
         out << snippet;
         out.close();
     }

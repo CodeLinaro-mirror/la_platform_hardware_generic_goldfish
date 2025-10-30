@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstring>
+
 #include <gtest/gtest.h>
 
 #include <fstream>
@@ -124,7 +126,7 @@ TEST(Initrd, RamdiskFlag) {
     std::ofstream{override_initrd} << "abc";
 
     char override_str[1024];
-    strncpy(override_str, override_initrd.c_str(), 1024);
+    strncpy(override_str, override_initrd.string().c_str(), 1024);
     AndroidOptions opts{.ramdisk = override_str};
     FakeEmulator emu(std::move(opts));
 

@@ -46,6 +46,8 @@ using ::google::protobuf::Empty;
 
 namespace {
 
+namespace fs = std::filesystem;
+
 // A mock implementation of the EmulatorController service for testing.
 class MockEmulatorController final : public EmulatorController::Service {
   public:
@@ -78,22 +80,21 @@ class EmulatorGrpcClientTest : public ::testing::Test {
     class TmpDiscoveryFile {
       public:
         explicit TmpDiscoveryFile(const std::string& content) {
-            std::string tmp_dir = std::filesystem::temp_directory_path();
             std::string file_name = absl::StrCat(
                     "grpc_test_",
                     absl::Hex(absl::Uniform<uint64_t>(absl::BitGen()), absl::kSpacePad16));
-            mPath = std::filesystem::path(tmp_dir) / file_name;
+            mPath = fs::temp_directory_path() / file_name;
             std::ofstream out(mPath);
             out << content;
         }
         ~TmpDiscoveryFile() {
             std::error_code ec;
-            std::filesystem::remove(mPath, ec);
+            fs::remove(mPath, ec);
         }
-        const std::filesystem::path& path() const { return mPath; }
+        const fs::path& path() const { return mPath; }
 
       private:
-        std::filesystem::path mPath;
+        fs::path mPath;
     };
 
     MockEmulatorController service;

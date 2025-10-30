@@ -19,7 +19,6 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system",
         "@aemu//base:aemu-base",
     ],
 )

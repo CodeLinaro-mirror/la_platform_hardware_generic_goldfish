@@ -60,6 +60,7 @@ cc_library(
             "//hardware/generic/goldfish/android/process",
         ],
         "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
             "@glib//glib/dirent",
         ],
         "//conditions:default": [],

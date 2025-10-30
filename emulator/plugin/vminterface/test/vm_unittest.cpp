@@ -24,6 +24,7 @@
 extern "C" {
 #include "vm-mock.h"
 }
+#undef shutdown
 
 namespace android {
 namespace goldfish {
