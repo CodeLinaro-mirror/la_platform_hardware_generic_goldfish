@@ -13,9 +13,12 @@
 // limitations under the License.
 
 #include <android/cmdline-definitions.h>
-#include <memory>
+
+#include <chrono>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <thread>
 
 #include "absl/debugging/failure_signal_handler.h"
 #include "absl/debugging/symbolize.h"
@@ -30,12 +33,10 @@
 #include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/emulator.h"
+#include "android/goldfish/input_paths.h"
 #include "android/goldfish/logging.h"
 #include "android/goldfish/netsimd.h"
 #include "android/main-help.h"
-
-#include "android/goldfish/input_paths.h"
-
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
 #include "goldfish/tools/aemu_version.h"
@@ -62,7 +63,7 @@ static void show_banner() {
     std::cout << "    = _ _.*= .            \n";
 }
 
-absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions &opts) {
+absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions& opts) {
     EmulatorPorts ports;
     if (opts.ports) {
         // Format should be console_port,adb_port
@@ -71,15 +72,18 @@ absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions &opts) {
             return absl::InvalidArgumentError(absl::StrCat("Failed to parse -ports: ", opts.ports));
         }
         if (!absl::SimpleAtoi(parts[0], &ports.serial_number)) {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse serial port number from -ports: ", opts.ports));
+            return absl::InvalidArgumentError(
+                    absl::StrCat("Failed to parse serial port number from -ports: ", opts.ports));
         }
         if (!absl::SimpleAtoi(parts[1], &ports.adb_port)) {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
+            return absl::InvalidArgumentError(
+                    absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
         }
     } else if (opts.port) {
         // opts.port specifies the telnet console port and by default ADB port is that +1
         if (!absl::SimpleAtoi(opts.port, &ports.serial_number)) {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse serial port number from -port ", opts.port));
+            return absl::InvalidArgumentError(
+                    absl::StrCat("Failed to parse serial port number from -port ", opts.port));
         }
         ports.adb_port = ports.serial_number + 1;
     } else {
@@ -88,10 +92,13 @@ absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions &opts) {
         ports.adb_port = ports.serial_number + 1;
     }
     if (ports.adb_port < 5555 || ports.adb_port > 5585) {
-        LOG(WARNING) << "ADB port specified is out of range [5555,5585], adb may not work properly: " << ports.adb_port;
+        LOG(WARNING)
+                << "ADB port specified is out of range [5555,5585], adb may not work properly: "
+                << ports.adb_port;
     }
     if (ports.adb_port % 2 != 1) {
-        LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: " << ports.adb_port;
+        LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: "
+                     << ports.adb_port;
     }
 
     return ports;
@@ -99,7 +106,7 @@ absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions &opts) {
 
 class UvSignalHandler {
   public:
-    UvSignalHandler(uv_loop_t* uv_loop, int signal, void *data, uv_signal_cb signal_cb) {
+    UvSignalHandler(uv_loop_t* uv_loop, int signal, void* data, uv_signal_cb signal_cb) {
         uv_signal_init(uv_loop, &mSignalHandler);
         mSignalHandler.data = data;
         uv_signal_start(&mSignalHandler, signal_cb, signal);
@@ -116,17 +123,22 @@ class UvSignalHandler {
 
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
-    Launcher(::goldfish::async::EventLoop &event_loop, EmulatorPorts ports, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
-    : UvProcessLauncher(static_cast<uv_loop_t *>(event_loop.getRawLoop()))
-    , mEventLoop(event_loop)
-    , mPorts(std::move(ports))
-    , mResolvedPaths(std::move(resolved_paths))
-    , mAvd(std::move(avd))
-    , mOpts(std::move(opts))
-    , mSignalHandlerHup(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGHUP, this, forwarding_signal_handler)
-    , mSignalHandlerInt(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGINT, this, forwarding_signal_handler)
-    , mSignalHandlerQuit(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGQUIT, this, forwarding_signal_handler)
-    , mSignalHandlerTerm(static_cast<uv_loop_t *>(event_loop.getRawLoop()), SIGTERM, this, forwarding_signal_handler) {
+    Launcher(::goldfish::async::EventLoop& event_loop, EmulatorPorts ports,
+             ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
+            : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.getRawLoop()))
+            , mEventLoop(event_loop)
+            , mPorts(std::move(ports))
+            , mResolvedPaths(std::move(resolved_paths))
+            , mAvd(std::move(avd))
+            , mOpts(std::move(opts))
+            , mSignalHandlerHup(static_cast<uv_loop_t*>(event_loop.getRawLoop()), SIGHUP, this,
+                                forwarding_signal_handler)
+            , mSignalHandlerInt(static_cast<uv_loop_t*>(event_loop.getRawLoop()), SIGINT, this,
+                                forwarding_signal_handler)
+            , mSignalHandlerQuit(static_cast<uv_loop_t*>(event_loop.getRawLoop()), SIGQUIT, this,
+                                 forwarding_signal_handler)
+            , mSignalHandlerTerm(static_cast<uv_loop_t*>(event_loop.getRawLoop()), SIGTERM, this,
+                                 forwarding_signal_handler) {
         mEventLoop.post([this] {
             if (mOpts.no_netsim) {
                 launch_emulator(std::string());
@@ -141,17 +153,17 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     int emulator_exit_status() const { return mEmulatorExitStatus; }
 
   private:
-    static void forwarding_signal_handler(uv_signal_t *handle, int signum) {
+    static void forwarding_signal_handler(uv_signal_t* handle, int signum) {
         LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
-        Launcher *l = static_cast<Launcher *>(handle->data);
-        if (auto *p = l->mEmulatorProcess.get()) {
+        Launcher* l = static_cast<Launcher*>(handle->data);
+        if (auto* p = l->mEmulatorProcess.get()) {
             uv_process_kill(p, signum);
         }
     }
 
-    static void netsimd_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
-        LOG(INFO) << "Netsimd exited with status " << exit_status <<  ", signal " << term_signal;
-        Launcher &l = static_cast<Launcher&>(get_launcher(*req));
+    static void netsimd_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
+        LOG(INFO) << "Netsimd exited with status " << exit_status << ", signal " << term_signal;
+        Launcher& l = static_cast<Launcher&>(get_launcher(*req));
         close_handle(std::move(l.mNetsimdProcess));
     }
 
@@ -159,15 +171,22 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         mExistingNetsimdPort = read_netsim_port();
         if (mExistingNetsimdPort != 0) {
             LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd "
-                            "still running or it died without cleanup: " << mExistingNetsimdPort;
+                            "still running or it died without cleanup: "
+                         << mExistingNetsimdPort;
         }
 
-        if (auto netsim_config = netsimd_launch_config(mResolvedPaths.netsim_binary, mOpts); netsim_config.ok()) {
+        if (auto netsim_config = netsimd_launch_config(mResolvedPaths.netsim_binary, mOpts);
+            netsim_config.ok()) {
             if (auto s = launch(*std::move(netsim_config), &netsimd_exit); s.ok()) {
                 mNetsimdProcess = *std::move(s);
                 VLOG(1) << "Running netsimd as pid: " << get_pid(mNetsimdProcess);
 
-                mFindNetsimd = mEventLoop.scheduleRepeating([this] { mRetryCountDown = 10; find_netsimd_endpoint(); }, std::chrono::seconds(1), std::chrono::seconds(1));
+                mFindNetsimd = mEventLoop.scheduleRepeating(
+                        [this] {
+                            mRetryCountDown = 10;
+                            find_netsimd_endpoint();
+                        },
+                        std::chrono::seconds(1), std::chrono::seconds(1));
             } else {
                 LOG(FATAL) << "Fatal error whilst launching netsimd: " << s.status();
             }
@@ -179,7 +198,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     void find_netsimd_endpoint() {
         if (mRetryCountDown == 0) {
             mFindNetsimd->cancel();
-            //absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
+            // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
             LOG(FATAL) << "Unable to determine the correct grpc endpoint for netsimd";
             return;
         }
@@ -191,7 +210,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             if (mExistingNetsimdPort != 0) {
                 mFindNetsimd->cancel();
                 mFindNetsimd.reset();
-                LOG(WARNING) << "Connecting to already running netsimd, this likely means it was started by another emulator instance";
+                LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
+                                "started by another emulator instance";
                 mEventLoop.post([this] {
                     try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
                 });
@@ -215,9 +235,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->cancel();
         mFindNetsimd.reset();
-        mEventLoop.post([this, port] {
-            try_connect_netsimd(absl::StrCat("localhost:", port));
-        });
+        mEventLoop.post([this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
     }
 
     void try_connect_netsimd(std::string netsimd_endpoint) {
@@ -225,20 +243,22 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
         // Blocking
         VLOG(1) << "Trying to connect to netsimd at: " << netsimd_endpoint;
-        if (auto connection = connect_to_netsim(netsimd_endpoint, kConnectionDeadline); connection.ok()) {
+        if (auto connection = connect_to_netsim(netsimd_endpoint, kConnectionDeadline);
+            connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
             mEventLoop.post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
                 launch_emulator(std::move(endpoint));
             });
         } else {
-            LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: " << connection.status();
+            LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
+                       << connection.status();
         }
     }
 
-    static void emulator_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
-        LOG(INFO) << "emulator exited with status " << exit_status <<  ", signal " << term_signal;
-        Launcher &l = static_cast<Launcher&>(get_launcher(*req));
+    static void emulator_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
+        LOG(INFO) << "emulator exited with status " << exit_status << ", signal " << term_signal;
+        Launcher& l = static_cast<Launcher&>(get_launcher(*req));
         l.mEmulatorExitStatus = exit_status;
         close_handle(std::move(l.mEmulatorProcess));
 
@@ -254,12 +274,13 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_emulator(std::string netsimd_endpoint) {
-        Emulator emulator{std::move(mPorts), std::move(netsimd_endpoint), std::move(mResolvedPaths), std::move(mAvd), std::move(mOpts)};
+        Emulator emulator{std::move(mPorts), std::move(netsimd_endpoint), std::move(mResolvedPaths),
+                          std::move(mAvd), std::move(mOpts)};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
-                if (auto s = launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
-                    mEmulatorProcess = *std::move(s);
-                    LOG(INFO) << "Running emulator as pid: " << get_pid(mEmulatorProcess);
+            if (auto s = launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
+                mEmulatorProcess = *std::move(s);
+                LOG(INFO) << "Running emulator as pid: " << get_pid(mEmulatorProcess);
             } else {
                 LOG(FATAL) << "Fatal error whilst launching the emulator: " << s.status();
             }
@@ -268,7 +289,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         }
     }
 
-    ::goldfish::async::EventLoop &mEventLoop;
+    ::goldfish::async::EventLoop& mEventLoop;
 
     EmulatorPorts mPorts;
     ResolvedInputPaths mResolvedPaths;
@@ -295,7 +316,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     int mEmulatorExitStatus = 0;
 };
 
-void list_avds(const ResolvedInputPaths &resolved_paths, bool verbose, char *sysdir_override) {
+void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sysdir_override) {
     auto avds = Avd::list(resolved_paths.avd_directory);
     for (const auto& name : avds) {
         auto a = Avd::fromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
@@ -307,8 +328,8 @@ void list_avds(const ResolvedInputPaths &resolved_paths, bool verbose, char *sys
     }
 }
 
-} // namespace
-} // namespace android::goldfish
+}  // namespace
+}  // namespace android::goldfish
 
 int main(int argc, char** argv) {
     absl::InitializeSymbolizer(argv[0]);
@@ -328,7 +349,7 @@ int main(int argc, char** argv) {
 
 #ifdef __linux__
     // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
-    System::setEnvironmentVariable("LD_PRELOAD","/lib/x86_64-linux-gnu/libgcc_s.so.1");
+    System::setEnvironmentVariable("LD_PRELOAD", "/lib/x86_64-linux-gnu/libgcc_s.so.1");
 #endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
@@ -349,10 +370,15 @@ int main(int argc, char** argv) {
 
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
-        auto launcher_dir = fs::path(
-                Bazel::runfilesPath("_main/hardware/generic/goldfish/emulator/launcher"));
+        auto launcher_dir =
+                fs::path(Bazel::runfilesPath("_main/hardware/generic/goldfish/emulator/launcher"));
         assert(fs::exists(launcher_dir));
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", System::pathAsString(launcher_dir));
+        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+                                       System::pathAsString(launcher_dir));
+        if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+            System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+                                           fs::path("/tmp/crash-report.db").string());
+        }
     }
 
     // Check that things exist so that we can error out early if necessary.
@@ -426,7 +452,8 @@ int main(int argc, char** argv) {
 
     auto event_loop = goldfish::async::LibuvEventLoop::create();
 
-    android::goldfish::Launcher l(*event_loop, *std::move(ports), *std::move(resolved_paths), *std::move(avd), opts);
+    android::goldfish::Launcher l(*event_loop, *std::move(ports), *std::move(resolved_paths),
+                                  *std::move(avd), opts);
 
     if (auto s = event_loop->run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;

@@ -73,7 +73,7 @@ class CrashSystem {
         mDatabasePath = CrashReporter::databaseDirectory();
         auto metrics_path = ::base::FilePath();
         auto annotations = std::map<std::string, std::string>{
-                {"prod", "AndroidEmulator"}, {"ver", EMULATOR_FULL_VERSION_STRING}};
+            {"prod", "AndroidEmulator"}, {"ver", EMULATOR_FULL_VERSION_STRING}};
 
         ABSL_VLOG(1) << "Starting crashpad-handler: " << handler_path;
         bool active = mClient->StartHandler(handler_path, mDatabasePath, metrics_path, CrashURL,
@@ -88,7 +88,6 @@ class CrashSystem {
         }
 
         ABSL_VLOG(1) << "Using database: " << mDatabasePath;
-
         return mInitialized;
     }
 
@@ -128,19 +127,19 @@ class CrashSystem {
             if (!report.uploaded) {
                 auto status = mConsentProvider->requestConsent(report);
                 switch (status) {
-                    case CrashConsent::ReportAction::UPLOAD_REMOVE: {
-                        std::thread upload([this, report]() { processReport(report); });
-                        upload.detach();
-                        break;
-                    }
-                    case CrashConsent::ReportAction::REMOVE:
-                        LOG(INFO) << "No consent for crashreport " << report.uuid.ToString()
-                                  << ", deleting.";
-                        toRemove.push_back(report.uuid);
-                        break;
-                    case CrashConsent::ReportAction::UNDECIDED_KEEP:
-                        LOG(INFO) << "Failed to get consent, keeping " << report.id << " for now.";
-                        break;
+                case CrashConsent::ReportAction::UPLOAD_REMOVE: {
+                    std::thread upload([this, report]() { processReport(report); });
+                    upload.detach();
+                    break;
+                }
+                case CrashConsent::ReportAction::REMOVE:
+                    LOG(INFO) << "No consent for crashreport " << report.uuid.ToString()
+                              << ", deleting.";
+                    toRemove.push_back(report.uuid);
+                    break;
+                case CrashConsent::ReportAction::UNDECIDED_KEEP:
+                    LOG(INFO) << "Failed to get consent, keeping " << report.id << " for now.";
+                    break;
                 }
             } else {
                 toRemove.push_back(report.uuid);
