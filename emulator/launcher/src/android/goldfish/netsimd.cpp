@@ -21,11 +21,10 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/files/IniFile.h"
-#include "aemu/base/network/Dns.h"
-#include "aemu/base/network/IpAddress.h"
 #include "aemu/base/utils/status_macros.h"
 #include "android/cmdline-option.h"
 #include "goldfish/async/launch_config.h"
+#include "goldfish/network/dns_resolver.h"
 
 namespace fs = std::filesystem;
 namespace android::goldfish {
@@ -89,10 +88,14 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
     bool no_web_ui = true;  //! feature_is_enabled(kFeature_NetsimWebUi),
     std::string host_dns = opts.dns_server ? opts.dns_server : "";
     if (host_dns.empty()) {
-        android::base::Dns::AddressList al = android::base::Dns::getSystemServerList();
-        host_dns = absl::StrJoin(al, ",", [](std::string* out, const android::base::IpAddress& ip) {
-            absl::StrAppend(out, ip.toString());
-        });
+        if (auto al = ::goldfish::network::getSystemDnsServers(); al.ok()) {
+            host_dns = absl::StrJoin(al.value(), ",", [](std::string* out, const auto& ip) {
+                absl::StrAppend(out, ip.toString());
+            });
+        } else {
+            LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();
+            LOG(WARNING) << "The network simulation will run with reduced functionality.";
+        }
         VLOG(1) << "Netsim DNS set to: " << host_dns;
     }
     std::string_view http_proxy = opts.http_proxy ? opts.http_proxy : "";
@@ -121,7 +124,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
     }
 
     LOG(INFO) << "Netsimd launch command: " << netsim_binary << " " << absl::StrJoin(args, " ");
-    return ::goldfish::async::LaunchConfig {
+    return ::goldfish::async::LaunchConfig{
         .exe_path = netsim_binary,
         .args = args,
         //.environment = {},
