@@ -55,7 +55,7 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
     }
 
     std::string grpc_device =
-            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string());
+            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string(), ",discovery_dir=", emulator.paths().discovery_directory.string());
 
     return {"-device", grpc_device, "-trace", "module_*"};
 }

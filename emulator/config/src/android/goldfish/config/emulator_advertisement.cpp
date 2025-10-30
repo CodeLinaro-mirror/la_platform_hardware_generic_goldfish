@@ -11,11 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#include "android/goldfish/config/emulator_advertisment.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <initializer_list>
 #include <utility>
@@ -30,8 +34,6 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/config_dirs.h"
-#include "android/goldfish/config/emulator_advertisment.h"
 #include "android/utils/path.h"
 
 namespace android {
@@ -46,20 +48,11 @@ namespace goldfish {
 #define DD(...) dinfo(__VA_ARGS__);
 #endif
 
+namespace fs = std::filesystem;
 using android::base::PathUtils;
 using android::base::Process;
 using android::base::System;
 static const char* location_format = "pid_%d.ini";
-
-static bool isMe(std::string discoveryFile) {
-    std::string entry(PathUtils::decompose(discoveryFile).back());
-    int pid = 0;
-    if (sscanf(entry.c_str(), location_format, &pid) != 1) {
-        // Not a discovery file..
-        return false;
-    }
-    return pid == Process::me()->pid();
-}
 
 static bool canConnectToPort(int64_t port) {
     if (port == 0) {
@@ -80,21 +73,21 @@ static bool canConnectToPort(int64_t port) {
 // Liveness checker that tries to load the discovery file
 // and tries to see if any of the declared ports are accessible
 // and validates that the ports do not point to me.
-bool OpenPortChecker::isAlive(std::string myFile, std::string discoveryFile) const {
+bool OpenPortChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
     if (myFile == discoveryFile) {
         return true;
     }
 
-    DD("Checking liveness of entry %s", discoveryFile.c_str());
+    DD("Checking liveness of entry %s", discoveryFile.string().c_str());
     IniFile ini(discoveryFile);
     IniFile me(myFile);
     if (!ini.read()) {
-        DD("Invalid ini file: %s", discoveryFile.c_str());
+        DD("Invalid ini file: %s", discoveryFile.string().c_str());
         return false;
     }
 
     if (!System::get()->pathExists(myFile) || !me.read()) {
-        DD("Invalid ini file: %s (that's ok)", myFile.c_str());
+        DD("Invalid ini file: %s (that's ok)", myFile.string().c_str());
     }
 
     // Check if we can connect to any of the ports that are defined in the
@@ -117,9 +110,9 @@ bool OpenPortChecker::isAlive(std::string myFile, std::string discoveryFile) con
     return false;
 }
 
-bool PidChecker::isAlive(std::string myFile, std::string discoveryFile) const {
+bool PidChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
     // Check to see if the process is alive
-    std::string entry(PathUtils::decompose(discoveryFile).back());
+    std::string entry = discoveryFile.filename().string();
     int pid = 0;
     if (System::get()->pathIsFile(discoveryFile)) {
         if (sscanf(entry.c_str(), location_format, &pid) != 1) {
@@ -164,27 +157,12 @@ bool PidChecker::isAlive(std::string myFile, std::string discoveryFile) const {
 }
 
 EmulatorAdvertisement::EmulatorAdvertisement(
-        EmulatorProperties config, std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
-        : mStudioConfig(std::move(config)), mLivenessChecker(std::move(livenessChecker)) {
-    mSharedDirectory = System::pathAsString(goldfish::ConfigDirs::getDiscoveryDirectory());
-    if (!System::get()->pathExists(mSharedDirectory)) {
-        LOG(WARNING) << "Discovery directory: " << mSharedDirectory << ", does not exist. creating";
-        path_mkdir_if_needed(mSharedDirectory.data(), 0700);
-    }
-    assert(System::get()->pathExists(mSharedDirectory));
-}
-
-EmulatorAdvertisement::EmulatorAdvertisement(
-        EmulatorProperties config, std::string sharedDirectory,
+        EmulatorProperties config, fs::path discoveryDirectory,
         std::unique_ptr<EmulatorLivenessStrategy> livenessChecker)
         : mStudioConfig(std::move(config))
-        , mSharedDirectory(sharedDirectory)
+        , mSharedDirectory(std::move(discoveryDirectory))
         , mLivenessChecker(std::move(livenessChecker)) {
-    if (!System::get()->pathExists(mSharedDirectory)) {
-        LOG(WARNING) << "Discovery directory: " << mSharedDirectory << ", does not exist. creating";
-        path_mkdir_if_needed(mSharedDirectory.data(), 0700);
-    }
-    assert(System::get()->pathExists(mSharedDirectory));
+    assert(fs::exists(mSharedDirectory));
 }
 
 EmulatorAdvertisement::~EmulatorAdvertisement() {
@@ -195,18 +173,17 @@ int EmulatorAdvertisement::garbageCollect() const {
     auto start = std::chrono::high_resolution_clock::now();
     DD("Starting garbage collection of advertisement.");
     int collected = 0;
-    for (const auto& fname : System::get()->scanDirEntries(mSharedDirectory, true)) {
-        std::string entry = System::pathAsString(fname);
-        DD("Checking: %s", entry.c_str());
+    for (const fs::path& entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
+        DD("Checking: %s", entry.string().c_str());
         if (!mLivenessChecker->isAlive(location(), entry)) {
-            DD("Deleting %s", entry.c_str());
+            DD("Deleting %s", entry.string().c_str());
             collected++;
             // Emulator is not running, or unreachable.
             if (System::get()->pathIsFile(entry)) {
                 System::get()->deleteFile(entry);
             }
             if (System::get()->pathIsDir(entry)) {
-                path_delete_dir(entry.c_str());
+                path_delete_dir(entry.string().c_str());
             }
         }
     }
@@ -216,11 +193,10 @@ int EmulatorAdvertisement::garbageCollect() const {
     return collected;
 }
 
-std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() const {
-    DD("Scanning %s", mSharedDirectory.c_str());
-    std::vector<std::string> discovered;
-    for (const auto& fname : System::get()->scanDirEntries(mSharedDirectory, true)) {
-        std::string entry = System::pathAsString(fname);
+std::vector<fs::path> EmulatorAdvertisement::discoverRunningEmulators() const {
+    DD("Scanning %s", mSharedDirectory.string().c_str());
+    std::vector<fs::path> discovered;
+    for (const fs::path &entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
         if (entry != location() && mLivenessChecker->isAlive(location(), entry)) {
             discovered.push_back(entry);
         }
@@ -229,9 +205,9 @@ std::vector<std::string> EmulatorAdvertisement::discoverRunningEmulators() const
     return discovered;
 }
 
-std::string EmulatorAdvertisement::discoverEmulatorWithProperties(
+fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
         const EmulatorProperties& props) const {
-    for (const auto& discoveryFile : discoverRunningEmulators()) {
+    for (const fs::path &discoveryFile : discoverRunningEmulators()) {
         IniFile ini(discoveryFile);
         if (!ini.read()) continue;
 
@@ -247,35 +223,26 @@ std::string EmulatorAdvertisement::discoverEmulatorWithProperties(
 
 void EmulatorAdvertisement::remove() const {
     System::get()->deleteFile(location());
-    auto pid_dir = android::base::pj(mSharedDirectory, std::to_string(Process::me()->pid()));
+    fs::path pid_dir = mSharedDirectory / std::to_string(Process::me()->pid());
     if (System::get()->pathIsDir(pid_dir)) {
-        DD("Deleting my pid dir %s", pid_dir.c_str());
-        path_delete_dir(pid_dir.c_str());
+        DD("Deleting my pid dir %s", pid_dir.string().c_str());
+        path_delete_dir(pid_dir.string().c_str());
     }
 }
 
-std::string EmulatorAdvertisement::location() const {
+fs::path EmulatorAdvertisement::location() const {
     auto pid = Process::me()->pid();
     std::string pidfile = android::base::StringFormat(location_format, pid);
-    std::string result = android::base::pj(mSharedDirectory, pidfile);
-    return result;
-}
-
-// True if a advertisement exists for the given pid.
-bool EmulatorAdvertisement::exists(base::Pid pid) {
-    std::string pidfile = android::base::StringFormat(location_format, pid);
-    std::string pidPath = android::base::pj(
-            System::pathAsString(goldfish::ConfigDirs::getDiscoveryDirectory()), pidfile);
-    return System::get()->pathIsFile(pidPath);
+    return mSharedDirectory / pidfile;
 }
 
 bool EmulatorAdvertisement::write() const {
-    auto pidFile = location();
+    fs::path pidFile = location();
     if (System::get()->pathExists(pidFile)) {
         LOG(WARNING) << "Overwriting existing discovery file: " << pidFile;
     }
     LOG(INFO) << "Advertising in: " << pidFile;
-    auto shareFile = std::ofstream(PathUtils::asUnicodePath(pidFile.data()).c_str());
+    auto shareFile = std::ofstream(pidFile);
     for (const auto& elem : mStudioConfig) {
         shareFile << elem.first << "=" << elem.second << "\n";
     }
@@ -286,7 +253,7 @@ bool EmulatorAdvertisement::write() const {
     // To ensure that your files are not removed, they should have their access
     // time timestamp modified at least once every 6 hours of monotonic time or
     // the 'sticky' bit should be set on the file.
-    chmod(pidFile.c_str(), S_IRUSR | S_ISVTX | S_IWUSR);
+    chmod(pidFile.string().c_str(), S_IRUSR | S_ISVTX | S_IWUSR);
 #endif
     return !shareFile.bad();
 }

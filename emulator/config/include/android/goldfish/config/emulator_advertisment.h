@@ -14,15 +14,16 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>         // for make_unique, unique_ptr
 #include <string>         // for string, hash, operator==
 #include <unordered_map>  // for unordered_map
 #include <vector>         // for vector
 
-#include "aemu/base/process/Process.h"
-
 namespace android {
 namespace goldfish {
+
+namespace fs = std::filesystem;
 
 // A simple emulator configuration that can be shared with external processes.
 // Properties are simple string pairs that are written to disk as ini files with
@@ -36,7 +37,7 @@ using EmulatorProperties = std::unordered_map<std::string, std::string>;
 class EmulatorLivenessStrategy {
   public:
     virtual ~EmulatorLivenessStrategy() {};
-    virtual bool isAlive(std::string myFile, std::string discoveryFile) const = 0;
+    virtual bool isAlive(fs::path myFile, fs::path discoveryFile) const = 0;
 };
 
 // Liveness checker that tries to load the discovery file
@@ -45,7 +46,7 @@ class EmulatorLivenessStrategy {
 /// NOTE: this can be very slow, so best not to use it.
 class OpenPortChecker : public EmulatorLivenessStrategy {
   public:
-    bool isAlive(std::string myFile, std::string discoveryFile) const override;
+    bool isAlive(fs::path myFile, fs::path discoveryFile) const override;
 };
 
 // Liveness checker that tries to load the discovery file
@@ -53,7 +54,7 @@ class OpenPortChecker : public EmulatorLivenessStrategy {
 // (i.e. contains: "emulator", or "qemu-system-")
 class PidChecker : public EmulatorLivenessStrategy {
   public:
-    bool isAlive(std::string myFile, std::string discoveryFile) const override;
+    bool isAlive(fs::path myFile, fs::path discoveryFile) const override;
 };
 
 // External services might need to know where to find information about
@@ -73,25 +74,17 @@ class PidChecker : public EmulatorLivenessStrategy {
 // the process id of the emulator.
 class EmulatorAdvertisement {
   public:
-    explicit EmulatorAdvertisement(EmulatorProperties config,
-                                   std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
-                                           std::make_unique<PidChecker>());
-    EmulatorAdvertisement(EmulatorProperties config, std::string sharedDirectory,
+    EmulatorAdvertisement(EmulatorProperties config, std::filesystem::path discoveryDirectory,
                           std::unique_ptr<EmulatorLivenessStrategy> livenessChecker =
                                   std::make_unique<PidChecker>());
     ~EmulatorAdvertisement();
 
-    // The location where the .ini file will be written to.
-    std::string location() const;
 
     // Writes the ini file to the location.
     bool write() const;
 
     // Removes the file from the file system.
     void remove() const;
-
-    // True if a advertisement exists for the given pid.
-    static bool exists(base::Pid pid);
 
     // Deletes all ini files in <user-specific_tmp_directory>/avd/running and
     // directories <user-specific_tmp_directory>/avd/running/<pid> for
@@ -100,11 +93,11 @@ class EmulatorAdvertisement {
     int garbageCollect() const;
 
     // Discovers all the advertisement files of active emulators, excluding us.
-    std::vector<std::string> discoverRunningEmulators() const;
+    std::vector<fs::path> discoverRunningEmulators() const;
 
     // Discovers the first advertisment file of active emulators that
     // has the set of props available.
-    std::string discoverEmulatorWithProperties(const EmulatorProperties& props) const;
+    fs::path discoverEmulatorWithProperties(const EmulatorProperties& props) const;
 
     EmulatorAdvertisement(EmulatorAdvertisement&&) = default;
     EmulatorAdvertisement& operator=(EmulatorAdvertisement&&) = default;
@@ -112,8 +105,11 @@ class EmulatorAdvertisement {
     EmulatorAdvertisement& operator=(const EmulatorAdvertisement&) = delete;
 
   private:
+    // The location where the .ini file will be written to.
+    fs::path location() const;
+
     EmulatorProperties mStudioConfig;
-    std::string mSharedDirectory;
+    fs::path mSharedDirectory;
     std::unique_ptr<EmulatorLivenessStrategy> mLivenessChecker;
 };
 

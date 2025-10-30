@@ -29,10 +29,10 @@
 
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/GrpcServices.h"
-#include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/vm/VmInterface.h"
+#include "android/utils/path.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -69,11 +69,11 @@ namespace {
 
 struct GrpcConfig {
     std::string addr;
-    std::string tls_cer;
-    std::string tls_key;
-    std::string tls_ca;
-    std::string allowlist;
-    std::string avd;
+    fs::path tls_cer;
+    fs::path tls_key;
+    fs::path tls_ca;
+    fs::path allowlist;
+    fs::path discovery_path;
     bool use_token{false};
     int idle_timeout{0};
     int port{0};
@@ -123,6 +123,16 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
+    if (config->discovery_path.empty()) {
+        error_setg(errp, "discovery_dir attribute not set");
+        return;
+    }
+
+    if (!fs::exists(config->discovery_path)) {
+        LOG(WARNING) << "Discovery directory: " << config->discovery_path.string() << ", does not exist. creating";
+        path_mkdir_if_needed(config->discovery_path.string().c_str(), 0700);
+    }
+
     EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
                              {"emulator.build", BUILD_ID},
                              {"emulator.version", VERSION},
@@ -142,10 +152,12 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto service = ::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), registry, avdprops->avd_api, avdprops->hw_config, IMultiDisplay::instance(),
             config->qemu_loop.get());
+
+    // TODO config->addr is set but not used anywhere
     auto builder = EmulatorControllerService::Builder()
                            .withLogging(true)
-                           .withCertAndKey(config->tls_cer.c_str(), config->tls_key.c_str(), config->tls_ca.c_str())
-                           .withAllowList(config->allowlist.c_str())
+                           .withCertAndKey(config->tls_cer, config->tls_key, config->tls_ca)
+                           .withAllowList(config->allowlist)
                            .withPortRange(config->port, config->port + 1)
                            .withService(service);
 
@@ -162,18 +174,19 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         builder.withAuthToken(token);
         props["grpc.token"] = token;
     }
-    auto jwkDir = ::android::goldfish ::ConfigDirs::getDiscoveryDirectory() /
-                  std::to_string(::android::base::Process::me()->pid()) / "jwks" / generateToken(16);
+    fs::path jwkDir = config->discovery_path / std::to_string(::android::base::Process::me()->pid()) / "jwks" / generateToken(16);
 
     std::error_code ec;
     if (!System::get()->pathExists(jwkDir) && !fs::create_directories(jwkDir, ec)) {
         LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << ec.message();
+        error_setg(errp, "failed to create jwk directory");
+        return;
     }
 
-    auto jwkLoadedFile = jwkDir / "active.jwk";
+    fs::path jwkLoadedFile = jwkDir / "active.jwk";
     props["grpc.jwks"] = jwkDir.string();
     props["grpc.jwk_active"] = jwkLoadedFile.string();
-    builder.withJwtAuthDiscoveryDir(jwkDir.string(), jwkLoadedFile.string());
+    builder.withJwtAuthDiscoveryDir(jwkDir, jwkLoadedFile);
 
     config->grpc_service = builder.build();
     if (!config->grpc_service) {
@@ -184,13 +197,13 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     props["grpc.port"] = std::to_string(config->grpc_service->port());
     props["grpc.allowlist"] = builder.allowlist().string();
     if (!config->tls_cer.empty()) {
-        props["grpc.server_cert"] = config->tls_cer;
+        props["grpc.server_cert"] = config->tls_cer.string();
     }
     if (!config->tls_ca.empty()) {
-        props["grpc.ca_root"] = config->tls_ca;
+        props["grpc.ca_root"] = config->tls_ca.string();
     }
 
-    config->advertiser = std::make_unique<EmulatorAdvertisement>(props);
+    config->advertiser = std::make_unique<EmulatorAdvertisement>(props, config->discovery_path);
     config->advertiser->garbageCollect();
     config->advertiser->write();
 }
@@ -268,6 +281,11 @@ void grpc_set_enable_token(Object* obj, bool v, Error** errp) {
     grpc_device->config->use_token = v;
 }
 
+void grpc_set_discovery_dir(Object* obj, const char* value, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    grpc_device->config->discovery_path = value;
+}
+
 static void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
@@ -316,6 +334,9 @@ void grpc_class_init(ObjectClass* oc, void* data) {
                                           "Require an authorization header with "
                                           "a valid token for every grpc call.");
 
+    object_class_property_add_str(oc, "discovery_dir", NULL, grpc_set_discovery_dir);
+
+    // TODO should this be done on instance realization rather than setup?
     grpc_display_register();
 
     DeviceClass* dc = DEVICE_CLASS(oc);

@@ -35,7 +35,6 @@
 
 #include "aemu/base/files/IniFile.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/config/config_dirs.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/input_paths.h"
 
