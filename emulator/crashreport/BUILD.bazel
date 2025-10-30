@@ -64,6 +64,7 @@ cc_library(
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
     local_defines = ["AEMU_CRASH_EXPORTS"],
+    visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
     deps = [
         ":always_consent",
         "@com_google_crashpad//client",
@@ -82,38 +83,17 @@ cc_library(
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
     local_defines = ["AEMU_CRASH_EXPORTS"],
+    visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
     deps = [
         "@abseil-cpp//absl/log",
         "@com_google_crashpad//client",
     ],
 )
 
-cc_binary(
+alias(
     name = "crashreport",
-    srcs = [
-        "include/android/crashreport/CrashReporter.h",
-        "include/android/crashreport/crash-handler.h",
-        "src/android/crashreport/CrashUploadTool.cpp",
-    ],
-    includes = ["include"],
+    actual = "//hardware/generic/goldfish/emulator/crashreport/tool:crashreport",
     visibility = ["//visibility:public"],
-    deps = [
-        ":always_consent",
-        ":detectors",
-        ":uploader",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/third_party/json",
-        "@abseil-cpp//absl/memory",
-        "@aemu//base:aemu-base",
-        "@com_google_breakpad//src/common",
-        "@com_google_breakpad//src/processor",
-        "@com_google_crashpad//third_party/mini_chromium:base",
-    ] + select({
-        "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
 )
 
 cc_test(

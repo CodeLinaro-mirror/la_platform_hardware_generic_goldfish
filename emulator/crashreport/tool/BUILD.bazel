@@ -1,0 +1,60 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+cc_library(
+    name = "tool_lib",
+    srcs = [
+        "src/annotation_extractor.cpp",
+        "src/crash_report_manager.cpp",
+        "src/formatter.cpp",
+        "src/minidump_processor.cpp",
+    ],
+    hdrs = [
+        "src/annotation_extractor.h",
+        "src/crash_report_manager.h",
+        "src/formatter.h",
+        "src/minidump_processor.h",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/crashreport:always_consent",
+        "//hardware/generic/goldfish/emulator/crashreport:detectors",  # Added
+        "//hardware/generic/goldfish/emulator/crashreport:uploader",
+        "//hardware/generic/goldfish/third_party/json",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/time",
+        "@aemu//base:aemu-base",
+        "@com_google_breakpad//src/processor",
+        "@com_google_crashpad//client",
+        "@com_google_crashpad//snapshot",
+    ],
+)
+
+cc_binary(
+    name = "crashreport",
+    srcs = ["src/main.cpp"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":tool_lib",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@com_google_crashpad//client",
+    ],
+)
+
+py_binary(
+    name = "bazel_crashreport",
+    srcs = ["bazel_crashreport.py"],
+    data = [
+        ":crashreport",
+        "//hardware/generic/goldfish/emulator:package_goldfish_symbols_extract",
+    ],
+    deps = [
+        "//hardware/generic/goldfish/emulator/tools:symbol_zipper",
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
