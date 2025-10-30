@@ -63,13 +63,13 @@ SocketPtr ConnectionAwaiter::onUnplug() {
 std::shared_ptr<ConnectionAwaiter> ConnectionAwaiter::retryUntilConnected(
         async::EventLoop* eventLoop, CreateConnection createConnection,
         ConnectionCallback onConnected, std::chrono::milliseconds interval) {
-    return std::shared_ptr<ConnectionAwaiter>(new ConnectionAwaiter(
-            eventLoop, std::move(createConnection), std::move(onConnected), interval));
+    return std::make_shared<ConnectionAwaiter>(eventLoop, std::move(createConnection),
+                                               std::move(onConnected), interval, Private());
 }
 
 ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
                                      ConnectionCallback onConnected,
-                                     std::chrono::milliseconds interval)
+                                     std::chrono::milliseconds interval, Private)
         : mCreateConnection(std::move(createConnection)), mOnConnected(std::move(onConnected)) {
     VLOG(1) << "Scheduling retry task with interval: " << interval;
     mConnectionRetryTask =
