@@ -77,7 +77,12 @@ class NotificationStream : public std::enable_shared_from_this<NotificationStrea
                            public EventListener<DisplayEvent>,
                            public EventListener<ResizeEvent>,
                            public EventListener<AndroidGuestStatus> {
+    struct Private {};
+
   public:
+    NotificationStream(IMultiDisplay* display, ConnectorRegistry* connectorRegistry, Private)
+            : mMultiDisplay(display), mRegistry(connectorRegistry) {};
+
     ~NotificationStream();
 
     // Produce an asynchronous handler for the following gRPC method:
@@ -92,8 +97,6 @@ class NotificationStream : public std::enable_shared_from_this<NotificationStrea
 
   protected:
     NotificationEventChangeSupport mNotificationListeners;
-    NotificationStream(IMultiDisplay* display, ConnectorRegistry* connectorRegistry)
-            : mMultiDisplay(display), mRegistry(connectorRegistry) {};
 
   private:
     void registerListeners();
