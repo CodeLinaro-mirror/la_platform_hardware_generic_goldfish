@@ -1,0 +1,87 @@
+agent: {
+  android_home: {
+    extract_dir: "PLATFORM_TOOLS_EXTRACT_DIR"
+  }
+}
+agent: {
+  avd: {
+    avd_config_ini: "avd.ini.encoding=UTF-8"
+    avd_config_ini: "disk.dataPartition.size=4G"
+    avd_config_ini: "hw.accelerometer=yes"
+    avd_config_ini: "hw.audioInput=yes"
+    avd_config_ini: "hw.battery=yes"
+    avd_config_ini: "hw.camera.back=emulated"
+    avd_config_ini: "hw.camera.front=emulated"
+    avd_config_ini: "hw.cpu.ncore=4"
+    avd_config_ini: "hw.device.hash2=MD5:2fa0e16c8cceb7d385183284107c0c88"
+    avd_config_ini: "hw.device.manufacturer=Google"
+    avd_config_ini: "hw.device.name=Pixel 7 Pro"
+    avd_config_ini: "hw.dPad=no"
+    avd_config_ini: "hw.gps=yes"
+    avd_config_ini: "hw.gpu.enabled=yes"
+    avd_config_ini: "hw.keyboard=yes"
+    avd_config_ini: "hw.lcd.density=560"
+    avd_config_ini: "hw.lcd.height=3120"
+    avd_config_ini: "hw.lcd.width=1440"
+    avd_config_ini: "hw.mainKeys=no"
+    avd_config_ini: "hw.ramSize=4096"
+    avd_config_ini: "hw.sdCard=no"
+    avd_config_ini: "hw.sensors.orientation=yes"
+    avd_config_ini: "hw.sensors.proximity=yes"
+    avd_config_ini: "hw.trackBall=no"
+    avd_config_ini: "skin.dynamic=no"
+    avd_config_ini: "skin.name=1440x3120"
+    avd_config_ini: "skin.path=1440x3120"
+    avd_config_ini: "tag.display=Google Play"
+    avd_config_ini: "tag.id=google_apis_playstore"
+    cleanup: true
+    extract_dir: "IMAGE_EXTRACT_DIR"
+  }
+}
+agent: {
+  imports: {
+    id: "tradefed"
+    src: "results_dir"
+  }
+  junit_xml_result: {}
+}
+agent: {
+  imports: {
+    id: "android_home"
+    src: "android_home"
+  }
+  imports: {
+    id: "avd"
+    src: "avd_path"
+  }
+  goldfish: {
+    args: "-wipe-data"
+    args: "-verbose"
+    args: "-not-in-bazel"
+    cleanup: true
+    emulator_path: "emulator"
+    extract_dir: "TEST_TMPDIR/emulator"
+  }
+}
+agent: {
+  imports: {
+    id: "tradefed"
+    src: "has_retry_data"
+    dst: "retry"
+  }
+  tradefed: {
+    args: "run"
+    args: "commandAndExit"
+    args: "cts"
+    TEST_SPEC
+    args: "--skip-preconditions"
+    args: "--skip-all-system-status-check"
+    args: "--no-has-server-side-config"
+    # The agent looks for android-*, so we use the parent dir.
+    extract_dir: "TEST_TMPDIR"
+    build_tools_extract_dir: "BUILD_TOOLS_EXTRACT_DIR"
+    platform_tools_extract_dir: "PLATFORM_TOOLS_EXTRACT_DIR"
+    timeout_seconds: 3600
+    preclean: true
+  }
+}
