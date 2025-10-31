@@ -10,7 +10,13 @@ set -e
 # archives (see cts.bzl for how these are setup). In this context, we
 # want to top-level directory.  The logic below converts the path-to-artifact
 # to a directory.
-IMAGE_EXTRACT_DIR=$(readlink -f $(dirname $(dirname $(pwd)/$IMAGE_PATH)))
+
+if [[ -d "hardware/generic/goldfish/emulator/tests/local/image" ]]; then
+  IMAGE_EXTRACT_DIR=$(pwd)/hardware/generic/goldfish/emulator/tests/local/image
+  echo "Using a LOCAL Image: $IMAGE_EXTRACT_DIR"
+else
+  IMAGE_EXTRACT_DIR=$(readlink -f $(dirname $(dirname $(pwd)/$IMAGE_PATH)))
+fi
 BUILD_TOOLS_EXTRACT_DIR=$(readlink -f $(dirname $(dirname $(pwd)/$BUILD_TOOLS_PATH)))
 PLATFORM_TOOLS_EXTRACT_DIR=$(readlink -f $(dirname $(dirname $(pwd)/$PLATFORM_TOOLS_PATH)))
 TRADEFED_EXTRACT_DIR=$(readlink -f $(dirname $(dirname $(dirname $(pwd)/$CTS_TRADEFED_PATH))))

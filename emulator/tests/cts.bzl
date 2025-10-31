@@ -39,7 +39,7 @@ def cts_tests(name, modules = []):
                 "sequence.txtpb",
                 "@test_seq_linux//:test_seq_files",
                 "@test_seq_linux//:test_seq",
-            ],
+            ] + native.glob(["local/**"]),
             target_compatible_with = select({
                 "@platforms//os:macos": ["@platforms//:incompatible"],
                 "@platforms//os:windows": ["@platforms//:incompatible"],
