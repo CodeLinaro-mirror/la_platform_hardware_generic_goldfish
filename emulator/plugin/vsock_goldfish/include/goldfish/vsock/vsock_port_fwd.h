@@ -40,7 +40,7 @@ struct VSockFwdDev {
     SnifferFactory data_sniffer_factory;
 };
 
-extern "C" void vsock_port_fwd_register_types(void);
+void vsock_port_fwd_register_types(void);
 
 #define TYPE_VSOCK_FWD "virtio-goldfish-hostfwd-socket"
 #define VSOCK_FWD_DEV(obj) OBJECT_CHECK(VSockFwdDev, (obj), TYPE_VSOCK_FWD)
