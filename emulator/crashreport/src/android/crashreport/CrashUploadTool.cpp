@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -27,6 +28,7 @@
 #include "absl/memory/memory.h"
 
 #include "aemu/base/files/PathUtils.h"
+#include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/crashreport/CrashReporter.h"
 #include "android/crashreport/Uploader.h"
@@ -91,6 +93,7 @@ using google_breakpad::MinidumpProcessor;
 using google_breakpad::MinidumpThreadList;
 using google_breakpad::ProcessState;
 using google_breakpad::SimpleSymbolSupplier;
+namespace fs = std::filesystem;
 
 #ifdef NDEBUG
 #define CRASHURL "https://clients2.google.com/cr/report"
@@ -397,6 +400,15 @@ static void SetupOptions(int argc, const char* argv[], Options* options) {
 }
 
 int main(int argc, const char* argv[]) {
+    if (android::base::Bazel::inBazel()) {
+        if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+            System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+                                           fs::path("/tmp/crash-report.db").string());
+        }
+        fprintf(stderr, "Running in bazel environment using crash database: %s\n",
+                System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").c_str());
+    }
+
     Options options = {0};
     SetupOptions(argc, argv, &options);
 
