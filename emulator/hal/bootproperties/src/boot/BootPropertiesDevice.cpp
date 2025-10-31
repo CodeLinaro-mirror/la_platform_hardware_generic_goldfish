@@ -21,6 +21,7 @@
 #include "absl/strings/str_format.h"
 
 #include "goldfish/devices/qemud.h"
+#include "goldfish/hal/common/emulator_reset.h"
 
 namespace goldfish::devices::boot {
 
@@ -30,16 +31,24 @@ IBootPropertiesDevice::PropertyName operator""_bps(const char* c_str, size_t len
 }
 class BootPropertiesDevice : public IBootPropertiesDevice {
   public:
-    BootPropertiesDevice(Properties properties, RegisterEmulatorReset registerEmulatorReset)
+    BootPropertiesDevice(Properties properties, EmulatorResetCallbacks resetCallbacks)
             : mProperties(std::move(properties))
+            , mResetCallbacks(resetCallbacks)
             , mQemudParser([this](const void* data, size_t size) {
                 return handleMessage(std::string_view(static_cast<const char*>(data), size));
             }) {
         VLOG(1) << "BootProperties device has been created";
-        registerEmulatorReset(BootPropertiesDevice::QEMUResetHandler, this);
+        if (mResetCallbacks.do_register) {
+            mResetCallbacks.do_register(BootPropertiesDevice::QEMUResetHandler, this);
+        }
     }
 
-    ~BootPropertiesDevice() {}
+    ~BootPropertiesDevice() override {
+        handleResetEvent();
+        if (mResetCallbacks.do_unregister) {
+            mResetCallbacks.do_unregister(BootPropertiesDevice::QEMUResetHandler, this);
+        }
+    }
 
     void send(std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
@@ -80,20 +89,19 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     }
 
     Properties mProperties;
+    EmulatorResetCallbacks mResetCallbacks;
     qemud::Parser mQemudParser;
     bool mDataPartitionMounted{false};
 };
 
 void IBootPropertiesDevice::registerDevice(IConnectorRegistry* registry, Properties properties,
-                                           RegisterEmulatorReset registerEmulatorReset,
+                                           EmulatorResetCallbacks resetCallbacks,
                                            EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(
-            std::string(IBootPropertiesDevice::serviceName), clientLoop, qemuLoop,
-            [properties = std::move(properties),
-             registerEmulatorReset = std::move(registerEmulatorReset)] {
-                return std::make_shared<BootPropertiesDevice>(std::move(properties),
-                                                              std::move(registerEmulatorReset));
-            });
+    registry->registerHalQemuDevice(std::string(IBootPropertiesDevice::serviceName), clientLoop,
+                                    qemuLoop, [properties = std::move(properties), resetCallbacks] {
+                                        return std::make_shared<BootPropertiesDevice>(
+                                                std::move(properties), resetCallbacks);
+                                    });
 }
 
 }  // namespace goldfish::devices::boot

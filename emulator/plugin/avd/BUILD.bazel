@@ -90,6 +90,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
         "//hardware/generic/goldfish/emulator/hal/camera",
         "//hardware/generic/goldfish/emulator/hal/clipboard",
+        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_impl",
         "//hardware/generic/goldfish/emulator/hal/display",
         "//hardware/generic/goldfish/emulator/hal/fingerprint",

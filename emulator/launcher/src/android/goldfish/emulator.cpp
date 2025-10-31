@@ -76,7 +76,6 @@ absl::Status Emulator::addDevices() {
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-nodefaults",
-        "-no-reboot",
         // our iothread
         "-object", "iothread,id=disk-iothread",
     });

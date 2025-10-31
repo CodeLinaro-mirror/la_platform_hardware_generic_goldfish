@@ -20,6 +20,7 @@
 #include "aemu/base/events/EventSources.h"
 #include "android/boot/BootPropertyString.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/hal/common/emulator_reset.h"
 #include "goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish::devices::boot {
@@ -110,22 +111,6 @@ class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPro
     using PropertyValue = LimitedString<IBootPropertiesDevice::PROPERTY_MAX_VALUE>;
     using Properties = absl::flat_hash_map<PropertyName, PropertyValue>;
 
-    typedef void QEMUResetHandler(void* opaque);
-
-    /**
-     * @brief  Type of the emulator reset registration function.
-     *
-     * This represents the signature of the function used to register
-     * a callback for emulator reset events. When running in QEMU, this should
-     * typically be assigned to `qemu_register_reset`, which has the following
-     * signature in C:
-     *
-     * ```c
-     * void qemu_register_reset(QEMUResetHandler *func, void *opaque);
-     * ```
-     */
-    typedef void RegisterEmulatorReset(QEMUResetHandler* func, void* opaque);
-
     /**
      * @brief Registers the boot properties device with the connector registry.
      *
@@ -135,9 +120,10 @@ class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPro
      *
      * @param registry The connector registry instance.
      * @param properties The set of properties to register.
+     * @param resetCallbacks The struct containing register/unregister functions.
      */
     static void registerDevice(IConnectorRegistry* registry, Properties properties,
-                               RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
+                               EmulatorResetCallbacks resetCallbacks, EventLoop* clientLoop,
                                EventLoop* qemuLoop);
 };
 
