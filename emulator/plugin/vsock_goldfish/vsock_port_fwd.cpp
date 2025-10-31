@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -32,10 +33,11 @@
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/vsock/connect.h"
 
+#include "goldfish/vsock/vsock_port_fwd.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
-#include "goldfish/vsock/vsock_port_fwd.h"
 #include "qom/object.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
