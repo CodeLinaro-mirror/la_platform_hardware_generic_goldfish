@@ -73,6 +73,7 @@ struct CatalogEntry {
  * duplicate entries from symbolic links or relative path differences.
  */
 class EmulatorCatalog {
+    struct Private {};
   public:
     /**
      * @brief Factory function to create and initialize an EmulatorCatalog
@@ -90,6 +91,8 @@ class EmulatorCatalog {
      *         cannot be started).
      */
     static std::unique_ptr<EmulatorCatalog> create(std::filesystem::path discoveryPath = {});
+
+    EmulatorCatalog(std::filesystem::path discoveryPath, Private);
     ~EmulatorCatalog();
 
     // This class is non-copyable and non-movable to ensure a single owner
@@ -126,8 +129,6 @@ class EmulatorCatalog {
     CallbackEventSource<CatalogEntry> emulatorRemoved;
 
   private:
-    explicit EmulatorCatalog(std::filesystem::path discoveryPath = {});
-
     bool start();
     void stop();
 

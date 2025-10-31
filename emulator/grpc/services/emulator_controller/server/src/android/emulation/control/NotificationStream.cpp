@@ -90,8 +90,7 @@ void NotificationStream::eventArrived(const AndroidGuestStatus& event) {
 
 std::shared_ptr<NotificationStream> NotificationStream::create(
         IMultiDisplay* display, ConnectorRegistry* connectorRegistry) {
-    // We are not using make_shared due to a private constructor.
-    return std::shared_ptr<NotificationStream>(new NotificationStream(display, connectorRegistry));
+    return std::make_shared<NotificationStream>(display, connectorRegistry, Private());
 }
 NotificationStreamWriter* NotificationStream::notificationStream() {
     registerListeners();

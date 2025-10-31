@@ -37,7 +37,7 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
     }
 
     // Use a private constructor.
-    auto catalog = std::unique_ptr<EmulatorCatalog>(new EmulatorCatalog(path));
+    auto catalog = std::make_unique<EmulatorCatalog>(std::move(path), Private());
     if (!catalog->start()) {
         LOG(WARNING) << "Failed to start the emulator catalog.";
         return nullptr;
@@ -46,7 +46,7 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
     return catalog;
 }
 
-EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath)
+EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath, Private)
         : mDiscoveryPath(std::move(discoveryPath)) {
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
             mDiscoveryPath.string(),
