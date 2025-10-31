@@ -250,6 +250,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             , mReadBufferAllocator(16384)
             , mIsIncoming(isIncoming) {
         uv_tcp_init(mLoop, &mTcpHandle);
+        uv_tcp_nodelay(&mTcpHandle, 1);
         mTcpHandle.data = this;
     }
 
@@ -447,6 +448,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
         auto client = std::make_shared<LibuvSocket>(mEventLoop);
         client->accept(server);
+        uv_tcp_nodelay(&client->mTcpHandle, 1);  // Enable TCP_NODELAY for accepted socket
 
         // At this point, client.use_count() is 1.
         bool accepted = mConnectCallback(client);
