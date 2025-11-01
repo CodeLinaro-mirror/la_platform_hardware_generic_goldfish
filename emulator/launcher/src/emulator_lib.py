@@ -99,20 +99,21 @@ class EmulatorLocator:
         )
 
         for abi in abis:
-            minigbm_abi_dir = f"minigbm-{abi}"
-            try:
-                source_prop_path = self.r.Rlocation(
-                    f"android_{minigbm_abi_dir}/{abi}/source.properties"
-                )
-                if source_prop_path:
-                    system_image_dir = Path(source_prop_path).parent
-                    if system_image_dir.exists():
-                        logging.info("--- Selected ABI: %s ---", abi)
-                        self.abi = abi
-                        self.system_image_dir = system_image_dir
-                        return
-            except Exception:
-                logging.info("Attempt to use %s, failed", abi)
+            for page_size in ["", "16k"]:
+                minigbm_abi_dir = f"minigbm{page_size}-{abi}"
+                try:
+                    source_prop_path = self.r.Rlocation(
+                        f"android_{minigbm_abi_dir}/{abi}/source.properties"
+                    )
+                    if source_prop_path:
+                        system_image_dir = Path(source_prop_path).parent
+                        if system_image_dir.exists():
+                            logging.info("--- Selected ABI: %s ---", abi)
+                            self.abi = abi
+                            self.system_image_dir = system_image_dir
+                            return
+                except Exception:
+                    logging.info("Attempt to use %s, failed", abi)
 
         raise FileNotFoundError("Could not find a valid system image directory.")
 

@@ -326,7 +326,7 @@ create_launch_emulator_test(
         "-show-kernel",
         "-no-boot-anim",
     ],
-    target_log_line = "'Linux version 6\\.6\\.66-android15-8-gb66429556fb8-ab13070261'",
+    target_log_line = "'Linux version 6'",
     timeout_seconds = 30,
 )
 
@@ -391,11 +391,11 @@ py_binary(
     ] + select({
         "@platforms//os:macos": [
             "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
-            "@android_minigbm-arm64-v8a//:system_image",
+            "@android_minigbm16k-arm64-v8a//:system_image",
         ],
         "//conditions:default": [
             "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-x86_64:minigbm",
-            "@android_minigbm-x86_64//:system_image",
+            "@android_minigbm16k-x86_64//:system_image",
         ],
     }) + [
         "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
