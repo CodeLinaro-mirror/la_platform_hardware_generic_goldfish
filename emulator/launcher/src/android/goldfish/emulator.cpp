@@ -253,26 +253,6 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     // Always indirect EGL.
     System::get()->setEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
 
-#if defined(__linux__) || defined(__APPLE__)
-    const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
-    const char* xdg_runtime_dir_val = getenv(kXDG_RUNTIME_DIR_NAME);
-    if (!xdg_runtime_dir_val) {
-        const char* default_runtime_dir = "/tmp";
-#if defined(__APPLE__)
-        const char* darwin_runtime_dir = getenv("DARWIN_USER_TEMP_DIR");
-        if (darwin_runtime_dir) {
-            default_runtime_dir = darwin_runtime_dir;
-        } else {
-            const char* darwin_temp_dir = getenv("TMPDIR");
-            if (darwin_temp_dir) {
-                default_runtime_dir = darwin_temp_dir;
-            }
-        }
-#endif
-        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
-    }
-#endif
-
 #if defined(__linux__)
     // on linux, default to use swiftshader_indirect for gl,
     // later gl will be removed once vulkan composition is on

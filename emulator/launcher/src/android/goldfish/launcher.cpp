@@ -368,6 +368,34 @@ int main(int argc, char** argv) {
         Bazel::setNotInBazel();
     }
 
+#if defined(__linux__) || defined(__APPLE__)
+    const char* kXDG_RUNTIME_DIR_NAME = "XDG_RUNTIME_DIR";
+    const char* xdg_runtime_dir_val = getenv(kXDG_RUNTIME_DIR_NAME);
+    if (!xdg_runtime_dir_val) {
+        const char* default_runtime_dir = "/tmp";
+#if defined(__APPLE__)
+        const char* darwin_runtime_dir = getenv("DARWIN_USER_TEMP_DIR");
+        if (darwin_runtime_dir) {
+            default_runtime_dir = darwin_runtime_dir;
+        } else {
+            const char* darwin_temp_dir = getenv("TMPDIR");
+            if (darwin_temp_dir) {
+                default_runtime_dir = darwin_temp_dir;
+            }
+        }
+#endif
+        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
+    } else {
+#if defined(__linux__)
+        // Bug: 454403989
+        // when systme has XDG_RUNTIME_DIR set, we need to pass it
+        // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
+        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR",
+                              xdg_runtime_dir_val);
+#endif
+    }
+#endif
+
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
         auto launcher_dir =
