@@ -366,13 +366,14 @@ test_suite(
     name = "boot_tests",
     tags = ["manual"],
     tests = [
-        ":can_boot_with_minigbm",
-        ":can_boot_with_minigbm_2x",
+        # b/457190564 problem testing the non zip version due to netsim fails in bazel env
+        #        ":can_boot_with_minigbm",
+        #        ":can_boot_with_minigbm_2x",
         ":can_boot_with_minigbm_2x_zip",
         ":can_boot_with_minigbm_zip",
-        ":can_launch_kernel_with_minigbm",
+        #        ":can_launch_kernel_with_minigbm",
         ":can_launch_kernel_with_minigbm_zip",
-        ":emulator_produces_pixels",
+        #        ":emulator_produces_pixels",
     ],
 )
 
