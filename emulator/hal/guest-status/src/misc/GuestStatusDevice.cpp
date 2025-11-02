@@ -148,13 +148,25 @@ class GuestStatusDevice : public IGuestStatusDevice {
     mutable absl::Mutex mStatusMutex;  // protects mHeartbeat, mBootTime, mResetTimestampMs
 };
 
+// TODO: b/456020509: do something better here
+static    std::shared_ptr<GuestStatusDevice> s_GuestStatusDevice;
+
+bool IGuestStatusDevice::isBootCompleted() {
+    if (s_GuestStatusDevice) {
+        return s_GuestStatusDevice->hasBooted();
+    }
+    return false;
+}
+
 void IGuestStatusDevice::registerDevice(IConnectorRegistry* registry,
                                         RegisterEmulatorReset registerEmulatorReset,
                                         EventLoop* clientLoop, EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds) {
     registry->registerHalDevice(
             std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
             [registerEmulatorReset = std::move(registerEmulatorReset), qemuLoop, quitAfterBootTimeoutSeconds] {
-                return std::make_shared<GuestStatusDevice>(registerEmulatorReset, qemuLoop, quitAfterBootTimeoutSeconds);
+                s_GuestStatusDevice = std::make_shared<GuestStatusDevice>
+                    (registerEmulatorReset, qemuLoop, quitAfterBootTimeoutSeconds);
+                return s_GuestStatusDevice;
             });
 }
 
