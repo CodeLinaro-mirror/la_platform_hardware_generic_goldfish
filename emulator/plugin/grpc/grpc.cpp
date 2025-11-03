@@ -104,7 +104,7 @@ std::string generateToken(int cnt) {
     }
 
     std::string encoded;
-    absl::Base64Escape(buf, &encoded);
+    absl::WebSafeBase64Escape(buf, &encoded);
     return encoded;
 }
 
