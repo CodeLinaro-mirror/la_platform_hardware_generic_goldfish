@@ -220,7 +220,6 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) override;
-    void* getRawLoop() const override;
 
   private:
     void postImmediately(Task task);
@@ -326,10 +325,6 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::scheduleRepeating(
     auto timer = std::make_shared<QemuTimer>(std::move(task), initial_delay, interval, this);
     timer->start();
     return std::make_shared<ScopedTimer>(timer);
-}
-
-void* QemuEventLoopImpl::getRawLoop() const {
-    return nullptr;
 }
 
 }  // namespace

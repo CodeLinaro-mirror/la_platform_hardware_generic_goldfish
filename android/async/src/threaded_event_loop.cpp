@@ -90,7 +90,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) override;
 
-    void* getRawLoop() const override { return mLoop->getRawLoop(); }
+    void* getRawLoop() override { return mLoop->getRawLoop(); }
 
     EventLoop* loop() { return mLoop.get(); }
 

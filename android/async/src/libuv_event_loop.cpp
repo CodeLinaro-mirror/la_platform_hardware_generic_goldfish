@@ -82,7 +82,7 @@ class LibuvTimer;
  */
 class LibuvEventLoopImpl : public LibuvEventLoop {
   public:
-    LibuvEventLoopImpl(std::unique_ptr<uv_loop_t> loop);
+    LibuvEventLoopImpl();
     ~LibuvEventLoopImpl() override;
 
     // --- Prevent Copying ---
@@ -98,7 +98,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
     void stop() override;
     bool isOnLoopThread() const override;
-    void* getRawLoop() const override;
+    void* getRawLoop() override { return &mUvLoopHandle; }
 
     // --- Task Posting and Scheduling ---
     void postImpl(Task task, std::chrono::milliseconds delay) override;
@@ -118,7 +118,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     void doPost(Task task);
 
     /// The core libuv event loop instance.
-    const std::unique_ptr<uv_loop_t> mLoop;
+    uv_loop_t mUvLoopHandle;
 
     /// A libuv async handle used to wake up the loop thread to process tasks.
     uv_async_t mAsyncHandle;
@@ -218,7 +218,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
             assert(!self->mPinnedByUvTimer);
             self->mPinnedByUvTimer = self;
-            if (const int err = uv_timer_init(evLoop.mLoop.get(), &self->mUvTimerHandle)) {
+            if (const int err = uv_timer_init(&evLoop.mUvLoopHandle, &self->mUvTimerHandle)) {
                 LOG(DFATAL) << "uv_timer_init failed with: " << uv_strerror(err);
             }
             self->mUvTimerHandle.data = self.get();
@@ -264,11 +264,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
 
 // --- LibuvEventLoopImpl Implementation ---
 
-LibuvEventLoopImpl::LibuvEventLoopImpl(std::unique_ptr<uv_loop_t> loop) : mLoop(std::move(loop)) {
-    mLoop->data = this;
+LibuvEventLoopImpl::LibuvEventLoopImpl() {
+    if (const int err = uv_loop_init(&mUvLoopHandle)) {
+        LOG(DFATAL) << "Failed to initialize uv_loop: " << uv_strerror(err);
+    }
+    mUvLoopHandle.data = this;
 
     mAsyncHandle.data = this;
-    uv_async_init(mLoop.get(), &mAsyncHandle, [](uv_async_t* handle) {
+    uv_async_init(&mUvLoopHandle, &mAsyncHandle, [](uv_async_t* handle) {
         static_cast<LibuvEventLoopImpl*>(handle->data)->processTasks();
     });
 }
@@ -276,29 +279,21 @@ LibuvEventLoopImpl::LibuvEventLoopImpl(std::unique_ptr<uv_loop_t> loop) : mLoop(
 LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     // Attempt to process any remaining events. This is not guaranteed to
     // fully clean up if shutdown() was not called.
-    uv_run(mLoop.get(), UV_RUN_NOWAIT);
+    uv_run(&mUvLoopHandle, UV_RUN_NOWAIT);
 
-    int res = uv_loop_close(mLoop.get());
+    int res = uv_loop_close(&mUvLoopHandle);
     if (res != 0) {
         LOG(WARNING) << "Failed to close uv_loop: " << uv_strerror(res);
         if (!mIsShuttingDown) {
             LOG(WARNING) << "Shutdown was not called!";
         }
         LOG(WARNING) << "The following handles were leaked:";
-        uv_print_all_handles(mLoop.get(), stderr);
+        uv_print_all_handles(&mUvLoopHandle, stderr);
     }
 }
 
 std::unique_ptr<LibuvEventLoop> LibuvEventLoop::create() {
-    auto loop = std::make_unique<uv_loop_t>();
-    int err = uv_loop_init(loop.get());
-    if (err != 0) {
-        // TODO:  Use factory pattern, so we can guarantee mLoop != nullptr.
-        LOG(ERROR) << "Failed to initialize uv_loop: " << uv_strerror(err);
-        return {};
-    }
-
-    return std::make_unique<LibuvEventLoopImpl>(std::move(loop));
+    return std::make_unique<LibuvEventLoopImpl>();
 }
 
 void LibuvEventLoopImpl::addActiveTimer(const std::shared_ptr<LibuvTimer>& t) {
@@ -367,7 +362,7 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown(std::chrono::milliseconds
         }
 
         uv_close((uv_handle_t*)&mAsyncHandle, [](uv_handle_t*) { /* do nothing */ });
-        uv_stop(mLoop.get());
+        uv_stop(&mUvLoopHandle);
     });
 
     // Return the one true future that waits for the shutdown to complete.
@@ -380,7 +375,7 @@ absl::Status LibuvEventLoopImpl::run() {
     // certain that the event loop is actively processing events.
     (void)post([this]() { setState(LooperStatusEvent::State::RUNNING); });
 
-    int err = uv_run(mLoop.get(), UV_RUN_DEFAULT);
+    int err = uv_run(&mUvLoopHandle, UV_RUN_DEFAULT);
 
     setState(LooperStatusEvent::State::FINISHED);
     auto status = UvErrToAbslStatus(err);
@@ -395,7 +390,7 @@ void LibuvEventLoopImpl::stop() {
         LOG(WARNING) << "The event loop is stopping without a call to shutdown! You will leak "
                         "handles.";
     }
-    uv_stop(mLoop.get());
+    uv_stop(&mUvLoopHandle);
 }
 
 bool LibuvEventLoopImpl::isOnLoopThread() const {
@@ -450,10 +445,6 @@ std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::scheduleRepeating(
     auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/true);
     timer->start(initial_delay.count(), interval.count());
     return std::make_shared<ScopedTimer>(timer);
-}
-
-void* LibuvEventLoopImpl::getRawLoop() const {
-    return mLoop.get();
 }
 
 }  // namespace goldfish::async
