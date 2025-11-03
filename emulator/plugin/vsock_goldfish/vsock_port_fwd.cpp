@@ -32,6 +32,7 @@
 #include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/vsock/connect.h"
+#include "android/misc/GuestStatusDevice.h"
 
 #include "goldfish/vsock/vsock_port_fwd.h"
 
@@ -177,7 +178,13 @@ class VSockProxyImpl : public VSockProxy {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
                 mQemuLoop.get(),
-                [&](auto plug) { return goldfish::vsock::connect(mDevice->guest_port, plug); },
+                [&](auto plug) {
+                    if (goldfish::devices::guest_status::IGuestStatusDevice::isBootCompleted()) {
+                        return goldfish::vsock::connect(mDevice->guest_port, plug);
+                    } else {
+                        return SocketPtr{};
+                    }
+                },
                 [&](SocketPtr sock) { vsockAliveOnQemuThread(); }, 100ms);
     }
 

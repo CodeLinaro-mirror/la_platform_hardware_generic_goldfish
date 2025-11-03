@@ -159,6 +159,7 @@ class IGuestStatusDevice : public HalPlug, public CallbackEventSource<AndroidGue
      * @param registry The `IConnectorRegistry` instance to register with.
      * @param registerEmulatorReset The function used to register a reset callback.
      */
+    static bool isBootCompleted();
     static void registerDevice(IConnectorRegistry* registry,
                                RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
                                EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds);
