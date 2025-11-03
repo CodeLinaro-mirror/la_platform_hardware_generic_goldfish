@@ -8,6 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -26,6 +27,7 @@ cc_library(
         ":headers",
         "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/android/system",
+        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",
         "//hardware/generic/goldfish/emulator/plugin/vminterface",
         "@abseil-cpp//absl/log",

@@ -29,6 +29,7 @@
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
+#include "goldfish/hal/common/emulator_reset.h"
 
 using android::base::System;
 using goldfish::devices::PingTopic;
@@ -36,6 +37,8 @@ using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::guest_status {
+
+static std::chrono::milliseconds s_uptime{};
 
 // Example usage for construction
 static AndroidGuestStatus createBootCompletedEvent(std::chrono::milliseconds bootTime) {
@@ -50,17 +53,21 @@ static AndroidGuestStatus createHeartbeatEvent(uint64_t heartbeat) {
 
 class GuestStatusDevice : public IGuestStatusDevice {
   public:
-    GuestStatusDevice(RegisterEmulatorReset registerEmulatorReset, async::EventLoop *qemuLoop, int quitAfterBootTimeoutSeconds)
-            : mQemuLoop(qemuLoop)
+    GuestStatusDevice(EmulatorResetCallbacks resetCallbacks, async::EventLoop* qemuLoop,
+                      int quitAfterBootTimeoutSeconds)
+            : mResetCallbacks(resetCallbacks)
+            , mQemuLoop(qemuLoop)
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds)
             , mHeartbeat(0)
             , mBootTime(std::chrono::milliseconds(0))
-            , mResetTimestampMs(std::chrono::milliseconds(0)) {
+            , mResetTimestampMs(s_uptime) {
         VLOG(1) << "GuestStatus device has been created";
-        registerEmulatorReset(GuestStatusDevice::QEMUResetHandler, this);
+        if (mResetCallbacks.do_register) {
+            mResetCallbacks.do_register(GuestStatusDevice::QEMUResetHandler, this);
+        }
     }
 
-    ~GuestStatusDevice() = default;
+    ~GuestStatusDevice() override { }
 
     void send(std::string msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
@@ -119,6 +126,11 @@ class GuestStatusDevice : public IGuestStatusDevice {
         send("KO");
     }
 
+    void unregisterResetHandler() {
+        if (mResetCallbacks.do_unregister) {
+                    mResetCallbacks.do_unregister(GuestStatusDevice::QEMUResetHandler, this);
+        }
+    }
   private:
     static void QEMUResetHandler(void* opaque) {
         auto device = static_cast<GuestStatusDevice*>(opaque);
@@ -129,7 +141,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
         {
             absl::MutexLock lock(&mStatusMutex);
             mBootTime = std::chrono::milliseconds{0};
-            mResetTimestampMs = uptime();
+            s_uptime = uptime();
         }
         fireEvent(createResetEvent());
     }
@@ -138,6 +150,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
         return std::chrono::milliseconds(System::get()->getProcessTimes().wallClockMs);
     }
 
+    EmulatorResetCallbacks mResetCallbacks;
     async::EventLoop *mQemuLoop;
     const int mQuitAfterBootTimeoutSeconds;
     SocketPtr mSocket;
@@ -159,15 +172,17 @@ bool IGuestStatusDevice::isBootCompleted() {
 }
 
 void IGuestStatusDevice::registerDevice(IConnectorRegistry* registry,
-                                        RegisterEmulatorReset registerEmulatorReset,
-                                        EventLoop* clientLoop, EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds) {
-    registry->registerHalDevice(
-            std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
-            [registerEmulatorReset = std::move(registerEmulatorReset), qemuLoop, quitAfterBootTimeoutSeconds] {
-                s_GuestStatusDevice = std::make_shared<GuestStatusDevice>
-                    (registerEmulatorReset, qemuLoop, quitAfterBootTimeoutSeconds);
-                return s_GuestStatusDevice;
-            });
+                                        EmulatorResetCallbacks resetCallbacks,
+                                        EventLoop* clientLoop, EventLoop* qemuLoop,
+                                        int quitAfterBootTimeoutSeconds) {
+    registry->registerHalDevice(std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
+                                [resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds] {
+                if (s_GuestStatusDevice) {
+                    s_GuestStatusDevice->unregisterResetHandler();
+                }
+                s_GuestStatusDevice =
+                std::make_shared<GuestStatusDevice>(resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds);
+                return s_GuestStatusDevice; });
 }
 
 }  // namespace goldfish::devices::guest_status

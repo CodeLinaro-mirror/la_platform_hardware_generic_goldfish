@@ -9,6 +9,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
     ],
 )
@@ -21,6 +22,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
+        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",
         "//hardware/generic/goldfish/emulator/hal/plug:hal_plug",
         "@abseil-cpp//absl/log",

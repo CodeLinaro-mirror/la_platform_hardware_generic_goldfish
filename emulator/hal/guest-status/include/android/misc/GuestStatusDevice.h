@@ -19,6 +19,7 @@
 
 #include "aemu/base/events/EventSources.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/hal/common/emulator_reset.h"
 
 namespace goldfish::devices::guest_status {
 
@@ -32,6 +33,12 @@ using namespace std::string_view_literals;
  * This struct encapsulates various status events from the Android guest,
  * including boot completion, reset events, and heartbeat signals.  It uses
  * a variant to store the event data associated with each event type.
+ *
+ * @note It is possible to receive multiple consecutive `ResetEvent`s. This can
+ * happen due to the concurrent nature of guest and emulator operations. For
+ * example, a `ResetEvent` is triggered by a QEMU reset and also when the guest
+ * closes the communication channel. Listeners should be designed to handle
+ * repeated reset events gracefully.
  */
 struct AndroidGuestStatus {
     using BootCompletedEvent = std::chrono::milliseconds;
@@ -132,36 +139,20 @@ class IGuestStatusDevice : public HalPlug, public CallbackEventSource<AndroidGue
      */
     bool hasBooted() const { return bootTime().has_value(); };
 
-    typedef void QEMUResetHandler(void* opaque);
-
-    /**
-     * @brief  Type of the emulator reset registration function.
-     *
-     * This represents the signature of the function used to register
-     * a callback for emulator reset events. When running in QEMU, this should
-     * typically be assigned to `qemu_register_reset`, which has the following
-     * signature in C:
-     *
-     * ```c
-     * void qemu_register_reset(QEMUResetHandler *func, void *opaque);
-     * ```
-     */
-    typedef void RegisterEmulatorReset(QEMUResetHandler* func, void* opaque);
-
     /**
      * @brief Registers the guest status device with the connector registry.
      *
      * This function registers the guest status device with the provided
      * `IConnectorRegistry` instance, making it available for connection
-     * through the qemud pipe.  The provided `RegisterEmulatorReset` function allows
-     * the device to register a callback for emulator reset events.
+     * through the qemud pipe.  The provided `EmulatorResetCallbacks` struct allows
+     * the device to register and unregister a callback for emulator reset events.
      *
      * @param registry The `IConnectorRegistry` instance to register with.
-     * @param registerEmulatorReset The function used to register a reset callback.
+     * @param resetCallbacks The struct containing register/unregister functions.
      */
     static bool isBootCompleted();
-    static void registerDevice(IConnectorRegistry* registry,
-                               RegisterEmulatorReset registerEmulatorReset, EventLoop* clientLoop,
-                               EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds);
+    static void registerDevice(IConnectorRegistry* registry, EmulatorResetCallbacks resetCallbacks,
+                               EventLoop* clientLoop, EventLoop* qemuLoop,
+                               int quitAfterBootTimeoutSeconds);
 };
 }  // namespace goldfish::devices::guest_status

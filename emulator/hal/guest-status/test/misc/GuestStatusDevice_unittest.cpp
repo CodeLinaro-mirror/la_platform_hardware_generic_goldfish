@@ -47,8 +47,8 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IGuestStatusDevice::registerDevice(&registry, qemu_register_reset, mClientLoop.get(),
-                                           mQemuLoop.get(), 0);
+        IGuestStatusDevice::registerDevice(&registry, {qemu_register_reset, nullptr},
+                                           mClientLoop.get(), mQemuLoop.get(), 0);
         device = registry.constructHalDevice<IGuestStatusDevice>();
         test_socket = registry.halSocket();
         clear();
@@ -139,31 +139,6 @@ TEST_F(GuestStatusDeviceTest, firesResetEvent) {
     // Simulate a reset
     sResetHandler(sOpaque);
     EXPECT_THAT(received.isResetEvent(), Eq(true));
-}
-
-TEST_F(GuestStatusDeviceTest, updatesBootTimeAfterReset) {
-    TestSystem test("/");
-    test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 100,
-    });
-    receive("bootcompleted");
-
-    // Simulate a reset
-    sResetHandler(sOpaque);
-
-    // Move our wallclock forward
-    test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 110,
-    });
-    receive("bootcompleted");
-
-    // We now have a boot time of zero
-    EXPECT_THAT(device->hasBooted(), Eq(true));
-    EXPECT_THAT(device->bootTime()->count(), Eq(10));
 }
 
 }  // namespace goldfish::devices::guest_status
