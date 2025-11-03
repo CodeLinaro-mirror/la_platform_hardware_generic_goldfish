@@ -77,6 +77,8 @@ agent: {
     args: "--skip-preconditions"
     args: "--skip-all-system-status-check"
     args: "--no-has-server-side-config"
+    args: "-l"
+    args: "INFO"
     # The agent looks for android-*, so we use the parent dir.
     extract_dir: "TEST_TMPDIR"
     build_tools_extract_dir: "BUILD_TOOLS_EXTRACT_DIR"
