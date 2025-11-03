@@ -270,14 +270,6 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
         }
 #endif
         System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
-    } else {
-#if defined(__linux__)
-        // Bug: 454403989
-        // when systme has XDG_RUNTIME_DIR set, we need to pass it
-        // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
-        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR",
-                              xdg_runtime_dir_val);
-#endif
     }
 #endif
 

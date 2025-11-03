@@ -49,7 +49,7 @@ fs::path GetNetsimDiscoveryDir() {
 #if defined(_WIN32)
     return getEnvDir("LOCALAPPDATA", "Temp");
 #elif defined(__linux__)
-    return getEnvDir("ANDROID_EMULATOR_DISCOVERY_DIR", "");
+    return getEnvDir("XDG_RUNTIME_DIR", "");
 #elif defined(__APPLE__)
     return getEnvDir("HOME", "Library/Caches/TemporaryItems");
 #else
