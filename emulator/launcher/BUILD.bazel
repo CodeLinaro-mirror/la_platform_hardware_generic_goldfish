@@ -309,7 +309,6 @@ cc_binary(
         "//hardware/generic/goldfish/emulator/cmdline",
         "//hardware/generic/goldfish/emulator/crashreport:init",
         "//hardware/generic/goldfish/emulator/tools:aemu_version",
-        "//hardware/generic/goldfish/third_party/json",
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
         "@abseil-cpp//absl/debugging:symbolize",
@@ -317,6 +316,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
         "@aemu//base:aemu-base",
+        "@nlohmann_json//:singleheader-json",
     ],
 )
 
