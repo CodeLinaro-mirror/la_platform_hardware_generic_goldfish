@@ -13,20 +13,16 @@
 // limitations under the License.
 #pragma once
 
-#include <chrono>
-#include <condition_variable>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string_view>
-#include <vector>
 
-#include "aemu/base/Compiler.h"
-#include "aemu/base/async/Looper.h"
-#include "aemu/base/threads/FunctorThread.h"
+#include "absl/time/time.h"
 
-namespace android {
-namespace crashreport {
+#include "android/base/system/clock.h"
+#include "goldfish/async/event_loop.h"
+
+namespace android::crashreport {
 
 // Use this interface if your hangdetector needs to
 // keep track of state.
@@ -36,75 +32,58 @@ class StatefulHangdetector {
     virtual bool check() = 0;
 };
 
-// HangDetector - a class that monitors a set of Loopers and checks if any of
-// those is hanging. It calls a user-supplied callback in that case.
-//
-// HangDetector uses Looper::createTask() to get a task object for each looper
-// it watches. Separate thread wakes every couple of seconds to check if
-// it needs to schedule a new task on a looper, or, if a task was scheduled for
-// a while and didn't finish in time, to call the |hangCallback|.
-//
-// Note: Be careful with the timing.hangLoopIterationTimeout. Setting it too
-// aggressively can prevent the hang detector from functioning properly.
+/**
+ * HangDetector - a class that monitors a set of Loopers and checks if any of
+ * those is hanging. It calls a user-supplied callback in that case.
+ *
+ * HangDetector uses EventLoop::createTimer() to get a timer object for each event
+ * loop it watches. Separate thread wakes every couple of seconds to check if
+ * it needs to schedule a new task on a looper, or, if a task was scheduled for
+ * a while and didn't finish in time, to call the |hangCallback|.
+ *
+ * Note: Be careful with the timing.hangLoopIterationTimeout. Setting it too
+ * aggressively can prevent the hang detector from functioning properly.
+ */
 class HangDetector {
-    DISALLOW_COPY_AND_ASSIGN(HangDetector);
-
   public:
     struct Timing {
         // Timeout between worker thread's loop iterations.
-        const std::chrono::milliseconds hangLoopIterationTimeout;
+        const absl::Duration hangLoopIterationTimeout;
         // Timeout between hang checks.
-        const std::chrono::milliseconds hangCheckTimeout;
+        const absl::Duration hangCheckTimeout;
     };
+
+    static constexpr Timing defaultTiming() {
+        return {.hangLoopIterationTimeout = absl::Seconds(5),
+                .hangCheckTimeout = absl::Seconds(15)};
+    }
 
     using HangCallback = std::function<void(std::string_view message)>;
     using HangPredicate = std::function<bool()>;
 
-    HangDetector(HangCallback&& hangCallback, Timing timing = defaultTiming());
-    ~HangDetector();
+    HangDetector() = default;
+    virtual ~HangDetector() = default;
+    HangDetector(const HangDetector&) = delete;
+    HangDetector& operator=(const HangDetector&) = delete;
+    HangDetector(HangDetector&&) = delete;
+    HangDetector& operator=(HangDetector&&) = delete;
 
-    void addWatchedLooper(base::Looper* looper,
-                          std::chrono::milliseconds taskTimeout = std::chrono::seconds(15));
+    virtual void addWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
+                                  absl::Duration task_timeout) = 0;
 
     // We implicitly assume:
     //    predicate() -> []predicate() (if a predicate becomes true, it will
     //    always return true, we only need to infer a system hangs once)
-    HangDetector& addPredicateCheck(HangPredicate&& predicate, std::string&& msg = "");
+    virtual void addPredicateCheck(HangPredicate predicate, std::string msg) = 0;
 
     // Registers a stateful hangdetector. This class will take ownership of the
     // object
-    HangDetector& addPredicateCheck(StatefulHangdetector* detector, std::string&& msg = "");
-    void pause(bool paused);
-    void stop();
+    virtual void addPredicateCheck(StatefulHangdetector* detector, std::string msg) = 0;
 
-  private:
-    void workerThread();
+    virtual void stop() = 0;
 
-    static constexpr Timing defaultTiming() {
-        return {.hangLoopIterationTimeout = std::chrono::seconds(5),
-                .hangCheckTimeout = std::chrono::seconds(15)};
-    }
-
-    std::chrono::milliseconds hangTimeoutMs();
-
-    // A class that watches a single looper.
-    class LooperWatcher;
-
-    const HangCallback mHangCallback;
-
-    const Timing mTiming;
-    std::vector<std::unique_ptr<LooperWatcher>> mLoopers;
-    std::vector<std::pair<HangPredicate, std::string>> mPredicates;
-    std::vector<std::unique_ptr<StatefulHangdetector>> mRegistered;
-
-    int mPaused = 0;
-    bool mStopping = false;
-    std::mutex mLock;
-    std::condition_variable mWorkerThreadCv;
-
-    // A separate worker thread so it's not affected if anything hangs.
-    base::FunctorThread mWorkerThread;
+    static std::unique_ptr<HangDetector> create(HangCallback hangCallback, Timing timing,
+                                                std::unique_ptr<android::base::IClock> clock);
 };
 
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

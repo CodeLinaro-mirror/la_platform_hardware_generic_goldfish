@@ -21,10 +21,13 @@
 #include "absl/strings/str_split.h"
 
 #include "android/base/system/System.h"
+#include "android/crashreport/crash-initializer.h"
+#include "android/crashreport/CrashReporter.h"
 
 #include "goldfish/adb/adb-device.h"
 #include "goldfish/avd/avd-finalize.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/global-event-loop.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/grpc/grpc.h"
 #include "goldfish/input/virtio-input-android.h"
@@ -37,8 +40,6 @@
 
 // library and initialize the crashpad crash engine upon launch.
 #include "google/system/aemu_func_defs.h"
-
-#include "android/crashreport/crash-initializer.h"
 
 extern "C" {
     #include "qemu/error-report.h"
@@ -139,6 +140,9 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     // Call crashpad after printing stack trace.
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
+
+    auto* clientLoop = goldfish::async::globalEventLoop();
+    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper("GlobalEventLoop", *clientLoop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";
 }

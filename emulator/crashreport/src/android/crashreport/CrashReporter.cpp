@@ -28,6 +28,7 @@
 #include "aemu/base/files/PathUtils.h"
 
 #include "android/base/bazel/bazel_info.h"
+#include "android/base/system/abseil_clock.h"
 #include "android/base/system/System.h"
 #include "android/crashreport/crash-handler.h"
 #include "android/crashreport/SimpleStringAnnotation.h"
@@ -59,7 +60,10 @@ const constexpr char kCrashpadDatabase[] = "emu-dev-crash-" VERSION ".db";
 
 using DefaultStringAnnotation = crashpad::StringAnnotation<1024>;
 
-CrashReporter::CrashReporter() {}
+CrashReporter::CrashReporter() :
+    mHangDetector(HangDetector::create(
+                [](auto message) { CrashReporter::get()->die(c_str(message)); }, HangDetector::defaultTiming(),
+                             std::make_unique<android::base::AbseilClock>())) {}
 
 FilePath CrashReporter::databaseDirectory() {
     auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
@@ -85,11 +89,6 @@ FilePath CrashReporter::handlerExe() {
 }
 
 HangDetector& CrashReporter::hangDetector() {
-    if (!mHangDetector) {
-        mHangDetector = std::make_unique<HangDetector>(
-                [](auto message) { CrashReporter::get()->die(c_str(message)); });
-    }
-
     return *mHangDetector;
 }
 
