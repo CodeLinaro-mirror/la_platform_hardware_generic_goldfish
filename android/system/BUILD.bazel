@@ -76,7 +76,6 @@ cc_library(
         "test-headers/android/base/testing/MockUtils.h",
         "test-headers/android/base/testing/ResultMatchers.h",
         "test-headers/android/base/testing/TestEvent.h",
-        "test-headers/android/base/testing/TestLooper.h",
         "test-headers/android/base/testing/TestMemoryOutputStream.h",
         "test-headers/android/base/testing/TestSystem.h",
         "test-headers/android/base/testing/TestTempDir.h",

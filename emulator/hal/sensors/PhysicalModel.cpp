@@ -24,7 +24,6 @@
 
 #include "absl/log/check.h"
 
-#include "aemu/base/async/ThreadLooper.h"
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/files/StdioStream.h"
 #include "aemu/base/utils/stream.h"

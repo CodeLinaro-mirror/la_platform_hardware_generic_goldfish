@@ -16,13 +16,11 @@
 
 #include <chrono>
 
-#include "aemu/base/testing/TestLooper.h"
 #include "goldfish/vsock/listen.h"
 
 namespace goldfish {
 
 namespace devices {
-using android::base::TestLooper;
 
 using namespace std::chrono_literals;
 
