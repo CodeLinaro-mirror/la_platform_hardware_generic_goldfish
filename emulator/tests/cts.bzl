@@ -2,6 +2,27 @@
 
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
+def deqp_tests(name, submodules = []):
+    """Creates a set of rules that runs CTS deqp submodules.
+
+    Args:
+      name: The name of the rule
+      submodules: A list of submodules to create rules for of the form
+          <name>.<submodule>
+    """
+    test_specs = [
+        (
+            smp,
+            (
+                'args: "-m" args: "CtsDeqpTestCases" ' +
+                'args: "--module-arg" ' +
+                'args: "CtsDeqpTestCases:include-filter:dEQP-VK.%s"' % smp
+            ),
+        )
+        for smp in submodules
+    ]
+    cts_test_specs(name, test_specs)
+
 def cts_tests(name, modules = []):
     """Creates a set of rules that runs CTS modules.
 
@@ -10,9 +31,19 @@ def cts_tests(name, modules = []):
       modules: A list of modules to create rules for of the form
           <name>.<module>
     """
+    test_specs = [(m, 'args: "-m" args: "%s"' % m) for m in modules]
+    cts_test_specs(name, test_specs)
+
+def cts_test_specs(name, test_specs = []):
+    """Creates a set of rules that runs CTS with a given test specification.
+
+    Args:
+      name: The name of the rule
+      test_specs: The test spec proto that will be passed to the tradefed agent
+    """
     tests = []
-    for m in modules:
-        test = name + "." + m
+    for target, test_spec in test_specs:
+        test = name + "." + target
         tests.append(test)
         sh_test(
             name = test,
@@ -22,7 +53,7 @@ def cts_tests(name, modules = []):
                 "CTS_TRADEFED_PATH": "$(location @cts-x86-64//:cts-tradefed)",
                 "IMAGE_PATH": "$(location @android_minigbm-x86_64//:systemimg)",
                 "PLATFORM_TOOLS_PATH": "$(location @linux-platform-tools//:adb)",
-                "TEST_SPEC": 'args: "-m" args: "%s"' % m,
+                "TEST_SPEC": test_spec,
                 "TEST_SEQ_PATH": "$(location @test_seq_linux//:test_seq)",
             },
             size = "enormous",

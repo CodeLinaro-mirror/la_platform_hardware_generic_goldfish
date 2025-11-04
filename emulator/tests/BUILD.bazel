@@ -1,6 +1,5 @@
 load("@rules_java//java:java_test.bzl", "java_test")
-load("//hardware/generic/goldfish/emulator/tests:cts.bzl", "cts_tests")
-load("//hardware/generic/goldfish/emulator/tests:deqp.bzl", "deqp_tests")
+load("//hardware/generic/goldfish/emulator/tests:cts.bzl", "cts_tests", "deqp_tests")  # @unused
 
 java_test(
     name = "boot_test",
@@ -854,7 +853,7 @@ cts_modules = [
     "signed-CtsSecureElementAccessControlTestCases2",
     "signed-CtsSecureElementAccessControlTestCases3",
     "vm-tests-tf",
-]
+]  # @unused
 
 # Run examples:
 #
@@ -876,57 +875,57 @@ cts_modules = [
 #)
 
 deqp_submodules = [
-"draw.*",
-"wsi.*",
-"api.*",
-"clipping.*",
-"ssbo.*",
-"fragment_shading_rate.*",
-"fragment_shading_barycentric.*",
-"fragment_operations.*",
-"binding_model.*",
-"glsl.*",
-"subgroups.*",
-"dynamic_state.*",
-"depth*",
-"sparse_resources.*",
-"memory_model.*",
-"image.*",
-"renderpass2.*",
-"graphicsfuzz*",
-"imageless_framebuffer*",
-"geometry.*",
-"ray_tracing_pipeline.*",
-"ray_query.*",
-"info*",
-"memory.*",
-"device_group*",
-"descriptor_indexing*",
-"multiview.*",
-"protected_memory.*",
-"conditional_rendering.*",
-"ubo.*",
-"tessellation.*",
-"texture.*",
-"synchronization.*",
-"synchronization2.*",
-"transform_feedback.*",
-"reconvergence.*",
-"fragment_shader_interlock.*",
-"compute.*",
-"rasterization.*",
-"drm_format_modifiers.*",
-"renderpass.*",
-"query_pool.*",
-"robustness.*",
-"mesh_shader.*",
-"spirv_assembly.*",
-]
+    "draw.*",
+    "wsi.*",
+    "api.*",
+    "clipping.*",
+    "ssbo.*",
+    "fragment_shading_rate.*",
+    "fragment_shading_barycentric.*",
+    "fragment_operations.*",
+    "binding_model.*",
+    "glsl.*",
+    "subgroups.*",
+    "dynamic_state.*",
+    "depth*",
+    "sparse_resources.*",
+    "memory_model.*",
+    "image.*",
+    "renderpass2.*",
+    "graphicsfuzz*",
+    "imageless_framebuffer*",
+    "geometry.*",
+    "ray_tracing_pipeline.*",
+    "ray_query.*",
+    "info*",
+    "memory.*",
+    "device_group*",
+    "descriptor_indexing*",
+    "multiview.*",
+    "protected_memory.*",
+    "conditional_rendering.*",
+    "ubo.*",
+    "tessellation.*",
+    "texture.*",
+    "synchronization.*",
+    "synchronization2.*",
+    "transform_feedback.*",
+    "reconvergence.*",
+    "fragment_shader_interlock.*",
+    "compute.*",
+    "rasterization.*",
+    "drm_format_modifiers.*",
+    "renderpass.*",
+    "query_pool.*",
+    "robustness.*",
+    "mesh_shader.*",
+    "spirv_assembly.*",
+]  # @unused
 
 # to test, uncomment the following block
 # gcloud auth application-default login --project="google.com:android-studio-alphasource"
 # bazel test --config=remote --sandbox_debug --nocache_test_results :deqp
 #deqp_tests(
 #    name = "deqp",
-#    modules = deqp_submodules,
+#    submodules = deqp_submodules,
 #)
