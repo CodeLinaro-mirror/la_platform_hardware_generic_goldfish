@@ -33,7 +33,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/async/Looper.h"
 #include "android/base/system/clock.h"
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -46,7 +45,6 @@
 
 namespace goldfish::devices::sensor {
 
-using android::base::Looper;
 using goldfish::physics::SkinRotation;
 
 namespace {  // Anonymous namespace for internal helpers
