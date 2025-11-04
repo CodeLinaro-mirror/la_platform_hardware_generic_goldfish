@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "android/crashreport/CrashSystem.h"
+
 #include <map>
 #include <memory>
 #include <string>
@@ -42,8 +44,7 @@ using android::base::System;
 using base::FilePath;
 using crashpad::CrashReportDatabase;
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
 #ifdef NDEBUG
 constexpr char CrashURL[] = "https://clients2.google.com/cr/report";
@@ -53,7 +54,7 @@ constexpr char CrashURL[] = "https://clients2.google.com/cr/staging_report";
 
 class CrashSystem {
   public:
-    CrashSystem() : mClient(new crashpad::CrashpadClient()) {}
+    CrashSystem() : mClient(new crashpad::CrashpadClient()), mConsentProvider(/*TODO default?*/) {}
 
     // Gets a handle to single instance of crash reporter
     static CrashSystem* get();
@@ -152,6 +153,7 @@ class CrashSystem {
     }
 
     void setConsentProvider(CrashConsent* replacement) { mConsentProvider.reset(replacement); }
+    void setConsentProvider(std::unique_ptr<CrashConsent> replacement) { mConsentProvider = std::move(replacement); }
 
   private:
     void processReport(const CrashReportDatabase::Report& report) {
@@ -209,8 +211,15 @@ bool inject_consent_provider(CrashConsent* myProvider) {
     return crashSystem->initialize();
 }
 
-}  // namespace crashreport
-}  // namespace android
+void upload_crashes(std::unique_ptr<CrashConsent> consent) {
+    const auto reporter = CrashSystem::get();
+    if (reporter && reporter->active()) {
+        reporter->setConsentProvider(std::move(consent));
+        reporter->uploadEntries();
+    }
+}
+
+}  // namespace android::crashreport
 
 extern "C" {
 using android::crashreport::CrashSystem;
@@ -226,10 +235,4 @@ bool crashhandler_init(int argc, char** argv) {
     return CrashSystem::get()->initialize();
 }
 
-void upload_crashes(void) {
-    const auto reporter = CrashSystem::get();
-    if (reporter && reporter->active()) {
-        reporter->uploadEntries();
-    }
-}
 }

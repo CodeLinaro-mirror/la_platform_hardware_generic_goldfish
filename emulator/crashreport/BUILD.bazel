@@ -33,6 +33,7 @@ cc_library(
         "include/android/crashreport/Breadcrumb.h",
         "include/android/crashreport/CrashConsent.h",
         "include/android/crashreport/CrashReporter.h",
+        "include/android/crashreport/CrashSystem.h",
         "include/android/crashreport/HangDetector.h",
         "include/android/crashreport/SimpleStringAnnotation.h",
         "include/android/crashreport/crash-export.h",
@@ -43,6 +44,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",

@@ -31,6 +31,8 @@
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
 #include "android/crashreport/crash-initializer.h"
+#include "android/crashreport/CrashConsent.h"
+#include "android/crashreport/CrashSystem.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/emulator.h"
 #include "android/goldfish/input_paths.h"
@@ -328,6 +330,15 @@ void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sys
     }
 }
 
+class CrashConsentProviderAlways : public android::crashreport::CrashConsent {
+  public:
+    ~CrashConsentProviderAlways() override = default;
+    Consent consentRequired() override { return Consent::ALWAYS; }
+    ReportAction requestConsent(const crashpad::CrashReportDatabase::Report& report) override {
+        return ReportAction::UPLOAD_REMOVE;
+    }
+};
+
 }  // namespace
 }  // namespace android::goldfish
 
@@ -396,6 +407,9 @@ int main(int argc, char** argv) {
     if (!crashhandler_init(argc, argv)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
+
+    // TODO change consent before release
+    android::crashreport::upload_crashes(std::make_unique<android::goldfish::CrashConsentProviderAlways>());
 
     absl::FailureSignalHandlerOptions options;
     // Call crashpad after printing stack trace.
