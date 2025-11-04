@@ -20,7 +20,6 @@ cc_library(
         "//hardware/generic/goldfish/emulator/crashreport:always_consent",
         "//hardware/generic/goldfish/emulator/crashreport:detectors",  # Added
         "//hardware/generic/goldfish/emulator/crashreport:uploader",
-        "//hardware/generic/goldfish/third_party/json",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",
@@ -28,6 +27,7 @@ cc_library(
         "@com_google_breakpad//src/processor",
         "@com_google_crashpad//client",
         "@com_google_crashpad//snapshot",
+        "@nlohmann_json//:singleheader-json",
     ],
 )
 
