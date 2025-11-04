@@ -34,7 +34,7 @@ using cable::SocketPtr;
 ConnectorRegistry::ConnectorRegistry() : ConnectorRegistry(std::make_shared<PingTopic>()) {}
 
 ConnectorRegistry::ConnectorRegistry(std::shared_ptr<PingTopic> pingTopic)
-        : mPingTopic(std::move(pingTopic)), mAcceptingRegistries(true) {}
+        : mPingTopic(std::move(pingTopic)) {}
 
 bool ConnectorRegistry::listen(int port) {
     return listen([port](HostPortListener listener) { return vsock::listen(port, listener); });
