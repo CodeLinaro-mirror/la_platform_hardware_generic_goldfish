@@ -277,8 +277,8 @@ class ConnectorRegistry : public IConnectorRegistry {
                               async::EventLoop* qemuLoop, HalDeviceFactory factory,
                               DeviceRegistration registerFn);
 
-   std::shared_ptr<PingTopic> mPingTopic;
-   bool mAcceptingRegistries;
+   const std::shared_ptr<PingTopic> mPingTopic;
+   bool mAcceptingRegistries = true;
    std::mutex mEntriesMutex;
    std::mutex mActivePlugsMutex;
    absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
