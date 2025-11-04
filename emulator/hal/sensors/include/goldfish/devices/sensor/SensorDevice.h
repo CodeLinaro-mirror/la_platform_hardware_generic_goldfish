@@ -17,6 +17,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 
 #include "aemu/base/events/EventSources.h"
@@ -40,9 +41,10 @@ using goldfish::async::EventLoop;
 using goldfish::physics::Rotation;
 using goldfish::sensors::AndroidSensor;
 
-using namespace std::string_view_literals;
+constexpr size_t kSensorDataMaxDimensions = 4;
+using SensorData = absl::InlinedVector<float, kSensorDataMaxDimensions>;
 
-using SensorData = std::vector<float>;
+using namespace std::string_view_literals;
 
 // A Qemud based sensor emulator.
 class ISensorDevice : public HalPlug,

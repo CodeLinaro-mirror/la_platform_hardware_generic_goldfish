@@ -23,6 +23,7 @@ namespace control {
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::AndroidSensor;
+using ::goldfish::devices::sensor::SensorData;
 
 SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
     : mRegistry(connectorRegistry) {}
@@ -31,7 +32,7 @@ grpc::Status SensorServiceImpl::setSensor(ServerContext* context, const SensorVa
                                           ::google::protobuf::Empty* reply) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
-        std::vector<float> values(request->value().data().begin(), request->value().data().end());
+        SensorData values(request->value().data().begin(), request->value().data().end());
         auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request->target()), values);
         return abslStatusToGrpcStatus(status);
     }

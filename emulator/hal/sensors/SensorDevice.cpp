@@ -455,12 +455,12 @@ class SensorDevice : public ISensorDevice {
             return absl::UnavailableError("The sensor is disabled");
         }
 
-        size_t out;
-        getSensorValueSize(sensor_id, &out);
-        std::vector<float> val(out, 0);
-        std::vector<float*> ptr;
-        for (int i = 0; i < val.size(); i++) {
-            ptr.push_back(&val[i]);
+        size_t sz;
+        getSensorValueSize(sensor_id, &sz);
+        SensorData val(sz, 0);
+        absl::InlinedVector<float*, kSensorDataMaxDimensions> ptr(sz);
+        for (unsigned i = 0; i < sz; ++i) {
+            ptr[i] = &val[i];
         }
 
         getSensorValue(sensor_id, ptr.data(), ptr.size());
