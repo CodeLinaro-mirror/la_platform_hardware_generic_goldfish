@@ -25,9 +25,8 @@ using cable::PlugPtr;
 using cable::SocketPtr;
 
 namespace {
-bool qnameEquals(const char q, const std::string_view name, const char* qname) {
-    return (q == *qname) && (0 == strncmp(name.data(), qname + 1, name.size())) &&
-           (0 == qname[name.size() + 1]);
+bool qnameEquals(const char q, const std::string_view name, const std::string_view qname) {
+    return (qname.size() > 1) && (q == qname[0]) && (name == qname.substr(1));
 }
 }  // namespace
 

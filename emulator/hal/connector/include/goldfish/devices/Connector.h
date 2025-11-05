@@ -62,8 +62,8 @@ struct Connector : public cable::IPlug {
                                                        std::string_view args)>;
 
     struct DeviceEntry {
-        const char* qname;  // prefixed with 'q' for qemud, use '-' otherwise
-        DeviceFactory factory;
+      std::string qname;  // prefixed with 'q' for qemud, use '-' otherwise
+      DeviceFactory factory;
     };
 
     Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,

@@ -45,9 +45,9 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
     std::lock_guard<std::mutex> lock(mEntriesMutex);
     mAcceptingRegistries = false;
 
-    for (const auto& [key, factory_fn] : mEntries) {
-        Connector::DeviceFactory registerfn = [factory_fn, key, this](auto socket, auto ping,
-                                                                      auto args) {
+    for (auto& [key, factory_fn] : mEntries) {
+        Connector::DeviceFactory registerfn = [factory_fn = std::move(factory_fn), key, this](
+                                                      auto socket, auto ping, auto args) {
             auto connector = factory_fn(std::move(socket), std::move(ping), args);
             auto registryName = key.substr(1);
 
@@ -55,8 +55,10 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
             return connector;
         };
 
-        mDevices.push_back({key.c_str(), std::move(registerfn)});
+        mDevices.push_back({std::move(key), std::move(registerfn)});
     }
+
+    mEntries.clear();
 
     return startListening([this](auto socket) {
         return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
