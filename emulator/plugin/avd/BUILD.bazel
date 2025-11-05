@@ -88,6 +88,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/adb/logger",
         "//hardware/generic/goldfish/emulator/config:device_type",
         "//hardware/generic/goldfish/emulator/config:hardware_config",
+        "//hardware/generic/goldfish/emulator/crashreport:crash_reporter",
         "//hardware/generic/goldfish/emulator/hal/bootproperties",
         "//hardware/generic/goldfish/emulator/hal/camera",
         "//hardware/generic/goldfish/emulator/hal/clipboard",

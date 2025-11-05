@@ -20,16 +20,19 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/files/IniFile.h"
+
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
+#include "android/crashreport/CrashReporter.h"
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
+
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
@@ -140,7 +143,9 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
     auto* clientLoop = goldfish::async::globalEventLoop();
+
     gQemuLoop = goldfish::async::QemuEventLoop::create();
+    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper("QemuEventLoop", *gQemuLoop, absl::Seconds(15));
 
     auto* registry = &connector_registry();
 
