@@ -18,7 +18,7 @@ cc_library(
     deps = [
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/crashreport:always_consent",
-        "//hardware/generic/goldfish/emulator/crashreport:detectors",  # Added
+        "//hardware/generic/goldfish/emulator/crashreport:crash_reporter",
         "//hardware/generic/goldfish/emulator/crashreport:uploader",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",

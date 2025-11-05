@@ -25,15 +25,18 @@
 #include "aemu/base/Compiler.h"
 #include "aemu/base/process/Process.h"
 #include "aemu/base/system/Win32UnicodeString.h"
+
 #include "android/base/system/System.h"
 #include "android/crashreport/CrashConsent.h"
 #include "android/crashreport/CrashReporter.h"
 #include "android/crashreport/Uploader.h"
+
+#include "goldfish/tools/aemu_version.h"
+
 #include "base/files/file_path.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/settings.h"
-#include "goldfish/tools/aemu_version.h"
 #include "util/misc/uuid.h"
 
 #ifdef _WIN32

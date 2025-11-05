@@ -22,17 +22,17 @@
 #include <vector>
 
 #include "aemu/base/Compiler.h"
+
 #include "android/crashreport/AnnotationStreambuf.h"
+#include "android/crashreport/crash-handler.h"
 #include "android/crashreport/HangDetector.h"
+
 #include "base/files/file_path.h"
 #include "client/annotation.h"
-#include "android/crashreport/crash-handler.h"
 
 namespace crashpad {
 class Annotation;
 }  // namespace crashpad
-
-using base::FilePath;
 
 namespace android {
 namespace crashreport {
@@ -112,14 +112,14 @@ class CrashReporter {
      *
      * @return The database directory as a FilePath.
      */
-    static FilePath databaseDirectory();
+    static ::base::FilePath databaseDirectory();
 
     /**
      * @brief Returns the path to the crashpad handler executable.
      *
      * @return The handler executable path as a FilePath.
      */
-    static FilePath handlerExe();
+    static ::base::FilePath handlerExe();
 
   private:
     DISALLOW_COPY_AND_ASSIGN(CrashReporter);
