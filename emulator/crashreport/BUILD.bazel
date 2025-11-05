@@ -3,13 +3,17 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 cc_library(
     name = "init",
     srcs = ["src/android/crashreport/CrashSytemInit.cpp"],
-    hdrs = ["include/android/crashreport/crash-initializer.h"],
+    hdrs = [
+        "include/android/crashreport/CrashConsent.h",
+        "include/android/crashreport/CrashSystem.h",
+        "include/android/crashreport/crash-initializer.h",
+    ],
     data = ["@com_google_crashpad//handler:crashpad_handler"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":always_consent",
-        ":detectors",
+        ":crash_reporter",
         ":uploader",
         "//hardware/generic/goldfish/android/process",
         "@com_google_crashpad//client",
@@ -19,32 +23,32 @@ cc_library(
 )
 
 cc_library(
-    name = "detectors",
-    srcs = [
-        "src/android/crashreport/Breadcrumb.cpp",
-        "src/android/crashreport/CrashReporter.cpp",
-        "src/android/crashreport/HangDetector.cpp",
-        "src/android/crashreport/detectors/CrashDetectors.cpp",
-        "src/android/crashreport/detectors/TimeoutMonitor.cpp",
-    ],
-    hdrs = [
-        "include/android/crashreport/AnnotationCircularStreambuf.h",
-        "include/android/crashreport/AnnotationStreambuf.h",
-        "include/android/crashreport/Breadcrumb.h",
-        "include/android/crashreport/CrashConsent.h",
-        "include/android/crashreport/CrashReporter.h",
-        "include/android/crashreport/CrashSystem.h",
-        "include/android/crashreport/HangDetector.h",
-        "include/android/crashreport/SimpleStringAnnotation.h",
-        "include/android/crashreport/crash-export.h",
-        "include/android/crashreport/crash-handler.h",
-        "include/android/crashreport/detectors/CrashDetectors.h",
-        "include/android/crashreport/detectors/TimeoutMonitor.h",
-    ],
+    name = "hang_detector",
+    srcs = ["src/android/crashreport/HangDetector.cpp"],
+    hdrs = ["include/android/crashreport/HangDetector.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//hardware/generic/goldfish/android/async:async_api",
+        "//hardware/generic/goldfish/android/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "crash_reporter",
+    srcs = [
+        "include/android/crashreport/AnnotationStreambuf.h",
+        "include/android/crashreport/SimpleStringAnnotation.h",
+        "include/android/crashreport/crash-handler.h",
+        "src/android/crashreport/CrashReporter.cpp",
+    ],
+    hdrs = ["include/android/crashreport/CrashReporter.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hang_detector",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
@@ -54,6 +58,46 @@ cc_library(
         "@com_google_crashpad//handler",
         "@com_google_crashpad//snapshot",
         "@com_google_crashpad//third_party/mini_chromium:base",
+    ],
+)
+
+cc_library(
+    name = "breadcrumb",
+    srcs = [
+        "include/android/crashreport/AnnotationCircularStreambuf.h",
+        "src/android/crashreport/Breadcrumb.cpp",
+    ],
+    hdrs = [
+        "include/android/crashreport/Breadcrumb.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@com_google_crashpad//client",
+    ],
+)
+
+cc_library(
+    name = "detectors",
+    srcs = [
+        "src/android/crashreport/detectors/CrashDetectors.cpp",
+        "src/android/crashreport/detectors/TimeoutMonitor.cpp",
+    ],
+    hdrs = [
+        "include/android/crashreport/detectors/CrashDetectors.h",
+        "include/android/crashreport/detectors/TimeoutMonitor.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":crash_reporter",
+        ":hang_detector",
+        "//hardware/generic/goldfish/android/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base",
     ],
 )
 
@@ -119,6 +163,7 @@ cc_test(
     }),
     deps = [
         ":always_consent",
+        ":breadcrumb",
         ":detectors",
         ":init",
         "//hardware/generic/goldfish/android/system",
@@ -143,6 +188,7 @@ cc_binary(
     }),
     deps = [
         ":always_consent",
+        ":breadcrumb",
         ":init",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",

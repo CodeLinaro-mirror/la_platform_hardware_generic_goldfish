@@ -26,13 +26,16 @@
 #include <vector>
 
 #include "aemu/base/files/PathUtils.h"
+
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
+#include "android/crashreport/crash-handler.h"
 #include "android/crashreport/SimpleStringAnnotation.h"
+
 #include "base/files/file_path.h"
 #include "client/annotation.h"
+
 #include "goldfish/tools/aemu_version.h"
-#include "android/crashreport/crash-handler.h"
 
 #ifdef _WIN32
 #include <io.h>

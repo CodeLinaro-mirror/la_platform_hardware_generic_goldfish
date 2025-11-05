@@ -18,7 +18,6 @@
 #include <stdarg.h>
 
 #ifdef __cplusplus
-#include "aemu/base/StringFormat.h"
 
 #include <utility>
 #include <stdio.h>
@@ -83,15 +82,3 @@ void pause_hangdetector();
 void resume_hangdetector();
 void detect_hanging_looper(void*);
 ANDROID_END_HEADER
-
-
-#ifdef __cplusplus
-// A variadic overload for a convenient message formatting
-template <class... Args>
-ANDROID_NORETURN void crashhandler_die(const char* format, Args&&... args) {
-    char buffer[2048] = {};    // 2048 is enough for everyone ;)
-    snprintf(buffer, sizeof(buffer) - 1, format,
-             android::base::unpackFormatArg(std::forward<Args>(args))...);
-    crashhandler_die(buffer);
-}
-#endif
