@@ -96,6 +96,15 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     std::thread loop_thread;
 };
 
+INSTANTIATE_TEST_SUITE_P(EventLoopImplementations, EventLoopTest,
+                         ::testing::Values("libuv", "qemu"),
+                         [](const ::testing::TestParamInfo<EventLoopTest::ParamType>& info) {
+                             std::string name = info.param;
+                             std::transform(name.begin(), name.end(), name.begin(),
+                                            [](unsigned char c) { return std::toupper(c); });
+                             return name;
+                         });
+
 // =================================================================
 //                      TEST CASES
 // =================================================================
@@ -418,7 +427,7 @@ TEST_P(EventLoopTest, PostDelayedExecutesAfterDelay) {
     runUntil(future);
 }
 
-TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
+TEST_P(EventLoopTest, ScheduleDelayedHelperExecutesSuccessfully) {
     runInThread();
 
     std::promise<void> task_completed;
@@ -434,19 +443,71 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
                             delay.count(), tolerance.count());
                 }
                 task_completed.set_value();
-            },
-            delay);
+            }, delay);
 
     auto future = task_completed.get_future();
     runUntil(future);
     ASSERT_NE(handle, nullptr);
 }
 
+TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
+    runInThread();
+
+    std::promise<void> task_completed;
+    const auto delay = std::chrono::milliseconds(50);
+    auto start_time = std::chrono::steady_clock::now();
+
+    auto handle = loop->createTimer(
+            [&]() {
+                if (mLoopType == "libuv") {
+                    auto elapsed = std::chrono::steady_clock::now() - start_time;
+                    EXPECT_NEAR(
+                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                            delay.count(), tolerance.count());
+                }
+                task_completed.set_value();
+            });
+    handle->schedule(delay);
+
+    auto future = task_completed.get_future();
+    runUntil(future);
+    ASSERT_NE(handle, nullptr);
+}
+
+TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
+    runInThread();
+
+    std::atomic<bool> task_executed = false;
+    auto handle = loop->createTimer([&]() { task_executed = true; });
+    handle->schedule(100ms);
+
+    // Advance time past the timer's expiration.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(150);
+    } else {
+        std::this_thread::sleep_for(150ms);
+    }
+
+    ASSERT_TRUE(task_executed.load());
+    task_executed = false;
+
+    handle->schedule(100ms);
+
+    // Advance time past the timer's expiration.
+    if (mLoopType == "qemu") {
+        fake_qemu_advance_ms(150);
+    } else {
+        std::this_thread::sleep_for(150ms);
+    }
+    ASSERT_TRUE(task_executed.load());
+}
+
 TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByHandle) {
     runInThread();
 
     std::atomic<bool> task_executed = false;
-    auto handle = loop->scheduleDelayed([&]() { task_executed = true; }, 100ms);
+    auto handle = loop->createTimer([&]() { task_executed = true; });
+    handle->schedule(100ms, 0ms);
 
     handle->cancel();
 
@@ -465,7 +526,8 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
     std::atomic<bool> task_executed = false;
 
     {
-        auto handle = loop->scheduleDelayed([&]() { task_executed = true; }, 100ms);
+        auto handle = loop->createTimer([&]() { task_executed = true; });
+        handle->schedule(100ms, 0ms);
         VLOG(1) << "Use count: " << handle.use_count();
     }  // handle is destroyed here, cancelling the timer.
 
@@ -478,7 +540,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
     ASSERT_FALSE(task_executed.load());
 }
 
-TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
+TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
     runInThread();
     std::promise<void> promise;
     std::atomic<int> counter = 0;
@@ -490,8 +552,30 @@ TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
                     promise.set_value();
                 }
             },
-            10ms,   // Initial delay
-            50ms);  // Interval
+    10ms,   // Initial delay
+    50ms);  // Interval
+
+    auto future = promise.get_future();
+    runUntil(future);
+    handle->cancel();
+    ASSERT_EQ(counter.load(), target_count);
+}
+
+TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
+    runInThread();
+    std::promise<void> promise;
+    std::atomic<int> counter = 0;
+    const int target_count = 3;
+
+    auto handle = loop->createTimer(
+            [&]() {
+                if (++counter == target_count) {
+                    promise.set_value();
+                }
+            });
+    handle->schedule(
+    10ms,   // Initial delay
+    50ms);  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
@@ -528,8 +612,9 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
     auto creator_thread_func = [&, loop_ptr = loop](int creator_id) {
         for (int i = 0; i < num_tasks_per_creator; ++i) {
             // Schedule a repeating timer.
-            auto handle = loop_ptr->scheduleRepeating(
-                    [&]() { /* Task body not critical for this test */ },
+            auto handle = loop_ptr->createTimer(
+                    [&]() { /* Task body not critical for this test */ });
+            handle->schedule(
                     std::chrono::milliseconds(10),  // Initial delay
                     std::chrono::seconds(10)        // Long interval to avoid accidental ticks
             );
@@ -611,7 +696,8 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
     runInThread();
     std::atomic<int> counter = 0;
 
-    auto handle = loop->scheduleRepeating([&]() { counter++; }, 10ms, 40ms);
+    auto handle = loop->createTimer([&]() { counter++; });
+    handle->schedule(10ms, 40ms);
 
     if (mLoopType == "qemu") {
         fake_qemu_advance_ms(100);
@@ -674,7 +760,8 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
         creators.emplace_back([&]() {
             for (int j = 0; j < kTimersPerThread; ++j) {
                 // Create long-running timers so they don't fire during the test.
-                auto handle = loop->scheduleRepeating([]() { /* no-op */ }, 1h, 1h);
+                auto handle = loop->createTimer([]() { /* no-op */ });
+                handle->schedule(1h, 1h);
 
                 absl::MutexLock lock(&vec_mutex);
                 all_timers.push_back(handle);
@@ -758,13 +845,13 @@ TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
 
         // Create the timer. The `shared_ptr` (`handle`) will keep it alive
         // for this scope. The EventLoop also holds a reference.
-        handle = loop->scheduleDelayed(
+        handle = loop->createTimer(
                 // Note we capture a pointer to handle, as we are just initializing it!
                 [h = &handle, &timer_callback_promise]() {
                     (*h)->cancel();
                     timer_callback_promise.set_value(true);
-                },
-                10ms);
+                });
+        handle->schedule(10ms, 0ms);
 
         // After the `handle` is created, point the `weak_handle` to it.
         // The lambda now holds a reference to this `weak_handle`.
@@ -790,15 +877,6 @@ TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
     // no deadlocks.
     ASSERT_TRUE(timer_executed.get());
 }
-
-INSTANTIATE_TEST_SUITE_P(EventLoopImplementations, EventLoopTest,
-                         ::testing::Values("libuv", "qemu"),
-                         [](const ::testing::TestParamInfo<EventLoopTest::ParamType>& info) {
-                             std::string name = info.param;
-                             std::transform(name.begin(), name.end(), name.begin(),
-                                            [](unsigned char c) { return std::toupper(c); });
-                             return name;
-                         });
 
 TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     if (mLoopType == "qemu") {
@@ -846,7 +924,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     auto reschedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
     auto last_fire_time = std::make_shared<std::chrono::steady_clock::time_point>();
 
-    auto handle = loop->scheduleRepeating(
+    auto handle = loop->createTimer(
             [&, schedule_time, reschedule_time, last_fire_time]() {
                 auto now = std::chrono::steady_clock::now();
                 int c = ++counter;
@@ -874,8 +952,8 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
                 if (c == 1) fired1_promise.set_value();
                 if (c == 2) fired2_promise.set_value();
                 if (c == 3) fired3_promise.set_value();
-            },
-            100ms, 100ms);
+            });
+    handle->schedule(100ms, 100ms);
 
     *schedule_time = std::chrono::steady_clock::now();
 
@@ -885,7 +963,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 
     // Reschedule to fire sooner and more frequently.
     *reschedule_time = std::chrono::steady_clock::now();
-    handle->rescheduleRepeating(200ms, 200ms);
+    handle->schedule(200ms, 200ms);
 
     // Check that it fires again quickly.
     runUntil(fired2_future);

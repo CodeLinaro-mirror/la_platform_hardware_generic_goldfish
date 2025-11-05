@@ -28,6 +28,7 @@ namespace goldfish::async::testing {
 
 // The concrete implementation class, hidden entirely within this .cpp file.
 class TestEventLoopImpl : public TestEventLoop {
+    class TestTimer;
   public:
     TestEventLoopImpl();
     ~TestEventLoopImpl() override;
@@ -38,9 +39,7 @@ class TestEventLoopImpl : public TestEventLoop {
     std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
     bool isOnLoopThread() const override;
     void postImpl(Task task, std::chrono::milliseconds delay) override;
-    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
-    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
-                                             std::chrono::milliseconds interval) override;
+    std::shared_ptr<Timer> createTimer(Task task) override;
 
     // TestEventLoop Interface
     void runAll() override;
@@ -49,15 +48,14 @@ class TestEventLoopImpl : public TestEventLoop {
     void advanceClock(std::chrono::milliseconds duration) override;
     size_t taskCount() const override;
 
-    void reschedule(const std::shared_ptr<Timer>& timer, std::chrono::milliseconds new_delay,
+    void reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer, std::chrono::milliseconds new_delay,
                     std::chrono::milliseconds new_interval);
 
   private:
-    class TestTimer;
     struct ScheduledTask {
         std::chrono::steady_clock::time_point execution_time;
         std::chrono::milliseconds interval;
-        Task task;
+        std::shared_ptr<Task> task;
 
         // handle to the timer that is handed to the developer
         // we track the liveness and cancellation state here.
@@ -70,11 +68,12 @@ class TestEventLoopImpl : public TestEventLoop {
 
     class TestTimer : public Timer, public std::enable_shared_from_this<TestTimer> {
       public:
-        TestTimer(TestEventLoopImpl* loop) : mLoop(loop) {}
+        TestTimer(TestEventLoopImpl* loop, Task task) : mLoop(loop), mPendingTask(std::make_shared<Task>(std::move(task))) {}
         ~TestTimer() override { cancel(); }
         void cancel() override { mCancelled = true; }
         bool isCancelled() const { return mCancelled; }
-        void rescheduleRepeating(std::chrono::milliseconds new_delay,
+        std::shared_ptr<Task> task() { return mPendingTask; }
+        void schedule(std::chrono::milliseconds new_delay,
                                  std::chrono::milliseconds new_interval) override {
             mLoop->reschedule(shared_from_this(), new_delay, new_interval);
         }
@@ -82,6 +81,7 @@ class TestEventLoopImpl : public TestEventLoop {
       private:
         std::atomic_bool mCancelled{false};
         TestEventLoopImpl* mLoop;
+        std::shared_ptr<Task> mPendingTask;
     };
 
     enum class Command : uint8_t { None, RunOne, RunMany, AdvanceTime };
@@ -169,7 +169,8 @@ void TestEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
         mTasks.emplace_back(std::move(task));
         return;
     }
-    scheduleDelayed(std::move(task), delay);
+    auto timer = createTimer(std::move(task));
+    timer->schedule(delay, std::chrono::milliseconds::zero());
 }
 
 size_t TestEventLoopImpl::taskCount() const {
@@ -177,27 +178,11 @@ size_t TestEventLoopImpl::taskCount() const {
     return mTasks.size();
 }
 
-std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::scheduleDelayed(
-        Task task, std::chrono::milliseconds delay) {
-    if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) return nullptr;
-    auto timer = std::make_shared<TestTimer>(this);
-    std::lock_guard<std::mutex> lock(mMutex);
-    mScheduledTasks.push_back({mNow + delay, std::chrono::milliseconds(0), std::move(task), timer});
-    std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
-    return timer;
+std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::createTimer(Task task) {
+    return std::make_shared<TestTimer>(this, std::move(task));
 }
 
-std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::scheduleRepeating(
-        Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
-    if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) return nullptr;
-    auto timer = std::make_shared<TestTimer>(this);
-    std::lock_guard<std::mutex> lock(mMutex);
-    mScheduledTasks.push_back({mNow + initial_delay, interval, std::move(task), timer});
-    std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
-    return timer;
-}
-
-void TestEventLoopImpl::reschedule(const std::shared_ptr<Timer>& timer,
+void TestEventLoopImpl::reschedule(std::shared_ptr<TestTimer> timer,
                                    std::chrono::milliseconds new_delay,
                                    std::chrono::milliseconds new_interval) {
     std::lock_guard<std::mutex> lock(mMutex);
@@ -211,6 +196,9 @@ void TestEventLoopImpl::reschedule(const std::shared_ptr<Timer>& timer,
         it->execution_time = mNow + new_delay;
         it->interval = new_interval;
         std::make_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+    } else {
+        mScheduledTasks.push_back({mNow + new_delay, new_interval, timer->task(), timer});
+        std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
     }
 }
 
@@ -311,7 +299,7 @@ void TestEventLoopImpl::advanceClockUnlocked(std::chrono::milliseconds duration)
 
         // Run the task without a lock.
         mMutex.unlock();
-        task.task();
+        (*task.task)();
         mMutex.lock();
 
         // reschedule task if needed.

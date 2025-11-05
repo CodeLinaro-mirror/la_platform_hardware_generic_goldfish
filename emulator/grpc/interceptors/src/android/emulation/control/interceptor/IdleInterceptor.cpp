@@ -52,9 +52,9 @@ IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, Eve
         : mTimeout(timeout)
         , mTerminationUnixTime(
                   absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(timeout.count()))) {
-    mTimeoutChecker = std::make_shared<ScopedTimer>(eventLoop->scheduleRepeating(
+    mTimeoutChecker = eventLoop->scheduleRepeating(
             [this]() { checkIdleTimeout(); }, std::chrono::milliseconds(mTimeout),
-            std::chrono::milliseconds(mTimeout)));
+            std::chrono::milliseconds(mTimeout));
 }
 
 Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {

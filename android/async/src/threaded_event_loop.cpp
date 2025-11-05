@@ -85,10 +85,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
 
     void postImpl(Task task, std::chrono::milliseconds delay) override;
 
-    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
-                                             std::chrono::milliseconds interval) override;
+    std::shared_ptr<Timer> createTimer(Task task) override;
 
     void* getRawLoop() override { return mLoop->getRawLoop(); }
 
@@ -171,14 +168,8 @@ void ThreadedEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay)
     mLoop->post(std::move(task), delay);
 }
 
-std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::scheduleDelayed(
-        Task task, std::chrono::milliseconds delay) {
-    return mLoop->scheduleDelayed(std::move(task), delay);
-}
-
-std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::scheduleRepeating(
-        Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
-    return mLoop->scheduleRepeating(std::move(task), initial_delay, interval);
+std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::createTimer(Task task) {
+    return mLoop->createTimer(std::move(task));
 }
 
 std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<EventLoop> toRun) {

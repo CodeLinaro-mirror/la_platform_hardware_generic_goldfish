@@ -84,8 +84,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     /**
      * @brief An opaque handle to a scheduled task.
      *
-     * Allows for the cancellation of a pending delayed or repeating task.
-     * The timer is automatically cancelled when this object is destroyed.
+     * Allows for the scheduling and cancellation of a delayed or repeating task.
      */
     class Timer {
       public:
@@ -97,17 +96,29 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         virtual void cancel() = 0;
 
         /**
-         * @brief Reschedules a repeating timer with a new delay and interval.
+         * @brief (Re)Schedules a timer with a new delay and interval.
          *
          * This method updates both the delay for the next execution and the
-         * subsequent interval for the timer. If the timer was not a repeating
-         * one, it will be converted to a repeating timer.
+         * subsequent interval for the timer. This does nothing if the timer has
+         * already been cancelled. Likewise if the event loop has shutdown.
          *
          * @param new_delay The new delay before the next execution.
-         * @param new_interval The new interval for subsequent executions.
+         * @param new_interval The new interval for subsequent executions. When
+         * set to 0 the timer will not repeat.
          */
-        virtual void rescheduleRepeating(std::chrono::milliseconds new_delay,
+        virtual void schedule(std::chrono::milliseconds new_delay,
                                          std::chrono::milliseconds new_interval) = 0;
+
+        /**
+         * @brief (Re)Schedules a timer with a new delay.
+         *
+         * This method updates the delay for the next execution. This does
+         * nothing if the timer has already been cancelled. Likewise if the
+         * event loop has shutdown.
+         *
+         * @param new_delay The new delay before the next execution.
+         */
+        void schedule(std::chrono::milliseconds new_delay) { schedule(new_delay, std::chrono::milliseconds::zero()); }
     };
 
     virtual ~EventLoop() = default;
@@ -141,8 +152,6 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return true if the caller is on the event loop's thread, false otherwise.
      */
     virtual bool isOnLoopThread() const = 0;
-
-    // --- Fire-and-Forget Methods ---
 
     /**
      * @brief Posts a callable object for execution on the event loop.
@@ -178,27 +187,6 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
         return future;
     }
 
-    // --- Cancellable Scheduling Methods ---
-
-    /**
-     * @brief Schedules a cancellable task to be executed once after a delay.
-     * @param task The task to execute.
-     * @param delay The duration to wait before executing the task.
-     * @return A shared pointer to a Timer handle for cancellation.
-     */
-    virtual std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) = 0;
-
-    /**
-     * @brief Schedules a cancellable task to be executed repeatedly.
-     * @param task The task to execute.
-     * @param initial_delay The delay before the first execution.
-     * @param interval The time between subsequent executions.
-     * @return A shared pointer to a Timer handle for cancellation.
-     */
-    virtual std::shared_ptr<Timer> scheduleRepeating(Task task,
-                                                     std::chrono::milliseconds initial_delay,
-                                                     std::chrono::milliseconds interval) = 0;
-
     /**
      * @brief Posts a task to the event loop and blocks the calling thread
      * until the task is complete.
@@ -228,6 +216,38 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
         return future.get();
     }
+
+    /**
+     * @brief Schedules a cancellable task to be executed once after a delay.
+     * @param task The task to execute.
+     * @return A shared pointer to a Timer handle for scheduling and cancellation.
+     */
+    virtual std::shared_ptr<Timer> createTimer(Task task) = 0;
+
+    /**
+     * @brief Schedules a cancellable task to be executed once after a delay.
+     * @param task The task to execute.
+     * @param delay The duration to wait before executing the task.
+     * @return A shared pointer to a Timer handle for cancellation.
+     */
+    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) {
+        return scheduleRepeating(std::move(task), delay, std::chrono::milliseconds::zero());
+    }
+
+    /**
+     * @brief Schedules a cancellable task to be executed repeatedly.
+     * @param task The task to execute.
+     * @param initial_delay The delay before the first execution.
+     * @param interval The time between subsequent executions.
+     * @return A shared pointer to a Timer handle for cancellation.
+     */
+    std::shared_ptr<Timer> scheduleRepeating(Task task,
+                                                     std::chrono::milliseconds initial_delay,
+                                                     std::chrono::milliseconds interval) {
+        auto timer = createTimer(std::move(task));
+        timer->schedule(initial_delay, interval);
+        return timer;
+    };
 
     // Implementation specific loop.
     virtual void* getRawLoop() {
