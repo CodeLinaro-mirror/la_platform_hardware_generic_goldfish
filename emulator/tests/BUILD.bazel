@@ -869,10 +869,10 @@ cts_modules = [
 #   bazel test :cts.CtsAdServicesPermissionsNoPermEndToEndTests
 
 # temporarily disable cts_tests so build bots wont timeout
-#cts_tests(
-#    name = "cts",
-#    modules = cts_modules,
-#)
+cts_tests(
+    name = "cts",
+    modules = cts_modules,
+)
 
 deqp_submodules = [
     "draw.*",
