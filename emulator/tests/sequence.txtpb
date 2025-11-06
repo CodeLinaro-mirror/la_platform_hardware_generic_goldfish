@@ -57,6 +57,8 @@ agent: {
   goldfish: {
     args: "-wipe-data"
     args: "-verbose"
+    args: "-show-kernel"
+    args: "-guest-angle"
     args: "-not-in-bazel"
     cleanup: true
     emulator_path: "emulator"
