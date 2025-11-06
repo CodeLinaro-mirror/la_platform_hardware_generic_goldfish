@@ -69,7 +69,7 @@ struct AvdInfoDev {
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
 template <typename Sink>
-void AbslStringify(Sink& sink, AvdInfoDev dev) {
+void AbslStringify(Sink& sink, const AvdInfoDev& dev) {
     absl::Format(&sink, "AvdInfoDev: name={%s}, parent_class.fw_name={%s}", dev.props->avd_name,
                  dev.parent_class.fw_name);
 }
