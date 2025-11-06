@@ -326,7 +326,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
     }
     // check abi
 
-    mHwCfg.load(mConfig.get());
+    mHwCfg.load(*mConfig);
 
     // TODO also load skin hardware.ini if present?
 
@@ -336,7 +336,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
         auto hw_config = std::make_unique<IniFile>(hw_path);
         if (hw_config->read()) {
             // TODO load without defaults.
-            mHwCfg.load(hw_config.get());
+            mHwCfg.load(*hw_config);
         }
     }
 
