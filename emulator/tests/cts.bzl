@@ -16,7 +16,7 @@ def deqp_tests(name, submodules = []):
             (
                 'args: "-m" args: "CtsDeqpTestCases" ' +
                 'args: "--module-arg" ' +
-                'args: "CtsDeqpTestCases:include-filter:dEQP-VK.%s"' % smp
+                'args: "CtsDeqpTestCases:include-filter:%s"' % smp
             ),
         )
         for smp in submodules
