@@ -127,7 +127,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         path_mkdir_if_needed(config->discovery_path.string().c_str(), 0700);
     }
 
-    auto& avdprops = goldfish::avd_info::get_avd();
+    auto& avdprops = goldfish::avd_info::getAvd().props();
 
     EmulatorProperties props{{"port.serial", std::to_string(avdprops.serial_number)},
                              {"emulator.build", BUILD_ID},

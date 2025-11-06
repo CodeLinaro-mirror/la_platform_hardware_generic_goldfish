@@ -67,7 +67,7 @@ void adb_vsock_connected(VSockFwdDev* device) {
               << " that adbd is available on localhost:" << device->host_port;
     AdbHostServer::notify(device->host_port, adb_server);
 
-    auto& avd = goldfish::avd_info::get_avd();
+    auto& avd = goldfish::avd_info::getAvd().props();
     // Make it easier for tests to find us.
     // Note that this format is implemented in adb here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71

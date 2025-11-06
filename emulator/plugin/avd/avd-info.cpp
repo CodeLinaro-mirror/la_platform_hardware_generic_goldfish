@@ -61,32 +61,31 @@ namespace {
 
 struct AvdInfoDev {
     DeviceClass parent_class;
-    AvdProperties* props;
+    // `mutable_props` is valid only between `instance_init` and `realize`.
+    // It moves into `universe` in `realize` and stays there as immutable.
+    AvdProperties* mutable_props;
+    AvdUniverse* universe;
 };
 
 #define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-template <typename Sink>
-void AbslStringify(Sink& sink, const AvdInfoDev& dev) {
-    absl::Format(&sink, "AvdInfoDev: name={%s}, parent_class.fw_name={%s}", dev.props->avd_name,
-                 dev.parent_class.fw_name);
-}
-
 using devices::ConnectorRegistry;
 
-AvdProperties* gAvd;
+AvdUniverse* gAvdUniverse;
 
 }  // namespace
 
-const AvdProperties& get_avd() {
-    if (!gAvd) {
-        LOG(FATAL) << "The AvdProperties instance is not yet available. "
+AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props) : mProps(std::move(props)) {}
+
+AvdUniverse& getAvd() {
+    if (!gAvdUniverse) {
+        LOG(FATAL) << "The AvdUniverse instance is not yet available. "
                       "This is a QEMU configuration issue which must be fixed in the launcher.";
     }
 
-    return *gAvd;
+    return *gAvdUniverse;
 }
 
 ConnectorRegistry& connector_registry() {
@@ -108,32 +107,37 @@ std::unique_ptr<async::EventLoop> gQemuLoop;
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
+    assert(avd_info);
+    std::unique_ptr<AvdProperties> mut_avd_props(std::exchange(avd_info->mutable_props, nullptr));
 
     // Set the system clock to the QEMU implementation.
     android::base::IClock::set(std::make_unique<android::base::QemuClock>());
 
-    if (avd_info->props->serial_number <= 0) {
+    if (mut_avd_props->serial_number <= 0) {
         error_setg(errp, "serial_number is unspecified (it must be > 0): %d",
-                   avd_info->props->serial_number);
+                   mut_avd_props->serial_number);
         return;
     }
-    if (avd_info->props->adb_port <= 0) {
-        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", avd_info->props->adb_port);
+    if (mut_avd_props->adb_port <= 0) {
+        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", mut_avd_props->adb_port);
         return;
     }
 
-    VLOG(1) << "Device configuration, avd_info: " << *avd_info;
+    VLOG(1) << "Device configuration, AVD name: '" << mut_avd_props->avd_name << "'";
 
-    std::filesystem::path hw_path = avd_info->props->avd_content_path / CORE_HARDWARE_INI;
+    std::filesystem::path hw_path = mut_avd_props->avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
     if (!hw_ini->read()) {
         error_setg(errp, "Failed to parse hardware ini: %s", hw_path.string().c_str());
         return;
     }
-    avd_info->props->hw_config.load(*hw_ini);
+    mut_avd_props->hw_config.load(*hw_ini);
 
-    LOG(INFO) << "Loaded avd directory: " << avd_info->props->avd_content_path;
-    gAvd = avd_info->props;
+    avd_info->universe = new AvdUniverse(std::move(mut_avd_props));
+    gAvdUniverse = avd_info->universe;
+    const AvdProperties& avd_props = gAvdUniverse->props();
+
+    LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
     auto* clientLoop = goldfish::async::globalEventLoop();
     gQemuLoop = goldfish::async::QemuEventLoop::create();
@@ -141,20 +145,20 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto* registry = &connector_registry();
 
     goldfish::devices::sensor::ISensorDevice::registerDevice(
-            registry, avd_info->props->avd_type, avd_info->props->avd_api,
-            avd_info->props->hw_config, clientLoop, gQemuLoop.get());
+            registry, avd_props.avd_type, avd_props.avd_api,
+            avd_props.hw_config, clientLoop, gQemuLoop.get());
     goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
     goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
             registry, {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop,
-            gQemuLoop.get(), avd_info->props->quit_after_boot_timeout_seconds);
+            gQemuLoop.get(), avd_props.quit_after_boot_timeout_seconds);
     goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
                                                                        gQemuLoop.get());
     goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
     goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp,
-                                              avd_info->props->hw_config,
+                                              avd_props.hw_config,
                                               []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
@@ -164,7 +168,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 {"qemu.sf.fake_camera"s, emulatedCameraProp},
                 {"qemu.sf.lcd_density"s, "420"s},
                 // This is the same value that is passed to the virtio-wifi module.
-                {"net.wifi_mac_prefix"s, absl::StrCat(avd_info->props->serial_number)},
+                {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
                 // TODO(b/450338546): hack hack hack
                 // These properties should be added automatically by
                 // http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
@@ -185,95 +189,87 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque,
                                 Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props->serial_number = value;
+
+    AVD_INFO_DEV(obj)->mutable_props->serial_number = value;
 }
 
 void avd_info_set_adb_port(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props->adb_port = value;
+
+    AVD_INFO_DEV(obj)->mutable_props->adb_port = value;
 }
 
 void avd_info_set_avd_name(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->avd_name = value;
+    AVD_INFO_DEV(obj)->mutable_props->avd_name = value;
 }
 
 void avd_info_set_avd_id(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->avd_id = value;
+    AVD_INFO_DEV(obj)->mutable_props->avd_id = value;
 }
 
 void avd_info_set_avd_abi(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->avd_abi = value;
+    AVD_INFO_DEV(obj)->mutable_props->avd_abi = value;
 }
 
 void avd_info_set_avd_api(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props->avd_api = value;
+
+    AVD_INFO_DEV(obj)->mutable_props->avd_api = value;
 }
 
 void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
-    avd_info->props->avd_type = static_cast<android::goldfish::DeviceType>(value);
+
+    AVD_INFO_DEV(obj)->mutable_props->avd_type = static_cast<android::goldfish::DeviceType>(value);
 }
 
 void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     std::filesystem::path dir(value);
     if (!std::filesystem::is_directory(dir)) {
         error_setg(errp, "avd_dir specified is not a valid directory: %s", value);
         return;
     }
-    avd_info->props->avd_content_path = dir;
+
+    AVD_INFO_DEV(obj)->mutable_props->avd_content_path = dir;
 }
 
 void avd_info_set_build_sdk(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->build_sdk = value;
+    AVD_INFO_DEV(obj)->mutable_props->build_sdk = value;
 }
 
 void avd_info_set_build_id(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->build_id = value;
+    AVD_INFO_DEV(obj)->mutable_props->build_id = value;
 }
 
 void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props->build_flavour = value;
+    AVD_INFO_DEV(obj)->mutable_props->build_flavour = value;
 }
 
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
                                           Error** errp) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     int32_t value;
-
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
 
-    avd_info->props->quit_after_boot_timeout_seconds = value;
+    AVD_INFO_DEV(obj)->mutable_props->quit_after_boot_timeout_seconds = value;
 }
 
 void avd_info_unrealize(DeviceState* dev) {
-    gAvd = nullptr;
+    gAvdUniverse = nullptr;
 }
 
 void avd_info_class_init(ObjectClass* oc, void* data) {
@@ -304,13 +300,13 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
 }
 
 static void avd_info_instance_init(Object* obj) {
-    AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    avd_info->props = new AvdProperties{};
+    AVD_INFO_DEV(obj)->mutable_props = new AvdProperties();
 }
 
 static void avd_info_instance_finalize(Object* obj) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    delete avd_info->props;
+    delete avd_info->universe;
+    delete avd_info->mutable_props;
 }
 
 const TypeInfo avd_info_type_info = {
