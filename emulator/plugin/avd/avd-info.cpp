@@ -81,7 +81,11 @@ AvdProperties* gAvd;
 }  // namespace
 
 const AvdProperties& get_avd() {
-    assert(gAvd);
+    if (!gAvd) {
+        LOG(FATAL) << "The AvdProperties instance is not yet available. "
+                      "This is a QEMU configuration issue which must be fixed in the launcher.";
+    }
+
     return *gAvd;
 }
 
