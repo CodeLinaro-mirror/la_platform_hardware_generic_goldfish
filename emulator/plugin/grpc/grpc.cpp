@@ -112,12 +112,6 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
     auto *config = grpc_device->config;
 
-    auto *avdprops = goldfish::avd_info::get_avd();
-    if (!avdprops) {
-        error_setg(errp, "no avd properties available");
-        return;
-    }
-
     if (!config->port) {
         error_setg(errp, "port attribute not set");
         return;
@@ -133,13 +127,15 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         path_mkdir_if_needed(config->discovery_path.string().c_str(), 0700);
     }
 
-    EmulatorProperties props{{"port.serial", std::to_string(avdprops->serial_number)},
+    auto& avdprops = goldfish::avd_info::get_avd();
+
+    EmulatorProperties props{{"port.serial", std::to_string(avdprops.serial_number)},
                              {"emulator.build", BUILD_ID},
                              {"emulator.version", VERSION},
-                             {"port.adb", std::to_string(avdprops->adb_port)},
-                             {"avd.name", avdprops->avd_name},
-                             {"avd.id", avdprops->avd_id},
-                             {"avd.dir", avdprops->avd_content_path.string()},
+                             {"port.adb", std::to_string(avdprops.adb_port)},
+                             {"avd.name", avdprops.avd_name},
+                             {"avd.id", avdprops.avd_id},
+                             {"avd.dir", avdprops.avd_content_path.string()},
                              // TODO(jansene):
                              {"cmdline",
                               "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
@@ -150,7 +146,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto *registry = &goldfish::avd_info::connector_registry();
 
     auto service = ::android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avdprops->avd_api, avdprops->hw_config, IMultiDisplay::instance(),
+            VmOperations::qemuVmOperations(), registry, avdprops.avd_api, avdprops.hw_config, IMultiDisplay::instance(),
             config->qemu_loop.get());
 
     // TODO config->addr is set but not used anywhere

@@ -63,21 +63,19 @@ void NetsimTransport::cancel() {
 }
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
-    auto *avdprops = goldfish::avd_info::get_avd();
-    if (!avdprops) {
-        return absl::NotFoundError("serious error - no avd properties available");
-    }
+    auto& avdprops = goldfish::avd_info::get_avd();
+
     ::netsim::packet::PacketRequest initial_request;
     auto *initial_info = initial_request.mutable_initial_info();
     *initial_info->mutable_chip() = std::move(chip);
     auto *device_info = initial_info->mutable_device_info();
-    device_info->set_name(avdprops->avd_name);
+    device_info->set_name(avdprops.avd_name);
     device_info->set_kind("EMULATOR");
     device_info->set_version(VERSION);
-    device_info->set_sdk_version(avdprops->build_sdk);
-    device_info->set_build_id(avdprops->build_id);
-    device_info->set_variant(avdprops->build_flavour);
-    device_info->set_arch(avdprops->avd_abi);
+    device_info->set_sdk_version(avdprops.build_sdk);
+    device_info->set_build_id(avdprops.build_id);
+    device_info->set_variant(avdprops.build_flavour);
+    device_info->set_arch(avdprops.avd_abi);
 
     VLOG(1) << "Creating gRPC channel to netsimd endpoint: " << mEndpoint;
     android::emulation::control::Endpoint endpoint_config;

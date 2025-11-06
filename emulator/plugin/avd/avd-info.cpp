@@ -80,8 +80,9 @@ AvdProperties* gAvd;
 
 }  // namespace
 
-const AvdProperties* get_avd() {
-    return gAvd;
+const AvdProperties& get_avd() {
+    assert(gAvd);
+    return *gAvd;
 }
 
 ConnectorRegistry& connector_registry() {

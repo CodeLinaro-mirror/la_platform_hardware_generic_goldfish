@@ -37,7 +37,7 @@ struct AvdProperties {
     android::goldfish::HardwareConfig hw_config;
 };
 
-const AvdProperties *get_avd();
+const AvdProperties& get_avd();
 
 devices::ConnectorRegistry& connector_registry();
 
