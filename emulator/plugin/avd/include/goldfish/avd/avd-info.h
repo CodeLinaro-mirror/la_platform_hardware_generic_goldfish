@@ -37,8 +37,6 @@ struct AvdProperties {
     android::goldfish::HardwareConfig hw_config;
 };
 
-#define TYPE_AVD "avdstart"
-
 const AvdProperties *get_avd();
 
 devices::ConnectorRegistry& connector_registry();

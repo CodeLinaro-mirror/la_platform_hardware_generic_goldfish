@@ -64,6 +64,7 @@ struct AvdInfoDev {
     AvdProperties* props;
 };
 
+#define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
