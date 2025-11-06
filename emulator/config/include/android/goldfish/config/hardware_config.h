@@ -33,7 +33,7 @@ class HardwareConfig {
     ~HardwareConfig() = default;
 
     void applyDefaults(const fs::path &sdk_root_path, const fs::path &avd_home_path);
-    void load(IniFile* ini);
+    void load(const IniFile& ini);
 
     // this is needed as studio embedded ui expects a file called 'hardware-qemu.ini'
     // that is similar to config.ini but has more finalized values, such as sdk root

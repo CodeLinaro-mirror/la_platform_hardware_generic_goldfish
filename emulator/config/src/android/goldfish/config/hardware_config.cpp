@@ -32,18 +32,18 @@ HardwareConfig::HardwareConfig() {
 #include "avd/hw-config-defs.h"
 }
 
-void HardwareConfig::load(IniFile* ini) {
+void HardwareConfig::load(const IniFile& ini) {
     /* use the magic of macros to implement the hardware configuration loaded */
-#define HWCFG_BOOL(n, s, d, a, t) (n) = ini->getBool(s, d);
-#define HWCFG_INT(n, s, d, a, t) (n) = ini->getInt(s, d);
-#define HWCFG_STRING(n, s, d, a, t) (n) = ini->getString(s, d);
-#define HWCFG_DOUBLE(n, s, d, a, t) (n) = ini->getDouble(s, d);
-#define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini->getDiskSize(s, d);
+#define HWCFG_BOOL(n, s, d, a, t) (n) = ini.getBool(s, d);
+#define HWCFG_INT(n, s, d, a, t) (n) = ini.getInt(s, d);
+#define HWCFG_STRING(n, s, d, a, t) (n) = ini.getString(s, d);
+#define HWCFG_DOUBLE(n, s, d, a, t) (n) = ini.getDouble(s, d);
+#define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini.getDiskSize(s, d);
 
 #include "avd/hw-config-defs.h"
 
-    hw_sdCard = ini->getDiskSize("sdcard.size", 0) > 0;
-    hw_sdCard_size = ini->getDiskSize("sdcard.size", hw_sdCard_size.bytes());
+    hw_sdCard = ini.getDiskSize("sdcard.size", 0) > 0;
+    hw_sdCard_size = ini.getDiskSize("sdcard.size", hw_sdCard_size.bytes());
 }
 
 void HardwareConfig::applyDefaults(const fs::path &sdk_root_path, const fs::path &avd_home_path) {

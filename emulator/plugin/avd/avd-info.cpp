@@ -130,7 +130,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         error_setg(errp, "Failed to parse hardware ini: %s", hw_path.string().c_str());
         return;
     }
-    avd_info->props->hw_config.load(hw_ini.get());
+    avd_info->props->hw_config.load(*hw_ini);
 
     LOG(INFO) << "Loaded avd directory: " << avd_info->props->avd_content_path;
     gAvd = avd_info->props;
