@@ -63,7 +63,7 @@ void NetsimTransport::cancel() {
 }
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
-    auto& avdprops = goldfish::avd_info::get_avd();
+    auto& avdprops = goldfish::avd_info::getAvd().props();
 
     ::netsim::packet::PacketRequest initial_request;
     auto *initial_info = initial_request.mutable_initial_info();

@@ -26,7 +26,7 @@ struct AvdProperties {
     std::string avd_name;
     std::string avd_id;
     std::string avd_abi;
-    int avd_api{0};
+    int32_t avd_api{0};
     android::goldfish::DeviceType avd_type{android::goldfish::DeviceType::kUnknown};
     std::filesystem::path avd_content_path;
     std::string build_sdk;
@@ -37,7 +37,32 @@ struct AvdProperties {
     android::goldfish::HardwareConfig hw_config;
 };
 
-const AvdProperties& get_avd();
+/**
+ * @brief This struct represents the whole AVD state.
+ *
+ * All AVD specific data should live here. This
+ * explicitly describes the data lifetime and also
+ * allows running several AVDs simultaneously
+ * (in this case `getAvd()` should be adjusted to
+ * receive some form of an AVD id).
+ *
+ * The instance of this type is available between
+ * the `avd_info_realize` and `avd_info_unrealize` events.
+ */
+struct AvdUniverse {
+  const AvdProperties& props() const { return *mProps; }
+
+  AvdUniverse(std::unique_ptr<AvdProperties> props);
+  AvdUniverse(const AvdUniverse&) = delete;
+  AvdUniverse(AvdUniverse&&) = delete;
+  AvdUniverse& operator=(const AvdUniverse&) = delete;
+  AvdUniverse& operator=(AvdUniverse&&) = delete;
+
+ private:
+  const std::unique_ptr<const AvdProperties> mProps;
+};
+
+AvdUniverse& getAvd();
 
 devices::ConnectorRegistry& connector_registry();
 
