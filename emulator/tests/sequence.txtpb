@@ -74,7 +74,6 @@ agent: {
   tradefed: {
     args: "run"
     args: "commandAndExit"
-    args: "cts"
     TEST_SPEC
     args: "--skip-preconditions"
     args: "--skip-all-system-status-check"

@@ -1,5 +1,5 @@
 load("@rules_java//java:java_test.bzl", "java_test")
-load("//hardware/generic/goldfish/emulator/tests:cts.bzl", "cts_tests", "deqp_tests")  # @unused
+load("//hardware/generic/goldfish/emulator/tests:cts.bzl", "cts_plan", "cts_tests", "deqp_tests")  # @unused
 
 java_test(
     name = "boot_test",
@@ -1293,4 +1293,9 @@ deqp_submodules = [
 deqp_tests(
     name = "deqp",
     submodules = deqp_submodules,
+)
+
+cts_plan(
+    name = "deqp-plan",
+    plan_glob = "xts_plan_files/deqp/**",
 )

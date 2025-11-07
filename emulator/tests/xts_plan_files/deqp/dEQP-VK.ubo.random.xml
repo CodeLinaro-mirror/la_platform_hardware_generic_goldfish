@@ -1,0 +1,5 @@
+<configuration>
+  <include name="cts"></include>
+  <option name="include-filter" value="CtsDeqpTestCases dEQP-VK.ubo.random.*"></option>
+</configuration>
+
