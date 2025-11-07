@@ -70,6 +70,17 @@ cc_test(
 )
 
 cc_library(
+    name = "vcpu_event_loop",
+    srcs = ["QemuCpuWrapper.c"],
+    hdrs = [
+        "QemuCpuWrapper.h",
+        "VCpuEventLoop.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//third_party/qemu:qemu-headers"],
+)
+
+cc_library(
     name = "avd",
     srcs = [
         "avd-finalize.cpp",
@@ -81,6 +92,7 @@ cc_library(
         ":avd_hdrs",
         ":global-event-loop",
         ":gralloc_impl",
+        ":vcpu_event_loop",
         "//hardware/generic/goldfish/android/async:async_api",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
         "//hardware/generic/goldfish/android/async:qemu_event_loop",
