@@ -263,9 +263,8 @@ class SensorDevice : public ISensorDevice {
     void onConnect() override {
         VLOG(1) << "Starting sensor ticks" << *this;
         this->mSelf = shared_from_this();
-        // Note, the timer will be rescheduled after the guest requests it.
-        mTimer = mLoop->scheduleRepeating([this] { tick(); }, std::chrono::milliseconds::max(),
-                                          absl::ToChronoMilliseconds(mDelay));
+        // Note, the timer will be scheduled after the guest requests it.
+        mTimer = mLoop->createTimer([this] { tick(); });
     };
 
     void send(std::string_view msg) {
@@ -747,8 +746,7 @@ class SensorDevice : public ISensorDevice {
         DCHECK(mSelf) << "Self reference should have been set, otherwise we are scheduling a "
                          "callback where we can disappear from (i.e. tick could be called with "
                          "this == nullptr)!";
-        mTimer->rescheduleRepeating(absl::ToChronoMilliseconds(mDelay),
-                                    absl::ToChronoMilliseconds(mDelay));
+        mTimer->schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
     }
 
     Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];

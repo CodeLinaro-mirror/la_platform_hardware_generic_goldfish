@@ -20,7 +20,6 @@
 #include <memory>
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/async/scoped_async_timer.h"
 
 namespace android {
 namespace control {
@@ -28,7 +27,6 @@ namespace interceptor {
 
 using namespace grpc::experimental;
 using goldfish::async::EventLoop;
-using goldfish::async::ScopedTimer;
 
 // An IdleInterceptor can be installed if you wish to terminate the emulator
 // when there is no gRPC activity within the given timeout.
@@ -62,7 +60,7 @@ class IdleInterceptorFactory : public grpc::experimental::ServerInterceptorFacto
     std::chrono::seconds mTimeout;
     std::atomic<uint64_t> mTerminationUnixTime;
     std::atomic<uint64_t> mActiveRequests;
-    std::shared_ptr<ScopedTimer> mTimeoutChecker;
+    std::shared_ptr<EventLoop::Timer> mTimeoutChecker;
 };  // namespace interceptor
 
 }  // namespace interceptor

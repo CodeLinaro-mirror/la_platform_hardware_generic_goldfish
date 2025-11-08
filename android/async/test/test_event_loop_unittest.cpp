@@ -48,7 +48,8 @@ TEST(TestEventLoop, ScheduleDelayedTask) {
     bool executed = false;
 
     // Store the returned handle in a variable to keep it alive.
-    auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+    auto timer = loop->createTimer([&]() { executed = true; });
+    timer->schedule(100ms, 0ms);
 
     // only advance clock does something with timed task
     loop->runAll();
@@ -62,7 +63,8 @@ TEST(TestEventLoop, ScheduleDelayedTask) {
 TEST(TestEventLoop, ScheduleRepeatingTask) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    auto timer = loop->scheduleRepeating([&]() { count++; }, 100ms, 50ms);
+    auto timer = loop->createTimer([&]() { count++; });
+    timer->schedule(100ms, 50ms);
 
     loop->advanceClock(100ms);
     ASSERT_EQ(1, count);
@@ -106,7 +108,8 @@ TEST(TestEventLoop, PostAndWaitVoid) {
 TEST(TestEventLoop, TimerCancellation) {
     auto loop = TestEventLoop::create();
     bool executed = false;
-    auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+    auto timer = loop->createTimer([&]() { executed = true; });
+    timer->schedule(100ms, 0ms);
 
     timer->cancel();
     loop->advanceClock(100ms);
@@ -117,7 +120,8 @@ TEST(TestEventLoop, TimerHandleDestructionCancels) {
     auto loop = TestEventLoop::create();
     bool executed = false;
     {
-        auto timer = loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+        auto timer = loop->createTimer([&]() { executed = true; });
+        timer->schedule(100ms, 0ms);
     }
     // Timer is out of scope and should be cancelled.
     loop->advanceClock(100ms);
@@ -128,7 +132,7 @@ TEST(TestEventLoop, ShutdownClearsPendingTasks) {
     auto loop = TestEventLoop::create();
     bool executed = false;
     loop->post([&]() { executed = true; });
-    loop->scheduleDelayed([&]() { executed = true; }, 100ms);
+    loop->post([&]() { executed = true; }, 100ms);
 
     loop->shutdown(0ms).wait();
     loop->runAll();
@@ -146,9 +150,10 @@ TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
     std::atomic<int> execution_count = 0;
 
     // Schedule a task to run every 10ms, starting immediately.
-    auto timer = loop->scheduleRepeating([&execution_count]() { execution_count++; },
-                                         0ms,  // Initial delay of 0 means it's due immediately.
-                                         10ms  // Repeat every 10ms.
+    auto timer = loop->createTimer([&execution_count]() { execution_count++; });
+    timer->schedule(
+        0ms,  // Initial delay of 0 means it's due immediately.
+        10ms  // Repeat every 10ms.
     );
 
     // ACT & ASSERT (First Execution)
@@ -205,14 +210,15 @@ TEST(TestEventLoop, RescheduleRepeatingTimer) {
     auto loop = TestEventLoop::create();
     int counter = 0;
 
-    auto handle = loop->scheduleRepeating([&]() { counter++; }, 100ms, 100ms);
+    auto handle = loop->createTimer([&]() { counter++; });
+    handle->schedule(100ms, 100ms);
 
     // Let it fire once.
     loop->advanceClock(120ms);
     ASSERT_EQ(counter, 1);
 
     // Reschedule to fire sooner and more frequently.
-    handle->rescheduleRepeating(20ms, 20ms);
+    handle->schedule(20ms, 20ms);
 
     // Check that it fires again quickly.
     loop->advanceClock(30ms);

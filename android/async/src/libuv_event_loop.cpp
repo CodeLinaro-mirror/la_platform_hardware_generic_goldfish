@@ -102,11 +102,7 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
 
     // --- Task Posting and Scheduling ---
     void postImpl(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
-                                             std::chrono::milliseconds interval) override;
+    std::shared_ptr<EventLoop::Timer> createTimer(Task task) override;
 
   private:
     friend class LibuvTimer;
@@ -156,8 +152,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     // this sets up the mUvTimer with a self reference so it can be
     // placed in a queue.
     static std::shared_ptr<LibuvTimer> create(LibuvEventLoopImpl* loop, EventLoop::Task task,
-                                              bool repeating) {
-        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), repeating, Private());
+                                              bool auto_cancel) {
+        auto timer = std::make_shared<LibuvTimer>(loop, std::move(task), auto_cancel, Private());
         timer->addItselfToActiveTimers();
         return timer;
     }
@@ -173,19 +169,10 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         that->mPinnedByUvTimer.reset();  // potentially calls ~LibuvTimer
     }
 
-    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool repeating, Private)
-            : mEventLoop(loop), mTask(std::move(task)), mIsRepeating(repeating) {}
+    LibuvTimer(LibuvEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, Private)
+            : mEventLoop(loop), mTask(std::move(task)), mAutoCancel(auto_cancel) {}
 
     ~LibuvTimer() override { mEventLoop->removeActiveTimer(this); }
-
-    void start(uint64_t timeout_ms, uint64_t repeat_ms) {
-        // Post the start operation to the eventloop, at this point
-        mEventLoop->post([self = shared_from_this(), timeout_ms, repeat_ms]() {
-            if (uv_timer_t* uvTimer = self->getUvTimer()) {
-                uv_timer_start(uvTimer, onTimer, timeout_ms, repeat_ms);
-            }
-        });
-    }
 
     void doCancel() {
         if (uv_timer_t* uvTimer = takeOwnershipUvTimer()) {
@@ -199,13 +186,12 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         (void)mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
     }
 
-    void rescheduleRepeating(std::chrono::milliseconds new_delay,
+    void schedule(std::chrono::milliseconds new_delay,
                              std::chrono::milliseconds new_interval) override {
-        (void)mEventLoop->post([self = shared_from_this(), new_delay, new_interval]() {
+        (void)mEventLoop->post([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
             if (uv_timer_t* uvTimer = self->getUvTimer()) {
                 uv_timer_stop(uvTimer);
-                self->mIsRepeating = true;
-                uv_timer_start(uvTimer, onTimer, new_delay.count(), new_interval.count());
+                uv_timer_start(uvTimer, onTimer, new_delay_ms, new_interval_ms);
             }
         });
     }
@@ -241,10 +227,8 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         // For one-shot timers, close the handle after execution.
         // This will lead to the object being deleted if the user has
         // also released their shared_ptr.
-        if (!self->mIsRepeating) {
-            if (uv_timer_t* uvTimer = self->takeOwnershipUvTimer()) {
-                uv_close(reinterpret_cast<uv_handle_t*>(uvTimer), unpinItselfOnClose);
-            }
+        if (self->mAutoCancel) {
+            self->doCancel();
         }
     }
 
@@ -254,12 +238,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         return mUvTimerHandleValid.exchange(false) ? &mUvTimerHandle : nullptr;
     }
 
-    LibuvEventLoopImpl* mEventLoop;  ///< The eventloop on which we are scheduled.
-    uv_timer_t mUvTimerHandle;       ///< Handle to the actual timer, `.data` point to `this`
+    LibuvEventLoopImpl* mEventLoop;
     EventLoop::Task mTask;
-    std::shared_ptr<LibuvTimer> mPinnedByUvTimer;  ///< prevents calling the dctor
+    bool mAutoCancel = false;
+
+    uv_timer_t mUvTimerHandle;
     std::atomic<bool> mUvTimerHandleValid = false;
-    bool mIsRepeating;
+
+    std::shared_ptr<LibuvTimer> mPinnedByUvTimer;  ///< prevents calling the dctor
 };
 
 // --- LibuvEventLoopImpl Implementation ---
@@ -427,23 +413,18 @@ void LibuvEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
         doPost(std::move(task));
         return;
     }
+
     // For fire-and-forget, the timer's lifetime is managed by its own async
     // operations. We create it and immediately let go of the handle.
-    auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/false);
-    timer->start(delay.count(), 0);
+    auto timer = LibuvTimer::create(this, std::move(task), /*auto_cancel=*/true);
+    timer->schedule(delay, std::chrono::milliseconds::zero());
 }
 
-std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::scheduleDelayed(
-        Task task, std::chrono::milliseconds delay) {
-    auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/false);
-    timer->start(delay.count(), 0);
-    return std::make_shared<ScopedTimer>(timer);
-}
-
-std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::scheduleRepeating(
-        Task task, std::chrono::milliseconds initial_delay, std::chrono::milliseconds interval) {
-    auto timer = LibuvTimer::create(this, std::move(task), /*repeating=*/true);
-    timer->start(initial_delay.count(), interval.count());
+std::shared_ptr<EventLoop::Timer> LibuvEventLoopImpl::createTimer(Task task) {
+    if (mIsShuttingDown) {
+        return std::make_shared<ScopedTimer>(nullptr);
+    }
+    auto timer = LibuvTimer::create(this, std::move(task), /*auto_cancel=*/false);
     return std::make_shared<ScopedTimer>(timer);
 }
 
