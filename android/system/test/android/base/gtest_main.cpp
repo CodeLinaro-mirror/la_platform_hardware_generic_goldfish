@@ -8,6 +8,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "absl/debugging/failure_signal_handler.h"
+#include "absl/debugging/symbolize.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/log/globals.h"
@@ -23,6 +25,10 @@ ABSL_FLAG(bool, verbose_test, false,
           "--vmodule=\"*=1\" --logtostderr=true --stderrthreshold=0.");
 
 int main(int argc, char* argv[]) {
+    absl::InitializeSymbolizer(argv[0]);
+
+    absl::InstallFailureSignalHandler({});
+
     if (Bazel::inBazel()) {
         Bazel::storeCommandLineArgs(argc, argv);
     }
