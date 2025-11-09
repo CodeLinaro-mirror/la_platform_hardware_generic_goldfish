@@ -31,8 +31,10 @@
 #include <queue>
 #include <thread>
 
-#include "absl/base/call_once.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/synchronization/notification.h"
 
 #include "goldfish/QEMUBH.h"
 #include "goldfish/async/event_loop.h"
@@ -89,44 +91,54 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         QemuTimer(QemuEventLoopImpl* loop, EventLoop::Task task, bool auto_cancel, Private)
                 : mEventLoop(loop), mTask(std::move(task)), mAutoCancel(auto_cancel) {}
 
-        ~QemuTimer() override { VLOG(1) << "QemuTimer is out of scope"; }
+        ~QemuTimer() override {}
 
         void doCancel() {
             if (QEMUTimer* qemuTimer = takeOwnershipQemuTimer()) {
                 // This should stop and un-register the timer.
                 timer_del(qemuTimer);
                 assert(!mQemuTimerHandleValid.load());
+                mEventLoop.load()->removeActiveTimer(this);
+                mEventLoop.store(nullptr);
                 mPinned.reset();  // potentially calls dtor
             }
         }
 
         void cancel() override {
-            // Stop and delete the timer from the event loop.
-            (void)mEventLoop->post([self = shared_from_this()]() { self->doCancel(); });
+            if (auto *loop = mEventLoop.load()) {
+                // Stop and delete the timer from the event loop.
+                loop->postImmediately([self = shared_from_this()]() { self->doCancel(); });
+            } else {
+                LOG(ERROR) << "Can't cancel a timer after it has been cancelled";
+            }
         }
 
         void schedule(std::chrono::milliseconds new_delay,
                                  std::chrono::milliseconds new_interval) override {
-            (void)mEventLoop->post([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
-                self->mInterval_ms = new_interval_ms;
-                if (QEMUTimer* qemuTimer = self->getQemuTimer()) {
-                    timer_mod(qemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + new_delay_ms);
-                }
-            });
+            if (auto *loop = mEventLoop.load()) {
+                loop->postImmediately([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
+                    self->mInterval_ms = new_interval_ms;
+                    if (QEMUTimer* qemuTimer = self->getQemuTimer()) {
+                        timer_mod(qemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + new_delay_ms);
+                    }
+                });
+            } else {
+                LOG(ERROR) << "Can't reschedule a timer after it has been cancelled";
+            }
         }
 
       private:
         void addItselfToActiveTimers() {
             // shared_from_this() is not available in the ctor
-            (void)mEventLoop->post([self = shared_from_this()]() {
+            auto *loop = mEventLoop.load();
+            loop->postImmediately([loop, self = shared_from_this()]() {
                 assert(!self->mPinned);
                 self->mPinned = self;
                 timer_init_ms(&self->mQemuTimerHandle, QEMU_CLOCK_REALTIME, &QemuTimer::onTimer, self.get());
                 assert(!self->mQemuTimerHandleValid.load());
                 self->mQemuTimerHandleValid.store(true);
 
-                // TODO Should we keep track of active timers and close them when the loop shuts down like libuv loop?
-                // evLoop.addActiveTimer(self);
+                loop->addActiveTimer(self);
             });
         }
 
@@ -134,7 +146,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         static void onTimer(void* opaque) {
             const auto self = static_cast<QemuTimer*>(opaque)->mPinned;
             assert(self && "onTimer callback is called without a shared_from_this pointer");
-            assert(self->mEventLoop->isOnLoopThread() &&
+            assert(self->mEventLoop.load()->isOnLoopThread() &&
                 "onTimer callback is not called from the event loop");
 
             self->mTask();
@@ -158,7 +170,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             return mQemuTimerHandleValid.exchange(false) ? &mQemuTimerHandle : nullptr;
         }
 
-        QemuEventLoopImpl* mEventLoop;
+        std::atomic<QemuEventLoopImpl*> mEventLoop;
         Task mTask;
         bool mAutoCancel = false;
 
@@ -174,8 +186,11 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         setState(LooperStatusEvent::State::RUNNING);
     }
 
-    // TODO(jansene): b/441087461 make sure deletion happens on qemu thread.
-    ~QemuEventLoopImpl() override { drainQueue(); };
+    // TODO(whollins): Clean-up usages and make this FATAL.
+    ~QemuEventLoopImpl() override {
+        LOG_IF(ERROR, !mIsShuttingDown) << "Qemu loop has not been shutdown prior to destruction"; 
+        assert(mActiveTimers.empty());
+    };
 
     absl::Status run() override;
     void stop() override;
@@ -203,13 +218,45 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
     }
 
+    void addActiveTimer(const std::shared_ptr<QemuTimer>& t) {
+        LOG_IF(DFATAL, !isOnLoopThread()) << "addActiveTimer must be called from the loop thread";
+        std::weak_ptr<QemuTimer>& existing = mActiveTimers[t.get()];
+        assert(existing.expired() && "Tried to insert a duplicate timer");
+        existing = t;
+    }
+
+    void removeActiveTimer(QemuTimer* const t) {
+        LOG_IF(DFATAL, !isOnLoopThread()) << "removeActiveTimer must be called from the loop thread";
+        const size_t erased = mActiveTimers.erase(t);
+        assert((erased == 1) && "Tried to remove a timer that didn't exist");
+    }
+
+    void shutdownTimers() {
+        LOG_IF(DFATAL, !isOnLoopThread()) << "shutdownTimers must be called from the loop thread";
+        // Iterate a copy as doCancel calls back to removeActiveTimer which calls erase.
+        auto copy = mActiveTimers;
+        for (const auto& [unsafePtr, weakTimer] : copy) {
+            if (std::shared_ptr<QemuTimer> timer = weakTimer.lock()) {
+                timer->doCancel();
+            } else {
+                // Note that we don't expect a timer to have been deleted without first calling
+                // removeActiveTimer so "this should never happen"
+            }
+        }
+    }
+
     std::atomic<bool> mIsShuttingDown{false};
+    std::promise<absl::Status> mShutdownCompletePromise;
 
     std::thread::id mQemuThreadId;
     std::mutex mQueueMutex;
     std::queue<Task> mTaskQueue;
     QEMUBHPtr mDrainerBh;
     bool mDrainerScheduled = false;
+
+    // A map of raw pointers to their corresponding weak pointers for safe shutdown.
+    // Must only be accessed from the Qemu thread.
+    absl::flat_hash_map<QemuTimer*, std::weak_ptr<QemuTimer>> mActiveTimers;
 };
 
 // --- QemuEventLoopImpl Method Implementations ---
@@ -226,11 +273,19 @@ void QemuEventLoopImpl::stop() {
 }
 
 std::future<absl::Status> QemuEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
-    setState(LooperStatusEvent::State::SHUTTING_DOWN);
-    mIsShuttingDown.store(true);
     std::promise<absl::Status> promise;
-    promise.set_value(absl::OkStatus());
-    return promise.get_future();
+    if (mIsShuttingDown.exchange(true)) {
+        promise.set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
+        return promise.get_future();
+    }
+    setState(LooperStatusEvent::State::SHUTTING_DOWN);
+
+    postImmediately([this] {
+        shutdownTimers();
+        mShutdownCompletePromise.set_value(absl::OkStatus());
+    });
+
+    return mShutdownCompletePromise.get_future();
 }
 
 bool QemuEventLoopImpl::isOnLoopThread() const {
@@ -238,11 +293,6 @@ bool QemuEventLoopImpl::isOnLoopThread() const {
 }
 
 void QemuEventLoopImpl::postImmediately(Task task) {
-    if (mIsShuttingDown) {
-        LOG(ERROR) << "Event loop is shutting down, task is not scheduled.";
-        return;
-    }
-
     std::lock_guard<std::mutex> lock(mQueueMutex);
     mTaskQueue.push(std::move(task));
 

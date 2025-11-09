@@ -14,6 +14,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/status/status_matchers.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
@@ -42,18 +43,31 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     }
 
     void TearDown() override {
-        if (mLoopType == "libuv") {
-            if (loop_thread.joinable()) {
-                // Ensure the loop is running and responsive before shutdown.
-                loop->shutdown(1s).wait();
-                loop->stop();
-                loop_thread.join();
-            }
-            mLibuvLoop.reset();
-        } else if (mLoopType == "qemu") {
-            mLibuvLoop.reset();
+        shutdown();
+        if (mLoopType == "qemu") {
             fake_qemu_reset();
         }
+    }
+
+    void shutdown() {
+        if (loop) {
+            if (loop->getState() == LooperStatusEvent::State::RUNNING) {
+                auto f = loop->shutdown(5s);
+                if (mLoopType == "qemu") {
+                    // Need to run Qemu "thread" for shutdown to complete
+                    fake_qemu_advance_ms(150);
+                }
+                ASSERT_THAT(f.get(), absl_testing::IsOk());
+                loop->stop();
+            }
+            loop = nullptr;
+        }
+        if (mLoopType == "libuv") {
+            if (loop_thread.joinable()) {
+                loop_thread.join();
+            }
+        }
+        mLibuvLoop.reset();
     }
 
     // Starts the libuv event loop in a background thread. No-op for qemu.
@@ -164,6 +178,7 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskOnRunningLoop) {
     }
     std::promise<bool> task_executed_promise;
     auto future = task_executed_promise.get_future();
+    loop = nullptr;
     auto running_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
 
     (void)running_loop->post([&]() { task_executed_promise.set_value(true); });
@@ -470,6 +485,7 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
     handle->schedule(delay);
 
     auto future = task_completed.get_future();
+
     runUntil(future);
     ASSERT_NE(handle, nullptr);
 }
@@ -728,6 +744,7 @@ TEST_P(EventLoopTest, ThreadedEventLoopWaitsAtMostTimeout) {
     auto start_time = std::chrono::steady_clock::now();
     std::shared_ptr<EventLoop::Timer> task;
     {
+        loop = nullptr;
         auto tloop = ThreadedEventLoop::create(std::move(mLibuvLoop));
         (void)tloop->post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
         start_time = std::chrono::steady_clock::now();
@@ -904,6 +921,7 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     //
     // The test confirms this by creating a `ThreadedEventLoop` and immediately shutting it
     // down, verifying that no TSan failures or crashes occur.
+    loop = nullptr;
     auto threaded_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
     auto future = threaded_loop->shutdown(1s);
     future.wait_for(1s);
@@ -974,7 +992,66 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     ASSERT_GE(counter.load(), 3);
 }
 
-// DISABLED Until we have event fixes
+TEST_P(EventLoopTest, TimerDestroyedAfterLoop) {
+    runInThread();
+
+    auto timer = loop->createTimer([]() {});
+
+    shutdown();
+
+    timer.reset();
+}
+
+TEST_P(EventLoopTest, TimerScheduleAfterLoopDestroyed) {
+    runInThread();
+
+    auto timer = loop->createTimer([]() {});
+
+    shutdown();
+
+    timer->schedule(100ms, 100ms);
+
+    timer.reset();
+}
+
+TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
+    runInThread();
+
+    auto f = loop->shutdown(5s);
+    if (mLoopType == "qemu") {
+        // Need to run Qemu "thread" for shutdown to complete
+        fake_qemu_advance_ms(150);
+    }
+    f.wait();
+    loop->stop();
+
+    auto timer = loop->createTimer([]() {});
+
+    timer->schedule(100ms, 100ms);
+
+    timer.reset();
+
+    loop = nullptr;
+}
+
+TEST_P(EventLoopTest, TimerCreatedDuringLoopShutdown) {
+    runInThread();
+
+    auto f = loop->shutdown(5s);
+    auto timer = loop->createTimer([]() {});
+    if (mLoopType == "qemu") {
+        // Need to run Qemu "thread" for shutdown to complete
+        fake_qemu_advance_ms(150);
+    }
+    f.wait();
+    loop->stop();
+
+    timer->schedule(100ms, 100ms);
+
+    timer.reset();
+
+    loop = nullptr;
+}
 TEST_P(EventLoopTest, LibuvEventStateChanges) {
     if (mLoopType == "qemu") {
         GTEST_SKIP() << "This test is specific to the LibuvEventLoop lifecycle.";
@@ -1008,12 +1085,12 @@ TEST_P(EventLoopTest, LibuvEventStateChanges) {
                                                LooperStatusEvent::State::FINISHED));
 }
 
-// DISABLED Until we have event fixes
 TEST_P(EventLoopTest, ThreadedEventStateChanges) {
     if (mLoopType == "qemu") {
         GTEST_SKIP() << "ThreadedEventLoop is not compatible with the singleton QemuEventLoop.";
     }
 
+    loop = nullptr;
     auto threaded_loop = ThreadedEventLoop::create(std::move(mLibuvLoop));
     std::vector<LooperStatusEvent::State> states;
     absl::Notification finished;

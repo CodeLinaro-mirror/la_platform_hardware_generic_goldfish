@@ -36,10 +36,7 @@ class ScopedTimer final : public async::EventLoop::Timer {
     explicit ScopedTimer(std::shared_ptr<async::EventLoop::Timer> timer)
             : mTimer(std::move(timer)) {}
     ~ScopedTimer() override {
-        absl::MutexLock lock(&mTimerMutex);
-        if (mTimer) {
-            mTimer->cancel();
-        }
+        cancel();
     }
 
     void cancel() override {

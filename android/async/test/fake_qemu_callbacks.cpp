@@ -200,9 +200,6 @@ void fake_qemu_reset() {
     if (!sTimers.empty()) {
         LOG(FATAL) << "You are leaking timers!";
     }
-    for (auto* timer : sTimers) {
-        delete timer;
-    }
     sTimers.clear();
 
     for (auto* bh : sBottomHalves) {

@@ -119,6 +119,7 @@ cc_library(
         ":async_api",
         "//hardware/generic/goldfish/emulator/libs/QEMUBH",
         "//third_party/qemu:qemu-headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
     ],
@@ -168,6 +169,7 @@ cc_test(
         "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ] + select({
         "@platforms//os:windows": [
             "//hardware/generic/goldfish/android/windows/posix:compat",
