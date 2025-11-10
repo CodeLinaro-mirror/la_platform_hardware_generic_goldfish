@@ -13,7 +13,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/async:async_impl",
         "//hardware/generic/goldfish/emulator/libs/base",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
@@ -97,8 +96,8 @@ cc_test(
     deps = [
         ":display",
         ":test-display",
-        "//hardware/generic/goldfish/android/async:async_impl",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:threaded_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
     ],
 )

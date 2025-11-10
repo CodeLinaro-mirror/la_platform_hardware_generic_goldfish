@@ -100,8 +100,7 @@ TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedOnEventLoopThread) {
     EXPECT_EQ(listener->lastValue(), 42);
 
     // 7. Cleanly shut down the loop.
-    (void)eventLoop->shutdown(500ms).get();
-    eventLoop->stop();
+    (void)eventLoop->shutdownAndWait();
     loopThread.join();
 }
 
@@ -131,8 +130,7 @@ TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedImmediatelyWhenOnLoopThr
     EXPECT_EQ(listener->lastValue(), 99);
 
     // 7. Cleanly shut down the loop.
-    (void)eventLoop->shutdown(500ms).get();
-    eventLoop->stop();
+    (void)eventLoop->shutdownAndWait(500ms);
     loopThread.join();
 }
 
@@ -172,7 +170,6 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     EXPECT_EQ(received_value, 100);  // The value should not have changed.
 
     // 7. Clean up.
-    (void)eventLoop->shutdown(500ms).get();
-    eventLoop->stop();
+    (void)eventLoop->shutdownAndWait(500ms);
     loopThread.join();
 }

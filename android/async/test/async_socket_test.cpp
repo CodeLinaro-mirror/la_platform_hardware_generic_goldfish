@@ -41,9 +41,8 @@ class AsyncSocketTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        auto shutdown_future = mRawEventLoop->shutdown(100ms);
-        ASSERT_EQ(shutdown_future.wait_for(2s), std::future_status::ready);
-        mRawEventLoop->stop();
+        auto s = mRawEventLoop->shutdownAndWait(100ms);
+        ASSERT_THAT(s, absl_testing::IsOk());
         if (mLoopThread.joinable()) {
             mLoopThread.join();
         }
@@ -60,12 +59,18 @@ class AsyncSocketTest : public ::testing::Test {
     }
 
     template <typename F>
-    auto postAndWait(F&& func) {
-        return mRawEventLoop->postAndWait(std::forward<F>(func));
+    auto postAndWait(F&& func) -> decltype(func()) {
+        auto res = mRawEventLoop->postAndWait(std::forward<F>(func));
+        EXPECT_THAT(res, absl_testing::IsOk());
+        if constexpr (std::is_void_v<decltype(func())>) {
+            return;
+        } else {
+            return *res;
+        }
     }
 
-    std::unique_ptr<EventLoop> mEventLoop;
-    EventLoop* mRawEventLoop;
+    std::unique_ptr<LibuvEventLoop> mEventLoop;
+    LibuvEventLoop* mRawEventLoop;
     std::shared_ptr<AsyncSocketFactory> mFactory;
     std::thread mLoopThread;
 };

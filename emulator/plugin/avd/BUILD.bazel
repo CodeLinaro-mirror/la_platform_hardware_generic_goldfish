@@ -53,6 +53,7 @@ cc_library(
     ],
     deps = [
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:threaded_event_loop",
     ],
 )
 

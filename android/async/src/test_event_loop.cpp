@@ -23,6 +23,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include "absl/status/status.h"
 
 namespace goldfish::async::testing {
 
@@ -34,11 +35,10 @@ class TestEventLoopImpl : public TestEventLoop {
     ~TestEventLoopImpl() override;
 
     // EventLoop Interface
-    absl::Status run() override;
-    void stop() override;
-    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
+    std::future<absl::Status> shutdown() override;
     bool isOnLoopThread() const override;
-    void postImpl(Task task, std::chrono::milliseconds delay) override;
+    absl::Status postImmediately(Task task) override;
+    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<Timer> createTimer(Task task) override;
 
     // TestEventLoop Interface
@@ -128,30 +128,24 @@ TestEventLoopImpl::TestEventLoopImpl() : mNow(std::chrono::steady_clock::now()) 
 }
 
 TestEventLoopImpl::~TestEventLoopImpl() {
+    if (getState() != LooperStatusEvent::State::SHUTTING_DOWN) {
+        shutdownAndWait();
+    }
+    mStop = true;
+    mCv.notify_one();
     if (mThread.joinable()) {
-        shutdown(std::chrono::milliseconds(0)).wait();
-        stop();
         mThread.join();
     }
 }
 
-absl::Status TestEventLoopImpl::run() {
-    return absl::OkStatus();
-}
-
-void TestEventLoopImpl::stop() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mStop = true;
-    mCv.notify_one();
-}
-
-std::future<absl::Status> TestEventLoopImpl::shutdown(std::chrono::milliseconds) {
+std::future<absl::Status> TestEventLoopImpl::shutdown() {
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
     std::lock_guard<std::mutex> lock(mMutex);
     mTasks.clear();
     mScheduledTasks.clear();
+
     return promise.get_future();
 }
 
@@ -159,18 +153,24 @@ bool TestEventLoopImpl::isOnLoopThread() const {
     return std::this_thread::get_id() == mThreadId;
 }
 
-void TestEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
+absl::Status TestEventLoopImpl::postImmediately(Task task) {
     if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) {
         LOG(ERROR) << "Loop is shutting down.";
-        return;
+        return absl::UnavailableError("test loop is shutting down");
     }
-    if (delay == std::chrono::milliseconds(0)) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        mTasks.emplace_back(std::move(task));
-        return;
+    std::lock_guard<std::mutex> lock(mMutex);
+    mTasks.emplace_back(std::move(task));
+    return absl::OkStatus();
+}
+
+absl::Status TestEventLoopImpl::postDelayed(Task task, std::chrono::milliseconds delay) {
+    if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) {
+        LOG(ERROR) << "Loop is shutting down.";
+        return absl::UnavailableError("test loop is shutting down");
     }
     auto timer = createTimer(std::move(task));
     timer->schedule(delay, std::chrono::milliseconds::zero());
+    return absl::OkStatus();
 }
 
 size_t TestEventLoopImpl::taskCount() const {

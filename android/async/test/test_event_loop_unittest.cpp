@@ -17,6 +17,7 @@
 #include <chrono>
 #include <future>
 
+#include "absl/status/status_matchers.h"
 #include "gtest/gtest.h"
 
 using namespace goldfish::async;
@@ -89,7 +90,9 @@ TEST(TestEventLoop, PostAndWait) {
     while (future.wait_for(100ms) == std::future_status::timeout) {
         loop->runAll();
     }
-    ASSERT_EQ(42, future.get());
+    auto s = future.get();
+    ASSERT_THAT(s, absl_testing::IsOk());
+    EXPECT_EQ(*s, 42);
 }
 
 TEST(TestEventLoop, PostAndWaitVoid) {
@@ -134,7 +137,7 @@ TEST(TestEventLoop, ShutdownClearsPendingTasks) {
     loop->post([&]() { executed = true; });
     loop->post([&]() { executed = true; }, 100ms);
 
-    loop->shutdown(0ms).wait();
+    loop->shutdownAndWait();
     loop->runAll();
     loop->advanceClock(100ms);
 
