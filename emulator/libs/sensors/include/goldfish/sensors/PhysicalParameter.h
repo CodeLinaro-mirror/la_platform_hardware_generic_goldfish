@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "goldfish/devices/sensor/GOLDFISH_PHYSICAL_PARAMETERS_LIST.h"
+#include "goldfish/sensors/GOLDFISH_PHYSICAL_PARAMETERS_LIST.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 enum class PhysicalParameter {
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) x,
@@ -27,4 +27,4 @@ enum class PhysicalParameter {
     MAX_PHYSICAL_PARAMETERS
 };
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

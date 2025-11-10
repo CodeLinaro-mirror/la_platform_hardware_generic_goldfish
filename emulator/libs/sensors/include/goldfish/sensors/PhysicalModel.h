@@ -16,21 +16,22 @@
 #pragma once
 
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "goldfish/devices/sensor/Foldable.h"
-#include "goldfish/devices/sensor/FoldableModel.h"
-#include "goldfish/devices/sensor/Sensors.h"
 #include "goldfish/physics/AmbientEnvironment.h"
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/InertialModel.h"
 #include "goldfish/physics/Physics.h"
+#include "goldfish/sensors/AndroidSensor.h"
+#include "goldfish/sensors/FoldableModel.h"
+#include "goldfish/sensors/PhysicalParameter.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 using android::base::eventing::CallbackEventSource;
 
@@ -269,4 +270,4 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     int64_t mModelTimeNs = 0L;  ///< Current model time in nanoseconds
 };
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

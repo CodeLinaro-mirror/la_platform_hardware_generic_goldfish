@@ -1,0 +1,45 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "sensors",
+    srcs = [
+        "FoldableModel.cpp",
+        "PhysicalModel.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/sensors/AndroidSensor.h",
+        "include/goldfish/sensors/Foldable.h",
+        "include/goldfish/sensors/FoldableModel.h",
+        "include/goldfish/sensors/GOLDFISH_PHYSICAL_PARAMETERS_LIST.h",
+        "include/goldfish/sensors/GOLDFISH_SENSORS_LIST.h",
+        "include/goldfish/sensors/PhysicalModel.h",
+        "include/goldfish/sensors/PhysicalParameter.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
+        "//hardware/generic/goldfish/emulator/config:hardware_config",
+        "//hardware/generic/goldfish/emulator/libs/physics",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@aemu//base:event-support",
+        "@gfxstream//third_party/glm",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "sensors_unittests",
+    srcs = [
+        "test/PhysicalModel_unittest.cpp",
+    ],
+    includes = ["test"],
+    deps = [
+        ":sensors",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//hardware/generic/goldfish/emulator/config:avd-test",
+    ],
+)

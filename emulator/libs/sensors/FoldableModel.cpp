@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "goldfish/devices/sensor/FoldableModel.h"
+#include "goldfish/sensors/FoldableModel.h"
 
 #include "absl/log/log.h"
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/misc/StringUtils.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 void FoldableModel::initFoldableRoll(const android::goldfish::HardwareConfig& hw) {
     if (!hw.hw_sensor_roll) {
@@ -143,4 +143,4 @@ bool FoldableModel::isFolded() {
     return false;
 }
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

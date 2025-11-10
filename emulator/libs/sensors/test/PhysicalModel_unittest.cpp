@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "goldfish/devices/sensor/PhysicalModel.h"
+#include "goldfish/sensors/PhysicalModel.h"
 
 #include <assert.h>
 #include <glm/gtx/euler_angles.hpp>
@@ -25,7 +25,7 @@
 #include "android/goldfish/config/fake-avd.h"
 #include "android/goldfish/config/hardware_config.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 using android::goldfish::Avd;
 using goldfish::physics::kMinStateChangeTimeSeconds;
@@ -658,4 +658,4 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     EXPECT_EQ(FoldablePostures::OPENED, ret.currentPosture);
 }
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

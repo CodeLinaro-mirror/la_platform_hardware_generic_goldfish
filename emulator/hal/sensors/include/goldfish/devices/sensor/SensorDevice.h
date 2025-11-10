@@ -25,7 +25,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/devices/sensor/Sensors.h"
+#include "goldfish/sensors/AndroidSensor.h"
 #include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/physics/Rotation.h"
 
@@ -38,6 +38,7 @@ namespace goldfish::devices::sensor {
 using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
 using goldfish::physics::Rotation;
+using goldfish::sensors::AndroidSensor;
 
 using namespace std::string_view_literals;
 

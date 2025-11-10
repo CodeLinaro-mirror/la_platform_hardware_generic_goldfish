@@ -14,7 +14,7 @@
 
 #pragma once
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 #define ANDROID_FOLDABLE_MAX_HINGES 3
 #define ANDROID_FOLDABLE_MAX_ROLLS 2
@@ -118,4 +118,4 @@ struct FoldableState {
   FoldablePostures currentPosture;
 };
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

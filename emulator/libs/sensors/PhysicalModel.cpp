@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-#include "goldfish/devices/sensor/PhysicalModel.h"
-
-#include <glm/gtc/quaternion.hpp>
-#include <glm/vec3.hpp>
-
-#include <cstdio>
-#include <mutex>
+#include "goldfish/sensors/PhysicalModel.h"
 
 #include "absl/log/check.h"
 
@@ -30,8 +24,7 @@
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "goldfish/devices/sensor/FoldableModel.h"
-#include "goldfish/devices/sensor/Sensors.h"
+#include "goldfish/sensors/FoldableModel.h"
 #include "goldfish/physics/AmbientEnvironment.h"
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/GlmHelpers.h"
@@ -44,7 +37,7 @@ using goldfish::physics::AmbientState;
 using goldfish::physics::BodyState;
 using goldfish::physics::InertialState;
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 FoldableState PhysicalModel::getFoldableState() {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
@@ -60,8 +53,6 @@ bool PhysicalModel::getFoldedArea(int* x, int* y, int* w, int* h) {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
     return mFoldableModel.getFoldedArea(x, y, w, h);
 }
-
-// bool PhysicalModel::isLoadingSnapshot = false;
 
 android::base::EventNotificationSupport<FoldablePostures>* PhysicalModel::getPostureListener() {
     return mFoldableModel.getPostureListener();
@@ -594,4 +585,4 @@ void PhysicalModel::targetStateChanged() {
     fireEvent(event);
 }
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

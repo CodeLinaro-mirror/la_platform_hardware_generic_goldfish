@@ -39,13 +39,16 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud.h"
-#include "goldfish/devices/sensor/PhysicalModel.h"
-#include "goldfish/devices/sensor/Sensors.h"
+#include "goldfish/sensors/PhysicalModel.h"
 #include "goldfish/physics/SkinRotation.h"
 
 namespace goldfish::devices::sensor {
 
 using goldfish::physics::SkinRotation;
+using goldfish::sensors::PhysicalModel;
+using goldfish::sensors::PhysicalParameter;
+using goldfish::sensors::vec3;
+using goldfish::sensors::vec4;
 
 namespace {  // Anonymous namespace for internal helpers
 

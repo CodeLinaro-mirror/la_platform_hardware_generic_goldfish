@@ -21,10 +21,10 @@
 
 #include "aemu/base/EventNotificationSupport.h"  // for EventNotifi...
 #include "android/goldfish/config/hardware_config.h"
-#include "goldfish/devices/sensor/Foldable.h"
 #include "goldfish/physics/Physics.h"
+#include "goldfish/sensors/Foldable.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 class FoldableModel {
   public:
@@ -68,4 +68,4 @@ class FoldableModel {
    PostureListener mPostureListener;
 };
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

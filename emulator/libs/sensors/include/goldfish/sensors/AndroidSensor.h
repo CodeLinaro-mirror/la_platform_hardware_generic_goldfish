@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "goldfish/devices/sensor/GOLDFISH_SENSORS_LIST.h"
+#include "goldfish/sensors/GOLDFISH_SENSORS_LIST.h"
 
-namespace goldfish::devices::sensor {
+namespace goldfish::sensors {
 
 enum class AndroidSensor {
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) x,
@@ -27,4 +27,4 @@ enum class AndroidSensor {
     MAX_SENSORS /* do not remove */
 };
 
-}  // namespace goldfish::devices::sensor
+}  // namespace goldfish::sensors

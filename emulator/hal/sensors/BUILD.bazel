@@ -3,17 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "sensors",
     srcs = [
-        "FoldableModel.cpp",
-        "PhysicalModel.cpp",
         "SensorDevice.cpp",
-        "include/goldfish/devices/sensor/AndroidSensor.h",
-        "include/goldfish/devices/sensor/Foldable.h",
-        "include/goldfish/devices/sensor/FoldableModel.h",
-        "include/goldfish/devices/sensor/GOLDFISH_PHYSICAL_PARAMETERS_LIST.h",
-        "include/goldfish/devices/sensor/GOLDFISH_SENSORS_LIST.h",
-        "include/goldfish/devices/sensor/PhysicalModel.h",
-        "include/goldfish/devices/sensor/PhysicalParameter.h",
-        "include/goldfish/devices/sensor/Sensors.h",
     ],
     hdrs = [
         "include/goldfish/devices/sensor/SensorDevice.h",
@@ -29,6 +19,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",
         "//hardware/generic/goldfish/emulator/hal/plug:hal_plug",
         "//hardware/generic/goldfish/emulator/libs/physics",
+        "//hardware/generic/goldfish/emulator/libs/sensors",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -43,7 +34,6 @@ cc_library(
 cc_test(
     name = "sensors_unittests",
     srcs = [
-        "test/physics/PhysicalModel_unittest.cpp",
         "test/physics/SensorDevice_unittest.cpp",
     ],
     includes = ["test"],
