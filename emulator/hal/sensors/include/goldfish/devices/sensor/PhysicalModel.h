@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
 #include <mutex>
