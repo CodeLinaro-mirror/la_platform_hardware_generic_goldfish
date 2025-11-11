@@ -19,8 +19,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/misc/StringUtils.h"
-
 namespace goldfish::sensors {
 
 void FoldableModel::initFoldableRoll(const android::goldfish::HardwareConfig& hw) {

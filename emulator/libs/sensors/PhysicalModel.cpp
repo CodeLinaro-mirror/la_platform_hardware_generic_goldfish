@@ -18,11 +18,6 @@
 
 #include "absl/log/check.h"
 
-#include "aemu/base/files/PathUtils.h"
-#include "aemu/base/files/StdioStream.h"
-#include "aemu/base/utils/stream.h"
-#include "android/base/file/file_io.h"
-#include "android/base/system/System.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "goldfish/sensors/FoldableModel.h"
 #include "goldfish/physics/AmbientEnvironment.h"
@@ -30,9 +25,6 @@
 #include "goldfish/physics/GlmHelpers.h"
 #include "goldfish/physics/InertialModel.h"
 
-using android::base::PathUtils;
-using android::base::StdioStream;
-using android::base::System;
 using goldfish::physics::AmbientState;
 using goldfish::physics::BodyState;
 using goldfish::physics::InertialState;
