@@ -39,6 +39,9 @@ using ::goldfish::physics::AmbientEnvironment;
 using ::goldfish::physics::BodyModel;
 using ::goldfish::physics::InertialModel;
 
+using glm::vec3;
+using glm::vec4;
+
 class PhysicalModel;
 
 /**
