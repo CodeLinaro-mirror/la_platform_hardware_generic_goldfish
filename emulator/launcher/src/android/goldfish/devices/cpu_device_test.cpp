@@ -32,7 +32,7 @@ TEST(Cpu, Basic_x86) {
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
 
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -54,7 +54,7 @@ TEST(Cpu, Basic_arm64) {
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -77,7 +77,7 @@ TEST(Cpu, NoAccel) {
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -100,7 +100,7 @@ TEST(Cpu, AccelOff) {
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -122,7 +122,7 @@ TEST(Cpu, HostAndTargetMismatch) {
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(0).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -132,11 +132,25 @@ TEST(Cpu, HostAndTargetMismatch) {
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
-    EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
-                                     testing::Eq("-accel"), testing::Eq("tcg")));
+    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(Cpu, NoHardwareAcceleratorAvailable) {
+    FakeEmulator emu;
+
+    auto hw = HardwareConfig();
+    hw.hw_cpu_ncore = 3;
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(0).WillRepeatedly(testing::ReturnRef(hw));
+
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_NONE, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_ACCEL_NOT_INSTALLED, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
+
+    CpuDevice dev;
+    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(Cpu, CoresFlagOverride) {
@@ -145,7 +159,7 @@ TEST(Cpu, CoresFlagOverride) {
 
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(2).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
@@ -169,6 +183,13 @@ TEST(Cpu, CoresFlagInvalid) {
     auto hw = HardwareConfig();
     hw.hw_cpu_ncore = 3;
     EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+
+    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+            .Times(1)
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     CpuDevice dev;
     EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));

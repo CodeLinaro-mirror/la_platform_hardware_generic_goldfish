@@ -30,6 +30,8 @@ class CpuDevice : public Device {
     static void forceHostArch_TestOnly(Avd::CpuArchitecture arch);
 
   private:
-    uint64_t mCores;
+    std::string mAccelerator;
+    std::string mCpu;
+    uint64_t mCores{0};
 };
 }  // namespace android::goldfish
