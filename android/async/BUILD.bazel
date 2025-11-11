@@ -279,3 +279,28 @@ cc_library(
         "@libuv",
     ],
 )
+
+cc_library(
+    name = "libuv_signal_handlers",
+    hdrs = ["include/goldfish/async/libuv_signal_handlers.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libuv_event_loop",
+        ":threaded_event_loop",
+        ":uv_to_absl",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@libuv",
+    ],
+)
+
+cc_test(
+    name = "libuv_signal_handlers_test",
+    srcs = ["test/libuv_signal_handlers_test.cpp"],
+    deps = [
+        ":libuv_signal_handlers",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
