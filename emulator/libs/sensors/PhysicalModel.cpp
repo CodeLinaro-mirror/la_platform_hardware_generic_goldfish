@@ -50,31 +50,6 @@ android::base::EventNotificationSupport<FoldablePostures>* PhysicalModel::getPos
     return mFoldableModel.getPostureListener();
 }
 
-static glm::vec3 toGlm(vec3 input) {
-    return glm::vec3(input.x, input.y, input.z);
-}
-
-static glm::vec4 toGlm(vec4 input) {
-    return glm::vec4(input.x, input.y, input.z, input.w);
-}
-
-static vec3 fromGlm(glm::vec3 input) {
-    vec3 value;
-    value.x = input.x;
-    value.y = input.y;
-    value.z = input.z;
-    return value;
-}
-
-static vec4 fromGlm(glm::vec4 input) {
-    vec4 value;
-    value.x = input.x;
-    value.y = input.y;
-    value.z = input.z;
-    value.w = input.w;
-    return value;
-}
-
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : mFoldableModel(hw) {}
 
 void PhysicalModel::setCurrentTime(int64_t time_ns) {
@@ -104,7 +79,7 @@ void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolati
     physicalStateChanging();
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
-        mInertialModel.setTargetPosition(toGlm(position), mode);
+        mInertialModel.setTargetPosition(position, mode);
     }
     targetStateChanged();
 }
@@ -113,7 +88,7 @@ void PhysicalModel::setTargetInternalVelocity(vec3 velocity, PhysicalInterpolati
     physicalStateChanging();
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
-        mInertialModel.setTargetVelocity(toGlm(velocity), mode);
+        mInertialModel.setTargetVelocity(velocity, mode);
     }
     targetStateChanged();
 }
@@ -131,7 +106,7 @@ void PhysicalModel::setTargetInternalRotation(vec3 rotation, PhysicalInterpolati
     physicalStateChanging();
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
-        mInertialModel.setTargetRotation(fromEulerAnglesXYZ(glm::radians(toGlm(rotation))), mode);
+        mInertialModel.setTargetRotation(fromEulerAnglesXYZ(glm::radians(rotation)), mode);
     }
     targetStateChanged();
 }
@@ -245,7 +220,7 @@ void PhysicalModel::setTargetInternalRgbcLight(vec4 light, PhysicalInterpolation
     physicalStateChanging();
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
-        mAmbientEnvironment.setRgbcLight(toGlm(light), mode);
+        mAmbientEnvironment.setRgbcLight(light, mode);
     }
     targetStateChanged();
 }
@@ -269,17 +244,17 @@ void PhysicalModel::setTargetInternalAccelerometerUncalibrated(vec3, PhysicalInt
 }
 
 vec3 PhysicalModel::getParameterAccelerometerUncalibrated(ParameterValueType) const {
-    return fromGlm(mInertialModel.getAcceleration());
+    return mInertialModel.getAcceleration();
 }
 
 vec3 PhysicalModel::getParameterPosition(ParameterValueType parameterValueType) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
-    return fromGlm(mInertialModel.getPosition(parameterValueType));
+    return mInertialModel.getPosition(parameterValueType);
 }
 
 vec3 PhysicalModel::getParameterVelocity(ParameterValueType parameterValueType) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
-    return fromGlm(mInertialModel.getVelocity(parameterValueType));
+    return mInertialModel.getVelocity(parameterValueType);
 }
 
 float PhysicalModel::getParameterAmbientMotion(ParameterValueType parameterValueType) const {
@@ -291,12 +266,12 @@ vec3 PhysicalModel::getParameterRotation(ParameterValueType parameterValueType) 
     std::lock_guard<std::recursive_mutex> lock(mMutex);
     const glm::vec3 rotationRadians =
             toEulerAnglesXYZ(mInertialModel.getRotation(parameterValueType));
-    return fromGlm(glm::degrees(rotationRadians));
+    return glm::degrees(rotationRadians);
 }
 
 vec3 PhysicalModel::getParameterMagneticField(ParameterValueType parameterValueType) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
-    return fromGlm(mAmbientEnvironment.getMagneticField(parameterValueType));
+    return mAmbientEnvironment.getMagneticField(parameterValueType);
 }
 
 float PhysicalModel::getParameterTemperature(ParameterValueType parameterValueType) const {
@@ -366,7 +341,7 @@ float PhysicalModel::getParameterHeartRate(ParameterValueType parameterValueType
 
 vec4 PhysicalModel::getParameterRgbcLight(ParameterValueType parameterValueType) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
-    return fromGlm(mAmbientEnvironment.getRgbcLight(parameterValueType));
+    return mAmbientEnvironment.getRgbcLight(parameterValueType);
 }
 
 float PhysicalModel::getParameterWristTilt(ParameterValueType parameterValueType) const {
@@ -412,8 +387,8 @@ vec3 PhysicalModel::getPhysicalAccelerometer() const {
     // Note how we're applying the *inverse* of the transformation
     // represented by device_rotation_quat to the "absolute" coordinates
     // of the vectors.
-    return fromGlm(glm::conjugate(mInertialModel.getRotation()) *
-                   (mInertialModel.getAcceleration() - mAmbientEnvironment.getGravity()));
+    return glm::conjugate(mInertialModel.getRotation()) *
+            (mInertialModel.getAcceleration() - mAmbientEnvironment.getGravity());
 }
 
 vec3 PhysicalModel::getPhysicalAccelerometerUncalibrated() const {
@@ -423,18 +398,16 @@ vec3 PhysicalModel::getPhysicalAccelerometerUncalibrated() const {
 }
 
 vec3 PhysicalModel::getPhysicalGyroscope() const {
-    return fromGlm(glm::conjugate(mInertialModel.getRotation()) *
-                   mInertialModel.getRotationalVelocity());
+    return glm::conjugate(mInertialModel.getRotation()) * mInertialModel.getRotationalVelocity();
 }
 
 vec3 PhysicalModel::getPhysicalMagnetometer() const {
-    return fromGlm(glm::conjugate(mInertialModel.getRotation()) *
-                   mAmbientEnvironment.getMagneticField());
+    return glm::conjugate(mInertialModel.getRotation()) * mAmbientEnvironment.getMagneticField();
 }
 
 /* (x, y, z) == (azimuth, pitch, roll) */
 vec3 PhysicalModel::getPhysicalOrientation() const {
-    return fromGlm(toEulerAnglesXYZ(mInertialModel.getRotation()));
+    return toEulerAnglesXYZ(mInertialModel.getRotation());
 }
 
 float PhysicalModel::getPhysicalTemperature() const {
@@ -458,17 +431,15 @@ float PhysicalModel::getPhysicalHumidity() const {
 }
 
 vec3 PhysicalModel::getPhysicalMagnetometerUncalibrated() const {
-    return fromGlm(glm::conjugate(mInertialModel.getRotation()) *
-                   mAmbientEnvironment.getMagneticField());
+    return glm::conjugate(mInertialModel.getRotation()) * mAmbientEnvironment.getMagneticField();
 }
 
 vec3 PhysicalModel::getPhysicalGyroscopeUncalibrated() const {
-    return fromGlm(glm::conjugate(mInertialModel.getRotation()) *
-                   mInertialModel.getRotationalVelocity());
+    return glm::conjugate(mInertialModel.getRotation()) * mInertialModel.getRotationalVelocity();
 }
 
 vec4 PhysicalModel::getPhysicalRgbcLight() const {
-    return fromGlm(mAmbientEnvironment.getRgbcLight());
+    return mAmbientEnvironment.getRgbcLight();
 }
 
 void PhysicalModel::getTransform(float* out_translation_x, float* out_translation_y,
