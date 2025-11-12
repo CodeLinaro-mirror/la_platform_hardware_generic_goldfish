@@ -52,9 +52,9 @@ class FoldableModel {
 
     float getPosture(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
-    FoldableState getFoldableState() { return mState; }  // structure copy
+    FoldableState getFoldableState() const { return mState; }  // structure copy
 
-    bool isFolded();
+    bool isFolded() const;
 
     bool getFoldedArea(int* x, int* y, int* w, int* h) const;
 

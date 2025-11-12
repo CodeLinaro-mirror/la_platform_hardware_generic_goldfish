@@ -165,13 +165,13 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @brief Gets the current foldable device state.
      * @return Current foldable state
      */
-    FoldableState getFoldableState();
+    FoldableState getFoldableState() const;
 
     /**
      * @brief Checks if the foldable device is currently folded.
      * @return true if device is folded, false otherwise
      */
-    bool foldableIsFolded();
+    bool foldableIsFolded() const;
 
     /**
      * @brief Gets the folded area dimensions.
@@ -181,7 +181,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @param[out] h Height of folded area
      * @return true if area was retrieved successfully
      */
-    bool getFoldedArea(int* x, int* y, int* w, int* h);
+    bool getFoldedArea(int* x, int* y, int* w, int* h) const;
 
     android::base::EventNotificationSupport<FoldablePostures>* getPostureListener();
 
