@@ -519,7 +519,7 @@ void PhysicalModel::physicalStateStabilized() {
 
         // Increment all of the measurement ids because the physical state has
         // stabilized.
-        for (size_t i = 0; i < static_cast<size_t>(AndroidSensor::MAX_SENSORS); i++) {
+        for (size_t i = 0; i < kNumSensors; i++) {
             mMeasurementId[i]++;
         }
         mIsPhysicalStateChanging = false;
@@ -536,7 +536,7 @@ void PhysicalModel::targetStateChanged() {
     {
         std::lock_guard<std::recursive_mutex> lock(mMutex);
         // When target state changes we reset all sensor overrides.
-        for (size_t i = 0; i < static_cast<size_t>(AndroidSensor::MAX_SENSORS); ++i) {
+        for (size_t i = 0; i < kNumSensors; ++i) {
             mUseOverride[i] = false;
         }
     }

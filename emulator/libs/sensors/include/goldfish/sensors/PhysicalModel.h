@@ -81,6 +81,8 @@ struct PhysicalModelChangeEvent {
  */
 class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
   public:
+    static constexpr size_t kNumSensors = static_cast<size_t>(AndroidSensor::MAX_SENSORS);
+
     PhysicalModel(const android::goldfish::HardwareConfig& hw);
     ~PhysicalModel() = default;
 
@@ -255,10 +257,11 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     FoldableModel mFoldableModel;            ///< Models foldable device state
     BodyModel mBodyModel;                    ///< Models body-related sensors
 
+    mutable long mMeasurementId[kNumSensors] = {0};  ///< Measurement IDs
+
     bool mIsPhysicalStateChanging{false};            ///< True if physical state is changing
     bool isLoadingSnapshot{false};                   ///< True if loading from snapshot
-    bool mUseOverride[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {false};        ///< Sensor override flags
-    mutable long mMeasurementId[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {0};  ///< Measurement IDs
+    bool mUseOverride[kNumSensors] = {false};        ///< Sensor override flags
 
 #define OVERRIDE_NAME(x) m##x##Override
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v OVERRIDE_NAME(z){0.f};
