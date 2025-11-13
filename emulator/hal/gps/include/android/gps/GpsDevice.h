@@ -21,36 +21,14 @@
 
 #include "aemu/base/events/EventSources.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/gps/Location.h"
 
 namespace goldfish::devices::gps {
 
 using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
+using goldfish::gps::Location;
 using namespace std::string_view_literals;
-
-/**
- * @brief Represents a GPS location.
- *
- * This struct holds information about a GPS location, including latitude,
- * longitude, speed, bearing, altitude, and the number of satellites used
- * to acquire the fix.
- */
-struct Location {
-    double latitude;     //< Latitude in degrees.
-    double longitude;    //< Longitude in degrees.
-    double speed;        //< Speed in meters per second.
-    double bearing;      //< Bearing in degrees, 0=North, 90=East.
-    double altitude;     //< Altitude in meters above WGS 84 ellipsoid.
-    int32_t satellites;  //< Number of satellites used for the fix.
-
-    template <typename Sink>
-    friend void AbslStringify(Sink& sink, const Location& l) {
-        absl::Format(&sink,
-                     "Latitude: %.6f, Longitude: %.6f, Speed: %.2f m/s, Bearing: %.2f deg, "
-                     "Altitude: %.2f m, Satellites: %d",
-                     l.latitude, l.longitude, l.speed, l.bearing, l.altitude, l.satellites);
-    }
-};
 
 /**
  * @brief Interface for emulating a GPS device in the Android emulator.

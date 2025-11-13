@@ -14,9 +14,10 @@
 #include "android/emulation/control/GpsService.h"
 
 #include "android/gps/GpsDevice.h"
+#include "goldfish/gps/Location.h"
 
 using ::goldfish::devices::gps::IGpsDevice;
-using ::goldfish::devices::gps::Location;
+using ::goldfish::gps::Location;
 
 namespace android {
 namespace emulation {
@@ -27,14 +28,14 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace {
-Location protoToLocation(const GpsState* proto) {
+Location protoToLocation(const GpsState& proto) {
     return {
-            .latitude = proto->latitude(),
-            .longitude = proto->longitude(),
-            .speed = proto->speed(),
-            .bearing = proto->bearing(),
-            .altitude = proto->altitude(),
-            .satellites = proto->satellites(),
+            .latitude = proto.latitude(),
+            .longitude = proto.longitude(),
+            .speed = proto.speed(),
+            .bearing = proto.bearing(),
+            .altitude = proto.altitude(),
+            .satellites = proto.satellites(),
     };
 }
 
@@ -55,7 +56,7 @@ GpsState locationToProto(const Location& location) {
 Status GpsServiceImpl::setGps(ServerContext* context, const GpsState* request, Empty* reply) {
     auto weak = mRegistry->activeDevice<IGpsDevice>();
     if (auto gps = weak.lock()) {
-        gps->setLocation(protoToLocation(request));
+        gps->setLocation(protoToLocation(*request));
         return Status::OK;
     }
     return Status(grpc::StatusCode::UNAVAILABLE, "No active gps device");

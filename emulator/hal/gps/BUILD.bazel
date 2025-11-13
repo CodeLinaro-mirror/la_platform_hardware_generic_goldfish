@@ -25,6 +25,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/hal/connector:PingTopic",
         "//hardware/generic/goldfish/emulator/hal/connector:cable",
         "//hardware/generic/goldfish/emulator/hal/connector:qemud",
+        "//hardware/generic/goldfish/emulator/libs/gps",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
     ],
