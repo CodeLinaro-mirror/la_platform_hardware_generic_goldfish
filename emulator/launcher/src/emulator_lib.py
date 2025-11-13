@@ -22,11 +22,13 @@ import platform
 import random
 import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
 from python.runfiles import Runfiles
 
+logging.basicConfig(stream=sys.stderr, encoding="utf-8", level=logging.DEBUG)
 
 class EmulatorLocator:
     """Locates all necessary emulator files and artifacts."""
@@ -84,7 +86,7 @@ class EmulatorLocator:
             )
 
         if platform.system() == "Windows":
-            self.goldfish_exec += ".exe"
+            self.goldfish_exec = self.goldfish_exec.with_suffix(".exe")
 
         if not self.goldfish_exec.exists():
             raise FileNotFoundError(
