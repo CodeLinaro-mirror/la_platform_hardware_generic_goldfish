@@ -463,7 +463,7 @@ vec4 PhysicalModel::getPhysicalRgbcLight() const {
 void PhysicalModel::getTransform(float* out_translation_x, float* out_translation_y,
                                  float* out_translation_z, float* out_rotation_x,
                                  float* out_rotation_y, float* out_rotation_z,
-                                 int64_t* out_timestamp) {
+                                 int64_t* out_timestamp) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
 
     const vec3 position = getParameterPosition(ParameterValueType::CURRENT);

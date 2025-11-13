@@ -159,7 +159,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     void getTransform(float* out_translation_x, float* out_translation_y, float* out_translation_z,
                       float* out_rotation_x, float* out_rotation_y, float* out_rotation_z,
-                      int64_t* out_timestamp);
+                      int64_t* out_timestamp) const;
 
     /**
      * @brief Gets the current foldable device state.
