@@ -17,7 +17,6 @@ cc_library(
         "include/goldfish/async/event_loop_dispatcher.h",
         "include/goldfish/async/scoped_async_resource.h",
         "include/goldfish/async/scoped_async_timer.h",
-        "include/goldfish/async/threaded_event_loop.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -26,29 +25,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@aemu//base:event-support",
     ],
-)
-
-cc_library(
-    name = "async_impl",
-    srcs = [
-        "src/threaded_event_loop.cpp",
-    ],
-    hdrs = [
-        "include/goldfish/async/event_loop_dispatcher.h",
-        "include/goldfish/async/threaded_event_loop.h",
-    ],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":async_api",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status:statusor",
-    ] + select({
-        "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
 )
 
 cc_library(
@@ -86,19 +62,33 @@ cc_library(
 )
 
 cc_library(
+    name = "threaded_event_loop",
+    srcs = ["src/threaded_event_loop.cpp"],
+    hdrs = ["include/goldfish/async/threaded_event_loop.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        ":libuv_event_loop",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+    ] + select({
+        "@platforms//os:windows": [
+            "//hardware/generic/goldfish/android/windows/posix:compat",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "libuv_event_loop",
-    srcs = [
-        "src/libuv_event_loop.cpp",
-    ],
-    hdrs = [
-        "include/goldfish/async/libuv_event_loop.h",
-    ],
+    srcs = ["src/libuv_event_loop.cpp"],
+    hdrs = ["include/goldfish/async/libuv_event_loop.h"],
     copts = ["-Wno-unused-result"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":async_api",
-        ":async_impl",
         ":uv_to_absl",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@libuv",
@@ -150,9 +140,7 @@ cc_test(
     name = "eventloop_unittests",
     size = "small",
     timeout = "moderate",
-    srcs = [
-        "test/event_loop_test.cpp",
-    ],
+    srcs = ["test/event_loop_test.cpp"],
     copts = ["-Wno-unused-result"],
     includes = ["test"],
     linkopts = select({
@@ -166,6 +154,7 @@ cc_test(
     deps = [
         ":libuv_event_loop",
         ":qemu_event_loop",
+        ":threaded_event_loop",
         "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
         "//hardware/generic/goldfish/android/system",
         "//hardware/generic/goldfish/android/system:googletest_main",
@@ -246,6 +235,7 @@ cc_binary(
 
 cc_library(
     name = "async_testing",
+    testonly = True,
     srcs = ["src/test_event_loop.cpp"],
     hdrs = ["include/goldfish/async/testing/test_event_loop.h"],
     includes = ["include"],
@@ -264,6 +254,7 @@ cc_test(
     deps = [
         ":async_testing",
         "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 

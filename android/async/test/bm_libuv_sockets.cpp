@@ -22,7 +22,7 @@ class SocketBenchmark : public ::benchmark::Fixture {
     }
 
     void TearDown(const ::benchmark::State& state) override {
-        loop_->stop();
+        loop_->shutdownAndWait();
         if (loop_thread_.joinable()) {
             loop_thread_.join();
         }
@@ -35,14 +35,14 @@ class SocketBenchmark : public ::benchmark::Fixture {
 
   protected:
     std::unique_ptr<AsyncSocketFactory> factory_;
-    std::unique_ptr<EventLoop> loop_;
+    std::unique_ptr<LibuvEventLoop> loop_;
     std::thread loop_thread_;
 };
 
 // Measures the round-trip latency (ping-pong) between client and server.
 BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     std::string test_message = "ping";
-    ScopedAsyncServer server(postAndWait([&](void) {
+    ScopedAsyncServer server(*postAndWait([&](void) {
         return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
             socket->setOnReadCallbackNoFlowControl(
                     [s = socket](std::string_view data, auto status) {
@@ -52,9 +52,9 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
             return true;
         });
     }));
-    int port = postAndWait([&] { return server->port(); });
+    int port = *postAndWait([&] { return server->port(); });
 
-    ScopedAsyncSocket client(postAndWait([&] {
+    ScopedAsyncSocket client(*postAndWait([&] {
         return factory_->createSocket(loop_.get(), "127.0.0.1:" + std::to_string(port));
     }));
 
@@ -89,16 +89,16 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     std::vector<char> buffer(buffer_size, 'A');
     ScopedAsyncSocket server_socket;
 
-    ScopedAsyncServer server(postAndWait([&] {
+    ScopedAsyncServer server(*postAndWait([&] {
         return factory_->createServer(loop_.get(), "127.0.0.1:0", [&](auto socket) {
             server_socket = ScopedAsyncSocket(socket);
             socket->setOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
             return true;
         });
     }));
-    int port = postAndWait([&] { return server->port(); });
+    int port = *postAndWait([&] { return server->port(); });
 
-    ScopedAsyncSocket client(postAndWait([&] {
+    ScopedAsyncSocket client(*postAndWait([&] {
         return factory_->createSocket(loop_.get(), "127.0.0.1:" + std::to_string(port));
     }));
 

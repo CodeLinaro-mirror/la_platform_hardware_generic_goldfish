@@ -11,9 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "goldfish/async/threaded_event_loop.h"
 
-#include <goldfish/async/event_loop.h>
+#include "goldfish/async/threaded_event_loop.h"
 
 #include <future>
 #include <memory>
@@ -36,6 +35,9 @@
 #include <pthread.h>
 #endif
 
+#include "goldfish/async/event_loop.h"
+#include "goldfish/async/libuv_event_loop.h"
+
 namespace goldfish::async {
 
 constexpr absl::Duration kMaxStartTimeout = absl::Milliseconds(100);
@@ -51,7 +53,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
      * @param loop A unique_ptr to the underlying EventLoop implementation that
      * this class will manage and run.
      */
-    explicit ThreadedEventLoopImpl(std::unique_ptr<EventLoop> loop,
+    explicit ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop,
                                    std::string name = "AEMU Event Thread");
     ~ThreadedEventLoopImpl() override;
 
@@ -63,29 +65,21 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     ThreadedEventLoopImpl(ThreadedEventLoopImpl&& other) noexcept = delete;
     ThreadedEventLoopImpl& operator=(ThreadedEventLoopImpl&& other) noexcept = delete;
 
-    /**
-     * @brief Starts the background thread and begins executing the underlying
-     * event loop's run() method within it. This method returns immediately.
-     */
-    absl::Status run() override;
-
-    /**
-     * @brief Stops the underlying event loop and waits for the background
-     * thread to complete its execution. This is a blocking call.
-     */
-    void stop() override;
-
-    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
+    std::future<absl::Status> shutdown() override {
+        return mLoop->shutdown();
+    }
 
     /**
      * @brief Checks if the caller is on the background event loop thread.
      * @return Delegates the call to the underlying EventLoop.
      */
-    bool isOnLoopThread() const override;
+    bool isOnLoopThread() const override {
+        return mLoop->isOnLoopThread();
+    }
 
-    void postImpl(Task task, std::chrono::milliseconds delay) override;
-
-    std::shared_ptr<Timer> createTimer(Task task) override;
+    std::shared_ptr<Timer> createTimer(Task task) override {
+        return mLoop->createTimer(std::move(task));
+    }
 
     void* getRawLoop() override { return mLoop->getRawLoop(); }
 
@@ -97,15 +91,25 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
         return mLoop->getState();
     }
 
+    absl::Status start() override;
+
   private:
+    absl::Status postImmediately(Task task) override {
+        return mLoop->postImmediately(std::move(task));
+    }
+
+    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override {
+        return mLoop->postDelayed(std::move(task), delay);
+    }
+
     std::thread mRunner;
-    std::unique_ptr<EventLoop> mLoop;
+    std::unique_ptr<LibuvEventLoop> mLoop;
     std::string mLooperName;
-    std::unique_ptr<android::base::eventing::ScopedEventCallback<EventLoop, LooperStatusEvent>>
+    std::unique_ptr<android::base::eventing::ScopedEventCallback<LibuvEventLoop, LooperStatusEvent>>
             mSubscription;
 };
 
-ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<EventLoop> loop, std::string name)
+ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop, std::string name)
         : mLoop(std::move(loop)), mLooperName(std::move(name)) {
     mSubscription = android::base::eventing::makeScopedCallback(
             *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
@@ -113,7 +117,7 @@ ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<EventLoop> loop, st
 
 ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
     VLOG(1) << "~ThreadedEventLoopImpl";
-    auto future = shutdown(getTimeout());
+    auto future = shutdown();
     auto wait = future.wait_for(getTimeout());
     if (wait == std::future_status::ready) {
         auto status = future.get();
@@ -121,13 +125,17 @@ ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
             LOG(ERROR) << "Failed to shutdown event loop: " << status;
         }
     } else {
-        LOG(ERROR) << "Did not complete shutdown within: " << absl::FromChrono(getTimeout());
+        // There is likely a hung task blocking the loop.
+        // Join will hang if the loop has not shutdown. All we can do is crash with an error.
+        LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: " << absl::FromChrono(getTimeout());
     }
 
-    stop();
+    if (mRunner.joinable()) {
+        mRunner.join();
+    }
 }
 
-absl::Status ThreadedEventLoopImpl::run() {
+absl::Status ThreadedEventLoopImpl::start() {
     if (getState() != LooperStatusEvent::State::NOT_STARTED) {
         return absl::FailedPreconditionError(
                 "The event loop is automatically run, and has already started.");
@@ -149,30 +157,7 @@ absl::Status ThreadedEventLoopImpl::run() {
     return absl::OkStatus();
 }
 
-std::future<absl::Status> ThreadedEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
-    return mLoop->shutdown(timeout);
-}
-
-void ThreadedEventLoopImpl::stop() {
-    mLoop->stop();
-    if (mRunner.joinable()) {
-        mRunner.join();
-    }
-}
-
-bool ThreadedEventLoopImpl::isOnLoopThread() const {
-    return mLoop->isOnLoopThread();
-}
-
-void ThreadedEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
-    mLoop->post(std::move(task), delay);
-}
-
-std::shared_ptr<EventLoop::Timer> ThreadedEventLoopImpl::createTimer(Task task) {
-    return mLoop->createTimer(std::move(task));
-}
-
-std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<EventLoop> toRun) {
+std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<LibuvEventLoop> toRun) {
     if (!toRun) {
         LOG(WARNING) << "No looper present";
         return nullptr;
@@ -188,7 +173,7 @@ std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<Eve
                 }
             });
 
-    if (auto status = loop->run(); !status.ok()) {
+    if (auto status = loop->start(); !status.ok()) {
         LOG(WARNING) << "Failed to start inner loop due to: " << status;
         return nullptr;
     }
@@ -201,4 +186,5 @@ std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<Eve
 
     return loop;
 }
+
 }  // namespace goldfish::async

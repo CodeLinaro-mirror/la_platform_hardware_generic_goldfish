@@ -18,11 +18,12 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <type_traits>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
+#include "absl/status/statusor.h"
 
 #include "aemu/base/events/EventSources.h"
 
@@ -123,29 +124,27 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
     virtual ~EventLoop() = default;
 
-    /**
-     * @brief Runs the event loop, blocking until stop() is called.
-     */
-    virtual absl::Status run() = 0;
-
-    /**
-     * @brief Stops a running event loop. This method is thread-safe.
-     */
-    virtual void stop() = 0;
+    absl::Status shutdownAndWait(std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
+        auto future = shutdown();
+        if (timeout != std::chrono::milliseconds::zero()) {
+            if (future.wait_for(timeout) != std::future_status::ready) {
+                return absl::DeadlineExceededError("Loop shutdown did not return a result within the deadline");
+            }
+        }
+        return future.get();
+    }
 
     /**
      * @brief Initiates a graceful shutdown of the event loop.
      *
      * This method schedules the closing of all internal handles. It returns
      * a future that will be fulfilled when all cleanup tasks are complete.
-     * This should be called before stop() to ensure a clean exit.
+     * This should be called before the object is destroyed.
      *
      * Note: that this will cancel all outstanding timers and posted callbacks
      * once this returns no new timers are callbacks can be scheduled.
-     *
-     * @param timeout Max time to wait before graceful shutdown
      */
-    virtual std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) = 0;
+    virtual std::future<absl::Status> shutdown() = 0;
 
     /**
      * @brief Checks if the current thread is the one running this event loop.
@@ -164,7 +163,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      */
     template <typename F>
     auto post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
-            -> std::future<decltype(std::forward<F>(f)())> {
+            -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
         using ReturnType = decltype(std::forward<F>(f)());
         auto promise = std::make_shared<std::promise<ReturnType>>();
         auto future = promise->get_future();
@@ -183,7 +182,16 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
             }
         };
 
-        postImpl(std::move(task_runner), delay);
+        absl::Status s;
+        if (delay == std::chrono::milliseconds::zero()) {
+            s = postImmediately(std::move(task_runner));
+        } else {
+            s = postDelayed(std::move(task_runner), delay);
+        }
+        if (!s.ok()) {
+            return s;
+        }
+
         return future;
     }
 
@@ -196,25 +204,21 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * will immediately exit with a FATAL warning.
      */
     template <typename F>
-    auto postAndWait(F&& task) -> decltype(task()) {
+    auto postAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status, absl::StatusOr<decltype(task())>> {
         if (isOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
 
-        using ResultType = decltype(task());
-        auto promise = std::make_shared<std::promise<ResultType>>();
-        auto future = promise->get_future();
-
-        post([promise, task = std::forward<F>(task)]() mutable {
-            if constexpr (std::is_same_v<ResultType, void>) {
-                task();
-                promise->set_value();
+        if (auto future = post<F>(std::forward<F>(task)); future.ok()) {
+            if constexpr (std::is_void_v<decltype(task())>) {
+                future->get();
+                return absl::OkStatus();
             } else {
-                promise->set_value(task());
+                return future->get();
             }
-        });
-
-        return future.get();
+        } else {
+            return future.status();
+        }
     }
 
     /**
@@ -261,7 +265,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     virtual LooperStatusEvent::State getState() const { return mState; }
 
   protected:
-    virtual void postImpl(Task task, std::chrono::milliseconds delay) = 0;
+    virtual absl::Status postImmediately(Task task) = 0;
+    virtual absl::Status postDelayed(Task task, std::chrono::milliseconds delay) = 0;
 
     void setState(LooperStatusEvent::State newState) {
         LooperStatusEvent::State oldState = mState.exchange(newState);

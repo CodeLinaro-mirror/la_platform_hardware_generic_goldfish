@@ -225,10 +225,8 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     }
 
     // Make sure we don't have live sockets on our loops.
-    mQemuLoop->shutdown(100ms).wait_for(100ms);
-    mQemuLoop->stop();
-    mClientLoop->shutdown(100ms).wait_for(100ms);
-    mClientLoop->stop();
+    mQemuLoop->shutdownAndWait(100ms);
+    mClientLoop->shutdownAndWait(100ms);
 }
 
 }  // namespace devices

@@ -22,12 +22,14 @@
 #include <thread>
 
 #include "absl/synchronization/notification.h"
+#include "absl/status/status_matchers.h"
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
+
 #include "hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;
@@ -68,9 +70,11 @@ class HalPlugAdapterTest : public ::testing::Test {
         mMockSocket = std::make_unique<MockSocket>();
         mMockSocketPtr = cable::SocketPtr(mMockSocket.get());
 
-        mAdapter = mQemuLoop->postAndWait([&] {
+        auto f = mQemuLoop->postAndWait([&] {
             return std::make_shared<HalPlugToIPlugAdapter>(mClientLoop.get(), mMockHalPlug);
         });
+        ASSERT_THAT(f, ::absl_testing::IsOk());
+        mAdapter = *f;
     }
 
     void TearDown() override {
@@ -86,8 +90,8 @@ class HalPlugAdapterTest : public ::testing::Test {
             closed.WaitForNotificationWithTimeout(absl::Milliseconds(100));
         }
 
-        mQemuLoop->shutdown(100ms).wait_for(100ms);
-        mClientLoop->shutdown(100ms).wait_for(100ms);
+        mQemuLoop->shutdownAndWait(100ms);
+        mClientLoop->shutdownAndWait(100ms);
     }
 
     void connect() {

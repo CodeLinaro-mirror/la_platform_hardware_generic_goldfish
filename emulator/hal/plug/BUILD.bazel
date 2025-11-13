@@ -95,8 +95,10 @@ cc_test(
         ":marshalling_hal_socket",
         "//hardware/generic/goldfish/android/async:async_testing",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:threaded_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_impl",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/synchronization",
     ],
 )

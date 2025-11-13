@@ -267,10 +267,10 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "Shutting down";
         std::thread([&l] {
             // This has to be a separate thread apparently.
-            if (auto s = l.mEventLoop.shutdown(std::chrono::seconds(10)).get(); s.ok()) {
-                VLOG(1) << "Event loop shutdown succeeded";
+            if (auto s = l.mEventLoop.shutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
+                LOG(ERROR) << "Event loop shutdown error: " << s;
             } else {
-                LOG(ERROR) << "Event loop shutdown returned error: " << s;
+                VLOG(1) << "Event loop shutdown succeeded";
             }
         }).detach();
     }

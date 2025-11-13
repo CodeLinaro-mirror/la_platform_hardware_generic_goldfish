@@ -107,7 +107,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         void cancel() override {
             if (auto *loop = mEventLoop.load()) {
                 // Stop and delete the timer from the event loop.
-                loop->postImmediately([self = shared_from_this()]() { self->doCancel(); });
+                loop->postImmediatelyInternal([self = shared_from_this()]() { self->doCancel(); });
             } else {
                 LOG(ERROR) << "Can't cancel a timer after it has been cancelled";
             }
@@ -116,7 +116,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         void schedule(std::chrono::milliseconds new_delay,
                                  std::chrono::milliseconds new_interval) override {
             if (auto *loop = mEventLoop.load()) {
-                loop->postImmediately([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
+                loop->postImmediatelyInternal([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
                     self->mInterval_ms = new_interval_ms;
                     if (QEMUTimer* qemuTimer = self->getQemuTimer()) {
                         timer_mod(qemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + new_delay_ms);
@@ -131,7 +131,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         void addItselfToActiveTimers() {
             // shared_from_this() is not available in the ctor
             auto *loop = mEventLoop.load();
-            loop->postImmediately([loop, self = shared_from_this()]() {
+            loop->postImmediatelyInternal([loop, self = shared_from_this()]() {
                 assert(!self->mPinned);
                 self->mPinned = self;
                 timer_init_ms(&self->mQemuTimerHandle, QEMU_CLOCK_REALTIME, &QemuTimer::onTimer, self.get());
@@ -192,16 +192,16 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         assert(mActiveTimers.empty());
     };
 
-    absl::Status run() override;
-    void stop() override;
-    std::future<absl::Status> shutdown(std::chrono::milliseconds timeout) override;
+    std::future<absl::Status> shutdown() override;
+
     bool isOnLoopThread() const override;
 
-    void postImpl(Task task, std::chrono::milliseconds delay) override;
     std::shared_ptr<EventLoop::Timer> createTimer(Task task) override;
 
   private:
-    void postImmediately(Task task);
+    void postImmediatelyInternal(Task task);
+    absl::Status postImmediately(Task task) override;
+    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override;
 
     void drainQueue() {
         mQemuThreadId = std::this_thread::get_id();
@@ -261,26 +261,15 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
 // --- QemuEventLoopImpl Method Implementations ---
 
-absl::Status QemuEventLoopImpl::run() {
-    LOG(WARNING) << "QemuEventLoopImpl::run() should not be called. The QEMU main "
-                    "loop is managed by the application.";
-    return absl::UnimplementedError("run() is not supported");
-}
-
-void QemuEventLoopImpl::stop() {
-    LOG(WARNING) << "QemuEventLoopImpl::stop() should not be called. The QEMU main "
-                    "loop is managed by the application.";
-}
-
-std::future<absl::Status> QemuEventLoopImpl::shutdown(std::chrono::milliseconds timeout) {
-    std::promise<absl::Status> promise;
+std::future<absl::Status> QemuEventLoopImpl::shutdown() {
     if (mIsShuttingDown.exchange(true)) {
+        std::promise<absl::Status> promise;
         promise.set_value(absl::InvalidArgumentError("This loop has already been shutdown"));
         return promise.get_future();
     }
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
 
-    postImmediately([this] {
+    postImmediatelyInternal([this] {
         shutdownTimers();
         mShutdownCompletePromise.set_value(absl::OkStatus());
     });
@@ -292,7 +281,7 @@ bool QemuEventLoopImpl::isOnLoopThread() const {
     return mQemuThreadId == std::this_thread::get_id();
 }
 
-void QemuEventLoopImpl::postImmediately(Task task) {
+void QemuEventLoopImpl::postImmediatelyInternal(Task task) {
     std::lock_guard<std::mutex> lock(mQueueMutex);
     mTaskQueue.push(std::move(task));
 
@@ -302,21 +291,27 @@ void QemuEventLoopImpl::postImmediately(Task task) {
     }
 }
 
-void QemuEventLoopImpl::postImpl(Task task, std::chrono::milliseconds delay) {
+absl::Status QemuEventLoopImpl::postImmediately(Task task) {
     if (mIsShuttingDown) {
         LOG(ERROR) << "Event loop is shutting down, not scheduling task";
-        return;
+        return absl::UnavailableError("QemuEventLoopImpl is shutting down");
     }
 
-    if (delay == std::chrono::milliseconds::zero()) {
-        postImmediately(std::move(task));
-        return;
+    postImmediatelyInternal(std::move(task));
+    return absl::OkStatus();
+}
+
+absl::Status QemuEventLoopImpl::postDelayed(Task task, std::chrono::milliseconds delay) {
+    if (mIsShuttingDown) {
+        LOG(ERROR) << "Event loop is shutting down, not scheduling task";
+        return absl::UnavailableError("QemuEventLoopImpl is shutting down");
     }
 
     // The timer will manage its own lifetime via a shared_ptr cycle that is
     // broken when the timer fires.
     auto timer = QemuTimer::create(this, std::move(task), /*auto_cancel=*/true);
     timer->schedule(delay, std::chrono::milliseconds::zero());
+    return absl::OkStatus();
 }
 
 std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::createTimer(Task task) {
@@ -331,12 +326,11 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::createTimer(Task task) {
 
 // --- Factory Function ---
 std::unique_ptr<QemuEventLoop> QemuEventLoop::create() {
-    // Discover the qemu thread and mark ourselves as running.
     auto loop = std::make_unique<QemuEventLoopImpl>();
+    (void)loop->post([loop_ptr = loop.get()] {
+        loop_ptr->setState(LooperStatusEvent::State::RUNNING);
+    });
 
-    // It is always running..
-    loop->setState(LooperStatusEvent::State::RUNNING);
-    loop->post([] {});
     return loop;
 }
 

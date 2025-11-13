@@ -149,6 +149,7 @@ cc_test(
         ":connector_registry_hdrs",
         ":connector_registry_impl",
         "//hardware/generic/goldfish/android/async:libuv_event_loop",
+        "//hardware/generic/goldfish/android/async:threaded_event_loop",
         "//hardware/generic/goldfish/android/system:googletest_main",
         "//hardware/generic/goldfish/emulator/hal/plug:fake_vsock",
     ],
@@ -175,6 +176,7 @@ cc_test(
 
 cc_library(
     name = "test-helpers",
+    testonly = True,
     srcs = [
         # "test/goldfish/devices/test_socket.cpp",
     ],

@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "goldfish/async/event_loop.h"
+#include "goldfish/async/libuv_event_loop.h"
 
 namespace goldfish::async {
 
@@ -57,7 +58,7 @@ class ThreadedEventLoop : public EventLoop {
      * @return A `std::chrono::milliseconds` value representing the timeout.
      */
     static constexpr std::chrono::milliseconds getTimeout() {
-        return std::chrono::milliseconds(500);
+        return std::chrono::seconds(5);
     }
 
     /**
@@ -77,7 +78,10 @@ class ThreadedEventLoop : public EventLoop {
      * @return A `std::unique_ptr` to the new `ThreadedEventLoop` on success, or
      * `nullptr` if the background thread fails to start in a timely manner.
      */
-    static std::unique_ptr<ThreadedEventLoop> create(std::unique_ptr<EventLoop> toRun);
+    static std::unique_ptr<ThreadedEventLoop> create(std::unique_ptr<LibuvEventLoop> toRun);
+
+  protected:
+    virtual absl::Status start() = 0;
 };
 
 }  // namespace goldfish::async
