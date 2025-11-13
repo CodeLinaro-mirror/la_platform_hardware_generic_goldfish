@@ -14,53 +14,45 @@
 
 #include "android/crashreport/HangDetector.h"
 
-#include <assert.h>
-#include <gtest/gtest.h>
-#include <stdio.h>
-
 #include <string_view>
 
+#include "absl/status/status_matchers.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/time.h"
+#include "gtest/gtest.h"
+
 #include "aemu/base/Debug.h"
-#include "aemu/base/Log.h"
-#include "aemu/base/async/ThreadLooper.h"
-#include "aemu/base/testing/TestLooper.h"
 
-struct AvdInfo;
+#include "android/base/system/abseil_clock.h"
 
-using namespace android::base;
-using namespace android::crashreport;
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
+
+namespace android::crashreport {
 
 class HangDetectorTest : public ::testing::Test {
   public:
     HangDetectorTest()
-        : mHangDetector(
-                  [this](std::string_view msg) {
-                      std::unique_lock<std::mutex> l(mLock);
-                      mHangDetected = true;
-                      mHangCondition.notify_one();
-                  },
-                  {
-                          .hangLoopIterationTimeout = std::chrono::milliseconds(100),
-                          .hangCheckTimeout = std::chrono::milliseconds(10),
-                  }) {}
+            : mHangDetector(HangDetector::create(
+                      [this](std::string_view msg) {
+                          if (!mNotify.HasBeenNotified()) {
+                              mNotify.Notify();
+                          }
+                      },
+                      {
+                          .hangLoopIterationTimeout = absl::Milliseconds(100),
+                          .hangCheckTimeout = absl::Milliseconds(1000),
+                      },
+                      std::make_unique<android::base::AbseilClock>())) {}
 
-    void TearDown() override { mHangDetector.stop(); }
+    void TearDown() override { mHangDetector->stop(); }
 
-    void waitUntilUnlocked() {
-        std::unique_lock<std::mutex> l(mLock);
-        auto waitUntil = std::chrono::high_resolution_clock::now() + kMaxBlockingTime;
-        while (!mHangDetected && std::chrono::high_resolution_clock::now() < waitUntil) {
-            mHangCondition.wait_until(l, waitUntil);
-        }
-        EXPECT_TRUE(mHangDetected);
-    }
+    bool wait_for_hang() { return mNotify.WaitForNotificationWithTimeout(kMaxBlockingTime); }
 
   protected:
-    const std::chrono::seconds kMaxBlockingTime = std::chrono::seconds(30);
-    std::mutex mLock;
-    std::condition_variable mHangCondition;
-    bool mHangDetected{false};
-    HangDetector mHangDetector;
+    const absl::Duration kMaxBlockingTime = absl::Seconds(10);
+    absl::Notification mNotify;
+    std::unique_ptr<HangDetector> mHangDetector;
 };
 
 TEST_F(HangDetectorTest, PredicateTriggersHang) {
@@ -68,14 +60,77 @@ TEST_F(HangDetectorTest, PredicateTriggersHang) {
         printf("This test cannot be run under a debugger.");
         return;
     }
-    mHangDetector.addPredicateCheck([] { return true; }, "Always dead");
-    waitUntilUnlocked();
+    mHangDetector->addPredicateCheck([] { return true; }, "Always dead");
+    ASSERT_TRUE(wait_for_hang());
 }
 
-// Flaky failure to detect hang on Mac.
-TEST_F(HangDetectorTest, DISABLED_BlockedLooperTriggersHang) {
-    // Note that the looper is not running!
-    TestLooper looper;
-    mHangDetector.addWatchedLooper(&looper);
-    waitUntilUnlocked();
+TEST_F(HangDetectorTest, NormalLoopNoHang) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+
+    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    EXPECT_FALSE(wait_for_hang());
 }
+
+TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+
+    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    // Add a hanging task
+    absl::Notification hang;
+    event_loop->post([&hang] { hang.WaitForNotification(); });
+    ASSERT_TRUE(wait_for_hang());
+
+    // Unblock the loop so that it actually terminates!
+    hang.Notify();
+
+    // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
+    // destroyed before the loop.
+    event_loop->shutdownAndWait();
+}
+
+TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+
+    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    // Note no hanging task.
+
+    // Delete the event loop while the hang detector is still running.
+    event_loop.reset();
+
+    ASSERT_TRUE(wait_for_hang());
+}
+
+TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
+    // Note test loop has to be used as trying to destroy the uv loop hangs waiting for all tasks to
+    // complete.
+    // auto event_loop = goldfish::async::testing::TestEventLoop::create();
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+
+    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+
+    // Add a hanging task
+    absl::Notification hang;
+    event_loop->post([&hang] { hang.WaitForNotification(); });
+
+    ASSERT_TRUE(wait_for_hang());
+
+    auto f = event_loop->shutdown();
+    ASSERT_THAT(f, absl_testing::IsOk());
+
+    // Unblock the loop so that it actually terminates!
+    hang.Notify();
+
+    ASSERT_THAT(f->get(), absl_testing::IsOk());
+
+    // Delete the event loop while the hang detector is still running.
+    event_loop.reset();
+}
+
+}  // namespace android::crashreport
