@@ -20,6 +20,7 @@ import logging
 import asyncio
 import argparse
 import tempfile
+import time
 from emulator_lib import launch_and_monitor_emulator
 
 
@@ -94,5 +95,9 @@ if __name__ == "__main__":
                     disable_crash_reporting=args.disable_crash_reporting,
                 )
             )
+
+            # give netsim some time to die
+            time.sleep(5)
+
             if exit_code != 0:
                 sys.exit(exit_code)
