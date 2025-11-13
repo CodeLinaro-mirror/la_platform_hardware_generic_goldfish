@@ -31,17 +31,17 @@ using goldfish::physics::InertialState;
 
 namespace goldfish::sensors {
 
-FoldableState PhysicalModel::getFoldableState() {
+FoldableState PhysicalModel::getFoldableState() const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
     return mFoldableModel.getFoldableState();
 }
 
-bool PhysicalModel::foldableIsFolded() {
+bool PhysicalModel::foldableIsFolded() const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
     return mFoldableModel.isFolded();
 }
 
-bool PhysicalModel::getFoldedArea(int* x, int* y, int* w, int* h) {
+bool PhysicalModel::getFoldedArea(int* x, int* y, int* w, int* h) const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
     return mFoldableModel.getFoldedArea(x, y, w, h);
 }

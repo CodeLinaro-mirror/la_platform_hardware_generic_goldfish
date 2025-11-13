@@ -136,7 +136,7 @@ bool FoldableModel::getFoldedArea(int* x, int* y, int* w, int* h) const {
     return false;
 }
 
-bool FoldableModel::isFolded() {
+bool FoldableModel::isFolded() const {
     LOG(WARNING) << "Not yet implemented";
     return false;
 }
