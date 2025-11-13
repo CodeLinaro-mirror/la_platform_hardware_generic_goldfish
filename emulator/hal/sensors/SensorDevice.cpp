@@ -58,12 +58,6 @@ struct SensorInfo {
     int id{0};
 };
 
-// Physical parameter information
-struct PhysicalParameterInfo {
-    const std::string_view name;
-    int id{0};
-};
-
 // Serialized sensor data
 struct SerializedSensor {
     unsigned long measurement_id{0};
@@ -650,47 +644,6 @@ class SensorDevice : public ISensorDevice {
         }
 
         // TODO(jansene): (fire sensor change event)
-    }
-
-    void getPhysicalParameterValue(PhysicalParameter parameter_id, float* const* out,
-                                   const size_t count, ParameterValueType parameter_value_type) {
-        switch (parameter_id) {
-#define ENUM_NAME(x) PhysicalParameter::x
-#define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
-#define GET_PARAMETER_FUNCTION_NAME(x) mPhysicalModel->getParameter##x
-#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                         \
-    case ENUM_NAME(x):                                                      \
-        TYPE_GET_VALUES_FUNCTION_NAME(w)                                    \
-        (GET_PARAMETER_FUNCTION_NAME(z)(parameter_value_type), out, count); \
-        break;
-            GOLDFISH_PHYSICAL_PARAMETERS_LIST
-#undef GET_PARAMETER_FUNCTION_NAME
-#undef TYPE_GET_VALUES_FUNCTION_NAME
-#undef ENUM_NAME
-#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-        default:
-            assert(false);  // should never happen
-            break;
-        }
-    }
-
-    void getPhysicalParameterValueSize(PhysicalParameter parameter_id, size_t* size) const {
-        switch (parameter_id) {
-#define ENUM_NAME(x) PhysicalParameter::x
-#define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
-#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    case ENUM_NAME(x):                              \
-        TYPE_GET_VALUES_FUNCTION_NAME(w)            \
-        (size);                                     \
-        break;
-            GOLDFISH_PHYSICAL_PARAMETERS_LIST
-#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef TYPE_GET_VALUES_FUNCTION_NAME
-#undef ENUM_NAME
-        default:
-            assert(false);  // should never happen
-            break;
-        }
     }
 
     bool enabled(int sensorId) { return (mEnabledMask & (1 << sensorId)) != 0; }
