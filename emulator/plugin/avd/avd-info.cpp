@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/files/IniFile.h"
@@ -38,6 +39,8 @@
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
+
+#include "VCpuEventLoop.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -107,6 +110,17 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
 }
 
 std::unique_ptr<async::EventLoop> gQemuLoop;
+std::vector<VCpuEventLoop> gQemuCpuLoops;
+
+std::vector<VCpuEventLoop> createVCpuEventLoops() {
+    int cpus_count = VCpuEventLoop::cpus_count();
+    std::vector<VCpuEventLoop> loops;
+    loops.reserve(cpus_count);
+    for (int i = 0; i < cpus_count; ++i) {
+        loops.emplace_back(i);
+    }
+    return loops;
+}
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
@@ -146,6 +160,11 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     gQemuLoop = goldfish::async::QemuEventLoop::create();
     android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper("QemuEventLoop", *gQemuLoop, absl::Seconds(15));
+
+    gQemuCpuLoops = createVCpuEventLoops();
+    for (auto &loop: gQemuCpuLoops) {
+        android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
+    }
 
     auto* registry = &connector_registry();
 
