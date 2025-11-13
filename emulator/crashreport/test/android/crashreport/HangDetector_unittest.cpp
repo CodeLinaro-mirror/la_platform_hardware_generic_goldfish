@@ -109,9 +109,7 @@ TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
 TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
     // Note test loop has to be used as trying to destroy the uv loop hangs waiting for all tasks to
     // complete.
-    // auto event_loop = goldfish::async::testing::TestEventLoop::create();
-    auto event_loop =
-            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+    auto event_loop = goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
@@ -122,12 +120,11 @@ TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
     ASSERT_TRUE(wait_for_hang());
 
     auto f = event_loop->shutdown();
-    ASSERT_THAT(f, absl_testing::IsOk());
 
     // Unblock the loop so that it actually terminates!
     hang.Notify();
 
-    ASSERT_THAT(f->get(), absl_testing::IsOk());
+    ASSERT_THAT(f.get(), absl_testing::IsOk());
 
     // Delete the event loop while the hang detector is still running.
     event_loop.reset();
