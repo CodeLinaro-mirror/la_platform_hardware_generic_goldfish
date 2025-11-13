@@ -228,23 +228,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Helper for getting current sensor values.
      */
-    template <class T>
+    template <class T, class GETTER>
     T getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
-                     std::function<T()> physicalGetter, long* measurement_id) const {
-        const size_t sensorIndex = static_cast<size_t>(sensor);
+                     const GETTER& physicalGetter, long* measurement_id) const;
 
-        std::lock_guard<std::recursive_mutex> lock(mMutex);
-        if (mUseOverride[static_cast<size_t>(sensor)]) {
-            *measurement_id = mMeasurementId[sensorIndex];
-            return *overrideMemberPointer;
-        } else {
-            if (mIsPhysicalStateChanging) {
-                mMeasurementId[sensorIndex]++;
-            }
-            *measurement_id = mMeasurementId[sensorIndex];
-            return physicalGetter();
-        }
-    }
 
     void physicalStateChanging();    ///< Called when physical state begins changing
     void physicalStateStabilized();  ///< Called when physical state stabilizes

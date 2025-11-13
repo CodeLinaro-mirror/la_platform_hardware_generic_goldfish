@@ -349,6 +349,24 @@ float PhysicalModel::getParameterWristTilt(ParameterValueType parameterValueType
     return mInertialModel.getWristTilt(parameterValueType);
 }
 
+template <class T, class GETTER>
+T PhysicalModel::getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
+                                const GETTER& physicalGetter, long* measurement_id) const {
+    const size_t sensorIndex = static_cast<size_t>(sensor);
+
+    std::lock_guard<std::recursive_mutex> lock(mMutex);
+    if (mUseOverride[static_cast<size_t>(sensor)]) {
+        *measurement_id = mMeasurementId[sensorIndex];
+        return *overrideMemberPointer;
+    } else {
+        if (mIsPhysicalStateChanging) {
+            mMeasurementId[sensorIndex]++;
+        }
+        *measurement_id = mMeasurementId[sensorIndex];
+        return physicalGetter();
+    }
+}
+
 #define GET_FUNCTION_NAME(x) get##x
 #define OVERRIDE_FUNCTION_NAME(x) override##x
 #define OVERRIDE_NAME(x) m##x##Override
