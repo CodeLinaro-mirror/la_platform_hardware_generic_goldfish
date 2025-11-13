@@ -87,12 +87,6 @@ class ISensorDevice : public HalPlug,
      */
     virtual absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) = 0;
 
-    virtual bool isSensorEnabled(AndroidSensor sensor_id) = 0;
-
-    virtual std::chrono::microseconds getSensorTimeOffset() = 0;
-
-    virtual std::chrono::milliseconds getSensorDelayMs() = 0;
-
     /**
      * @brief Retrieves the device's current rotation based on accelerometer data.
      *

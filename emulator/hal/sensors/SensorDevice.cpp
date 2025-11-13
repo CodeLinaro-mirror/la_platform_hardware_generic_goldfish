@@ -467,20 +467,6 @@ class SensorDevice : public ISensorDevice {
         return val;
     }
 
-    bool isSensorEnabled(AndroidSensor sensor_id) override {
-        if (sensor_id >= AndroidSensor::MAX_SENSORS) return false;
-
-        return mSensors[static_cast<size_t>(sensor_id)].enabled;
-    }
-
-    std::chrono::microseconds getSensorTimeOffset() override {
-        return absl::ToChronoMicroseconds(mTimeOffset);
-    }
-
-    std::chrono::milliseconds getSensorDelayMs() override {
-        return absl::ToChronoMilliseconds(mDelay);
-    }
-
     absl::StatusOr<Rotation> getDeviceRotation() override {
         auto out = getSensorData(AndroidSensor::ACCELERATION);
         if (!out.ok()) {

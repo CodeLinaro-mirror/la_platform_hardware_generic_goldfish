@@ -26,23 +26,6 @@ class FakeSensorDevice : public ISensorDevice,
         return absl::OkStatus();
     }
 
-    bool isSensorEnabled(AndroidSensor sensor_id) override {
-        return mEnabledSensors.count(sensor_id) > 0;
-    }
-    void setSensorEnabled(AndroidSensor sensor_id, bool enabled) {
-        if (enabled) {
-            mEnabledSensors.insert(sensor_id);
-        } else {
-            mEnabledSensors.erase(sensor_id);
-        }
-    }
-
-    std::chrono::microseconds getSensorTimeOffset() override { return mTimeOffset; }
-    void setSensorTimeOffset(std::chrono::microseconds offset) { mTimeOffset = offset; }
-
-    std::chrono::milliseconds getSensorDelayMs() override { return mDelayMs; }
-    void setSensorDelayMs(std::chrono::milliseconds delay) { mDelayMs = delay; }
-
     absl::StatusOr<Rotation> getDeviceRotation() override { return mRotation; }
     void setDeviceRotation(const Rotation& rotation) { mRotation = rotation; }
 
@@ -57,8 +40,6 @@ class FakeSensorDevice : public ISensorDevice,
   private:
     std::map<AndroidSensor, SensorData> mSensorData;
     std::set<AndroidSensor> mEnabledSensors;
-    std::chrono::microseconds mTimeOffset{0};
-    std::chrono::milliseconds mDelayMs{0};
     Rotation mRotation;
 };
 
