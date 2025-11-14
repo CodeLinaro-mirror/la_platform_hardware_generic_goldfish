@@ -107,9 +107,7 @@ TEST(Initrd, Basic) {
 
     InitrdDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(
-                                     testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
 }
 
 TEST(Initrd, RamdiskFlag) {
@@ -144,7 +142,8 @@ TEST(Initrd, RamdiskFlag) {
     InitrdDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     auto params = dev.getQemuParameters(emu.config());
-    EXPECT_THAT(params, testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith("content/initrd")));
+
+    EXPECT_THAT(params, testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
     std::string contents;
     std::ifstream{params[1]} >> contents;
     EXPECT_THAT(contents, testing::StartsWith("abc"));
