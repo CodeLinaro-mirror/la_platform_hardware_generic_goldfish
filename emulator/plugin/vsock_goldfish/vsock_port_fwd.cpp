@@ -32,6 +32,7 @@
 #include "goldfish/devices/connection_awaiter.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/global-event-loop.h"
 #include "goldfish/vsock/connect.h"
 #include "android/misc/GuestStatusDevice.h"
 
@@ -175,9 +176,7 @@ class VSockProxyImpl : public VSockProxy {
     VSockProxyImpl(VSockFwdDev* device)
             : mDevice(device)
             , mQemuLoop(goldfish::avd_info::getQemuEventLoop())
-            // TODO(whollins): Should we use the global libuv event loop here instead creating another?
-            // If we really need a separate one then should we add it to hang detector?
-            , mClientLoop(ThreadedEventLoop::create(LibuvEventLoop::create())) {
+            , mClientLoop(goldfish::async::globalEventLoop()) {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
                 mQemuLoop,
@@ -196,7 +195,7 @@ class VSockProxyImpl : public VSockProxy {
         auto serverAddress = absl::StrFormat("localhost:%d", mDevice->host_port);
         VLOG(1) << "Starting server on " << serverAddress;
         mSocketServer = mSocketFactory.createServer(
-                mClientLoop.get(), serverAddress,
+                mClientLoop, serverAddress,
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
                     mQemuLoop->post([this, hostToGuest = std::move(hostToGuest)] {
@@ -233,7 +232,7 @@ class VSockProxyImpl : public VSockProxy {
         VLOG(1) << "Received an incoming connection socket connection!";
         auto adapter = HalPlugFactory::connect(
                 mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
-                mClientLoop.get(), mQemuLoop, std::move(onFlowControlEvent),
+                mClientLoop, mQemuLoop, std::move(onFlowControlEvent),
                 mDevice->data_sniffer_factory);
         VLOG(1) << "Adapter registered: " << adapter;
         return true;
@@ -242,7 +241,7 @@ class VSockProxyImpl : public VSockProxy {
     /// The vsock device definition
     VSockFwdDev* mDevice;
     EventLoop* mQemuLoop;    // The main QEMU event loop
-    const std::unique_ptr<EventLoop> mClientLoop;  // Client-side event loop for sockets
+    EventLoop* mClientLoop;  // Client-side event loop for sockets
     LibuvAsyncSocketFactory mSocketFactory;
 
     /// The AsyncSocketServer used to listen for incoming connections.
