@@ -84,7 +84,7 @@ absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string& endpoi
 
 absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
         const std::filesystem::path& netsim_binary, const AndroidOptions& opts) {
-    bool no_cli_ui = true;  //! feature_is_enabled(kFeature_NetsimCliUi),
+    bool no_cli_ui = false;  //! feature_is_enabled(kFeature_NetsimCliUi),
     bool no_web_ui = true;  //! feature_is_enabled(kFeature_NetsimWebUi),
     std::string host_dns = opts.dns_server ? opts.dns_server : "";
     if (host_dns.empty()) {
