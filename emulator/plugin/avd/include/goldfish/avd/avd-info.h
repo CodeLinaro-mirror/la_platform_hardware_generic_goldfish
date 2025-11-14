@@ -16,6 +16,7 @@
 
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::avd_info {
@@ -65,6 +66,8 @@ struct AvdUniverse {
 AvdUniverse& getAvd();
 
 devices::ConnectorRegistry& connector_registry();
+
+::goldfish::async::EventLoop *getQemuEventLoop();
 
 void avd_info_register_types(void);
 

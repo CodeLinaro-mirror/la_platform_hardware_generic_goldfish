@@ -45,7 +45,7 @@ cc_library(
         "//hardware/generic/goldfish/emulator/libs/UniqueIdAllocator",
         "//hardware/generic/goldfish/emulator/libs/archive:QEMUFileArchive",
         "//hardware/generic/goldfish/emulator/libs/debug",
-        "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
+        "//hardware/generic/goldfish/emulator/plugin/avd",
         "//third_party/qemu:qemu-headers",
         "@aemu//base:event-support",
     ],

@@ -78,7 +78,6 @@ struct GrpcConfig {
     int idle_timeout{0};
     int port{0};
 
-    std::unique_ptr<EventLoop> qemu_loop;
     std::unique_ptr<EmulatorControllerService> grpc_service;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
 };
@@ -141,13 +140,11 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                               "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
                               "\"-grpc-use-token\""}};
 
-    config->qemu_loop = QemuEventLoop::create();
-
     auto *registry = &goldfish::avd_info::connector_registry();
 
     auto service = ::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), registry, avdprops.avd_api, avdprops.hw_config, IMultiDisplay::instance(),
-            config->qemu_loop.get());
+            goldfish::avd_info::getQemuEventLoop());
 
     // TODO config->addr is set but not used anywhere
     auto builder = EmulatorControllerService::Builder()

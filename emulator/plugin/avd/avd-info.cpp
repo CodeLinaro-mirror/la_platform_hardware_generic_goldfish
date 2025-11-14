@@ -81,6 +81,9 @@ using devices::ConnectorRegistry;
 
 AvdUniverse* gAvdUniverse;
 
+std::unique_ptr<async::EventLoop> gQemuLoop;
+std::vector<VCpuEventLoop> gQemuCpuLoops;
+
 }  // namespace
 
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props) : mProps(std::move(props)) {}
@@ -98,6 +101,15 @@ ConnectorRegistry& connector_registry() {
     return ConnectorRegistry::defaultRegistry();
 }
 
+::goldfish::async::EventLoop *getQemuEventLoop() {
+    if (!gQemuLoop) {
+        LOG(FATAL) << "The QemuEventLoop instance is not yet available. "
+                      "This is a QEMU configuration issue which must be fixed in the launcher.";
+    }
+
+    return gQemuLoop.get();
+}
+
 namespace {
 void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
 
@@ -108,9 +120,6 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
         abort();
     }
 }
-
-std::unique_ptr<async::EventLoop> gQemuLoop;
-std::vector<VCpuEventLoop> gQemuCpuLoops;
 
 std::vector<VCpuEventLoop> createVCpuEventLoops() {
     int cpus_count = VCpuEventLoop::cpus_count();
