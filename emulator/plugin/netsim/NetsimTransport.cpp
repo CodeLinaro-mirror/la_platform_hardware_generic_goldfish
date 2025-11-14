@@ -63,6 +63,7 @@ void NetsimTransport::cancel() {
 }
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
+    mKindName = ::netsim::common::ChipKind_Name(chip.kind());
     auto& avdprops = goldfish::avd_info::getAvd().props();
 
     ::netsim::packet::PacketRequest initial_request;
@@ -77,7 +78,7 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     device_info->set_variant(avdprops.build_flavour);
     device_info->set_arch(avdprops.avd_abi);
 
-    VLOG(1) << "Creating gRPC channel to netsimd endpoint: " << mEndpoint;
+    VLOG(1) << "Netsim Transport " << mEndpoint << " - creating gRPC channel to netsimd endpoint: " << mEndpoint;
     android::emulation::control::Endpoint endpoint_config;
     endpoint_config.set_target(mEndpoint);
 
@@ -97,7 +98,7 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     send(initial_request);
     next_recv();
 
-    LOG(INFO) << "Successfully initialized netsim transport";
+    LOG(INFO) << "Netsim Transport " << mKindName << " - successfully initialized";
     return absl::OkStatus();
 }
 
@@ -147,7 +148,7 @@ void NetsimTransport::OnReadDone(bool ok) {
         }
     } else {
         // Reading finished
-        LOG(INFO) << "Reading terminated";
+        VLOG(1) << "Netsim Transport " << mKindName << " - reading terminated";
         std::lock_guard<std::mutex> lock(mReadlock);
         mReadDone = true;
     }
@@ -155,9 +156,9 @@ void NetsimTransport::OnReadDone(bool ok) {
 
 void NetsimTransport::OnDone(const grpc::Status& s) {
     if (s.error_code() == grpc::StatusCode::CANCELLED) {
-        LOG(INFO) << "Netsim Transport " << mStreamPacketsContext->peer() << " was cancelled";
+        LOG(INFO) << "Netsim Transport " << mKindName << " - connection to " << mStreamPacketsContext->peer() << " was cancelled";
     } else {
-        LOG(WARNING) << "Netsim Transport " << mStreamPacketsContext->peer() << " is gone due to "
+        LOG(WARNING) << "Netsim Transport " << mKindName << " - connection to " << mStreamPacketsContext->peer() << " is gone due to "
                     << s.error_message();
     }
     mDone.Notify();

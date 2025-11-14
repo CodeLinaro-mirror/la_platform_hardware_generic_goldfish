@@ -60,6 +60,8 @@ class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketR
   std::string mEndpoint;
   RecvCallback mRecvCb;
 
+  std::string mKindName;
+
   std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient> mGrpcClient;
   std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
 
