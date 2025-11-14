@@ -1,21 +1,39 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "network",
     srcs = [
-        "src/android/base/network/Dns.cpp",
-        "src/android/base/network/IpAddress.cpp",
-        "src/android/base/network/NetworkUtils.cpp",
+        "src/dns_resolver.cpp",
+        "src/endpoint.cpp",
+        "src/ip_address.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/network/dns_resolver.h",
+        "include/goldfish/network/endpoint.h",
+        "include/goldfish/network/ip_address.h",
     ],
     includes = ["include"],
-    linkopts = select({
-        "@platforms//os:windows": ["/DEFAULTLIB:Iphlpapi.lib"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
         "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@aemu//base:event-support",
+        "@c-ares//:ares",
+    ],
+)
+
+cc_test(
+    name = "network_unittests",
+    size = "small",
+    srcs = [
+        "test/dns_resolver_test.cpp",
+        "test/endpoint_test.cpp",
+        "test/ip_address_test.cpp",
+    ],
+    deps = [
+        ":network",
+        "//hardware/generic/goldfish/android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
