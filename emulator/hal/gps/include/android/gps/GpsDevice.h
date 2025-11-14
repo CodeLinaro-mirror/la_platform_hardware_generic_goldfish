@@ -17,8 +17,6 @@
 
 #include <string_view>
 
-#include "absl/status/status.h"
-
 #include "aemu/base/events/EventSources.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/gps/Location.h"

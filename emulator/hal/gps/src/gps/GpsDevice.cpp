@@ -22,13 +22,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
-
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::gps {
 
