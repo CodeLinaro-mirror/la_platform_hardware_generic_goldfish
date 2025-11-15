@@ -41,19 +41,17 @@ class GpsDevice : public IGpsDevice {
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
-    void send(std::string msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
-        VLOG(2) << "Sending " << encoded;
-        socket()->send(encoded);
-    }
-
     Location getLocation() const override { return mLastKnownLocation; };
 
     void setLocation(const Location& location) override {
         VLOG(1) << "Setting the location to:" << location;
-
         mLastKnownLocation = location;
+        send(location);
+        fireEvent(location);
+    };
 
+  private:
+    void send(const Location& location) {
         constexpr double kAccuracyMeters = 1;
         constexpr double kAccuracySpeed = 0.5;
         constexpr double kAccuracyHeading = 2;
@@ -64,15 +62,18 @@ class GpsDevice : public IGpsDevice {
 
         // Format must match:
         // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/master/gnss/common/utils/default/FixLocationParser.cpp
-        send(absl::StrFormat("$GnssRpcV1,%d,%g,%g,%g,%g,%g,%g,%lld,%g,%g,%d", kUnused,
-                             location.latitude, location.longitude, location.altitude,
-                             location.speed, kAccuracyMeters, location.bearing, tMs, kAccuracySpeed,
-                             kAccuracyHeading, kUnused));
+        sendImpl(absl::StrFormat("$GnssRpcV1,%d,%g,%g,%g,%g,%g,%g,%lld,%g,%g,%d", kUnused,
+                                 location.latitude, location.longitude, location.altitude,
+                                 location.speed, kAccuracyMeters, location.bearing, tMs,
+                                 kAccuracySpeed, kAccuracyHeading, kUnused));
+    }
 
-        fireEvent(location);
-    };
+    void sendImpl(std::string_view msg) {
+        auto encoded = qemud::encodeQemudPacket(msg);
+        VLOG(2) << "Sending " << encoded;
+        socket()->send(std::move(encoded));
+    }
 
-  private:
     Location googleplex() {
         return Location{
             .latitude = 39.237256,
