@@ -177,25 +177,25 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     auto* registry = &connector_registry();
 
-    goldfish::devices::sensor::ISensorDevice::registerDevice(
+    namespace DEVS = goldfish::devices;
+
+    DEVS::sensor::ISensorDevice::registerDevice(
             registry, avd_props.avd_type, avd_props.avd_api,
             avd_props.hw_config, clientLoop, gQemuLoop.get());
-    goldfish::devices::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
+    DEVS::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
                                                                    gQemuLoop.get());
-    goldfish::devices::guest_status::IGuestStatusDevice::registerDevice(
+    DEVS::guest_status::IGuestStatusDevice::registerDevice(
             registry, {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop,
             gQemuLoop.get(), avd_props.quit_after_boot_timeout_seconds);
-    goldfish::devices::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop,
-                                                                       gQemuLoop.get());
-    goldfish::devices::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
+    DEVS::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
+    DEVS::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
-    goldfish::devices::camera::registerDevice(registry, &emulatedCameraProp,
-                                              avd_props.hw_config,
-                                              []() { return getGrallocImpl(); });
+    DEVS::camera::registerDevice(registry, &emulatedCameraProp, avd_props.hw_config,
+                                 []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
-    goldfish::devices::boot::IBootPropertiesDevice::registerDevice(
+    DEVS::boot::IBootPropertiesDevice::registerDevice(
             registry,
             {
                 {"qemu.sf.fake_camera"s, emulatedCameraProp},
