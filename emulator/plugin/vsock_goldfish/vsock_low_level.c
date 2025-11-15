@@ -257,7 +257,8 @@ enum virtio_vsock_queue_id {
     VIRTIO_VSOCK_QUEUE_ID_EVENT = 2  // host to guest
 };
 
-static void virtio_vsock_device_realize(DeviceState* const dev, Error** errp) {
+static void virtio_vsock_device_realize(DeviceState* dev, Error** errp) {
+    add_deletable_object(OBJECT(dev));
     static const GoldfishVirtIOVSockDevAPI dev_api = {
             .haveHostToGuestPackets = &virtio_vsock_have_host_to_guest_packets,
             .sendPacketHostToGuest = &virtio_vsock_send_packet_host_to_guest,

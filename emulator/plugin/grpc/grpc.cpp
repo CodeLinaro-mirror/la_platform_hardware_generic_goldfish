@@ -49,6 +49,7 @@ extern "C" {
 #include "hw/qdev-core.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
+#include "qom/object.h"
 }
 // IWYU pragma: end_keep
 // clang-format on
@@ -281,6 +282,7 @@ void grpc_set_discovery_dir(Object* obj, const char* value, Error** errp) {
 static void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
+    add_deletable_object(obj);
 }
 
 static void grpc_instance_finalize(Object* obj) {

@@ -270,10 +270,15 @@ std::future<absl::Status> QemuEventLoopImpl::shutdown() {
     }
     setState(LooperStatusEvent::State::SHUTTING_DOWN);
 
-    postImmediatelyInternal([this] {
+    auto do_shutdown = [this] {
         shutdownTimers();
         mShutdownCompletePromise.set_value(absl::OkStatus());
-    });
+    };
+    if (isOnLoopThread()) {
+        do_shutdown();
+    } else {
+        postImmediatelyInternal(do_shutdown);
+    }
 
     return mShutdownCompletePromise.get_future();
 }

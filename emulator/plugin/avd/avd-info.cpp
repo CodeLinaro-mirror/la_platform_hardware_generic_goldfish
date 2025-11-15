@@ -14,6 +14,7 @@
 
 #include "goldfish/avd/avd-info.h"
 
+#include <chrono>
 #include <memory>
 
 #include "absl/log/log.h"
@@ -49,9 +50,11 @@ extern "C" {
 #include "hw/qdev-core.h"
 #include "qapi/visitor.h"
 #include "qapi/error.h"
+#include "qom/object.h"
 #include "system/reset.h"
 #include "qemu/main-loop.h"
 }
+#undef shutdown
 // IWYU pragma: end_keep
 // clang-format on
 
@@ -132,8 +135,11 @@ std::vector<VCpuEventLoop> createVCpuEventLoops() {
 }
 
 void avd_info_realize(DeviceState* dev, Error** errp) {
+    VLOG(1) << "avd_info_realize: " << object_get_canonical_path(OBJECT(dev));
+
     AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
     assert(avd_info);
+
     std::unique_ptr<AvdProperties> mut_avd_props(std::exchange(avd_info->mutable_props, nullptr));
 
     // Set the system clock to the QEMU implementation.
@@ -302,6 +308,7 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
 }
 
 void avd_info_unrealize(DeviceState* dev) {
+    VLOG(1) << "avd_info_unrealize";
     gAvdUniverse = nullptr;
 }
 
@@ -332,12 +339,22 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     dc->unrealize = avd_info_unrealize;
 }
 
-static void avd_info_instance_init(Object* obj) {
+void avd_info_instance_init(Object* obj) {
     AVD_INFO_DEV(obj)->mutable_props = new AvdProperties();
+    add_deletable_object(obj);
 }
 
-static void avd_info_instance_finalize(Object* obj) {
+void avd_info_instance_finalize(Object* obj) {
+    VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
+    auto f = gQemuLoop->shutdown();
+    // In the current Qemu implementation, we are already running on the Qemu main thread and so shutdown will have run serially.
+    if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
+        LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
+    }
+    auto s = f.get();
+    LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
+    gQemuLoop.reset();
     delete avd_info->universe;
     delete avd_info->mutable_props;
 }

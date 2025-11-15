@@ -177,11 +177,6 @@ struct GoldfishVirtioVsockDevice {
 
     ~GoldfishVirtioVsockDevice() {
         DEBUG_MSG("this=%p", this);
-        for (const VsockStream& stream : mStreams) {
-            if (stream.plug) {
-                stream.plug->onUnplug().release();
-            }
-        }
     }
 
     void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
@@ -318,6 +313,12 @@ struct GoldfishVirtioVsockDevice {
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         // TODO
+
+        for (const VsockStream& stream : mStreams) {
+            if (stream.plug) {
+                stream.plug->onUnplug().release();
+            }
+        }
     }
 
     void setStatus(const uint8_t status) {

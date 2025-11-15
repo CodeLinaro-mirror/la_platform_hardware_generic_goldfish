@@ -142,6 +142,7 @@ NetClientInfo netsim_netdev_nic_info = {
 };
 
 void netsim_netdev_realize(DeviceState* dev, Error** errp) {
+    add_deletable_object(OBJECT(dev));
     if (dev->id == nullptr) {
         error_setg(errp, "id attribute must be set");
         return;

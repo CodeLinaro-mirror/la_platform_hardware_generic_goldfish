@@ -205,6 +205,10 @@ class VSockProxyImpl : public VSockProxy {
                 [&](SocketPtr sock) { vsockAliveOnQemuThread(); }, 100ms);
     }
 
+    void close() {
+        mClientLoop->postAndWait([this] { if (mSocketServer) { mSocketServer->close(); }});
+    }
+
   private:
     void startServer() {
         VLOG(1) << "Starting server on " << mHostEndpoint;
@@ -276,6 +280,7 @@ class VSockProxyImpl : public VSockProxy {
 // QEMU device configuration logic
 
 static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
+    add_deletable_object(OBJECT(dev));
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(dev);
     const char* host = vsock_fwd_device->address ? vsock_fwd_device->address : "localhost";
     auto serverAddress = absl::StrFormat("%s:%d", host, vsock_fwd_device->host_port);
@@ -307,6 +312,7 @@ static void vsock_fwd_unrealize(DeviceState* dev) {
 
     VLOG(VLOG_DBG) << "Erasing vsock forwarder: (host:guest) " << vsock_fwd_device->host_port << ":"
                    << vsock_fwd_device->guest_port;
+    static_cast<VSockProxyImpl *>(vsock_fwd_device->forwarder)->close();
     delete vsock_fwd_device->forwarder;
 }
 
