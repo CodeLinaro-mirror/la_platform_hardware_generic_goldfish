@@ -65,10 +65,8 @@ struct AvdUniverse {
 
 AvdUniverse& getAvd();
 
+// TODO: move `connector_registry` and `getQemuEventLoop` into `AvdUniverse`
 devices::ConnectorRegistry& connector_registry();
-
-::goldfish::async::EventLoop *getQemuEventLoop();
-
-void avd_info_register_types(void);
+::goldfish::async::EventLoop* getQemuEventLoop();
 
 }  // namespace goldfish::avd_info

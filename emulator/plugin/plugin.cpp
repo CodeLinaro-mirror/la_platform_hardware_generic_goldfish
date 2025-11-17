@@ -27,6 +27,7 @@
 #include "goldfish/adb/adb-device.h"
 #include "goldfish/avd/avd-finalize.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/avd-info-register_types.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/grpc/grpc.h"
