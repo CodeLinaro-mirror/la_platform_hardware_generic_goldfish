@@ -104,11 +104,11 @@ breakpad_symbols = rule(
             aspects = [gen_dsym_aspect],
         ),
         "_dump_syms": attr.label(
-            default = Label("@com_google_breakpad//:dump_syms"),
+            default = Label("@breakpad//:dump_syms"),
             allow_single_file = True,
             executable = True,
             cfg = "exec",
-            doc = "The dump_syms executable. Defaults to @com_google_breakpad//:dump_syms.",
+            doc = "The dump_syms executable. Defaults to @breakpad//:dump_syms.",
         ),
         "_target_windows": attr.label(default = "@platforms//os:windows"),
     },

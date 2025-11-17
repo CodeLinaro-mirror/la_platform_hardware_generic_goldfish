@@ -239,7 +239,7 @@ collect_plugins(
         "//hardware/generic/goldfish/emulator/crashreport",
         "//hardware/generic/goldfish/third_party/sparse:img2simg",
         "//third_party/qemu:qemu-img",
-        "@com_google_crashpad//handler:crashpad_handler",
+        "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
