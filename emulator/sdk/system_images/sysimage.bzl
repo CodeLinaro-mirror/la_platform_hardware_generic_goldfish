@@ -125,7 +125,7 @@ system_image_repository = repository_rule(
         "rev": attr.string(mandatory = True),
         # Note: The tool is a source file, not an executable target.
         "_tool": attr.label(
-            default = Label("//hardware/generic/goldfish/emulator/sdk/system_images:download_android_resource.py"),
+            default = Label("//emulator/sdk/system_images:download_android_resource.py"),
             allow_single_file = True,
         ),
     },

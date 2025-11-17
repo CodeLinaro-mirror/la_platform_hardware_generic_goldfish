@@ -14,8 +14,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/archive",
-        "//hardware/generic/goldfish/emulator/libs/debug",
+        "//emulator/libs/archive",
+        "//emulator/libs/debug",
     ],
 )
 
@@ -30,7 +30,7 @@ cc_test(
     ],
     deps = [
         ":SocketBuffer",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
+        "//android/system:googletest_main",
+        "//emulator/libs/archive:DequeArchive",
     ],
 )

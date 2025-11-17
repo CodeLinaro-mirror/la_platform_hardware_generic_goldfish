@@ -20,7 +20,7 @@ cc_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@aemu//base:aemu-base",
@@ -36,6 +36,6 @@ cc_test(
     }),
     deps = [
         ":sockets",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

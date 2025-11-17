@@ -29,7 +29,7 @@ cc_library(
         "@aemu//base:aemu-base",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -54,10 +54,10 @@ cc_test(
     }),
     deps = [
         ":process",
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/logging:backend",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/files",
+        "//android/logging:backend",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@bazel_tools//tools/cpp/runfiles",

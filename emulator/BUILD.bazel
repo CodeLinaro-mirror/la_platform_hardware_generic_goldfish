@@ -5,7 +5,7 @@ load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
-    "//hardware/generic/goldfish/emulator/tools:packaging.bzl",
+    "//emulator/tools:packaging.bzl",
     "breakpad_symbols_pkg",
     "build_id_from_command_line",
     "native_symbols_pkg",
@@ -33,97 +33,97 @@ license_kind(
 
 # You can pass in the build id from the bazel command line flag
 # as follows:
-# --//hardware/generic/goldfish/emulator:build_id=P123
+# --@goldfish//emulator:build_id=P123
 build_id_from_command_line(
     name = "build_id",
     build_setting_default = "developer",
 )
 
 launcher_binaries = [
-    "//hardware/generic/goldfish/emulator/launcher",
+    "//emulator/launcher",
 ]
 
 binaries = [
-    "//hardware/generic/goldfish/emulator/crashreport",
-    "//hardware/generic/goldfish/third_party/sparse:img2simg",
-    "//third_party/qemu:qemu-img",
+    "//emulator/crashreport",
+    "//third_party/sparse:img2simg",
+    "@qemu//:qemu-img",
     "@crashpad//handler:crashpad_handler",
     #"@netsim//:netsimd",
 ] + select({
     "@platforms//os:windows": [
-        "//prebuilts/android-emulator-build/common/netsim:netsim_windows_x86_64",
-        "//third_party/qemu:qemu-system-x86_64",
+        "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+        "@qemu//:qemu-system-x86_64",
     ],
     "@platforms//os:macos": [
-        "//prebuilts/android-emulator-build/common/netsim:netsim_darwin_aarch64",
-        "//third_party/qemu:qemu-system-x86_64_signed",
-        "//third_party/qemu:qemu-system-aarch64_signed",
+        "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
+        "@qemu//:qemu-system-x86_64_signed",
+        "@qemu//:qemu-system-aarch64_signed",
     ],
     "//conditions:default": [
-        "//prebuilts/android-emulator-build/common/netsim:netsim_linux_x86_64",
-        "//third_party/qemu:qemu-system-x86_64",
-        "//third_party/qemu:qemu-system-aarch64",
+        "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
+        "@qemu//:qemu-system-x86_64",
+        "@qemu//:qemu-system-aarch64",
         # We currently don't have riscv images
-        # "//third_party/qemu:qemu-system-riscv64",
+        # "@qemu//:qemu-system-riscv64",
     ],
 })
 
 egl_binaries = select({
     "@platforms//os:macos": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
-        "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+        "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+        "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
+        "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
     ],
     "@platforms//os:linux": [
-        "//prebuilts/android-emulator-build/common/swiftshader:lib_linux_x86_64",
+        "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
     ],
     "@platforms//os:windows": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
-        "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
+        "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+        "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
+        "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
     ],
     "//conditions:default": [],
 })
 
 vulkan_binaries = select({
     "@platforms//os:macos": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+        "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+        "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
     ],
     "@platforms//os:linux": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
+        "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+        "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
     ],
     "@platforms//os:windows": [
-        "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
-        "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
+        "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+        "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
     ],
     "//conditions:default": [],
 })
 
 plugin_binaries = [
-    "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
+    "//emulator/plugin:goldfish_x86_64",
     "@crosvm//:rutabaga_ffi",
 ] + select({
     "@platforms//os:windows": [],
     "//conditions:default": [
-        "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
+        "//emulator/plugin:goldfish_aarch64",
         # We currently don't have riscv images
-        # "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+        # "//emulator/plugin:goldfish_riscv64",
     ],
 }) + select({
     "@platforms//os:linux": [
         # For netsimd prebuilt
-        "//prebuilts/android-emulator-build/common/vulkan:linux_libc++",
-        "//prebuilts/android-emulator-build/common/netsim:libs_linux_x86_64",
+        "@goldfish_prebuilts_common//vulkan:linux_libc++",
+        "@goldfish_prebuilts_common//netsim:libs_linux_x86_64",
         # TODO(b/434942959,whollins): Re-add this.
         #"@gcc_lib//:libpulse",
     ],
     "@platforms//os:macos": [
-        "//prebuilts/android-emulator-build/common/netsim:libs_darwin_aarch64",
+        "@goldfish_prebuilts_common//netsim:libs_darwin_aarch64",
     ],
     "@platforms//os:windows": [
-        "//prebuilts/android-emulator-build/common/netsim:libs_windows_x86_64",
+        "@goldfish_prebuilts_common//netsim:libs_windows_x86_64",
     ],
     "//conditions:default": [
     ],
@@ -145,10 +145,10 @@ pkg_files(
     ),
     renames = select({
         "@platforms//os:windows": {
-            "//hardware/generic/goldfish/emulator/launcher": "emulator.exe",
+            "//emulator/launcher": "emulator.exe",
         },
         "//conditions:default": {
-            "//hardware/generic/goldfish/emulator/launcher": "emulator",
+            "//emulator/launcher": "emulator",
         },
     }),
 )
@@ -169,17 +169,17 @@ pkg_files(
     prefix = "bin",
     renames = select({
         "@platforms//os:windows": {
-            "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64.exe",
+            "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
         },
         "@platforms//os:macos": {
-            "//third_party/qemu:qemu-system-x86_64_signed": "qemu-system-x86_64",
-            "//third_party/qemu:qemu-system-aarch64_signed": "qemu-system-aarch64",
+            "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
+            "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
         },
         "//conditions:default": {
-            "//third_party/qemu:qemu-system-x86_64": "qemu-system-x86_64",
-            "//third_party/qemu:qemu-system-aarch64": "qemu-system-aarch64",
+            "@qemu//:qemu-system-x86_64": "qemu-system-x86_64",
+            "@qemu//:qemu-system-aarch64": "qemu-system-aarch64",
             # We currently don't have riscv images
-            # "//third_party/qemu:qemu-system-riscv64": "qemu-system-riscv64",
+            # "@qemu//:qemu-system-riscv64": "qemu-system-riscv64",
         },
     }),
 )
@@ -211,7 +211,7 @@ pkg_files(
 pkg_files(
     name = "data_virtualscene_Toren1BD",
     srcs = [
-        "//prebuilts/android-emulator-build/common/virtualscene/Toren1BD",
+        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
     ],
     prefix = "data/virtualscene/Toren1BD/",
 )
@@ -231,12 +231,12 @@ pkg_zip(
         ":launcher_stripped",
         ":plugins_stripped",
         ":vulkan",
-        "//hardware/generic/goldfish/emulator/grpc/security:emulator-access",
-        "//third_party/qemu:qemu-keymaps",
-        "//third_party/qemu:qemu-roms",
+        "//emulator/grpc/security:emulator-access",
+        "@qemu//:qemu-keymaps",
+        "@qemu//:qemu-roms",
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
-    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
+    package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],
 )
 
@@ -249,7 +249,7 @@ breakpad_symbols_pkg(
     name = "package_goldfish_symbols",
     binaries = all_binaries,
     package_file_name = "sdk-repo-{platform}-{product_name}-breakpad-symbols-{build_id}.zip",
-    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
+    package_variables = "//emulator/tools:aemu_version_info",
 )
 
 native_symbols_pkg(
@@ -261,7 +261,7 @@ native_symbols_pkg(
         "plugins": ":plugins",
     },
     package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
-    package_variables = "//hardware/generic/goldfish/emulator/tools:aemu_version_info",
+    package_variables = "//emulator/tools:aemu_version_info",
 )
 
 build_test(

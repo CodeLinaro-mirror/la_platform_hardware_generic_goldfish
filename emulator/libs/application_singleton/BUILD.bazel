@@ -10,10 +10,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/system",
+            "//android/system",
         ],
         "//conditions:default": [
-            "//hardware/generic/goldfish/emulator/config:avd",
+            "//emulator/config:avd",
         ],
     }),
 )
@@ -39,11 +39,11 @@ cc_test(
     ],
     deps = [
         ":application_singleton",
-        "//hardware/generic/goldfish/android/process",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/config:avd",
+        "//android/process",
+        "//android/system",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "//emulator/config:avd",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )

@@ -84,7 +84,7 @@ class CrashTest : public ::testing::Test {
 
     void crash() {
         fs::path executable =
-                Bazel::runfilesPath("hardware/generic/goldfish/emulator/crashreport/crash-me");
+                Bazel::runfilesPath("goldfish+/emulator/crashreport/crash-me");
         if (!Bazel::inBazel()) {
             executable = System::get()->findBundledExecutable(kCrashMe);
         }

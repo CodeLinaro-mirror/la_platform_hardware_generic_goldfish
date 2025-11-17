@@ -33,7 +33,7 @@ cc_test(
     ],
     deps = [
         ":network",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

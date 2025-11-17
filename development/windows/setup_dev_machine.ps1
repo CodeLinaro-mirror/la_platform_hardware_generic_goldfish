@@ -167,4 +167,4 @@ $Env:Path = [Environment]::GetEnvironmentVariable("PATH", "Machine") # Or "User"
 Write-Host "Added C:\src\main-emu-dev-next\prebuilts\bazel\windows-x86_64\ to PATH"
 
 Write-Host 'All done, you might have to launch visual studio once to complete.'
-Write-Host 'bazel build //hardware/generic/goldfish/emulator:release'
+Write-Host 'bazel build @goldfish//emulator:release'

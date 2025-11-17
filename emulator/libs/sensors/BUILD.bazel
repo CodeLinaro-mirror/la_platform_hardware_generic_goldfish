@@ -18,9 +18,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
-        "//hardware/generic/goldfish/emulator/config:hardware_config",
-        "//hardware/generic/goldfish/emulator/libs/physics",
+        "//android/logging:absl-c-bridge",
+        "//emulator/config:hardware_config",
+        "//emulator/libs/physics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -39,7 +39,7 @@ cc_test(
     includes = ["test"],
     deps = [
         ":sensors",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/config:avd-test",
+        "//android/system:googletest_main",
+        "//emulator/config:avd-test",
     ],
 )

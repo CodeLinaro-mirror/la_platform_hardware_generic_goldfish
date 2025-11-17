@@ -8,7 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
+        "//emulator/hal/connector:cable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -19,7 +19,7 @@ cc_test(
     srcs = ["test/AdbMessageLogger_unittest.cpp"],
     deps = [
         ":logger",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
     ],
 )

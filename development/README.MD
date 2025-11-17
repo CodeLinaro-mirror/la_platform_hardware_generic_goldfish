@@ -80,7 +80,7 @@ You can generate this file using one of the following methods:
     * Alternatively, you can generate the file from your terminal using the following Bazel command:
 
         ```bash
-        bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/generic/goldfish/...
+        bazel run @goldfish//development/tools/bcc:extract-cc -- @goldfish//...
         ```
 
 ## Building targets
@@ -112,4 +112,4 @@ You have the following options when running tests:
   * You might have to remove the  `prebuilts/clang/host/linux-x86/BUILD.bazel` file. This bazel file has some issues, causing failures when trying to discover all available tests by [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin.
 * ***MacOs***
   * The [vsc-bazel-tools](https://marketplace.visualstudio.com/items?itemName=bjob.vsc-bazel-tools) plugin will not debug individual tests.
-* **Bazel plugin:** The bazel plugin currently uses the location of the WORKSPACE file to derive targets, like `//hardware/generic/goldfish/...`, without a WORKSPACE file they will be incorrectly derived. We no longer use WORKSPACE files as we have switched to bazel modules. As a workaround you can create an empty one yourself in $AOSP.
+* **Bazel plugin:** The bazel plugin currently uses the location of the WORKSPACE file to derive targets, like `@goldfish//...`, without a WORKSPACE file they will be incorrectly derived. We no longer use WORKSPACE files as we have switched to bazel modules. As a workaround you can create an empty one yourself in $AOSP.

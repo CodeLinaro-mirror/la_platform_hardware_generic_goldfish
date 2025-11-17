@@ -29,7 +29,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
-        "//third_party/qemu:qemu-headers",
+        "//android/logging:absl-c-bridge",
+        "@qemu//:qemu-headers",
     ],
 )

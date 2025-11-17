@@ -37,9 +37,7 @@ def main():
     args, unknownargs = parser.parse_known_args()
 
     r = Runfiles.Create()
-    crashreport_path = r.Rlocation(
-        "_main/hardware/generic/goldfish/emulator/crashreport/tool/crashreport"
-    )
+    crashreport_path = r.Rlocation("goldfish+/emulator/crashreport/tool/crashreport")
 
     cmd = [crashreport_path]
     if args.l:
@@ -58,7 +56,7 @@ def main():
     if args.d:
         cmd.extend(['-d', args.d])
         with TemporaryDirectory("sym") as tm:
-            runfiles_root = Path(r.Rlocation("_main"))
+            runfiles_root = Path(r.Rlocation("goldfish+"))
             for f in runfiles_root.rglob("*.sym"):
                 fl = Path(tm) / symbol_destination(f)
                 fl.parent.mkdir(parents=True, exist_ok=True)

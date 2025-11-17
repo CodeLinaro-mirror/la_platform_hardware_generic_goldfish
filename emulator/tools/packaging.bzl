@@ -7,7 +7,7 @@ load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo", "PackageVariablesInfo"
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(":breakpad_symbols.bzl", "breakpad_symbols")
 
-visibility("//hardware/generic/goldfish/emulator/...")
+visibility("//emulator/...")
 
 def _aemu_naming_impl(ctx):
     """Implementation function for the `aemu_naming` rule.
@@ -201,11 +201,11 @@ symbol_zipper = rule(
             mandatory = True,
         ),
         "_symbol_zipper_exe": attr.label(
-            default = Label("//hardware/generic/goldfish/emulator/tools:symbol_zipper"),
+            default = Label("@goldfish//emulator/tools:symbol_zipper"),
             allow_files = True,
             executable = True,
             cfg = "exec",
-            doc = "The symbol_zipper executable. Defaults to //hardware/generic/goldfish/emulator/tools:symbol_zipper.",
+            doc = "The symbol_zipper executable. Defaults to @goldfish//emulator/tools:symbol_zipper.",
         ),
     },
 )

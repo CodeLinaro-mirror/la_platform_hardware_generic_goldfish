@@ -30,6 +30,6 @@ cc_test(
     ],
     deps = [
         ":parsing",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

@@ -17,7 +17,6 @@
 
 #include "goldfish/vsock/connect.h"
 #include "goldfish/vsock/listen.h"
-#include "hardware/generic/goldfish/emulator/plugin/vsock_goldfish/include/goldfish/vsock/listen.h"
 
 // This file provides a fake implementation of the vsock::listen function to
 // satisfy the linker for unit tests that depend on ConnectorRegistry.

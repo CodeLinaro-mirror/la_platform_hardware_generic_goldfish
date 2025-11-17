@@ -24,7 +24,6 @@
 #include "dom_key.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop.h"
-#include "hardware/generic/goldfish/android/async/include/goldfish/async/event_loop.h"
 
 extern "C" {
 // clang-format off

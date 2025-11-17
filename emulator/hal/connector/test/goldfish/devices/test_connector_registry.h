@@ -18,8 +18,8 @@
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/hal/plug/HalPlug.h"
 #include "hal_plug_testing_friend.h"
-#include "hardware/generic/goldfish/emulator/hal/plug/include/goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish {
 namespace devices {

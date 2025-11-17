@@ -20,6 +20,6 @@ cc_test(
     includes = ["test"],
     deps = [
         ":base",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

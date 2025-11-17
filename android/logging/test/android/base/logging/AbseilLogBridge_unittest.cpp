@@ -32,7 +32,7 @@
 #include "aemu/base/testing/TestUtils.h"
 
 extern "C" {
-#include "hardware/generic/goldfish/android/logging/test/android/base/logging/abseil_log_c_test.h"
+#include "android/logging/test/android/base/logging/abseil_log_c_test.h"
 }
 
 namespace {

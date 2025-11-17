@@ -22,7 +22,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
     ],
@@ -38,7 +38,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
+        "//android/files",
         "@aemu//base:aemu-base",
     ],
 )
@@ -50,8 +50,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/sockets",
+        "//android/files",
+        "//android/sockets",
         "@aemu//base:aemu-base",
     ],
 )
@@ -78,8 +78,8 @@ cc_library(
     deps = [
         ":device_type",
         ":hardware_config",
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/emulator/launcher:input_paths",
+        "//android/files",
+        "//emulator/launcher:input_paths",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
@@ -97,8 +97,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":avd",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
@@ -118,9 +118,9 @@ cc_test(
     deps = [
         ":avd",
         ":avd-test",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

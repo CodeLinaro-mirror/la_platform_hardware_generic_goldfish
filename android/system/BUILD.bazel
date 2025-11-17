@@ -57,10 +57,10 @@ cc_library(
         "@bazel_tools//tools/cpp/runfiles",
     ] + select({
         "@platforms//os:linux": [
-            "//hardware/generic/goldfish/android/process",
+            "//android/process",
         ],
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
             "@glib//glib/dirent",
         ],
         "//conditions:default": [],
@@ -87,7 +87,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":system",
-        "//hardware/generic/goldfish/android/logging:backend",
+        "//android/logging:backend",
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
@@ -112,7 +112,7 @@ cc_test(
     deps = [
         ":system",
         ":test-headers",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )
 

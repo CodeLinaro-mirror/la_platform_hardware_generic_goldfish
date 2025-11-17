@@ -75,7 +75,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -101,20 +101,16 @@ cc_library(
     name = "qemu_event_loop",
     srcs = ["src/qemu_event_loop.cpp"],
     hdrs = ["include/goldfish/async/qemu_event_loop.h"],
-    includes = [
-        "include",
-        "//third_party/qemu",
-        "//third_party/qemu/include",
-    ],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":async_api",
-        "//hardware/generic/goldfish/emulator/libs/QEMUBH",
-        "//third_party/qemu:qemu-headers",
+        "//emulator/libs/QEMUBH",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -130,12 +126,12 @@ cc_library(
         "test",
     ],
     visibility = [
-        "//hardware/generic/goldfish/android/async:__pkg__",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:__pkg__",
+        "//android/async:__pkg__",
+        "//emulator/plugin/vsock_goldfish:__pkg__",
     ],
     deps = [
         ":qemu_event_loop",
-        "//third_party/qemu:qemu-headers",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -158,13 +154,13 @@ cc_test(
         ":libuv_event_loop",
         ":qemu_event_loop",
         ":threaded_event_loop",
-        "//hardware/generic/goldfish/android/async:fake_qemu_callbacks",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/async:fake_qemu_callbacks",
+        "//android/system",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -205,7 +201,7 @@ cc_test(
     }),
     deps = [
         ":libuv_sockets",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -218,7 +214,7 @@ cc_test(
     ],
     deps = [
         ":libuv_event_loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@aemu//base:event-support",
     ],
 )
@@ -256,7 +252,7 @@ cc_test(
     srcs = ["test/test_event_loop_unittest.cpp"],
     deps = [
         ":async_testing",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -303,7 +299,7 @@ cc_test(
     srcs = ["test/libuv_signal_handlers_test.cpp"],
     deps = [
         ":libuv_signal_handlers",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

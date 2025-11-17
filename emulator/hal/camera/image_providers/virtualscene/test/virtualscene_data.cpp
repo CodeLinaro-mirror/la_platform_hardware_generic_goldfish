@@ -22,5 +22,5 @@ TEST(virtualscene_data_is_parsable, Toren1BD) {
     tinyobj::ObjReader reader;
 
     EXPECT_TRUE(reader.ParseFromFile(::android::base::Bazel::runfilesPath(
-            "prebuilts/android-emulator-build/common/virtualscene/Toren1BD/Toren1BD.obj")));
+            "goldfish_prebuilts_common+/virtualscene/Toren1BD/Toren1BD.obj")));
 }

@@ -71,7 +71,7 @@ Once the setup is complete and the source code is downloaded, you can build the 
 
 ```bash
     cd $HOME/src/main-emu-dev-next
-    ./prebuilts/bazel/linux-x86_64/bazel build //hardware/generic/goldfish/emulator:release
+    ./prebuilts/bazel/linux-x86_64/bazel build @goldfish//emulator:release
 ```
 
 ## That's It!

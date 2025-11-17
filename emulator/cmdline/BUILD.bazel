@@ -26,10 +26,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/logging:absl-c-bridge",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config:config_dirs",
+        "//android/files",
+        "//android/logging:absl-c-bridge",
+        "//android/system",
+        "//emulator/config:config_dirs",
     ],
 )
 
@@ -44,7 +44,7 @@ cc_test(
     includes = ["test"],
     deps = [
         ":cmdline",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
     ],
 )

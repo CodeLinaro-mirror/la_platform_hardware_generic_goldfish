@@ -32,11 +32,11 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/debug",
-        "//hardware/generic/goldfish/emulator/libs/os",
-        "//third_party/vulkan-headers:vulkan_headers",
+        "//emulator/libs/debug",
+        "//emulator/libs/os",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base-headers",
+        "@vulkan-headers//:vulkan_headers",
     ],
     alwayslink = True,
 )
@@ -50,7 +50,7 @@ cc_test(
     includes = ["test"],
     deps = [
         ":gvk",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@gfxstream//third_party/glm",
     ],
 )

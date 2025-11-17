@@ -4,7 +4,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@goldfish_build//toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
 load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
 
-visibility("//hardware/generic/goldfish/emulator/...")
+visibility("//emulator/...")
 
 def windows_path(p):
     # type: (string) -> string

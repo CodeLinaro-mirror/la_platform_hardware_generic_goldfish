@@ -86,7 +86,7 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
                 "@android_minigbm-x86_64//:systemimg",
                 "@cts-x86-64//:cts",
                 "@cts-x86-64//:cts-tradefed",
-                "//hardware/generic/goldfish/emulator:release",
+                "@goldfish//emulator:release",
                 "@linux-build-tools//:aapt",
                 "@linux-build-tools//:build-tools",
                 "@linux-platform-tools//:adb",

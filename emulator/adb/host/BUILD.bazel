@@ -7,8 +7,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/android/system",
+        "//android/sockets",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -21,8 +21,8 @@ cc_test(
     srcs = ["test/AdbHostServer_unittest.cpp"],
     deps = [
         ":host",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@aemu//base:aemu-base",
     ],
 )

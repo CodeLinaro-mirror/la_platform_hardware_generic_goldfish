@@ -28,11 +28,11 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
         args += params
     if timeout_seconds:
         args.extend(["--timeout_seconds", str(timeout_seconds)])
-    _create_launch_emulator_test(name, args, "//hardware/generic/goldfish/emulator/launcher")
+    _create_launch_emulator_test(name, args, "@goldfish//emulator/launcher")
     _create_launch_emulator_test(
         name + "_zip",
         args + ["--use_zip"],
-        "//hardware/generic/goldfish/emulator:release",
+        "@goldfish//emulator:release",
     )
 
 def _create_launch_emulator_test(name, args, goldfish_dep):
@@ -58,7 +58,7 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
             "-read-only",
         ],
         main_module = "launch_emulator",
-        deps = ["//hardware/generic/goldfish/emulator/launcher:launch_emulator"],
+        deps = ["@goldfish//emulator/launcher:launch_emulator"],
         data = [goldfish_dep],
         imports = ["src"],
         target_compatible_with = select({

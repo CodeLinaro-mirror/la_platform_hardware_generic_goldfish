@@ -29,7 +29,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system",
+        "//android/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -46,7 +46,7 @@ cc_test(
     }),
     deps = [
         ":cpu",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
     ],
 )

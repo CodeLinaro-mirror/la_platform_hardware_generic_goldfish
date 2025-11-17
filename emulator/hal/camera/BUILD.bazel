@@ -8,7 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/imaging",
+        "//emulator/libs/imaging",
     ],
     alwayslink = True,
 )
@@ -22,7 +22,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/imaging",
+        "//emulator/libs/imaging",
     ],
     alwayslink = True,
 )
@@ -58,15 +58,15 @@ cc_library(
     deps = [
         ":gralloc_details",
         ":image_provider_api",
-        "//hardware/generic/goldfish/emulator/config:hardware_config",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/imagefile",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/videofile",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/virtualscene",
-        "//hardware/generic/goldfish/emulator/hal/camera/image_providers/webcam",
-        "//hardware/generic/goldfish/emulator/hal/connector:PingTopic",
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
-        "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
-        "//hardware/generic/goldfish/emulator/libs/parsing",
+        "//emulator/config:hardware_config",
+        "//emulator/hal/camera/image_providers/imagefile",
+        "//emulator/hal/camera/image_providers/videofile",
+        "//emulator/hal/camera/image_providers/virtualscene",
+        "//emulator/hal/camera/image_providers/webcam",
+        "//emulator/hal/connector:PingTopic",
+        "//emulator/hal/connector:cable",
+        "//emulator/hal/connector:connector_registry_hdrs",
+        "//emulator/libs/parsing",
         "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
@@ -85,7 +85,7 @@ cc_test(
     ],
     deps = [
         ":camera",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )
 

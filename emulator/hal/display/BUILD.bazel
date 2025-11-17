@@ -13,7 +13,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/base",
+        "//emulator/libs/base",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
     ],
@@ -44,12 +44,12 @@ cc_library(
     deps = [
         ":fps_calculator",
         ":headers",
-        "//hardware/generic/goldfish/emulator/hal/sensors",
-        "//hardware/generic/goldfish/emulator/plugin/avd:avd_hdrs",
-        "//third_party/qemu:qemu-headers",
+        "//emulator/hal/sensors",
+        "//emulator/plugin/avd:avd_hdrs",
         "@abseil-cpp//absl/strings",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",
+        "@qemu//:qemu-headers",
     ],
     alwayslink = True,
 )
@@ -75,9 +75,9 @@ cc_library(
     deps = [
         ":display",
         ":headers",
-        "//third_party/qemu:qemu-headers",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -96,9 +96,9 @@ cc_test(
     deps = [
         ":display",
         ":test-display",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:threaded_event_loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
+        "//android/system:googletest_main",
     ],
 )
 
@@ -109,7 +109,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//hardware/generic/goldfish/android/system:clock",
+        "//android/system:clock",
         "@abseil-cpp//absl/time",
     ],
 )

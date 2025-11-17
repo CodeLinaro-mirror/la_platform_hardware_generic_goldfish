@@ -8,8 +8,8 @@ cc_library(
     hdrs = ["include/goldfish/catalog/emulator_catalog.h"],
     includes = ["include"],
     deps = [
-        "//hardware/generic/goldfish/emulator/config:config_dirs",
-        "//hardware/generic/goldfish/emulator/config:emulator_advertisement",
+        "//emulator/config:config_dirs",
+        "//emulator/config:emulator_advertisement",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",
@@ -19,12 +19,10 @@ cc_library(
 cc_test(
     name = "emulator_catalog_unittest",
     srcs = ["tests/emulator_catalog_unittest.cpp"],
-    copts = [
-        "-Ihardware/generic/goldfish/emulator/libs/catalog/include",
-    ],
+    includes = ["include"],
     deps = [
         ":emulator_catalog",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",

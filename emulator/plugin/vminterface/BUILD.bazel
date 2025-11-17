@@ -8,9 +8,9 @@ cc_library(
     ],
     includes = ["src"],
     deps = [
-        "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/synchronization",
         "@aemu//base:aemu-base-headers",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -20,7 +20,7 @@ cc_library(
     hdrs = ["src/vm/qemu-machine-info.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
-    deps = ["//third_party/qemu:qemu-headers"],
+    deps = ["@qemu//:qemu-headers"],
 )
 
 cc_library(
@@ -46,7 +46,7 @@ cc_library(
         ":machine_info",
         ":vm_lock",
         ":vminterface",
-        "//third_party/qemu:qemu-headers",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -88,8 +88,8 @@ cc_test(
     includes = ["test"],
     deps = [
         ":vminterface-test",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@aemu//base:aemu-base-headers",
     ],
 )

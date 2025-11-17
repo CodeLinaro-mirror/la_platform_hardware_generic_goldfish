@@ -16,7 +16,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -51,7 +51,7 @@ cc_library(
         "@aemu//base:aemu-base-logging",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -76,7 +76,7 @@ cc_test(
     deps = [
         ":absl-c-bridge",
         ":backend",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@aemu//base:aemu-base",
     ],
 )

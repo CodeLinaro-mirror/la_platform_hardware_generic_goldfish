@@ -16,10 +16,10 @@ cc_library(
         "src/minidump_processor.h",
     ],
     deps = [
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/crashreport:always_consent",
-        "//hardware/generic/goldfish/emulator/crashreport:crash_reporter",
-        "//hardware/generic/goldfish/emulator/crashreport:uploader",
+        "//android/system",
+        "//emulator/crashreport:always_consent",
+        "//emulator/crashreport:crash_reporter",
+        "//emulator/crashreport:uploader",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",
@@ -51,10 +51,10 @@ py_binary(
     srcs = ["bazel_crashreport.py"],
     data = [
         ":crashreport",
-        "//hardware/generic/goldfish/emulator:package_goldfish_symbols_extract",
+        "//emulator:package_goldfish_symbols_extract",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/tools:symbol_zipper",
+        "//emulator/tools:symbol_zipper",
         "@bazel_tools//tools/python/runfiles",
     ],
 )

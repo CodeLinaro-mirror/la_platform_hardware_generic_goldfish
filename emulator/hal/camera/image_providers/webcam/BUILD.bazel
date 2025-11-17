@@ -11,7 +11,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/camera:image_provider_api",
+        "//emulator/hal/camera:image_provider_api",
         "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
@@ -24,6 +24,6 @@ cc_test(
     ],
     deps = [
         ":webcam",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

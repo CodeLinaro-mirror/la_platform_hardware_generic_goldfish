@@ -1,10 +1,10 @@
 load("@rules_java//java:java_test.bzl", "java_test")
-load("//hardware/generic/goldfish/emulator/tests:cts.bzl", "cts_plan", "cts_tests", "deqp_tests")  # @unused
+load("//emulator/tests:cts.bzl", "cts_plan", "cts_tests", "deqp_tests")  # @unused
 
 java_test(
     name = "boot_test",
     data = [
-        "//hardware/generic/goldfish/emulator/launcher",
+        "//emulator/launcher",
     ] + select({
         "@platforms//os:linux": [
             "//prebuilts/android/android-sdk/linux:sdkhome",
@@ -17,7 +17,7 @@ java_test(
         "//conditions:default": [],
     }),
     jvm_flags = [
-        "-Demulator.test.emulator.path=hardware/generic/goldfish/emulator/launcher/launcher",
+        "-Demulator.test.emulator.path=emulator/launcher/launcher",
         "-Demulator.test.emulator.is-emu-next=1",
     ] + select({
         "@platforms//os:linux": [

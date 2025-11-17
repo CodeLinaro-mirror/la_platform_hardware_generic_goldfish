@@ -1,20 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "services-stack",
     srcs = ["src/android/emulation/control/GrpcServices.cpp"],
     hdrs = ["include/android/emulation/control/GrpcServices.h"],
     includes = ["include"],
-    visibility = ["//hardware/generic/goldfish/emulator/plugin/grpc:__subpackages__"],
+    visibility = ["//emulator/plugin/grpc:__subpackages__"],
     deps = [
-        "//hardware/generic/goldfish/emulator/adb/secrets",
-        "//hardware/generic/goldfish/emulator/grpc/client:grpc_endpoint_description_cc_proto",
-        "//hardware/generic/goldfish/emulator/grpc/interceptors",
-        "//hardware/generic/goldfish/emulator/grpc/security",
-        "//hardware/generic/goldfish/emulator/grpc/services/adb/server:adb-service",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:emulator-service",
+        "//emulator/adb/secrets",
+        "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
+        "//emulator/grpc/interceptors",
+        "//emulator/grpc/security",
+        "//emulator/grpc/services/adb/server:adb-service",
+        "//emulator/grpc/services/emulator_controller/server:emulator-service",
         "@aemu//base:aemu-base",
     ],
 )

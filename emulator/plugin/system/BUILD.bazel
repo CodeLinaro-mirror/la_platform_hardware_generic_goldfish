@@ -7,7 +7,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system:clock",
-        "//third_party/qemu:qemu-headers",
+        "//android/system:clock",
+        "@qemu//:qemu-headers",
     ],
 )

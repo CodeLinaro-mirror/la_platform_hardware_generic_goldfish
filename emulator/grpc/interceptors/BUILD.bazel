@@ -13,8 +13,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/android/system:clock",
+        "//android/async:async_api",
+        "//android/system:clock",
         "@aemu//base:aemu-base",
         "@grpc//:grpc++",
     ],
@@ -31,10 +31,10 @@ cc_test(
         }),
     deps = [
         ":interceptors",
-        "//hardware/generic/goldfish/android/async:async_testing",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller:emulator_controller_cc_proto",
+        "//android/async:async_testing",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "//emulator/grpc/services/emulator_controller:emulator_controller_cc_proto",
         "@googletest//:gtest",
     ],
 )

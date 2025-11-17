@@ -29,7 +29,7 @@ cc_library(
         ":hal_plug",
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )
 
@@ -40,8 +40,8 @@ cc_library(
     includes = ["include"],
     deps = [
         ":hal_plug",
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
+        "//android/async:async_api",
+        "//emulator/hal/connector:cable",
     ],
 )
 
@@ -53,8 +53,8 @@ cc_library(
     deps = [
         ":hal_plug",
         ":marshalling_hal_socket",
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
+        "//android/async:async_api",
+        "//emulator/hal/connector:cable",
     ],
 )
 
@@ -69,13 +69,13 @@ cc_library(
     ],
     includes = ["test"],
     visibility = [
-        "//hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server:__subpackages__",
-        "//hardware/generic/goldfish/emulator/hal:__subpackages__",
-        "//hardware/generic/goldfish/emulator/hal/connector:__subpackages__",
+        "//emulator/grpc/services/emulator_controller/server:__subpackages__",
+        "//emulator/hal:__subpackages__",
+        "//emulator/hal/connector:__subpackages__",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "//emulator/hal/connector:cable",
+        "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )
 
@@ -93,11 +93,11 @@ cc_test(
         ":hal_plug_factory",
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
-        "//hardware/generic/goldfish/android/async:async_testing",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:threaded_event_loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_impl",
+        "//android/async:async_testing",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
+        "//android/system:googletest_main",
+        "//emulator/hal/connector:connector_registry_impl",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/synchronization",
     ],

@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 pkg_files(
     name = "emulator-access",
@@ -42,9 +42,9 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
-        "//hardware/generic/goldfish/android/files",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/grpc/async",
+        "//android/files",
+        "//android/system",
+        "//emulator/grpc/async",
         "@aemu//base:aemu-base",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",
@@ -71,9 +71,9 @@ cc_test(
     data = ["src/android/emulation/control/secure/emulator_access.json"],
     deps = [
         ":security",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@googletest//:gtest",
         "@tink_cc//tink/jwt:jwt_key_templates",
     ],

@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "adb-service",
@@ -8,9 +8,9 @@ cc_library(
     hdrs = ["include/android/emulation/control/adb/AdbService.h"],
     includes = ["include"],
     deps = [
-        "//hardware/generic/goldfish/emulator/adb/secrets",
-        "//hardware/generic/goldfish/emulator/grpc/async",
-        "//hardware/generic/goldfish/emulator/grpc/services/adb:adb_service_cc_grpc",
+        "//emulator/adb/secrets",
+        "//emulator/grpc/async",
+        "//emulator/grpc/services/adb:adb_service_cc_grpc",
         "@aemu//base:aemu-base",
     ],
 )

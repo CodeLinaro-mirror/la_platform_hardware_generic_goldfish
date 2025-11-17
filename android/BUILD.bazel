@@ -1,11 +1,11 @@
 test_suite(
     name = "emulator_android_tests",
     tests = [
-        "//hardware/generic/goldfish/android/cpu:cpu_unittests",
-        "//hardware/generic/goldfish/android/files:files_unittests",
-        "//hardware/generic/goldfish/android/logging:backend_unittests",
-        "//hardware/generic/goldfish/android/process:process_unittests",
-        "//hardware/generic/goldfish/android/sockets:sockets_unittests",
-        "//hardware/generic/goldfish/android/system:system-unittests",
+        "//android/cpu:cpu_unittests",
+        "//android/files:files_unittests",
+        "//android/logging:backend_unittests",
+        "//android/process:process_unittests",
+        "//android/sockets:sockets_unittests",
+        "//android/system:system-unittests",
     ],
 )

@@ -11,7 +11,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/base",
+        "//emulator/libs/base",
     ],
     alwayslink = True,
 )
@@ -24,6 +24,6 @@ cc_test(
     includes = ["test"],
     deps = [
         ":os",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

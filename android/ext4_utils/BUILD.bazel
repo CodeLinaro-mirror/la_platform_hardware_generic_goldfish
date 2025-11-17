@@ -50,10 +50,10 @@ cc_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/third_party/sparse",
+        "//android/system",
+        "//third_party/sparse",
     ] + select({
-        "@platforms//os:windows": ["//third_party/qemu/google/compat/windows:compat"],
-        "//conditions:default": ["//hardware/generic/goldfish/third_party/libselinux:selinux"],
+        "@platforms//os:windows": ["@aemu//windows:compat"],
+        "//conditions:default": ["//third_party/libselinux:selinux"],
     }),
 )

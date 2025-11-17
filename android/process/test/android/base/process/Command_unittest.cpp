@@ -64,7 +64,7 @@ class FakeOverseer : public NullOverseer {
 
 using ::bazel::tools::cpp::runfiles::Runfiles;
 
-std::string RunfilesPath(absl::string_view path) {
+std::string RunfilesPath(std::string path) {
     std::string error;
     std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
     if (runfiles == nullptr) {
@@ -72,19 +72,11 @@ std::string RunfilesPath(absl::string_view path) {
         exit(1);
     }
 
-    const char* workspace_dir = getenv("TEST_WORKSPACE");
-    if (workspace_dir == nullptr || workspace_dir[0] == '\0') {
-        std::clog << "Unable to determine workspace name." << std::endl;
-        exit(1);
-    }
-
-    return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
+    return runfiles->Rlocation(path);
 }
 
 std::string sleep_exe() {
-    return RunfilesPath(System::pathAsString(fs::path("hardware") / "generic" / "goldfish" /
-                                             "android" / "process" /
-                                             absl::StrCat("sleep_emu", EXE)));
+    return RunfilesPath(absl::StrCat("goldfish+/android/process/sleep_emu", EXE));
 }
 
 // You can always make your own fake commands..

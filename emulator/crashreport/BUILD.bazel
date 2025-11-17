@@ -15,7 +15,7 @@ cc_library(
         ":always_consent",
         ":crash_reporter",
         ":uploader",
-        "//hardware/generic/goldfish/android/process",
+        "//android/process",
         "@crashpad//client",
         "@crashpad//handler",
         "@crashpad//snapshot",
@@ -29,8 +29,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/android/system",
+        "//android/async:async_api",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
     ],
@@ -42,11 +42,11 @@ cc_test(
     srcs = ["test/android/crashreport/HangDetector_unittest.cpp"],
     deps = [
         ":hang_detector",
-        "//hardware/generic/goldfish/android/async:async_testing",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:threaded_event_loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/async:async_testing",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
@@ -66,8 +66,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":hang_detector",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/tools:aemu_version",
+        "//android/system",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
@@ -111,7 +111,7 @@ cc_library(
     deps = [
         ":crash_reporter",
         ":hang_detector",
-        "//hardware/generic/goldfish/android/system",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
@@ -127,7 +127,7 @@ cc_library(
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
     local_defines = ["AEMU_CRASH_EXPORTS"],
-    visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
+    visibility = ["//emulator/crashreport/tool:__subpackages__"],
     deps = [
         ":always_consent",
         "@crashpad//client",
@@ -146,7 +146,7 @@ cc_library(
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
     local_defines = ["AEMU_CRASH_EXPORTS"],
-    visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
+    visibility = ["//emulator/crashreport/tool:__subpackages__"],
     deps = [
         "@abseil-cpp//absl/log",
         "@crashpad//client",
@@ -155,7 +155,7 @@ cc_library(
 
 alias(
     name = "crashreport",
-    actual = "//hardware/generic/goldfish/emulator/crashreport/tool:crashreport",
+    actual = "//emulator/crashreport/tool:crashreport",
     visibility = ["//visibility:public"],
 )
 
@@ -180,9 +180,9 @@ cc_test(
         ":breadcrumb",
         ":detectors",
         ":init",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/system",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@breakpad//src/processor",

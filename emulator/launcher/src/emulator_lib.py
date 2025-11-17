@@ -60,7 +60,7 @@ class EmulatorLocator:
     async def _locate_goldfish_exec(self):
         if self.use_zip:
             zip_path = Path(
-                self.r.Rlocation("_main/hardware/generic/goldfish/emulator/release.zip")
+                self.r.Rlocation("goldfish+/emulator/release.zip")
             )
             if not zip_path.exists():
                 raise FileNotFoundError(f"Goldfish zip not found: {zip_path}")
@@ -81,7 +81,7 @@ class EmulatorLocator:
         else:
             self.goldfish_exec = Path(
                 self.r.Rlocation(
-                    "_main/hardware/generic/goldfish/emulator/launcher/launcher"
+                    "goldfish+/emulator/launcher/launcher"
                 )
             )
 
@@ -123,7 +123,7 @@ class EmulatorLocator:
         minigbm_abi_dir = f"minigbm-{self.abi}"
         self.phone_ini_path = Path(
             self.r.Rlocation(
-                f"_main/hardware/generic/goldfish/emulator/sdk/system_images/{minigbm_abi_dir}/phone.ini"
+                f"goldfish+/emulator/sdk/system_images/{minigbm_abi_dir}/phone.ini"
             )
         )
         if not self.phone_ini_path.exists():
@@ -131,7 +131,7 @@ class EmulatorLocator:
 
         self.config_ini_path = Path(
             self.r.Rlocation(
-                f"_main/hardware/generic/goldfish/emulator/sdk/system_images/{minigbm_abi_dir}/phone.avd/config.ini"
+                f"goldfish+/emulator/sdk/system_images/{minigbm_abi_dir}/phone.avd/config.ini"
             )
         )
         if not self.config_ini_path.exists():
@@ -141,7 +141,7 @@ class EmulatorLocator:
 
     def _locate_marker_files(self):
         marker_files_path = self.r.Rlocation(
-            "_main/hardware/generic/goldfish/emulator/sdk/platforms/empty"
+            "goldfish+/emulator/sdk/platforms/empty"
         )
         if not marker_files_path:
             raise FileNotFoundError("Marker files not found.")

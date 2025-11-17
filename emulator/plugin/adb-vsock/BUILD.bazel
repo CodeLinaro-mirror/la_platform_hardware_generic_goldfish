@@ -7,9 +7,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/adb/host",
-        "//hardware/generic/goldfish/emulator/adb/logger",
-        "//hardware/generic/goldfish/emulator/plugin/avd",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "//emulator/adb/host",
+        "//emulator/adb/logger",
+        "//emulator/plugin/avd",
+        "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],
 )

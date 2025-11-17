@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
 cc_library(
     name = "sparse",
     srcs = [
@@ -15,8 +17,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = ["@zlib"] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
-            "//hardware/generic/goldfish/third_party/windows/mman",
+            "//android/windows/posix:compat",
+            "//third_party/windows/mman",
         ],
         "//conditions:default": [],
     }),
@@ -28,8 +30,8 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [":sparse"] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
-            "//hardware/generic/goldfish/third_party/windows/mman",
+            "//android/windows/posix:compat",
+            "//third_party/windows/mman",
         ],
         "//conditions:default": [],
     }),

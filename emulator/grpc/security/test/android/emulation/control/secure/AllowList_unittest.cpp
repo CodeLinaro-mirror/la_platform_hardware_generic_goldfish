@@ -134,7 +134,7 @@ TEST(AllowListTest, ignore_reserved_iss) {
 
 TEST(AllowListTest, can_parse_default_list) {
     std::filesystem::path emu_access = std::filesystem::path(
-            "hardware/generic/goldfish/emulator/grpc/security/src/android/"
+            "goldfish+/emulator/grpc/security/src/android/"
             "emulation/control/secure/emulator_access.json");
     auto path = android::base::internal::runfilesPath(emu_access);
 

@@ -20,7 +20,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//third_party/vulkan-headers:vulkan_headers",
+        "@vulkan-headers//:vulkan_headers",
     ],
     alwayslink = True,
 )
@@ -33,6 +33,6 @@ cc_test(
     ],
     deps = [
         ":imaging",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )

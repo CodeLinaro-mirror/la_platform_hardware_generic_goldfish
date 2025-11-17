@@ -15,8 +15,8 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/camera:image_provider_api",
-        "//hardware/generic/goldfish/emulator/libs/gvk",
+        "//emulator/hal/camera:image_provider_api",
+        "//emulator/libs/gvk",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base-headers",
         "@gfxstream//third_party/glm",
@@ -33,14 +33,14 @@ cc_test(
         "test/virtualscene_data.cpp",
     ],
     data = [
-        "//prebuilts/android-emulator-build/common/virtualscene/Toren1BD",
+        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
     ],
     includes = [
         ".",
     ],
     deps = [
         ":virtualscene",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system",
+        "//android/system:googletest_main",
     ],
 )

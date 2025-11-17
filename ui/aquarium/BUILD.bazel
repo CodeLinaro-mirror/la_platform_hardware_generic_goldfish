@@ -5,7 +5,7 @@
 #    name = "aquarium_lib",
 #    srcs = ["src/aquarium.cpp"],
 #    deps = [
-#        "//hardware/generic/goldfish/emulator/libs/application_singleton",
+#        "//emulator/libs/application_singleton",
 #        "@abseil-cpp//absl/flags:flag",
 #        "@abseil-cpp//absl/flags:parse",
 #        "@abseil-cpp//absl/log:initialize",

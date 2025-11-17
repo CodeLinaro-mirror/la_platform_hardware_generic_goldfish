@@ -1,6 +1,6 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
-package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "event-stream",
@@ -8,7 +8,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/grpc/async",
+        "//emulator/grpc/async",
         "@aemu//base:event-support",
         "@grpc//:grpc++",
     ],

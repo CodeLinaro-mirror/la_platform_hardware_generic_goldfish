@@ -50,13 +50,7 @@ std::string RunfilesPath(const std::string& path) {
         return "";
     }
 
-    const char* workspace_dir = std::getenv("TEST_WORKSPACE");
-    if (workspace_dir == nullptr || workspace_dir[0] == '\0') {
-        ADD_FAILURE() << "TEST_WORKSPACE not set, cannot locate runfiles.";
-        return "";
-    }
-
-    return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
+    return runfiles->Rlocation(path);
 }
 
 class ApplicationSingletonTest : public ::testing::Test {
@@ -96,9 +90,7 @@ class ApplicationSingletonTest : public ::testing::Test {
     // Helper function to get the path to the test helper executable.
     std::string getHelperPath(const std::string& helperName) {
         return RunfilesPath(
-                "hardware/generic/goldfish/emulator/libs/"
-                "application_singleton/" +
-                helperName);
+                "goldfish+/emulator/libs/application_singleton/" + helperName);
     }
 
     // Helper function to run the second instance test helper.

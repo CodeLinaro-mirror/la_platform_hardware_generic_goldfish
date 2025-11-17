@@ -11,16 +11,16 @@ This repository contains a series of plugins and tools to extend QEMU with andro
 You can create a release by running
 
 ```sh
-bazel build --config release //hardware/generic/goldfish/emulator:release
+bazel build --config release @goldfish//emulator:release
 ```
 
 This will produce a zip file for your current architecture. You can unzip this file and launch the emulator. For example on darwin it will produce the following:
 
 ```sh
-bazel build --config release //hardware/generic/goldfish/emulator:release
-INFO: Analyzed target //hardware/generic/goldfish/emulator:release (0 packages loaded, 0 targets configured).
+bazel build --config release @goldfish//emulator:release
+INFO: Analyzed target @goldfish//emulator:release (0 packages loaded, 0 targets configured).
 INFO: Found 1 target...
-Target //hardware/generic/goldfish/emulator:release up-to-date:
+Target @goldfish//emulator:release up-to-date:
   bazel-bin/hardware/generic/goldfish/emulator/sdk-repo-darwin_aarch64-emulator-developer.zip
 INFO: Elapsed time: 0.258s, Critical Path: 0.00s
 INFO: 1 process: 1 internal.
@@ -44,7 +44,7 @@ gcloud auth application-default login --project=emulator-builds
 Next you can launch the emulator with:
 
 ```sh
-bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -show-kernel
+bazel run @goldfish//emulator/launcher:launch_emulator -- -show-kernel
 ```
 
 This command will:
@@ -57,7 +57,7 @@ Once launched, the emulator should appear in the **Running Devices** tool window
 You can pass any additional QEMU flags after the `--`. For example, to enable verbose logging for the display component, you can run:
 
 ```sh
-bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -verbose -vmodule "Display*=1"
+bazel run @goldfish//emulator/launcher:launch_emulator -- -verbose -vmodule "Display*=1"
 ```
 
 **Note on Performance:** Debug builds (`-c dbg`) can be very slow as they lack GPU-accelerated scaling. For a smoother experience, use an optimized release build (`-c opt`).
@@ -67,7 +67,7 @@ bazel run //hardware/generic/goldfish/emulator/launcher:launch_emulator -- -verb
 For more advanced scenarios where you need to specify every parameter manually (like the AVD name), you can run the `goldfish` binary directly:
 
 ```sh
-bazel run --config debug //hardware/generic/goldfish/emulator/launcher -- -avd MyAVD
+bazel run --config debug @goldfish//emulator/launcher -- -avd MyAVD
 ```
 
 This will launch the goldfish emulator with avd *MyAVD*.
@@ -107,7 +107,7 @@ Typical slowdown introduced by AddressSanitizer is *2x*.
 You can select the configuration by passing the `--config {my_config}` parameters. For example to create a address sanitizer release you can do:
 
 ```sh
-bazel build --config asan //hardware/generic/goldfish/emulator:release
+bazel build --config asan @goldfish//emulator:release
 ```
 
 ### Setting global build options
@@ -115,7 +115,7 @@ bazel build --config asan //hardware/generic/goldfish/emulator:release
 You can add build flags globally by adding the `--copt` parameter, for example
 
 ```sh
-bazel build --copt=-funsafe-math-optimizations //hardware/generic/goldfish/emulator:release
+bazel build --copt=-funsafe-math-optimizations @goldfish//emulator:release
 ```
 
 Would globablly allow unsafe floating-point optimizations.
@@ -151,7 +151,7 @@ source ./asan_exports.sh
 Next you can run the emulator under asan as:
 
 ```bash
-bazel run --config asan //hardware/generic/goldfish/emulator/launcher -- --avd V
+bazel run --config asan @goldfish//emulator/launcher -- --avd V
 ```
 
 *Note: If you are not seeing memory address translated to stackframes you might have to update the [asan_exports.sh](./asan_exports.sh) shell script to point to the proper symbolizer.*
@@ -179,11 +179,11 @@ In your Bazel workspace, you can generate a JSON Compilation Database using the 
 
 ```sh
 
-bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/generic/goldfish/...
+bazel run @goldfish//development/tools/bcc:extract-cc -- @goldfish//...
 
 ```
 
-This command runs the extract-cc tool located in the specified Bazel package. The `-- //hardware/generic/goldfish/...` part tells Bazel to generate compilation commands for all C/C++ targets under the `//hardware/generic/goldfish` directory, including their transitive dependencies. The generated `compile_commands.json` file will be placed at the root of your Bazel workspace.
+This command runs the extract-cc tool located in the specified Bazel package. The `-- @goldfish//...` part tells Bazel to generate compilation commands for all C/C++ targets under the `@goldfish` directory, including their transitive dependencies. The generated `compile_commands.json` file will be placed at the root of your Bazel workspace.
 
 **Important Considerations**
 
@@ -195,8 +195,8 @@ This command runs the extract-cc tool located in the specified Bazel package. Th
 
 The following targets might be of interrest if you wish to add new functionality:
 
-- `//hardware/generic/goldfish/emulator:emulator_unit_tests`: This target contains all the test suites that will be run as part of the build. Make sure your tests are added to this suite.
-- `//hardware/generic/goldfish/emulator:release`: The release target. This constructs the zip file with everything that will be distributed. You will need to modify this if you wish to distribute new files.
-- `//hardware/generic/goldfish/emulator/launcher`: The QEMU launcher. This binary is responsible for configuring the AVD and invoking the qemu emulator with the proper configuration. This is where you configure the drivers, setup the qcow2 images, verify that your system meets the requirements etc..
+- `@goldfish//emulator:emulator_unit_tests`: This target contains all the test suites that will be run as part of the build. Make sure your tests are added to this suite.
+- `@goldfish//emulator:release`: The release target. This constructs the zip file with everything that will be distributed. You will need to modify this if you wish to distribute new files.
+- `@goldfish//emulator/launcher`: The QEMU launcher. This binary is responsible for configuring the AVD and invoking the qemu emulator with the proper configuration. This is where you configure the drivers, setup the qcow2 images, verify that your system meets the requirements etc..
 
 See [emulator/plugin/README.MD](emulator/plugin/README.MD) if you wish to add additional plugins that need to be loaded into QEMU.

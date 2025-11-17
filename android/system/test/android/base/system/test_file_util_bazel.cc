@@ -38,12 +38,7 @@ fs::path runfilesPath(fs::path path) {
         LOG(FATAL) << "Unable to determine runfile path: " << error;
     }
 
-    auto workspace_dir = System::get()->getEnvironmentVariable("TEST_WORKSPACE");
-    if (workspace_dir.empty()) {
-        LOG(FATAL) << "Unable to determine workspace name.";
-    }
-
-    return fs::path(runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path.string())));
+    return fs::path(runfiles->Rlocation(path.string()));
 }
 
 }  // namespace internal

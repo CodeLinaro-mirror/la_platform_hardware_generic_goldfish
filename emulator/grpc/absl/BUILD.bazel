@@ -1,7 +1,7 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
-package(default_visibility = ["//hardware/generic/goldfish/emulator/grpc:__subpackages__"])
+package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "translate",
@@ -23,7 +23,7 @@ cc_test(
     srcs = ["test/AbslStatusTranslateTest.cpp"],
     deps = [
         ":translate",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
         "@googletest//:gtest",
     ],
 )

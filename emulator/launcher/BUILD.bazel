@@ -1,7 +1,7 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
-load("//hardware/generic/goldfish/emulator/tools:plugins.bzl", "collect_plugins")
+load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("launcher_test.bzl", "create_launch_emulator_test")
 
 cc_library(
@@ -11,9 +11,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/android/async:uv_to_absl",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/config:config_dirs",
+        "//android/async:uv_to_absl",
+        "//android/system",
+        "//emulator/config:config_dirs",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@aemu//base:aemu-base",
@@ -28,8 +28,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
-        "//hardware/generic/goldfish/emulator/cmdline",
-        "//hardware/generic/goldfish/emulator/config:avd",
+        "//emulator/cmdline",
+        "//emulator/config:avd",
     ],
 )
 
@@ -54,7 +54,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hardware/generic/goldfish/emulator/cmdline",
+        "//emulator/cmdline",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
@@ -66,9 +66,9 @@ cc_test(
     srcs = ["test/android/goldfish/logging_unittest.cpp"],
     deps = [
         ":logconfig",
-        "//hardware/generic/goldfish/android/logging:backend",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/logging:backend",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -79,7 +79,7 @@ cc_library(
     hdrs = ["src/android/goldfish/bootconfig.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
-    deps = ["//hardware/generic/goldfish/android/system"],
+    deps = ["//android/system"],
 )
 
 cc_test(
@@ -87,9 +87,9 @@ cc_test(
     srcs = ["test/android/goldfish/bootconfig_unittest.cpp"],
     deps = [
         ":bootconfig",
-        "//hardware/generic/goldfish/android/logging:backend",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/android/system:test-headers",
+        "//android/logging:backend",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
     ],
 )
 
@@ -100,38 +100,38 @@ cc_library(
         "src/android/goldfish/emulator.cpp",
     ],
     # Qemu roms needed for unittests - Emulator check that it is available.
-    data = ["//third_party/qemu:qemu-roms"],
+    data = ["@qemu//:qemu-roms"],
     visibility = ["//visibility:public"],
     deps = [
         ":emulator_config",
         ":input_paths",
-        "//hardware/generic/goldfish/android/async:launch_config",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/cmdline",
-        "//hardware/generic/goldfish/emulator/config:avd",
-        "//hardware/generic/goldfish/emulator/crashreport:detectors",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:adb_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:audio_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:avd_info_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:cpu_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:display_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:gpu_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:grpc_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:initrd_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:kernel_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:machine",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:memory_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:network_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:parameter_list",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices:wifi_device",
-        "//hardware/generic/goldfish/emulator/launcher/src/android/goldfish/devices/drives:configure_drives",
+        "//android/async:launch_config",
+        "//android/system",
+        "//emulator/cmdline",
+        "//emulator/config:avd",
+        "//emulator/crashreport:detectors",
+        "//emulator/launcher/src/android/goldfish/devices:adb_device",
+        "//emulator/launcher/src/android/goldfish/devices:audio_device",
+        "//emulator/launcher/src/android/goldfish/devices:avd_info_device",
+        "//emulator/launcher/src/android/goldfish/devices:cpu_device",
+        "//emulator/launcher/src/android/goldfish/devices:display_device",
+        "//emulator/launcher/src/android/goldfish/devices:gpu_device",
+        "//emulator/launcher/src/android/goldfish/devices:grpc_device",
+        "//emulator/launcher/src/android/goldfish/devices:initrd_device",
+        "//emulator/launcher/src/android/goldfish/devices:kernel_device",
+        "//emulator/launcher/src/android/goldfish/devices:machine",
+        "//emulator/launcher/src/android/goldfish/devices:memory_device",
+        "//emulator/launcher/src/android/goldfish/devices:network_device",
+        "//emulator/launcher/src/android/goldfish/devices:parameter_list",
+        "//emulator/launcher/src/android/goldfish/devices:wifi_device",
+        "//emulator/launcher/src/android/goldfish/devices/drives:configure_drives",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
     ] + select({
         "@platforms//os:windows": [
-            "//hardware/generic/goldfish/android/windows/posix:compat",
+            "//android/windows/posix:compat",
         ],
         "//conditions:default": [],
     }),
@@ -143,10 +143,10 @@ cc_library(
     hdrs = ["include/android/goldfish/netsimd.h"],
     includes = ["include"],
     deps = [
-        "//hardware/generic/goldfish/android/async:launch_config",
-        "//hardware/generic/goldfish/android/network",
-        "//hardware/generic/goldfish/emulator/cmdline",
-        "//hardware/generic/goldfish/emulator/grpc/client:emulator_grpc_client",
+        "//android/async:launch_config",
+        "//android/network",
+        "//emulator/cmdline",
+        "//emulator/grpc/client:emulator_grpc_client",
         "@grpc//:grpc++",
     ],
 )
@@ -171,18 +171,18 @@ collect_plugins(
     name = "plugins",
     output_dir = "lib/qemu",
     plugins = [
-        "//hardware/generic/goldfish/emulator/plugin:goldfish_x86_64",
+        "//emulator/plugin:goldfish_x86_64",
         "@crosvm//:rutabaga_ffi",
     ] + select({
         "darwin_aarch64": [
-            "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
-            "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+            "//emulator/plugin:goldfish_aarch64",
+            "//emulator/plugin:goldfish_riscv64",
         ],
         "@platforms//os:linux": [
-            "//hardware/generic/goldfish/emulator/plugin:goldfish_aarch64",
-            "//hardware/generic/goldfish/emulator/plugin:goldfish_riscv64",
+            "//emulator/plugin:goldfish_aarch64",
+            "//emulator/plugin:goldfish_riscv64",
             # For old netsimd prebuilt
-            "//prebuilts/android-emulator-build/common/vulkan:linux_libc++",
+            "@goldfish_prebuilts_common//vulkan:linux_libc++",
         ],
         "@platforms//os:windows": [
             # We don't build Qemu system aarch64 or riscv64 on Windows.
@@ -196,16 +196,16 @@ collect_plugins(
     output_dir = "lib64/vulkan",
     plugins = select({
         "darwin_aarch64": [
-            "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
         ],
         "@platforms//os:linux": [
-            "//prebuilts/android-emulator-build/common/vulkan:icds_linux_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_linux_x86_64",
+            "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
         ],
         "@platforms//os:windows": [
-            "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
         ],
         "//conditions:default": [],
     }),
@@ -216,17 +216,17 @@ collect_plugins(
     output_dir = "lib64",
     plugins = select({
         "darwin_aarch64": [
-            "//prebuilts/android-emulator-build/common/ANGLE:lib_darwin_aarch64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_darwin_aarch64",
-            "//prebuilts/android-emulator-build/common/vulkan:icds_darwin_aarch64",
+            "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
         ],
         "@platforms//os:linux": [
-            "//prebuilts/android-emulator-build/common/swiftshader:lib_linux_x86_64",
+            "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
         ],
         "@platforms//os:windows": [
-            "//prebuilts/android-emulator-build/common/ANGLE:lib_windows_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:lib_windows_x86_64",
-            "//prebuilts/android-emulator-build/common/vulkan:icds_windows_x86_64",
+            "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
         ],
         "//conditions:default": [],
     }),
@@ -236,27 +236,27 @@ collect_plugins(
     name = "binaries",
     output_dir = "bin",
     plugins = [
-        "//hardware/generic/goldfish/emulator/crashreport",
-        "//hardware/generic/goldfish/third_party/sparse:img2simg",
-        "//third_party/qemu:qemu-img",
+        "//emulator/crashreport",
+        "//third_party/sparse:img2simg",
+        "@qemu//:qemu-img",
         "@crashpad//handler:crashpad_handler",
         #"@netsim//:netsimd",
     ] + select({
         "@platforms//os:windows": [
-            "//prebuilts/android-emulator-build/common/netsim:netsim_windows_x86_64",
-            "//third_party/qemu:qemu-system-x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-x86_64",
         ],
         "@platforms//os:macos": [
-            "//prebuilts/android-emulator-build/common/netsim:netsim_darwin_aarch64",
-            "//third_party/qemu:qemu-system-aarch64_signed",
-            "//third_party/qemu:qemu-system-riscv64_signed",
-            "//third_party/qemu:qemu-system-x86_64_signed",
+            "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
+            "@qemu//:qemu-system-aarch64_signed",
+            "@qemu//:qemu-system-riscv64_signed",
+            "@qemu//:qemu-system-x86_64_signed",
         ],
         "//conditions:default": [
-            "//prebuilts/android-emulator-build/common/netsim:netsim_linux_x86_64",
-            "//third_party/qemu:qemu-system-aarch64",
-            "//third_party/qemu:qemu-system-riscv64",
-            "//third_party/qemu:qemu-system-x86_64",
+            "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
+            "@qemu//:qemu-system-aarch64",
+            "@qemu//:qemu-system-riscv64",
+            "@qemu//:qemu-system-x86_64",
         ],
     }),
 )
@@ -265,7 +265,7 @@ collect_plugins(
     name = "roms",
     output_dir = "share/qemu",
     plugins = [
-        "//third_party/qemu:qemu-roms",
+        "@qemu//:qemu-roms",
     ],
 )
 
@@ -273,7 +273,7 @@ collect_plugins(
     name = "keymaps",
     output_dir = "share/qemu/keymaps",
     plugins = [
-        "//third_party/qemu:qemu-keymaps",
+        "@qemu//:qemu-keymaps",
     ],
 )
 
@@ -287,7 +287,7 @@ cc_binary(
         ":plugins",
         ":roms",
         ":vulkan_icds",
-        "//hardware/generic/goldfish/emulator/grpc/security:unsecure-emulator-access",
+        "//emulator/grpc/security:unsecure-emulator-access",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
@@ -299,17 +299,16 @@ cc_binary(
         ":input_paths",
         ":logconfig",
         ":netsimd",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:libuv_process_launcher",
-        "//hardware/generic/goldfish/android/async:libuv_signal_handlers",
-        "//hardware/generic/goldfish/android/cpu",
-        "//hardware/generic/goldfish/android/filesystems",
-        "//hardware/generic/goldfish/android/system",
-        "//hardware/generic/goldfish/emulator/adb/secrets",
-        "//hardware/generic/goldfish/emulator/cmdline",
-        "//hardware/generic/goldfish/emulator/crashreport:init",
-        "//hardware/generic/goldfish/emulator/tools:aemu_version",
-        "//third_party/qemu:qemu-headers",
+        "//android/async:libuv_event_loop",
+        "//android/async:libuv_process_launcher",
+        "//android/async:libuv_signal_handlers",
+        "//android/cpu",
+        "//android/filesystems",
+        "//android/system",
+        "//emulator/adb/secrets",
+        "//emulator/cmdline",
+        "//emulator/crashreport:init",
+        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/flags:flag",
@@ -317,6 +316,7 @@ cc_binary(
         "@abseil-cpp//absl/log:initialize",
         "@aemu//base:aemu-base",
         "@nlohmann_json//:singleheader-json",
+        "@qemu//:qemu-headers",
     ],
 )
 
@@ -390,15 +390,15 @@ py_binary(
         ":launcher",
     ] + select({
         "@platforms//os:macos": [
-            "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
+            "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
             "@android_minigbm16k-arm64-v8a//:system_image",
         ],
         "//conditions:default": [
-            "//hardware/generic/goldfish/emulator/sdk/system_images/minigbm-x86_64:minigbm",
+            "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
             "@android_minigbm16k-x86_64//:system_image",
         ],
     }) + [
-        "//hardware/generic/goldfish/emulator/sdk:sdk-marker-files",
+        "//emulator/sdk:sdk-marker-files",
     ],
     deps = [
         ":emulator_lib",

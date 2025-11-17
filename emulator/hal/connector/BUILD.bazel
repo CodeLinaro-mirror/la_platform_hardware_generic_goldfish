@@ -16,7 +16,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/archive",
+        "//emulator/libs/archive",
         "@abseil-cpp//absl/log",
     ],
     alwayslink = True,
@@ -50,7 +50,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/libs/broadcasting",
+        "//emulator/libs/broadcasting",
     ],
     alwayslink = True,
 )
@@ -88,8 +88,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/hal/connector:cable",
+        "//android/async:async_api",
+        "//emulator/hal/connector:cable",
     ],
 )
 
@@ -104,8 +104,8 @@ cc_library(
     ],
     deps = [
         ":devices",
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_to_i_plug_adapter",
+        "//android/async:async_api",
+        "//emulator/hal/plug:hal_plug_to_i_plug_adapter",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
@@ -126,11 +126,11 @@ cc_library(
     deps = [
         ":connector_registry_hdrs",
         ":devices",
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_factory",
-        "//hardware/generic/goldfish/emulator/hal/plug:hal_plug_to_i_plug_adapter",
-        "//hardware/generic/goldfish/emulator/hal/plug:marshalling_hal_socket",
-        "//hardware/generic/goldfish/emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "//android/async:async_api",
+        "//emulator/hal/plug:hal_plug_factory",
+        "//emulator/hal/plug:hal_plug_to_i_plug_adapter",
+        "//emulator/hal/plug:marshalling_hal_socket",
+        "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
@@ -148,10 +148,10 @@ cc_test(
     deps = [
         ":connector_registry_hdrs",
         ":connector_registry_impl",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:threaded_event_loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/hal/plug:fake_vsock",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
+        "//android/system:googletest_main",
+        "//emulator/hal/plug:fake_vsock",
     ],
 )
 
@@ -167,10 +167,10 @@ cc_test(
     deps = [
         ":connection_awaiter",
         ":devices",
-        "//hardware/generic/goldfish/android/async:async_testing",
-        "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/android/system:googletest_main",
-        "//hardware/generic/goldfish/emulator/libs/archive:DequeArchive",
+        "//android/async:async_testing",
+        "//android/sockets",
+        "//android/system:googletest_main",
+        "//emulator/libs/archive:DequeArchive",
     ],
 )
 
@@ -197,17 +197,15 @@ cc_library(
         ":cable",
         ":connector_registry_impl",
         ":devices",
-        "//hardware/generic/goldfish/android/async:async_testing",
-        # "//hardware/generic/goldfish/android/looper",
-        # "//hardware/generic/goldfish/android/sockets",
-        "//hardware/generic/goldfish/emulator/hal/bootproperties:test_bootproperties",
-        "//hardware/generic/goldfish/emulator/hal/camera:test_camera",
-        "//hardware/generic/goldfish/emulator/hal/clipboard:test_clipboard",
-        "//hardware/generic/goldfish/emulator/hal/fingerprint:test_fingerprint",
-        "//hardware/generic/goldfish/emulator/hal/gps:test_gps",
-        "//hardware/generic/goldfish/emulator/hal/guest-status:test_guest-status",
-        "//hardware/generic/goldfish/emulator/hal/plug:fake_vsock",
-        "//hardware/generic/goldfish/emulator/hal/sensors:test_sensors",
+        "//android/async:async_testing",
+        "//emulator/hal/bootproperties:test_bootproperties",
+        "//emulator/hal/camera:test_camera",
+        "//emulator/hal/clipboard:test_clipboard",
+        "//emulator/hal/fingerprint:test_fingerprint",
+        "//emulator/hal/gps:test_gps",
+        "//emulator/hal/guest-status:test_guest-status",
+        "//emulator/hal/plug:fake_vsock",
+        "//emulator/hal/sensors:test_sensors",
     ],
     alwayslink = True,
 )

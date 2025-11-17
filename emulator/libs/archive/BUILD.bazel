@@ -20,7 +20,7 @@ cc_test(
     ],
     deps = [
         ":zigzag",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )
 
@@ -55,7 +55,7 @@ cc_library(
     ],
     deps = [
         ":archive",
-        "//hardware/generic/goldfish/emulator/libs/debug",
+        "//emulator/libs/debug",
     ],
 )
 
@@ -67,7 +67,7 @@ cc_test(
     ],
     deps = [
         ":DequeArchive",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )
 
@@ -86,7 +86,7 @@ cc_library(
     ],
     deps = [
         ":archive",
-        "//hardware/generic/goldfish/emulator/libs/QEMUFile_h",
+        "//emulator/libs/QEMUFile_h",
     ],
 )
 

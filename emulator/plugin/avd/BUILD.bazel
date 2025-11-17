@@ -11,7 +11,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_hdrs",
+        "//emulator/hal/connector:connector_registry_hdrs",
     ],
 )
 
@@ -31,11 +31,11 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/emulator/hal/camera:gralloc_details",
-        "//hardware/generic/goldfish/emulator/libs/parsing",
-        "//third_party/qemu:qemu-headers",
+        "//emulator/hal/camera:gralloc_details",
+        "//emulator/libs/parsing",
         "@crosvm//:rutabaga_c_ffi",
         "@pixman//:pixman-1",
+        "@qemu//:qemu-headers",
     ],
     alwayslink = True,
 )
@@ -51,8 +51,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:threaded_event_loop",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
     ],
 )
 
@@ -64,7 +64,7 @@ cc_test(
     ],
     deps = [
         ":global-event-loop",
-        "//hardware/generic/goldfish/android/system:googletest_main",
+        "//android/system:googletest_main",
     ],
 )
 
@@ -76,7 +76,7 @@ cc_library(
         "VCpuEventLoop.h",
     ],
     visibility = ["//visibility:public"],
-    deps = ["//third_party/qemu:qemu-headers"],
+    deps = ["@qemu//:qemu-headers"],
 )
 
 cc_library(
@@ -97,31 +97,31 @@ cc_library(
         ":global-event-loop",
         ":gralloc_impl",
         ":vcpu_event_loop",
-        "//hardware/generic/goldfish/android/async:async_api",
-        "//hardware/generic/goldfish/android/async:libuv_event_loop",
-        "//hardware/generic/goldfish/android/async:qemu_event_loop",
-        "//hardware/generic/goldfish/emulator/adb/host",
-        "//hardware/generic/goldfish/emulator/adb/logger",
-        "//hardware/generic/goldfish/emulator/config:device_type",
-        "//hardware/generic/goldfish/emulator/config:hardware_config",
-        "//hardware/generic/goldfish/emulator/crashreport:crash_reporter",
-        "//hardware/generic/goldfish/emulator/hal/bootproperties",
-        "//hardware/generic/goldfish/emulator/hal/camera",
-        "//hardware/generic/goldfish/emulator/hal/clipboard",
-        "//hardware/generic/goldfish/emulator/hal/common:emulator_reset",
-        "//hardware/generic/goldfish/emulator/hal/connector:connector_registry_impl",
-        "//hardware/generic/goldfish/emulator/hal/display",
-        "//hardware/generic/goldfish/emulator/hal/fingerprint",
-        "//hardware/generic/goldfish/emulator/hal/gps",
-        "//hardware/generic/goldfish/emulator/hal/guest-status",
-        "//hardware/generic/goldfish/emulator/hal/sensors",
-        "//hardware/generic/goldfish/emulator/plugin/system:qemu_clock",
-        "//third_party/qemu:qemu-headers",
+        "//android/async:async_api",
+        "//android/async:libuv_event_loop",
+        "//android/async:qemu_event_loop",
+        "//emulator/adb/host",
+        "//emulator/adb/logger",
+        "//emulator/config:device_type",
+        "//emulator/config:hardware_config",
+        "//emulator/crashreport:crash_reporter",
+        "//emulator/hal/bootproperties",
+        "//emulator/hal/camera",
+        "//emulator/hal/clipboard",
+        "//emulator/hal/common:emulator_reset",
+        "//emulator/hal/connector:connector_registry_impl",
+        "//emulator/hal/display",
+        "//emulator/hal/fingerprint",
+        "//emulator/hal/gps",
+        "//emulator/hal/guest-status",
+        "//emulator/hal/sensors",
+        "//emulator/plugin/system:qemu_clock",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/log:log_sink_registry",
+        "@qemu//:qemu-headers",
     ],
     alwayslink = True,
 )

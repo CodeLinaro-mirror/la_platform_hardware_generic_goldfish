@@ -1,9 +1,8 @@
-# hardware/generic/goldfish/emulator/hal/common/BUILD.bazel
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = [
-    "//hardware/generic/goldfish/emulator/hal:__subpackages__",
-    "//hardware/generic/goldfish/emulator/plugin/avd:__subpackages__",
+    "//emulator/hal:__subpackages__",
+    "//emulator/plugin/avd:__subpackages__",
 ])
 
 cc_library(
