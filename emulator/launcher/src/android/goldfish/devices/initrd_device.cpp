@@ -178,6 +178,9 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     params.push_back({qemuCameraProtocolVerProp, "1"});
 
+    // Keyboard config.
+    params.push_back({"androidboot.qemu.keyboard_device", "QEMU Virtio Keyboard"});
+
     if (isX86ish) {
         // x86 and x86_64 platforms use an alternative Android DT directory that
         // mimics the layout of /proc/device-tree/firmware/android/
