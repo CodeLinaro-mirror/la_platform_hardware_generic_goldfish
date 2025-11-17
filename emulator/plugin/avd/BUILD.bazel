@@ -4,7 +4,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "avd_hdrs",
     hdrs = [
-        "include/goldfish/avd/avd-finalize.h",
         "include/goldfish/avd/avd-info.h",
     ],
     includes = ["include"],
@@ -86,7 +85,12 @@ cc_library(
         "avd-finalize.cpp",
         "avd-info.cpp",
     ],
+    hdrs = [
+        "include/goldfish/avd/avd-finalize.h",
+        "include/goldfish/avd/avd-info-register_types.h",
+    ],
     copts = ["-Wno-extern-c-compat"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":avd_hdrs",
