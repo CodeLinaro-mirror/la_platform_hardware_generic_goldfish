@@ -256,11 +256,11 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
 #if defined(__linux__)
     // on linux, default to use swiftshader_indirect for gl,
     // later gl will be removed once vulkan composition is on
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader_indirect");
+    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
 #else
     // ANGLE works fine on mac/windows on top of lavapipe, no need to change it
     // in addition, swiftshader does not work on mac anyway
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "angle_indirect");
+    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
     System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #endif
 

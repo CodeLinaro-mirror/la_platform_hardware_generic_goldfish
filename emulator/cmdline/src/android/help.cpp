@@ -1363,32 +1363,11 @@ static void help_gpu(stralloc_t* out) {
            "  use cases:\n\n"
 
            "     auto (default)       -> Auto-select the renderer.\n"
-           "     auto-no-window       -> Auto-select the renderer when\n"
-           "                             running headless. This will use the same\n"
-           "                             gpu selection mechanism as running without\n"
-           "                             the \"-no-window\" flag and the \"-gpu auto\"\n"
-           "                             option. See auto for details on the behavior.\n"
            "     host                 -> Use the host system's OpenGL driver.\n"
-           "     swiftshader_indirect -> Use SwiftShader software renderer on the\n"
-           "                             host, which can be beneficial if you are\n"
-           "                             experiencing issues with your GPU drivers\n"
-           "                             or need to run on systems without GPUs.\n"
-           "     angle_indirect       -> Use ANGLE, an OpenGL ES to D3D11 renderer\n"
-           "                             (Windows 7 SP1 + Platform update, \n"
-           "                             Windows 8.1+, or Windows 10 only).\n"
-           "     guest                -> Use guest-side software rendering. For\n"
-           "                             advanced users only. Warning: slow!\n"
-           "                             In API 28 and later, guest rendering\n"
-           "                             is not supported, and will fall back\n"
-           "                             automatically to swiftshader_indirect.\n"
-           "\n"
-           "  Note that enabling GPU emulation if the system image does not support it\n"
-           "  will prevent the proper display of the emulated framebuffer.\n\n"
-
-           "  The 'auto' mode is the default. In this mode, the hw.gpu.enabled setting\n"
-           "  in the AVD's " CORE_HARDWARE_INI
-           " file will determine whether GPU emulation\n"
-           "  is enabled.\n\n");
+           "     lavapipe             -> Use Lavapipe software renderer.\n"
+           "     swiftshader          -> Use SwiftShader software renderer. (Deprecated)\n"
+           "     swangle              -> Use ANGLE with swiftshader. (Deprecated)\n"
+           "\n");
 }
 
 static void help_use_host_vulkan(stralloc_t* out) {
