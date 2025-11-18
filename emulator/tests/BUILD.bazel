@@ -7,25 +7,28 @@ java_test(
         "//emulator/launcher",
     ] + select({
         "@platforms//os:linux": [
-            "//prebuilts/android/android-sdk/linux:sdkhome",
+            "//emulator/tests/sdk/linux:sdkhome",
             "@android_minigbm16k-x86_64//:system_image",
         ],
         "@platforms//os:macos": [
-            "//prebuilts/android/android-sdk/macosx:sdkhome",
+            "//emulator/tests/sdk/macosx:sdkhome",
             "@android_minigbm16k-arm64-v8a//:system_image",
         ],
         "//conditions:default": [],
     }),
+    env = {
+        "MODULE_WORKSPACE": "tools_emulator+",
+    },
     jvm_flags = [
-        "-Demulator.test.emulator.path=emulator/launcher/launcher",
+        "-Demulator.test.emulator.path=../goldfish+/emulator/launcher/launcher",
         "-Demulator.test.emulator.is-emu-next=1",
     ] + select({
         "@platforms//os:linux": [
-            "-Demulator.test.sdk.path=prebuilts/android/android-sdk/linux",
+            "-Demulator.test.sdk.path=../goldfish+/emulator/tests/sdk/linux",
             "-Demulator.test.system.image.files=\"$(locations @android_minigbm16k-x86_64//:system_image)\"",
         ],
         "@platforms//os:macos": [
-            "-Demulator.test.sdk.path=prebuilts/android/android-sdk/macosx",
+            "-Demulator.test.sdk.path=../goldfish+/emulator/tests/sdk/macosx",
             "-Demulator.test.system.image.files=\"$(locations @android_minigbm16k-arm64-v8a//:system_image)\"",
         ],
         "//conditions:default": [],
@@ -40,7 +43,7 @@ java_test(
         "//conditions:default": [],
     }),
     test_class = "com.android.tools.idea.EmulatorTest",
-    runtime_deps = ["//tools/emulator/tests:emulator.tests"],
+    runtime_deps = ["@tools_emulator//tests:emulator.tests"],
 )
 
 test_suite(
