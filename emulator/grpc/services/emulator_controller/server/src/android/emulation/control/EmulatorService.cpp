@@ -87,11 +87,11 @@ class EmulatorControllerImpl final
         return mVmService.getVmState(context, request, reply);
     }
 
-    Status getGps(ServerContext* context, const Empty* request, GpsState* reply) {
+    Status getGps(ServerContext* context, const Empty* request, GpsState* reply) override {
         return mGpsService.getGps(context, request, reply);
     }
 
-    Status setGps(ServerContext* context, const GpsState* request, Empty* reply) {
+    Status setGps(ServerContext* context, const GpsState* request, Empty* reply) override {
         return mGpsService.setGps(context, request, reply);
     }
 
