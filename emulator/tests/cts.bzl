@@ -1,6 +1,6 @@
 """Creates a rule that runs CTS."""
 
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_python//python:defs.bzl", "py_test")
 
 def deqp_tests(name, submodules = []):
     """Creates a set of rules that runs CTS deqp submodules.
@@ -13,12 +13,13 @@ def deqp_tests(name, submodules = []):
     test_specs = [
         (
             smp,
-            (
-                'args: "cts" ' +
-                'args: "-m" args: "CtsDeqpTestCases" ' +
-                'args: "--module-arg" ' +
-                'args: "CtsDeqpTestCases:include-filter:%s"' % smp
-            ),
+            [
+                "cts",
+                "-m",
+                "CtsDeqpTestCases",
+                "--module-arg",
+                "CtsDeqpTestCases:include-filter:%s" % smp,
+            ],
         )
         for smp in submodules
     ]
@@ -32,7 +33,7 @@ def cts_tests(name, modules = []):
       modules: A list of modules to create rules for of the form
           <name>.<module>
     """
-    test_specs = [(m, 'args: "cts" args: "-m" args: "%s"' % m) for m in modules]
+    test_specs = [(m, ["cts", "-m", "%s" % m]) for m in modules]
     cts_test_specs(name, test_specs)
 
 def cts_plan(name, plan_glob):
@@ -45,7 +46,7 @@ def cts_plan(name, plan_glob):
     """
     additional_plan_files = native.glob([plan_glob])
     test_specs = [
-        (plan_file.split("/")[-1], 'args: "PWD/$(location %s)"' % plan_file)
+        (plan_file.split("/")[-1], ["PWD/$(location %s)" % plan_file])
         for plan_file in additional_plan_files
     ]
     cts_test_specs(name, test_specs, additional_plan_files)
@@ -59,20 +60,26 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
       additional_plan_files: Additional plan files to inlcude in the dependency list
     """
     tests = []
-    for target, test_spec in test_specs:
+    for target, tradefed_args in test_specs:
         test = name + "." + target
         tests.append(test)
-        sh_test(
+        py_test(
             name = test,
-            srcs = ["run_cts.sh"],
-            env = {
-                "BUILD_TOOLS_PATH": "$(location @linux-build-tools//:aapt)",
-                "CTS_TRADEFED_PATH": "$(location @cts-x86-64//:cts-tradefed)",
-                "IMAGE_PATH": "$(location @android_minigbm-x86_64//:systemimg)",
-                "PLATFORM_TOOLS_PATH": "$(location @linux-platform-tools//:adb)",
-                "TEST_SPEC": test_spec,
-                "TEST_SEQ_PATH": "$(location @test_seq_linux//:test_seq)",
-            },
+            main = "run_cts.py",
+            srcs = ["run_cts.py"],
+            args = [
+                "--build_tools_aapt_path",
+                "$(location @linux-build-tools//:aapt)",
+                "--tradefed_exec_path",
+                "$(location @cts-x86-64//:cts-tradefed)",
+                "--system_img_path",
+                "$(location @android_minigbm-x86_64//:systemimg)",
+                "--platform_tools_adb_path",
+                "$(location @linux-platform-tools//:adb)",
+                "--tradefed_args='%s'" % (",".join(["%s" % arg for arg in tradefed_args]),),
+                "--test_seq_path",
+                "$(location @test_seq_linux//:test_seq)",
+            ],
             size = "enormous",
             data = [
                 "@android_minigbm-x86_64//:system_image",
@@ -84,7 +91,6 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
                 "@linux-build-tools//:build-tools",
                 "@linux-platform-tools//:adb",
                 "@linux-platform-tools//:platform-tools",
-                "sequence.txtpb",
                 "@test_seq_linux//:test_seq_files",
                 "@test_seq_linux//:test_seq",
             ] + native.glob(["local/**"]) + additional_plan_files,
