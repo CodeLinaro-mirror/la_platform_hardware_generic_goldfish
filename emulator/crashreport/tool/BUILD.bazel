@@ -24,9 +24,9 @@ cc_library(
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",
         "@aemu//base:aemu-base",
-        "@com_google_breakpad//src/processor",
-        "@com_google_crashpad//client",
-        "@com_google_crashpad//snapshot",
+        "@breakpad//src/processor",
+        "@crashpad//client",
+        "@crashpad//snapshot",
         "@nlohmann_json//:singleheader-json",
     ],
 )
@@ -42,7 +42,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:usage",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
-        "@com_google_crashpad//client",
+        "@crashpad//client",
     ],
 )
 

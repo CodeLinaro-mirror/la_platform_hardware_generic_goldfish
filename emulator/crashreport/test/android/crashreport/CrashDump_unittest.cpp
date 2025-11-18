@@ -68,7 +68,7 @@ class CrashTest : public ::testing::Test {
     std::unique_ptr<CrashReportDatabase> InitializeCrashDatabase() {
         if (Bazel::inBazel()) {
             auto crashpad_handler =
-                    Bazel::runfilesPath("com_google_crashpad/handler/crashpad_handler");
+                    Bazel::runfilesPath("crashpad+/handler/crashpad_handler");
             LOG(INFO) << "Using AEMU_CRASHPAD_HANDLER:" << crashpad_handler;
             System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }

@@ -8,7 +8,7 @@ cc_library(
         "include/android/crashreport/CrashSystem.h",
         "include/android/crashreport/crash-initializer.h",
     ],
-    data = ["@com_google_crashpad//handler:crashpad_handler"],
+    data = ["@crashpad//handler:crashpad_handler"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -16,9 +16,9 @@ cc_library(
         ":crash_reporter",
         ":uploader",
         "//hardware/generic/goldfish/android/process",
-        "@com_google_crashpad//client",
-        "@com_google_crashpad//handler",
-        "@com_google_crashpad//snapshot",
+        "@crashpad//client",
+        "@crashpad//handler",
+        "@crashpad//snapshot",
     ],
 )
 
@@ -71,10 +71,10 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_crashpad//client",
-        "@com_google_crashpad//handler",
-        "@com_google_crashpad//snapshot",
-        "@com_google_crashpad//third_party/mini_chromium:base",
+        "@crashpad//client",
+        "@crashpad//handler",
+        "@crashpad//snapshot",
+        "@crashpad//third_party/mini_chromium:base",
     ],
 )
 
@@ -92,7 +92,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
-        "@com_google_crashpad//client",
+        "@crashpad//client",
     ],
 )
 
@@ -130,9 +130,9 @@ cc_library(
     visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
     deps = [
         ":always_consent",
-        "@com_google_crashpad//client",
-        "@com_google_crashpad//handler",
-        "@com_google_crashpad//snapshot",
+        "@crashpad//client",
+        "@crashpad//handler",
+        "@crashpad//snapshot",
     ],
 )
 
@@ -149,7 +149,7 @@ cc_library(
     visibility = ["//hardware/generic/goldfish/emulator/crashreport/tool:__subpackages__"],
     deps = [
         "@abseil-cpp//absl/log",
-        "@com_google_crashpad//client",
+        "@crashpad//client",
     ],
 )
 
@@ -169,7 +169,7 @@ cc_test(
     ],
     data = [
         ":crash-me",
-        "@com_google_crashpad//handler:crashpad_handler",
+        "@crashpad//handler:crashpad_handler",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
@@ -185,8 +185,8 @@ cc_test(
         "//hardware/generic/goldfish/android/system:test-headers",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-        "@com_google_breakpad//src/processor",
-        "@com_google_crashpad//client",
+        "@breakpad//src/processor",
+        "@crashpad//client",
     ],
 )
 
@@ -195,7 +195,7 @@ cc_binary(
     srcs = [
         "test/android/crashreport/testing/main-test-crasher.cpp",
     ],
-    data = ["@com_google_crashpad//handler:crashpad_handler"],
+    data = ["@crashpad//handler:crashpad_handler"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
