@@ -22,7 +22,7 @@ rust_library(
     name = "bytes",
     srcs = glob(["**/*.rs"]),
     crate_name = "bytes",
-    edition = "2018",
+    edition = "2021",
     crate_root = "src/lib.rs",
     deps = [
         "@serde",
