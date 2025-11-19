@@ -26,15 +26,10 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/hal/common/emulator_reset.h"
 
 using android::base::System;
-using goldfish::devices::PingTopic;
-using goldfish::devices::cable::PlugPtr;
-using goldfish::devices::cable::SocketPtr;
 
 namespace goldfish::devices::guest_status {
 
@@ -66,8 +61,6 @@ class GuestStatusDevice : public IGuestStatusDevice {
             mResetCallbacks.do_register(GuestStatusDevice::QEMUResetHandler, this);
         }
     }
-
-    ~GuestStatusDevice() override { }
 
     void send(std::string msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
@@ -153,7 +146,6 @@ class GuestStatusDevice : public IGuestStatusDevice {
     EmulatorResetCallbacks mResetCallbacks;
     async::EventLoop *mQemuLoop;
     const int mQuitAfterBootTimeoutSeconds;
-    SocketPtr mSocket;
     uint64_t mHeartbeat ABSL_GUARDED_BY(mStatusMutex);
     std::chrono::milliseconds mBootTime ABSL_GUARDED_BY(mStatusMutex);
     std::chrono::milliseconds mResetTimestampMs ABSL_GUARDED_BY(mStatusMutex);

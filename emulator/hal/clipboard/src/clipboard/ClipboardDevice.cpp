@@ -34,7 +34,6 @@ class ClipboardDevice : public IClipboardDevice {
   public:
     ClipboardDevice() { VLOG(1) << "Clipboard device has been created"; }
 
-    ~ClipboardDevice() {}
     void onConnect() override { VLOG(1) << "Clipboard device has been connected"; }
     void onClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
 
