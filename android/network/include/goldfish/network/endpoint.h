@@ -96,6 +96,10 @@ class Endpoint {
      */
     sockaddr_storage toSockaddr() const;
 
+    bool operator==(const Endpoint& other) const {
+        return mIpAddress == other.mIpAddress && mPort == other.mPort;
+    }
+
   private:
     IpAddress mIpAddress;
     int mPort;
