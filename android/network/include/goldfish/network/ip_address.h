@@ -99,6 +99,10 @@ class IpAddress {
      */
     const struct in6_addr* asV6() const;
 
+    bool operator==(const IpAddress& other) const {
+        return mFamily == other.mFamily && mAddr == other.mAddr;
+    }
+
   private:
     IpAddress(const in_addr* ipv4);
     IpAddress(const in6_addr* ipv6);
