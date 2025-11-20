@@ -32,6 +32,7 @@
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/notification.h"
@@ -97,7 +98,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             if (QEMUTimer* qemuTimer = takeOwnershipQemuTimer()) {
                 // This should stop and un-register the timer.
                 timer_del(qemuTimer);
-                assert(!mQemuTimerHandleValid.load());
+                DCHECK(!mQemuTimerHandleValid.load());
                 mEventLoop.load()->removeActiveTimer(this);
                 mEventLoop.store(nullptr);
                 mPinned.reset();  // potentially calls dtor
@@ -132,10 +133,10 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             // shared_from_this() is not available in the ctor
             auto *loop = mEventLoop.load();
             loop->postImmediatelyInternal([loop, self = shared_from_this()]() {
-                assert(!self->mPinned);
+                DCHECK(!self->mPinned);
                 self->mPinned = self;
                 timer_init_ms(&self->mQemuTimerHandle, QEMU_CLOCK_REALTIME, &QemuTimer::onTimer, self.get());
-                assert(!self->mQemuTimerHandleValid.load());
+                DCHECK(!self->mQemuTimerHandleValid.load());
                 self->mQemuTimerHandleValid.store(true);
 
                 loop->addActiveTimer(self);
@@ -145,9 +146,9 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         // C-style callback passed to QEMU.
         static void onTimer(void* opaque) {
             const auto self = static_cast<QemuTimer*>(opaque)->mPinned;
-            assert(self && "onTimer callback is called without a shared_from_this pointer");
-            assert(self->mEventLoop.load()->isOnLoopThread() &&
-                "onTimer callback is not called from the event loop");
+            DCHECK(self) << "onTimer callback is called without a shared_from_this pointer";
+            DCHECK(self->mEventLoop.load()->isOnLoopThread())
+                    << "onTimer callback is not called from the event loop";
 
             self->mTask();
 
@@ -188,8 +189,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
     // TODO(whollins): Clean-up usages and make this FATAL.
     ~QemuEventLoopImpl() override {
-        LOG_IF(ERROR, !mIsShuttingDown) << "Qemu loop has not been shutdown prior to destruction"; 
-        assert(mActiveTimers.empty());
+        LOG_IF(ERROR, !mIsShuttingDown) << "Qemu loop has not been shutdown prior to destruction";
+        DCHECK(mActiveTimers.empty());
     };
 
     std::future<absl::Status> shutdown() override;
@@ -221,14 +222,14 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     void addActiveTimer(const std::shared_ptr<QemuTimer>& t) {
         LOG_IF(DFATAL, !isOnLoopThread()) << "addActiveTimer must be called from the loop thread";
         std::weak_ptr<QemuTimer>& existing = mActiveTimers[t.get()];
-        assert(existing.expired() && "Tried to insert a duplicate timer");
+        DCHECK(existing.expired()) << "Tried to insert a duplicate timer";
         existing = t;
     }
 
     void removeActiveTimer(QemuTimer* const t) {
         LOG_IF(DFATAL, !isOnLoopThread()) << "removeActiveTimer must be called from the loop thread";
         const size_t erased = mActiveTimers.erase(t);
-        assert((erased == 1) && "Tried to remove a timer that didn't exist");
+        DCHECK(erased == 1) << "Tried to remove a timer that didn't exist";
     }
 
     void shutdownTimers() {
