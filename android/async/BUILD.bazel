@@ -4,15 +4,14 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "async_api",
     srcs = [
-        "src/dns_resolver.cpp",
         "src/logging.cpp",
+        "src/socket_factory.cpp",
     ],
     hdrs = [
         "include/goldfish/async/async_socket.h",
         "include/goldfish/async/async_socket_factory.h",
         "include/goldfish/async/async_socket_server.h",
         "include/goldfish/async/async_socket_utils.h",
-        "include/goldfish/async/dns_resolver.h",
         "include/goldfish/async/event_loop.h",
         "include/goldfish/async/event_loop_dispatcher.h",
         "include/goldfish/async/scoped_async_resource.h",
@@ -21,6 +20,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//android/network",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
@@ -180,6 +180,7 @@ cc_library(
         ":async_api",
         ":libuv_event_loop",
         ":uv_to_absl",
+        "//android/network",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -201,6 +202,7 @@ cc_test(
     }),
     deps = [
         ":libuv_sockets",
+        "//android/network",
         "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],

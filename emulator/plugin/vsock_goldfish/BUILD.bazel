@@ -37,6 +37,7 @@ cc_library(
         "//android/async:qemu_event_loop",
         "//android/async:threaded_event_loop",
         "//android/logging:absl-c-bridge",
+        "//android/network",
         "//emulator/hal/connector:cable",
         "//emulator/hal/connector:connection_awaiter",
         "//emulator/hal/guest-status",

@@ -16,7 +16,6 @@
 #include <memory>
 #include <string>
 
-#include "async_socket.h"
 #include "goldfish/async/async_socket_factory.h"
 
 namespace goldfish::async {
@@ -25,16 +24,11 @@ class LibuvAsyncSocketFactory : public AsyncSocketFactory {
   public:
     ~LibuvAsyncSocketFactory() = default;
 
-    /**
-     * @brief Creates a server instance for the libuv backend.
-     */
-    std::shared_ptr<AsyncSocketServer> createServer(
-            EventLoop* loop, const std::string& address,
-            AsyncSocketServer::ConnectCallback connectCallback) override;
+    std::shared_ptr<AsyncSocket> createSocket(EventLoop* loop,
+                                              const network::Endpoint& endpoint) override;
 
-    /**
-     * @brief Creates a client socket instance for the libuv backend.
-     */
-    std::shared_ptr<AsyncSocket> createSocket(EventLoop* loop, const std::string& address) override;
+    std::shared_ptr<AsyncSocketServer> createServer(
+            EventLoop* loop, const network::Endpoint& endpoint,
+            AsyncSocketServer::ConnectCallback connectCallback) override;
 };
 }  // namespace goldfish::async
