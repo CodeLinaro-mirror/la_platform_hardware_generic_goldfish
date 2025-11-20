@@ -24,6 +24,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
@@ -32,7 +33,6 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/scoped_async_timer.h"
 #include "goldfish/async/uv_to_absl.h"
-
 #include "uv.h"
 
 namespace goldfish::async {
@@ -115,14 +115,15 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     void addActiveTimer(const std::shared_ptr<LibuvTimer>& t) {
         LOG_IF(DFATAL, !isOnLoopThread()) << "addActiveTimer must be called from the loop thread";
         std::weak_ptr<LibuvTimer>& existing = mActiveTimers[t.get()];
-        assert(existing.expired() && "Tried to insert a duplicate timer");
+        DCHECK(existing.expired()) << "Tried to insert a duplicate timer that was already active.";
         existing = t;
     }
 
     void removeActiveTimer(LibuvTimer* const t) {
         LOG_IF(DFATAL, !isOnLoopThread()) << "removeActiveTimer must be called from the loop thread";
         const size_t erased = mActiveTimers.erase(t);
-        assert((erased == 1) && "Tried to remove a timer that didn't exist");
+        DCHECK(erased == 1)
+                << "Tried to remove a timer that didn't exist in the active timers set.";
     }
 
     void shutdownTimers();
@@ -193,13 +194,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     static void unpinItselfOnClose(uv_handle_t* handle) {
-        assert(handle);
+        DCHECK(handle) << "UV handle cannot be null in close callback.";
         uv_timer_t* uvTimer = reinterpret_cast<uv_timer_t*>(handle);
-        assert(uvTimer->data);
+        DCHECK(uvTimer->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         LibuvTimer* that = static_cast<LibuvTimer*>(uvTimer->data);
 
         // We get here from `uv_close`, see `takeOwnershipUvTimer`
-        assert(!that->mUvTimerHandleValid.load());
+        DCHECK(!that->mUvTimerHandleValid.load())
+                << "Timer handle should have been invalidated before closing.";
         that->mEventLoop.load()->removeActiveTimer(that);
         that->mEventLoop.store(nullptr);
         that->mPinnedByUvTimer.reset();  // potentially calls ~LibuvTimer
@@ -245,13 +247,14 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
         // shared_from_this() is not available in the ctor
         auto *loop = mEventLoop.load();
         loop->postImmediatelyInternal([loop, self = shared_from_this()]() {
-            assert(!self->mPinnedByUvTimer);
+            DCHECK(!self->mPinnedByUvTimer) << "Timer should not be pinned before initialization.";
             self->mPinnedByUvTimer = self;
             if (const int err = uv_timer_init(&loop->mUvLoopHandle, &self->mUvTimerHandle)) {
                 LOG(DFATAL) << "uv_timer_init failed with: " << uv_strerror(err);
             }
             self->mUvTimerHandle.data = self.get();
-            assert(!self->mUvTimerHandleValid.load());
+            DCHECK(!self->mUvTimerHandleValid.load())
+                    << "Timer handle should be invalid before initialization.";
             self->mUvTimerHandleValid.store(true);
 
             loop->addActiveTimer(self);
@@ -259,11 +262,11 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     static void onTimer(uv_timer_t* handle) {
-        assert(handle->data);
+        DCHECK(handle->data) << "UV timer handle must have a pointer to the LibuvTimer instance.";
         const auto self = static_cast<LibuvTimer*>(handle->data)->mPinnedByUvTimer;
-        assert(self && "onTimer callback is called without a shared_from_this pointer");
-        assert(self->mEventLoop.load()->isOnLoopThread() &&
-               "onTimer callback is not called from the event loop");
+        DCHECK(self) << "onTimer callback called without a valid LibuvTimer instance.";
+        DCHECK(self->mEventLoop.load()->isOnLoopThread())
+                << "onTimer callback must be executed on the event loop thread.";
 
         self->mTask();
 
@@ -302,7 +305,8 @@ LibuvEventLoopImpl::LibuvEventLoopImpl() {
 
 LibuvEventLoopImpl::~LibuvEventLoopImpl() {
     LOG_IF(FATAL, getState() != LooperStatusEvent::State::NOT_STARTED && !mIsShuttingDown) << "Uv loop has not been shutdown prior to destruction";
-    assert(mActiveTimers.empty());
+    DCHECK(mActiveTimers.empty()) << "All timers should have been cancelled and removed before the "
+                                     "event loop is destroyed.";
 
     int res = uv_loop_close(&mUvLoopHandle);
     if (res != 0) {

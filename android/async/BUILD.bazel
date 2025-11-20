@@ -22,6 +22,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@aemu//base:event-support",
     ],
@@ -91,6 +92,7 @@ cc_library(
         ":async_api",
         ":uv_to_absl",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
         "@libuv",
     ],
 )
@@ -111,6 +113,7 @@ cc_library(
         "//third_party/qemu:qemu-headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
     ],
 )

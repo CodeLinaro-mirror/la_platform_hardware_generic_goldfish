@@ -25,7 +25,6 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -95,13 +94,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     ~LibuvSocket() override {
-        assert(uv_is_closing((const uv_handle_t*)&mTcpHandle) &&
-               "LibuvSocket destroyed without calling close() first!");
+        DCHECK(uv_is_closing((const uv_handle_t*)&mTcpHandle))
+                << "LibuvSocket destroyed without calling close() first!";
     }
 
     // --- Configuration Methods ---
     void setOnReadCallbackNoFlowControl(OnReadCallback cb) override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         mOnRead = std::move(cb);
     }
 
@@ -119,18 +118,18 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void setOnCloseCallback(OnCloseCallback cb) override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         mOnClose = std::move(cb);
     }
 
     void setOnConnectedCallback(OnConnectCallback cb) override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         mOnConnected = std::move(cb);
     }
 
     // --- I/O Methods ---
     absl::Status send(const char* buffer, size_t bufferSize, OnSendCallback cb) override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
 
         if (!mIsConnected || uv_is_closing((const uv_handle_t*)&mTcpHandle)) {
             return UvErrToAbslStatus(UV_ENOTCONN);
@@ -148,7 +147,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void close() override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         mIsConnected = false;
 
         if (!uv_is_closing((const uv_handle_t*)&mTcpHandle)) {
@@ -164,7 +163,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     absl::Status connect() override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         if (mIsConnected) {
             return absl::OkStatus();
         }
@@ -183,7 +182,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     bool connected() const override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         return mIsConnected && !uv_is_closing((const uv_handle_t*)&mTcpHandle);
     }
 
@@ -255,7 +254,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void startReading() {
-        assert(mEventLoop->isOnLoopThread());
+        DCHECK(mEventLoop->isOnLoopThread());
         if (uv_is_closing((const uv_handle_t*)&mTcpHandle)) return;
 
         uv_read_start((uv_stream_t*)&mTcpHandle,
@@ -271,7 +270,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void accept(uv_stream_t* server_handle) {
-        assert(mEventLoop->isOnLoopThread());
+        DCHECK(mEventLoop->isOnLoopThread());
         auto result = uv_accept(server_handle, (uv_stream_t*)&mTcpHandle);
         VLOG(1) << "accept: " << UvErrToAbslStatus(result);
         if (result == 0) {
@@ -289,7 +288,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void on_read(ssize_t nread, const uv_buf_t* buf) {
-        assert(mOnRead && "`mOnRead` must be set to prevent loss of data.");
+        DCHECK(mOnRead) << "`mOnRead` must be set to prevent loss of data.";
 
         VLOG(2) << "on_read: " << nread << " : " << UvErrToAbslStatus(nread);
         if (nread >= 0) {
@@ -308,7 +307,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             if (status == 0) {
                 mIsConnected = true;
                 mOnConnected(*this, absl::OkStatus());
-                CHECK(mOnRead)
+                DCHECK(mOnRead)
                         << "`mOnRead` must be set by `mOnConnected` to prevent loss of data.";
                 startReading();
             } else {
@@ -344,23 +343,23 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
             : mEventLoop(loop)
             , mLoop(static_cast<uv_loop_t*>(loop->getRawLoop()))
             , mConnectCallback(std::move(cb)) {
-        assert(mEventLoop->isOnLoopThread() && "Must be constructed on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be constructed on loop thread";
         uv_tcp_init(mLoop, &mServerHandle);
         mServerHandle.data = this;
     }
 
     ~LibuvServer() override {
-        assert(uv_is_closing((const uv_handle_t*)&mServerHandle) &&
-               "LibuvServer destroyed without calling close() first!");
+        DCHECK(uv_is_closing((const uv_handle_t*)&mServerHandle))
+                << "LibuvServer destroyed without calling close() first!";
     }
 
     int port() const override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         return mPort;
     }
 
     void close() override {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
 
         if (!uv_is_closing((const uv_handle_t*)&mServerHandle)) {
             mIsListening = false;
@@ -377,7 +376,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     }
 
     void setOnCloseCallback(AsyncSocket::OnCloseCallback cb) {
-        assert(mEventLoop->isOnLoopThread() && "Must be called on loop thread");
+        DCHECK(mEventLoop->isOnLoopThread()) << "Must be called on loop thread";
         mOnClose = std::move(cb);
     }
 
@@ -463,7 +462,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                              << "to prevent it from being abandoned.";
                 client->close();
             } else {
-                CHECK(client->mOnRead)
+                DCHECK(client->mOnRead)
                         << "`mOnRead` must be set by `mConnectCallback` to prevent loss of data.";
                 client->startReading();
             }
@@ -483,7 +482,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
 std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const std::string& address,
                                                  ConnectCallback cb) {
-    assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
+    DCHECK(loop->isOnLoopThread()) << "Factory must be used on loop thread";
     const auto server = std::make_shared<LibuvServer>(loop, std::move(cb), Private());
 
     if (server->bindAndListen(address)) {
@@ -501,13 +500,13 @@ std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const std::str
 std::shared_ptr<AsyncSocketServer> LibuvAsyncSocketFactory::createServer(
         EventLoop* loop, const std::string& address,
         AsyncSocketServer::ConnectCallback connectCallback) {
-    assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
+    DCHECK(loop->isOnLoopThread()) << "Factory must be used on loop thread";
     return LibuvServer::create(loop, address, std::move(connectCallback));
 }
 
 std::shared_ptr<AsyncSocket> LibuvAsyncSocketFactory::createSocket(EventLoop* loop,
                                                                    const std::string& address) {
-    assert(loop->isOnLoopThread() && "Factory must be used on loop thread");
+    DCHECK(loop->isOnLoopThread()) << "Factory must be used on loop thread";
     auto addresses = resolveAddress(address, 0);
     if (addresses.empty()) {
         LOG(ERROR) << "Failed to resolve address: " << address;
