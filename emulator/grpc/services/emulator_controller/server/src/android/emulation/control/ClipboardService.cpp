@@ -28,16 +28,6 @@ using ::goldfish::devices::clipboard::IClipboardDevice;
 using grpc::ServerContext;
 using grpc::Status;
 
-static std::string peerId(const ::grpc::ServerContextBase* context) {
-    std::string flat;
-    for (const auto& str : context->auth_context()->GetPeerIdentity()) {
-        flat += ":" + std::string(str.data(), str.size());
-    }
-
-    flat += ":" + context->peer();
-    return flat;
-}
-
 /**
  * @brief A gRPC stream writer for clipboard data events.
  *
@@ -50,8 +40,9 @@ static std::string peerId(const ::grpc::ServerContextBase* context) {
 class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, ClipboardEvent> {
   public:
     ClipDataEventStreamWriter(CallbackEventSource<ClipboardEvent>* listener,
-                              ::grpc::CallbackServerContext* context)
-            : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener), mContext(context) {}
+                              std::string peerId)
+            : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener)
+            , mPeerId(std::move(peerId)) {}
     virtual ~ClipDataEventStreamWriter() = default;
 
     /**
@@ -65,28 +56,26 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
      * @param event The clipboard event that has arrived.
      */
     void eventArrived(const ClipboardEvent& event) override {
-        std::string dest = peerId(mContext);
         const std::lock_guard<std::mutex> lock(mEventLock);
         if (google::protobuf::util::MessageDifferencer::Equals(event.data, mLastEvent)) {
-            VLOG(1) << "ignoring clipboard event for: " << dest
+            VLOG(1) << "ignoring clipboard event for: " << mPeerId
                     << " since it is already aware of: " << event.data.ShortDebugString();
             return;
         }
 
         mLastEvent = event.data;
 
-        if (dest != event.source) {
-            VLOG(1) << "Event from: " << event.source << " for " << dest
+        if (mPeerId != event.source) {
+            VLOG(1) << "Event from: " << event.source << " for " << mPeerId
                     << ", data: " << event.data.ShortDebugString();
             SimpleServerWriter<ClipData>::Write(event.data);
         } else {
-            VLOG(1) << "Dropping update from: " << event.source << " for " << dest;
+            VLOG(1) << "Dropping update from: " << event.source << " for " << mPeerId;
         }
     }
 
   private:
-    ::grpc::ServerContextBase* mContext;
-
+    const std::string mPeerId;
     ClipData mLastEvent;
     std::mutex mEventLock;
 };
@@ -105,8 +94,7 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
  * @param request An empty request message (unused).
  * @return A gRPC server write reactor for streaming `ClipData` updates.
  */
-::grpc::ServerWriteReactor<ClipData>* ClipboardServiceImpl::streamClipboard(
-        ::grpc::CallbackServerContext* context, const ::google::protobuf::Empty* request) {
+::grpc::ServerWriteReactor<ClipData>* ClipboardServiceImpl::streamClipboard(std::string peerId) {
     auto weak = mRegistry->activeDevice<IClipboardDevice>();
 
     ClipboardEvent event{.source = "android"};
@@ -126,7 +114,7 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
         }
     }
 
-    auto stream = new ClipDataEventStreamWriter(this, context);
+    auto stream = new ClipDataEventStreamWriter(this, std::move(peerId));
     stream->eventArrived(event);
     return stream;
 }
@@ -141,8 +129,7 @@ ClipboardServiceImpl::~ClipboardServiceImpl() {
     }
 }
 
-Status ClipboardServiceImpl::getClipboard(ServerContext* context,
-                                          const ::google::protobuf::Empty* empty, ClipData* reply) {
+Status ClipboardServiceImpl::getClipboard(ClipData* reply) {
     auto weak = mRegistry->activeDevice<IClipboardDevice>();
     if (auto clipboard = weak.lock()) {
         reply->set_text(clipboard->getContents());
@@ -154,19 +141,28 @@ Status ClipboardServiceImpl::getClipboard(ServerContext* context,
     return Status::OK;
 }
 
-Status ClipboardServiceImpl::setClipboard(ServerContext* context, const ClipData* clipData,
-                                          ::google::protobuf::Empty* reply) {
+Status ClipboardServiceImpl::setClipboard(std::string source, const ClipData& clipData) {
     auto weak = mRegistry->activeDevice<IClipboardDevice>();
     if (auto clipboard = weak.lock()) {
-        clipboard->setContents(clipData->text());
+        clipboard->setContents(clipData.text());
 
-        ClipboardEvent event{.source = peerId(context)};
-        event.data.set_text(clipData->text());
+        ClipboardEvent event{.source = std::move(source)};
+        event.data.set_text(clipData.text());
         fireEvent(event);
         return Status::OK;
     }
     VLOG(1) << "Clipboard not (yet?) available, ignoring.";
     return Status::OK;
+}
+
+std::string ClipboardServiceImpl::getPeerId(const ::grpc::ServerContextBase& context) {
+    std::string flat;
+    for (const auto& str : context.auth_context()->GetPeerIdentity()) {
+        flat += ":" + std::string(str.data(), str.size());
+    }
+
+    flat += ":" + context.peer();
+    return flat;
 }
 
 }  // namespace control

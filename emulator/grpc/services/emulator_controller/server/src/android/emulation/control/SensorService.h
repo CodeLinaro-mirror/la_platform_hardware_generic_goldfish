@@ -38,10 +38,9 @@ class SensorServiceImpl {
   public:
     SensorServiceImpl(ConnectorRegistry* connectorRegistry);
 
-    grpc::Status setSensor(ServerContext* context, const SensorValue* request,
-                           ::google::protobuf::Empty* reply);
+    grpc::Status setSensor(const SensorValue& request);
 
-    grpc::Status getSensor(ServerContext* context, const SensorValue* request, SensorValue* reply);
+    grpc::Status getSensor(const SensorValue& request, SensorValue* reply);
 
   private:
     ConnectorRegistry* mRegistry;

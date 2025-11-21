@@ -47,9 +47,7 @@ std::unordered_map<std::string, std::string> getQemuConfig(int api_level, const 
 StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw)
     : mRegistry(connectorRegistry), mApiLevel(api_level), mHw(hw) {}
 
-grpc::Status StatusServiceImpl::getStatus(ServerContext* context,
-                                          const ::google::protobuf::Empty* request,
-                                          EmulatorStatus* reply) {
+grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
     reply->set_uptime(System::get()->getProcessTimes().wallClockMs);
 

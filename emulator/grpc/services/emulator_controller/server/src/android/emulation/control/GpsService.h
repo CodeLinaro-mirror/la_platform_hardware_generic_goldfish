@@ -68,7 +68,7 @@ class GpsServiceImpl {
      *         Possible status codes include `grpc::OK` for success, and other
      *         codes (e.g., `grpc::INVALID_ARGUMENT`) for errors.
      */
-    Status setGps(ServerContext* context, const GpsState* request, Empty* reply);
+    Status setGps(const GpsState& request);
 
     /**
      * @brief Retrieves the current GPS state.
@@ -88,7 +88,7 @@ class GpsServiceImpl {
      *         Possible status codes include `grpc::OK` for success, and other
      *         codes (e.g., `grpc::UNAVAILABLE`) if the GPS state is not available.
      */
-    Status getGps(ServerContext* context, const Empty* request, GpsState* reply);
+    Status getGps(GpsState* reply);
 
   private:
     ConnectorRegistry* mRegistry;  ///< The connector registry.

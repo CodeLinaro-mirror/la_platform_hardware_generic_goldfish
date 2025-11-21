@@ -39,7 +39,7 @@ using grpc::Status;
  * perform the actual VM operations. It translates the gRPC requests and
  * responses to and from the internal VM state representation.
  */
-class VmServiceImpl : public EmulatorController::Service {
+class VmServiceImpl {
   public:
     VmServiceImpl(VmOperations* vm) : mVm(vm) {}
 
@@ -51,8 +51,7 @@ class VmServiceImpl : public EmulatorController::Service {
      * @param reply The VmRunState message containing the current VM state.
      * @return A gRPC status indicating the success or failure of the operation.
      */
-    Status getVmState(ServerContext* context, const ::google::protobuf::Empty* request,
-                      VmRunState* reply) override;
+    Status getVmState(VmRunState* reply);
 
     /**
      * @brief Sets the desired state of the virtual machine.
@@ -64,8 +63,7 @@ class VmServiceImpl : public EmulatorController::Service {
      * @param reply An empty response message.
      * @return A gRPC status indicating the success or failure of the operation.
      */
-    Status setVmState(ServerContext* context, const VmRunState* request,
-                      ::google::protobuf::Empty* reply) override;
+    Status setVmState(const VmRunState& request);
 
   private:
     VmOperations* mVm;  ///< The VmOperations instance used to control the VM.

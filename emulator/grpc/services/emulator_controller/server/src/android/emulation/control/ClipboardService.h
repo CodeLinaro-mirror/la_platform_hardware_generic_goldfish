@@ -53,8 +53,7 @@ struct ClipboardEvent {
  * filters out duplicate clipboard events to prevent unnecessary updates to
  * listeners.
  */
-class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent>,
-                             public EmulatorController::Service {
+class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent> {
   public:
     ClipboardServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
     ~ClipboardServiceImpl();
@@ -74,11 +73,9 @@ class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent>,
      * @param request An empty request message.
      * @return A gRPC server write reactor for streaming `ClipData`.
      */
-    ::grpc::ServerWriteReactor<ClipData>* streamClipboard(::grpc::CallbackServerContext* context,
-                                                          const ::google::protobuf::Empty* request);
+    ::grpc::ServerWriteReactor<ClipData>* streamClipboard(std::string peerId);
 
-    Status getClipboard(ServerContext* context, const ::google::protobuf::Empty* empty,
-                        ClipData* reply);
+    Status getClipboard(ClipData* reply);
 
     /**
      * @brief Sets the clipboard contents.
@@ -93,8 +90,9 @@ class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent>,
      * @return A gRPC status indicating the success or failure of the
      *         operation.
      */
-    Status setClipboard(ServerContext* context, const ClipData* clipData,
-                        ::google::protobuf::Empty* reply);
+    Status setClipboard(std::string source, const ClipData& clipData);
+
+    static std::string getPeerId(const ::grpc::ServerContextBase& context);
 
   private:
     ConnectorRegistry* mRegistry;

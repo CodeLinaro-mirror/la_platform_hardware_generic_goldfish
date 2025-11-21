@@ -28,27 +28,25 @@ using ::goldfish::devices::sensor::SensorData;
 SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
     : mRegistry(connectorRegistry) {}
 
-grpc::Status SensorServiceImpl::setSensor(ServerContext* context, const SensorValue* request,
-                                          ::google::protobuf::Empty* reply) {
+grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
-        SensorData values(request->value().data().begin(), request->value().data().end());
-        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request->target()), values);
+        SensorData values(request.value().data().begin(), request.value().data().end());
+        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request.target()), values);
         return abslStatusToGrpcStatus(status);
     }
     return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
 }
 
-grpc::Status SensorServiceImpl::getSensor(ServerContext* context, const SensorValue* request,
-                                          SensorValue* reply) {
+grpc::Status SensorServiceImpl::getSensor(const SensorValue& request, SensorValue* reply) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
-        auto statusOrData = sensor->getSensorData(static_cast<AndroidSensor>(request->target()));
+        auto statusOrData = sensor->getSensorData(static_cast<AndroidSensor>(request.target()));
         if (!statusOrData.ok()) {
             return abslStatusToGrpcStatus(statusOrData.status());
         }
 
-        reply->set_target(request->target());
+        reply->set_target(request.target());
         *reply->mutable_value()->mutable_data() = {statusOrData->begin(), statusOrData->end()};
 
         return Status::OK;

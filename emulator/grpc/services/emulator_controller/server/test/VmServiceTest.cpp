@@ -55,14 +55,14 @@ class MockVmOperations : public VmOperations {
     MOCK_METHOD(void, systemShutdownRequest, (QemuShutdownCause reason), (override));
 };
 
-class VmServiceTest : public GrcpServiceTest {
-  protected:
+struct VmServiceTest : public ::testing::Test {
     void SetUp() override {
         vmService = std::make_unique<VmServiceImpl>(&vmOperations);
-        GrcpServiceTest::SetUp();
     }
 
-    EmulatorController::Service* getService() override { return vmService.get(); }
+    void TearDown() override {
+        vmService.reset();
+    }
 
     MockVmOperations vmOperations;
     std::unique_ptr<VmServiceImpl> vmService;
@@ -72,262 +72,200 @@ TEST_F(VmServiceTest, SetVmStateReset) {
     EXPECT_CALL(vmOperations, reset()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::RESET);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateShutdown) {
     EXPECT_CALL(vmOperations, shutdown()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::SHUTDOWN);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateTerminate) {
     // This will kill the process!
     GTEST_FLAG_SET(death_test_style, "threadsafe");
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::TERMINATE);
 
-    auto context = getContextWithTimeout();
-    EXPECT_DEATH_IF_SUPPORTED(mStub->setVmState(context.get(), request, &reply), ".*");
+    EXPECT_DEATH_IF_SUPPORTED(vmService->setVmState(request), ".*");
 }
 
 TEST_F(VmServiceTest, SetVmStatePaused) {
     EXPECT_CALL(vmOperations, pause()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::PAUSED);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateRunning) {
     EXPECT_CALL(vmOperations, resume()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::RUNNING);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateRestart) {
     EXPECT_CALL(vmOperations, reset()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::RESTART);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateStart) {
     EXPECT_CALL(vmOperations, start()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::START);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, SetVmStateStop) {
     EXPECT_CALL(vmOperations, stop()).Times(1);
 
     VmRunState request;
-    ::google::protobuf::Empty reply;
     request.set_state(VmRunState::STOP);
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->setVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->setVmState(request));
 }
 
 TEST_F(VmServiceTest, GetVmStatePaused) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Paused));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
 TEST_F(VmServiceTest, GetVmStateSuspended) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Suspended));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::PAUSED);
 }
 
 TEST_F(VmServiceTest, GetVmStateRestoreVm) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::RestoreVm));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateRunning) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Running));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RUNNING);
 }
 
 TEST_F(VmServiceTest, GetVmStateSaveVm) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::SaveVm));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::SAVE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateShutdown) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Shutdown));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::SHUTDOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateInternalError) {
-    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::GuestPanicked));
-
-    ::google::protobuf::Empty request;
     VmRunState reply;
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::GuestPanicked));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::InternalError));
-    context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::IoError));
-    context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::INTERNAL_ERROR);
 }
 
 TEST_F(VmServiceTest, GetVmStateDebug) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Debug));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateInMigrate) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::InMigrate));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStatePostMigrate) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::PostMigrate));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStatePreLaunch) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::PreLaunch));
 
-    ::google::protobuf::Empty request;
-    VmRunState reply;
 
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    VmRunState reply;
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateFinishMigrate) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::FinishMigrate));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::RESTORE_VM);
 }
 
 TEST_F(VmServiceTest, GetVmStateWatchdog) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Watchdog));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateColo) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Colo));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
 TEST_F(VmServiceTest, GetVmStateDefault) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::Max));
 
-    ::google::protobuf::Empty request;
     VmRunState reply;
-
-    auto context = getContextWithTimeout();
-    ASSERT_GRPC_STATUS(mStub->getVmState(context.get(), request, &reply));
+    ASSERT_GRPC_STATUS(vmService->getVmState(&reply));
     EXPECT_EQ(reply.state(), VmRunState::UNKNOWN);
 }
 
