@@ -217,7 +217,10 @@ cc_library(
     name = "async_testing",
     testonly = True,
     srcs = ["test_event_loop.cc"],
-    hdrs = ["include/goldfish/async/testing/test_event_loop.h"],
+    hdrs = [
+        "include/goldfish/async/testing/fake_async_socket.h",
+        "include/goldfish/async/testing/test_event_loop.h",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
