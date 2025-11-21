@@ -4,6 +4,8 @@ import argparse
 import os
 import subprocess
 
+from python.runfiles import Runfiles
+
 
 sequence_template = """
 agent: {
@@ -174,10 +176,11 @@ def main():
 
 
 def create_proto_file() -> str:
+  runfiles = Runfiles.Create()
   keys = {
       'build_tools_extract_dir': build_tools_extract_dir(),
-      'emulator_zip_path': emulator_zip_path(),
-      'image_extract_dir': image_extract_dir(),
+      'emulator_zip_path': emulator_zip_path(runfiles),
+      'image_extract_dir': image_extract_dir(runfiles),
       'platform_tools_extract_dir': platform_tools_extract_dir(),
       'test_tmpdir': test_tmpdir(),
       'tradefed_args': tradefed_args(),
@@ -199,18 +202,12 @@ def build_tools_extract_dir() -> str:
   return os.path.dirname(os.path.dirname(aapt_path))
 
 
-def emulator_zip_path() -> str:
-  return os.path.abspath(os.path.join(
-      os.getcwd(),
-      'hardware/generic/goldfish/emulator/sdk-repo-linux--developer.zip'
-  ))
+def emulator_zip_path(runfiles) -> str:
+  return runfiles.Rlocation(f"goldfish+/emulator/sdk-repo-linux--developer.zip")
 
 
-def image_extract_dir() -> str:
-  local_image_path = os.path.abspath(os.path.join(
-      os.getcwd(),
-      'hardware/generic/goldfish/emulator/tests/local/image'
-  ))
+def image_extract_dir(runfiles) -> str:
+  local_image_path = os.path.abspath(runfiles.Rlocation(f"goldfish+/emulator/tests/local/image"))
   if os.path.exists(local_image_path):
     print(f'Using a LOCAL Image: {local_image_path}')
     return local_image_path

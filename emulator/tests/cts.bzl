@@ -94,6 +94,7 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
                 "@test_seq_linux//:test_seq_files",
                 "@test_seq_linux//:test_seq",
             ] + native.glob(["local/**"]) + additional_plan_files,
+            deps = ["@rules_python//python/runfiles"],
             target_compatible_with = select({
                 "@platforms//os:macos": ["@platforms//:incompatible"],
                 "@platforms//os:windows": ["@platforms//:incompatible"],
