@@ -50,35 +50,23 @@
             },
             "cwd": "${workspaceFolder}",
             "debuggerRoot": "${workspaceFolder}",
-            "sourceMap": [
+ "sourceMap": [
                 [
-                    "/proc/self/cwd",
-                    "${workspaceFolder}",
-                ],
-                // Down below you will find all the "local_repositories"
-                // that we are using. If new repositories are introduced
-                // you will have to add them here, or else symbols will
-                // not be found.
-                [
-                    "external/+_repo_rules3+glib",
-                    "${workspaceFolder}/third_party/glib"
+                    "external/goldfish+",
+                    "${workspaceFolder}/hardware/generic/goldfish"
                 ],
                 [
                     "external/gfxstream+",
                     "${workspaceFolder}/hardware/google/gfxstream"
                 ],
                 [
-                    "external/+_repo_rules3+pixman",
-                    "${workspaceFolder}/third_party/pixman"
-                ],
-                [
-                    "external/+_repo_rules3+com_google_crashpad",
+                    "external/crashpad+",
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
-                ],
+                ]
             ],
             "preLaunchTask": "aemu: Build debug emulator",
             "stopOnEntry": false,
@@ -128,29 +116,21 @@
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
                 [
-                    "/proc/self/cwd",
-                    "${workspaceFolder}",
-                ],
-                [
-                    "external/+_repo_rules3+glib",
-                    "${workspaceFolder}/third_party/glib"
+                    "external/goldfish+",
+                    "${workspaceFolder}/hardware/generic/goldfish"
                 ],
                 [
                     "external/gfxstream+",
                     "${workspaceFolder}/hardware/google/gfxstream"
                 ],
                 [
-                    "external/+_repo_rules3+pixman",
-                    "${workspaceFolder}/third_party/pixman"
-                ],
-                [
-                    "external/+_repo_rules3+com_google_crashpad",
+                    "external/crashpad+",
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
-                ],
+                ]
             ],
             "preLaunchTask": "aemu: Build emulator with asan",
             "stopOnEntry": false,
@@ -169,12 +149,11 @@
             // `//path/to:my_test`, you can run `bazel build //path/to:my_test`
             // and bazel will report the location of your binary.
             // `//path/to:my_test` is usually `${workspaceFolder}/bazel-bin/path/to/my_test`
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/grpc/services/emulator_controller/server/emulator-service_unittests",
+            "program": "${workspaceFolder}/bazel-bin/external/goldfish+/android/async/sockets_test",
             // Set any program arguments here.
             "args": [
-                "--gtest_break_on_failure",
+                // "--gtest_break_on_failure",
                 //  "--gtest_filter=EventLoopImplementations/EventLoopTest.IsOnLoopThreadIsCorrect/QEMU",
-
             ],
             "osx": {
                 "env": [
@@ -202,32 +181,30 @@
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
                 [
-                    "/proc/self/cwd",
-                    "${workspaceFolder}",
-                ],
-                [
-                    "external/+_repo_rules3+glib",
-                    "${workspaceFolder}/third_party/glib"
+                    "external/goldfish+",
+                    "${workspaceFolder}/hardware/generic/goldfish"
                 ],
                 [
                     "external/gfxstream+",
                     "${workspaceFolder}/hardware/google/gfxstream"
                 ],
                 [
-                    "external/+_repo_rules3+pixman",
-                    "${workspaceFolder}/third_party/pixman"
-                ],
-                [
-                    "external/+_repo_rules3+com_google_crashpad",
+                    "external/crashpad+",
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
-                ],
+                ]
+            ],
+            "initCommands": [
+                // Force the mapping at the LLDB engine level
+                // "settings set target.source-map . ${workspaceFolder}",
+                // If you are using symlinks (common with Bazel), tell LLDB to resolve them
+                "settings set target.source-map-cache-missing true"
             ],
             // "preLaunchTask": "aemu: Build emulator test suite",
-            "stopOnEntry": false,
+            "stopOnEntry": true,
         },
         {
             "type": "lldb-dap",
@@ -239,31 +216,23 @@
             // Set the pid here
             "pid": 954478,
             "debuggerRoot": "${workspaceFolder}",
-            "sourceMap": [
+           "sourceMap": [
                 [
-                    "/proc/self/cwd",
-                    "${workspaceFolder}",
-                ],
-                [
-                    "external/+_repo_rules3+glib",
-                    "${workspaceFolder}/third_party/glib"
+                    "external/goldfish+",
+                    "${workspaceFolder}/hardware/generic/goldfish"
                 ],
                 [
                     "external/gfxstream+",
                     "${workspaceFolder}/hardware/google/gfxstream"
                 ],
                 [
-                    "external/+_repo_rules3+pixman",
-                    "${workspaceFolder}/third_party/pixman"
-                ],
-                [
-                    "external/+_repo_rules3+com_google_crashpad",
+                    "external/crashpad+",
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
-                ],
+                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
@@ -282,29 +251,21 @@
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
                 [
-                    "/proc/self/cwd",
-                    "${workspaceFolder}",
-                ],
-                [
-                    "external/+_repo_rules3+glib",
-                    "${workspaceFolder}/third_party/glib"
+                    "external/goldfish+",
+                    "${workspaceFolder}/hardware/generic/goldfish"
                 ],
                 [
                     "external/gfxstream+",
                     "${workspaceFolder}/hardware/google/gfxstream"
                 ],
                 [
-                    "external/+_repo_rules3+pixman",
-                    "${workspaceFolder}/third_party/pixman"
-                ],
-                [
-                    "external/+_repo_rules3+com_google_crashpad",
+                    "external/crashpad+",
                     "${workspaceFolder}/third_party/crashpad"
                 ],
                 [
                     "external/aemu+",
                     "${workspaceFolder}/hardware/google/aemu"
-                ],
+                ]
             ],
             "initCommands": [
                 "settings set target.process.follow-fork-mode child",
