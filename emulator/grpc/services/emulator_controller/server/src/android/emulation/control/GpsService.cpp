@@ -53,16 +53,16 @@ GpsState locationToProto(const Location& location) {
 
 }  // namespace
 
-Status GpsServiceImpl::setGps(ServerContext* context, const GpsState* request, Empty* reply) {
+Status GpsServiceImpl::setGps(const GpsState& request) {
     auto weak = mRegistry->activeDevice<IGpsDevice>();
     if (auto gps = weak.lock()) {
-        gps->setLocation(protoToLocation(*request));
+        gps->setLocation(protoToLocation(request));
         return Status::OK;
     }
     return Status(grpc::StatusCode::UNAVAILABLE, "No active gps device");
 }
 
-Status GpsServiceImpl::getGps(ServerContext* context, const Empty* request, GpsState* reply) {
+Status GpsServiceImpl::getGps(GpsState* reply) {
     auto weak = mRegistry->activeDevice<IGpsDevice>();
     if (auto gps = weak.lock()) {
         *reply = locationToProto(gps->getLocation());

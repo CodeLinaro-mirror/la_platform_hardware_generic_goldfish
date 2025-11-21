@@ -72,71 +72,72 @@ class EmulatorControllerImpl final
             , mStatusService(connectorRegistry, avd_api_level, hw)
             , mVmService(vm) {}
 
-    Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
+    Status getStatus(ServerContext* /*context*/, const Empty* /*request*/,
                      EmulatorStatus* reply) override {
-        return mStatusService.getStatus(context, request, reply);
+        return mStatusService.getStatus(reply);
     }
 
-    Status setVmState(ServerContext* context, const VmRunState* request,
-                      ::google::protobuf::Empty* reply) override {
-        return mVmService.setVmState(context, request, reply);
+    Status setVmState(ServerContext* /*context*/, const VmRunState* request,
+                      Empty* /*reply*/) override {
+        return mVmService.setVmState(*request);
     }
 
-    Status getVmState(ServerContext* context, const ::google::protobuf::Empty* request,
+    Status getVmState(ServerContext* /*context*/, const Empty* /*request*/,
                       VmRunState* reply) override {
-        return mVmService.getVmState(context, request, reply);
+        return mVmService.getVmState(reply);
     }
 
-    Status getGps(ServerContext* context, const Empty* request, GpsState* reply) override {
-        return mGpsService.getGps(context, request, reply);
+    Status getGps(ServerContext* /*context*/, const Empty* /*request*/, GpsState* reply) override {
+        return mGpsService.getGps(reply);
     }
 
-    Status setGps(ServerContext* context, const GpsState* request, Empty* reply) override {
-        return mGpsService.setGps(context, request, reply);
+    Status setGps(ServerContext* context, const GpsState* request, Empty* /*reply*/) override {
+        return mGpsService.setGps(*request);
     }
 
-    Status setSensor(ServerContext* context, const SensorValue* request,
-                     ::google::protobuf::Empty* reply) override {
-        return mSensorService.setSensor(context, request, reply);
+    Status setSensor(ServerContext* /*context*/, const SensorValue* request,
+                     Empty* /*reply*/) override {
+        return mSensorService.setSensor(*request);
     }
 
-    Status getSensor(ServerContext* context, const SensorValue* request,
+    Status getSensor(ServerContext* /*context*/, const SensorValue* request,
                      SensorValue* reply) override {
-        return mSensorService.getSensor(context, request, reply);
+        return mSensorService.getSensor(*request, reply);
     }
 
     ::grpc::ServerWriteReactor<ClipData>* streamClipboard(
             ::grpc::CallbackServerContext* context,
-            const ::google::protobuf::Empty* request) override {
-        return mClipboardService.streamClipboard(context, request);
+            const Empty* /*request*/) override {
+        return mClipboardService.streamClipboard(
+                ClipboardServiceImpl::getPeerId(*context));
     }
 
     Status sendKey(ServerContext* context, const KeyboardEvent* request,
-                   ::google::protobuf::Empty* reply) override {
+                   Empty* /*reply*/) override {
         mKeyEventSender->send(*request);
         return Status::OK;
     }
 
     Status sendMouse(ServerContext* context, const MouseEvent* request,
-                     ::google::protobuf::Empty* reply) override {
+                     Empty* /*reply*/) override {
         return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
     Status sendTouch(ServerContext* context, const TouchEvent* request,
-                     ::google::protobuf::Empty* reply) override {
+                     Empty* /*reply*/) override {
         return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
     ::grpc::ServerReadReactor<WheelEvent>* injectWheel(
             ::grpc::CallbackServerContext* /*context*/,
-            ::google::protobuf::Empty* /*response*/) override {
+            Empty* /*response*/) override {
         return new SimpleServerLambdaReader<WheelEvent>(
                 [this](auto request) { (void)mInputEventSender.send(*request); });
     }
 
     ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
             ::grpc::CallbackServerContext* /*context*/,
-            ::google::protobuf::Empty* /*response*/) override {
+            Empty* /*response*/) override {
         SimpleServerLambdaReader<InputEvent>* eventReader =
                 new SimpleServerLambdaReader<InputEvent>([this, &eventReader](auto request) {
                     VLOG(1) << "InputEvent:" << request->ShortDebugString();
@@ -170,14 +171,15 @@ class EmulatorControllerImpl final
         return eventReader;
     }
 
-    Status getClipboard(ServerContext* context, const ::google::protobuf::Empty* request,
+    Status getClipboard(ServerContext* context, const Empty* /*request*/,
                         ClipData* reply) override {
-        return mClipboardService.getClipboard(context, request, reply);
+        return mClipboardService.getClipboard(reply);
     }
 
     Status setClipboard(ServerContext* context, const ClipData* request,
-                        ::google::protobuf::Empty* reply) override {
-        return mClipboardService.setClipboard(context, request, reply);
+                        Empty* /*reply*/) override {
+        return mClipboardService.setClipboard(ClipboardServiceImpl::getPeerId(*context),
+                                              *request);
     }
 
     Status getDisplayConfigurations(ServerContext* context,
@@ -198,7 +200,7 @@ class EmulatorControllerImpl final
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* context,
-            const ::google::protobuf::Empty* request) override {
+            const Empty* request) override {
         return mNotificationStream->notificationStream();
     }
 

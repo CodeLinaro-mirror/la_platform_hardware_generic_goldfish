@@ -21,9 +21,8 @@ namespace android {
 namespace emulation {
 namespace control {
 
-Status VmServiceImpl::setVmState(ServerContext* context, const VmRunState* request,
-                                 ::google::protobuf::Empty* reply) {
-    auto state = request->state();
+Status VmServiceImpl::setVmState(const VmRunState& request) {
+    auto state = request.state();
     switch (state) {
         case VmRunState::RESET:
             mVm->reset();
@@ -58,8 +57,7 @@ Status VmServiceImpl::setVmState(ServerContext* context, const VmRunState* reque
     return Status::OK;
 }
 
-Status VmServiceImpl::getVmState(ServerContext* context, const ::google::protobuf::Empty* request,
-                                 VmRunState* reply) {
+Status VmServiceImpl::getVmState(VmRunState* reply) {
     auto state = mVm->getRunState();
     VLOG(1) << "Current emulator run state: " << static_cast<int>(state) << " (" << state << ")";
     switch (state) {

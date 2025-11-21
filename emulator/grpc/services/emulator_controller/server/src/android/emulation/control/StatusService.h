@@ -35,8 +35,7 @@ class StatusServiceImpl {
   public:
     StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw);
 
-    Status getStatus(ServerContext* context, const ::google::protobuf::Empty* request,
-                     EmulatorStatus* reply);
+    Status getStatus(EmulatorStatus* reply);
 
   private:
     ConnectorRegistry* mRegistry;
