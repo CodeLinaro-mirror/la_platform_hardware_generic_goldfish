@@ -30,43 +30,6 @@ using android::goldfish::Avd;
 
 namespace goldfish::devices::clipboard {
 
-namespace {
-
-// A state of read or write operation, encapsulating the data size + buffer
-// + the transfer position.
-struct ReadWriteState {
-    std::vector<char> buffer;
-    uint32_t dataSize;
-    uint32_t processedBytes;
-    bool dataSizeTransferred;
-
-    ReadWriteState() { reset(); }
-
-    // Return the data buffer to transfer and its size.
-    char* data() {
-        return (dataSizeTransferred ? buffer.data() : reinterpret_cast<char*>(&dataSize)) +
-               processedBytes;
-    }
-    int size() const {
-        return (dataSizeTransferred ? static_cast<int>(buffer.size()) : sizeof(dataSize)) -
-               processedBytes;
-    }
-
-    ClipboardData view() { return ClipboardData(buffer.data(), buffer.size()); }
-
-    // Check if the state's buffer is finished (nothing left to transfer)
-    bool isFinished() const { return dataSizeTransferred && processedBytes == dataSize; }
-
-    // Reset the state so it's safe to start a new transfer.
-    void reset() {
-        dataSize = 0;
-        processedBytes = 0;
-        dataSizeTransferred = false;
-        buffer.clear();
-    }
-};
-}  // namespace
-
 class ClipboardDevice : public IClipboardDevice {
   public:
     ClipboardDevice() { VLOG(1) << "Clipboard device has been created"; }
@@ -74,27 +37,30 @@ class ClipboardDevice : public IClipboardDevice {
     ~ClipboardDevice() {}
     void onConnect() override { VLOG(1) << "Clipboard device has been connected"; }
     void onClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
-    void onReceive(std::string_view data) override {
-        if (mGuestReadState.size() == 0 && !mGuestReadState.dataSizeTransferred) {
-            mGuestReadState.dataSizeTransferred = true;
-            mGuestReadState.processedBytes = 0;
-            // If we're reading from the guest clipboard, make sure the
-            // buffer on our side has enough space.
-            mGuestReadState.buffer.resize(mGuestReadState.dataSize);
-        }
-        memcpy(mGuestReadState.data(), data.data(), data.size());
-        mGuestReadState.processedBytes += data.size();
 
-        if (mGuestReadState.isFinished()) {
-            auto clipboardData = mGuestReadState.view();
-            VLOG(1) << "Clipboard update from guest to (" << clipboardData.size() << "):" << data;
-            {
-                absl::MutexLock lock(&mClipboardDataLock);
-                mClipboardData = clipboardData;
-            }
-            fireEvent(clipboardData);
-            mGuestReadState.reset();
+    void onReceive(const std::string_view data) override {
+        mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
+        if (mReceiveData.size() < sizeof(uint32_t)) {
+            return;
         }
+
+        const uint32_t dataSize = absl::little_endian::Load32(mReceiveData.data());
+        if (mReceiveData.size() < (sizeof(uint32_t) + dataSize)) {
+            return;
+        }
+
+        std::string clipboardData(&mReceiveData[sizeof(uint32_t)], dataSize);
+        mReceiveData.erase(mReceiveData.begin(),
+                           mReceiveData.begin() + sizeof(uint32_t) + dataSize);
+
+        VLOG(1) << "Clipboard update from guest to (" << dataSize << "):" << clipboardData;
+
+        {
+            absl::MutexLock lock(&mClipboardDataLock);
+            mClipboardData = clipboardData;
+        }
+
+        fireEvent(clipboardData);
     }
 
     bool isEnabled() const override { return mEnabled; }
@@ -122,7 +88,7 @@ class ClipboardDevice : public IClipboardDevice {
     };
 
   private:
-    ReadWriteState mGuestReadState;
+    std::vector<char> mReceiveData;
     std::string mClipboardData ABSL_GUARDED_BY(mClipboardDataLock);
     bool mEnabled{true};
     mutable absl::Mutex mClipboardDataLock;  // protects mClipboardData
