@@ -101,7 +101,8 @@ class WithSimpleReader : public T {
 // if a message cannot be read (i.e. OnReadDone is not ok)
 template <typename R>
 class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor<R>> {
-    using ReadCallback = std::function<void(const R*)>;
+    // A return other than OkStatus will Finish the stream with that status.
+    using ReadCallback = std::function<grpc::Status(const R*)>;
     using OnDoneCallback = std::function<void()>;
 
   public:
@@ -109,7 +110,12 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
             ReadCallback readFn, OnDoneCallback doneFn = []() {})
         : mReadFn(readFn), mDoneFn(doneFn) {}
 
-    virtual void Read(const R* read) override { mReadFn(read); }
+    virtual void Read(const R* read) override {
+        auto status = mReadFn(read);
+        if (!status.ok()) {
+            grpc::ServerReadReactor<R>::Finish(status);
+        }
+    }
 
     virtual void OnDone() override {
         mDoneFn();
@@ -132,6 +138,7 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
 // auto read = new SimpleClientLambdaReader<PhoneEvent>(
 //         [](auto event) {
 //            std::cout << "Received event: " << event.ShortDebugString();
+//.           return grpc::Status::OK;
 //         }
 //         ,
 //         [context](auto status) {
@@ -143,7 +150,7 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
 // read->StartCall();
 template <typename R>
 class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor<R>> {
-    using ReadCallback = std::function<void(const R*)>;
+    using ReadCallback = std::function<grpc::Status(const R*)>;
     using OnDoneCallback = std::function<void(::grpc::Status)>;
 
   public:
@@ -152,7 +159,12 @@ class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor
             OnDoneCallback doneFn = [](auto s) {})
         : mReadFn(readFn), mContext(std::move(context)), mDoneFn(doneFn) {}
 
-    virtual void Read(const R* read) override { mReadFn(read); }
+    virtual void Read(const R* read) override {
+        auto status = mReadFn(read);
+        if (!status.ok()) {
+            grpc::ClientReadReactor<R>::Finish(status);
+        }
+    }
 
     virtual void OnDone(const grpc::Status& status) override {
         mDoneFn(status);

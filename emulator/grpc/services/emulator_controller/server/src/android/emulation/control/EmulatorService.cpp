@@ -58,9 +58,9 @@ class EmulatorControllerImpl final
                                           EmulatorController::WithCallbackMethod_streamNotification<
                                                   EmulatorController::Service>>>>> {
   public:
-    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
-                           const android::goldfish::HardwareConfig &hw, IMultiDisplay* multidisplay,
-                           ::goldfish::async::EventLoop* qemuLoop)
+    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
+                           int avd_api_level, const android::goldfish::HardwareConfig& hw,
+                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemuLoop)
             : mKeyEventSender(
                       keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
             , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
@@ -105,11 +105,9 @@ class EmulatorControllerImpl final
         return mSensorService.getSensor(*request, reply);
     }
 
-    ::grpc::ServerWriteReactor<ClipData>* streamClipboard(
-            ::grpc::CallbackServerContext* context,
-            const Empty* /*request*/) override {
-        return mClipboardService.streamClipboard(
-                ClipboardServiceImpl::getPeerId(*context));
+    ::grpc::ServerWriteReactor<ClipData>* streamClipboard(::grpc::CallbackServerContext* context,
+                                                          const Empty* /*request*/) override {
+        return mClipboardService.streamClipboard(ClipboardServiceImpl::getPeerId(*context));
     }
 
     Status sendKey(ServerContext* context, const KeyboardEvent* request,
@@ -118,32 +116,30 @@ class EmulatorControllerImpl final
         return Status::OK;
     }
 
-    Status sendMouse(ServerContext* context, const MouseEvent* request,
-                     Empty* /*reply*/) override {
+    Status sendMouse(ServerContext* context, const MouseEvent* request, Empty* /*reply*/) override {
         return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
-    Status sendTouch(ServerContext* context, const TouchEvent* request,
-                     Empty* /*reply*/) override {
+    Status sendTouch(ServerContext* context, const TouchEvent* request, Empty* /*reply*/) override {
         return abslStatusToGrpcStatus(mInputEventSender.send(*request));
     }
 
-    ::grpc::ServerReadReactor<WheelEvent>* injectWheel(
-            ::grpc::CallbackServerContext* /*context*/,
-            Empty* /*response*/) override {
-        return new SimpleServerLambdaReader<WheelEvent>(
-                [this](auto request) { (void)mInputEventSender.send(*request); });
+    ::grpc::ServerReadReactor<WheelEvent>* injectWheel(::grpc::CallbackServerContext* /*context*/,
+                                                       Empty* /*response*/) override {
+        return new SimpleServerLambdaReader<WheelEvent>([this](auto request) {
+            return abslStatusToGrpcStatus(mInputEventSender.send(*request));
+        });
     }
 
     ::grpc::ServerReadReactor<InputEvent>* streamInputEvent(
-            ::grpc::CallbackServerContext* /*context*/,
-            Empty* /*response*/) override {
+            ::grpc::CallbackServerContext* /*context*/, Empty* /*response*/) override {
         SimpleServerLambdaReader<InputEvent>* eventReader =
-                new SimpleServerLambdaReader<InputEvent>([this, &eventReader](auto request) {
+                new SimpleServerLambdaReader<InputEvent>([this](auto request) -> grpc::Status {
                     VLOG(1) << "InputEvent:" << request->ShortDebugString();
-                    absl::Status status = absl::OkStatus();
+                    absl::Status status;
                     if (request->has_key_event()) {
                         mKeyEventSender->send(request->key_event());
+                        status = absl::OkStatus();
                     } else if (request->has_mouse_event()) {
                         status = mInputEventSender.send(request->mouse_event());
                     } else if (request->has_touch_event()) {
@@ -155,16 +151,10 @@ class EmulatorControllerImpl final
                     } else if (request->has_wheel_event()) {
                         status = mInputEventSender.send(request->wheel_event());
                     } else {
-                        // Mark the stream as completed, this will
-                        // result in setting that status and scheduling
-                        // of a completion (onDone) event the async
-                        // queue.
-                        eventReader->Finish(Status(::grpc::StatusCode::INVALID_ARGUMENT,
-                                                   "Unknown event, is the emulator out of date?."));
+                        status = absl::InvalidArgumentError(
+                                "Unknown event, is the emulator out of date?.");
                     }
-                    if (!status.ok()) {
-                        eventReader->Finish(abslStatusToGrpcStatus(status));
-                    }
+                    return abslStatusToGrpcStatus(status);
                 });
         // Note that the event reader will delete itself on completion of
         // the request.
@@ -178,8 +168,7 @@ class EmulatorControllerImpl final
 
     Status setClipboard(ServerContext* context, const ClipData* request,
                         Empty* /*reply*/) override {
-        return mClipboardService.setClipboard(ClipboardServiceImpl::getPeerId(*context),
-                                              *request);
+        return mClipboardService.setClipboard(ClipboardServiceImpl::getPeerId(*context), *request);
     }
 
     Status getDisplayConfigurations(ServerContext* context,
@@ -199,8 +188,7 @@ class EmulatorControllerImpl final
     }
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
-            ::grpc::CallbackServerContext* context,
-            const Empty* request) override {
+            ::grpc::CallbackServerContext* context, const Empty* request) override {
         return mNotificationStream->notificationStream();
     }
 
@@ -216,10 +204,14 @@ class EmulatorControllerImpl final
     VmServiceImpl mVmService;
 };
 
-std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, ConnectorRegistry* connectorRegistry, int avd_api_level,
-                                     const android::goldfish::HardwareConfig &hw, IMultiDisplay* multidisplay,
-                                     ::goldfish::async::EventLoop* qemuLoop) {
-    return std::make_shared<EmulatorControllerImpl>(vm, connectorRegistry, avd_api_level, hw, multidisplay, qemuLoop);
+std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm,
+                                                     ConnectorRegistry* connectorRegistry,
+                                                     int avd_api_level,
+                                                     const android::goldfish::HardwareConfig& hw,
+                                                     IMultiDisplay* multidisplay,
+                                                     ::goldfish::async::EventLoop* qemuLoop) {
+    return std::make_shared<EmulatorControllerImpl>(vm, connectorRegistry, avd_api_level, hw,
+                                                    multidisplay, qemuLoop);
 }
 
 }  // namespace control
