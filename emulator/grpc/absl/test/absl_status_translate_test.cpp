@@ -11,12 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/grpc/utils/absl_status_translate.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-
-#include "android/grpc/utils/AbslStatusTranslate.h"
 
 namespace android::emulation::control {
 TEST(AbslStatusTranslateTest, OkStatus) {

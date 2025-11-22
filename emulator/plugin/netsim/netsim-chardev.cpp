@@ -28,7 +28,7 @@ extern "C" {
 
 #undef send
 #include "NetsimTransport.h"
-#include "android/grpc/utils/EnumTranslate.h"
+#include "android/grpc/utils/enum_translate.h"
 #include "h4_parser.h"
 
 namespace goldfish::netsim {

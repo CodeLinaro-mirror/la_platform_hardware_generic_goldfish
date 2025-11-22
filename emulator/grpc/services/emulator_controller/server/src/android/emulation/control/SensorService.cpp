@@ -13,7 +13,7 @@
 // limitations under the License.
 #include "android/emulation/control/SensorService.h"
 
-#include "android/grpc/utils/AbslStatusTranslate.h"
+#include "android/grpc/utils/absl_status_translate.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 
 namespace android {

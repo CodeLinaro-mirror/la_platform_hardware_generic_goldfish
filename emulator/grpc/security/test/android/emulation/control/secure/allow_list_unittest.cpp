@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/AllowList.h"
+#include "android/emulation/control/secure/allow_list.h"
 
 #include <gtest/gtest.h>
 
@@ -143,39 +143,39 @@ TEST(AllowListTest, can_parse_default_list) {
 
     auto list = AllowList::fromStream(file);
     std::vector<std::string> allowed{
-            "/android.emulation.control.EmulatorController/"
-            "closeExtendedControls",
-            "/android.emulation.control.EmulatorController/getClipboard",
-            "/android.emulation.control.EmulatorController/"
-            "getDisplayConfigurations",
-            "/android.emulation.control.EmulatorController/getPhysicalModel",
-            "/android.emulation.control.EmulatorController/getScreenshot",
-            "/android.emulation.control.EmulatorController/getStatus",
-            "/android.emulation.control.EmulatorController/getVmState",
-            "/android.emulation.control.EmulatorController/injectAudio",
-            "/android.emulation.control.EmulatorController/"
-            "rotateVirtualSceneCamera",
-            "/android.emulation.control.EmulatorController/sendKey",
-            "/android.emulation.control.EmulatorController/sendMouse",
-            "/android.emulation.control.EmulatorController/sendTouch",
-            "/android.emulation.control.EmulatorController/setClipboard",
-            "/android.emulation.control.EmulatorController/"
-            "setDisplayConfigurations",
-            "/android.emulation.control.EmulatorController/setDisplayMode",
-            "/android.emulation.control.EmulatorController/setPhysicalModel",
-            "/android.emulation.control.EmulatorController/"
-            "setVirtualSceneCameraVelocity",
-            "/android.emulation.control.EmulatorController/setVmState",
-            "/android.emulation.control.EmulatorController/"
-            "showExtendedControls",
-            "/android.emulation.control.EmulatorController/streamClipboard",
-            "/android.emulation.control.EmulatorController/streamNotification",
-            "/android.emulation.control.EmulatorController/streamScreenshot",
-            "/android.emulation.control.SnapshotService/DeleteSnapshot",
-            "/android.emulation.control.SnapshotService/ListSnapshots",
-            "/android.emulation.control.SnapshotService/LoadSnapshot",
-            "/android.emulation.control.SnapshotService/PushSnapshot",
-            "/android.emulation.control.SnapshotService/SaveSnapshot"};
+        "/android.emulation.control.EmulatorController/"
+        "closeExtendedControls",
+        "/android.emulation.control.EmulatorController/getClipboard",
+        "/android.emulation.control.EmulatorController/"
+        "getDisplayConfigurations",
+        "/android.emulation.control.EmulatorController/getPhysicalModel",
+        "/android.emulation.control.EmulatorController/getScreenshot",
+        "/android.emulation.control.EmulatorController/getStatus",
+        "/android.emulation.control.EmulatorController/getVmState",
+        "/android.emulation.control.EmulatorController/injectAudio",
+        "/android.emulation.control.EmulatorController/"
+        "rotateVirtualSceneCamera",
+        "/android.emulation.control.EmulatorController/sendKey",
+        "/android.emulation.control.EmulatorController/sendMouse",
+        "/android.emulation.control.EmulatorController/sendTouch",
+        "/android.emulation.control.EmulatorController/setClipboard",
+        "/android.emulation.control.EmulatorController/"
+        "setDisplayConfigurations",
+        "/android.emulation.control.EmulatorController/setDisplayMode",
+        "/android.emulation.control.EmulatorController/setPhysicalModel",
+        "/android.emulation.control.EmulatorController/"
+        "setVirtualSceneCameraVelocity",
+        "/android.emulation.control.EmulatorController/setVmState",
+        "/android.emulation.control.EmulatorController/"
+        "showExtendedControls",
+        "/android.emulation.control.EmulatorController/streamClipboard",
+        "/android.emulation.control.EmulatorController/streamNotification",
+        "/android.emulation.control.EmulatorController/streamScreenshot",
+        "/android.emulation.control.SnapshotService/DeleteSnapshot",
+        "/android.emulation.control.SnapshotService/ListSnapshots",
+        "/android.emulation.control.SnapshotService/LoadSnapshot",
+        "/android.emulation.control.SnapshotService/PushSnapshot",
+        "/android.emulation.control.SnapshotService/SaveSnapshot"};
     for (const auto& isGreen : allowed) {
         EXPECT_TRUE(list->isAllowed("android-studio", isGreen));
     }

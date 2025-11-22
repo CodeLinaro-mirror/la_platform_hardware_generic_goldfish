@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/JwkKeyLoader.h"
+#include "android/emulation/control/secure/jwk_key_loader.h"
 
 #include <cassert>
 #include <cerrno>

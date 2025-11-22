@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/emulation/control/test/TestEchoService.h"
-
 #include <grpcpp/grpcpp.h>
 
+#include "android/emulation/control/test/TestEchoService.h"
 #include "test_echo_service.pb.h"
 
 #ifndef DISABLE_ASYNC_GRPC

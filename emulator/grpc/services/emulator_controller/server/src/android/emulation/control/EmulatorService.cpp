@@ -31,7 +31,7 @@
 #include "android/emulation/control/keyboard/KeyEventSender.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/vm/VmInterface.h"
-#include "android/grpc/utils/AbslStatusTranslate.h"
+#include "android/grpc/utils/absl_status_translate.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop.h"
 

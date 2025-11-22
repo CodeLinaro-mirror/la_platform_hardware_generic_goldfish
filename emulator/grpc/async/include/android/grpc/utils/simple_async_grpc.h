@@ -108,7 +108,7 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
   public:
     SimpleServerLambdaReader(
             ReadCallback readFn, OnDoneCallback doneFn = []() {})
-        : mReadFn(readFn), mDoneFn(doneFn) {}
+            : mReadFn(readFn), mDoneFn(doneFn) {}
 
     virtual void Read(const R* read) override {
         auto status = mReadFn(read);
@@ -157,7 +157,7 @@ class SimpleClientLambdaReader : public WithSimpleReader<grpc::ClientReadReactor
     SimpleClientLambdaReader(
             std::shared_ptr<grpc::ClientContext> context, ReadCallback readFn,
             OnDoneCallback doneFn = [](auto s) {})
-        : mReadFn(readFn), mContext(std::move(context)), mDoneFn(doneFn) {}
+            : mReadFn(readFn), mContext(std::move(context)), mDoneFn(doneFn) {}
 
     virtual void Read(const R* read) override {
         auto status = mReadFn(read);
@@ -229,7 +229,7 @@ template <typename W>
 class SimpleClientWriter : public WithSimpleQueueWriter<grpc::ClientWriteReactor<W>> {
   public:
     SimpleClientWriter(std::shared_ptr<::grpc::ClientContext> context)
-        : mContext(std::move(context)) {}
+            : mContext(std::move(context)) {}
 
     ::grpc::ClientContext* context() { return mContext.get(); }
 

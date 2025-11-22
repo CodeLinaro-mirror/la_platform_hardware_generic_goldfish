@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/JwtTokenAuth.h"
+#include "android/emulation/control/secure/jwt_token_auth.h"
 
 #include <gtest/gtest.h>
 
@@ -30,7 +30,7 @@
 #include "android/base/system/System.h"
 #include "android/base/testing/TestEvent.h"
 #include "android/base/testing/TestTempDir.h"
-#include "android/emulation/control/secure/BasicTokenAuth.h"
+#include "android/emulation/control/secure/basic_token_auth.h"
 #include "nlohmann/json.hpp"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"
@@ -331,7 +331,8 @@ TEST_F(JwkTokenAuthTest, any_message) {
 
     auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
     anyauth.emplace_back(std::make_unique<StaticTokenAuth>("foo", "android-studio", &mAllYellow));
-    anyauth.emplace_back(std::make_unique<JwtTokenAuth>(mTempDir->path().string(), "", &mAllYellow));
+    anyauth.emplace_back(
+            std::make_unique<JwtTokenAuth>(mTempDir->path().string(), "", &mAllYellow));
 
     AnyTokenAuth any(std::move(anyauth), &mAllYellow);
     auto message = std::string(any.isTokenValid("d/e/f", "Bearer " + *token).message());

@@ -6,11 +6,11 @@ package(default_visibility = ["//emulator/grpc:__subpackages__"])
 cc_library(
     name = "async",
     hdrs = [
-        "include/android/emulation/control/utils/GenericCallbackFunctions.h",
-        "include/android/emulation/control/utils/Library.h",
-        "include/android/grpc/utils/EnumTranslate.h",
-        "include/android/grpc/utils/SimpleAsyncGrpc.h",
-        "include/android/grpc/utils/SyncToAsyncAdapter.h",
+        "include/android/emulation/control/utils/generic_callback_functions.h",
+        "include/android/emulation/control/utils/library.h",
+        "include/android/grpc/utils/enum_translate.h",
+        "include/android/grpc/utils/simple_async_grpc.h",
+        "include/android/grpc/utils/sync_to_async_adapter.h",
     ],
     includes = ["include"],
     deps = ["@grpc//:grpc++"],
@@ -18,7 +18,7 @@ cc_library(
 
 cc_test(
     name = "async_library_test",
-    srcs = ["test/android/emulation/control/utils/LibraryTest.cpp"],
+    srcs = ["test/android/emulation/control/utils/library_test.cpp"],
     deps = [
         ":async",
         "//android/system:googletest_main",

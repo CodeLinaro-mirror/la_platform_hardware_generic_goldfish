@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "aemu/base/files/FileSystemWatcher.h"
-#include "android/emulation/control/secure/JwkKeyLoader.h"
+#include "android/emulation/control/secure/jwk_key_loader.h"
 #include "nlohmann/json.hpp"
 #include "tink/keyset_handle.h"
 

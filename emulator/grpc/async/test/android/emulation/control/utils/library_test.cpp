@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "android/emulation/control/utils/library.h"
+
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -18,8 +20,6 @@
 #include <thread>
 
 #include "absl/synchronization/notification.h"
-
-#include "android/emulation/control/utils/Library.h"
 
 // Global variable to keep track of destructor calls
 int globalDestructorCalls = 0;

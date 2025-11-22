@@ -28,7 +28,7 @@
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/FpsCalculator.h"
 #include "android/goldfish/display/MultiDisplay.h"
-#include "android/grpc/utils/AbslStatusTranslate.h"
+#include "android/grpc/utils/absl_status_translate.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 
 namespace android {

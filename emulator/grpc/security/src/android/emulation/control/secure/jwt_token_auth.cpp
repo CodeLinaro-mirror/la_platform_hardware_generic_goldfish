@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/JwtTokenAuth.h"
+#include "android/emulation/control/secure/jwt_token_auth.h"
 
 #include <algorithm>
 #include <fstream>
@@ -24,7 +24,7 @@
 
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/misc/StringUtils.h"
-#include "android/emulation/control/secure/AuthErrorFactory.h"
+#include "android/emulation/control/secure/auth_error_factory.h"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"
 #include "tink/jwt/jwt_public_key_verify.h"
@@ -49,7 +49,7 @@ using android::base::PathUtils;
 namespace tink = crypto::tink;
 
 JwtTokenAuth::JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList* list)
-    : BasicTokenAuth(DEFAULT_HEADER, list), mJwksLoadedPath(jwksLoadedPath) {
+        : BasicTokenAuth(DEFAULT_HEADER, list), mJwksLoadedPath(jwksLoadedPath) {
     mTinkInitialized = tink::TinkConfig::Register();
     if (mTinkInitialized.ok()) {
         mTinkInitialized = tink::JwtSignatureRegister();

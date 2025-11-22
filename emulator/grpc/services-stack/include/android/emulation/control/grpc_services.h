@@ -79,8 +79,7 @@ class EmulatorControllerService::Builder {
     // The certificate chain and private key that should be used. Setting a
     // certificate chain and private key will enable TLS, not calling this will
     // start the service in an unsecure fashion.
-    Builder& withCertAndKey(fs::path certfile, fs::path privateKeyFile,
-                            fs::path certAuthority);
+    Builder& withCertAndKey(fs::path certfile, fs::path privateKeyFile, fs::path certAuthority);
 
     // Reject any request with the status UNAUTHORIZED if the following header
     // is not present: Authorization: Bearer <token>
@@ -137,7 +136,7 @@ class EmulatorControllerService::Builder {
     fs::path allowlist() { return mEmulatorAccessPath; }
 
   private:
-    std::string readSecrets(const fs::path &path);
+    std::string readSecrets(const fs::path& path);
 
     int port();
     int mPort{-1};

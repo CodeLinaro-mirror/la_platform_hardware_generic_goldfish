@@ -122,7 +122,7 @@ class BidiRunner {
 
     template <typename... Args>
     BidiRunner(::grpc::ServerReaderWriter<R, W>* stream, Args&&... args)
-        : BidiRunner(stream, new T(std::forward<Args>(args)...)) {}
+            : BidiRunner(stream, new T(std::forward<Args>(args)...)) {}
 
     auto status() { return handler->status(); }
 

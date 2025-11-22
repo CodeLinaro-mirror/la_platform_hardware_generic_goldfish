@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/interceptor/LoggingInterceptor.h"
+#include "android/emulation/control/interceptor/logging_interceptor.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -43,23 +43,11 @@ using android::base::IClock;
 const std::array<std::string, 4> InvocationRecord::kTypes{"UNARY", "CLIENT_STREAMING",
                                                           "SERVER_STREAMING", "BIDI_STREAMING"};
 
-std::array<std::string, 17> kStatus{"OK",
-                                    "CANCELLED",
-                                    "UNKNOWN",
-                                    "INVALID_ARGUMENT",
-                                    "DEADLINE_EXCEEDED",
-                                    "NOT_FOUND",
-                                    "ALREADY_EXISTS",
-                                    "PERMISSION_DENIED",
-                                    "RESOURCE_EXHAUSTED",
-                                    "FAILED_PRECONDITION",
-                                    "ABORTED",
-                                    "OUT_OF_RANGE",
-                                    "UNIMPLEMENTED",
-                                    "INTERNAL",
-                                    "UNAVAILABLE",
-                                    "DATA_LOSS",
-                                    "UNAUTHENTICATED"};
+std::array<std::string, 17> kStatus{
+    "OK",        "CANCELLED",      "UNKNOWN",           "INVALID_ARGUMENT",   "DEADLINE_EXCEEDED",
+    "NOT_FOUND", "ALREADY_EXISTS", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION",
+    "ABORTED",   "OUT_OF_RANGE",   "UNIMPLEMENTED",     "INTERNAL",           "UNAVAILABLE",
+    "DATA_LOSS", "UNAUTHENTICATED"};
 
 static uint64_t getTimeDiffUs(InvocationRecord loginfo, InterceptionHookPoints from,
                               InterceptionHookPoints to) {
@@ -81,22 +69,22 @@ static void printLog(const InvocationRecord& loginfo) {
 };
 
 LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter)
-    : mReporter(reporter), mServerInfo(info) {
+        : mReporter(reporter), mServerInfo(info) {
     if (info) {
         mLoginfo.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {
-            case ServerRpcInfo::Type::UNARY:
-                mLoginfo.type = CallType::UNARY;
-                break;
-            case ServerRpcInfo::Type::CLIENT_STREAMING:
-                mLoginfo.type = CallType::CLIENT_STREAMING;
-                break;
-            case ServerRpcInfo::Type::SERVER_STREAMING:
-                mLoginfo.type = CallType::SERVER_STREAMING;
-                break;
-            case ServerRpcInfo::Type::BIDI_STREAMING:
-                mLoginfo.type = CallType::BIDI_STREAMING;
-                break;
+        case ServerRpcInfo::Type::UNARY:
+            mLoginfo.type = CallType::UNARY;
+            break;
+        case ServerRpcInfo::Type::CLIENT_STREAMING:
+            mLoginfo.type = CallType::CLIENT_STREAMING;
+            break;
+        case ServerRpcInfo::Type::SERVER_STREAMING:
+            mLoginfo.type = CallType::SERVER_STREAMING;
+            break;
+        case ServerRpcInfo::Type::BIDI_STREAMING:
+            mLoginfo.type = CallType::BIDI_STREAMING;
+            break;
         }
         mLoginfo.direction = Direction::INCOMING;
     }
@@ -104,25 +92,25 @@ LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction re
 }
 
 LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter)
-    : mReporter(reporter), mClientInfo(info) {
+        : mReporter(reporter), mClientInfo(info) {
     if (info) {
         mLoginfo.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {
-            case ClientRpcInfo::Type::UNARY:
-                mLoginfo.type = CallType::UNARY;
-                break;
-            case ClientRpcInfo::Type::CLIENT_STREAMING:
-                mLoginfo.type = CallType::CLIENT_STREAMING;
-                break;
-            case ClientRpcInfo::Type::SERVER_STREAMING:
-                mLoginfo.type = CallType::SERVER_STREAMING;
-                break;
-            case ClientRpcInfo::Type::BIDI_STREAMING:
-                mLoginfo.type = CallType::BIDI_STREAMING;
-                break;
-            case ClientRpcInfo::Type::UNKNOWN:
-                mLoginfo.type = CallType::UNKNOWN;
-                break;
+        case ClientRpcInfo::Type::UNARY:
+            mLoginfo.type = CallType::UNARY;
+            break;
+        case ClientRpcInfo::Type::CLIENT_STREAMING:
+            mLoginfo.type = CallType::CLIENT_STREAMING;
+            break;
+        case ClientRpcInfo::Type::SERVER_STREAMING:
+            mLoginfo.type = CallType::SERVER_STREAMING;
+            break;
+        case ClientRpcInfo::Type::BIDI_STREAMING:
+            mLoginfo.type = CallType::BIDI_STREAMING;
+            break;
+        case ClientRpcInfo::Type::UNKNOWN:
+            mLoginfo.type = CallType::UNKNOWN;
+            break;
         }
         mLoginfo.direction = Direction::OUTGOING;
         mLoginfo.peer = info->client_context()->peer();
@@ -231,7 +219,7 @@ void LoggingInterceptor::Intercept(InterceptorBatchMethods* methods) {
 }
 
 LoggingInterceptorFactory::LoggingInterceptorFactory(ReportingFunction reporter)
-    : mReporter(std::move(reporter)) {}
+        : mReporter(std::move(reporter)) {}
 
 Interceptor* LoggingInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {
     DD("Creating a server interceptor!");
@@ -244,7 +232,7 @@ Interceptor* LoggingInterceptorFactory::CreateClientInterceptor(ClientRpcInfo* i
 };
 
 StdOutLoggingInterceptorFactory::StdOutLoggingInterceptorFactory()
-    : LoggingInterceptorFactory(printLog) {};
+        : LoggingInterceptorFactory(printLog) {};
 }  // namespace interceptor
 }  // namespace control
 }  // namespace android

@@ -22,7 +22,7 @@
 #include "absl/base/call_once.h"
 #include "absl/container/flat_hash_map.h"
 
-#include "android/emulation/control/utils/GrpcEventStreamSupport.h"
+#include "android/emulation/control/utils/grpc_event_stream_support.h"
 #include "android/goldfish/display/Display.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/misc/GuestStatusDevice.h"

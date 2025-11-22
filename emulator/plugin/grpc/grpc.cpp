@@ -23,24 +23,21 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
+#include "grpc_display.h"
 
 #include "aemu/base/process/Process.h"
 #include "android/base/system/System.h"
-
 #include "android/emulation/control/EmulatorService.h"
-#include "android/emulation/control/GrpcServices.h"
+#include "android/emulation/control/grpc_services.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "android/utils/path.h"
-
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/tools/aemu_version.h"
-
-#include "grpc_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

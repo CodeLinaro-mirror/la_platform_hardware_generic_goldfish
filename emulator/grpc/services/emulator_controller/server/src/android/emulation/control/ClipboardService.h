@@ -18,7 +18,7 @@
 
 #include "aemu/base/events/EventSources.h"
 #include "android/clipboard/ClipboardDevice.h"
-#include "android/emulation/control/utils/GrpcEventStreamSupport.h"
+#include "android/emulation/control/utils/grpc_event_stream_support.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
 

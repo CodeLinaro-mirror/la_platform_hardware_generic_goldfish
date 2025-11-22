@@ -20,7 +20,7 @@
 #include "google/protobuf/util/message_differencer.h"
 
 #include "aemu/base/events/EventSources.h"
-#include "android/grpc/utils/SimpleAsyncGrpc.h"
+#include "android/grpc/utils/simple_async_grpc.h"
 
 #define DEBUG_EVT 0
 

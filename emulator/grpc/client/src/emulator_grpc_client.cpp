@@ -34,7 +34,7 @@
 
 #include "aemu/base/events/EventSources.h"
 #include "aemu/base/files/IniFile.h"
-#include "android/emulation/control/secure/BasicTokenAuth.h"
+#include "android/emulation/control/secure/basic_token_auth.h"
 
 namespace android {
 namespace emulation {

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/BasicTokenAuth.h"
+#include "android/emulation/control/secure/basic_token_auth.h"
 
 #include <algorithm>
 #include <map>
@@ -23,7 +23,7 @@
 #include "absl/strings/str_format.h"
 #include "grpc++/grpc++.h"
 
-#include "android/emulation/control/secure/AuthErrorFactory.h"
+#include "android/emulation/control/secure/auth_error_factory.h"
 
 namespace android {
 namespace emulation {
@@ -53,7 +53,7 @@ static grpc::Status ConvertAbseilStatusToGrpcStatus(const absl::Status& absl_sta
 }
 
 BasicTokenAuth::BasicTokenAuth(std::string header, AllowList* list)
-    : mHeader(header), mAllowList(list) {}
+        : mHeader(header), mAllowList(list) {}
 
 BasicTokenAuth::~BasicTokenAuth() = default;
 
@@ -89,7 +89,7 @@ grpc::Status BasicTokenAuth::Process(const InputMetadata& auth_metadata, grpc::A
 };
 
 StaticTokenAuth::StaticTokenAuth(std::string token, std::string iss, AllowList* list)
-    : BasicTokenAuth(DEFAULT_HEADER, list), mStaticToken(DEFAULT_BEARER + token), mIssuer(iss) {
+        : BasicTokenAuth(DEFAULT_HEADER, list), mStaticToken(DEFAULT_BEARER + token), mIssuer(iss) {
     LOG(WARNING) << "*** Basic token auth should only be used by android-studio ***";
 };
 
@@ -113,14 +113,14 @@ absl::Status StaticTokenAuth::isTokenValid(std::string_view path, std::string_vi
 
 AnyTokenAuth::AnyTokenAuth(std::vector<std::unique_ptr<BasicTokenAuth>> validators,
                            AllowList* allowlist)
-    : BasicTokenAuth(DEFAULT_HEADER, allowlist), mUniqueValidators(std::move(validators)) {
+        : BasicTokenAuth(DEFAULT_HEADER, allowlist), mUniqueValidators(std::move(validators)) {
     for (const auto& validator : mUniqueValidators) {
         mValidators.push_back(validator.get());
     }
 }
 
 AnyTokenAuth::AnyTokenAuth(std::vector<BasicTokenAuth*> validators, AllowList* allowlist)
-    : BasicTokenAuth(DEFAULT_HEADER, allowlist), mValidators(std::move(validators)) {}
+        : BasicTokenAuth(DEFAULT_HEADER, allowlist), mValidators(std::move(validators)) {}
 
 bool AnyTokenAuth::canHandleToken(std::string_view token) {
     if (mValidators.empty()) {

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/emulation/control/test/CertificateFactory.h"
-
 #include <openssl/evp.h>  // for EVP_PKEY_assign_RSA, EVP_P...
 #include <openssl/pem.h>  // for PEM_write_X509, PEM_write_...
 #include <openssl/rsa.h>  // for RSA_free, RSA_generate_key_ex
@@ -31,7 +29,8 @@
 #include "openssl/x509.h"    // for X509_NAME_add_entry_by_txt
 
 #include "aemu/base/files/PathUtils.h"  // for pj, PathUtils (ptr only)
-#include "android/utils/file_io.h"      // for android_fopen
+#include "android/emulation/control/test/CertificateFactory.h"
+#include "android/utils/file_io.h"  // for android_fopen
 
 static bool generate_rsa_key(int bits, const char* public_pem, const char* private_pem,
                              EVP_PKEY** ppKey) {

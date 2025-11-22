@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/JwkDirectoryObserver.h"
+#include "android/emulation/control/secure/jwk_directory_observer.h"
 
 #include <utility>
 #include <vector>
@@ -44,7 +44,7 @@ using base::System;
 
 JwkDirectoryObserver::JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
                                            PathFilterPredicate filter, bool startImmediately)
-    : mPathFilter(filter), mJwkPath(jwksDir), mCallback(callback) {
+        : mPathFilter(filter), mJwkPath(jwksDir), mCallback(callback) {
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
             jwksDir, [=](auto change, auto path) { fileChangeHandler(change, path); });
 
@@ -76,7 +76,7 @@ void JwkDirectoryObserver::scanJwkPath() {
     mLoadedKeys.clear();
     LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
     for (auto path : System::get()->scanDirEntries(mJwkPath.c_str(), true)) {
-	std::string strPath = path.string();
+        std::string strPath = path.string();
         auto status = mLoadedKeys.add(strPath);
         if (!status.ok()) {
             LOG(WARNING) << "Failed add jwk key: " << strPath << ", due to: " << status
@@ -106,36 +106,34 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
     }
 
     switch (change) {
-        case FileSystemWatcher::WatcherChangeType::Created:
-            [[fallthrough]];
-        case FileSystemWatcher::WatcherChangeType::Changed: {
-            DD("Changed/Created event for: %s", path);
+    case FileSystemWatcher::WatcherChangeType::Created:
+        [[fallthrough]];
+    case FileSystemWatcher::WatcherChangeType::Changed: {
+        DD("Changed/Created event for: %s", path);
 
-            // Wait at most 1 second for non-empty files
-            auto status = mLoadedKeys.addWithRetryForEmpty(path, 8, std::chrono::milliseconds(125));
-            if (!status.ok()) {
-                LOG(WARNING) << "Failed to add jwk key: " << path
-                             << ", due to: " << status.message()
-                             << ", access will be "
-                                "denied to this provider and the file deleted.";
-                System::get()->deleteFile(path);
-                return;
-            }
-            LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
-                      << " keys loaded";
-            break;
+        // Wait at most 1 second for non-empty files
+        auto status = mLoadedKeys.addWithRetryForEmpty(path, 8, std::chrono::milliseconds(125));
+        if (!status.ok()) {
+            LOG(WARNING) << "Failed to add jwk key: " << path << ", due to: " << status.message()
+                         << ", access will be "
+                            "denied to this provider and the file deleted.";
+            System::get()->deleteFile(path);
+            return;
         }
-        case FileSystemWatcher::WatcherChangeType::Deleted:
-            DD("Deleted %s", path);
-            auto status = mLoadedKeys.remove(path);
-            if (!status.ok()) {
-                // This usually means it is already deleted.
-                LOG(ERROR) << "Failed to remove jwk key: " << path
-                           << ", due to: " << status.message();
-                return;
-            }
-            LOG(INFO) << "Removed JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
-                      << " keys loaded";
+        LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
+                  << " keys loaded";
+        break;
+    }
+    case FileSystemWatcher::WatcherChangeType::Deleted:
+        DD("Deleted %s", path);
+        auto status = mLoadedKeys.remove(path);
+        if (!status.ok()) {
+            // This usually means it is already deleted.
+            LOG(ERROR) << "Failed to remove jwk key: " << path << ", due to: " << status.message();
+            return;
+        }
+        LOG(INFO) << "Removed JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
+                  << " keys loaded";
     };
 
     notifyKeysetUpdated();

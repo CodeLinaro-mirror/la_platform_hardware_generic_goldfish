@@ -6,10 +6,10 @@ package(default_visibility = ["//emulator/grpc:__subpackages__"])
 cc_library(
     name = "translate",
     srcs = [
-        "src/AbslStatusTranslate.cpp",
+        "src/absl_status_translate.cpp",
     ],
     hdrs = [
-        "include/android/grpc/utils/AbslStatusTranslate.h",
+        "include/android/grpc/utils/absl_status_translate.h",
     ],
     includes = ["include"],
     deps = [
@@ -20,7 +20,7 @@ cc_library(
 
 cc_test(
     name = "translate_test",
-    srcs = ["test/AbslStatusTranslateTest.cpp"],
+    srcs = ["test/absl_status_translate_test.cpp"],
     deps = [
         ":translate",
         "//android/system:googletest_main",

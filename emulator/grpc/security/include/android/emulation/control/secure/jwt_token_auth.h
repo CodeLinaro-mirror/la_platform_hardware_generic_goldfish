@@ -21,9 +21,9 @@
 
 #include "absl/status/status.h"
 
-#include "android/emulation/control/secure/AllowList.h"
-#include "android/emulation/control/secure/BasicTokenAuth.h"
-#include "android/emulation/control/secure/JwkDirectoryObserver.h"
+#include "android/emulation/control/secure/allow_list.h"
+#include "android/emulation/control/secure/basic_token_auth.h"
+#include "android/emulation/control/secure/jwk_directory_observer.h"
 #include "tink/keyset_handle.h"
 
 namespace android {

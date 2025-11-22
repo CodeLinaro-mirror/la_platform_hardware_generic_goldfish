@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/JwkDirectoryObserver.h"
+#include "android/emulation/control/secure/jwk_directory_observer.h"
 
 #include <gtest/gtest.h>
 #include <stdio.h>
@@ -150,21 +150,24 @@ TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
 
 TEST_F(JwkDirectoryObserverTest, finds_jwks) {
     write("sample.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) { mTestEv.signal(); });
+    JwkDirectoryObserver observer(mTempDir->path().string(),
+                                  [this](auto keyset) { mTestEv.signal(); });
     mTestEv.wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) { mTestEv.signal(); });
+    JwkDirectoryObserver observer(mTempDir->path().string(),
+                                  [this](auto keyset) { mTestEv.signal(); });
     mTestEv.wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, merging_multiple) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", ES256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) { mTestEv.signal(); });
+    JwkDirectoryObserver observer(mTempDir->path().string(),
+                                  [this](auto keyset) { mTestEv.signal(); });
     mTestEv.wait();
 }
 
@@ -226,14 +229,14 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
         auto verified_jwt = (*verify)->VerifyAndDecode(*token, *mSampleValidator);
         switch (state) {
-            case VALID_JWK_EXISTS:
-                EXPECT_TRUE(verified_jwt.ok());
-                EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
-                mTestEv.signal();
-                break;
-            case VALID_JWK_DELETED:
-                EXPECT_FALSE(verified_jwt.ok());
-                mTestEv.signal();
+        case VALID_JWK_EXISTS:
+            EXPECT_TRUE(verified_jwt.ok());
+            EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
+            mTestEv.signal();
+            break;
+        case VALID_JWK_DELETED:
+            EXPECT_FALSE(verified_jwt.ok());
+            mTestEv.signal();
         }
     });
 

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/interceptor/IdleInterceptor.h"
+#include "android/emulation/control/interceptor/idle_interceptor.h"
 
 #include <functional>
 
@@ -52,9 +52,9 @@ IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, Eve
         : mTimeout(timeout)
         , mTerminationUnixTime(
                   absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(timeout.count()))) {
-    mTimeoutChecker = eventLoop->scheduleRepeating(
-            [this]() { checkIdleTimeout(); }, std::chrono::milliseconds(mTimeout),
-            std::chrono::milliseconds(mTimeout));
+    mTimeoutChecker = eventLoop->scheduleRepeating([this]() { checkIdleTimeout(); },
+                                                   std::chrono::milliseconds(mTimeout),
+                                                   std::chrono::milliseconds(mTimeout));
 }
 
 Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {

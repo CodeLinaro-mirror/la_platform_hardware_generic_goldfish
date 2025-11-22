@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/emulation/control/interceptor/LoggingInterceptor.h"
+#include "android/emulation/control/interceptor/logging_interceptor.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -151,7 +151,9 @@ TEST(LoggingInterceptor, LoggerSnipsOutLongParameters) {
         interceptor->Intercept(&batchMethods);
     }
 
-    EXPECT_THAT(record.response, ::testing::HasSubstr("width: 123 height: 321 image: \"aaaaaaaaaaaaaaaaaaaa...<truncated>...\""));
+    EXPECT_THAT(record.response,
+                ::testing::HasSubstr(
+                        "width: 123 height: 321 image: \"aaaaaaaaaaaaaaaaaaaa...<truncated>...\""));
 }
 
 TEST(LoggingInterceptor, LoggerOnlyLogsFirstMsg) {

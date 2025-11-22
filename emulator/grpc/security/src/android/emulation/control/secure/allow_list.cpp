@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/AllowList.h"
+#include "android/emulation/control/secure/allow_list.h"
 
 #include <memory>
 #include <mutex>
@@ -137,12 +137,12 @@ class CachingAllowList : public AllowList {
 
     const char* colorStr(AllowGroup group) {
         switch (group) {
-            case AllowGroup::None:
-                return "unprotected";
-            case AllowGroup::Green:
-                return "allowed";
-            case AllowGroup::Yellow:
-                return "protected";
+        case AllowGroup::None:
+            return "unprotected";
+        case AllowGroup::Green:
+            return "allowed";
+        case AllowGroup::Yellow:
+            return "protected";
         }
     }
 

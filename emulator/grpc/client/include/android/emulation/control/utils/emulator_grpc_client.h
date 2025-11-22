@@ -308,7 +308,7 @@ class EmulatorGrpcClientBuilder {
      *
      * @par Example: Adding a Logging Interceptor
      * @code
-     *   #include "android/emulation/control/interceptor/LoggingInterceptor.h"
+     *   #include "android/emulation/control/interceptor/logging_interceptor.h"
      *
      *   // ...
      *

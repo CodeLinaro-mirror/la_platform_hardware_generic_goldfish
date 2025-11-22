@@ -20,7 +20,7 @@
 
 #include "absl/status/status.h"  // for Status
 
-#include "android/emulation/control/secure/AllowList.h"
+#include "android/emulation/control/secure/allow_list.h"
 
 namespace android {
 namespace emulation {

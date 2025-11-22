@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/emulation/control/GrpcServices.h"
+#include "android/emulation/control/grpc_services.h"
 
 #ifdef _MSC_VER
 #include "msvc-posix.h"
@@ -34,11 +34,11 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/System.h"
-#include "android/emulation/control/interceptor/IdleInterceptor.h"
-#include "android/emulation/control/interceptor/LoggingInterceptor.h"
-#include "android/emulation/control/secure/AllowList.h"
-#include "android/emulation/control/secure/BasicTokenAuth.h"
-#include "android/emulation/control/secure/JwtTokenAuth.h"
+#include "android/emulation/control/interceptor/idle_interceptor.h"
+#include "android/emulation/control/interceptor/logging_interceptor.h"
+#include "android/emulation/control/secure/allow_list.h"
+#include "android/emulation/control/secure/basic_token_auth.h"
+#include "android/emulation/control/secure/jwt_token_auth.h"
 
 namespace android {
 namespace emulation {
@@ -77,7 +77,8 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
     }
 
     EmulatorControllerServiceImpl(int port, std::vector<std::shared_ptr<Service>> services,
-                                  std::unique_ptr<AllowList> allowlist, std::unique_ptr<grpc::Server> server,
+                                  std::unique_ptr<AllowList> allowlist,
+                                  std::unique_ptr<grpc::Server> server,
                                   remote::Endpoint description)
             : mServer(std::move(server))
             , mAllowList(std::move(allowlist))
@@ -102,7 +103,7 @@ class EmulatorControllerServiceImpl : public EmulatorControllerService {
 // Returns the whole file contents, or empty if the file could not be read
 // or is empty. Will set the valid flag to false if the file cannot be read
 // or is empty.
-std::string Builder::readSecrets(const fs::path &path) {
+std::string Builder::readSecrets(const fs::path& path) {
     if (path.empty()) {
         LOG(ERROR) << "Cannot read secrets from nothing.";
         mValid = false;
@@ -161,8 +162,7 @@ Builder& Builder::withJwtAuthDiscoveryDir(fs::path jwks, fs::path jwkLoadedPath)
     return *this;
 }
 
-Builder& Builder::withCertAndKey(fs::path certfile, fs::path privateKeyFile,
-                                 fs::path caFile) {
+Builder& Builder::withCertAndKey(fs::path certfile, fs::path privateKeyFile, fs::path caFile) {
     if (certfile.empty()) {
         return *this;
     }
@@ -256,7 +256,7 @@ void AbslStringify(Sink& sink, const Builder::Security value) {
     absl::Format(&sink, "%s", s);
 }
 
-std::unique_ptr<AllowList> loadAllowlist(const fs::path &path) {
+std::unique_ptr<AllowList> loadAllowlist(const fs::path& path) {
     auto emulator_access = std::ifstream(path);
 
     if (!emulator_access.good()) {
@@ -312,8 +312,8 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
             header->set_value("Bearer " + mAuthToken);
         }
         if (!mJwkPath.empty()) {
-            anyauth.emplace_back(
-                    std::make_unique<JwtTokenAuth>(mJwkPath.string(), mJwkLoadedPath.string(), allowList.get()));
+            anyauth.emplace_back(std::make_unique<JwtTokenAuth>(
+                    mJwkPath.string(), mJwkLoadedPath.string(), allowList.get()));
         }
         mCredentials->SetAuthMetadataProcessor(
                 std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
@@ -362,7 +362,8 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
 
     LOG(INFO) << "Started GRPC server at " << server_address.c_str() << ", security: " << mSecurity
               << ", auth: " << mAuthMode;
-    return std::make_unique<EmulatorControllerServiceImpl>(mPort, std::move(mServices), std::move(allowList), std::move(service), endpoint);
+    return std::make_unique<EmulatorControllerServiceImpl>(
+            mPort, std::move(mServices), std::move(allowList), std::move(service), endpoint);
 }
 }  // namespace control
 }  // namespace emulation

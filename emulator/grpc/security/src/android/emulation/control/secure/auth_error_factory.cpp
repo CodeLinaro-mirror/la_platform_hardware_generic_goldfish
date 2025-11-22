@@ -12,7 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/emulation/control/secure/AuthErrorFactory.h"
+#include "android/emulation/control/secure/auth_error_factory.h"
 
 #include "absl/strings/str_format.h"
 
