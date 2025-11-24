@@ -254,7 +254,7 @@ class SensorDevice : public ISensorDevice {
         // Make sure we don't get destroyed while a timer is active.
         // By posting with a self reference we guarantee that we remain alive
         // until the timer has completed been cleaned up (b/443556478)
-        mLoop->post([this] { mSelf.reset(); });
+        (void)mLoop->post([this] { mSelf.reset(); });
     }
 
     void onConnect() override {

@@ -94,7 +94,7 @@ static uint32_t bmap[INPUT_BUTTON__MAX] = {
 void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
     absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
-    mQemuLoop->post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
+    (void)mQemuLoop->post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
                      mask = button_mask] {
         if (last != mask) {
             qemu_input_update_buttons(con, bmap, last, mask);
@@ -109,7 +109,7 @@ void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
 void QemuDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendEvDevEvent(" << type << ", " << code << ", " << value << ")";
-    mQemuLoop->post([vhid = mVhid, type, code, value] {
+    (void)mQemuLoop->post([vhid = mVhid, type, code, value] {
         virtio_input_send_evdev(vhid, type, code, value);
     });
 }
