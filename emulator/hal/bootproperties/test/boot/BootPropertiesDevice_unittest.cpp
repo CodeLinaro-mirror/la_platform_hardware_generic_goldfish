@@ -146,7 +146,7 @@ TEST_F(BootPropertiesDeviceTest, sendsBootProperties) {
     props["foo"_bps] = "bar";
     registerWithProps(props);
     receive("list");
-    EXPECT_EQ(test_socket->storage, "0007foo=bar");
+    EXPECT_EQ(test_socket->storage, "0007foo=bar0000");
 }
 
 TEST_F(BootPropertiesDeviceTest, receivesMountEvent) {

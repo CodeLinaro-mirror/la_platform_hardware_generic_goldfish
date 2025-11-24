@@ -69,6 +69,7 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
             for (const auto& [name, value] : mProperties) {
                 send(absl::StrFormat("%s=%s", name, value));
             }
+            send("\0");
             mDataPartitionMounted = true;
             fireEvent({.dataPartitionMounted = true});
         }
