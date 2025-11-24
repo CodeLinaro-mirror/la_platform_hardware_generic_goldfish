@@ -18,9 +18,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "absl/strings/numbers.h"
+
 #include "android/base/testing/TestSystem.h"
 #include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/test_connector_registry.h"
+
 namespace goldfish::devices::guest_status {
 
 using android::base::TestSystem;
@@ -28,8 +31,10 @@ using async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
-namespace {
 
+using namespace std::literals::string_view_literals;
+
+namespace {
 typedef void QEMUResetHandler(void* opaque);
 
 static QEMUResetHandler* sResetHandler;
@@ -55,7 +60,12 @@ class GuestStatusDeviceTest : public ::testing::Test {
     }
 
   public:
-    void receive(std::string_view msg) { device->onReceive(msg); }
+    void receive(const std::string_view msg) {
+        char sizeBuf[sizeof(uint32_t)];
+        absl::little_endian::Store32(sizeBuf, msg.size());
+        device->onReceive(std::string_view(sizeBuf, sizeof(sizeBuf)));
+        device->onReceive(msg);
+    }
     void clear() { test_socket->storage.clear(); }
 
   protected:
@@ -76,14 +86,14 @@ TEST_F(GuestStatusDeviceTest, heartbeatSendsAnEvent) {
     AndroidGuestStatus received;
     auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](AndroidGuestStatus event) { received = event; });
-    receive("heartbeat");
+    receive("heartbeat\0"sv);
     EXPECT_THAT(received.heartbeat(), Eq(start + 1));
 }
 
 TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
     auto start = device->heartbeat();
     for (int i = 0; i < 10; i++) {
-        receive("heartbeat");
+        receive("heartbeat\0"sv);
     }
     EXPECT_THAT(device->heartbeat(), Eq(10 + start));
 }
@@ -99,7 +109,7 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
         .systemMs = 10,
         .wallClockMs = 100,
     });
-    receive("bootcompleted");
+    receive("bootcomplete\0"sv);
     EXPECT_THAT(received.isBootCompletedEvent(), Eq(true));
     EXPECT_THAT(received.bootTime().count(), Eq(100));
 }
@@ -111,7 +121,7 @@ TEST_F(GuestStatusDeviceTest, tracksBootCompleted) {
         .systemMs = 10,
         .wallClockMs = 100,
     });
-    receive("bootcompleted");
+    receive("bootcomplete\0"sv);
     EXPECT_THAT(device->hasBooted(), Eq(true));
     EXPECT_THAT(device->bootTime()->count(), Eq(100));
 }
@@ -134,7 +144,7 @@ TEST_F(GuestStatusDeviceTest, firesResetEvent) {
     auto scoped = android::base::eventing::makeScopedCallback(
             *device, [&received](AndroidGuestStatus event) { received = event; });
 
-    receive("bootcompleted");
+    receive("bootcomplete\0"sv);
 
     // Simulate a reset
     sResetHandler(sOpaque);

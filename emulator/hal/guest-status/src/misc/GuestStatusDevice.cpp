@@ -21,6 +21,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/synchronization/mutex.h"
 
 #include "android/base/system/System.h"
@@ -63,9 +64,10 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
     void send(std::string msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
-        VLOG(2) << "Sending " << encoded;
-        socket()->send(encoded);
+        char sizeBuf[sizeof(uint32_t)];
+        absl::little_endian::Store32(sizeBuf, msg.size());
+        socket()->send(std::string(sizeBuf, sizeof(sizeBuf)));
+        socket()->send(std::move(msg));
     }
 
     uint64_t heartbeat() const override {
@@ -82,41 +84,78 @@ class GuestStatusDevice : public IGuestStatusDevice {
     void onConnect() override { VLOG(1) << "Guest status device has been connected"; }
     void onClose() override { VLOG(1) << "Guest status device has been disconnected"; }
 
-    void onReceive(std::string_view message) override {
-        VLOG(2) << "Received message from guest:" << message;
+    void onReceive(const std::string_view data) override {
+        mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
 
-        if (absl::StartsWith(message, "heartbeat")) {
-            uint64_t heartbeat = 0;
-            {
-                absl::MutexLock lock(&mStatusMutex);
-                heartbeat = ++mHeartbeat;
+        while (true) {
+            if (mReceiveData.size() < sizeof(uint32_t)) {
+                return;
             }
-            VLOG(2) << "Heartbeat: " << heartbeat;
-            fireEvent(createHeartbeatEvent(heartbeat));
-        } else if (absl::StartsWith(message, "bootcomplete")) {
-            std::chrono::milliseconds bootTime;
-            {
-                absl::MutexLock lock(&mStatusMutex);
-                bootTime = uptime() - mResetTimestampMs;
-                mBootTime = bootTime;
-            }
-            fireEvent(createBootCompletedEvent(bootTime));
-            // use WARNING, otherwise, logger does no flush and we don't know
-            // it boot completes in timely manner
-            LOG(WARNING) << "Boot completed in " << bootTime.count() << " ms";
 
-            if (mQuitAfterBootTimeoutSeconds > 0) {
-                LOG(WARNING) << "Shutting down guest due to boot complete";
-                // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-                (void)mQemuLoop->post([] () {
-                    android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
-                });
+            const uint32_t msgSize = absl::little_endian::Load32(mReceiveData.data());
+            if (mReceiveData.size() < (sizeof(uint32_t) + msgSize)) {
+                return;
             }
+
+            onReceiveMsg(std::string_view(&mReceiveData[sizeof(uint32_t)], msgSize));
+
+            mReceiveData.erase(mReceiveData.begin(),
+                            mReceiveData.begin() + sizeof(uint32_t) + msgSize);
+        }
+    }
+
+    void onReceiveMsg(const std::string_view message) {
+        using namespace std::literals;
+
+        VLOG(2) << "Received message from guest: '" << message << "'";
+
+        // see sendMessage in device/generic/goldfish/qemu-props/qemu-props.cpp
+
+        bool ok = true;
+        if (message == "heartbeat\0"sv) {
+            VLOG(2) << "Heartbeat: " << message;
+            onReceiveHeartbeat();
+        } else if (message == "bootcomplete\0"sv) {
+            onReceiveBootcomplete();
         } else {
             VLOG(1) << "Ignoring unknown message from guest (" << message.size() << "):" << message;
+            ok = false;
         }
 
-        send("KO");
+        send(ok ? "OK"s : "KO"s);
+    }
+
+    void onReceiveHeartbeat() {
+        uint64_t heartbeat = 0;
+        {
+            absl::MutexLock lock(&mStatusMutex);
+            heartbeat = ++mHeartbeat;
+        }
+
+        fireEvent(createHeartbeatEvent(heartbeat));
+    }
+
+    void onReceiveBootcomplete() {
+        std::chrono::milliseconds bootTime;
+        {
+            absl::MutexLock lock(&mStatusMutex);
+            bootTime = uptime() - mResetTimestampMs;
+            mBootTime = bootTime;
+        }
+
+        fireEvent(createBootCompletedEvent(bootTime));
+
+        // use WARNING, otherwise, logger does no flush and we don't know
+        // it boot completes in timely manner
+        LOG(WARNING) << "Boot completed in " << bootTime.count() << " ms";
+
+        if (mQuitAfterBootTimeoutSeconds > 0) {
+            LOG(WARNING) << "Shutting down guest due to boot complete";
+            // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
+            (void)mQemuLoop->post([] () {
+                android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
+            });
+        }
     }
 
     void unregisterResetHandler() {
@@ -145,6 +184,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
 
     EmulatorResetCallbacks mResetCallbacks;
     async::EventLoop *mQemuLoop;
+    std::vector<char> mReceiveData;
     const int mQuitAfterBootTimeoutSeconds;
     uint64_t mHeartbeat ABSL_GUARDED_BY(mStatusMutex);
     std::chrono::milliseconds mBootTime ABSL_GUARDED_BY(mStatusMutex);
