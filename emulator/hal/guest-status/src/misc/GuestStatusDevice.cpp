@@ -18,11 +18,9 @@
 #include <string>
 #include <string_view>
 
-#include "absl/base/thread_annotations.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
-#include "absl/synchronization/mutex.h"
 
 #include "android/base/system/System.h"
 #include "android/goldfish/vm/VmInterface.h"
@@ -71,12 +69,10 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
     uint64_t heartbeat() const override {
-        absl::MutexLock lock(&mStatusMutex);
         return mHeartbeat;
     }
 
     std::optional<std::chrono::milliseconds> bootTime() const override {
-        absl::MutexLock lock(&mStatusMutex);
         if (mBootTime == std::chrono::milliseconds(0)) return std::nullopt;
         return mBootTime;
     }
@@ -126,23 +122,12 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
     void onReceiveHeartbeat() {
-        uint64_t heartbeat = 0;
-        {
-            absl::MutexLock lock(&mStatusMutex);
-            heartbeat = ++mHeartbeat;
-        }
-
-        fireEvent(createHeartbeatEvent(heartbeat));
+        fireEvent(createHeartbeatEvent(++mHeartbeat));
     }
 
     void onReceiveBootcomplete() {
-        std::chrono::milliseconds bootTime;
-        {
-            absl::MutexLock lock(&mStatusMutex);
-            bootTime = uptime() - mResetTimestampMs;
-            mBootTime = bootTime;
-        }
-
+        const std::chrono::milliseconds bootTime = uptime() - mResetTimestampMs;
+        mBootTime = bootTime;
         fireEvent(createBootCompletedEvent(bootTime));
 
         // use WARNING, otherwise, logger does no flush and we don't know
@@ -170,11 +155,8 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
     void handleResetEvent() {
-        {
-            absl::MutexLock lock(&mStatusMutex);
-            mBootTime = std::chrono::milliseconds{0};
-            s_uptime = uptime();
-        }
+        mBootTime = std::chrono::milliseconds{0};
+        s_uptime = uptime();
         fireEvent(createResetEvent());
     }
 
@@ -186,11 +168,9 @@ class GuestStatusDevice : public IGuestStatusDevice {
     async::EventLoop *mQemuLoop;
     std::vector<char> mReceiveData;
     const int mQuitAfterBootTimeoutSeconds;
-    uint64_t mHeartbeat ABSL_GUARDED_BY(mStatusMutex);
-    std::chrono::milliseconds mBootTime ABSL_GUARDED_BY(mStatusMutex);
-    std::chrono::milliseconds mResetTimestampMs ABSL_GUARDED_BY(mStatusMutex);
-
-    mutable absl::Mutex mStatusMutex;  // protects mHeartbeat, mBootTime, mResetTimestampMs
+    uint64_t mHeartbeat;
+    std::chrono::milliseconds mBootTime;
+    std::chrono::milliseconds mResetTimestampMs;
 };
 
 // TODO: b/456020509: do something better here
