@@ -115,7 +115,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
             if (mQuitAfterBootTimeoutSeconds > 0) {
                 LOG(WARNING) << "Shutting down guest due to boot complete";
                 // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-                mQemuLoop->post([] () {
+                (void)mQemuLoop->post([] () {
                     android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
                 });
             }

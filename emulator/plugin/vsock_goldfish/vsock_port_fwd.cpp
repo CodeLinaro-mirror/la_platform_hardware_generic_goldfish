@@ -206,7 +206,7 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void close() {
-        mClientLoop->postAndWait([this] { if (mSocketServer) { mSocketServer->close(); }});
+        (void)mClientLoop->postAndWait([this] { if (mSocketServer) { mSocketServer->close(); }});
     }
 
   private:
@@ -215,7 +215,7 @@ class VSockProxyImpl : public VSockProxy {
         auto incoming_socket_connection =
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
-                    mQemuLoop->post([this, hostToGuest = std::move(hostToGuest)] {
+                    (void)mQemuLoop->post([this, hostToGuest = std::move(hostToGuest)] {
                         incomingConnectionOnQemuThread(std::move(hostToGuest));
                     });
                     return true;
@@ -241,7 +241,7 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void vsockAliveOnQemuThread() {
-        mClientLoop->post([this] { startServer(); });
+        (void)mClientLoop->post([this] { startServer(); });
     }
 
     bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {

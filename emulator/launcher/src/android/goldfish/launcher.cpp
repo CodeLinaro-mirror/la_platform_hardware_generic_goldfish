@@ -120,7 +120,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
-        mEventLoop.post([this] {
+        (void)mEventLoop.post([this] {
             if (mOpts.no_netsim) {
                 launch_emulator(std::string());
             } else if (auto netsimd_endpoint = mOpts.packet_streamer_endpoint; netsimd_endpoint) {
@@ -193,7 +193,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 mFindNetsimd.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
-                mEventLoop.post([this] {
+                (void)mEventLoop.post([this] {
                     try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
                 });
                 return;
@@ -216,7 +216,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->cancel();
         mFindNetsimd.reset();
-        mEventLoop.post([this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
+        (void)mEventLoop.post([this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
     }
 
     void try_connect_netsimd(std::string netsimd_endpoint) {
@@ -228,7 +228,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            mEventLoop.post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
+            (void)mEventLoop.post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
                 launch_emulator(std::move(endpoint));
             });
         } else {
