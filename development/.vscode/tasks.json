@@ -77,7 +77,7 @@
         {
             "label": "aemu: Update compile commands database",
             "type": "shell",
-            "command": "bazel run //hardware/generic/goldfish/development/tools/bcc:extract-cc -- //hardware/generic/goldfish/...",
+            "command": "bazel run --nocheck_visibility @goldfish//:compile_commands",
             "group": {
                 "kind": "build",
             },

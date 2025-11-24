@@ -1,0 +1,150 @@
+load("@goldfish_build//rules:compile_commands.bzl", "compile_commands_json")
+
+# You can update the tests (on macos) by running:
+# bazel query 'kind("cc_test", //...)' |  sed 's/.*/    "&",/' | pbcopy
+#
+TESTS = [
+    "//android/async:async_testing_unittests",
+    "//android/async:event_loop_dispatcher_test",
+    "//android/async:eventloop_unittests",
+    "//android/async:libuv_signal_handlers_test",
+    "//android/async:sockets_unittests",
+    "//android/cpu:cpu_unittests",
+    "//android/files:files_unittests",
+    "//android/logging:backend_unittests",
+    "//android/memory:memory_unittests",
+    "//android/network:network_unittests",
+    "//android/process:process_unittests",
+    "//android/sockets:sockets_unittests",
+    "//android/system:system-unittests",
+    "//emulator/adb/host:host_unitests",
+    "//emulator/adb/logger:logger_unitests",
+    "//emulator/adb/secrets:secrets_unitests",
+    "//emulator/cmdline:cmdline_unittests",
+    "//emulator/config:config_unittests",
+    "//emulator/crashreport:crashreport_test",
+    "//emulator/crashreport:hang_detector_test",
+    "//emulator/grpc/absl:translate_test",
+    "//emulator/grpc/async:async_library_test",
+    "//emulator/grpc/client:emulator_grpc_client_test",
+    "//emulator/grpc/interceptors:interceptors_test",
+    "//emulator/grpc/security:security-test",
+    "//emulator/grpc/services/emulator_controller/input:input_unittests",
+    "//emulator/grpc/services/emulator_controller/keyboard:keyboard_unittests",
+    "//emulator/grpc/services/emulator_controller/server:emulator-service_unittests",
+    "//emulator/hal/bootproperties:bootproperties_unittests",
+    "//emulator/hal/camera/image_providers/imagefile:imagefile_unittests",
+    "//emulator/hal/camera/image_providers/videofile:videofile_unittests",
+    "//emulator/hal/camera/image_providers/virtualscene:virtualscene_unittests",
+    "//emulator/hal/camera/image_providers/webcam:webcam_unittests",
+    "//emulator/hal/camera:camera_impl_unittests",
+    "//emulator/hal/clipboard:clipboard_unittests",
+    "//emulator/hal/connector:connector_registry_tests",
+    "//emulator/hal/connector:devices_unittests",
+    "//emulator/hal/display:display_unittests",
+    "//emulator/hal/fingerprint:fingerprint_unittests",
+    "//emulator/hal/gps:gps_unittests",
+    "//emulator/hal/guest-status:guest-status_unittests",
+    "//emulator/hal/plug:hal_plug_adapter_unittests",
+    "//emulator/hal/sensors:sensors_unittests",
+    "//emulator/launcher/src/android/goldfish/devices/drives:configure_drives_test",
+    "//emulator/launcher/src/android/goldfish/devices/drives:disk_drive_test",
+    "//emulator/launcher/src/android/goldfish/devices:adb_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:avd_info_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:cpu_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:display_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:grpc_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:initrd_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:kernel_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:machine_test",
+    "//emulator/launcher/src/android/goldfish/devices:memory_device_test",
+    "//emulator/launcher/src/android/goldfish/devices:network_device_test",
+    "//emulator/launcher:bootconfig_test",
+    "//emulator/launcher:logging_test",
+    "//emulator/libs/SocketBuffer:SocketBuffer_unittests",
+    "//emulator/libs/UniqueIdAllocator:UniqueIdAllocator_unittests",
+    "//emulator/libs/application_singleton:ApplicationSingleton_test",
+    "//emulator/libs/archive:reader_writer_unittests",
+    "//emulator/libs/archive:zigzag_unittests",
+    "//emulator/libs/base:base_unittests",
+    "//emulator/libs/broadcasting:broadcasting_unittests",
+    "//emulator/libs/catalog:emulator_catalog_unittest",
+    "//emulator/libs/gvk:gvk_unittests",
+    "//emulator/libs/imaging:imaging_unittests",
+    "//emulator/libs/os:os_unittests",
+    "//emulator/libs/parsing:parsing_unittests",
+    "//emulator/libs/physics:physics_unittests",
+    "//emulator/libs/sensors:sensors_unittests",
+    "//emulator/plugin/avd:global-event-loop-tests",
+    "//emulator/plugin/vminterface:vminterface_unittests",
+]
+
+# We have a set of test binaries used here and there
+PERF_TESTS = [
+    "//android/async:sockets_perf",
+    "//android/logging:log_bridge_perf",
+    "//android/system:clock_perf",
+]
+
+# Index qemu
+# We only pick one executable, per platform to prevent confusing
+# clangd. Otherwise the same .c might show up with a different
+# set of defines and include paths, which might result in some non-determinism
+# when indexing files.
+# Obtained throug:
+# bazel query -k 'kind(cc_binary, @qemu//...)'  |  sed 's/.*/    "&",/'
+QEMU = [
+    "@qemu//:qemu-img",
+] + select({
+    "@platforms//os:linux": [
+        "@qemu//:qemu-system-x86_64",
+    ],
+    "@platforms//os:macos": [
+        "@qemu//:qemu-system-aarch64",
+    ],
+    "@platforms//os:windows": [
+        "@qemu//:_qemu-system-x86_64_dll",
+    ],
+    "//conditions:default": [],
+})
+
+# The binaries we ship!
+# We only pick one plugin, per platform to prevent confusing
+# clangd. Otherwise the same .cpp might show up with a different
+# set of defines, which might result in some non-determinism
+EMULATOR = [
+    "//emulator/crashreport",
+    "//emulator/crashreport/tool:crashreport",
+    "//emulator/launcher",
+    "//third_party/sparse:img2simg",
+] + select({
+    "@platforms//os:linux": [
+        "//emulator/plugin:goldfish_x86_64",
+    ],
+    "@platforms//os:macos": [
+        "//emulator/plugin:goldfish_aarch64",
+    ],
+    "@platforms//os:windows": [
+        "//emulator/plugin:goldfish_x86_64",
+        "//android/windows/posix:compat_unittests",
+    ],
+    "//conditions:default": [],
+})
+
+# Since none of our tests are visible from here will have to run this target
+# with:
+#      bazel run --nocheck_visibility @goldfish//:compile_commands
+# This will suppress any visibility warnigns and will generate
+# ${BAZEL_ROOT}/compile_commands.json
+compile_commands_json(
+    name = "compile_commands",
+    testonly = True,
+    allow_external_workspaces = [
+        "aemu+",  # Matches @aemu
+        "gfxstream+",  # Matches @gfxstream
+        "goldfish+",  # Matches @goldfish
+        "qemu+",  # Matches qemu
+    ],
+    tags = ["manual"],  # Invoke explicitly
+    targets = TESTS + PERF_TESTS + QEMU + EMULATOR,
+)
