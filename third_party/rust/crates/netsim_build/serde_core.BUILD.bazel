@@ -19,20 +19,25 @@ load("@rules_rust//rust:defs.bzl", "rust_library")
 package(default_visibility = ["//visibility:public"])
 
 rust_library(
-    name = "serde",
-    srcs = glob(["**/*.rs"]),
+    name = "serde_core",
+    srcs = [
+        "src/crate_root.rs",
+        "src/format.rs",
+        "src/macros.rs",
+        "src/lib.rs",
+        "out/private.rs",
+    ] + glob(["src/de/*.rs", "src/private/*.rs", "src/ser/*.rs"]),
     data = ["out"],
-    crate_name = "serde",
+    crate_name = "serde_core",
     edition = "2021",
-    crate_root = "src/lib.rs",
     rustc_env = {"OUT_DIR": "$(location out)"},
-    deps = ["@serde_core"],
-    proc_macro_deps = ["@serde_derive"],
+    crate_root = "src/lib.rs",
+    #proc_macro_deps = ["@serde_derive"],
     rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"derive\"",
+        #"--cfg=feature=\"default\"",
+        #"--cfg=feature=\"derive\"",
         "--cfg=feature=\"rc\"",
-        "--cfg=feature=\"serde_derive\"",
+        "--cfg=feature=\"result\"",
         "--cfg=feature=\"std\"",
     ],
 )

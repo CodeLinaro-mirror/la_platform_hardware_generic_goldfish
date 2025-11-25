@@ -166,6 +166,7 @@ def _lrc_impl(module_ctx):
         "ryu",
         "scopeguard",
         "serde",
+        "serde_core",
         "serde_derive",
         "serde_json",
         "signal-hook-registry",
