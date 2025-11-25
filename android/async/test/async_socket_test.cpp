@@ -41,6 +41,10 @@ class AsyncSocketTest : public ::testing::Test {
         mRawEventLoop = mEventLoop.get();
         mFactory = std::make_unique<LibuvAsyncSocketFactory>();
         mLoopThread = std::thread([this] { (void)mRawEventLoop->run(); });
+        // Wait for the loop to actually start.
+        while (mRawEventLoop->getState() != LooperStatusEvent::State::RUNNING) {
+            std::this_thread::sleep_for(10ms);
+        }
     }
 
     void TearDown() override {
