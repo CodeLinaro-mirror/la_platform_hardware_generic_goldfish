@@ -302,6 +302,7 @@ cc_binary(
         "//android/async:libuv_event_loop",
         "//android/async:libuv_process_launcher",
         "//android/async:libuv_signal_handlers",
+        "//android/async:libuv_sockets",
         "//android/cpu",
         "//android/filesystems",
         "//android/system",

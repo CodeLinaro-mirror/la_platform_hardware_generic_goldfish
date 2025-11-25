@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <android/cmdline-definitions.h>
-
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -24,8 +22,11 @@
 #include "absl/debugging/symbolize.h"
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+
+#include "aemu/base/utils/status_macros.h"
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
@@ -35,14 +36,18 @@
 #include "android/crashreport/CrashSystem.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/emulator.h"
+#include "android/goldfish/emulator_config.h"
 #include "android/goldfish/input_paths.h"
 #include "android/goldfish/logging.h"
 #include "android/goldfish/netsimd.h"
 #include "android/main-help.h"
 
+#include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
 #include "goldfish/async/libuv_signal_handlers.h"
+#include "goldfish/async/libuv_socket_factory.h"
+#include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
 
 namespace fs = std::filesystem;
@@ -67,60 +72,22 @@ static void show_banner() {
     std::cout << "    = _ _.*= .            \n";
 }
 
-absl::StatusOr<EmulatorPorts> get_emulator_ports(const AndroidOptions& opts) {
-    EmulatorPorts ports;
-    if (opts.ports) {
-        // Format should be console_port,adb_port
-        std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');
-        if (parts.size() != 2) {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -ports: ", opts.ports));
-        }
-        if (!absl::SimpleAtoi(parts[0], &ports.serial_number)) {
-            return absl::InvalidArgumentError(
-                    absl::StrCat("Failed to parse serial port number from -ports: ", opts.ports));
-        }
-        if (!absl::SimpleAtoi(parts[1], &ports.adb_port)) {
-            return absl::InvalidArgumentError(
-                    absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
-        }
-    } else if (opts.port) {
-        // opts.port specifies the telnet console port and by default ADB port is that +1
-        if (!absl::SimpleAtoi(opts.port, &ports.serial_number)) {
-            return absl::InvalidArgumentError(
-                    absl::StrCat("Failed to parse serial port number from -port ", opts.port));
-        }
-        ports.adb_port = ports.serial_number + 1;
-    } else {
-        // TODO open port and on failure +=2 until an available port is found.
-        ports.serial_number = 5554;
-        ports.adb_port = ports.serial_number + 1;
-    }
-    if (ports.adb_port < 5555 || ports.adb_port > 5585) {
-        LOG(WARNING)
-                << "ADB port specified is out of range [5555,5585], adb may not work properly: "
-                << ports.adb_port;
-    }
-    if (ports.adb_port % 2 != 1) {
-        LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: "
-                     << ports.adb_port;
-    }
-
-    return ports;
-}
-
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
-    Launcher(::goldfish::async::LibuvEventLoop& event_loop, EmulatorPorts ports,
+    Launcher(::goldfish::async::LibuvEventLoop& event_loop,
              ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
             : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.getRawLoop()))
             , mEventLoop(event_loop)
-            , mPorts(std::move(ports))
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
         (void)mEventLoop.post([this] {
+            if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
+                LOG(FATAL) << "Failed to set ports: " << s;
+            }
+
             if (mOpts.no_netsim) {
                 launch_emulator(std::string());
             } else if (auto netsimd_endpoint = mOpts.packet_streamer_endpoint; netsimd_endpoint) {
@@ -135,6 +102,76 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     void join_shutdown_thread() { if (mShutdownThread.joinable()) { mShutdownThread.join(); } }
 
   private:
+    absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>> open_tcp_server_port(::goldfish::async::EventLoop &event_loop, ::goldfish::async::LibuvAsyncSocketFactory &factory, int port) {
+        ASSIGN_OR_RETURN(auto e, ::goldfish::network::Endpoint::create("127.0.0.1", port));
+        auto sock = factory.createServer(&event_loop, e, [] (auto) {
+            VLOG(1) << "Ignoring connection to serial port reservation server";
+            return false;
+        });
+        if (sock != nullptr) {
+            return sock;
+        }
+        return absl::UnavailableError("unable to open server socket");
+    }
+
+    absl::Status hunt_for_free_port(::goldfish::async::EventLoop &event_loop, ::goldfish::async::LibuvAsyncSocketFactory &factory) {
+        constexpr int kStartingPort = 5554;
+        std::shared_ptr<::goldfish::async::AsyncSocketServer> sock;
+        for (int port = kStartingPort; port < 5585; port += 2) {
+            if (auto sock = open_tcp_server_port(event_loop, factory, port); sock.ok()) {
+                mPorts.serial_number = port;
+                mPorts.adb_port = port + 1;
+                mSerialPortReservation = *std::move(sock);
+                return absl::OkStatus();
+            }
+        }
+
+        return absl::UnavailableError("No available emulator serial console port (5554-5584)");
+    }
+
+    absl::Status setup_emulator_ports(const AndroidOptions& opts, ::goldfish::async::EventLoop &event_loop) {
+        auto factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>();
+        if (opts.ports) {
+            // Format should be console_port,adb_port
+            std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');
+            if (parts.size() != 2) {
+                return absl::InvalidArgumentError(absl::StrCat("Failed to parse -ports: ", opts.ports));
+            }
+            if (!absl::SimpleAtoi(parts[0], &mPorts.serial_number)) {
+                return absl::InvalidArgumentError(
+                        absl::StrCat("Failed to parse serial port number from -ports: ", opts.ports));
+            }
+            if (!absl::SimpleAtoi(parts[1], &mPorts.adb_port)) {
+                return absl::InvalidArgumentError(
+                        absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
+            }
+            ASSIGN_OR_RETURN(mSerialPortReservation, open_tcp_server_port(event_loop, *factory, mPorts.serial_number));
+        } else if (opts.port) {
+            // opts.port specifies the telnet console port and by default ADB port is that +1
+            int port;
+            if (!absl::SimpleAtoi(opts.port, &port)) {
+                return absl::InvalidArgumentError(
+                        absl::StrCat("Failed to parse serial port number from -port ", opts.port));
+            }
+            mPorts.serial_number = port;
+            mPorts.adb_port = port + 1;
+            ASSIGN_OR_RETURN(mSerialPortReservation, open_tcp_server_port(event_loop, *factory, port));
+        } else {
+            RETURN_IF_ERROR(hunt_for_free_port(event_loop, *factory));
+        }
+        if (mPorts.adb_port < 5555 || mPorts.adb_port > 5585) {
+            LOG(WARNING)
+                    << "ADB port specified is out of range [5555,5585], adb may not work properly: "
+                    << mPorts.adb_port;
+        }
+        if (mPorts.adb_port % 2 != 1) {
+            LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: "
+                        << mPorts.adb_port;
+        }
+
+        return absl::OkStatus();
+    }
+
     void forwarding_signal_handler(int signum) {
         LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
         if (auto* p = mEmulatorProcess.get()) {
@@ -243,6 +280,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         l.mEmulatorExitStatus = exit_status;
         close_handle(std::move(l.mEmulatorProcess));
 
+        l.mSerialPortReservation->close();
+        l.mSerialPortReservation.reset();
         VLOG(1) << "Shutting down";
         l.mShutdownThread = std::thread([&l] {
             // Shut down the signal handlers before the loop.
@@ -257,7 +296,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_emulator(std::string netsimd_endpoint) {
-        Emulator emulator{std::move(mPorts), std::move(netsimd_endpoint), std::move(mResolvedPaths),
+        Emulator emulator{mPorts, std::move(netsimd_endpoint), std::move(mResolvedPaths),
                           std::move(mAvd), std::move(mOpts)};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
@@ -274,12 +313,14 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     ::goldfish::async::EventLoop& mEventLoop;
 
-    EmulatorPorts mPorts;
     ResolvedInputPaths mResolvedPaths;
     std::unique_ptr<Avd> mAvd;
     AndroidOptions mOpts;
 
     ::goldfish::async::UvSignalHandlers mSignalHandlers;
+
+    EmulatorPorts mPorts;
+    std::shared_ptr<::goldfish::async::AsyncSocketServer> mSerialPortReservation;
 
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.
@@ -466,15 +507,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto ports = android::goldfish::get_emulator_ports(opts);
-    if (!ports.ok()) {
-        LOG(ERROR) << "Failed to set ports: " << ports.status().message();
-        return 1;
-    }
-
     auto event_loop = goldfish::async::LibuvEventLoop::create();
 
-    android::goldfish::Launcher l(*event_loop, *std::move(ports), *std::move(resolved_paths),
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths),
                                   *std::move(avd), opts);
 
     if (auto s = event_loop->run(); !s.ok()) {
