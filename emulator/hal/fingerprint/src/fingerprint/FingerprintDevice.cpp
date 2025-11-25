@@ -28,8 +28,6 @@ class FingerprintDevice : public IFingerprintDevice {
   public:
     FingerprintDevice() { VLOG(1) << "Fingerprint device has been created"; }
 
-    ~FingerprintDevice() {}
-
     void onConnect() override { VLOG(1) << "Fingerprint device has been connected"; }
     void onClose() override { VLOG(1) << "Fingerprint device has been disconnected"; }
     void onReceive(std::string_view data) override {

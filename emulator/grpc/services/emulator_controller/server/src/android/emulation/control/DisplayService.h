@@ -16,7 +16,6 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include "android/emulation/control/DisplayService.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"

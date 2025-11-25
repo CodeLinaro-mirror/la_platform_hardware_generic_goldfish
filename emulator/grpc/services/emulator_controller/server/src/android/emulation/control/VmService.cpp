@@ -58,6 +58,8 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
 }
 
 Status VmServiceImpl::getVmState(VmRunState* reply) {
+    using ::android::goldfish::EmuRunState;
+
     auto state = mVm->getRunState();
     VLOG(1) << "Current emulator run state: " << static_cast<int>(state) << " (" << state << ")";
     switch (state) {

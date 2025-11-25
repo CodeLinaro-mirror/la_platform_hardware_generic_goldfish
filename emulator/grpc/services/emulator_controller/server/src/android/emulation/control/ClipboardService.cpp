@@ -15,7 +15,6 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "android/clipboard/ClipboardDevice.h"
 
 namespace android {
@@ -25,7 +24,6 @@ namespace control {
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::clipboard::ClipboardData;
 using ::goldfish::devices::clipboard::IClipboardDevice;
-using grpc::ServerContext;
 using grpc::Status;
 
 /**
@@ -43,7 +41,6 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
                               std::string peerId)
             : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener)
             , mPeerId(std::move(peerId)) {}
-    virtual ~ClipDataEventStreamWriter() = default;
 
     /**
      * @brief Handles the arrival of a new clipboard event.

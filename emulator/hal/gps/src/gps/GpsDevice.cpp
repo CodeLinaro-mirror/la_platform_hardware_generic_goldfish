@@ -33,8 +33,6 @@ class GpsDevice : public IGpsDevice {
         setLocation(googleplex());
     }
 
-    ~GpsDevice() {}
-
     void onConnect() override { VLOG(1) << "Gps device has been connected"; }
     void onClose() override { VLOG(1) << "Gps device has been disconnected"; }
     void onReceive(std::string_view data) override {

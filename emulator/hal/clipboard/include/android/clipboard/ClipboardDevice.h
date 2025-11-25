@@ -80,8 +80,6 @@ using namespace std::string_view_literals;
  */
 class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardData> {
   public:
-    ~IClipboardDevice() override {}
-
     // Name under which you should register this in qemu
     static constexpr std::string_view serviceName = "clipboard"sv;
 

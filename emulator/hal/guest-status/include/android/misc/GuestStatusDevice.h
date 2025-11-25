@@ -110,8 +110,6 @@ class IGuestStatusDevice : public HalPlug, public CallbackEventSource<AndroidGue
   public:
     static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 
-    ~IGuestStatusDevice() override {}
-
     /**
      * @brief Retrieves the current heartbeat count.
      *

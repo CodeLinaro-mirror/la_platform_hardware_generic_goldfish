@@ -24,7 +24,6 @@ namespace emulation {
 namespace control {
 
 using ::goldfish::devices::ConnectorRegistry;
-using grpc::ServerContext;
 using grpc::Status;
 
 /**

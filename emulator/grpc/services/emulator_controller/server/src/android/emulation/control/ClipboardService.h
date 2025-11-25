@@ -29,7 +29,6 @@ namespace control {
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::clipboard::ClipboardData;
 using ::goldfish::devices::clipboard::IClipboardDevice;
-using grpc::ServerContext;
 using grpc::Status;
 
 /**

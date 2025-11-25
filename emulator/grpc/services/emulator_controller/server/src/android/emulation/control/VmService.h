@@ -23,9 +23,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using ::android::goldfish::EmuRunState;
 using ::android::goldfish::VmOperations;
-using grpc::ServerContext;
 using grpc::Status;
 
 /**

@@ -25,12 +25,8 @@ namespace emulation {
 namespace control {
 
 using ::goldfish::devices::ConnectorRegistry;
-using grpc::ServerContext;
 using grpc::Status;
 
-/**
-
- */
 class StatusServiceImpl {
   public:
     StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw);

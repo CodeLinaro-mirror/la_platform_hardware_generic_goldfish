@@ -74,8 +74,6 @@ using namespace std::string_view_literals;
  */
 class IGpsDevice : public HalPlug, public CallbackEventSource<Location> {
   public:
-    virtual ~IGpsDevice() = default;
-
     /**
      * @brief QEMU service name for the GPS device.
      */

@@ -24,7 +24,6 @@ namespace control {
 
 using ::goldfish::devices::ConnectorRegistry;
 using ::google::protobuf::Empty;
-using grpc::ServerContext;
 using grpc::Status;
 
 /**
@@ -45,10 +44,6 @@ class GpsServiceImpl {
      */
     explicit GpsServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
 
-    /**
-     * @brief Destroys the GpsServiceImpl.
-     */
-    ~GpsServiceImpl() = default;  // Use default destructor
 
     /**
      * @brief Sets the GPS state.
