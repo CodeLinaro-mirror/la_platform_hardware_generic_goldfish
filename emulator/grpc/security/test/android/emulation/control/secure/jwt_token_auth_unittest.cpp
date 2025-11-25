@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -87,10 +88,10 @@ class JwkTokenAuthTest : public ::testing::Test {
   public:
     void SetUp() override {
         auto status = TinkConfig::Register();
-        EXPECT_TRUE(status.ok());
+        ASSERT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
-        EXPECT_TRUE(status.ok());
-        mTempDir.reset(new TestTempDir("watcher_test"));
+        ASSERT_TRUE(status.ok());
+        mTempDir = std::make_unique<TestTempDir>(absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
 
         absl::Time now = absl::Now();
         mSampleJwt = tink::RawJwtBuilder()
@@ -115,8 +116,19 @@ class JwkTokenAuthTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
         auto private_handle = KeysetHandle::GenerateNew(tink::JwtEs512Template());
         EXPECT_TRUE(private_handle.ok());
+        if (!private_handle.ok()) {
+            return nullptr;
+        }
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
+        EXPECT_TRUE(public_handle.ok());
+        if (!public_handle.ok()) {
+            return nullptr;
+        }
         auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+        EXPECT_TRUE(jsonSnippet.ok());
+        if (!jsonSnippet.ok()) {
+            return nullptr;
+        }
         write(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
@@ -162,9 +174,10 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
     EXPECT_TRUE(base::System::get()->pathExists(discover_file));
     auto discoverd_json = readFile(discover_file);
     auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
+    ASSERT_THAT(discovered_handle, absl_testing::IsOk());
     auto public_handle = private_handle->GetPublicKeysetHandle();
+    ASSERT_THAT(public_handle, absl_testing::IsOk());
 
-    EXPECT_TRUE(discovered_handle.ok()) << public_handle.status().message();
     auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
     auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(*discovered_handle->get());
     EXPECT_EQ(json::parse(ours.value()), json::parse(loaded.value()));
