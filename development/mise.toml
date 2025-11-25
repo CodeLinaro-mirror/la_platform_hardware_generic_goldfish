@@ -1,5 +1,34 @@
 [env]
+# Our internal (minimal) android-sdk
+ANDROID_HOME = "{{config_root}}/prebuilts/android/android-sdk/{% if os() == 'linux' %}linux{% elif os() == 'macos' %}macosx{% else %}windows{% endif %}"
+# The root of our bazel workspace
+BAZEL_ROOT = "{{ config_root }}"
 '_'.path = [
     "{{config_root}}/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
-    "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin"
+    "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin",
+    "$ANDROID_HOME/platform-tools/"
 ]
+
+[tasks.build]
+description = "Builds the emulator release"
+run = "cd $BAZEL_ROOT && bazel build @goldfish//emulator:release"
+
+[tasks.test]
+description = "Runs all the emulator tests"
+run = "cd $BAZEL_ROOT && bazel test @goldfish//..."
+
+[tasks.bcc]
+description = "Generate the compilation database"
+run = "cd $BAZEL_ROOT && bazel run --nocheck_visibility @goldfish//:compile_commands"
+
+[tasks.submit]
+description = "Upload the current branch for code review"
+run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y'"
+
+[tasks.presubmit]
+description = "Upload the current branch for code review and mark it presubmit ready"
+run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y --label 'Presubmit-Ready+1'"
+
+[tasks.gum]
+description = "Update the latest commit if you are the owner"
+run = "cd $MISE_ORIGINAL_CWD; if [[ $(git show HEAD --author $USER) ]]; then git add --update .; git commit --amend ; else echo Not the owner of last commit!; fi"
