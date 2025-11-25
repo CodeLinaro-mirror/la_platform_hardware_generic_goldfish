@@ -177,14 +177,10 @@ cc_test(
 cc_library(
     name = "test-helpers",
     testonly = True,
-    srcs = [
-        # "test/goldfish/devices/test_socket.cpp",
-    ],
     hdrs = [
         "include/goldfish/devices/connector_registry.h",
         "test/goldfish/devices/test_connector_registry.h",
         "test/goldfish/devices/test_fake_connector_registry.h",
-        # "test/goldfish/devices/test_socket.h",
     ],
     includes = [
         "include",
