@@ -40,27 +40,30 @@ class ClipboardDevice : public IClipboardDevice {
 
     void onReceive(const std::string_view data) override {
         mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
-        if (mReceiveData.size() < sizeof(uint32_t)) {
-            return;
+
+        while (true) {
+            if (mReceiveData.size() < sizeof(uint32_t)) {
+                return;
+            }
+
+            const uint32_t dataSize = absl::little_endian::Load32(mReceiveData.data());
+            if (mReceiveData.size() < (sizeof(uint32_t) + dataSize)) {
+                return;
+            }
+
+            std::string clipboardData(&mReceiveData[sizeof(uint32_t)], dataSize);
+            mReceiveData.erase(mReceiveData.begin(),
+                            mReceiveData.begin() + sizeof(uint32_t) + dataSize);
+
+            VLOG(1) << "Clipboard update from guest to (" << dataSize << "):" << clipboardData;
+
+            {
+                absl::MutexLock lock(&mClipboardDataLock);
+                mClipboardData = clipboardData;
+            }
+
+            fireEvent(clipboardData);
         }
-
-        const uint32_t dataSize = absl::little_endian::Load32(mReceiveData.data());
-        if (mReceiveData.size() < (sizeof(uint32_t) + dataSize)) {
-            return;
-        }
-
-        std::string clipboardData(&mReceiveData[sizeof(uint32_t)], dataSize);
-        mReceiveData.erase(mReceiveData.begin(),
-                           mReceiveData.begin() + sizeof(uint32_t) + dataSize);
-
-        VLOG(1) << "Clipboard update from guest to (" << dataSize << "):" << clipboardData;
-
-        {
-            absl::MutexLock lock(&mClipboardDataLock);
-            mClipboardData = clipboardData;
-        }
-
-        fireEvent(clipboardData);
     }
 
     bool isEnabled() const override { return mEnabled; }
