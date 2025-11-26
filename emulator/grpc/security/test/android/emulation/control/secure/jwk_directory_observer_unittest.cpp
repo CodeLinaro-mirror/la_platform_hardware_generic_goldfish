@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "gtest/gtest_pred_impl.h"
 
@@ -57,7 +58,7 @@ class JwkDirectoryObserverTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
-        mTempDir.reset(new TestTempDir("watcher_test"));
+        mTempDir = std::make_unique<TestTempDir>(absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")
@@ -90,12 +91,27 @@ class JwkDirectoryObserverTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
         auto private_handle = KeysetHandle::GenerateNew(tink::JwtEs512Template());
         EXPECT_TRUE(private_handle.ok());
+        if (!private_handle.ok()) {
+            return nullptr;
+        }
         auto sign = (*private_handle)->GetPrimitive<tink::JwtPublicKeySign>();
+        if (!sign.ok()) {
+            return nullptr;
+        }
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
+        EXPECT_TRUE(public_handle.ok());
+        if (!public_handle.ok()) {
+            return nullptr;
+        }
         auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+        EXPECT_TRUE(jsonSnippet.ok());
+        if (!jsonSnippet.ok()) {
+            return nullptr;
+        }
         write(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
+
 
   protected:
     std::unique_ptr<TestTempDir> mTempDir;
@@ -151,7 +167,10 @@ TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
 TEST_F(JwkDirectoryObserverTest, finds_jwks) {
     write("sample.jwk", RS256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) { mTestEv.signal(); });
+                                  [this](auto keyset) {
+                                    EXPECT_EQ(keyset, nullptr);
+                                    mTestEv.signal();
+                                });
     mTestEv.wait();
 }
 
@@ -159,7 +178,9 @@ TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", RS256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) { mTestEv.signal(); });
+                                  [this](auto keyset) {
+                                    EXPECT_EQ(keyset, nullptr);
+                                    mTestEv.signal(); });
     mTestEv.wait();
 }
 
@@ -167,7 +188,9 @@ TEST_F(JwkDirectoryObserverTest, merging_multiple) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", ES256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) { mTestEv.signal(); });
+                                  [this](auto keyset) {
+                                    EXPECT_NE(keyset, nullptr);
+                                    mTestEv.signal(); });
     mTestEv.wait();
 }
 
@@ -175,15 +198,20 @@ TEST_F(JwkDirectoryObserverTest, create_and_validate) {
     auto private_handle = writeEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
+    ASSERT_THAT(token, absl_testing::IsOk());
 
     // Our observer found the public key, and hence can validate the token.
     JwkDirectoryObserver observer(mTempDir->path().string(), [this, token](auto keyset) {
+        ASSERT_NE(keyset, nullptr);
+        auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
+        ASSERT_THAT(verify, absl_testing::IsOk());
         auto validator = tink::JwtValidatorBuilder()
                                  .ExpectIssuer("JwkDirectoryObserverTest")
                                  .AllowMissingExpiration()
                                  .Build();
-        auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
-        auto verified_jwt = (*verify)->VerifyAndDecode(*token, *mSampleValidator);
+        ASSERT_THAT(validator, absl_testing::IsOk());
+        auto verified_jwt = (*verify)->VerifyAndDecode(*token, *validator);
+        ASSERT_THAT(verified_jwt, absl_testing::IsOk());
         EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
         mTestEv.signal();
     });
@@ -191,9 +219,6 @@ TEST_F(JwkDirectoryObserverTest, create_and_validate) {
 }
 
 TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
-#ifdef __APPLE__
-    GTEST_SKIP() << "This test is flaky on the build bots: b/233946633";
-#endif
     // Let's generate a series of json keys
     writeEs512("valid1.jwk");
     writeEs512("valid2.jwk");
@@ -203,8 +228,11 @@ TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
 
     // Our observer found the public key, and hence can validate the token.
     JwkDirectoryObserver observer(mTempDir->path().string(), [this, token](auto keyset) {
+        ASSERT_NE(keyset, nullptr);
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
+        ASSERT_THAT(verify, absl_testing::IsOk());
         auto verified_jwt = (*verify)->VerifyAndDecode(*token, *mSampleValidator);
+        ASSERT_THAT(verified_jwt, absl_testing::IsOk());
         EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
         mTestEv.signal();
     });
@@ -226,11 +254,13 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     TokenState state = VALID_JWK_EXISTS;
     // Our observer found the public key, and hence can validate the token.
     JwkDirectoryObserver observer(mTempDir->path().string(), [&](auto keyset) {
+        ASSERT_NE(keyset, nullptr);
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
+        ASSERT_THAT(verify, absl_testing::IsOk());
         auto verified_jwt = (*verify)->VerifyAndDecode(*token, *mSampleValidator);
         switch (state) {
         case VALID_JWK_EXISTS:
-            EXPECT_TRUE(verified_jwt.ok());
+            ASSERT_THAT(verified_jwt, absl_testing::IsOk());
             EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
             mTestEv.signal();
             break;

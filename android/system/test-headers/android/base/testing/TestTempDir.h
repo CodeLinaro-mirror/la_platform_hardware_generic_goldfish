@@ -233,7 +233,8 @@ class TestTempDir {
     }
 #endif  // !_WIN32
 
-    std::string generate_random_string(int length = 8) {
+  public:
+    static std::string generate_random_string(int length = 8) {
         // Define allowed characters
         const std::string allowed_chars =
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

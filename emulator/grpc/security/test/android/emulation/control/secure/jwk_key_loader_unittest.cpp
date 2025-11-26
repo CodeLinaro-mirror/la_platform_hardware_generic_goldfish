@@ -59,7 +59,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
 
-        mTempDir.reset(new TestTempDir("watcher_test"));
+        mTempDir = std::make_unique<TestTempDir>(absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")

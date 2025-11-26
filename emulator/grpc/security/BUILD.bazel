@@ -74,6 +74,7 @@ cc_test(
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest",
         "@tink_cc//tink/jwt:jwt_key_templates",
     ],
