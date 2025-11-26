@@ -32,10 +32,7 @@ rust_library(
     edition = "2021",
     rustc_env = {"OUT_DIR": "$(location out)"},
     crate_root = "src/lib.rs",
-    #proc_macro_deps = ["@serde_derive"],
     rustc_flags = [
-        #"--cfg=feature=\"default\"",
-        #"--cfg=feature=\"derive\"",
         "--cfg=feature=\"rc\"",
         "--cfg=feature=\"result\"",
         "--cfg=feature=\"std\"",

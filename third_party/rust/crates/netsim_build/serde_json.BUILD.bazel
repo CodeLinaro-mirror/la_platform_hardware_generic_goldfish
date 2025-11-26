@@ -28,7 +28,7 @@ rust_library(
         "@itoa",
         "@memchr",
         "@ryu",
-        "@serde",
+        "@serde_core",
     ],
     rustc_flags = [
         "--cfg=feature=\"default\"",
@@ -47,7 +47,7 @@ rust_library(
         "@itoa",
         "@memchr",
         "@ryu",
-        "@serde",
+        "@serde_core",
     ],
     rustc_flags = [
         "--cfg=feature=\"arbitrary_precision\"",
