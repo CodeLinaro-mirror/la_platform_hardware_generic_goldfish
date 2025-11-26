@@ -32,5 +32,7 @@ rust_library(
     rustc_flags = [
         "--cfg=feature=\"default\"",
         "--cfg=feature=\"std\"",
+        # Suppress new lints introduced by Rust 1.91.1
+        "--cap-lints=allow",
     ],
 )
