@@ -45,7 +45,6 @@ cc_library(
         "//emulator/libs/base",
         "//emulator/libs/fps_calculator",
         "//emulator/libs/physics",
-        "//emulator/plugin/avd:avd_hdrs",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
