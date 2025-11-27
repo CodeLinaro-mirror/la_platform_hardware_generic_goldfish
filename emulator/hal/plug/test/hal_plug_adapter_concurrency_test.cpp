@@ -91,7 +91,7 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
 
     //    Step A: An `onReceive` event arrives from the guest. This is a task
     //    posted to the QEMU loop.
-    qemuLoop->post([&] { adapter->onReceive("some data", 9); });
+    (void)qemuLoop->post([&] { adapter->onReceive("some data", 9); });
 
     //    Step B: The QEMU loop runs. The adapter receives the event and posts
     //    a corresponding task to the client loop.
