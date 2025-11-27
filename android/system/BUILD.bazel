@@ -26,7 +26,6 @@ cc_library(
         "src/android/base/bazel/bazel_info.cpp",
         "src/android/base/system/File.cpp",
         "src/android/base/system/System.cpp",
-        "src/android/base/system/file_io.cpp",
         "src/android/base/system/storage_capacity.cpp",
     ] + select({
         "@platforms//os:windows": [
@@ -37,7 +36,6 @@ cc_library(
     }),
     hdrs = [
         "include/android/base/bazel/bazel_info.h",
-        "include/android/base/file/file_io.h",
         "include/android/base/system/CStrWrapper.h",
         "include/android/base/system/File.h",
         "include/android/base/system/System.h",

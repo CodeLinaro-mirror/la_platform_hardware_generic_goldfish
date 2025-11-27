@@ -10,15 +10,10 @@ cc_library(
         "include/android/filesystems/ext4_resize.h",
         "include/android/filesystems/ext4_utils.h",
     ],
-    includes = [
-        "include",
-        "src",
-    ],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//android/ext4_utils",
-        "//android/files",
-        "//android/process",
         "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:absl_log",

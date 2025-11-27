@@ -14,10 +14,7 @@
 
 #include "android/base/system/System.h"
 
-#include <inttypes.h>
-
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -32,17 +29,15 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/strings//strip.h"
+#include "absl/strings/strip.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-#include "aemu/base/EintrWrapper.h"
-#include "aemu/base/files/ScopedFd.h"
 #include "aemu/base/memory/NoDestructor.h"
-#include "aemu/base/memory/ScopedPtr.h"
 #include "aemu/base/process/Command.h"
-#include "aemu/base/system/System.h"
+
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/CStrWrapper.h"
 #include "android/base/system/storage_capacity.h"
@@ -113,9 +108,6 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/sysmacros.h>
 #include <sys/utsname.h>
 #include <sys/vfs.h>
-
-#include <fstream>
-#include <string>
 #endif
 
 // This variable is a pointer to a zero-terminated array of all environment
@@ -132,23 +124,9 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 extern "C" char** environ;
 #endif
 
-#ifdef _WIN32
-#if !defined(S_ISDIR)
-#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
-#endif
-#if !defined(S_ISREG)
-#define S_ISREG(mode) (((mode) & S_IFMT) == S_IFREG)
-#endif
-#endif
-
 namespace android {
 namespace base {
 namespace fs = std::filesystem;
-
-#ifdef __APPLE__
-// Defined in system-native-mac.mm
-std::optional<DiskKind> nativeDiskKind(int st_dev);
-#endif
 
 // The character used to separator directories in path-related
 // environment variables.
@@ -254,61 +232,12 @@ bool parseBooleanValue(const char* value, bool def) {
 
 class HostSystem : public System {
   public:
-    HostSystem() : mProgramDir(), mHomeDir(), mAppDataDir() {
+    HostSystem() : mHomeDir(), mAppDataDir() {
         ::atexit(HostSystem::atexit_HostSystem);
         configureHost();
     }
 
     ~HostSystem() override {}
-
-    fs::path getCurrentDirectory() const override {
-#if defined(_WIN32)
-        int currentLen = GetCurrentDirectoryW(0, nullptr);
-        if (currentLen < 0) {
-            // Could not get size of working directory. Something is really
-            // fishy here, return an empty string.
-            return std::string();
-        }
-        wchar_t* currentDir = static_cast<wchar_t*>(calloc(currentLen + 1, sizeof(wchar_t)));
-        if (!GetCurrentDirectoryW(currentLen + 1, currentDir)) {
-            // Again, some unexpected problem. Can't do much here.
-            // Make the string empty.
-            currentDir[0] = L'0';
-        }
-
-        std::string result = Win32UnicodeString::convertToUtf8(currentDir);
-        ::free(currentDir);
-        return result;
-#else   // !_WIN32
-        char currentDir[PATH_MAX];
-        if (!getcwd(currentDir, sizeof(currentDir))) {
-            return std::string();
-        }
-        return std::string(currentDir);
-#endif  // !_WIN32
-    }
-
-    bool setCurrentDirectory(fs::path directory) override {
-        std::error_code err;
-        fs::current_path(directory, err);
-        return err.value() == 0;
-    }
-
-    fs::path getProgramBinary() const override {
-        return getProgramBinaryPath();
-    }
-
-    const fs::path getLauncherDirectory() const override {
-        std::string launcherDirEnv = envGet("ANDROID_EMULATOR_LAUNCHER_DIR");
-        if (!launcherDirEnv.empty()) {
-            VLOG(1) << "Using launcher dir from ANDROID_EMULATOR_LAUNCHER_DIR environment "
-                       "variable: "
-                    << launcherDirEnv;
-            return fs::path(launcherDirEnv);
-        }
-        LOG(ERROR) << "Unable to find launcher directory";
-        return "";
-    }
 
     const fs::path getHomeDirectory() const override {
         if (mHomeDir.empty()) {
@@ -652,20 +581,6 @@ class HostSystem : public System {
         return res;
     }
 
-    std::optional<DiskKind> pathDiskKind(fs::path path) override { return diskKindInternal(path); }
-    std::optional<DiskKind> diskKind(int fd) override { return diskKindInternal(fd); }
-
-    std::vector<fs::path> scanDirEntries(fs::path dirPath, bool fullPath = false) const override {
-        auto result = scanDirInternal(dirPath);
-
-        if (fullPath) {
-            for (int i = 0; i < result.size(); i++) {
-                result[i] = dirPath / result[i];
-            }
-        }
-        return result;
-    }
-
     std::string envGet(std::string_view varname) const override {
         return getEnvironmentVariable(varname);
     }
@@ -775,55 +690,6 @@ class HostSystem : public System {
 
 #endif  // _WIN32
         return false;
-    }
-
-    bool pathExists(fs::path path) const override { return pathExistsInternal(path); }
-
-    bool pathIsFile(fs::path path) const override { return pathIsFileInternal(path); }
-
-    bool pathIsDir(fs::path path) const override { return pathIsDirInternal(path); }
-
-    bool pathIsLink(fs::path path) const override { return pathIsLinkInternal(path); }
-
-    bool pathCanRead(fs::path path) const override { return pathCanReadInternal(path); }
-
-    bool pathCanWrite(fs::path path) const override { return pathCanWriteInternal(path); }
-
-    bool pathCanExec(fs::path path) const override { return pathCanExecInternal(path); }
-
-    bool pathIsQcow2(fs::path path) const override { return pathIsQcow2Internal(path); }
-
-    bool pathFileSystemIsExt4(fs::path path) const override {
-        return pathFileSystemIsExt4Internal(path);
-    }
-
-    bool pathIsExt4(fs::path path) const override { return pathIsExt4Internal(path); }
-
-    int pathOpen(const char* filename, int oflag, int pmode) const override {
-        return pathOpenInternal(filename, oflag, pmode);
-    }
-
-    bool deleteFile(fs::path path) const override { return deleteFileInternal(path); }
-
-    bool pathFileSize(fs::path path, FileSize* outFileSize) const override {
-        return pathFileSizeInternal(path, outFileSize);
-    }
-
-    FileSize recursiveSize(fs::path path) const override { return recursiveSizeInternal(path); }
-
-    bool pathFreeSpace(fs::path path, FileSize* spaceInBytes) const override {
-        return pathFreeSpaceInternal(path, spaceInBytes);
-    }
-
-    bool fileSize(int fd, FileSize* outFileSize) const override {
-        return fileSizeInternal(fd, outFileSize);
-    }
-    std::optional<Duration> pathCreationTime(fs::path path) const override {
-        return pathCreationTimeInternal(path);
-    }
-
-    std::optional<Duration> pathModificationTime(fs::path path) const override {
-        return pathModificationTimeInternal(path);
     }
 
     Times getProcessTimes() const override {
@@ -1041,7 +907,6 @@ class HostSystem : public System {
   private:
     static void atexit_HostSystem();
 
-    mutable fs::path mProgramDir;
     mutable fs::path mHomeDir;
     mutable fs::path mAppDataDir;
 };
@@ -1054,69 +919,6 @@ void HostSystem::atexit_HostSystem() {
     // do nothing..
 }
 
-#ifdef _WIN32
-// Return |path| as a Unicode string, while discarding trailing separators.
-Win32UnicodeString win32Path(fs::path path) {
-    Win32UnicodeString wpath(path.string());
-    // Get rid of trailing directory separators, Windows doesn't like them.
-    size_t size = wpath.size();
-    while (size > 0U && (wpath[size - 1U] == L'\\' || wpath[size - 1U] == L'/')) {
-        size--;
-    }
-    if (size < wpath.size()) {
-        wpath.resize(size);
-    }
-    return wpath;
-}
-
-using PathStat = struct _stat64;
-
-#else  // _WIN32
-
-using PathStat = struct stat;
-
-#endif  // _WIN32
-
-int pathStat(fs::path path, PathStat* st) {
-#ifdef _WIN32
-    return _wstat64(win32Path(path).c_str(), st);
-#else   // !_WIN32
-    return HANDLE_EINTR(stat(path.c_str(), st));
-#endif  // !_WIN32
-}
-
-int fdStat(int fd, PathStat* st) {
-#ifdef _WIN32
-    return _fstat64(fd, st);
-#else   // !_WIN32
-    return HANDLE_EINTR(fstat(fd, st));
-#endif  // !_WIN32
-}
-
-#ifdef _WIN32
-static int GetWin32Mode(int mode) {
-    // Convert |mode| to win32 permission bits.
-    int win32mode = 0x0;
-
-    if ((mode & R_OK) || (mode & X_OK)) {
-        win32mode |= 0x4;
-    }
-    if (mode & W_OK) {
-        win32mode |= 0x2;
-    }
-
-    return win32mode;
-}
-#endif
-
-int pathAccess(fs::path path, int mode) {
-#ifdef _WIN32
-    return _waccess(path.c_str(), GetWin32Mode(mode));
-#else   // !_WIN32
-    return HANDLE_EINTR(access(path.c_str(), mode));
-#endif  // !_WIN32
-}
-
 }  // namespace
 
 // static
@@ -1127,11 +929,6 @@ System* System::get() {
     }
     return result;
 }
-
-// static
-const char* System::kLibSubDir = "lib64";
-// static
-const char* System::kBinSubDir = "bin";
 
 #ifdef _WIN32
 // static
@@ -1156,590 +953,6 @@ System* System::hostSystem() {
 }
 
 // static
-std::vector<fs::path> System::scanDirInternal(fs::path dirPath) {
-    std::vector<fs::path> result;
-
-    if (dirPath.empty()) {
-        LOG(WARNING) << "Empty path!";
-        return result;
-    }
-
-#ifdef _WIN32
-    auto root = dirPath / "*";
-    Win32UnicodeString rootUnicode{root.string()};
-    struct _wfinddata_t findData;
-    intptr_t findIndex = _wfindfirst(rootUnicode.c_str(), &findData);
-    if (findIndex >= 0) {
-        do {
-            const wchar_t* name = findData.name;
-            if (wcscmp(name, L".") != 0 && wcscmp(name, L"..") != 0) {
-                result.push_back(Win32UnicodeString::convertToUtf8(name));
-            }
-        } while (_wfindnext(findIndex, &findData) >= 0);
-        _findclose(findIndex);
-    }
-#else   // !_WIN32
-    DIR* dir = ::opendir(dirPath.c_str());
-    if (dir) {
-        for (;;) {
-            struct dirent* entry = ::readdir(dir);
-            if (!entry) {
-                break;
-            }
-            const char* name = entry->d_name;
-            if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0) {
-                result.push_back(std::string(name));
-            }
-        }
-        ::closedir(dir);
-    }
-#endif  // !_WIN32
-    std::sort(result.begin(), result.end());
-    return result;
-}
-
-// static
-bool System::pathIsLinkInternal(fs::path path) {
-#ifdef _WIN32
-    // Supposedly GetFileAttributes() and FindFirstFile()
-    // can be used to detect symbolic links. In my tests,
-    // a symbolic link looked exactly like a regular file.
-    return false;
-#else
-    struct stat fileStatus;
-    if (lstat(path.c_str(), &fileStatus)) {
-        return false;
-    }
-    return S_ISLNK(fileStatus.st_mode);
-#endif
-}
-
-// static
-bool System::pathExistsInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    int ret = pathAccess(path, F_OK);
-    return (ret == 0) || (errno != ENOENT);
-}
-
-// static
-bool System::pathIsFileInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    PathStat st;
-    int ret = pathStat(path, &st);
-    if (ret < 0) {
-        return false;
-    }
-    return S_ISREG(st.st_mode);
-}
-
-// static
-bool System::pathIsDirInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    PathStat st;
-    int ret = pathStat(path, &st);
-    if (ret < 0) {
-        return false;
-    }
-    return S_ISDIR(st.st_mode);
-}
-
-// static
-bool System::pathCanReadInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    return pathAccess(path, R_OK) == 0;
-}
-
-// static
-bool System::pathCanWriteInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    return pathAccess(path, W_OK) == 0;
-}
-
-// static
-bool System::pathCanExecInternal(fs::path path) {
-    if (path.empty()) {
-        return false;
-    }
-    return pathAccess(path, X_OK) == 0;
-}
-
-bool System::readSomeBytes(fs::path path, char* array, int pos, int size) {
-    if (size <= 0 || !pathCanReadInternal(path)) {
-        return false;
-    }
-    std::ifstream ifs(path, std::ios_base::binary);
-    if (!ifs.good()) {
-        return false;
-    }
-
-    if (pos > 0) {
-        ifs.ignore(pos);
-    }
-
-    ifs.read(array, size);
-
-    return true;
-}
-
-#if defined(__linux__)
-static void get_all_ext4_mount_dirs(std::vector<fs::path>& alldirs) {
-    static const char* proc_mounts = "/proc/self/mounts";
-    std::ifstream testFile(proc_mounts);
-    std::string line;
-
-    while (getline(testFile, line)) {
-        std::string device, dir, parttype;
-
-        std::stringstream ss(line);
-
-        ss >> device;
-        ss >> dir;
-        ss >> parttype;
-        if (parttype == std::string("ext4")) {
-            alldirs.push_back(dir);
-        }
-    }
-}
-
-static bool dir_contains_path(const fs::path& path, const fs::path& dir) {
-    fs::path absolute_path = fs::absolute(path);  // Get absolute path
-    fs::path absolute_dir = fs::absolute(dir);    // Get absolute dir
-
-    if (absolute_path.root_name() != absolute_dir.root_name()) {  // Check if on same drive
-        return false;
-    }
-
-    // Iterate over directory components
-    for (auto p = absolute_dir.begin(), q = absolute_path.begin(); p != absolute_dir.end();
-         ++p, ++q) {
-        if (q == absolute_path.end() || *p != *q) {
-            return false;  // Reached end of path or components differ
-        }
-    }
-    return true;  // All components of dir are present in path
-}
-
-#endif
-
-bool System::pathFileSystemIsExt4Internal(fs::path path) {
-#if defined(__linux__)
-    std::vector<fs::path> mount_dirs;
-    get_all_ext4_mount_dirs(mount_dirs);
-
-    for (const auto& dir : mount_dirs) {
-        if (dir_contains_path(dir, path.c_str())) {
-            return true;
-        }
-    }
-#endif
-    return false;
-}
-
-// static
-bool System::pathIsExt4Internal(fs::path path) {
-    // read 2 bytes
-    uint8_t magic[2] = {'\0'};
-
-    if (!readSomeBytes(path, reinterpret_cast<char*>(magic), 1080, sizeof(magic))) {
-        return false;
-    }
-    bool matched2bytes = false;
-    if (magic[0] == 0x53 && magic[1] == 0xEF) {
-        matched2bytes = true;
-    }
-
-    return matched2bytes;
-}
-
-// static
-bool System::pathIsQcow2Internal(fs::path path) {
-    // read 4 bytes
-    uint8_t magic[4] = {'\0'};
-    if (!readSomeBytes(path, reinterpret_cast<char*>(magic), 0, sizeof(magic))) {
-        return false;
-    }
-
-    bool matched4bytes = false;
-    if (magic[0] == 'Q' && magic[1] == 'F' && magic[2] == 'I' &&
-        magic[3] == static_cast<uint8_t>('\xfb')) {
-        matched4bytes = true;
-    }
-
-    return matched4bytes;
-}
-
-fs::perms System::octalModeToPerms(int octalMode) {
-    fs::perms mode = fs::perms::none;
-
-    // Owner permissions
-    mode |= (octalMode & 0400) ? fs::perms::owner_read : fs::perms::none;
-    mode |= (octalMode & 0200) ? fs::perms::owner_write : fs::perms::none;
-    mode |= (octalMode & 0100) ? fs::perms::owner_exec : fs::perms::none;
-
-    // Group permissions
-    mode |= (octalMode & 0040) ? fs::perms::group_read : fs::perms::none;
-    mode |= (octalMode & 0020) ? fs::perms::group_write : fs::perms::none;
-    mode |= (octalMode & 0010) ? fs::perms::group_exec : fs::perms::none;
-
-    // Others permissions
-    mode |= (octalMode & 0004) ? fs::perms::others_read : fs::perms::none;
-    mode |= (octalMode & 0002) ? fs::perms::others_write : fs::perms::none;
-    mode |= (octalMode & 0001) ? fs::perms::others_exec : fs::perms::none;
-
-    return mode;
-}
-
-// static
-int System::pathOpenInternal(const char* filename, int oflag, int pmode) {
-#ifdef _WIN32
-    return _wopen(win32Path(filename).c_str(), oflag, pmode);
-#else   // !_WIN32
-    return ::open(filename, oflag, pmode);
-#endif  // !_WIN32
-}
-
-bool System::deleteFileInternal(fs::path path) {
-    if (!pathIsFileInternal(path)) {
-        return false;
-    }
-
-#ifdef _WIN32
-    Win32UnicodeString path_unicode(path.string());
-    int remove_res = _wremove(path_unicode.c_str());
-#else
-    int remove_res = remove(path.c_str());
-#endif
-
-#ifdef _WIN32
-    if (remove_res < 0) {
-        // Windows sometimes just fails to delete a file
-        // on the first try.
-        // Sleep a little bit and try again here.
-        System::get()->sleepMs(1);
-        remove_res = _wremove(path_unicode.c_str());
-    }
-#endif
-
-    if (remove_res != 0) {
-        VLOG(1) << "Failed to delete file [" << path << "]";
-    }
-
-    return remove_res == 0;
-}
-
-bool System::pathFreeSpaceInternal(fs::path path, FileSize* spaceInBytes) {
-#ifdef _WIN32
-    ULARGE_INTEGER freeBytesAvailableToUser;
-    bool result = GetDiskFreeSpaceExW(path.c_str(), &freeBytesAvailableToUser, NULL, NULL);
-    if (!result) {
-        return false;
-    }
-    *spaceInBytes = freeBytesAvailableToUser.QuadPart;
-    return true;
-#else
-    struct statvfs fsStatus;
-    int result = statvfs(path.c_str(), &fsStatus);
-    if (result != 0) {
-        return false;
-    }
-    // LOG(INFO) << "Got: " << fsStatus.f_frsize << ", " << fsStatus.f_bavail;
-    // Available space is (block size) * (# free blocks)
-    *spaceInBytes = ((FileSize)fsStatus.f_frsize) * fsStatus.f_bavail;
-    return true;
-#endif
-}
-
-// static
-bool System::pathFileSizeInternal(fs::path path, FileSize* outFileSize) {
-    if (path.empty() || !outFileSize) {
-        return false;
-    }
-    PathStat st;
-    int ret = pathStat(path, &st);
-    if (ret < 0 || !S_ISREG(st.st_mode)) {
-        return false;
-    }
-    // This is off_t on POSIX and a 32/64 bit integral type on windows based on
-    // the host / compiler combination. We cast everything to 64 bit unsigned to
-    // play safe.
-    *outFileSize = static_cast<FileSize>(st.st_size);
-    return true;
-}
-
-// static
-System::FileSize System::recursiveSizeInternal(fs::path path) {
-    std::vector<fs::path> fileList;
-    fileList.push_back(path);
-
-    FileSize totalSize = 0;
-    while (!fileList.empty()) {
-        const auto currentPath = std::move(fileList.back());
-        fileList.pop_back();
-        if (pathIsFileInternal(currentPath) || pathIsLinkInternal(currentPath)) {
-            // Regular file or link. Return its size.
-            FileSize theSize;
-            if (pathFileSizeInternal(currentPath, &theSize)) {
-                totalSize += theSize;
-            }
-        } else if (pathIsDirInternal(currentPath)) {
-            // Directory. Add its contents to the list.
-            std::vector<fs::path> includedFiles = scanDirInternal(currentPath);
-            for (const auto& file : includedFiles) {
-                fileList.push_back(currentPath / file);
-            }
-        }
-    }
-    return totalSize;
-}
-
-bool System::fileSizeInternal(int fd, System::FileSize* outFileSize) {
-    if (fd < 0) {
-        return false;
-    }
-    PathStat st;
-    int ret = fdStat(fd, &st);
-    if (ret < 0 || !S_ISREG(st.st_mode)) {
-        return false;
-    }
-    // This is off_t on POSIX and a 32/64 bit integral type on windows based on
-    // the host / compiler combination. We cast everything to 64 bit unsigned to
-    // play safe.
-    *outFileSize = static_cast<FileSize>(st.st_size);
-    return true;
-}
-
-// static
-std::optional<System::Duration> System::pathCreationTimeInternal(fs::path path) {
-#if defined(__linux__) || (defined(__APPLE__) && !defined(_DARWIN_FEATURE_64_BIT_INODE))
-    // TODO(zyy@): read the creation time directly from the ext4 attribute
-    // on Linux.
-    return {};
-#else
-    PathStat st;
-    if (pathStat(path, &st)) {
-        return {};
-    }
-#ifdef _WIN32
-    return st.st_ctime * 1000000ll;
-#else   // APPLE
-    return st.st_birthtimespec.tv_sec * 1000000ll + st.st_birthtimespec.tv_nsec / 1000;
-#endif  // WIN32 && APPLE
-#endif  // Linux
-}
-
-// static
-std::optional<System::Duration> System::pathModificationTimeInternal(fs::path path) {
-    PathStat st;
-    if (pathStat(path, &st)) {
-        return {};
-    }
-
-#ifdef _WIN32
-    return st.st_mtime * 1000000ll;
-#elif defined(__linux__)
-    return st.st_mtim.tv_sec * 1000000ll + st.st_mtim.tv_nsec / 1000;
-#else  // Darwin
-    return st.st_mtimespec.tv_sec * 1000000ll + st.st_mtimespec.tv_nsec / 1000;
-#endif
-}
-
-static std::optional<DiskKind> diskKind(const PathStat& st) {
-#ifdef _WIN32
-
-    auto volumeName = absl::StrFormat(R"(\\?\%c:)", 'A' + st.st_dev);
-    ScopedFileHandle volume(::CreateFileA(volumeName.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                          NULL, OPEN_EXISTING, 0, NULL));
-    if (!volume.valid()) {
-        return {};
-    }
-
-    VOLUME_DISK_EXTENTS volumeDiskExtents;
-    DWORD bytesReturned = 0;
-    if ((!::DeviceIoControl(volume.get(), IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0,
-                            &volumeDiskExtents, sizeof(volumeDiskExtents), &bytesReturned, NULL) &&
-         ::GetLastError() != ERROR_MORE_DATA) ||
-        bytesReturned != sizeof(volumeDiskExtents)) {
-        return {};
-    }
-    if (volumeDiskExtents.NumberOfDiskExtents < 1) {
-        return {};
-    }
-
-    auto deviceName =
-            absl::StrFormat(R"(\\?\PhysicalDrive%d)", int(volumeDiskExtents.Extents[0].DiskNumber));
-    ScopedFileHandle device(::CreateFileA(deviceName.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                          NULL, OPEN_EXISTING, 0, NULL));
-    if (!device.valid()) {
-        return {};
-    }
-
-    STORAGE_PROPERTY_QUERY spqTrim;
-    spqTrim.PropertyId = (STORAGE_PROPERTY_ID)StorageDeviceTrimProperty;
-    spqTrim.QueryType = PropertyStandardQuery;
-    DEVICE_TRIM_DESCRIPTOR dtd = {0};
-    if (::DeviceIoControl(device.get(), IOCTL_STORAGE_QUERY_PROPERTY, &spqTrim, sizeof(spqTrim),
-                          &dtd, sizeof(dtd), &bytesReturned, NULL) &&
-        bytesReturned == sizeof(dtd)) {
-        // Some SSDs don't support TRIM, so this can't be a sign of an HDD.
-        if (dtd.TrimEnabled) {
-            return DiskKind::Ssd;
-        }
-    }
-
-    bytesReturned = 0;
-    STORAGE_PROPERTY_QUERY spqSeekP;
-    spqSeekP.PropertyId = (STORAGE_PROPERTY_ID)StorageDeviceSeekPenaltyProperty;
-    spqSeekP.QueryType = PropertyStandardQuery;
-    DEVICE_SEEK_PENALTY_DESCRIPTOR dspd = {0};
-    if (::DeviceIoControl(device.get(), IOCTL_STORAGE_QUERY_PROPERTY, &spqSeekP, sizeof(spqSeekP),
-                          &dspd, sizeof(dspd), &bytesReturned, NULL) &&
-        bytesReturned == sizeof(dspd)) {
-        return dspd.IncursSeekPenalty ? DiskKind::Hdd : DiskKind::Ssd;
-    }
-
-    // TODO: figure out how to issue this query when not admin and not opening
-    //  disk for write access.
-#if 0
-    bytesReturned = 0;
-
-    // This struct isn't in the MinGW distribution headers.
-    struct ATAIdentifyDeviceQuery {
-        ATA_PASS_THROUGH_EX header;
-        WORD data[256];
-    };
-    ATAIdentifyDeviceQuery id_query = {};
-    id_query.header.Length = sizeof(id_query.header);
-    id_query.header.AtaFlags = ATA_FLAGS_DATA_IN;
-    id_query.header.DataTransferLength = sizeof(id_query.data);
-    id_query.header.TimeOutValue = 5;  // Timeout in seconds
-    id_query.header.DataBufferOffset =
-            offsetof(ATAIdentifyDeviceQuery, data[0]);
-    id_query.header.CurrentTaskFile[6] = 0xec;  // ATA IDENTIFY DEVICE
-    if (::DeviceIoControl(device.get(), IOCTL_ATA_PASS_THROUGH, &id_query,
-                          sizeof(id_query), &id_query, sizeof(id_query),
-                          &bytesReturned, NULL) &&
-        bytesReturned == sizeof(id_query)) {
-        // Index of nominal media rotation rate
-        // SOURCE:
-        // http://www.t13.org/documents/UploadedDocuments/docs2009/d2015r1a-ATAATAPI_Command_Set_-_2_ACS-2.pdf
-        //          7.18.7.81 Word 217
-        // QUOTE: Word 217 indicates the nominal media rotation rate of the
-        // device and is defined in table:
-        //          Value           Description
-        //          --------------------------------
-        //          0000h           Rate not reported
-        //          0001h           Non-rotating media (e.g., solid state
-        //                          device)
-        //          0002h-0400h     Reserved
-        //          0401h-FFFEh     Nominal media rotation rate in rotations per
-        //                          minute (rpm) (e.g., 7 200 rpm = 1C20h)
-        //          FFFFh           Reserved
-        unsigned rate = id_query.data[217];
-        if (rate == 1) {
-            return DiskKind::Ssd;
-        } else if (rate >= 0x0401 && rate <= 0xFFFE) {
-            return DiskKind::Hdd;
-        }
-    }
-#endif
-
-#elif defined __linux__
-
-    // Parse /proc/partitions to find the corresponding device
-    std::ifstream in("/proc/partitions");
-    if (!in) {
-        return {};
-    }
-
-    const auto maj = major(st.st_dev);
-    const auto min = minor(st.st_dev);
-
-    std::string line;
-    std::string devName;
-
-    std::unordered_set<std::string> devices;
-
-    while (std::getline(in, line)) {
-        unsigned curMaj, curMin;
-        unsigned long blocks;
-        char name[1024];
-        if (sscanf(line.c_str(), "%u %u %lu %1023s", &curMaj, &curMin, &blocks, name) == 4) {
-            devices.insert(name);
-            if (curMaj == maj && curMin == min) {
-                devName = name;
-                break;
-            }
-        }
-    }
-    if (devName.empty()) {
-        return {};
-    }
-    in.close();
-
-    if (maj == 8) {
-        // get rid of the partition number for block devices.
-        while (!devName.empty() && isdigit(devName.back())) {
-            devName.pop_back();
-        }
-        if (devices.find(devName) == devices.end()) {
-            return {};
-        }
-    }
-
-    // Now, having a device name, let's parse
-    // /sys/block/%device%X/queue/rotational to get the result.
-    auto sysPath = absl::StrFormat("/sys/block/%s/queue/rotational", devName);
-    in.open(sysPath.c_str());
-    if (!in) {
-        return {};
-    }
-    char isRotational = 0;
-    if (!(in >> isRotational)) {
-        return {};
-    }
-    if (isRotational == '0') {
-        return DiskKind::Ssd;
-    } else if (isRotational == '1') {
-        return DiskKind::Hdd;
-    }
-
-#else
-
-    return nativeDiskKind(st.st_dev);
-
-#endif
-
-    // Sill got no idea.
-    return {};
-}
-
-std::optional<DiskKind> System::diskKindInternal(fs::path path) {
-    PathStat stat;
-    if (pathStat(path, &stat)) {
-        return {};
-    }
-    return android::base::diskKind(stat);
-}
-
-std::optional<DiskKind> System::diskKindInternal(int fd) {
-    PathStat stat;
-    if (fdStat(fd, &stat)) {
-        return {};
-    }
-    return android::base::diskKind(stat);
-}
-
-// static
 void System::addLibrarySearchDir(fs::path path) {
     System* system = System::get();
     const char* varName = kLibrarySearchListEnvVarName;
@@ -1747,39 +960,12 @@ void System::addLibrarySearchDir(fs::path path) {
     std::string libSearchPath = system->envGet(varName);
     if (libSearchPath.size()) {
         libSearchPath =
-                absl::StrFormat("%s%c%s", pathAsString(path), kPathSeparator, libSearchPath);
+                absl::StrFormat("%s%c%s", path.string(), kPathSeparator, libSearchPath);
     } else {
-        libSearchPath = pathAsString(path);
+        libSearchPath = path.string();
     }
     LOG(INFO) << "Setting " << varName << " to " << libSearchPath;
-    system->envSet(varName, pathAsString(libSearchPath));
-}
-
-#ifndef _WIN32
-const std::string kExe;
-#else
-const std::string kExe = ".exe";
-#endif
-// static
-fs::path System::findBundledExecutable(std::string_view programName) {
-    // TODO(whollins): remove when last use is removed (ext4 progs)
-    System* const system = System::get();
-    const std::string executableName = std::string(programName) + kExe;
-
-    // Note that launcher directory can differ from program directory, so we either
-    // consider 2, or 4 entries.
-    std::vector<fs::path> underConsideration = {
-        system->getLauncherDirectory() / executableName,
-        system->getLauncherDirectory() / "bin" / executableName};
-
-    for (fs::path executablePath : underConsideration) {
-        VLOG(1) << "Searching for: " << programName << ", trying: " << executablePath;
-        if (system->pathIsFile(executablePath)) {
-            return executablePath;
-        }
-    }
-
-    return "";
+    system->envSet(varName, libSearchPath);
 }
 
 // static
@@ -1797,20 +983,6 @@ bool System::isUnderMemoryPressure(StorageCapacity* freeRamMb_out) {
     }
 
     return currentFreeRam < kMemoryPressureLimit;
-}
-
-// static
-bool System::isUnderDiskPressure(fs::path path, System::FileSize* freeDisk) {
-    System::FileSize availableSpace;
-    bool success = System::get()->pathFreeSpace(path, &availableSpace);
-    if (success && availableSpace < kDiskPressureLimit) {
-        if (freeDisk) {
-            *freeDisk = availableSpace;
-        }
-        return true;
-    }
-
-    return false;
 }
 
 // static
@@ -1893,38 +1065,6 @@ std::string System::getEnvironmentVariable(std::string_view varname) {
 }
 
 // static
-fs::path System::getProgramBinaryPath() {
-#if defined(__linux__)
-    char path[1024];
-    memset(path, 0, sizeof(path));  // happy valgrind!
-    int len = readlink("/proc/self/exe", path, sizeof(path));
-    if (len > 0 && len < (int)sizeof(path)) {
-        return fs::path(path);
-    }
-#elif defined(__APPLE__)
-    char s[PATH_MAX];
-    auto pid = getpid();
-    int ret = proc_pidpath(pid, s, sizeof(s));
-    if (ret > 0) {
-        return fs::path(s);
-    }
-#elif defined(_WIN32)
-    Win32UnicodeString appDir(PATH_MAX);
-    int len = GetModuleFileNameW(0, appDir.data(), appDir.size());
-    if (len > (int)appDir.size()) {
-        appDir.resize(static_cast<size_t>(len));
-        len = GetModuleFileNameW(0, appDir.data(), appDir.size());
-    }
-    if (len > 0) {
-        return fs::path(appDir.toString());
-    }
-#else
-#error "Unsupported platform!"
-#endif
-    return fs::path();
-}
-
-// static
 System::WallDuration System::getSystemTimeUs() {
     return kTickCount.getUs();
 }
@@ -1940,129 +1080,6 @@ std::string toString(OsType osType) {
     default:
         return "Unknown";
     }
-}
-
-#ifdef __APPLE__
-// From
-// http://mirror.informatimago.com/next/developer.apple.com/qa/qa2001/qa1123.html
-typedef struct kinfo_proc kinfo_proc;
-
-static int GetBSDProcessList(kinfo_proc** procList, size_t* procCount)
-// Returns a list of all BSD processes on the system.  This routine
-// allocates the list and puts it in *procList and a count of the
-// number of entries in *procCount.  You are responsible for freeing
-// this list (use "free" from System framework).
-// On success, the function returns 0.
-// On error, the function returns a BSD errno value.
-{
-    int err;
-    kinfo_proc* result;
-    bool done;
-    static const int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
-    // Declaring name as const requires us to cast it when passing it to
-    // sysctl because the prototype doesn't include the const modifier.
-    size_t length;
-
-    assert(procList != NULL);
-    assert(*procList == NULL);
-    assert(procCount != NULL);
-
-    *procCount = 0;
-
-    // We start by calling sysctl with result == NULL and length == 0.
-    // That will succeed, and set length to the appropriate length.
-    // We then allocate a buffer of that size and call sysctl again
-    // with that buffer.  If that succeeds, we're done.  If that fails
-    // with ENOMEM, we have to throw away our buffer and loop.  Note
-    // that the loop causes use to call sysctl with NULL again; this
-    // is necessary because the ENOMEM failure case sets length to
-    // the amount of data returned, not the amount of data that
-    // could have been returned.
-
-    result = nullptr;
-    done = false;
-    do {
-        assert(result == NULL);
-
-        // Call sysctl with a NULL buffer.
-
-        length = 0;
-        err = sysctl((int*)name, (sizeof(name) / sizeof(*name)) - 1, nullptr, &length, nullptr, 0);
-        if (err == -1) {
-            err = errno;
-        }
-
-        // Allocate an appropriately sized buffer based on the results
-        // from the previous call.
-
-        if (err == 0) {
-            result = (kinfo_proc*)malloc(length);
-            if (result == nullptr) {
-                err = ENOMEM;
-            }
-        }
-
-        // Call sysctl again with the new buffer.  If we get an ENOMEM
-        // error, toss away our buffer and start again.
-
-        if (err == 0) {
-            err = sysctl((int*)name, (sizeof(name) / sizeof(*name)) - 1, result, &length, nullptr,
-                         0);
-            if (err == -1) {
-                err = errno;
-            }
-            if (err == 0) {
-                done = true;
-            } else if (err == ENOMEM) {
-                assert(result != NULL);
-                free(result);
-                result = nullptr;
-                err = 0;
-            }
-        }
-    } while (err == 0 && !done);
-
-    // Clean up and establish post conditions.
-
-    if (err != 0 && result != nullptr) {
-        free(result);
-        result = nullptr;
-    }
-    *procList = result;
-    if (err == 0) {
-        *procCount = length / sizeof(kinfo_proc);
-    }
-
-    assert((err == 0) == (*procList != NULL));
-
-    return err;
-}
-
-// From
-// https://astojanov.wordpress.com/2011/11/16/mac-os-x-resolve-absolute-path-using-process-pid/
-std::optional<std::string> getPathOfProcessByPid(pid_t pid) {
-    int ret;
-    std::string result(PROC_PIDPATHINFO_MAXSIZE + 1, 0);
-    ret = proc_pidpath(pid, (void*)result.data(), PROC_PIDPATHINFO_MAXSIZE);
-
-    if (ret <= 0) {
-        return {};
-    } else {
-        return result;
-    }
-}
-
-#endif
-
-static bool sMultiStringMatch(std::string_view haystack,
-                              const std::vector<std::string_view>& needles, bool approxMatch) {
-    bool found = false;
-
-    for (auto needle : needles) {
-        found = found || approxMatch ? (absl::StrContains(haystack, needle)) : (haystack == needle);
-    }
-
-    return found;
 }
 
 #ifdef __APPLE__
@@ -2112,14 +1129,6 @@ CpuTime System::cpuTime() {
 #endif
     return res;
 }
-
-#ifndef _WIN32
-
-bool System::queryFileVersionInfo(fs::path, int*, int*, int*, int*) {
-    return false;
-}
-
-#endif  // _WIN32
 
 }  // namespace base
 }  // namespace android

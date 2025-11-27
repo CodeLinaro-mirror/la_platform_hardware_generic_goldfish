@@ -20,7 +20,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/threads/Thread.h"
 #include "android/base/system/System.h"
 #include "android/base/testing/TestTempDir.h"
@@ -44,8 +43,8 @@ namespace fs = std::filesystem;
 // Path resolution is done as follows:
 //   - Relative paths are resolved starting from current directory
 //     which by default is: "/home"
-//   - The construction of this object does not create the launcherDir,
-//     appDataDir or home dir. If you need these directories to exist you will
+//   - The construction of this object does not create the appDataDir
+//     or home dir. If you need these directories to exist you will
 //     have to create them as follows: getTempRoot()->makeSubDir("home").
 //   - Path resolution can result in switching / into \ when running under
 //      Win32. If you are doing anything with paths
@@ -57,17 +56,12 @@ class TestSystem : public System {
     using System::getEnvironmentVariable;
     using System::setEnvironmentVariable;
 
-    explicit TestSystem(fs::path launcherDir, fs::path homeDir = "/home", fs::path appDataDir = "")
-        : mProgramDir(launcherDir),
-          mProgramSubdir(""),
-          mLauncherDir(launcherDir),
-          mHomeDir(homeDir),
+    explicit TestSystem(fs::path ignored, fs::path homeDir = "/home", fs::path appDataDir = "")
+        : mHomeDir(homeDir),
           mAppDataDir(appDataDir),
-          mCurrentDir(),
           mIsRemoteSession(false),
           mRemoteSessionType(),
-          mTempDir(nullptr),
-          mTempRootPrefix(),
+          mTempDir(std::make_unique<TestTempDir>("TestSystem")),
           mEnvPairs(),
           mPrevSystem(System::setForTesting(this)),
           mTimes(),
@@ -76,34 +70,6 @@ class TestSystem : public System {
 
     ~TestSystem() override {
         System::setForTesting(mPrevSystem);
-        delete mTempDir;
-    }
-
-    fs::path getProgramBinary() const override { return mProgramDir / "goldfish"; }
-
-    // Set directory of currently executing binary.  This must be a subdirectory
-    // of mLauncherDir and specified relative to mLauncherDir
-    void setProgramSubDir(fs::path programSubDir) {
-        mProgramSubdir = programSubDir;
-        if (programSubDir.empty()) {
-            mProgramDir = getLauncherDirectory();
-        } else {
-            mProgramDir = getLauncherDirectory() / programSubDir;
-        }
-    }
-
-    const fs::path getLauncherDirectory() const override {
-        if (!mLauncherDir.empty()) {
-            return mLauncherDir;
-        } else {
-            return getTempRoot()->pathString();
-        }
-    }
-
-    void setLauncherDirectory(const fs::path& launcherDir) {
-        mLauncherDir = launcherDir;
-        // Update directories that are suffixes of |mLauncherDir|.
-        setProgramSubDir(mProgramSubdir);
     }
 
     const fs::path getHomeDirectory() const override { return mHomeDir; }
@@ -113,13 +79,6 @@ class TestSystem : public System {
     const fs::path getAppDataDirectory() const override { return mAppDataDir; }
 
     void setAppDataDirectory(std::string_view appDataDir) { mAppDataDir = appDataDir; }
-
-    fs::path getCurrentDirectory() const override { return mCurrentDir; }
-
-    bool setCurrentDirectory(fs::path path) override {
-        mCurrentDir = path;
-        return true;
-    }
 
     OsType getOsType() const override { return mOsType; }
 
@@ -200,84 +159,8 @@ class TestSystem : public System {
         return false;
     }
 
-    bool pathExists(fs::path path) const override { return pathExistsInternal(toTempRoot(path)); }
-
-    bool pathIsFile(fs::path path) const override { return pathIsFileInternal(toTempRoot(path)); }
-
-    bool pathIsDir(fs::path path) const override { return pathIsDirInternal(toTempRoot(path)); }
-
-    bool pathIsLink(fs::path path) const override { return pathIsLinkInternal(toTempRoot(path)); }
-
-    bool pathIsQcow2(fs::path path) const override { return pathIsQcow2Internal(toTempRoot(path)); }
-
-    bool pathFileSystemIsExt4(fs::path path) const override {
-        return pathFileSystemIsExt4Internal(toTempRoot(path));
-    }
-
-    bool pathIsExt4(fs::path path) const override { return pathIsExt4Internal(toTempRoot(path)); }
-
-    bool pathCanRead(fs::path path) const override { return pathCanReadInternal(toTempRoot(path)); }
-
-    bool pathCanWrite(fs::path path) const override {
-        return pathCanWriteInternal(toTempRoot(path));
-    }
-
-    bool pathCanExec(fs::path path) const override { return pathCanExecInternal(toTempRoot(path)); }
-
-    int pathOpen(const char* filename, int oflag, int pmode) const override {
-        return pathOpenInternal(filename, oflag, pmode);
-    }
-
-    bool deleteFile(fs::path path) const override { return deleteFileInternal(toTempRoot(path)); }
-
-    bool pathFileSize(fs::path path, FileSize* outFileSize) const override {
-        return pathFileSizeInternal(toTempRoot(path), outFileSize);
-    }
-
-    FileSize recursiveSize(fs::path path) const override {
-        return recursiveSizeInternal(toTempRoot(path));
-    }
-
-    bool pathFreeSpace(fs::path path, FileSize* sizeInBytes) const override {
-        return pathFreeSpaceInternal(toTempRoot(path), sizeInBytes);
-    }
-
-    bool fileSize(int fd, FileSize* outFileSize) const override {
-        return fileSizeInternal(fd, outFileSize);
-    }
-
-    std::optional<Duration> pathCreationTime(fs::path path) const override {
-        return pathCreationTimeInternal(toTempRoot(path));
-    }
-
-    std::optional<Duration> pathModificationTime(fs::path path) const override {
-        return pathModificationTimeInternal(toTempRoot(path));
-    }
-
-    std::optional<DiskKind> pathDiskKind(fs::path path) override {
-        return diskKindInternal(toTempRoot(path));
-    }
-    std::optional<DiskKind> diskKind(int fd) override { return diskKindInternal(fd); }
-
-    std::vector<fs::path> scanDirEntries(fs::path dirPath, bool fullPath = false) const override {
-        getTempRoot();  // make sure we have a temp root;
-
-        auto newPath = toTempRoot(dirPath);
-        auto result = scanDirInternal(newPath);
-        if (fullPath) {
-            for (size_t n = 0; n < result.size(); ++n) {
-                result[n] = dirPath / result[n];
-            }
-        }
-        return result;
-    }
-
     TestTempDir* getTempRoot() const {
-        if (!mTempDir) {
-            mTempDir = new TestTempDir("TestSystem");
-            mTempRootPrefix = mTempDir->path();
-        }
-        return mTempDir;
+        return mTempDir.get();
     }
 
     bool isRemoteSession(std::string* sessionType) const override {
@@ -302,6 +185,7 @@ class TestSystem : public System {
 
     void setProcessTimes(const Times& times) { mTimes = times; }
 
+    // TODO remove.
     fs::path getTempDir() const override { return "/tmp"; }
 
     bool getEnableCrashReporting() const override { return true; }
@@ -351,30 +235,11 @@ class TestSystem : public System {
     System* host() { return hostSystem(); }
 
   private:
-    fs::path toTempRoot(fs::path path) const {
-        if (!path.is_absolute()) {
-            auto currdir = getCurrentDirectory();
-            path = currdir / path;
-        }
-
-        if (absl::StartsWith(path.string(), mTempRootPrefix.string())) {
-            return path;
-        }
-
-        fs::path combined = mTempRootPrefix;
-        return mTempRootPrefix / path.relative_path();
-    }
-
-    fs::path mProgramDir;
-    fs::path mProgramSubdir;
-    fs::path mLauncherDir;
     fs::path mHomeDir;
     fs::path mAppDataDir;
-    fs::path mCurrentDir;
     bool mIsRemoteSession;
     std::string mRemoteSessionType;
-    mutable TestTempDir* mTempDir;
-    mutable fs::path mTempRootPrefix;
+    std::unique_ptr<TestTempDir> mTempDir;
     std::vector<std::string> mEnvPairs;
     System* mPrevSystem;
     Times mTimes;

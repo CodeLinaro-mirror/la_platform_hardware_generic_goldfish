@@ -38,7 +38,6 @@
 #endif
 #include <windows.h>
 
-#include "android/base/system/Win32UnicodeString.h"
 #undef ERROR  // necessary to compile LOG(ERROR) statements
 #else         // !_WIN32
 #ifndef _MSC_VER
@@ -132,35 +131,11 @@ class System {
     static constexpr StorageCapacity kMemoryPressureLimit = 513_MiB;
     static bool isUnderMemoryPressure(StorageCapacity* freeRamMb = nullptr);
 
-    static constexpr StorageCapacity kDiskPressureLimit = 2_MiB;
-    static bool isUnderDiskPressure(fs::path path, System::FileSize* freeDisk = nullptr);
-
     static System::FileSize getFilePageSizeForPath(fs::path path);
-
-    inline static std::string pathAsString(const std::filesystem::path& path) {
-#ifdef _WIN32
-        return Win32UnicodeString(path.string().data(), path.string().size()).toString();
-#else
-        return path.string();
-#endif
-    }
 
     // Environment variable name corresponding to the library search
     // list for shared libraries.
     static const char* kLibrarySearchListEnvVarName;
-
-    // Return the name of the sub-directory containing libraries
-    // for the current platform, i.e. "lib" or "lib64" depending
-    // on the value of kProgramBitness.
-    static const char* kLibSubDir;
-
-    // Return the name of the sub-directory containing executables
-    // for the current platform, i.e. "bin" or "bin64" depending
-    // on the value of kProgramBitness.
-    static const char* kBinSubDir;
-
-    // Name of the 32-bit binaries subdirectory
-    static const char* kBin32SubDir;
 
     // Return program's bitness, either 32 or 64.
     static int getProgramBitness() { return 64; }
@@ -200,136 +175,6 @@ class System {
     // process.
     static void addLibrarySearchDir(fs::path path);
 
-    // /////////////////////////////////////////////////////////////////////////
-    // Path functions that interact with the file system.
-    //     Pure path manipulation functions are in android::base::PathUtils.
-    // /////////////////////////////////////////////////////////////////////////
-
-    // Return true iff |path| exists on the file system.
-    virtual bool pathExists(fs::path path) const = 0;
-
-    // Return true iff |path| exists and is a regular file on the file system.
-    virtual bool pathIsFile(fs::path path) const = 0;
-
-    // Return true iff |path| exists and is a directory on the file system.
-    virtual bool pathIsDir(fs::path path) const = 0;
-
-    // Return true iff |path| exists and is a symbolic link the file system.
-    virtual bool pathIsLink(fs::path path) const = 0;
-
-    // Return true iff |path| exists and can be read by the current user.
-    virtual bool pathCanRead(fs::path path) const = 0;
-
-    // Return true iff |path| exists and can be written to by the current
-    // user.
-    virtual bool pathCanWrite(fs::path path) const = 0;
-
-    // Return true iff |path| exists and is qcow2 file
-    // user.
-    virtual bool pathIsQcow2(fs::path path) const = 0;
-
-    // Return true iff |path| exists and is qcow2 file
-    // user.
-    virtual bool pathIsExt4(fs::path path) const = 0;
-
-    // Return true iff |path| exists and can be executed to by the current
-    // user.
-    virtual bool pathCanExec(fs::path path) const = 0;
-
-    // A wrapper for int open(filename, oflag, pmode) to support unicode paths
-    // on Windows.
-    virtual int pathOpen(const char* filename, int oflag, int pmode) const = 0;
-
-    // Function for deleting files. Return true iff
-    // (|path| is a file and we have successfully deleted it)
-    virtual bool deleteFile(fs::path path) const = 0;
-
-    // Get the size of file at |path|.
-    // Fails if path is not a file or not readable, and in case of other errors.
-    virtual bool pathFileSize(fs::path path, FileSize* outFileSize) const = 0;
-    virtual bool fileSize(int fd, FileSize* outFileSize) const = 0;
-    std::optional<FileSize> pathFileSize(fs::path path) {
-        FileSize res;
-        return pathFileSize(path, &res) ? std::make_optional(res) : std::nullopt;
-    }
-    std::optional<FileSize> fileSize(int fd) {
-        FileSize res;
-        return fileSize(fd, &res) ? std::make_optional(res) : std::nullopt;
-    }
-
-    // Get the size of the directory at |path|. Include all files
-    // and subdirectories, recursively.
-    // If |path| is a regular file, return the size of that file.
-    virtual FileSize recursiveSize(fs::path path) const = 0;
-
-    // Get the amount of free disk space, in bytes, at |path|.
-    // Returns 'false' on error.
-    virtual bool pathFreeSpace(fs::path path, FileSize* spaceInBytes) const = 0;
-
-    // Gets the file creation timestamp as a Unix epoch time with microsecond
-    // resolution. Returns an empty std::optional for systems that don't support
-    // creation times (Linux) or if the operation failed.
-    virtual std::optional<Duration> pathCreationTime(fs::path path) const = 0;
-
-    // Gets the file modification timestamp as a Unix epoch time with
-    // microsecond resolution. Returns an empty std::optional for systems that
-    // don't support modification times or if the operation failed.
-    virtual std::optional<Duration> pathModificationTime(fs::path path) const = 0;
-
-    // whether the path is on ext4 filesystem, instead of btrfs, xfs etc
-    // mainly for linux, bug: 265653158, where users reported slowness
-    // of guest system (too much disk io) due to filebacked quick boot
-    // enabled on btrfs and xfs etc
-    virtual bool pathFileSystemIsExt4(fs::path path) const = 0;
-
-    virtual std::optional<DiskKind> pathDiskKind(fs::path path) = 0;
-    virtual std::optional<DiskKind> diskKind(int fd) = 0;
-
-    // Scan directory |dirPath| for entries, and return them as a sorted
-    // vector or entries. If |fullPath| is true, then each item of the
-    // result vector contains a full path.
-    virtual std::vector<fs::path> scanDirEntries(fs::path dirPath, bool fullPath = false) const = 0;
-
-    /**
-     * @brief Locates a bundled executable within the application's installation or development
-     * environment.
-     *
-     * This function systematically searches for the specified executable (`programName`) in several
-     * common locations, prioritizing the application's launcher directory before checking
-     * its main program directory. It automatically appends the correct platform-specific
-     * executable extension (e.g., `.exe` on Windows, no extension on Linux/macOS).
-     *
-     * The search order is as follows:
-     * 1. The launcher directory:
-     * - `[launcher_directory]/[programName]`
-     * - `[launcher_directory]/bin/[programName]`
-     * 2. The program's main installation directory:
-     * - `[program_directory]/[programName]`
-     * - `[program_directory]/bin/[programName]`
-     *
-     * If the executable isn't found in any of these standard locations and the application
-     * is running within a Bazel development environment, the search extends to specific
-     * Bazel-related paths to facilitate development workflows:
-     * - `_main/third_party/qemu/[programName]` within the Bazel runfiles.
-     * - `_main/hardware/generic/goldfish/third_party/sparse/[programName]` within the Bazel
-     * runfiles.
-     *
-     * @param programName A `std::string_view` representing the base name of the executable
-     * to find (e.g., "emulator", "adb"). The function handles appending
-     * the platform-specific executable extension automatically.
-     *
-     * @return A `fs::path` object representing the absolute path to the found executable.
-     * Returns an empty `fs::path` if the executable cannot be located in any of
-     * the searched directories. You can check for an empty path using `.empty()`.
-     */
-    static fs::path findBundledExecutable(std::string_view programName);
-
-    // Return the path of the current program's directory.
-    virtual fs::path getProgramBinary() const = 0;
-
-    // Return the path of the emulator launcher's directory.
-    virtual const fs::path getLauncherDirectory() const = 0;
-
     // Return the path to user's home directory (as defined in the
     // underlying platform) or an empty string if it can't be found
     virtual const fs::path getHomeDirectory() const = 0;
@@ -337,19 +182,6 @@ class System {
     // Return the path to user's App Data directory (only applies
     // in Microsoft Windows) or an empty string if it can't be found
     virtual const fs::path getAppDataDirectory() const = 0;
-
-    // Return the current directory path. Because this can change at
-    // runtime, this returns a new std::string instance, not a const-reference
-    // to a constant one held by the object. Return an empty string if there is
-    // a problem with the system when getting the current directory.
-    virtual fs::path getCurrentDirectory() const = 0;
-
-    // Set the current directory path. Returns true if the directory was
-    // successfully changed.
-    virtual bool setCurrentDirectory(fs::path directory) = 0;
-
-    // Return the path of a temporary directory appropriate for the system.
-    virtual fs::path getTempDir() const = 0;
 
     // Return if enable the crash reporting
     virtual bool getEnableCrashReporting() const = 0;
@@ -407,20 +239,10 @@ class System {
     // regardless of being TestSystem.
     static void setEnvironmentVariable(std::string_view varname, std::string_view varvalue);
     static std::string getEnvironmentVariable(std::string_view varname);
-    static fs::path getProgramBinaryPath();
     static WallDuration getSystemTimeUs();
 
-    /**
-     * @brief Converts a Unix-style octal file mode to std::filesystem::perms.
-     *
-     * @param octalMode The octal file mode (e.g., 0755).
-     * @return The corresponding std::filesystem::perms representation.
-     */
-    static fs::perms octalModeToPerms(int octalMode);
-
-    // Windows driver file querying functions
-    static bool queryFileVersionInfo(fs::path path, int* major, int* minor, int* build_1,
-                                     int* build_2);
+    // Return the path of a temporary directory appropriate for the system.
+    virtual fs::path getTempDir() const = 0;
 
   protected:
     size_t mMemorySize = 0;
@@ -434,27 +256,6 @@ class System {
     static std::vector<fs::path> scanDirInternal(fs::path dirPath);
 
     static bool readSomeBytes(fs::path path, char* array, int pos, int size);
-
-    static bool pathExistsInternal(fs::path path);
-    static bool pathIsFileInternal(fs::path path);
-    static bool pathIsDirInternal(fs::path path);
-    static bool pathIsLinkInternal(fs::path path);
-    static bool pathCanReadInternal(fs::path path);
-    static bool pathCanWriteInternal(fs::path path);
-    static bool pathCanExecInternal(fs::path path);
-    static bool pathIsQcow2Internal(fs::path path);
-    static bool pathFileSystemIsExt4Internal(fs::path path);
-    static bool pathIsExt4Internal(fs::path path);
-    static int pathOpenInternal(const char* filename, int oflag, int pmode);
-    static bool deleteFileInternal(fs::path path);
-    static bool pathFileSizeInternal(fs::path path, FileSize* outFileSize);
-    static bool fileSizeInternal(int fd, FileSize* outFileSize);
-    static bool pathFreeSpaceInternal(fs::path path, FileSize* spaceInBytes);
-    static FileSize recursiveSizeInternal(fs::path path);
-    static std::optional<Duration> pathCreationTimeInternal(fs::path path);
-    static std::optional<Duration> pathModificationTimeInternal(fs::path path);
-    static std::optional<DiskKind> diskKindInternal(fs::path path);
-    static std::optional<DiskKind> diskKindInternal(int fd);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(System);

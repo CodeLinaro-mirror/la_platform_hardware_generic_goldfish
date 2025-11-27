@@ -4,7 +4,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "files",
     srcs = [
-        "src/aemu/base/files/FileShareOpen.cpp",
         "src/aemu/base/files/FileSystemWatcher.cpp",
         "src/aemu/base/files/IniFile.cpp",
     ] + select({
@@ -20,22 +19,14 @@ cc_library(
         "__STDC_LIMIT_MACROS=1",
         "__STDC_FORMAT_MACROS=1",
     ],
-    includes = [
-        "include",
-        "src",
-    ],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//android/logging:absl-c-bridge",
         "//android/process",
         "//android/system",
         "@aemu//base:aemu-base",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_test(
@@ -43,7 +34,6 @@ cc_test(
     size = "medium",
     srcs = [
         "test/FileSystemWatcher_unittest.cpp",
-        "test/aemu/base/files/FileShareOpen_unittest.cpp",
         "test/aemu/base/files/IniFile_unittest.cpp",
     ],
     includes = ["test"],
@@ -53,16 +43,9 @@ cc_test(
     }),
     deps = [
         ":files",
-        "//android/logging:backend",
-        "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
