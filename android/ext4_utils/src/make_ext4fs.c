@@ -36,9 +36,8 @@
 #include <libgen.h>
 #endif
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
-
-#include "android/base/file/file_io.h"
 
 #if defined(USE_MINGW) || defined(_MSC_VER)
 
@@ -66,12 +65,6 @@
 
 #define O_BINARY 0
 
-#endif
-
-#ifdef _MSC_VER
-#define path_open android_open_with_mode
-#else
-#define path_open open
 #endif
 
 #if defined(USE_MINGW) || defined(_MSC_VER)
@@ -220,7 +213,12 @@ static u32 build_directory_structure(const char* full_path, const char* dir_path
         asprintf(&dentries[i].full_path, "%s%s", full_path, namelist[i]->d_name);
 
         free(namelist[i]);
-        ret = android_lstat(dentries[i].full_path, &_stat);
+
+#ifdef _WIN32
+        _stati64(dentries[i].full_path, &_stat);
+#else
+        ret = lstat(dentries[i].full_path, &_stat);
+#endif
         if (ret < 0) {
             error_errno("lstat");
             i--;
@@ -449,7 +447,7 @@ int make_ext4fs_from_dir(const char* filename, const char* dirname, long long le
     reset_ext4fs_info();
     info.len = len;
 
-    fd = path_open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
     if (fd < 0) {
         error_errno("open");
         return EXIT_FAILURE;

@@ -12,7 +12,6 @@
 #include <sys/stat.h>
 #include "callbacks.h"
 #include "label_internal.h"
-#include "android/base/file/file_io.h"
 
 /* A property security context specification. */
 typedef struct spec {
@@ -161,7 +160,7 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		}
 
 	/* Open the specification file. */
-	if ((fp = android_fopen(path, "r")) == NULL)
+	if ((fp = fopen(path, "r")) == NULL)
 		return -1;
 
 	if (fstat(fileno(fp), &sb) < 0)

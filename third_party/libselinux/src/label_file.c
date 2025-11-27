@@ -19,7 +19,6 @@
 #endif
 #include "callbacks.h"
 #include "label_internal.h"
-#include "android/base/file/file_io.h"
 /*
  * Internals, mostly moved over from matchpathcon.c
  */
@@ -429,7 +428,7 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 		}
 
 	/* Open the specification file. */
-	if ((fp = android_fopen(path, "r")) == NULL)
+	if ((fp = fopen(path, "r")) == NULL)
 		return -1;
 
 	if (fstat(fileno(fp), &sb) < 0)
@@ -442,10 +441,10 @@ static int init(struct selabel_handle *rec, const struct selinux_opt *opts,
 	if (!baseonly) {
 		snprintf(homedir_path, sizeof(homedir_path), "%s.homedirs",
 			 path);
-		homedirfp = android_fopen(homedir_path, "r");
+		homedirfp = fopen(homedir_path, "r");
 
 		snprintf(local_path, sizeof(local_path), "%s.local", path);
-		localfp = android_fopen(local_path, "r");
+		localfp = fopen(local_path, "r");
 	}
 
 	/*
