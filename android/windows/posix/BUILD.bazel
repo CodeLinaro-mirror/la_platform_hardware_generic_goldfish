@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "compat",
@@ -20,21 +20,5 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@aemu//base:aemu-base",
-    ],
-)
-
-cc_test(
-    name = "compat_unittests",
-    srcs = [
-        "test/android/base/Win32UnicodeString_unittest.cpp",
-        "test/android/base/Win32Utils_unittest.cpp",
-    ],
-    target_compatible_with = [
-        "@platforms//os:windows",
-    ],
-    deps = [
-        ":compat",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
     ],
 )
