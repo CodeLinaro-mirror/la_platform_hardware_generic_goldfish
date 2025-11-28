@@ -1,6 +1,4 @@
 [env]
-# Our internal (minimal) android-sdk
-ANDROID_HOME = "{{config_root}}/prebuilts/android/android-sdk/{% if os() == 'linux' %}linux{% elif os() == 'macos' %}macosx{% else %}windows{% endif %}"
 # The root of our bazel workspace
 BAZEL_ROOT = "{{ config_root }}"
 '_'.path = [
