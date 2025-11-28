@@ -14,7 +14,6 @@
 
 #include "aemu/base/ArraySize.h"
 #include "android/utils/misc.h"
-#include "android/utils/system.h"
 #include "host-common/constants.h"
 
 const AndroidOptions* android_cmdLineOptions = NULL;
@@ -154,8 +153,7 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
                             ((char**)field)[0] = strdup(*aread++);
                         } else if (oo->var_type == OPTION_IS_LIST) {
                             ParamList** head = (ParamList**)field;
-                            ParamList* pl;
-                            ANEW0(pl);
+                            ParamList* pl = new ParamList{};
                             /* note: store list items in reverse order here
                              *       the list is reversed later in this function.
                              */

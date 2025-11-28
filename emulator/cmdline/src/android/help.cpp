@@ -4,13 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "android/base/logging/AbseilLogBridge.h"
-#include "android/emulation/bufprint_config_dirs.h"
+#include "android/goldfish/config/config_dirs.h"
 #include "android/network/constants.h"
-#include "android/utils/bufprint.h"
 #include "android/utils/misc.h"
-#include "android/utils/path.h"
-#include "android/utils/system.h"
 #include "host-common/constants.h"
 
 /* XXX: TODO: put most of the help stuff in auto-generated files */
@@ -147,10 +143,6 @@ static void help_build_images(stralloc_t* out) {
 }
 
 static void help_disk_images(stralloc_t* out) {
-    char datadir[256];
-
-    bufprint_config_path(datadir, datadir + sizeof(datadir));
-
     PRINTF("  The emulator needs several key image files to run appropriately.\n"
            "  Their exact location depends on whether you're using the emulator\n"
            "  from the Android SDK, or not (more details below).\n\n"
@@ -204,8 +196,7 @@ static void help_disk_images(stralloc_t* out) {
            "                       available.\n\n"
 
            "      -no-snapstorage  do not use a state snapshot image, even if one is\n"
-           "                       available.\n\n",
-           datadir);
+           "                       available.\n\n");
 }
 
 static void help_environment(stralloc_t* out) {
@@ -316,29 +307,19 @@ static void help_avd_arch(stralloc_t* out) {
 }
 
 static void help_sysdir(stralloc_t* out) {
-    char systemdir[MAX_PATH];
-    char *p = systemdir, *end = p + sizeof(systemdir);
-
-    p = bufprint_app_dir(p, end);
-    p = bufprint(p, end, PATH_SEP "lib" PATH_SEP "images");
-
     PRINTF("  use '-sysdir <dir>' to specify a directory where system read-only\n"
            "  image files will be searched. on this system, the default directory is:\n\n"
            "      %s\n\n",
-           systemdir);
+           android::goldfish::ConfigDirs::getSdkRootDirectoryByEnv().c_str());
 
     PRINTF("  see '-help-disk-images' for more information about disk image files\n\n");
 }
 
 static void help_datadir(stralloc_t* out) {
-    char datadir[MAX_PATH];
-
-    bufprint_config_path(datadir, datadir + sizeof(datadir));
-
     PRINTF("  use '-datadir <dir>' to specify a directory where writable image files\n"
            "  will be searched. on this system, the default directory is:\n\n"
            "      %s\n\n",
-           datadir);
+           android::goldfish::ConfigDirs::getUserDirectory().c_str());
 
     PRINTF("  see '-help-disk-images' for more information about disk image files\n\n");
 }
@@ -1057,42 +1038,6 @@ static void help_share_vid(stralloc_t* out) {
            "  For example:\n\n"
            "  -ports 6000,6001 -share-vid\n\n"
            "  will create the shared memory region videmulator6000\n");
-}
-
-static void help_turncfg(stralloc_t* out) {
-    PRINTF("  Execute the given command to obtain turn configuration..\n\n"
-           "    <cmd> is the command to execute\n\n"
-           "  Parameters in <cmd> can be grouped with a single (') or double (\") quote\n\n"
-           "  This command must do the following:\n\n"
-           "  - Produce a result on stdout.\n"
-           "  - Produce a result within 1000 ms.\n"
-           "  - Produce a valid JSON RTCConfiguration object "
-           " (See "
-           "https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/"
-           "RTCPeerConnection).\n"
-           "  - That contain at least an \"iceServers\" array.\n"
-           "  - The exit value should be 0 on success\n\n"
-           "  For example:\n\n"
-           "  -turncfg \"sh -c 'curl -s -X POST "
-           "https://api.twilio.com/2010-04-01/Accounts/some_account/Tokens.json -u "
-           "some_account:some_secret | sed \\'s/ice_servers/iceServers/g\\''\"\n\n");
-}
-
-static void help_rootcanal_no_mesh(stralloc_t* out) {
-    PRINTF("  Disables the disovery of running emulators. \n\n"
-           "  ** DEPRECATED **\n\n"
-           "  This flag does nothing and will be removed in future versions of the emulator.\n\n");
-}
-
-static void help_forward_vhci(stralloc_t* out) {
-    PRINTF("  Enables the gRPC service that gives access to /dev/vhci\n\n"
-           "  \n\n"
-           "  ** DEPRECATED **\n\n"
-           "  Please implement the packet streamer interface as defined in:\n"
-           "  "
-           "https://android.googlesource.com/platform/tools/netsim/+/refs/heads/master/src/proto/"
-           "packet_streamer.proto\n"
-           "  and use the -packet-streamer-endpoint flag to provide uri to the service.\n\n");
 }
 
 static void help_packet_streamer_endpoint(stralloc_t* out) {
@@ -1851,6 +1796,8 @@ typedef struct {
 } OptionHelp;
 
 static const OptionHelp option_help[] = {
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
 #define OPT_FLAG(_name, _descr) {STRINGIFY(_name), NULL, _descr, help_##_name},
 #define OPT_PARAM(_name, _tmplate, _descr) {STRINGIFY(_name), _tmplate, _descr, help_##_name},
 #define OPT_LIST OPT_PARAM
