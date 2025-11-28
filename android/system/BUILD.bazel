@@ -24,6 +24,7 @@ cc_library(
     srcs = [
         "src/android/base/Version.cpp",
         "src/android/base/bazel/bazel_info.cpp",
+        "src/android/base/system/File.cpp",
         "src/android/base/system/System.cpp",
         "src/android/base/system/file_io.cpp",
         "src/android/base/system/storage_capacity.cpp",
@@ -38,6 +39,7 @@ cc_library(
         "include/android/base/bazel/bazel_info.h",
         "include/android/base/file/file_io.h",
         "include/android/base/system/CStrWrapper.h",
+        "include/android/base/system/File.h",
         "include/android/base/system/System.h",
         "include/android/base/system/no_sigalarm.h",
         "include/android/base/system/storage_capacity.h",
@@ -60,6 +62,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":clock",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
@@ -109,6 +112,7 @@ cc_test(
     srcs = [
         "test/android/base/Version_unittest.cpp",
         "test/android/base/bazel/bazel_info_unittest.cpp",
+        "test/android/base/system/File_test.cpp",
         "test/android/base/system/System_unittest.cpp",
         "test/android/base/system/storage_capacity_unittest.cpp",
     ],
@@ -117,6 +121,7 @@ cc_test(
         ":system",
         ":test-headers",
         "//android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
     ],
 )
 
