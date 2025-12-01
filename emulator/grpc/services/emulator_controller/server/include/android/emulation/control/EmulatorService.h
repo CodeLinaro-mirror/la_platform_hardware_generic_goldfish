@@ -24,16 +24,19 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 
+extern "C" {
+struct QemuConsole;
+}
+
 namespace android {
 namespace emulation {
 namespace control {
 
-std::shared_ptr<grpc::Service> getEmulatorController(android::goldfish::VmOperations* vmInterface,
-                                     ::goldfish::devices::ConnectorRegistry* connectorRegistry,
-                                     int avd_api_level,
-                                     const android::goldfish::HardwareConfig &hw,
-                                     android::goldfish::IMultiDisplay* multiDisplay,
-                                     ::goldfish::async::EventLoop* qemuLoop);
+std::shared_ptr<grpc::Service> getEmulatorController(
+        android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
+        ::goldfish::devices::ConnectorRegistry* connectorRegistry, int avd_api_level,
+        const android::goldfish::HardwareConfig& hw, android::goldfish::IMultiDisplay* multiDisplay,
+        ::goldfish::async::EventLoop* qemuLoop);
 
 }  // namespace control
 }  // namespace emulation

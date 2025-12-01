@@ -35,10 +35,6 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop.h"
 
-extern "C" {
-QemuConsole* qemu_console_lookup_by_index(unsigned int index);
-}
-
 namespace android {
 namespace emulation {
 namespace control {
@@ -58,11 +54,11 @@ class EmulatorControllerImpl final
                                           EmulatorController::WithCallbackMethod_streamNotification<
                                                   EmulatorController::Service>>>>> {
   public:
-    EmulatorControllerImpl(VmOperations* vm, ConnectorRegistry* connectorRegistry,
-                           int avd_api_level, const android::goldfish::HardwareConfig& hw,
-                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemuLoop)
-            : mKeyEventSender(
-                      keyboard::createKeyEventSender(qemu_console_lookup_by_index(0), qemuLoop))
+    EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole,
+                           ConnectorRegistry* connectorRegistry, int avd_api_level,
+                           const android::goldfish::HardwareConfig& hw, IMultiDisplay* multidisplay,
+                           ::goldfish::async::EventLoop* qemuLoop)
+            : mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemuLoop))
             , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
             , mClipboardService(connectorRegistry)
             , mDisplayService(multidisplay, connectorRegistry)
@@ -204,14 +200,14 @@ class EmulatorControllerImpl final
     VmServiceImpl mVmService;
 };
 
-std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm,
+std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, QemuConsole* keyboardConsole,
                                                      ConnectorRegistry* connectorRegistry,
                                                      int avd_api_level,
                                                      const android::goldfish::HardwareConfig& hw,
                                                      IMultiDisplay* multidisplay,
                                                      ::goldfish::async::EventLoop* qemuLoop) {
-    return std::make_shared<EmulatorControllerImpl>(vm, connectorRegistry, avd_api_level, hw,
-                                                    multidisplay, qemuLoop);
+    return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, connectorRegistry,
+                                                    avd_api_level, hw, multidisplay, qemuLoop);
 }
 
 }  // namespace control

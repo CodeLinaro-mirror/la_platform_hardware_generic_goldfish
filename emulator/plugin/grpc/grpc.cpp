@@ -47,6 +47,7 @@ extern "C" {
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "qom/object.h"
+#include "ui/console.h"
 }
 // IWYU pragma: end_keep
 // clang-format on
@@ -128,7 +129,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto* registry = &goldfish::avd_info::connector_registry();
 
     auto service = ::android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), registry, avdprops.avd_api, avdprops.hw_config, IMultiDisplay::instance(),
+            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), registry,
+            avdprops.avd_api, avdprops.hw_config, IMultiDisplay::instance(),
             goldfish::avd_info::getQemuEventLoop());
 
     // TODO config->addr is set but not used anywhere

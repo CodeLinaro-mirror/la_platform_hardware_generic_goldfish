@@ -32,7 +32,6 @@ void qemu_input_queue_abs(QemuConsole* src, InputAxis axis, int value, int min_i
 QemuConsole *qemu_console_lookup_default() { return NULL; }
 uint32_t qemu_console_get_head(QemuConsole* con) { return 0; }
 int qemu_console_get_index(QemuConsole* con) { return 0; }
-QemuConsole* qemu_console_lookup_by_index(unsigned int index) { return NULL; }
 
 Object* object_property_get_link(Object*o, const char* type, Error **error_abort) {
   return NULL;
