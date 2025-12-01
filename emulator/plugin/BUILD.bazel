@@ -41,7 +41,6 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
                 "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
             ] + select({
                 "@platforms//os:windows": [
-                    "//android/windows/posix:compat",
                     "@qemu//:qemu-system-" + arch + ".if",
                 ],
                 "//conditions:default": [],

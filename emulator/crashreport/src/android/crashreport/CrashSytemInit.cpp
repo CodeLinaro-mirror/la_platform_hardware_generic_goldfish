@@ -24,7 +24,6 @@
 
 #include "aemu/base/Compiler.h"
 #include "aemu/base/process/Process.h"
-#include "aemu/base/system/Win32UnicodeString.h"
 
 #include "android/base/system/System.h"
 #include "android/crashreport/CrashConsent.h"
@@ -46,6 +45,8 @@
 using android::base::System;
 using base::FilePath;
 using crashpad::CrashReportDatabase;
+
+namespace fs = std::filesystem;
 
 namespace android::crashreport {
 
@@ -80,11 +81,12 @@ class CrashSystem {
             {"prod", "AndroidEmulator"}, {"ver", EMULATOR_FULL_VERSION_STRING}};
 
         ABSL_VLOG(1) << "Starting crashpad-handler: " << handler_path;
-        bool active = mClient->StartHandler(handler_path, mDatabasePath, metrics_path, CrashURL,
+        auto file_path = ::base::FilePath(mDatabasePath.native());
+        bool active = mClient->StartHandler(::base::FilePath(handler_path.native()), file_path, metrics_path, CrashURL,
                                             annotations, {"--no-rate-limit"}, true, false);
 
         ABSL_VLOG(1) << "Status of handler: " << (active ? "active" : "inactive");
-        mDatabase = CrashReportDatabase::Initialize(mDatabasePath);
+        mDatabase = CrashReportDatabase::Initialize(file_path);
         mInitialized = active && mDatabase;
 
         if (mDatabase && mDatabase->GetSettings()) {
@@ -102,12 +104,7 @@ class CrashSystem {
             return;
         }
 
-#ifdef _WIN32
-        android::base::Win32UnicodeString wstr(mDatabasePath.value().c_str());
-        std::string message = wstr.toString();
-#else
-        std::string message = mDatabasePath.value();
-#endif
+        std::string message = mDatabasePath.string();
         LOG(INFO) << "Storing crashdata in: " << message << ", detection is "
                   << (mInitialized ? "enabled" : "disabled")
                   << " for process: " << base::Process::me()->pid();
@@ -199,7 +196,7 @@ class CrashSystem {
     std::unique_ptr<crashpad::CrashpadClient> mClient;
     std::unique_ptr<CrashReportDatabase> mDatabase;
     std::unique_ptr<CrashConsent> mConsentProvider;
-    ::base::FilePath mDatabasePath;
+    fs::path mDatabasePath;
     bool mInitialized{false};
 };
 

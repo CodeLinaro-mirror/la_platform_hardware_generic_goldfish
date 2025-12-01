@@ -25,13 +25,13 @@
 #include <vector>   // for vector
 
 #include "absl/log/log.h"                      // for LogStreamVoidify
+#include "absl/strings/str_cat.h"                      // for LogStreamVoidify
 #include "benchmark/benchmark.h"               // for State, Benchmark
 #include "google/protobuf/empty.pb.h"          // for Empty
 #include "grpcpp/impl/grpc_library.h"          // Hack Attack! Needed for static initializer
 #include "grpcpp/security/credentials.h"       // for InsecureChannelC...
 #include "grpcpp/support/channel_arguments.h"  // for ChannelArguments
 
-#include "aemu/base/files/PathUtils.h"               // for PathUtils
 #include "aemu/base/memory/SharedMemory.h"           // for SharedMemory
 #include "aemu/base/sockets/ScopedSocket.h"          // for ScopedSocket
 #include "aemu/base/sockets/SocketUtils.h"           // for socketRecvAll
@@ -194,7 +194,7 @@ class SharedMemoryTest : public PerfTest {
     SharedMemoryTest() {
         // File backed ram in a temporary file somewhere.
         mTest.set_target(Test::SharedMemory);
-        mTest.set_handle("file://" + android::base::PathUtils::join(mTempDir.path(), "shared.mem"));
+        mTest.set_handle(absl::StrCat("file://", mTempDir.path() / "shared.mem"));
     }
 
     void prepare() override {

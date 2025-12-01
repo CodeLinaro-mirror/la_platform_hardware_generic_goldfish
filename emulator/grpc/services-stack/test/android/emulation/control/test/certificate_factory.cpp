@@ -28,9 +28,7 @@
 #include "openssl/digest.h"  // for EVP_sha1
 #include "openssl/x509.h"    // for X509_NAME_add_entry_by_txt
 
-#include "aemu/base/files/PathUtils.h"  // for pj, PathUtils (ptr only)
 #include "android/emulation/control/test/CertificateFactory.h"
-#include "android/utils/file_io.h"  // for android_fopen
 
 static bool generate_rsa_key(int bits, const char* public_pem, const char* private_pem,
                              EVP_PKEY** ppKey) {
@@ -118,7 +116,6 @@ exit:
     return success;
 }
 
-using android::base::PathUtils;
 using android::emulation::control::CertificateFactory;
 
 std::tuple<std::string, std::string> CertificateFactory::generateCertKeyPair(std::string dir,

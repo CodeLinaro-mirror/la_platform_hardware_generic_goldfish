@@ -11,17 +11,22 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
-namespace goldfish {
+#include "absl/status/status.h"
+
+namespace goldfish::bootconfig {
+namespace fs = std::filesystem;
+
 // [src ramdisk][bootconfig][padding][size(le32)][csum(le32)][#BOOTCONFIG\n]
 //                                   ^ 4 byte aligned
 
 std::vector<char> buildBootconfigBlob(
         const size_t srcSize, const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
-int createRamdiskWithBootconfig(const std::string &srcRamdiskPath, const std::string &dstRamdiskPath,
+absl::Status createRamdiskWithBootconfig(fs::path srcRamdiskPath, fs::path dstRamdiskPath,
                                 const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
-}  // namespace goldfish
+}  // namespace goldfish::bootconfig

@@ -24,7 +24,6 @@
 #include "client/crash_report_database.h"
 #include "handler/minidump_to_upload_parameters.h"
 #include "snapshot/minidump/process_snapshot_minidump.h"
-#include "util/file/file_io.h"
 #include "util/file/file_reader.h"
 #include "util/misc/metrics.h"
 #include "util/misc/uuid.h"

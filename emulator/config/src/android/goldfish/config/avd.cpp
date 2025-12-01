@@ -34,7 +34,7 @@
 #include "absl/strings/string_view.h"
 
 #include "aemu/base/files/IniFile.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/input_paths.h"
 
@@ -74,7 +74,6 @@
  */
 namespace android::goldfish {
 
-using android::base::System;
 using PropertyList = const std::array<std::string, 3>;
 
 namespace {
@@ -249,7 +248,7 @@ bool FileBackedAvd::loadBuildProps() {
         return false;
     }
 
-    if (!System::get()->pathExists(*buildprop) || !System::get()->pathCanRead(*buildprop)) {
+    if (!base::file::exists(*buildprop) || !base::file::can_read(*buildprop)) {
         LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
                           << ", using unknown device type.";
         return false;
@@ -289,7 +288,7 @@ absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType im
     auto image_file_name = getImageFilename(imgType);
 
     auto check_path = [](const fs::path& p) {
-        return System::get()->pathExists(p) && System::get()->pathCanRead(p);
+        return base::file::exists(p) && base::file::can_read(p);
     };
 
     VLOG(1) << "Searching for sys image: " << image_file_name;
@@ -332,7 +331,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
 
     // TODO this probably needs to be updated when snapshots are supported.
     auto hw_path = getContentPath() / CORE_HARDWARE_INI;
-    if (auto* sys = System::get(); sys->pathExists(hw_path) && sys->pathCanRead(hw_path)) {
+    if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
         auto hw_config = std::make_unique<IniFile>(hw_path);
         if (hw_config->read()) {
             // TODO load without defaults.
@@ -352,8 +351,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
 
 // static
 absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override) {
-    auto* sys = System::get();
-    if (!sys->pathExists(config_ini_path) || !sys->pathCanRead(config_ini_path)) {
+    if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
         return absl::NotFoundError(absl::StrCat("Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
     }
 
@@ -413,8 +411,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(const android::goldfish::Reso
 
     auto ini_path = paths.avd_directory / (name + ".ini");
 
-    auto* sys = System::get();
-    if (!sys->pathExists(ini_path) || !sys->pathCanRead(ini_path)) {
+    if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
         return absl::NotFoundError(absl::StrCat("No access to: ", ini_path.string()));
     }
 
@@ -424,7 +421,7 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(const android::goldfish::Reso
     }
 
     fs::path content_path = fs::path(ini->get<std::string>("path", ""));
-    if (!sys->pathExists(content_path) || !sys->pathCanRead(content_path)) {
+    if (!base::file::exists(content_path) || !base::file::can_read(content_path)) {
         auto rel_path = ini->get<std::string>("path.rel", "");
         content_path = paths.user_directory / rel_path;
     }

@@ -30,7 +30,7 @@ bool CrashReportManager::Initialize() {
 
     auto database_path = android::crashreport::CrashReporter::databaseDirectory();
     for (int i = 0; !mDb && i < 5; i++) {
-        mDb = crashpad::CrashReportDatabase::Initialize(database_path);
+        mDb = crashpad::CrashReportDatabase::Initialize(::base::FilePath(database_path));
         if (!mDb) {
             LOG(ERROR) << "Failed to initialize crash database, retrying in 1 second...";
             std::this_thread::sleep_for(std::chrono::seconds(1));

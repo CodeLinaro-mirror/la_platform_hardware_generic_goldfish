@@ -43,7 +43,7 @@ std::string Win32Utils::getErrorString(DWORD error_code) {
 }
 
 // static
-Optional<_OSVERSIONINFOEXW> Win32Utils::getWindowsVersion() {
+std::optional<_OSVERSIONINFOEXW> Win32Utils::getWindowsVersion() {
     HMODULE hLib;
     OSVERSIONINFOEXW ver;
     ver.dwOSVersionInfoSize = sizeof(ver);
@@ -52,7 +52,7 @@ Optional<_OSVERSIONINFOEXW> Win32Utils::getWindowsVersion() {
 
     hLib = LoadLibraryW(L"Ntdll.dll");
     if (!hLib) {
-        return {};
+        return std::nullopt;
     }
 
     auto f_RtlGetVersion = (RtlGetVersion_t)GetProcAddress(hLib, "RtlGetVersion");

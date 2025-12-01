@@ -28,7 +28,7 @@
 // IWYU pragma: begin_keep
 #include <windows.h>
 #include <processthreadsapi.h>
-#include "aemu/base/system/Win32UnicodeString.h"
+#include "android/base/system/Win32UnicodeString.h"
 // IWYU pragma: end_keep
 // clang-format on
 #else

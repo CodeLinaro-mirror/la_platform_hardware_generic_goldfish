@@ -38,7 +38,7 @@
 #endif
 #include <windows.h>
 
-#include "aemu/base/system/Win32UnicodeString.h"
+#include "android/base/system/Win32UnicodeString.h"
 #undef ERROR  // necessary to compile LOG(ERROR) statements
 #else         // !_WIN32
 #ifndef _MSC_VER

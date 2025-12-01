@@ -25,10 +25,8 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/files/FileSystemWatcher.h"
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/synchronization/Event.h"
-#include "android/base/system/System.h"
-#include "android/utils/system.h"
+#include "android/base/system/File.h"
 
 #define DEBUG 0
 
@@ -39,7 +37,6 @@
 #define DD(...) (void)0
 #endif
 
-using android::base::pj;
 namespace android {
 namespace base {
 
@@ -128,7 +125,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
                 struct inotify_event* event = (struct inotify_event*)&buffer[i];
                 DD("i: %d, event->len: %d", i, event->len);
                 if (event->len) {
-                    Path changed = pj(mPath, std::string(event->name));
+                    Path changed = mPath / event->name;
                     DD("Changed: %s", changed.c_str());
                     if (event->mask & IN_CREATE) {
                         mChangeCallback(WatcherChangeType::Created, changed);
@@ -159,7 +156,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
         Path path, FileSystemWatcherCallback onChangeCallback) {
-    if (!System::get()->pathIsDir(path)) {
+    if (!base::file::is_dir(path)) {
         return nullptr;
     }
     return std::make_unique<FileSystemWatcherPosix>(path, onChangeCallback);

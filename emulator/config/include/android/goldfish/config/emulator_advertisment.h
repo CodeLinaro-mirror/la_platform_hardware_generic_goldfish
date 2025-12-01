@@ -79,7 +79,6 @@ class EmulatorAdvertisement {
                                   std::make_unique<PidChecker>());
     ~EmulatorAdvertisement();
 
-
     // Writes the ini file to the location.
     bool write() const;
 

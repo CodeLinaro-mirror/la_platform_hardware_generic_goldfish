@@ -30,7 +30,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using Path = std::string;
+using Path = std::filesystem::path;
 
 // A class that validates that the header:
 //

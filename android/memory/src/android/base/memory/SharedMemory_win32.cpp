@@ -13,9 +13,8 @@
 #include <cassert>
 #include <string>
 
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/memory/SharedMemory.h"
-#include "aemu/base/system/Win32UnicodeString.h"
+#include "android/base/system/Win32UnicodeString.h"
 
 namespace android {
 namespace base {
@@ -30,7 +29,7 @@ SharedMemory::SharedMemory(const std::string& name, size_t size) : mSize(size) {
         auto HR = PathCreateFromUrlW(srcUri.c_str(), path, &cPath, NULL);
         assert(HR == S_OK);
         const Win32UnicodeString destPath(path);
-        mName = PathUtils::recompose(PathUtils::decompose(destPath.toString()));
+        mName = destPath.toString();
         mShareType = ShareType::FILE_BACKED;
     } else {
         mShareType = ShareType::SHARED_MEMORY;

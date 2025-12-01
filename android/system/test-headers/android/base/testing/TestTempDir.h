@@ -15,15 +15,14 @@
 #pragma once
 
 #include <filesystem>
+#include <fstream>
 #include <string_view>
 
 #include "absl/log/log.h"
-#include "absl/strings/str_format.h"
 
 #include "aemu/base/Compiler.h"
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/file/file_io.h"
-#include "android/base/system/System.h"
+
+#include "android/base/system/File.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -35,7 +34,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #ifndef _MSC_VER
 #include <unistd.h>
@@ -64,13 +62,14 @@ class TestTempDir {
     // Create new instance. This also tries to create a new temporary
     // directory. |debugPrefix| is an optional name prefix and can be empty.
     TestTempDir(std::string_view debugName) {
-        mPath = getTempPath();
+        // TODO use System::getTempDir() instead of getTempPath()
+        mPath = getTempPath() / generate_random_string();
         if (!debugName.empty()) {
             mPath = fs::absolute(mPath / debugName);
         }
 
         if (fs::exists(mPath)) {
-            DeleteRecursive(mPath);
+            base::file::rm_recursive(mPath);
         }
         // Attempt to create the temporary directory
         std::error_code ec;
@@ -85,13 +84,13 @@ class TestTempDir {
 
     // Return the path as a string. It will be empty if the directory could
     // not be created for some reason.
-    const std::string pathString() const { return System::pathAsString(mPath); }
+    const std::string pathString() const { return mPath.string(); }
 
     // Destroy instance, and removes the temporary directory and all files
     // inside it.
     ~TestTempDir() {
         if (!mPath.empty()) {
-            DeleteRecursive(mPath);
+            base::file::rm_recursive(mPath);
         }
     }
 
@@ -101,11 +100,11 @@ class TestTempDir {
     // Create an empty directory under the temporary directory.
     bool makeSubDir(fs::path subdir) {
         fs::path path = fs::absolute(makeSubPath(subdir));
-        if (android_mkdir(path.string().c_str(), 0755) < 0) {
-            LOG(ERROR) << "Can't create " << path;
+        if (auto s = base::file::mkdir(path, 0755); !s.ok()) {
+            LOG(ERROR) << "Can't create " << path << " - " << s;
             return false;
         }
-        if (!pathExists(path.string().c_str())) {
+        if (!base::file::exists(path)) {
             LOG(WARNING) << "Created path (" << path << "/" << subdir << ") does not exist";
         }
         VLOG(1) << "Created " << path;
@@ -115,35 +114,12 @@ class TestTempDir {
     // Create an empty file under the temporary directory.
     bool makeSubFile(std::string_view file) {
         fs::path path = makeSubPath(file);
-        int fd = ::android_open(System::pathAsString(path).c_str(), O_WRONLY | O_CREAT, 0744);
-        if (fd < 0) {
-            LOG(ERROR) << "Can't create" << path;
-            return false;
-        }
-        ::close(fd);
+        std::ofstream f(path);
         return true;
     }
 
   private:
     DISALLOW_COPY_AND_ASSIGN(TestTempDir);
-
-    void DeleteRecursive(const fs::path& path) {
-        if (!fs::exists(path)) {
-            return;  // Path doesn't exist
-        }
-
-        for (const auto& entry : fs::directory_iterator(path)) {
-            if (entry.is_directory()) {
-                DeleteRecursive(entry.path());  // Recursively delete subdirectories
-            } else {
-                LOG(INFO) << "Deleting " << path;
-                android_unlink(System::pathAsString(entry.path()).c_str());
-            }
-        }
-
-        VLOG(1) << "Rmdir " << path;
-        android_rmdir(System::pathAsString(path).c_str());
-    }
 
 #ifdef _WIN32
     fs::path getTempPath() {
@@ -156,54 +132,11 @@ class TestTempDir {
         GetTempPathA(len, &result[0]);
         // The length returned by GetTempPath() is sometimes too large.
         result.resize(::strlen(result.c_str()));
-        for (size_t n = 0; n < result.size(); ++n) {
-            if (result[n] == '\\') {
-                result[n] = '/';
-            }
-        }
-        if (result.size() && result[result.size() - 1] != '/') {
-            result += '/';
-        }
-        return result;
-    }
-
-    char* mkdtemp(char* path) {
-        char* sep = ::strrchr(path, '/');
-        if (sep) {
-            struct _stati64 st;
-            int ret;
-            *sep = '\0';  // temporarily zero-terminate the dirname.
-            ret = android_stat(path, reinterpret_cast<struct stat*>(&st));
-            *sep = '/';  // restore full path.
-            if (ret < 0) {
-                return NULL;
-            }
-            if (!S_ISDIR(st.st_mode)) {
-                errno = ENOTDIR;
-                return NULL;
-            }
-        }
-
-        // Loop. On each iteration, replace the XXXXXX suffix with a random
-        // number.
-        char* path_end = path + ::strlen(path);
-        const size_t kSuffixLen = 6U;
-        for (int tries = 128; tries > 0; tries--) {
-            int random = rand() % 1000000;
-
-            snprintf(path_end - kSuffixLen, kSuffixLen + 1, "%0d", random);
-            if (android_mkdir(path, 0755) == 0) {
-                return path;  // Success
-            }
-            if (errno != EEXIST) {
-                return NULL;
-            }
-        }
-        return NULL;
+        return fs::path(result);
     }
 #else  // !_WIN32
     fs::path getTempPath() {
-        std::string result;
+        fs::path result;
         // Only check TMPDIR if we're not root.
         if (getuid() != 0 && getgid() != 0) {
             const char* tmpdir = ::getenv("TMPDIR");
@@ -216,17 +149,11 @@ class TestTempDir {
 #ifndef P_tmpdir
 #define P_tmpdir "/tmp"
 #endif
-            result = P_tmpdir;
+            result = fs::path(P_tmpdir);
         }
         // Check that it exists and is a directory.
-        struct stat st;
-        int ret = android_stat(result.c_str(), &st);
-        if (ret < 0 || !S_ISDIR(st.st_mode)) {
+        if (!base::file::exists(result) || !base::file::is_dir(result)) {
             LOG(FATAL) << "Can't find temporary path: [" << result.c_str() << "]";
-        }
-        // Ensure there is a trailing directory separator.
-        if (result.size() && result[result.size() - 1] != '/') {
-            result += '/';
         }
         return result;
     }

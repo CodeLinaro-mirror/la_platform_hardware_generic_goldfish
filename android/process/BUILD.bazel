@@ -22,17 +22,17 @@ cc_library(
     }),
     includes = ["src"],
     visibility = ["//visibility:public"],
-    deps = [
+    deps = select({
+        "@platforms//os:windows": [
+            "//android/system",
+        ],
+        "//conditions:default": [],
+    }) + [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_binary(
@@ -55,7 +55,6 @@ cc_test(
     deps = [
         ":process",
         "//android/files",
-        "//android/logging:backend",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/flags:flag",

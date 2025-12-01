@@ -17,7 +17,6 @@
 #include "configure_drives.h"
 
 #include <algorithm>
-#include <filesystem>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"

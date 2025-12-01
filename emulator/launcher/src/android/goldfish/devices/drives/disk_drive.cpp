@@ -12,12 +12,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "disk_drive.h"
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <future>
-#include <memory>
 #include <string_view>
 
 #include "absl/log/log.h"
@@ -25,15 +26,14 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/process/Command.h"
-#include "aemu/base/process/Process.h"
 #include "aemu/base/utils/status_macros.h"
-#include "android/base/system/System.h"
+
+#include "android/base/system/File.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 
 namespace android::goldfish {
-using android::base::System;
 
 namespace {
 std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_view addr) {
@@ -62,6 +62,24 @@ absl::Status createExt4Image(fs::path destination, StorageCapacity size,
                             destination.string(), size.bytes()));
 }
 
+bool pathIsQcow2(fs::path path) {
+    // read 4 bytes
+    uint8_t magic[4] = {'\0'};
+    std::ifstream ifs(path, std::ios_base::binary);
+    if (!ifs.good()) {
+        return false;
+    }
+    ifs.read(reinterpret_cast<char *>(magic), sizeof(magic));
+
+    bool matched4bytes = false;
+    if (magic[0] == 'Q' && magic[1] == 'F' && magic[2] == 'I' &&
+        magic[3] == static_cast<uint8_t>('\xfb')) {
+        matched4bytes = true;
+    }
+
+    return matched4bytes;
+}
+
 absl::Status convertImgToQcow2(const fs::path &qemu_img_binary, fs::path ext4_image, fs::path qcow2_image) {
     constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
 
@@ -85,7 +103,7 @@ absl::Status convertImgToQcow2(const fs::path &qemu_img_binary, fs::path ext4_im
     if (!fs::exists(qcow2_image)) {
         return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ", qcow2_image.string()));
     }
-    if (!System::get()->pathIsQcow2(qcow2_image)) {
+    if (!pathIsQcow2(qcow2_image)) {
         return absl::DataLossError(
                 absl::StrFormat("The created file %s is not in qcow2 format", qcow2_image));
     }
@@ -101,10 +119,10 @@ absl::Status convertImgToQcow2(const fs::path &qemu_img_binary, fs::path ext4_im
 }  // namespace
 
 absl::Status RoDrive::initialize(const EmulatorConfig& emulator) {
-    if (!System::get()->pathIsFile(mImagePath)) {
+    if (!base::file::is_file(mImagePath)) {
         return absl::InvalidArgumentError(absl::StrCat("Unable to initialize drive as image isn't a file: ", mImagePath.string()));
     }
-    if (!System::get()->pathCanRead(mImagePath)) {
+    if (!base::file::can_read(mImagePath)) {
         return absl::InvalidArgumentError(absl::StrCat("Unable to initialize drive as image file can't be read: ", mImagePath.string()));
     }
     return absl::OkStatus();

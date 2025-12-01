@@ -21,6 +21,7 @@
 #include <windows.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -76,7 +77,7 @@ class Win32Utils {
     // order to properly identify the OS version. GetVersionEx will always
     // return 6.2 for Windows 8 and later versions (unless the binary is
     // manifested for a specific OS version).
-    static Optional<_OSVERSIONINFOEXW> getWindowsVersion();
+    static std::optional<_OSVERSIONINFOEXW> getWindowsVersion();
 
     // A small handy struct for an automatic HANDLE management
     struct HandleCloser {

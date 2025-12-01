@@ -20,12 +20,9 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "aemu/base/files/PathUtils.h"
 
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/abseil_clock.h"
@@ -33,59 +30,50 @@
 #include "android/crashreport/crash-handler.h"
 #include "android/crashreport/SimpleStringAnnotation.h"
 
-#include "base/files/file_path.h"
 #include "client/annotation.h"
 
 #include "goldfish/tools/aemu_version.h"
 
 #ifdef _WIN32
 #include <io.h>
-
-#include "base/strings/utf_string_conversions.h"
 #else
 #include <signal.h>
 #endif
 
 using android::base::Bazel;
-using android::base::c_str;
-using android::base::PathUtils;
 using android::base::System;
-using base::FilePath;
+
 namespace fs = std::filesystem;
 
 namespace android {
 namespace crashreport {
 
-const constexpr char kCrashpadDatabase[] = "emu-dev-crash-" VERSION ".db";
+const constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".db";
 
 using DefaultStringAnnotation = crashpad::StringAnnotation<1024>;
 
 CrashReporter::CrashReporter() :
     mHangDetector(HangDetector::create(
-                [](auto message) { CrashReporter::get()->die(c_str(message)); }, HangDetector::defaultTiming(),
+                [](std::string_view message) {
+                  std::string copy(message);
+                  CrashReporter::get()->die(copy.c_str());
+                }, HangDetector::defaultTiming(),
                              std::make_unique<android::base::AbseilClock>())) {}
 
-FilePath CrashReporter::databaseDirectory() {
-    auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
-    if (!database_directory.empty()) {
-#ifdef _WIN32
-        return ::base::FilePath(::base::UTF8ToWide(database_directory));
-#else
-        return ::base::FilePath(database_directory);
-#endif
+fs::path CrashReporter::databaseDirectory() {
+    if (auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE"); !database_directory.empty()) {
+        return fs::path(database_directory);
     }
-    auto crashDatabasePath = System::get()->getTempDir() / std::string(kCrashpadDatabase);
-
-    return FilePath(crashDatabasePath);
+    return System::get()->getTempDir() / kCrashpadDatabase;
 }
 
-FilePath CrashReporter::handlerExe() {
+fs::path CrashReporter::handlerExe() {
     auto from_env = System::get()->getEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
     if (from_env.empty()) {
         LOG(ERROR) << "AEMU_CRASHPAD_HANDLER envvar is empty - unable to locate crashpad_handler";
     }
 
-    return FilePath(fs::path(from_env));
+    return fs::path(from_env);
 }
 
 HangDetector& CrashReporter::hangDetector() {
@@ -221,7 +209,8 @@ void crashhandler_exitmode(const char* message) {
 }
 
 bool crashhandler_copy_attachment(const char* destination, const char* source) {
-    std::ifstream sourceFile(PathUtils::asUnicodePath(source).c_str(), std::ios::binary);
+    fs::path path(source);
+    std::ifstream sourceFile(path, std::ios::binary);
     std::stringstream buffer;
     buffer << sourceFile.rdbuf();
 

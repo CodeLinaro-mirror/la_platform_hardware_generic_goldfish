@@ -19,11 +19,10 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/files/FileSystemWatcher.h"
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/synchronization/Event.h"
-#include "aemu/base/system/Win32UnicodeString.h"
-#include "android/base/system/System.h"
+#include "aemu/base/files/FileSystemWatcher.h"
+#include "android/base/system/Win32UnicodeString.h"
+#include "android/base/system/File.h"
 
 #define DEBUG 0
 #if DEBUG >= 1
@@ -33,7 +32,6 @@
 #define DD(...) (void)0
 #endif
 
-using android::base::pj;
 namespace android {
 namespace base {
 
@@ -66,9 +64,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
 
   private:
     bool watchForChanges() {
-        const Win32UnicodeString szDirectory(mPath.c_str());
-        mDirHandle =
-                CreateFileW(szDirectory.c_str(), GENERIC_READ,
+        mDirHandle = CreateFileW(mPath.wstring().c_str(), GENERIC_READ,
                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
                             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
@@ -92,9 +88,8 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             while (mRunning) {
                 FILE_NOTIFY_INFORMATION* info =
                         reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buffer + offset);
-                Win32UnicodeString filename(info->FileName);
-                Path changed = pj(mPath, filename.toString());
-                DD("Action: %d - %s (%d)", info->Action, changed.c_str(), offset);
+                Path changed = mPath / info->FileName;
+                DD("Action: %d - %s (%d)", info->Action, changed.string().c_str(), offset);
                 switch (info->Action) {
                     case FILE_ACTION_ADDED:
                         mChangeCallback(WatcherChangeType::Created, changed);
@@ -137,7 +132,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
         Path path, FileSystemWatcherCallback onChangeCallback) {
-    if (!System::get()->pathIsDir(path)) {
+    if (!base::file::is_dir(path)) {
         return nullptr;
     }
     return std::make_unique<ReadDirectoryChangesWin32>(path, onChangeCallback);

@@ -17,30 +17,24 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <string_view>
 
 #include "absl/log/log.h"
 
 #include "aemu//base/process/Command.h"
-#include "aemu/base/files/PathUtils.h"
 #include "android/base/system/System.h"
-#include "android/utils/path.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
 
 #ifdef _WIN32
 #include <windows.h>
-
-#include "aemu/base/system/Win32Utils.h"
-
-using android::base::Win32Utils;
 #else
 #include <sys/wait.h>
 #endif
 
-using android::base::c_str;
 using android::base::System;
 
 static auto convertBytesToMB(uint64_t size) -> unsigned {
@@ -70,28 +64,27 @@ void explainSystemErrors(const char* msg) {
 #endif
 }
 
-static auto runExt4Program(const std::string_view& program,
+static auto runExt4Program(std::filesystem::path executable,
                            std::initializer_list<std::string> params) -> int {
-    std::string executable = System::get()->findBundledExecutable(program).string();
     if (executable.empty()) {
-        LOG(ERROR) << "Couldn't get path to " << program << " binary";
+        LOG(ERROR) << "Couldn't get path to " << executable << " binary";
         return -1;
     }
 
-    std::vector<std::string> commandLine{executable};
+    std::vector<std::string> commandLine{executable.string()};
     commandLine.insert(commandLine.end(), params);
 
     auto proc = android::base::Command::create(commandLine).execute();
     auto exitCode = proc->exitCode();
 
     if (exitCode != 0) {
-        LOG(ERROR) << "Resizing partition " << program << " failed with exit code " << exitCode;
+        LOG(ERROR) << "Resizing partition " << executable << " failed with exit code " << exitCode;
         return exitCode;
     }
     return 0;
 }
 
-auto resizeExt4Partition(const char* partitionPath, int64_t newByteSize) -> int {
+auto resizeExt4Partition(std::filesystem::path binary_path, const char* partitionPath, int64_t newByteSize) -> int {
     // sanity checks
     if (partitionPath == nullptr || !checkExt4PartitionSize(newByteSize)) {
         return -1;
@@ -102,7 +95,7 @@ auto resizeExt4Partition(const char* partitionPath, int64_t newByteSize) -> int 
     // the guest kernel could decide to replay the journal and end up in a state
     // before the resize took place. This is something that frequently happened
     // and caused the resize to not be visible in the guest system.
-    int fsckReturnCode = runExt4Program("e2fsck", {"-y", partitionPath});
+    int fsckReturnCode = runExt4Program(binary_path / "e2fsck", {"-y", partitionPath});
     if (fsckReturnCode != 0) {
         return fsckReturnCode;
     }
@@ -115,7 +108,7 @@ auto resizeExt4Partition(const char* partitionPath, int64_t newByteSize) -> int 
         return -1;
     }
 
-    return runExt4Program("resize2fs", {"-f", partitionPath, size_in_MB});
+    return runExt4Program(binary_path / "resize2fs", {"-f", partitionPath, size_in_MB});
 }
 
 auto checkExt4PartitionSize(int64_t byteSize) -> bool {

@@ -73,10 +73,9 @@ class CrashTest : public ::testing::Test {
             System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
-        //auto crashDatabasePath = System::get()->getTempDir() / kCrashpadDatabase;
         auto handler_path = CrashReporter::handlerExe();
         auto database_path = CrashReporter::databaseDirectory();
-        auto crashDatabase = crashpad::CrashReportDatabase::Initialize(database_path);
+        auto crashDatabase = crashpad::CrashReportDatabase::Initialize(base::FilePath(database_path));
         crashDatabase->GetSettings()->SetUploadsEnabled(false);
 
         return crashDatabase;
@@ -86,7 +85,7 @@ class CrashTest : public ::testing::Test {
         fs::path executable =
                 Bazel::runfilesPath("goldfish+/emulator/crashreport/crash-me");
         if (!Bazel::inBazel()) {
-            executable = System::get()->findBundledExecutable(kCrashMe);
+            GTEST_SKIP() << "This test can only be run under Bazel";
         }
         auto proc = Command::create({executable.string(), "--delay_ms", "1000"})
                             .inherit()

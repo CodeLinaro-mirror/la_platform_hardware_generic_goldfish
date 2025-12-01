@@ -17,13 +17,12 @@
 #include "absl/strings/match.h"
 
 #include "aemu/base/files/IniFile.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/goldfish/config/config_dirs.h"
 
 namespace goldfish {
 
 using android::base::FileSystemWatcher;
-using android::base::System;
 using android::goldfish::ConfigDirs;
 using android::goldfish::IniFile;
 
@@ -48,8 +47,7 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
 
 EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath, Private)
         : mDiscoveryPath(std::move(discoveryPath)) {
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            mDiscoveryPath.string(),
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(mDiscoveryPath,
             [this](auto change, auto path) { onFileChanged(change, path); });
 }
 
@@ -147,7 +145,7 @@ void EmulatorCatalog::removeEmulator(const std::filesystem::path& path) {
 }
 
 void EmulatorCatalog::scanDirectory() {
-    auto files = System::get()->scanDirEntries(mDiscoveryPath, true);
+    auto files = android::base::file::scan_dir(mDiscoveryPath, true);
     for (const auto& file : files) {
         VLOG(1) << "Discovered: " << file;
         if (absl::EndsWith(file.string(), ".ini")) {

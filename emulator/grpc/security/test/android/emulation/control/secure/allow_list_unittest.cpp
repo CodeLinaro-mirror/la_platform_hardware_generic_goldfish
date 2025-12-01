@@ -19,17 +19,11 @@
 #include <fstream>
 #include <vector>
 
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/system/System.h"
 #include "android/base/testing/test_file_util.h"
 
 namespace android {
 namespace emulation {
 namespace control {
-
-using android::base::PathUtils;
-using android::base::pj;
-using android::base::System;
 
 TEST(AllowListTest, bad_is_not_null) {
     EXPECT_NE(AllowList::fromJson("xxx"), nullptr);

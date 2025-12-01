@@ -66,7 +66,7 @@ TEST(SharedMemory, ShareVisibleWithinSameProc) {
 TEST(SharedMemory, ShareFileBackedVisibleWithinSameProc) {
     android::base::TestSystem ts{"/home"};
     // Note the unicode character in the filename below!!
-    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
+    std::string unique_name = (ts.getTempRoot()->path() / "shāred.mem").string();
     const mode_t user_read_only = 0600;
     std::string message = "Hello World!";
     base::SharedMemory mWriter("file:///" + unique_name, message.size());
@@ -99,7 +99,7 @@ TEST(SharedMemory, ShareFileCanReadAfterDelete) {
     // the file for deletion.
     android::base::TestSystem ts{"/home"};
     // Note the unicode character in the filename below!!
-    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shāred.mem");
+    std::string unique_name = (ts.getTempRoot()->path() / "shāred.mem").string();
     const mode_t user_read_only = 0600;
     std::string message = "Hello World!";
     base::SharedMemory mWriter("file://" + unique_name, message.size());
@@ -123,7 +123,7 @@ TEST(SharedMemory, ShareFileCanReadAfterDelete) {
 TEST(SharedMemory, ShareFileDoesCleanedUp) {
     // Make sure that the file gets removed after the server closes down.
     android::base::TestSystem ts{"/home"};
-    std::string unique_name = System::pathAsString(ts.getTempRoot()->path() / "shared.mem");
+    std::string unique_name = (ts.getTempRoot()->path() / "shared.mem").string();
     const mode_t user_read_only = 0600;
     std::string message = "Hello World!";
     base::SharedMemory mWriter("file://" + unique_name, message.size());
@@ -131,9 +131,9 @@ TEST(SharedMemory, ShareFileDoesCleanedUp) {
     ASSERT_FALSE(mWriter.isOpen());
     mWriter.create(user_read_only);
     memcpy(*mWriter, message.c_str(), message.size());
-    ASSERT_TRUE(ts.host()->pathExists(unique_name));
+    ASSERT_TRUE(base::file::exists(unique_name));
     mWriter.close();
-    ASSERT_FALSE(ts.host()->pathExists(unique_name));
+    ASSERT_FALSE(base::file::exists(unique_name));
 }
 
 TEST(SharedMemory, CanShare4KVideo) {
@@ -155,15 +155,14 @@ TEST(SharedMemory, CanShare4KVideo) {
     auto unique_name = ts.getTempRoot()->path() / "shared.mem";
     const mode_t user_read_only = 0600;
     std::string message = "Hello World!";
-    base::SharedMemory mWriter("file://" + android::base::System::pathAsString(unique_name),
-                               message.size());
+    base::SharedMemory mWriter("file://" + unique_name.string(), message.size());
 
     ASSERT_FALSE(mWriter.isOpen());
     mWriter.create(user_read_only);
     memcpy(*mWriter, message.c_str(), message.size());
-    ASSERT_TRUE(ts.host()->pathExists(unique_name));
+    ASSERT_TRUE(base::file::exists(unique_name));
     mWriter.close();
-    ASSERT_FALSE(ts.host()->pathExists(unique_name));
+    ASSERT_FALSE(base::file::exists(unique_name));
 }
 
 TEST(SharedMemory, CannotOpenTwice) {

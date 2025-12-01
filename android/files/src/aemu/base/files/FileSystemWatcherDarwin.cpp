@@ -27,7 +27,7 @@
 
 #include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/synchronization/Event.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 
 namespace android {
 namespace base {
@@ -194,7 +194,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
     bool watchForChanges() {
         mCfRunLoop = nullptr;
-        auto dir = CFStringCreateWithCString(nullptr, mPath.c_str(), kCFStringEncodingUTF8);
+        auto dir = CFStringCreateWithCString(nullptr, mPath.string().c_str(), kCFStringEncodingUTF8);
         auto pathsToWatch = CFArrayCreate(nullptr, reinterpret_cast<const void**>(&dir), 1,
                                           &kCFTypeArrayCallBacks);
 
@@ -236,7 +236,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
         Path path, FileSystemWatcherCallback onChangeCallback) {
-    if (!System::get()->pathIsDir(path)) {
+    if (!base::file::is_dir(path)) {
         return nullptr;
     }
     return std::make_unique<FileSystemWatcherFS>(path, onChangeCallback);

@@ -19,7 +19,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/base/system/System.h"
 
 namespace android::goldfish {
@@ -52,7 +52,7 @@ auto ConfigDirs::getUserDirectory() -> fs::path {
     home = System::get()->envGet("ANDROID_SDK_HOME");
     if (!home.empty()) {
         auto homeOldWay = fs::path(home) / kAndroidSubDir;
-        return System::get()->pathExists(homeOldWay) ? homeOldWay : home;
+        return base::file::exists(homeOldWay) ? homeOldWay : home;
     }
 
     home = android::base::System::get()->getHomeDirectory();
@@ -64,12 +64,11 @@ auto ConfigDirs::getUserDirectory() -> fs::path {
 
 // static
 auto ConfigDirs::getAvdRootDirectory() -> fs::path {
-    System* system = System::get();
     // The search order here should match that in AndroidLocation.java
     // in Android Studio. Otherwise, Studio and the Emulator may find
     // different AVDs. Or one may find an AVD when the other doesn't.
     fs::path avdRoot = System::get()->envGet("ANDROID_AVD_HOME");
-    if (!avdRoot.empty() && system->pathIsDir(avdRoot)) {
+    if (!avdRoot.empty() && base::file::is_dir(avdRoot)) {
         return avdRoot;
     }
 
@@ -141,10 +140,8 @@ auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     return {};
 }
 
-auto ConfigDirs::getSdkRootDirectoryByPath(bool verbose) -> fs::path {
-    auto parts = System::get()->getLauncherDirectory();
-
-    fs::path sdkRoot = fs::path(parts);
+auto ConfigDirs::getSdkRootDirectoryByPath(const fs::path &launcher_dir, bool verbose) -> fs::path {
+    fs::path sdkRoot = launcher_dir;
     for (int i = 0; i < 3; ++i) {
         sdkRoot = sdkRoot.parent_path();
         LOG_IF(INFO, verbose) << "guessed sdk root: " << sdkRoot.string();
@@ -159,7 +156,7 @@ auto ConfigDirs::getSdkRootDirectoryByPath(bool verbose) -> fs::path {
 }
 
 // static
-auto ConfigDirs::getSdkRootDirectory(bool verbose) -> fs::path {
+auto ConfigDirs::getSdkRootDirectory(const fs::path &launcher_dir, bool verbose) -> fs::path {
     auto sdkRoot = getSdkRootDirectoryByEnv(verbose);
     if (!sdkRoot.empty()) {
         return sdkRoot;
@@ -169,7 +166,7 @@ auto ConfigDirs::getSdkRootDirectory(bool verbose) -> fs::path {
                                 "variable ANDROID_HOME nor ANDROID_SDK_ROOT,"
                                 "Try to infer from emulator's path";
     // Otherwise, infer from the path of the emulator's binary.
-    return getSdkRootDirectoryByPath(verbose);
+    return getSdkRootDirectoryByPath(launcher_dir, verbose);
 }
 
 // static
@@ -179,25 +176,24 @@ auto ConfigDirs::isValidSdkRoot(const fs::path& rootPath, bool verbose) -> bool 
         return false;
     }
 
-    System* system = System::get();
-    if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
+    if (!base::file::is_dir(rootPath) || !base::file::can_read(rootPath)) {
         if (verbose) {
-            if (!system->pathIsDir(rootPath)) {
+            if (!base::file::is_dir(rootPath)) {
                 LOG(WARNING) << rootPath << " is not a directory, and cannot be sdk root";
-            } else if (!system->pathCanRead(rootPath)) {
+            } else if (!base::file::can_read(rootPath)) {
                 LOG(WARNING) << rootPath << " is not readable, and cannot be sdk root";
             }
         }
         return false;
     }
     fs::path platformsPath = fs::path(rootPath) / "platforms";
-    if (!system->pathIsDir(rootPath) || !system->pathCanRead(rootPath)) {
+    if (!base::file::is_dir(rootPath) || !base::file::can_read(rootPath)) {
         LOG_IF(WARNING, verbose) << "platforms subdirectory is missing under " << rootPath
                                  << ", please install it";
         return false;
     }
     fs::path platformToolsPath = fs::path(rootPath) / "platform-tools";
-    if (!system->pathIsDir(platformToolsPath)) {
+    if (!base::file::is_dir(platformToolsPath)) {
         LOG_IF(WARNING, verbose) << "platform-tools subdirectory is missing under " << rootPath
                                  << ", please install it";
         return false;
@@ -211,12 +207,11 @@ auto ConfigDirs::isValidAvdRoot(const fs::path& avdPath) -> bool {
     if (avdPath.empty()) {
         return false;
     }
-    System* system = System::get();
-    if (!system->pathIsDir(avdPath) || !system->pathCanRead(avdPath)) {
+    if (!base::file::is_dir(avdPath) || !base::file::can_read(avdPath)) {
         return false;
     }
     fs::path avdAvdPath = avdPath / "avd";
-    return (system->pathIsDir(avdAvdPath) && system->pathCanRead(avdAvdPath));
+    return (base::file::is_dir(avdAvdPath) && base::file::can_read(avdAvdPath));
 }
 
 auto ConfigDirs::getAvdRootDirectoryWithPrefsRoot(const fs::path& path) -> fs::path {
@@ -258,7 +253,7 @@ static auto getAlternativeRoot() -> fs::path {
 #ifdef __linux__
     auto uid = getuid();
     auto discovery = fs::path("/run/user/") / std::to_string(uid);
-    if (System::get()->pathExists(discovery)) {
+    if (base::file::exists(discovery)) {
         return discovery;
     }
 #endif

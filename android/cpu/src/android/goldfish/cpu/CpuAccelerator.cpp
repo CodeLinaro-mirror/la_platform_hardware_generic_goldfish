@@ -12,7 +12,6 @@
 #define CPU_ACCELERATOR_PRIVATE
 #include "android/goldfish/cpu/CpuAccelerator.h"
 
-#include "absl/strings/str_format.h"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
@@ -30,23 +29,23 @@
 
 #include <cstdio>
 
-#include "absl/log/log.h"
+#include <filesystem>
+#include <fstream>
 
-#include "aemu/base/Compiler.h"
-#include "aemu/base/StringFormat.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
+
 #include "aemu/base/files/ScopedFd.h"
-#include "aemu/base/memory/ScopedPtr.h"
-#include "aemu/base/misc/FileUtils.h"
-#include "aemu/base/misc/StringUtils.h"
+#include "android/base/system/File.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/cpu/cpu_accelerator.h"
 #include "android/goldfish/cpu/x86_cpuid.h"
 
 #ifdef _WIN32
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/files/ScopedFileHandle.h"
-#include "aemu/base/system/Win32UnicodeString.h"
-#include "aemu/base/system/Win32Utils.h"
+#include "android/base/system/Win32UnicodeString.h"
+#include "android/base/system/Win32Utils.h"
 #include "android/windows_installer.h"
 #endif
 
@@ -55,7 +54,6 @@
 #endif
 
 #include <array>
-#include <string_view>
 
 // NOTE: This source file must be independent of the rest of QEMU, as such
 //       it should not include / reuse any QEMU source file or function
@@ -81,7 +79,8 @@
 
 namespace android {
 
-using base::System;
+namespace fs = std::filesystem;
+
 using base::Version;
 
 // For detecting that the cpu can run with fast virtualization
@@ -220,8 +219,6 @@ AndroidCpuAcceleration ProbeWHPX(std::string* status) {
 
 #include <linux/kvm.h>
 
-#include "android/base/file/file_io.h"
-
 #define KVM_DEVICE_NAME_ENV "ANDROID_EMULATOR_KVM_DEVICE"
 
 // Return true iff KVM is installed and usable on this machine.
@@ -233,7 +230,7 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
         kvm_device = "/dev/kvm";
     }
     // Check that kvm device exists.
-    if (android_access(kvm_device, F_OK)) {
+    if (!base::file::exists(kvm_device)) {
         // kvm device does not exist
         bool cpu_ok = android_get_x86_cpuid_vmx_support() || android_get_x86_cpuid_svm_support();
         if (!cpu_ok) {
@@ -248,18 +245,18 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
     }
 
     // Check that kvm device can be opened.
-    if (android_access(kvm_device, R_OK)) {
+    if (!base::file::can_read(kvm_device)) {
         const char* kEtcGroupsPath = "/etc/group";
         std::string etcGroupsKvmLine("LINE_NOT_FOUND");
-        const auto fileContents = android::readFileIntoString(kEtcGroupsPath);
-
-        if (fileContents) {
-            base::split<std::string>(*fileContents, std::string("\n"),
-                                     [&etcGroupsKvmLine](const std::string& line) {
-                                         if (!strncmp("kvm:", line.data(), 4)) {
-                                             etcGroupsKvmLine = line.data();
-                                         }
-                                     });
+        std::ifstream is(kEtcGroupsPath, std::ios_base::binary);
+        if (is) {
+            std::ostringstream ss;
+            ss << is.rdbuf();
+            for (auto &line : absl::StrSplit(ss.str(), '\n')) {
+                 if (!strncmp("kvm:", line.data(), 4)) {
+                     etcGroupsKvmLine = line.data();
+                 }
+             }
         }
 
         absl::StrAppendFormat(status,
@@ -336,9 +333,8 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
 
 #if HAVE_HVF
 
-using android::base::System;
 Version currentMacOSVersion(std::string* status) {
-    std::string osProductVersion = System::get()->getOsName();
+    std::string osProductVersion = base::System::get()->getOsName();
     return parseMacOSVersionString(osProductVersion, status);
 }
 
@@ -674,9 +670,6 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
         }
     }
 
-    using android::base::PathUtils;
-    using android::base::Win32UnicodeString;
-
     // Now the hard part: we know Hyper-V is not running. We need to find out if
     // it's installed.
     // The only reliable way of detecting it is to query the list of optional
@@ -685,7 +678,7 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
     // Instead, let's take a shortcut: Hyper-V engine file is vmms.exe. If it's
     // installed it has to be in system32 directory. So we can just check if
     // it's there.
-    Win32UnicodeString winPath(MAX_PATH);
+    android::base::Win32UnicodeString winPath(MAX_PATH);
     UINT size = ::GetWindowsDirectoryW(winPath.data(), winPath.size() + 1);
     if (size > winPath.size()) {
         winPath.resize(size);
@@ -698,8 +691,9 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
         winPath.resize(size);
     }
 
+    fs::path winPathStd(winPath.toString());
 #ifdef __x86_64__
-    const std::string sysPath = PathUtils::join(winPath.toString(), "System32");
+    fs::path sysPath = winPathStd / "System32";
 #else
     // For the 32-bit application everything's a little bit more complicated:
     // the main Hyper-V executable is 64-bit on 64-bit OS; but we're running
@@ -708,19 +702,19 @@ std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus() {
     // directory. So we need to select the proper one here.
     // First, try a symlink which only exists on 64-bit Windows and leads to
     // the native, 64-bit directory
-    std::string sysPath = PathUtils::join(winPath.toString(), "Sysnative");
+    fs::path sysPath = winPathStd / "Sysnative";
 
     // check only if path exists: path_is_dir() would fail as it's not a
     // directory but a symlink
-    if (!path_exists(sysPath.c_str())) {
+    if (!base::file::exists(sysPath)) {
         // If it doesn't exist, we're on 32-bit Windows and let's just use
         // the plain old System32
-        sysPath = PathUtils::join(winPath.toString(), "System32");
+        sysPath = winPathStd / "System32";
     }
 #endif
-    const std::string hyperVExe = PathUtils::join(sysPath, "vmms.exe");
+    fs::path hyperVExe = sysPath / "vmms.exe";
 
-    if (System::get()->pathIsFile(hyperVExe.c_str())) {
+    if (base::file::is_file(hyperVExe)) {
         // hyper-v is installed but not running
         return std::make_pair(ANDROID_HYPERV_INSTALLED, "Hyper-V is disabled");
     }

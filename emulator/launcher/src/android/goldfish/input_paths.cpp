@@ -121,12 +121,12 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     ASSIGN_OR_RETURN(paths.lib64_directory, check_exists(paths.launcher_directory / "lib64", "lib64 directory"));
     // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
     // It is also used by gfxstream to locate the GL and Vulkan libraries.
-    System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR", System::pathAsString(paths.library_directory));
+    System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR", paths.library_directory.string());
     ASSIGN_OR_RETURN(paths.bios_directory, check_exists(paths.launcher_directory / "share" / "qemu", "bios directory"));
 
     ASSIGN_OR_RETURN(paths.user_directory, check_exists(android::goldfish::ConfigDirs::getUserDirectory(), "user directory"));
     ASSIGN_OR_RETURN(paths.avd_directory, check_exists(android::goldfish::ConfigDirs::getAvdRootDirectory(), "avd directory"));
-    ASSIGN_OR_RETURN(paths.sdk_directory, check_exists(android::goldfish::ConfigDirs::getSdkRootDirectory(verbose_sdk_search), "sdk directory"));
+    ASSIGN_OR_RETURN(paths.sdk_directory, check_exists(android::goldfish::ConfigDirs::getSdkRootDirectory(paths.launcher_directory, verbose_sdk_search), "sdk directory"));
     ASSIGN_OR_RETURN(paths.discovery_directory, check_exists(android::goldfish::ConfigDirs::getDiscoveryDirectory(), "discovery directory"));
 
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-x86_64"), "qemu-system-x86_64"));

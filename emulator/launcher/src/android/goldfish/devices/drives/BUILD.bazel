@@ -23,6 +23,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//android/filesystems",
+        "//android/process",
         "//emulator/launcher:device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -52,7 +53,6 @@ cc_library(
     deps = [
         ":disk_drive",
         ":user_data_drive",
-        "//android/filesystems",
         "//emulator/launcher:device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

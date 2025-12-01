@@ -74,7 +74,6 @@ class AdbKeyTest : public ::testing::Test {
   protected:
     android::base::TestSystem mTestSystem{"/"};
     android::base::TestTempDir* mTestDir;
-    const char* tstKey = "adbsamplekey";
 };
 
 TEST_F(AdbKeyTest, key_does_not_exist) {
@@ -89,16 +88,18 @@ TEST_F(AdbKeyTest, find_keys_in_default_path) {
 }
 
 TEST_F(AdbKeyTest, generate_writes_a_key) {
+    const char* tstKey = "adbsamplekey";
     auto keyFile = mTestDir->path() / ".android" / tstKey;
     EXPECT_EQ("", getAdbKeyPath(tstKey));
-    EXPECT_TRUE(adb_auth_keygen(keyFile.c_str()));
+    EXPECT_TRUE(adb_auth_keygen(keyFile));
     EXPECT_NE("", getAdbKeyPath(tstKey));
 }
 
 TEST_F(AdbKeyTest, can_create_pub_from_generated_priv) {
+    const char* tstKey = "adbsamplekey2";
     std::string pubkey;
     auto keyFile = mTestDir->path() / ".android" / tstKey;
-    EXPECT_TRUE(adb_auth_keygen(keyFile.c_str()));
+    EXPECT_TRUE(adb_auth_keygen(keyFile));
     EXPECT_TRUE(pubkey_from_privkey(keyFile, &pubkey));
     EXPECT_NE("", pubkey);
 }

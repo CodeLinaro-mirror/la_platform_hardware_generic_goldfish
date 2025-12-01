@@ -15,8 +15,6 @@
 // limitations under the License.
 #pragma once
 
-#include <filesystem>
-
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
