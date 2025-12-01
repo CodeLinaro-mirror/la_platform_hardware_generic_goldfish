@@ -135,7 +135,7 @@ class EmulatorControllerImpl final
             ::grpc::CallbackServerContext* /*context*/, Empty* /*response*/) override {
         SimpleServerLambdaReader<InputEvent>* eventReader =
                 new SimpleServerLambdaReader<InputEvent>([this](auto request) -> grpc::Status {
-                    VLOG(1) << "InputEvent:" << request->ShortDebugString();
+                    VLOG(2) << "InputEvent:" << request->ShortDebugString();
                     absl::Status status;
                     if (request->has_key_event()) {
                         mKeyEventSender->send(request->key_event());
