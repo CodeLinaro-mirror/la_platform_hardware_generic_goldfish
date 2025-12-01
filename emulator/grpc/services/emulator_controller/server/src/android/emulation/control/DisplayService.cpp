@@ -26,10 +26,10 @@
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/display/Display.h"
-#include "android/goldfish/display/FpsCalculator.h"
 #include "android/goldfish/display/MultiDisplay.h"
 #include "android/grpc/utils/absl_status_translate.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
+#include "goldfish/fps_calculator.h"
 
 namespace android {
 namespace emulation {
@@ -79,7 +79,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     // a completely empty frame if the screen is not active.
     Image reply;
     absl::Hash<std::string> hasher;
-    goldfish::FpsCalculator fpsCalculator(10);
+    ::goldfish::FpsCalculator fpsCalculator(10);
 
     // cPixels is used to verify the invariant that retrieved image
     // is not shrinking over subsequent calls, as this might result

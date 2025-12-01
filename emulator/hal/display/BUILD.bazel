@@ -4,7 +4,6 @@ cc_library(
     name = "headers",
     hdrs = [
         "include/android/goldfish/display/Display.h",
-        "include/android/goldfish/display/FpsCalculator.h",
         "include/android/goldfish/display/MultiDisplay.h",
         "include/android/goldfish/display/MultiDisplayCallbacks.h",
         "include/android/goldfish/display/PixmanDisplay.h",
@@ -42,9 +41,9 @@ cc_library(
     linkstatic = False,
     visibility = ["//visibility:public"],
     deps = [
-        ":fps_calculator",
         ":headers",
         "//emulator/hal/sensors",
+        "//emulator/libs/fps_calculator",
         "//emulator/plugin/avd:avd_hdrs",
         "@abseil-cpp//absl/strings",
         "@pixman//:pixman-1",
@@ -87,7 +86,6 @@ cc_test(
         "test/DisplayTest.cpp",
         "test/FakeMultiDisplayTest.cpp",
         "test/FakePixmanDisplayTest.cpp",
-        "test/FpsCalculatorTest.cpp",
         "test/ImageGenerationStrategyTest.cpp",
         "test/PixmanFrameManagerTest.cpp",
         "test/PixmanImageGeneratorTest.cpp",
@@ -99,17 +97,5 @@ cc_test(
         "//android/async:libuv_event_loop",
         "//android/async:threaded_event_loop",
         "//android/system:googletest_main",
-    ],
-)
-
-cc_library(
-    name = "fps_calculator",
-    srcs = ["src/FpsCalculator.cpp"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
-        "//android/system:clock",
-        "@abseil-cpp//absl/time",
     ],
 )
