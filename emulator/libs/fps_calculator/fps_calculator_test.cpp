@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "goldfish/fps_calculator.h"
+
 #include <gtest/gtest.h>
 
-#include "android/goldfish/display/FpsCalculator.h"
-
-namespace android::goldfish {
+namespace goldfish {
 
 TEST(FpsCalculatorTest, InitialState) {
     FpsCalculator calculator(10);
@@ -61,4 +61,4 @@ TEST(FpsCalculatorTest, ZeroDuration) {
     EXPECT_DOUBLE_EQ(0.0, calculator.getFps());
 }
 
-}  // namespace android::goldfish
+}  // namespace goldfish

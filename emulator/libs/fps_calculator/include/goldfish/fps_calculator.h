@@ -19,7 +19,7 @@
 
 #include "android/base/system/clock.h"
 
-namespace android::goldfish {
+namespace goldfish {
 
 /**
  * @brief A utility class for calculating frames per second (FPS).
@@ -69,4 +69,4 @@ class FpsCalculator {
     int mNextFrameIndex = 0;
 };
 
-}  // namespace android::goldfish
+}  // namespace goldfish

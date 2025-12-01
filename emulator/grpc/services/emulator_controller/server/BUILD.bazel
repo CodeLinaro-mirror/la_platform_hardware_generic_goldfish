@@ -44,6 +44,7 @@ cc_library(
         "//emulator/hal/gps",
         "//emulator/hal/guest-status:headers",
         "//emulator/hal/sensors",
+        "//emulator/libs/fps_calculator",
         "//emulator/libs/gps",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",

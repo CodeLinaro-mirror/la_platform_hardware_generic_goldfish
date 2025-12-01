@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/goldfish/display/FpsCalculator.h"
+#include "goldfish/fps_calculator.h"
 
-namespace android::goldfish {
+namespace goldfish {
+
 FpsCalculator::FpsCalculator(int windowSize) : mWindowSize(windowSize) {
     mTimestamps.resize(windowSize);
 }
@@ -54,4 +55,4 @@ double FpsCalculator::getFps() const {
     return (mCurrentFrameCount - 1) * 1e9 / absl::ToDoubleNanoseconds(duration);
 }
 
-}  // namespace android::goldfish
+}  // namespace goldfish

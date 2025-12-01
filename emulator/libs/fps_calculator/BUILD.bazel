@@ -1,0 +1,25 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "fps_calculator",
+    srcs = ["fps_calculator.cpp"],
+    hdrs = [
+        "include/goldfish/fps_calculator.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//android/system:clock",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "fps_calculator_unittests",
+    srcs = ["fps_calculator_test.cpp"],
+    deps = [
+        ":fps_calculator",
+        "//android/system:googletest_main",
+    ],
+)

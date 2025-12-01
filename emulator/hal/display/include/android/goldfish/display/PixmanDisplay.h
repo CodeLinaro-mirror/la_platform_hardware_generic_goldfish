@@ -20,9 +20,9 @@
 #include "absl/strings/str_format.h"
 
 #include "android/goldfish/display/Display.h"
-#include "android/goldfish/display/FpsCalculator.h"
 #include "android/goldfish/display/PixmanFrameManager.h"
 #include "android/goldfish/display/PixmanImagePtr.h"
+#include "goldfish/fps_calculator.h"
 
 extern "C" {
 #include "pixman.h"
@@ -49,7 +49,7 @@ class PixmanDisplay : public IDisplay {
     template <typename Sink>
     friend void AbslStringify(Sink&, const PixmanDisplay&);
     std::unique_ptr<PixmanFrameManager> mFrameManager;
-    FpsCalculator mFpsCalculator{30};
+    ::goldfish::FpsCalculator mFpsCalculator{30};
 };
 
 template <typename Sink>
