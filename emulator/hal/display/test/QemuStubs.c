@@ -23,9 +23,6 @@
 // clang-format on
 
 // A set of stubs for qemu methods we do not have.
-int getMinLogLevel() {
-    return 0;
-}
 void qemu_input_event_sync(void) {}
 void warn_report_err(Error* err) {}
 void qemu_input_update_buttons(QemuConsole* src, uint32_t* button_map, uint32_t button_old,
