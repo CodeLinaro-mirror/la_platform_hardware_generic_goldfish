@@ -18,8 +18,8 @@
 
 #include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/SlotRegistry.h"
-#include "goldfish/display/Display.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/display/Display.h"
 
 namespace android {
 namespace emulation {

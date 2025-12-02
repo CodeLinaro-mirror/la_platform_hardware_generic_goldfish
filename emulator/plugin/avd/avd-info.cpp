@@ -114,8 +114,6 @@ ConnectorRegistry& connector_registry() {
 }
 
 namespace {
-void DummyRegisterEmulatorReset(QEMUResetHandler* func, void* opaque) {}
-
 void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
     if (bql_locked()) {
         qemu_unregister_reset(func, opaque);
