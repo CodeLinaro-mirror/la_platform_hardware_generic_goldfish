@@ -24,10 +24,10 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "tink/jwt/jwk_set_converter.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -43,8 +43,6 @@
 namespace android {
 namespace emulation {
 namespace control {
-
-using android::base::PathUtils;
 
 void JwkKeyLoader::clear() {
     std::lock_guard guard(mKeylock);
@@ -63,17 +61,16 @@ int JwkKeyLoader::size() const {
 
 // Reads a file into a string.
 static absl::StatusOr<std::string> readFile(JwkKeyLoader::Path fname) {
-    if (!base::System::get()->pathIsFile(fname)) {
-        return absl::NotFoundError("The path: " + fname + " does not exist.");
+    if (!base::file::is_file(fname)) {
+        return absl::NotFoundError(absl::StrCat("The path: ", fname.string(), " does not exist."));
     }
 
-    if (!base::System::get()->pathCanRead(fname)) {
-        return absl::NotFoundError("The path: " + fname + " is not readable.");
+    if (!base::file::can_read(fname)) {
+        return absl::NotFoundError(absl::StrCat("The path: ", fname.string(), " is not readable."));
     }
 
     // Open stream at the end so we can learn the size.
-    std::ifstream fstream(PathUtils::asUnicodePath(fname.data()).c_str(),
-                          std::ios::binary | std::ios::ate);
+    std::ifstream fstream(fname, std::ios::binary | std::ios::ate);
     std::streampos fileSize = fstream.tellg();
 
     if (fileSize == 0) {

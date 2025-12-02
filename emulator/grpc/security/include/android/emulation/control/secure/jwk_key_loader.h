@@ -11,8 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #pragma once
+
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -32,7 +35,7 @@ namespace control {
 // active set of keys.
 class JwkKeyLoader {
   public:
-    using Path = std::string;
+    using Path = std::filesystem::path;
     using json = nlohmann::json;
     using Keyset = std::unique_ptr<crypto::tink::KeysetHandle>;
 

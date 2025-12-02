@@ -23,21 +23,22 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
-#include "grpc_display.h"
 
 #include "aemu/base/process/Process.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/grpc_services.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/vm/VmInterface.h"
-#include "android/utils/path.h"
+
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/display/MultiDisplay.h"
 #include "goldfish/tools/aemu_version.h"
+
+#include "grpc_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -53,7 +54,7 @@ extern "C" {
 // clang-format on
 
 namespace fs = std::filesystem;
-using ::android::base::System;
+namespace file = ::android::base::file;
 using ::android::emulation::control::EmulatorControllerService;
 using ::android::goldfish::EmulatorAdvertisement;
 using ::android::goldfish::EmulatorProperties;
@@ -122,7 +123,9 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 
     if (!fs::exists(config->discovery_path)) {
         LOG(WARNING) << "Discovery directory: " << config->discovery_path.string() << ", does not exist. creating";
-        path_mkdir_if_needed(config->discovery_path.string().c_str(), 0700);
+        if (auto s = file::mkdir_recursive(config->discovery_path, 0700); !s.ok()) {
+            LOG(ERROR) << "Failed to create discovery directory: " << config->discovery_path.string() << " - " << s;
+        }
     }
 
     auto& avdprops = goldfish::avd_info::getAvd().props();
@@ -166,11 +169,10 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         builder.withAuthToken(token);
         props["grpc.token"] = token;
     }
-    fs::path jwkDir = config->discovery_path / std::to_string(::android::base::Process::me()->pid()) / "jwks" / generateToken(16);
 
-    std::error_code ec;
-    if (!System::get()->pathExists(jwkDir) && !fs::create_directories(jwkDir, ec)) {
-        LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << ec.message();
+    fs::path jwkDir = config->discovery_path / std::to_string(::android::base::Process::me()->pid()) / "jwks" / generateToken(16);
+    if (auto s = file::mkdir_recursive(jwkDir, 0700); !s.ok()) {
+        LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << s;
         error_setg(errp, "failed to create jwk directory");
         return;
     }

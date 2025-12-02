@@ -126,7 +126,6 @@ EMULATOR = [
     ],
     "@platforms//os:windows": [
         "//emulator/plugin:goldfish_x86_64",
-        "//android/windows/posix:compat_unittests",
     ],
     "//conditions:default": [],
 })

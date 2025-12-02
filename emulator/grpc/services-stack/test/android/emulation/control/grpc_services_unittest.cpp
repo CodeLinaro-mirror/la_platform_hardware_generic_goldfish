@@ -24,7 +24,6 @@
 #include "grpc/grpc_security_constants.h"
 #include "gtest/gtest_pred_impl.h"
 
-#include "aemu/base/files/PathUtils.h"         // for pj
 #include "android/base/system/System.h"        // for System
 #include "android/base/testing/TestSystem.h"   // for TestS...
 #include "android/base/testing/TestTempDir.h"  // for TestT...
@@ -41,7 +40,6 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using android::base::PathUtils;
 using android::base::System;
 using android::base::TestSystem;
 using android::base::TestTempDir;

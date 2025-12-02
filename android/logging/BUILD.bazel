@@ -14,12 +14,7 @@ cc_library(
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
@@ -49,12 +44,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base-logging",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_test(

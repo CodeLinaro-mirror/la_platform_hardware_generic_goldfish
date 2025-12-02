@@ -26,7 +26,7 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/cmdline-definitions.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
@@ -83,8 +83,8 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     // for 16k image, there is extra kernel_cmdline.txt
     {
         auto kernel_cmdline_txt = avd.getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
-        if (kernel_cmdline_txt.ok() && base::System::get()->pathExists(*kernel_cmdline_txt) &&
-            base::System::get()->pathCanRead(*kernel_cmdline_txt)) {
+        if (kernel_cmdline_txt.ok() && base::file::exists(*kernel_cmdline_txt) &&
+            base::file::can_read(*kernel_cmdline_txt)) {
             std::ifstream cmdline_file(*kernel_cmdline_txt);
             std::string first_line;
             if (cmdline_file.is_open()) {
@@ -107,7 +107,7 @@ absl::Status KernelDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
     const AndroidOptions& opts = emulator.opts();
     ASSIGN_OR_RETURN(auto k, kernel_image(avd, opts));
-    mDiskImage = android::base::System::pathAsString(k);
+    mDiskImage = k.string();
     ASSIGN_OR_RETURN(auto cl, command_line(avd, opts));
     mCommandLine = std::move(cl);
     return absl::OkStatus();

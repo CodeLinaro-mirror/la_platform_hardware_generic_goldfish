@@ -16,14 +16,7 @@
 #include "absl/log/log.h"
 
 #include "android/base/system/System.h"
-
-#ifdef _MSC_VER
-#include "aemu/base/system/Win32UnicodeString.h"
-#endif
-
-#ifdef _MSC_VER
-#include "msvc-posix.h"
-#endif
+#include "android/base/system/File.h"
 
 #include <assert.h>
 #include <string.h>
@@ -40,29 +33,24 @@
 namespace android {
 namespace goldfish {
 
+namespace fs = std::filesystem;
+
 using std::ifstream;
 using std::ios_base;
 using std::string;
 using std::to_string;
 
-static bool move(const std::string& from, const std::string& to) {
-    // std::rename returns 0 on success.
-    if (std::rename(from.c_str(), to.c_str())) {
-        if (errno == ENOENT) {
-            return false;
-        }
-
-#ifdef _SUPPORT_FILESYSTEM
+static bool move(const fs::path& from, const fs::path& to) {
+    // TODO(whollins): Move this to a helper in File.h
+    std::error_code ec;
+    if (fs::rename(from, to, ec); ec) {
         // Rename can fail if files are on different disks
-        if (std::filesystem::copy_file(from.c_str(), to.c_str())) {
-            std::filesystem::remove(from.c_str());
+        if (base::file::cp_file(from, to).ok()) {
+            base::file::rm(from.c_str());
             return true;
         } else {
             return false;
         }
-#else   // _SUPPORT_FILESYSTEM
-        return false;
-#endif  // _SUPPORT_FILESYSTEM
     }
     return true;
 }
@@ -71,7 +59,7 @@ IniFile::IniFile(const char* data, int size) {
     readFromMemory(std::string_view(data, size));
 }
 
-void IniFile::setBackingFile(std::filesystem::path filePath) {
+void IniFile::setBackingFile(fs::path filePath) {
     // We have no idea what the new backing file contains.
     mDirty = true;
     mBackingFilePath = filePath;
@@ -244,13 +232,8 @@ bool IniFile::readFromMemory(std::string_view data) {
     return true;
 }
 
-bool IniFile::writeCommonImpl(bool discardEmpty, const std::string& filePath) {
-#ifdef _MSC_VER
-    base::Win32UnicodeString wFilePath(filePath);
-    std::ofstream outFile(wFilePath.c_str(), ios_base::out | ios_base::trunc);
-#else
+bool IniFile::writeCommonImpl(bool discardEmpty, const fs::path& filePath) {
     std::ofstream outFile(filePath, std::ios_base::out | std::ios_base::trunc);
-#endif
 
     if (!outFile) {
         LOG(WARNING) << "Failed to open '" << filePath << "' for writing.";
@@ -290,20 +273,22 @@ bool IniFile::writeCommon(const bool discardEmpty) {
         return false;
     }
 
-    const std::string iniFileNew = mBackingFilePath.string() + ".new";
+    fs::path iniFileNew = mBackingFilePath;
+    iniFileNew += ".new";
     if (!writeCommonImpl(discardEmpty, iniFileNew)) {
         return false;
     }
 
-    const std::string iniFileOld = mBackingFilePath.string() + ".old";
-    std::filesystem::remove(iniFileOld.c_str());  // just in case `myRemove` below failed
+    fs::path iniFileOld = mBackingFilePath;
+    iniFileOld += ".old";
+    base::file::rm(iniFileOld);  // just in case `myRemove` below failed
 
-    const bool deleteOldConfig = move(mBackingFilePath.string().c_str(), iniFileOld.c_str());
+    const bool deleteOldConfig = move(mBackingFilePath, iniFileOld);
 
-    if (!move(iniFileNew.c_str(), mBackingFilePath.string().c_str())) {
+    if (!move(iniFileNew, mBackingFilePath)) {
         if (deleteOldConfig) {
             // try to revert the first `rename`
-            if (!move(iniFileOld.c_str(), mBackingFilePath.string().c_str())) {
+            if (!move(iniFileOld, mBackingFilePath)) {
                 // mBackingFilePath is missing here
                 LOG(ERROR) << "Failed to update '" << mBackingFilePath.string()
                            << "', the file no longer exists";
@@ -316,12 +301,12 @@ bool IniFile::writeCommon(const bool discardEmpty) {
             LOG(WARNING) << "Failed to save '" << mBackingFilePath.string() << "'";
         }
 
-        std::filesystem::remove(iniFileNew.c_str());
+	base::file::rm(iniFileNew);
         return false;
     }
 
     if (deleteOldConfig) {
-        std::filesystem::remove(iniFileOld.c_str());
+	    base::file::rm(iniFileOld);
     }
 
     return true;
@@ -485,6 +470,12 @@ double IniFile::getDouble(const string& key, double defaultValue) const {
     }
     return result;
 }
+
+#if defined(_WIN32)
+#  include <string.h>
+#  define strcasecmp _stricmp
+#  define strncasecmp _strnicmp
+#endif
 
 static bool isBoolTrue(std::string_view value) {
     const char* cstr = value.data();

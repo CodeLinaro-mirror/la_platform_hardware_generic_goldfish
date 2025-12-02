@@ -14,20 +14,16 @@
 
 #pragma once
 
-#include <functional>
-#include <iosfwd>
+#include <filesystem>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
 
-#include "aemu/base/Compiler.h"
-
 #include "android/crashreport/AnnotationStreambuf.h"
 #include "android/crashreport/crash-handler.h"
 #include "android/crashreport/HangDetector.h"
 
-#include "base/files/file_path.h"
 #include "client/annotation.h"
 
 namespace crashpad {
@@ -36,6 +32,8 @@ class Annotation;
 
 namespace android {
 namespace crashreport {
+
+namespace fs = std::filesystem;
 
 using crashpad::Annotation;
 
@@ -112,18 +110,16 @@ class CrashReporter {
      *
      * @return The database directory as a FilePath.
      */
-    static ::base::FilePath databaseDirectory();
+    static fs::path databaseDirectory();
 
     /**
      * @brief Returns the path to the crashpad handler executable.
      *
      * @return The handler executable path as a FilePath.
      */
-    static ::base::FilePath handlerExe();
+    static fs::path handlerExe();
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(CrashReporter);
-
     std::unique_ptr<HangDetector> mHangDetector;
     std::vector<std::unique_ptr<Annotation>> mAnnotations;
     DefaultAnnotationStreambuf mAnnotationBuf{"internal-msg"};

@@ -71,14 +71,10 @@ cc_library(
     deps = [
         ":async_api",
         ":libuv_event_loop",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
@@ -158,12 +154,7 @@ cc_test(
         "//android/system",
         "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(

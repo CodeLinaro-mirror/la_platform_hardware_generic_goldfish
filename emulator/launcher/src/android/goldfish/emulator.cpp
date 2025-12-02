@@ -173,7 +173,7 @@ absl::Status Emulator::addDevices() {
         // This is necessary because Qemu searches relative to the current executable path which is
         // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is composed
         // of symlinks so the link to the launcher directory is lost.
-        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", System::pathAsString(paths().bios_directory)});
+        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
     }
 
     if (o.qemu_telnet) {

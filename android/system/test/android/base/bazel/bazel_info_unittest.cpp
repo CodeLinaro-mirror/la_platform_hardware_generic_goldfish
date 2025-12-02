@@ -18,7 +18,7 @@
 #include <iostream>
 #include <vector>
 
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 
 namespace android {
 namespace base {
@@ -41,7 +41,7 @@ TEST(bazel_info, can_read_data_file) {
 }
 
 TEST(bazel_info, can_get_non_existent_file) {
-    EXPECT_FALSE(System::get()->pathExists(Bazel::runfilesPath("non/existent/file.txt")));
+    EXPECT_FALSE(base::file::exists(Bazel::runfilesPath("non/existent/file.txt")));
 }
 
 }  // namespace base

@@ -30,10 +30,9 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/emulation/control/interceptor/idle_interceptor.h"
 #include "android/emulation/control/interceptor/logging_interceptor.h"
 #include "android/emulation/control/secure/allow_list.h"
@@ -46,9 +45,8 @@ namespace control {
 
 using Builder = EmulatorControllerService::Builder;
 namespace fs = std::filesystem;
-using namespace android::base;
+namespace file = android::base::file;
 using namespace android::control::interceptor;
-using android::base::PathUtils;
 using grpc::ServerBuilder;
 using grpc::ServerCompletionQueue;
 using grpc::Service;
@@ -109,7 +107,7 @@ std::string Builder::readSecrets(const fs::path& path) {
         mValid = false;
         return "";
     }
-    if (!System::get()->pathExists(path)) {
+    if (!file::exists(path)) {
         LOG(ERROR) << "File " << path.string() << " does not exist or is unreadable";
         mValid = false;
         return "";
@@ -150,15 +148,15 @@ Builder& Builder::withSecureService(std::shared_ptr<Service> service) {
 Builder& Builder::withAuthToken(std::string token) {
     mAuthToken = token;
     mValid = !token.empty();
-    mAuthMode = mAuthMode | Authorization::StaticToken;
+    mAuthMode = Authorization(static_cast<int>(mAuthMode) | static_cast<int>(Authorization::StaticToken));
     return *this;
 }
 
 Builder& Builder::withJwtAuthDiscoveryDir(fs::path jwks, fs::path jwkLoadedPath) {
     mJwkPath = std::move(jwks);
     mJwkLoadedPath = std::move(jwkLoadedPath);
-    mValid = System::get()->pathExists(mJwkPath) && System::get()->pathCanRead(mJwkPath);
-    mAuthMode = mAuthMode | Authorization::JwtToken;
+    mValid = file::exists(mJwkPath) && file::can_read(mJwkPath);
+    mAuthMode = Authorization(static_cast<int>(mAuthMode) | static_cast<int>(Authorization::JwtToken));
     return *this;
 }
 
@@ -215,14 +213,14 @@ Builder& Builder::withPortRange(int start, int end) {
     bool found = false;
     for (port = start; !found && port < end; port++) {
         // Find a free port.
-        android::base::ScopedSocket s0(socketTcp4LoopbackServer(port));
+        android::base::ScopedSocket s0(base::socketTcp4LoopbackServer(port));
         if (s0.valid()) {
             mPort = android::base::socketGetPort(s0.get());
             mIpMode = IpMode::Ipv4;
             found = true;
         } else {
             // Try ipv6 port
-            s0 = socketTcp6LoopbackServer(port);
+            s0 = base::socketTcp6LoopbackServer(port);
             if (s0.valid()) {
                 mPort = android::base::socketGetPort(s0.get());
                 mIpMode = IpMode::Ipv6;

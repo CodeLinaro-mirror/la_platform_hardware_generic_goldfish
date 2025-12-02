@@ -22,7 +22,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/misc/StringUtils.h"
 #include "android/emulation/control/secure/auth_error_factory.h"
 #include "tink/config/tink_config.h"
@@ -44,7 +43,6 @@
 namespace android {
 namespace emulation {
 namespace control {
-using android::base::PathUtils;
 
 namespace tink = crypto::tink;
 
@@ -63,10 +61,10 @@ JwtTokenAuth::JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList* list)
         LOG(FATAL) << "Unable to initialize tink library. " << mTinkInitialized.ToString();
     }
     mDirectoryObserver = std::make_unique<JwkDirectoryObserver>(
-            jwksPath, [&](auto handle) { updateKeysetHandle(std::move(handle)); },
-            [&](auto fname) {
+            jwksPath, [this](auto handle) { updateKeysetHandle(std::move(handle)); },
+            [this](auto fname) {
                 DD("Check %s  != %s", fname.c_str(), mJwksLoadedPath.c_str());
-                return absl::EndsWith(fname, kJwkExt) && fname != mJwksLoadedPath;
+                return absl::EndsWith(fname.string(), kJwkExt) && fname != mJwksLoadedPath;
             });
 }
 
@@ -87,8 +85,7 @@ void JwtTokenAuth::updateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle
             }
         }
 
-        std::ofstream out(PathUtils::asUnicodePath(mJwksLoadedPath.data()).c_str(),
-                          std::ios::trunc);
+        std::ofstream out(mJwksLoadedPath, std::ios::trunc);
         out << jsonSnippet;
         out.close();
         DD("Updated %s with latest loaded keys to: %s", mJwksLoadedPath.c_str(),
@@ -122,7 +119,7 @@ absl::Status JwtTokenAuth::isTokenValid(std::string_view path, std::string_view 
 
     const std::lock_guard<std::mutex> lock(mKeyhandleAccess);
     if (!mActiveKeyset) {
-        return AuthErrorFactory::authErrorNoKeySet(mDirectoryObserver->observes());
+        return AuthErrorFactory::authErrorNoKeySet(mDirectoryObserver->observes().string());
     }
     auto verify = mActiveKeyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
     if (!verify.ok()) {

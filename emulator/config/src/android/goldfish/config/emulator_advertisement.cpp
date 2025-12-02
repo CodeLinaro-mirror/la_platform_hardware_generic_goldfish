@@ -29,12 +29,10 @@
 
 #include "aemu/base/StringFormat.h"
 #include "aemu/base/files/IniFile.h"
-#include "aemu/base/files/PathUtils.h"
 #include "aemu/base/process/Process.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
-#include "android/base/system/System.h"
-#include "android/utils/path.h"
+#include "android/base/system/File.h"
 
 namespace android {
 namespace goldfish {
@@ -49,9 +47,7 @@ namespace goldfish {
 #endif
 
 namespace fs = std::filesystem;
-using android::base::PathUtils;
 using android::base::Process;
-using android::base::System;
 static const char* location_format = "pid_%d.ini";
 
 static bool canConnectToPort(int64_t port) {
@@ -86,7 +82,7 @@ bool OpenPortChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
         return false;
     }
 
-    if (!System::get()->pathExists(myFile) || !me.read()) {
+    if (!base::file::exists(myFile) || !me.read()) {
         DD("Invalid ini file: %s (that's ok)", myFile.string().c_str());
     }
 
@@ -114,14 +110,14 @@ bool PidChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
     // Check to see if the process is alive
     std::string entry = discoveryFile.filename().string();
     int pid = 0;
-    if (System::get()->pathIsFile(discoveryFile)) {
+    if (base::file::is_file(discoveryFile)) {
         if (sscanf(entry.c_str(), location_format, &pid) != 1) {
             // Not a discovery file..
             return false;
         }
     }
 
-    if (System::get()->pathIsDir(discoveryFile)) {
+    if (base::file::is_dir(discoveryFile)) {
         if (sscanf(entry.c_str(), "%d", &pid) != 1) {
             // Not a discovery dir..
             return false;
@@ -173,17 +169,17 @@ int EmulatorAdvertisement::garbageCollect() const {
     auto start = std::chrono::high_resolution_clock::now();
     DD("Starting garbage collection of advertisement.");
     int collected = 0;
-    for (const fs::path& entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
+    for (const fs::path& entry : base::file::scan_dir(mSharedDirectory, true)) {
         DD("Checking: %s", entry.string().c_str());
         if (!mLivenessChecker->isAlive(location(), entry)) {
             DD("Deleting %s", entry.string().c_str());
             collected++;
             // Emulator is not running, or unreachable.
-            if (System::get()->pathIsFile(entry)) {
-                System::get()->deleteFile(entry);
+            if (base::file::is_file(entry)) {
+              base::file::rm(entry);
             }
-            if (System::get()->pathIsDir(entry)) {
-                path_delete_dir(entry.string().c_str());
+            if (base::file::is_dir(entry)) {
+              base::file::rm_recursive(entry);
             }
         }
     }
@@ -196,7 +192,7 @@ int EmulatorAdvertisement::garbageCollect() const {
 std::vector<fs::path> EmulatorAdvertisement::discoverRunningEmulators() const {
     DD("Scanning %s", mSharedDirectory.string().c_str());
     std::vector<fs::path> discovered;
-    for (const fs::path &entry : System::get()->scanDirEntries(mSharedDirectory, true)) {
+    for (const fs::path &entry : base::file::scan_dir(mSharedDirectory, true)) {
         if (entry != location() && mLivenessChecker->isAlive(location(), entry)) {
             discovered.push_back(entry);
         }
@@ -222,11 +218,11 @@ fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
 }
 
 void EmulatorAdvertisement::remove() const {
-    System::get()->deleteFile(location());
+    base::file::rm(location());
     fs::path pid_dir = mSharedDirectory / std::to_string(Process::me()->pid());
-    if (System::get()->pathIsDir(pid_dir)) {
+    if (base::file::is_dir(pid_dir)) {
         DD("Deleting my pid dir %s", pid_dir.string().c_str());
-        path_delete_dir(pid_dir.string().c_str());
+        base::file::rm_recursive(pid_dir);
     }
 }
 
@@ -238,7 +234,7 @@ fs::path EmulatorAdvertisement::location() const {
 
 bool EmulatorAdvertisement::write() const {
     fs::path pidFile = location();
-    if (System::get()->pathExists(pidFile)) {
+    if (base::file::exists(pidFile)) {
         LOG(WARNING) << "Overwriting existing discovery file: " << pidFile;
     }
     LOG(INFO) << "Advertising in: " << pidFile;

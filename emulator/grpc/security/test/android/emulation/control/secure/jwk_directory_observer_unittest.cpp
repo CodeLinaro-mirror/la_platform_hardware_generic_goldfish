@@ -26,7 +26,7 @@
 #include "absl/status/statusor.h"
 #include "gtest/gtest_pred_impl.h"
 
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/base/testing/TestEvent.h"
 #include "android/base/testing/TestTempDir.h"
 #include "tink/config/tink_config.h"
@@ -280,7 +280,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     // Note, we might get multiple events.
     state = VALID_JWK_DELETED;
     auto todelete = mTempDir->path() / "valid.jwk";
-    base::System::get()->deleteFile(todelete);
+    base::file::rm(todelete);
     mTestEv.wait();
 }
 

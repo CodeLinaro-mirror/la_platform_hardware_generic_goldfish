@@ -25,7 +25,7 @@
 #include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/streams/RingStreambuf.h"
-#include "aemu/base/system/Win32UnicodeString.h"
+#include "android/base/system/Win32UnicodeString.h"
 #include "android/base/process/exec.h"
 
 #define DEBUG 0

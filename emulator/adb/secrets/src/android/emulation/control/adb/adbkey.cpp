@@ -30,11 +30,9 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/file/file_io.h"
+#include "android/base/system/File.h"
 #include "android/base/system/System.h"
 #include "android/goldfish/config/config_dirs.h"
-#include "android/utils/path.h"
 
 /* set >0 for very verbose debugging */
 #define DEBUG 0
@@ -81,7 +79,7 @@ std::string get_user_info() {
 }
 
 std::shared_ptr<RSA> read_key_file(const fs::path& file) {
-    std::unique_ptr<FILE, decltype(&fclose)> fp(android_fopen(file.string().c_str(), "r"), fclose);
+    std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "r"), fclose);
     if (!fp) {
         LOG(ERROR) << "Failed to open rsa file: " << file;
         return nullptr;
@@ -98,46 +96,45 @@ std::shared_ptr<RSA> read_key_file(const fs::path& file) {
 }
 
 bool generate_key(const fs::path& file) {
-    FILE* f = nullptr;
-    bool ret = false;
-
-    EVP_PKEY* pkey = EVP_PKEY_new();
-    BIGNUM* exponent = BN_new();
-    RSA* rsa = RSA_new();
-    if (!pkey || !exponent || !rsa) {
+    std::unique_ptr<BIGNUM, decltype(&BN_free)> exponent(BN_new(), BN_free);
+    if (!exponent) {
         LOG(WARNING) << "Failed to allocate key";
-        goto out;
+        return false;
     }
+    BN_set_word(exponent.get(), RSA_F4);
 
-    BN_set_word(exponent, RSA_F4);
-    RSA_generate_key_ex(rsa, 2048, exponent, nullptr);
-    EVP_PKEY_set1_RSA(pkey, rsa);
+    std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
+    if (!rsa) {
+        LOG(WARNING) << "Failed to allocate key";
+        return false;
+    }
+    RSA_generate_key_ex(rsa.get(), 2048, exponent.get(), nullptr);
 
-    f = android_fopen(file.string().c_str(), "w");
-    if (!f) {
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey(EVP_PKEY_new(), EVP_PKEY_free);
+    if (!pkey) {
+        LOG(WARNING) << "Failed to allocate key";
+        return false;
+    }
+    EVP_PKEY_set1_RSA(pkey.get(), rsa.get());
+
+    std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "w"), fclose);
+    if (!fp) {
         LOG(WARNING) << "Failed to open " << file.string();
-        goto out;
+        return false;
     }
 
-    if (!PEM_write_PrivateKey(f, pkey, nullptr, nullptr, 0, nullptr, nullptr)) {
+    if (!PEM_write_PrivateKey(fp.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr)) {
         LOG(WARNING) << "Failed to write key";
-        goto out;
+        return false;
     }
 
-    fclose(f);
-    f = nullptr;
-    android_chmod(file.string().c_str(), 0777);
-
-    ret = true;
-
-out:
-    if (f) {
-        fclose(f);
+    fp.reset();
+    if (auto s = android::base::file::chmod(file, 0777); !s.ok()) {
+        LOG(WARNING) << "Failed to change key permissions: " << s;
+        return false;
     }
-    EVP_PKEY_free(pkey);
-    RSA_free(rsa);
-    BN_free(exponent);
-    return ret;
+
+    return true;
 }
 
 bool sign_token(RSA* key_rsa, const uint8_t* token, int token_size, uint8_t* sig, int& len) {
@@ -193,7 +190,7 @@ bool pubkey_from_privkey(const fs::path& path, std::string* out) {
 // adbKeyFileName could be "adbkey" or "adbkey.pub"
 fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     fs::path adbKeyPath = android::goldfish::ConfigDirs::getUserDirectory() / adbKeyFileName;
-    if (System::get()->pathIsFile(adbKeyPath) && System::get()->pathCanRead(adbKeyPath)) {
+    if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
     D("cannot read adb key file: %s", adbKeyPath.c_str());
@@ -212,7 +209,7 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     std::error_code ec;
     fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
 
-    if (System::get()->pathIsFile(adbKeyPath) && System::get()->pathCanRead(adbKeyPath.c_str())) {
+    if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath.c_str())) {
         return adbKeyPath;
     }
     D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());

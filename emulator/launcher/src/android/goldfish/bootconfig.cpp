@@ -1,38 +1,35 @@
+// Copyright 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "bootconfig.h"
 
-#include <stdio.h>
+#include <aemu/base/utils/status_macros.h>
 
+#include <fstream>
 #include <memory>
 #include <numeric>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 
-#include "android/base/file/file_io.h"
+#include "android/base/system/File.h"
 
-namespace goldfish {
+namespace goldfish::bootconfig {
 using namespace std::literals;
 
 constexpr std::string_view kBootconfigMagic = "#BOOTCONFIG\n"sv;
 constexpr uint32_t kBootconfigAlign = 4;
-
-std::pair<int, size_t> copyFile(FILE* src, FILE* dst) {
-    size_t sz = 0;
-    std::vector<char> buf(64 * 1024);
-
-    while (true) {
-        const size_t szR = ::fread(buf.data(), 1, buf.size(), src);
-        if (!szR) {
-            return {::ferror(src), sz};
-        }
-
-        const size_t szW = ::fwrite(buf.data(), 1, szR, dst);
-        if (szR != szW) {
-            return {::ferror(dst), sz};
-        }
-
-        sz += szR;
-    }
-}
 
 void host2le32(const uint32_t v32, void* dst) {
     auto m8 = static_cast<uint8_t*>(dst);
@@ -59,16 +56,19 @@ std::vector<char> flattenBootconfig(
     return bits;
 }
 
-int appendBootconfig(const size_t srcSize,
-                     const std::vector<std::pair<std::string, std::string>>& bootconfig,
-                     FILE* dst) {
-    const std::vector<char> blob = buildBootconfigBlob(srcSize, bootconfig);
+absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::string>>& bootconfig, fs::path dst) {
+    ASSIGN_OR_RETURN(auto old_size, android::base::file::file_size(dst));
+    std::vector<char> blob = buildBootconfigBlob(old_size.bytes(), bootconfig);
 
-    if (blob.size() != ::fwrite(blob.data(), 1, blob.size(), dst)) {
-        return ::ferror(dst);
+    std::ofstream out;
+    out.open(dst, std::ios_base::app | std::ios_base::binary);
+    if (!out) {
+        return absl::InternalError("failed to open initrd for writing");
     }
-
-    return 0;
+    if(out << std::string_view(blob.data(), blob.size())) {
+        return absl::OkStatus();
+    }
+    return absl::InternalError("failed to append bootconfig to initrd");
 }
 
 std::vector<char> buildBootconfigBlob(
@@ -95,31 +95,10 @@ std::vector<char> buildBootconfigBlob(
     return blob;
 }
 
-int createRamdiskWithBootconfig(const std::string &srcRamdiskPath, const std::string &dstRamdiskPath,
+absl::Status createRamdiskWithBootconfig(fs::path srcRamdiskPath, fs::path dstRamdiskPath,
         const std::vector<std::pair<std::string, std::string>>& bootconfig) {
-    struct FILE_deleter {
-        void operator()(FILE* fp) const { ::fclose(fp); }
-    };
-
-    std::unique_ptr<FILE, FILE_deleter> srcRamdisk(android_fopen(srcRamdiskPath.c_str(), "rb"));
-    if (!srcRamdisk) {
-        LOG(ERROR) << " Can't open '" << srcRamdiskPath << "' for reading";
-        return 1;
-    }
-
-    std::unique_ptr<FILE, FILE_deleter> dstRamdisk(android_fopen(dstRamdiskPath.c_str(), "wb"));
-    if (!dstRamdisk) {
-        LOG(ERROR) << ": Can't open '" << dstRamdiskPath << "' for writing";
-        return 1;
-    }
-
-    const auto r = copyFile(srcRamdisk.get(), dstRamdisk.get());
-    if (r.first) {
-        LOG(ERROR) << "Error copying '" << srcRamdiskPath << "' into '" << dstRamdiskPath << "'";
-
-        return r.first;
-    }
-
-    return appendBootconfig(r.second, bootconfig, dstRamdisk.get());
+    RETURN_IF_ERROR(android::base::file::cp_file(srcRamdiskPath, dstRamdiskPath, /*overwrite=*/true));
+    return appendBootconfig(bootconfig, dstRamdiskPath);
 }
-}  // namespace goldfish
+
+}  // namespace goldfish::bootconfig

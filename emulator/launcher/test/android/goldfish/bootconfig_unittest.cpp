@@ -18,7 +18,7 @@
 
 using namespace std::literals;
 
-namespace goldfish {
+namespace goldfish::bootconfig {
 constexpr std::string_view kBootconfigMagic = "#BOOTCONFIG\n"sv;
 
 uint32_t loadLE32(const void* m) {
@@ -85,4 +85,4 @@ TEST(buildBootconfigBlob, SizeAlignmentCsum) {
     }
 }
 
-}  // namespace goldfish
+}  // namespace goldfish::bootconfig

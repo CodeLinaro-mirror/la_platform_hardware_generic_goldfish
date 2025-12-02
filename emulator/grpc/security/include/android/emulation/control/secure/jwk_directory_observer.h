@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 #include <atomic>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
@@ -27,7 +28,7 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using Path = std::string;
+using Path = std::filesystem::path;
 using base::FileSystemWatcher;
 using crypto::tink::KeysetHandle;
 

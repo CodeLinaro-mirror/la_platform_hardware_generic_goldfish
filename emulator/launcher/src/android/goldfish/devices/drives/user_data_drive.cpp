@@ -25,13 +25,12 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/config/config_dirs.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/filesystems/ext4_resize.h"
-#include "android/utils/path.h"
 
 namespace android::goldfish {
 
@@ -39,7 +38,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using android::base::System;
 using android::base::StorageCapacity;
 using android::base::operator""_MiB;
 using android::base::operator""_TiB;
@@ -63,7 +61,8 @@ absl::Status resizePartition(fs::path partition, StorageCapacity size) {
                                 partition.string(), maxSize.string(), size.string()));
     }
 
-    int resizeResult = resizeExt4Partition(partition.string().c_str(), size.bytes());
+    // TODO the extprogs are not currently bundled with emu-next. For this to work they should be included in the release zip.
+    int resizeResult = resizeExt4Partition(fs::path("some-dir-TODO"), partition.string().c_str(), size.bytes());
 
     // Interpret the error codes can propagate.
     if (resizeResult != 0) {
@@ -86,10 +85,22 @@ absl::Status resizePartition(fs::path partition, StorageCapacity size) {
     return absl::OkStatus();
 }
 
+bool pathIsExt4(fs::path path) {
+    // read 2 bytes
+    uint8_t magic[2] = {'\0'};
+    std::ifstream ifs(path, std::ios_base::binary);
+    if (!ifs.good()) {
+        return false;
+    }
+    ifs.ignore(1080);
+    ifs.read(reinterpret_cast<char *>(magic), sizeof(magic));
+
+    return magic[0] == 0x53 && magic[1] == 0xEF;
+}
+
 absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
-    System::FileSize current_data_size;
-    if (System::get()->pathIsExt4(image) &&
-        System::get()->pathFileSize(image, &current_data_size)) {
+    if (pathIsExt4(image)) {
+        ASSIGN_OR_RETURN(auto current_data_size, base::file::file_size(image));
         if (desired_size_bytes > 0 && current_data_size < desired_size_bytes) {
             // Log resize intent
             LOG(WARNING) << "Resizing userdata partition " << image << " from "
@@ -157,7 +168,7 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
     fs::path guestAdbKeyDir = to / "misc" / "adb";
     fs::path guestAdbKeyPath = guestAdbKeyDir / "adb_keys";
 
-    path_mkdir_if_needed(guestAdbKeyDir.string().c_str(), kAdbKeyDirFilePerm);
+    fs::create_directories(guestAdbKeyDir);
     if (adbKeyPubPath == "") {
         // generate from private key
         std::string pubKey;
@@ -169,7 +180,12 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
             VLOG(1) << "Using re-constructed public key from " << adbKeyPrivPath.string();
         }
     } else {
-        path_copy_file(guestAdbKeyPath.string().c_str(), adbKeyPubPath.string().c_str());
+        std::error_code ec;
+        fs::copy(adbKeyPubPath, guestAdbKeyPath, ec);
+        if (ec) {
+            return absl::DataLossError(
+                    absl::StrFormat("Failed to copy from: %s to %s due to %s", adbKeyPubPath.string(), guestAdbKeyPath.string(), ec.message()));
+        }
     }
 
     // Setting permissions to 0640
@@ -212,7 +228,8 @@ absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, ui
         RETURN_IF_ERROR(create_status);
 
         // Check if creating img succeed
-        if (System::FileSize diskSize; System::get()->pathFileSize(user_data, &diskSize) && diskSize > 0) {
+        ASSIGN_OR_RETURN(auto diskSize, base::file::file_size(user_data));
+        if (diskSize > 0) {
             return absl::OkStatus();
         } else {
             fs::remove(user_data);

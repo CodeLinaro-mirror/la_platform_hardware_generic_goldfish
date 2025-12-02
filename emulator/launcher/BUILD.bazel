@@ -129,12 +129,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
-    ] + select({
-        "@platforms//os:windows": [
-            "//android/windows/posix:compat",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(

@@ -20,7 +20,6 @@
 
 #include "adb_service.grpc.pb.h"
 #include "adb_service.pb.h"
-#include "aemu/base/files/PathUtils.h"
 #include "android/emulation/control/adb/adbkey.h"
 
 namespace google {
@@ -29,7 +28,6 @@ class Empty;
 }  // namespace protobuf
 }  // namespace google
 
-using android::base::PathUtils;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;
 using grpc::ServerWriter;

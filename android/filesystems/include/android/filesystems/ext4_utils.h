@@ -11,12 +11,7 @@
 
 #pragma once
 
-#include <inttypes.h>
-#include <stdbool.h>
-
-#include "android/utils/compiler.h"
-
-ANDROID_BEGIN_HEADER
+#include <cstdint>
 
 // Create a new empty EXT4 partition image file at |filePath|
 // of |size| bytes. |mountPoint| is the name of the corresponding
@@ -24,11 +19,6 @@ ANDROID_BEGIN_HEADER
 // Returns 0 on success, or -errno on failure.
 int android_createEmptyExt4Image(const char* filePath, uint64_t size, const char* mountpoint);
 
-// Returns true iff the file at |filePath| is an actual EXT4 partition image.
-bool android_pathIsExt4PartitionImage(const char* filePath);
-
 // Returns 0 when succeeds. Otherwise returns a negative error code.
 int android_createExt4ImageFromDir(const char* dstFilePath, const char* srcDirectory, uint64_t size,
                                    const char* mountpoint);
-
-ANDROID_END_HEADER

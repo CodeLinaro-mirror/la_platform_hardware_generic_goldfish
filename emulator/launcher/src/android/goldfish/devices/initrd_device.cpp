@@ -349,11 +349,7 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
 
     // Ok.. let's create it
     LOG(INFO) << "Creating initrd from " << system_ramdisk << " -> " << mUserRamdisk;
-    if (::goldfish::createRamdiskWithBootconfig(system_ramdisk.string(), mUserRamdisk.string(), properties) != 0) {
-        return absl::InternalError("Failed to create initrd image with bootpropterties.");
-    }
-
-    return absl::OkStatus();
+    return ::goldfish::bootconfig::createRamdiskWithBootconfig(system_ramdisk, mUserRamdisk, properties);
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,

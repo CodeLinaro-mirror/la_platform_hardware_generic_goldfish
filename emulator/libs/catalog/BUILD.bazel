@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["include/goldfish/catalog/emulator_catalog.h"],
     includes = ["include"],
     deps = [
+        "//android/files",
         "//emulator/config:config_dirs",
         "//emulator/config:emulator_advertisement",
         "@abseil-cpp//absl/strings",

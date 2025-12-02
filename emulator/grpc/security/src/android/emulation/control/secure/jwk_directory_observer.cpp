@@ -22,8 +22,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/PathUtils.h"
-#include "android/base/system/System.h"
+#include "android/base/system/File.h"
 
 #define DEBUG 0
 
@@ -39,14 +38,12 @@ namespace emulation {
 namespace control {
 
 using json = nlohmann::json;
-using base::PathUtils;
-using base::System;
 
 JwkDirectoryObserver::JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
                                            PathFilterPredicate filter, bool startImmediately)
         : mPathFilter(filter), mJwkPath(jwksDir), mCallback(callback) {
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            jwksDir, [=](auto change, auto path) { fileChangeHandler(change, path); });
+            jwksDir, [this](auto change, auto path) { fileChangeHandler(change, path); });
 
     if (startImmediately) {
         if (!start()) {
@@ -75,14 +72,14 @@ bool JwkDirectoryObserver::start() {
 void JwkDirectoryObserver::scanJwkPath() {
     mLoadedKeys.clear();
     LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
-    for (auto path : System::get()->scanDirEntries(mJwkPath.c_str(), true)) {
+    for (auto path : base::file::scan_dir(mJwkPath.c_str(), true)) {
         std::string strPath = path.string();
         auto status = mLoadedKeys.add(strPath);
         if (!status.ok()) {
             LOG(WARNING) << "Failed add jwk key: " << strPath << ", due to: " << status
                          << ", access will be "
                             "denied to this provider and the file deleted.";
-            System::get()->deleteFile(strPath);
+            base::file::rm(strPath);
         }
     };
 }
@@ -117,7 +114,7 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
             LOG(WARNING) << "Failed to add jwk key: " << path << ", due to: " << status.message()
                          << ", access will be "
                             "denied to this provider and the file deleted.";
-            System::get()->deleteFile(path);
+            base::file::rm(path);
             return;
         }
         LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
@@ -169,7 +166,7 @@ void JwkDirectoryObserver::notifyKeysetUpdated() {
 }
 
 bool JwkDirectoryObserver::acceptJwkExtOnly(Path path) {
-    return absl::EndsWith(path, kJwkExt);
+    return absl::EndsWith(path.string(), kJwkExt);
 }
 
 }  // namespace control

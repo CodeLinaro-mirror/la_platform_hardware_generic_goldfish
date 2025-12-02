@@ -28,6 +28,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#include "android/base/system/File.h"
 #include "android/base/system/System.h"
 #include "android/base/testing/TestEvent.h"
 #include "android/base/testing/TestTempDir.h"
@@ -160,7 +161,7 @@ TEST_F(JwkTokenAuthTest, writes_a_discovery_file) {
     auto discover_file = mTempDir->path() / "loaded.jwk";
     JwtTokenAuth jwt(mTempDir->path().string(), discover_file.string(), &mAllYellow);
 
-    EXPECT_TRUE(base::System::get()->pathExists(discover_file));
+    EXPECT_TRUE(base::file::exists(discover_file));
 }
 
 TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
@@ -171,7 +172,7 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
     auto discover_file = mTempDir->path() / "loaded.jwk";
     JwtTokenAuth jwt(mTempDir->path().string(), discover_file.string(), &mAllYellow);
 
-    EXPECT_TRUE(base::System::get()->pathExists(discover_file));
+    EXPECT_TRUE(base::file::exists(discover_file));
     auto discoverd_json = readFile(discover_file);
     auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
     ASSERT_THAT(discovered_handle, absl_testing::IsOk());
@@ -366,7 +367,7 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     auto discover_file = mTempDir->path() / "loaded.jwk";
 
     JwtTokenAuth jwt(mTempDir->path().string(), discover_file.string(), &mAllYellow);
-    EXPECT_TRUE(base::System::get()->deleteFile(mTempDir->path() / "valid.jwk"));
+    EXPECT_TRUE(base::file::rm(mTempDir->path() / "valid.jwk").ok());
 
     // We have to wait until the discovery file becomes empty, indicating that
     // the emulator activated a new keyset.

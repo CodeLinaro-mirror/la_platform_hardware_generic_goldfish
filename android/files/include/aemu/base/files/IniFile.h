@@ -179,7 +179,7 @@ class IniFile {
     bool writeCommon(bool discardEmpty);
 
   private:
-    bool writeCommonImpl(bool discardEmpty, const std::string& filepath);
+    bool writeCommonImpl(bool discardEmpty, const std::filesystem::path& filepath);
 
     MapType mData;
     ElementOrderList mOrderList;

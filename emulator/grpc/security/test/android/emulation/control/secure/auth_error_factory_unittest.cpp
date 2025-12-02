@@ -23,7 +23,6 @@
 
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/PathUtils.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/emulation/control/secure/basic_token_auth.h"
 #include "android/emulation/control/secure/jwk_key_loader.h"
@@ -51,7 +50,6 @@ namespace control {
 namespace tink = crypto::tink;
 using android::base::TestTempDir;
 using json = nlohmann::json;
-using Path = std::string;
 
 class AllYellow : public AllowList {
   public:
