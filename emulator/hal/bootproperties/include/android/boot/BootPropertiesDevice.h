@@ -16,6 +16,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "absl/container/flat_hash_map.h"
+
 #include "BootPropertyString.h"
 #include "aemu/base/events/EventSources.h"
 #include "android/boot/BootPropertyString.h"

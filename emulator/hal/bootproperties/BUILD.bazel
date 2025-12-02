@@ -25,6 +25,7 @@ cc_library(
         "//emulator/hal/common:emulator_reset",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:event-support",
