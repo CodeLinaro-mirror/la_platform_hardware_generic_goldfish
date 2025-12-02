@@ -5,7 +5,6 @@ cc_library(
     name = "cmdline",
     srcs = [
         "src/android/cmdline-option.cpp",
-        "src/android/emulation/bufprint_config_dirs.cpp",
         "src/android/help.cpp",
         "src/android/main-help.cpp",
         "src/android/network/constants.c",
@@ -16,7 +15,6 @@ cc_library(
         "include/android/cmdline-definitions.h",
         "include/android/cmdline-option.h",
         "include/android/cmdline-options.h",
-        "include/android/emulation/bufprint_config_dirs.h",
         "include/android/help.h",
         "include/android/main-help.h",
         "include/android/network/constants.h",
@@ -37,7 +35,6 @@ cc_test(
     name = "cmdline_unittests",
     srcs = [
         "test/android/cmdline-option_unittest.cpp",
-        "test/android/emulation/bufprint_config_dirs_unittest.cpp",
         "test/android/emulation/testing/TemporaryCommandLineOptions.h",
         "test/android/network/constants_unittest.cpp",
     ],
