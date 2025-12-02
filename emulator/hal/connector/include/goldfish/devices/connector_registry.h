@@ -115,31 +115,6 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
 };
 
 /**
- * @brief A no-op implementation of the IConnectorRegistry interface.
- *
- * This class provides a null or no-op implementation of the `IConnectorRegistry`
- * interface.  It's primarily useful for testing or in situations where a
- * `ConnectorRegistry` is required but no actual device registration is needed.
- * All registration methods simply return `true`, effectively ignoring any
- * registration requests.
- */
-class NullConnectorRegistry : public IConnectorRegistry {
-    bool registerQemuDevice(std::string_view name, Connector::DeviceFactory factory) override {
-        return true;
-    }
-
-    bool registerDevice(std::string_view name, Connector::DeviceFactory factory) override {
-        return true;
-    };
-
-    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
-                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override {};
-
-    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
-                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override {};
-};
-
-/**
  * @brief A registry for managing and listening for connections to virtual devices.
  *
  * The `ConnectorRegistry` class facilitates the registration and connection of
