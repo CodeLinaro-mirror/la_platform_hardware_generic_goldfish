@@ -19,8 +19,6 @@ cc_library(
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//emulator/libs/display",
         "//emulator/plugin/avd",
-        "//emulator/plugin/avd:avd_hdrs",
-        "//emulator/plugin/avd:global-event-loop",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",

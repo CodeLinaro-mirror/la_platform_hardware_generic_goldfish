@@ -20,14 +20,12 @@
 #include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/PointerEventDispatcher.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry.h"
 #include "goldfish/display/MultiDisplay.h"
 
 namespace android::emulation::control {
 
 using ::goldfish::display::IDisplay;
 using ::goldfish::display::IMultiDisplay;
-using ::goldfish::devices::ConnectorRegistry;
 
 /**
  * @brief Sends input events to the emulator's displays.
