@@ -31,7 +31,6 @@
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/goldfish/display/MultiDisplay.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
 
@@ -40,6 +39,7 @@
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
+#include "goldfish/display/MultiDisplay.h"
 
 #include "VCpuEventLoop.h"
 
@@ -211,7 +211,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
             },
             {DummyRegisterEmulatorReset, nullptr}, clientLoop, gQemuLoop.get());
 
-    android::goldfish::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
+    ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 }
 
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque,

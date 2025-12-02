@@ -30,13 +30,13 @@
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/grpc_services.h"
 #include "android/goldfish/config/emulator_advertisment.h"
-#include "android/goldfish/display/MultiDisplay.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "android/utils/path.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
+#include "goldfish/display/MultiDisplay.h"
 #include "goldfish/tools/aemu_version.h"
 
 // clang-format off
@@ -57,10 +57,10 @@ using ::android::base::System;
 using ::android::emulation::control::EmulatorControllerService;
 using ::android::goldfish::EmulatorAdvertisement;
 using ::android::goldfish::EmulatorProperties;
-using ::android::goldfish::IMultiDisplay;
 using ::android::goldfish::VmOperations;
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::QemuEventLoop;
+using ::goldfish::display::IMultiDisplay;
 
 namespace goldfish::grpc {
 

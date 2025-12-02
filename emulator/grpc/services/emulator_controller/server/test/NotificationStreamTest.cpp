@@ -20,21 +20,22 @@
 #include "GrpcServiceTest.h"
 #include "absl/log/log.h"
 
-#include "FakeMultiDisplay.h"
-#include "FakePixmanDisplay.h"
 #include "android/emulation/control/EmulatorService.h"
 #include "android/emulation/control/NotificationStream.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/test_fake_connector_registry.h"
+#include "goldfish/display/test/FakeMultiDisplay.h"
+#include "goldfish/display/test/FakePixmanDisplay.h"
 
 namespace android::emulation::control {
 
-using ::android::goldfish::IMultiDisplay;
-using goldfish::FakeMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::FakeConnectorRegistry;
+using ::goldfish::display::IMultiDisplay;
+using ::goldfish::display::test::ActiveFakePixmanDisplay;
+using ::goldfish::display::test::FakeMultiDisplay;
 using ::google::protobuf::Empty;
 using google::protobuf::TextFormat;
 using grpc::ServerContext;
@@ -304,7 +305,7 @@ TEST_F(NotificationServiceTest, DISABLED_DisplayResolutionChange) {
     ASSERT_TRUE(reader->Read(&reply));
 
     // Get the default display and resize it.
-    auto display = mMultiDisplay->getDisplay<goldfish::ActiveFakePixmanDisplay>(
+    auto display = mMultiDisplay->getDisplay<ActiveFakePixmanDisplay>(
             mMultiDisplay->defaultDisplay());
     display->start();
     display->resize(1080, 1920);

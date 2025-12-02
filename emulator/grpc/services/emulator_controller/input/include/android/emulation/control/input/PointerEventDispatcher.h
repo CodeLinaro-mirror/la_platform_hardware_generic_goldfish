@@ -18,7 +18,7 @@
 
 #include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/SlotRegistry.h"
-#include "android/goldfish/display/Display.h"
+#include "goldfish/display/Display.h"
 #include "emulator_controller.grpc.pb.h"
 
 namespace android {
@@ -111,7 +111,7 @@ struct MultiTouchEvent {
 
 }  // namespace internal
 
-using ::android::goldfish::IDisplay;
+using ::goldfish::display::IDisplay;
 
 /**
  * @brief Dispatches pointer events (touch and pen) to the emulator.

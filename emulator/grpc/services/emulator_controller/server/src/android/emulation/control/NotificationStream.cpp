@@ -21,16 +21,14 @@
 
 #include "aemu/base/EventNotificationSupport.h"
 #include "android/emulation/control/DisplayService.h"
-#include "android/goldfish/display/Display.h"
 #include "android/misc/GuestStatusDevice.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using goldfish::ResizeEventCallbackSource;
-
 using ::goldfish::devices::guest_status::IGuestStatusDevice;
+using ::goldfish::display::ResizeEventCallbackSource;
 
 std::optional<Notification> NotificationStream::getDisplayNotificationEvent() {
     Notification event;

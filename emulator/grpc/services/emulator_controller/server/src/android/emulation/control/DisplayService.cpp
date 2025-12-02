@@ -25,10 +25,10 @@
 #include "aemu/base/Tracing.h"
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
-#include "android/goldfish/display/Display.h"
-#include "android/goldfish/display/MultiDisplay.h"
 #include "android/grpc/utils/absl_status_translate.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
+#include "goldfish/display/Display.h"
+#include "goldfish/display/MultiDisplay.h"
 #include "goldfish/fps_calculator.h"
 
 namespace android {
@@ -36,10 +36,11 @@ namespace emulation {
 namespace control {
 
 using android::base::eventing::MultiEventSourceWaiter;
-using android::goldfish::FrameInfo;
-using android::goldfish::IDisplay;
-using android::goldfish::IMultiDisplay;
-using android::goldfish::PixelFormat;
+using ::goldfish::display::FrameInfo;
+using ::goldfish::display::FrameInfoCallbackSource;
+using ::goldfish::display::IDisplay;
+using ::goldfish::display::IMultiDisplay;
+using ::goldfish::display::PixelFormat;
 using ::goldfish::devices::sensor::AndroidSensor;
 using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::SensorData;
@@ -104,7 +105,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     SensorObserver accObserver(mRegistry, AndroidSensor::ACCELERATION);
     MultiEventSourceWaiter frameOrSensorEvent;
     frameOrSensorEvent.listen(&accObserver);
-    frameOrSensorEvent.listen<goldfish::FrameInfoCallbackSource>(display.get());
+    frameOrSensorEvent.listen<FrameInfoCallbackSource>(display.get());
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.
