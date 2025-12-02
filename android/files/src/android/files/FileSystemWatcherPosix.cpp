@@ -24,9 +24,9 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/synchronization/Event.h"
 #include "android/base/system/File.h"
+#include "android/files/FileSystemWatcher.h"
 
 #define DEBUG 0
 

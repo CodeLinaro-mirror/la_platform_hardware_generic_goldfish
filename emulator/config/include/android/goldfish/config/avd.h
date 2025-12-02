@@ -19,7 +19,7 @@
 
 #include "absl/status/statusor.h"
 
-#include "aemu/base/files/IniFile.h"
+#include "android/files/IniFile.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/config/image_list.h"
 #include "android/goldfish/input_paths.h"

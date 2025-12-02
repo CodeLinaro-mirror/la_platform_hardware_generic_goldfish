@@ -4,16 +4,16 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "files",
     srcs = [
-        "src/aemu/base/files/FileSystemWatcher.cpp",
-        "src/aemu/base/files/IniFile.cpp",
+        "src/android/files/FileSystemWatcher.cpp",
+        "src/android/files/IniFile.cpp",
     ] + select({
-        "@platforms//os:windows": ["src/aemu/base/files/FileSystemWatcherWindows.cpp"],
-        "@platforms//os:macos": ["src/aemu/base/files/FileSystemWatcherDarwin.cpp"],
-        "@platforms//os:linux": ["src/aemu/base/files/FileSystemWatcherPosix.cpp"],
+        "@platforms//os:windows": ["src/android/files/FileSystemWatcherWindows.cpp"],
+        "@platforms//os:macos": ["src/android/files/FileSystemWatcherDarwin.cpp"],
+        "@platforms//os:linux": ["src/android/files/FileSystemWatcherPosix.cpp"],
     }),
     hdrs = [
-        "include/aemu/base/files/FileSystemWatcher.h",
-        "include/aemu/base/files/IniFile.h",
+        "include/android/files/FileSystemWatcher.h",
+        "include/android/files/IniFile.h",
     ],
     defines = [
         "__STDC_LIMIT_MACROS=1",
@@ -33,10 +33,9 @@ cc_test(
     name = "files_unittests",
     size = "medium",
     srcs = [
-        "test/FileSystemWatcher_unittest.cpp",
-        "test/aemu/base/files/IniFile_unittest.cpp",
+        "test/android/files/FileSystemWatcher_unittest.cpp",
+        "test/android/files/IniFile_unittest.cpp",
     ],
-    includes = ["test"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
