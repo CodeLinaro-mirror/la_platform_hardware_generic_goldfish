@@ -10,8 +10,6 @@
 ** GNU General Public License for more details.
 */
 
-#include <android/utils/system.h>
-
 #include <filesystem>
 #include <string>
 
@@ -21,6 +19,7 @@
 #include "aemu/base/system/Win32UnicodeString.h"
 #include "android/base/system/System.h"
 #include "android/utils/path.h"
+#include "android/utils/system.h"
 
 using android::base::PathUtils;
 using android::base::ScopedCPtr;

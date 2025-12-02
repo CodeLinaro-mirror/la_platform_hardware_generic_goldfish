@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 #include <gmock/gmock.h>
-#include <goldfish/devices/cable/cable.h>
 #include <gtest/gtest.h>
 
 #include "fake_vsock.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/devices/cable/cable.h"
 #include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 

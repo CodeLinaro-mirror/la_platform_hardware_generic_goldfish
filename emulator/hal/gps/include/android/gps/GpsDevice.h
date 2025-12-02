@@ -13,11 +13,10 @@
 // limitations under the License.
 #pragma once
 
-#include <goldfish/async/event_loop.h>
-
 #include <string_view>
 
 #include "aemu/base/events/EventSources.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/gps/Location.h"
 

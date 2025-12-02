@@ -13,8 +13,6 @@
 // limitations under the License.
 #pragma once
 
-#include <aemu/base/events/EventSource.h>
-
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -22,6 +20,7 @@
 #include "absl/base/call_once.h"
 #include "absl/container/flat_hash_map.h"
 
+#include "aemu/base/events/EventSource.h"
 #include "android/emulation/control/utils/grpc_event_stream_support.h"
 #include "android/misc/GuestStatusDevice.h"
 #include "emulator_controller.grpc.pb.h"

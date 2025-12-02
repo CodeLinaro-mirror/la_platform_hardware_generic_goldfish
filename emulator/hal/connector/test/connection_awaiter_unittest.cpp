@@ -14,7 +14,6 @@
 // limitations under the License.
 #include "goldfish/devices/connection_awaiter.h"
 
-#include <goldfish/devices/cable/cable.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -25,6 +24,7 @@
 #include "absl/log/log.h"
 
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/devices/cable/cable.h"
 
 namespace goldfish {
 namespace devices {

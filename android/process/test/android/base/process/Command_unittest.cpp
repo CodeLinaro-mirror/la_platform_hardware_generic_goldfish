@@ -14,7 +14,6 @@
 // limitations under the License.
 #include "aemu/base/process/Command.h"
 
-#include <android/base/system/System.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -31,6 +30,7 @@
 #include "aemu/base/files/FileShareOpen.h"
 #include "aemu/base/files/FileShareOpenImpl.h"
 #include "aemu/base/system/System.h"
+#include "android/base/system/System.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 #ifndef _WIN32

@@ -14,8 +14,6 @@
 
 #pragma once
 
-#include <aemu/base/files/PathUtils.h>
-
 #include <filesystem>
 #include <string_view>
 
@@ -23,6 +21,7 @@
 #include "absl/strings/str_format.h"
 
 #include "aemu/base/Compiler.h"
+#include "aemu/base/files/PathUtils.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"
 

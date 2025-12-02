@@ -12,10 +12,11 @@
 
 #pragma once
 
-#include <android/utils/compiler.h>
-#include <android/utils/system.h>
 #include <stdbool.h>
 #include <stdint.h> /* for uint64_t */
+
+#include "android/utils/compiler.h"
+#include "android/utils/system.h"
 
 #ifndef _WIN32
 #include <limits.h>

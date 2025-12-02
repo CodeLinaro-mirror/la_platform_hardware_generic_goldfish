@@ -11,9 +11,10 @@
 
 #include "android/filesystems/partition_config.h"
 
-#include <android/base/system/storage_capacity.h>
 #include <inttypes.h>
 #include <stdarg.h>
+
+#include "android/base/system/storage_capacity.h"
 
 #ifdef _MSC_VER
 #include "msvc-posix.h"

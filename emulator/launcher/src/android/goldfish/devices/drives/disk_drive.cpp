@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "disk_drive.h"
-#include <aemu/base/utils/status_macros.h>
 
 #include <chrono>
 #include <filesystem>
@@ -27,6 +26,7 @@
 
 #include "aemu/base/process/Command.h"
 #include "aemu/base/process/Process.h"
+#include "aemu/base/utils/status_macros.h"
 #include "android/base/system/System.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/config/avd.h"

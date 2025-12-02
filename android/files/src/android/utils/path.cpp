@@ -11,7 +11,6 @@
 */
 #include "android/utils/path.h"
 
-#include <aemu/base/process/Command.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -31,6 +30,7 @@
 #include "aemu/base/files/PathUtils.h"
 #include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/memory/ScopedPtr.h"
+#include "aemu/base/process/Command.h"
 #include "aemu/base/system/Win32UnicodeString.h"
 #include "android/base/file/file_io.h"
 #include "android/base/system/System.h"

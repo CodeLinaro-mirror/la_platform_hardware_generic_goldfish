@@ -13,8 +13,6 @@
 // limitations under the License.
 #include "goldfish/singleton/application_singleton.h"
 
-#include <aemu/base/process/Command.h>
-#include <android/base/testing/TestSystem.h>
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -26,6 +24,8 @@
 
 #include "absl/strings/str_cat.h"
 
+#include "aemu/base/process/Command.h"
+#include "android/base/testing/TestSystem.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 #ifdef _WIN32
