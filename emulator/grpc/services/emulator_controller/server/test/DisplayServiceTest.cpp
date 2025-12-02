@@ -18,23 +18,24 @@
 #include "GrpcServiceTest.h"
 #include "absl/container/flat_hash_map.h"
 
-#include "FakeMultiDisplay.h"
-#include "FakePixmanDisplay.h"
 #include "android/emulation/control/DisplayService.h"
 #include "android/goldfish/config/fake-avd.h"
-#include "android/goldfish/display/MultiDisplay.h"
-#include "android/goldfish/display/PixmanDisplay.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 #include "goldfish/devices/test_connector_registry.h"
+#include "goldfish/display/MultiDisplay.h"
+#include "goldfish/display/PixmanDisplay.h"
+#include "goldfish/display/test/FakeMultiDisplay.h"
+#include "goldfish/display/test/FakePixmanDisplay.h"
 
 namespace android::emulation::control {
 
-using ::android::goldfish::FakeMultiDisplay;
-using ::android::goldfish::IMultiDisplay;
-using ::android::goldfish::PixelFormat;
+using ::goldfish::display::IMultiDisplay;
+using ::goldfish::display::PixelFormat;
+using ::goldfish::display::test::ActiveFakePixmanDisplay;
+using ::goldfish::display::test::FakeMultiDisplay;
 using ::goldfish::devices::TestConnectorRegistry;
 using ::goldfish::devices::sensor::AndroidSensor;
 using ::goldfish::devices::sensor::ISensorDevice;
@@ -70,7 +71,7 @@ class DisplayServiceTest : public GrcpServiceTest {
 
         auto display = screen->lock();
         ASSERT_TRUE(display);
-        reinterpret_cast<goldfish::ActiveFakePixmanDisplay*>(display.get())->start();
+        reinterpret_cast<ActiveFakePixmanDisplay*>(display.get())->start();
     }
 
     EmulatorController::Service* getService() override { return mDisplayService.get(); }

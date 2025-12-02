@@ -19,14 +19,14 @@
 
 #include "android/emulation/control/input/EvDevEvent.h"
 #include "android/emulation/control/input/PointerEventDispatcher.h"
-#include "android/goldfish/display/MultiDisplay.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/display/MultiDisplay.h"
 
 namespace android::emulation::control {
 
-using android::goldfish::IDisplay;
-using android::goldfish::IMultiDisplay;
+using ::goldfish::display::IDisplay;
+using ::goldfish::display::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
 
 /**

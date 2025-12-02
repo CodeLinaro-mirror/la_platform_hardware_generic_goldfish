@@ -14,7 +14,7 @@
 
 #include "grpc_display.h"
 
-#include "android/goldfish/display/MultiDisplayCallbacks.h"
+#include "goldfish/display/MultiDisplayCallbacks.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

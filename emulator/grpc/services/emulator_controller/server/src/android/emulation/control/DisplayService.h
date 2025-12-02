@@ -16,15 +16,15 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include "android/goldfish/display/MultiDisplay.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/display/MultiDisplay.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using android::goldfish::IMultiDisplay;
+using ::goldfish::display::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;

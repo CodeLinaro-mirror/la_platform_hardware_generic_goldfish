@@ -23,12 +23,11 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "android/emulation/control/utils/grpc_event_stream_support.h"
-#include "android/goldfish/display/Display.h"
-#include "android/goldfish/display/MultiDisplay.h"
 #include "android/misc/GuestStatusDevice.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop_dispatcher.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/display/MultiDisplay.h"
 
 namespace android {
 namespace emulation {
@@ -36,12 +35,12 @@ namespace control {
 
 using android::base::eventing::CallbackEventSource;
 using android::base::eventing::EventListener;
-using goldfish::DisplayEvent;
-using goldfish::DisplayId;
-using goldfish::DisplayPtr;
-using goldfish::IMultiDisplay;
-using goldfish::ResizeEvent;
-using goldfish::ResizeEventCallbackSource;
+using ::goldfish::display::DisplayEvent;
+using ::goldfish::display::DisplayId;
+using ::goldfish::display::DisplayPtr;
+using ::goldfish::display::IMultiDisplay;
+using ::goldfish::display::ResizeEvent;
+using ::goldfish::display::ResizeEventCallbackSource;
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::guest_status::AndroidGuestStatus;
 

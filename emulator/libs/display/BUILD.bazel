@@ -1,0 +1,97 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "base",
+    srcs = [
+        "Display.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/display/Display.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//android/async:async_api",
+        "//emulator/libs/base",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "display",
+    srcs = [
+        "MultiDisplay.cpp",
+        "NullDisplay.h",
+        "PixmanDisplay.cpp",
+        "PixmanFrameManager.cpp",
+        "QemuDisplay.cpp",
+        "QemuDisplay.h",
+        "virtio-bridge.c",
+        "virtio-bridge.h",
+    ],
+    hdrs = [
+        "include/goldfish/display/MultiDisplay.h",
+        "include/goldfish/display/MultiDisplayCallbacks.h",
+        "include/goldfish/display/PixmanDisplay.h",
+        "include/goldfish/display/PixmanFrameManager.h",
+        "include/goldfish/display/PixmanImagePtr.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        "//android/logging:absl-c-bridge",
+        "//emulator/libs/base",
+        "//emulator/libs/fps_calculator",
+        "//emulator/libs/physics",
+        "//emulator/plugin/avd:avd_hdrs",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@pixman//:pixman-1",
+        "@pixman//:pixman_simd",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "test-display",
+    testonly = True,
+    srcs = [
+        "test/FakeMultiDisplay.cpp",
+        "test/FakePixmanDisplay.cpp",
+        "test/PixmanImageGenerator.cpp",
+        "test/QemuStubs.c",
+    ],
+    hdrs = [
+        "test/include/goldfish/display/test/FakeMultiDisplay.h",
+        "test/include/goldfish/display/test/FakePixmanDisplay.h",
+        "test/include/goldfish/display/test/ImageGenerationStrategy.h",
+        "test/include/goldfish/display/test/MockDisplay.h",
+        "test/include/goldfish/display/test/PixmanImageGenerator.h",
+    ],
+    includes = ["test/include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":display",
+    ],
+)
+
+cc_test(
+    name = "display_unittests",
+    srcs = [
+        "test/DisplayTest.cpp",
+        "test/FakeMultiDisplayTest.cpp",
+        "test/FakePixmanDisplayTest.cpp",
+        "test/ImageGenerationStrategyTest.cpp",
+        "test/PixmanFrameManagerTest.cpp",
+        "test/PixmanImageGeneratorTest.cpp",
+    ],
+    deps = [
+        ":test-display",
+        "//android/async:libuv_event_loop",
+        "//android/async:threaded_event_loop",
+        "//android/system:googletest_main",
+    ],
+)

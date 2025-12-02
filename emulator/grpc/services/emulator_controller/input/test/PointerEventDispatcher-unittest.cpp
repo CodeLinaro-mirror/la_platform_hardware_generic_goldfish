@@ -22,9 +22,9 @@
 #include "absl/time/time.h"
 #include "gmock/gmock.h"
 
-#include "MockDisplay.h"
 #include "android/emulation/control/input/SlotRegistry.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/display/test/MockDisplay.h"
 #include "standard-headers/linux/input-event-codes.h"
 #include "standard-headers/linux/input.h"
 
@@ -49,7 +49,7 @@ void PrintTo(const android::emulation::control::EvDevEvent& event, std::ostream*
 
 namespace internal {
 
-using goldfish::MockDisplay;
+using ::goldfish::display::test::MockDisplay;
 using namespace std::chrono_literals;
 
 TEST(PenTouchEventTest, EvDevEventsConversion) {
