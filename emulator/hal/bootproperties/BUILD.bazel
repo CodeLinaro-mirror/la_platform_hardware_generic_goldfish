@@ -9,7 +9,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/hal/common:emulator_reset",
         "//emulator/hal/connector:connector_registry_hdrs",
     ],
 )
@@ -22,7 +21,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
-        "//emulator/hal/common:emulator_reset",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
         "@abseil-cpp//absl/container:flat_hash_map",

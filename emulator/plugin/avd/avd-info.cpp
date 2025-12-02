@@ -209,7 +209,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 // This is the same value that is passed to the virtio-wifi module.
                 {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
             },
-            {DummyRegisterEmulatorReset, nullptr}, clientLoop, gQemuLoop.get());
+            clientLoop, gQemuLoop.get());
 
     ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 }

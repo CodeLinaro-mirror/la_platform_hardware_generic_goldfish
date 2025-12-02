@@ -115,8 +115,8 @@ class BootPropertiesDeviceTest : public ::testing::Test {
 
   public:
     void registerWithProps(IBootPropertiesDevice::Properties props) {
-        IBootPropertiesDevice::registerDevice(&registry, props, {qemu_register_reset, nullptr},
-                                              mClientLoop.get(), mQemuLoop.get());
+        IBootPropertiesDevice::registerDevice(&registry, props, mClientLoop.get(),
+                                              mQemuLoop.get());
         device = registry.constructHalDevice<IBootPropertiesDevice>();
         test_socket = registry.halSocket();
         clear();
@@ -135,52 +135,11 @@ class BootPropertiesDeviceTest : public ::testing::Test {
     IBootPropertiesDevice* device;
 };
 
-TEST_F(BootPropertiesDeviceTest, mountsDataPartition) {
-    props["foo"_bps] = "bar";
-    registerWithProps(props);
-    receive("list");
-    EXPECT_TRUE(device->isDataPartitionMounted());
-}
-
 TEST_F(BootPropertiesDeviceTest, sendsBootProperties) {
     props["foo"_bps] = "bar";
     registerWithProps(props);
     receive("list");
     EXPECT_EQ(test_socket->storage, "0007foo=bar0000");
-}
-
-TEST_F(BootPropertiesDeviceTest, receivesMountEvent) {
-    BootPropertyStatus received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](BootPropertyStatus event) { received = event; });
-    receive("list");
-    EXPECT_THAT(received.dataPartitionMounted, Eq(true));
-}
-
-TEST_F(BootPropertiesDeviceTest, registersResetHandler) {
-    EXPECT_NE(sResetHandler, nullptr);
-    EXPECT_EQ(sOpaque, device);
-}
-
-TEST_F(BootPropertiesDeviceTest, resetHandlerResetsBootCompleted) {
-    receive("list");
-
-    // Simulate a reset
-    sResetHandler(sOpaque);
-    EXPECT_THAT(device->isDataPartitionMounted(), Eq(false));
-}
-
-TEST_F(BootPropertiesDeviceTest, firesResetEvent) {
-    BootPropertyStatus received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](BootPropertyStatus event) { received = event; });
-
-    receive("list");
-    EXPECT_THAT(received.dataPartitionMounted, Eq(true));
-
-    // Simulate a reset
-    sResetHandler(sOpaque);
-    EXPECT_THAT(received.dataPartitionMounted, Eq(false));
 }
 
 }  // namespace goldfish::devices::boot

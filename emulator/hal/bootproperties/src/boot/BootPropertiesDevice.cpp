@@ -21,7 +21,6 @@
 #include "absl/strings/str_format.h"
 
 #include "goldfish/devices/qemud.h"
-#include "goldfish/hal/common/emulator_reset.h"
 
 namespace goldfish::devices::boot {
 
@@ -31,23 +30,12 @@ IBootPropertiesDevice::PropertyName operator""_bps(const char* c_str, size_t len
 }
 class BootPropertiesDevice : public IBootPropertiesDevice {
   public:
-    BootPropertiesDevice(Properties properties, EmulatorResetCallbacks resetCallbacks)
+    BootPropertiesDevice(Properties properties)
             : mProperties(std::move(properties))
-            , mResetCallbacks(resetCallbacks)
             , mQemudParser([this](const void* data, size_t size) {
                 return handleMessage(std::string_view(static_cast<const char*>(data), size));
             }) {
         VLOG(1) << "BootProperties device has been created";
-        if (mResetCallbacks.do_register) {
-            mResetCallbacks.do_register(BootPropertiesDevice::QEMUResetHandler, this);
-        }
-    }
-
-    ~BootPropertiesDevice() override {
-        handleResetEvent();
-        if (mResetCallbacks.do_unregister) {
-            mResetCallbacks.do_unregister(BootPropertiesDevice::QEMUResetHandler, this);
-        }
     }
 
     void send(std::string_view msg) {
@@ -55,8 +43,6 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
         VLOG(2) << "Sending " << encoded;
         socket()->send(encoded);
     }
-
-    bool isDataPartitionMounted() override { return mDataPartitionMounted; }
 
     void onConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
     void onClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
@@ -70,38 +56,20 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
                 send(absl::StrFormat("%s=%s", name, value));
             }
             send("\0");
-            mDataPartitionMounted = true;
-            fireEvent({.dataPartitionMounted = true});
         }
         return true;
     }
 
   private:
-    static void QEMUResetHandler(void* opaque) {
-        auto device = static_cast<BootPropertiesDevice*>(opaque);
-        device->handleResetEvent();
-    }
-
-    void handleResetEvent() {
-        {
-            mDataPartitionMounted = false;
-        }
-        fireEvent({.dataPartitionMounted = false});
-    }
-
-    Properties mProperties;
-    EmulatorResetCallbacks mResetCallbacks;
+    const Properties mProperties;
     qemud::Parser mQemudParser;
-    bool mDataPartitionMounted{false};
 };
 
 void IBootPropertiesDevice::registerDevice(IConnectorRegistry* registry, Properties properties,
-                                           EmulatorResetCallbacks resetCallbacks,
                                            EventLoop* clientLoop, EventLoop* qemuLoop) {
     registry->registerHalQemuDevice(std::string(IBootPropertiesDevice::serviceName), clientLoop,
-                                    qemuLoop, [properties = std::move(properties), resetCallbacks] {
-                                        return std::make_shared<BootPropertiesDevice>(
-                                                std::move(properties), resetCallbacks);
+                                    qemuLoop, [properties = std::move(properties)] {
+                                        return std::make_shared<BootPropertiesDevice>(properties);
                                     });
 }
 

@@ -19,24 +19,17 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "BootPropertyString.h"
-#include "aemu/base/events/EventSources.h"
 #include "android/boot/BootPropertyString.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/hal/common/emulator_reset.h"
 #include "goldfish/hal/plug/HalPlug.h"
 
 namespace goldfish::devices::boot {
 
-using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
 using goldfish::devices::BootPropertyString;
 using goldfish::devices::LimitedString;
 
 using namespace std::string_view_literals;
-
-struct BootPropertyStatus {
-    bool dataPartitionMounted{false};
-};
 
 /**
  * @brief Interface for reporting boot properties to the guest after the data
@@ -77,7 +70,7 @@ struct BootPropertyStatus {
  *
  * ```
  */
-class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPropertyStatus> {
+class IBootPropertiesDevice : public HalPlug {
   public:
     virtual ~IBootPropertiesDevice() override {}
 
@@ -85,14 +78,6 @@ class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPro
      * @brief QEMU service name for the bootproperties device.
      */
     static constexpr std::string_view serviceName = "boot-properties"sv;
-
-    /**
-     * @brief Checks if the data partition is mounted within the guest. This will
-     * return true once the guest has requested the boot properties.
-     *
-     * @return True if the data partition is mounted; false otherwise.
-     */
-    virtual bool isDataPartitionMounted() = 0;
 
     /**
      * @brief Maximum allowed length for a property name.
@@ -125,8 +110,7 @@ class IBootPropertiesDevice : public HalPlug, public CallbackEventSource<BootPro
      * @param resetCallbacks The struct containing register/unregister functions.
      */
     static void registerDevice(IConnectorRegistry* registry, Properties properties,
-                               EmulatorResetCallbacks resetCallbacks, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+                               EventLoop* clientLoop, EventLoop* qemuLoop);
 };
 
 // User-defined literal for creating PropertyName objects.
