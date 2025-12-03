@@ -7,7 +7,8 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 
-#include "android/base/testing/TestSystem.h"
+#include "android/base/system/File.h"
+#include "android/base/system/System.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/devices/mock_avd.h"
 #include "disk_drive.h"
@@ -21,8 +22,6 @@ using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::Return;
 using ::testing::ReturnRef;
-
-using android::base::System;
 
 class MockDeviceContainer {
   public:
@@ -52,19 +51,17 @@ class MockDeviceContainer {
 
 TEST(ConfigureDrivesTest, AddDrives) {
     auto launcher_path = std::filesystem::temp_directory_path();
-    base::TestSystem sys(launcher_path);
     auto user_dir = launcher_path / "user";
     auto system_dir = launcher_path / "system";
     fs::create_directory(user_dir);
     fs::create_directory(system_dir);
     fs::create_directory(system_dir / "data");
+    base::file::touch(system_dir / "data" / "empty_data_disk");
 
-    System::get()->envSet("ANDROID_EMULATOR_HOME", launcher_path.string());
+    android::base::System::get()->envSet("ANDROID_EMULATOR_HOME", launcher_path.string());
 
     MockDeviceContainer mock_container;
     MockAvd mock_avd;
-    //     auto avd = std::make_unique<MockAvd>();
-    //     MockAvd* avd_ptr = avd.get();
     AndroidOptions opts{};
     HardwareConfig hw;
 

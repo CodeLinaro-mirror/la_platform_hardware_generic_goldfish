@@ -26,10 +26,8 @@
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/system/File.h"
 #include "android/base/system/storage_capacity.h"
-#include "android/emulation/control/adb/adbkey.h"
 #include "android/filesystems/ext4_resize.h"
 #include "android/filesystems/ext4_utils.h"
-#include "android/goldfish/config/config_dirs.h"
 
 namespace android::goldfish {
 
@@ -40,9 +38,6 @@ namespace {
 using android::base::StorageCapacity;
 using android::base::operator""_MiB;
 using android::base::operator""_TiB;
-
-using ::goldfish::adb::adb_auth_keygen;
-using ::goldfish::adb::getAdbKeyPath;
 
 absl::Status resizePartition(fs::path partition, StorageCapacity size) {
     constexpr auto minSize = 128_MiB;
@@ -114,87 +109,6 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
     return absl::OkStatus();
 }
 
-absl::Status createExt4ImageFromDirectory(fs::path source, fs::path destination,
-                                          StorageCapacity size, std::string mount_point) {
-    if (android_createExt4ImageFromDir(destination.string().c_str(), source.string().c_str(),
-                                       size.bytes(), mount_point.c_str()) == 0) {
-        return absl::OkStatus();
-    }
-
-    return absl::InternalError(
-            absl::StrFormat("Failed to create Ext4 image from directory '%s' to '%s'",
-                            source.string(), destination.string()));
-}
-
-absl::Status writePublicKey(const fs::path& guestAdbKeyPath, const std::string& pubKey) {
-    std::ofstream pubKeyFile(guestAdbKeyPath);
-    if (!pubKeyFile.is_open()) {
-        return absl::UnknownError(
-                absl::StrFormat("Error opening public key file: %s", guestAdbKeyPath.string()));
-    }
-    pubKeyFile << pubKey << std::endl;
-    return absl::OkStatus();
-}
-
-absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
-    // The adb_keys file permission will also be set in guest system.
-    // Referencing system/core/rootdir/init.usb.rc
-    static const int kAdbKeyDirFilePerm = 02750;
-    std::error_code ec;
-    fs::copy(from, to, fs::copy_options::recursive, ec);
-    if (ec) {
-        return absl::DataLossError(
-                absl::StrFormat("Failed to copy from: %s to %s due to %s. There might "
-                                "be lingering data in %s",
-                                from.string(), to.string(), ec.message(), to.string()));
-    }
-    fs::path adbKeyPubPath = getAdbKeyPath(::goldfish::adb::kPublicKeyFileName);
-    fs::path adbKeyPrivPath = getAdbKeyPath(::goldfish::adb::kPrivateKeyFileName);
-
-    if (adbKeyPubPath == "" && adbKeyPrivPath == "") {
-        fs::path path = ConfigDirs::getUserDirectory() / ::goldfish::adb::kPrivateKeyFileName;
-        // try to generate the private key
-        if (!adb_auth_keygen(path)) {
-            return absl::InternalError(
-                    absl::StrFormat("Failed to create a private key in %s", path.string()));
-        }
-        adbKeyPrivPath = getAdbKeyPath(::goldfish::adb::kPrivateKeyFileName);
-        if (adbKeyPrivPath == "") {
-            return absl::NotFoundError(absl::StrFormat("Unable discover adb path for: %s",
-                                                       ::goldfish::adb::kPrivateKeyFileName));
-        }
-    }
-    fs::path guestAdbKeyDir = to / "misc" / "adb";
-    fs::path guestAdbKeyPath = guestAdbKeyDir / "adb_keys";
-
-    fs::create_directories(guestAdbKeyDir);
-    if (adbKeyPubPath == "") {
-        // generate from private key
-        std::string pubKey;
-        if (::goldfish::adb::pubkey_from_privkey(adbKeyPrivPath, &pubKey)) {
-            auto status = writePublicKey(guestAdbKeyPath, pubKey);
-            if (!status.ok()) {
-                return status;
-            }
-            VLOG(1) << "Using re-constructed public key from " << adbKeyPrivPath.string();
-        }
-    } else {
-        std::error_code ec;
-        fs::copy(adbKeyPubPath, guestAdbKeyPath, ec);
-        if (ec) {
-            return absl::DataLossError(absl::StrFormat("Failed to copy from: %s to %s due to %s",
-                                                       adbKeyPubPath.string(),
-                                                       guestAdbKeyPath.string(), ec.message()));
-        }
-    }
-
-    // Setting permissions to 0640
-    fs::permissions(guestAdbKeyPath,
-                    fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read,
-                    fs::perm_options::add);
-    return absl::OkStatus();
-}
-
 }  // namespace
 
 absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
@@ -219,32 +133,10 @@ absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, ui
             // sdcard.
             return absl::OkStatus();
         }
-
-        // TODO just a tmpdir
-        fs::path tmp_data_path = user_data.parent_path() / "data";
-        VLOG(1) << "Creating ext4 userdata partition: " << tmp_data_path << " from " << init_data;
-        RETURN_IF_ERROR(prepareDataFolder(init_data, tmp_data_path));
-
-        LOG(INFO) << "Creating image [" << user_data << "] of size " << data_size;
-        absl::Status create_status =
-                createExt4ImageFromDirectory(tmp_data_path, user_data, data_size, "userdata");
-        fs::remove_all(tmp_data_path);
-        RETURN_IF_ERROR(create_status);
-
-        // Check if creating img succeed
-        ASSIGN_OR_RETURN(auto diskSize, base::file::file_size(user_data));
-        if (diskSize > 0) {
-            return absl::OkStatus();
-        } else {
-            fs::remove(user_data);
-            return absl::DataLossError(
-                    absl::StrFormat("Failed to properly configure the partition. The file "
-                                    "'%s' has been deleted. Reason: %s",
-                                    user_data, create_status.message()));
-        }
+        return absl::UnimplementedError(
+                "no empty_data_disk marker found but data dirs are not supported by this version "
+                "of the emulator");
     }
-
-    return absl::OkStatus();
 }
 
 }  // namespace android::goldfish
