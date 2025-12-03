@@ -147,3 +147,10 @@ compile_commands_json(
     tags = ["manual"],  # Invoke explicitly
     targets = TESTS + PERF_TESTS + QEMU + EMULATOR,
 )
+
+# This is the clang tidy configuration used by the goldfish project
+filegroup(
+    name = "clang_tidy_config",
+    srcs = [".clang-tidy"],
+    visibility = ["//visibility:public"],
+)
