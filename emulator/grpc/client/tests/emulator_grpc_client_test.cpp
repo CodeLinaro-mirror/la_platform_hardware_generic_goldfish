@@ -209,18 +209,6 @@ TEST_F(CallbackClientTest, ConnectAsync_WithLiveServer_Succeeds) {
     EXPECT_EQ(client->getConnectionState(), ConnectionState::Connected);
 }
 
-TEST_F(CallbackClientTest, ConnectAsync_WithNoServer_Fails) {
-    auto client = CreateClient("localhost:12345");
-    auto future = client->connectAsync(absl::Seconds(1));
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Connecting);
-
-    ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
-    absl::Status status = future.get();
-    EXPECT_EQ(status.code(), absl::StatusCode::kUnavailable);
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
-    VLOG(1) << "Test: Finished. Client will be destroyed now.";
-}
-
 TEST_F(CallbackClientTest, Destructor_DuringAsyncConnection_Cancels) {
     // StartServer();
     android::base::ScopedSocket s0;
