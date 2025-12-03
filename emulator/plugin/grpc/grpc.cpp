@@ -34,6 +34,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/avd-private.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/display/MultiDisplay.h"
 #include "goldfish/tools/aemu_version.h"

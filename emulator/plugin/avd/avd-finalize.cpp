@@ -14,7 +14,7 @@
 
 #include "goldfish/avd/avd-finalize.h"
 
-#include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/avd-private.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

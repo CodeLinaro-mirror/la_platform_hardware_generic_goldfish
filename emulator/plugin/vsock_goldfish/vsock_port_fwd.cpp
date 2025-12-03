@@ -34,7 +34,7 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/avd/avd-info.h"
+#include "goldfish/avd/avd-private.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connection_awaiter.h"

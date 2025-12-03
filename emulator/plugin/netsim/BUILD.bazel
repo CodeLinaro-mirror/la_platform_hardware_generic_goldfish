@@ -7,7 +7,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/grpc/client:emulator_grpc_client",
-        "//emulator/plugin/avd",
+        "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@grpc//:grpc++",

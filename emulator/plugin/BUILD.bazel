@@ -24,7 +24,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             }),
             deps = [
                 "//emulator/plugin/adb-vsock",
-                "//emulator/plugin/avd",
+                "//emulator/plugin/avd:impl",
                 "//emulator/plugin/battery",
                 "//emulator/plugin/grpc",
                 "//emulator/plugin/netsim:netsim-chardev",

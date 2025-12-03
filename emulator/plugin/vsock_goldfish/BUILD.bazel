@@ -46,7 +46,7 @@ cc_library(
         "//emulator/libs/UniqueIdAllocator",
         "//emulator/libs/archive:QEMUFileArchive",
         "//emulator/libs/debug",
-        "//emulator/plugin/avd",
+        "//emulator/plugin/avd:impl",
         "@aemu//base:event-support",
         "@qemu//:qemu-headers",
     ],
