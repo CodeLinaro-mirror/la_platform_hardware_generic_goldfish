@@ -23,6 +23,8 @@
 #include <string_view>
 
 #ifdef _WIN32
+// clang-format off
+// IWYU pragma: begin_keep
 #include <windows.h>
 #include <mmsystem.h>
 #include <DSound.h>
@@ -31,6 +33,8 @@
 #pragma comment(lib, "Ole32.lib")
 
 #include "goldfish/base/IntrusivePtr.h"
+// IWYU pragma: end_keep
+// clang-format on
 #endif
 
 #include "absl/log/log.h"

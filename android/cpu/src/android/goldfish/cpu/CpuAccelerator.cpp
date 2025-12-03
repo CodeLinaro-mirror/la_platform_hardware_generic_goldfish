@@ -14,8 +14,13 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN 1
+// IWYU pragma: end_keep
+// clang-format on
 #include <windows.h>
 #include <winioctl.h>
+// IWYU pragma: end_keep
+// clang-format on
+
 #else
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -124,9 +129,13 @@ GlobalState gGlobals = {
 
 #if HAVE_WHPX
 
+// IWYU pragma: end_keep
+// clang-format on
 #include <WinHvEmulation.h>
 #include <WinHvPlatform.h>
 #include <windows.h>
+// IWYU pragma: end_keep
+// clang-format on
 
 /* debugging */
 #define DEBUG 0

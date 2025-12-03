@@ -43,6 +43,9 @@
 #include "android/base/system/storage_capacity.h"
 
 #ifdef _WIN32
+
+// IWYU pragma: end_keep
+// clang-format on
 #include <ntddscsi.h>
 #include <psapi.h>
 #include <shlobj.h>
@@ -54,6 +57,8 @@
 #include "aemu/base/files/ScopedRegKey.h"
 #include "android/base/system/Win32UnicodeString.h"
 #include "android/base/system/Win32Utils.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 #endif
 

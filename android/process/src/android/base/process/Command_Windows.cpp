@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// IWYU pragma: end_keep
+// clang-format on
 #include <windows.h>
 
 // Process entry
 #include <Tlhelp32.h>
 #include <psapi.h>
+// IWYU pragma: end_keep
+// clang-format on
 
 #include <cassert>
 
@@ -25,8 +29,8 @@
 #include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/process/Command.h"
 #include "aemu/base/streams/RingStreambuf.h"
-#include "android/base/system/Win32UnicodeString.h"
 #include "android/base/process/exec.h"
+#include "android/base/system/Win32UnicodeString.h"
 
 #define DEBUG 0
 
@@ -268,7 +272,7 @@ struct WindwsPipe {
 class WindowsOverseer : public ProcessOverseer {
   public:
     WindowsOverseer(HANDLE process, std::vector<std::unique_ptr<WindwsPipe>> mPipes)
-        : mProcess(process), mPipes(std::move(mPipes)) {}
+            : mProcess(process), mPipes(std::move(mPipes)) {}
 
     ~WindowsOverseer() { DD("~WindowsOverseer"); }
 
@@ -644,7 +648,7 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
         return processes;
     }
     do {
-	if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
+        if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
             processes.push_back(fromPid(process.th32ProcessID));
         }
     } while (Process32NextW(snapshot, &process));

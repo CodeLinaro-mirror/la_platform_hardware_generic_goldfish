@@ -23,11 +23,15 @@
 #define WINVER 0x0600
 #define _WIN32_WINNT 0x0600
 
+// IWYU pragma: end_keep
+// clang-format on
 #include "android/base/system/Win32Utils.h"
 
 #include <windows.h>
 #include <winnls.h>
 
+// IWYU pragma: end_keep
+// clang-format on
 #include "gtest/gtest.h"
 
 namespace android {
