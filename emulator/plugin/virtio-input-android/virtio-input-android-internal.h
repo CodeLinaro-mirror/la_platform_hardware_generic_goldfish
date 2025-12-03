@@ -14,10 +14,14 @@
 #ifndef VIRTIO_INPUT_ANDROID_H
 #define VIRTIO_INPUT_ANDROID_H
 
+// clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "qom/object.h"
 #include "hw/virtio/virtio-input.h"
 #include "hw/virtio/virtio-pci.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 /**
  * @defgroup virtio-input-android Virtio Input Android Driver

@@ -13,8 +13,10 @@
 // limitations under the License.
 
 // clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "ui/kbd-state.h"
+// IWYU pragma: end_keep
 // clang-format on
 
 // These are stubs for unit tests.

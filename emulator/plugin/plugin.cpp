@@ -42,9 +42,13 @@
 // library and initialize the crashpad crash engine upon launch.
 #include "google/system/aemu_func_defs.h"
 
+// clang-format off
+// IWYU pragma: begin_keep
 extern "C" {
     #include "qemu/error-report.h"
 }
+// IWYU pragma: end_keep
+// clang-format on
 
 namespace {
 

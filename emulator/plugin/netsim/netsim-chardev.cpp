@@ -18,12 +18,14 @@
 
 extern "C" {
 // clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/osdep.h"
-// clang-format on
 #include "chardev/char.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/option.h"
+// IWYU pragma: end_keep
+// clang-format on
 }
 
 #undef send

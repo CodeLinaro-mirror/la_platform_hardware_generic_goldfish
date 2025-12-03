@@ -20,14 +20,16 @@
 
 extern "C" {
 // clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/osdep.h"
-// clang-format on
 #include "hw/qdev-core.h"
 #include "net/net.h"
 #include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
+// IWYU pragma: end_keep
+// clang-format on
 }
 
 #undef send

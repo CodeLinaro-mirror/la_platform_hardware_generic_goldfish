@@ -19,9 +19,13 @@
 
 __BEGIN_DECLS
 
+// clang-format off
+// IWYU pragma: begin_keep
 // Include the QEMU headers for RunState and ShutdownCause
 #include "qemu/osdep.h"
 #include "system/runstate.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 // Getter and setter for RunState
 RunState runstate_get();

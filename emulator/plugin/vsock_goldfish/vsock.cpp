@@ -32,11 +32,14 @@
 #include "goldfish/vsock/snapshot.h"
 #include "goldfish/vsock/vsock_low_level.h"
 
+// clang-format off
+// IWYU pragma: begin_keep
 extern "C" {
 #include "qemu/compiler.h"
 #include "standard-headers/linux/virtio_vsock.h"
 }
-
+// IWYU pragma: end_keep
+// clang-format on
 #define DEBUG_MSG(FMT, ...)  // fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
 
 namespace {

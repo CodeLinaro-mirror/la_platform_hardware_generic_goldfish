@@ -16,9 +16,13 @@
 extern "C" {
 #endif
 
+// clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/compiler.h"
 #define coroutine_mixed_fn  // "qemu/osdep.h" breaks the Windows build
 #include "migration/qemu-file-types.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 #ifdef __cplusplus
 }  // extern "C"

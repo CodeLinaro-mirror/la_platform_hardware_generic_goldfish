@@ -18,10 +18,14 @@ struct virtio_vsock_event;
 struct virtio_vsock_hdr;
 typedef unsigned VirtIOVSockSendResult;
 
+// clang-format off
+// IWYU pragma: begin_keep
 #include <stdbool.h>
 #include "qemu/typedefs.h"
 #include "stddef.h"
 #include "stdint.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 #define VirtIOVSockSend_NeedNotify_SHIFT 0
 #define VirtIOVSockSend_VqFull_SHIFT 1
