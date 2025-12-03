@@ -17,9 +17,9 @@
 
 // clang-format off
 // IWYU pragma: begin_keep
-#include <qemu/osdep.h>
-#include <qom/object.h>
-#include <hw/virtio/virtio-gpu.h>
+#include "qemu/osdep.h"
+#include "qom/object.h"
+#include "hw/virtio/virtio-gpu.h"
 // IWYU pragma: end_keep
 // clang-format on
 

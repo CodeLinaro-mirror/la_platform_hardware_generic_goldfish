@@ -16,6 +16,8 @@
 
 #include <stdbool.h>
 
+// clang-format off
+// IWYU pragma: begin_keep
 #include "qemu/osdep.h"
 #include "hw/pci/pci.h"
 #include "hw/virtio/virtio.h"
@@ -25,6 +27,8 @@
 #include "standard-headers/linux/virtio_ids.h"
 #include "qemu/iov.h"
 #include "qapi/visitor.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 #define __packed
 typedef int8_t s8;

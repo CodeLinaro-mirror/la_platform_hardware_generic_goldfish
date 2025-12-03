@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// clang-format off
+// IWYU pragma: begin_keep
 #include <stdbool.h>
-#include <qemu/typedefs.h>
-
 #include "qemu/osdep.h"
+#include "qemu/typedefs.h"
 #include "qom/object.h"
+// IWYU pragma: end_keep
+// clang-format on
 
 typedef struct VirtIOInputHID VirtIOInputHID;
 
