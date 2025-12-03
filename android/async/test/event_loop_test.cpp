@@ -147,31 +147,6 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskWithinATask) {
     EXPECT_TRUE(future.get());
 }
 
-// From https://github.com/google/googletest/blob/main/docs/advanced.md#death-tests-and-threads
-// Due to well-known problems with forking in the presence of threads, death tests should be run in
-// a single-threaded context. Sometimes, however, it isn't feasible to arrange that kind of
-// environment. For example, statically-initialized modules may start threads before main is ever
-// reached. Once threads have been created, it may be difficult or impossible to clean them up.
-//
-// For us this translates into all sorts of strange behavior.
-TEST_P(EventLoopTest, DISABLED_PostAndWaitFromLoopThreadFails) {
-    if (mLoopType == "libuv") {
-        std::promise<void> status_promise;
-        auto status_future = status_promise.get_future();
-        runInThread();
-        (void)loop->post([this, &status_promise]() {
-            EXPECT_DEATH(this->loop->postAndWait([]() { return false; }),
-                         "postAndWait cannot be called from the event loop.");
-            status_promise.set_value();
-        });
-        runUntil(status_future);
-    } else {  // qemu
-        // For qemu, the main test thread is the loop thread.
-        EXPECT_DEATH(this->loop->postAndWait([]() { return false; }),
-                     "postAndWait cannot be called from the event loop.");
-    }
-}
-
 TEST_P(EventLoopTest, PostAndWaitBool) {
     runInThread();
     std::promise<absl::StatusOr<bool>> status_promise;

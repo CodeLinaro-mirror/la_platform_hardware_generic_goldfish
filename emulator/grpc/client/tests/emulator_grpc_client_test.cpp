@@ -221,42 +221,6 @@ TEST_F(CallbackClientTest, ConnectAsync_WithNoServer_Fails) {
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
-// TODO FIX this test is flakey due to a race in the connectAsync callback handling - the fix will
-// require changing how the grpc connection monitor works.
-TEST_F(CallbackClientTest, DISABLED_Disconnect_DuringAsyncConnection_Cancels) {
-    StartServer();
-    VLOG(1) << "Test: Creating client.";
-    auto client = CreateClient(server_address);
-    VLOG(1) << "Test: Calling connectAsync.";
-    auto future = client->connectAsync(absl::Seconds(10));
-    VLOG(1) << "Test: Calling disconnect.";
-    client->disconnect();
-
-    VLOG(1) << "Test: Waiting for future.";
-    ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
-    VLOG(1) << "Test: Future is ready. Getting status.";
-    absl::Status status = future.get();
-    EXPECT_EQ(status.code(), absl::StatusCode::kCancelled);
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
-    VLOG(1) << "Test: Finished. Client will be destroyed now.";
-}
-
-// TODO FIX this test is flakey
-TEST_F(CallbackClientTest, DISABLED_ConnectAsync_WithLiveServer_CanReconnect) {
-    StartServer();
-    VLOG(1) << "Test: Creating client.";
-    auto client = CreateClient(server_address);
-    VLOG(1) << "Test: Calling connectAsync.";
-    auto future = client->connectAsync(absl::Seconds(10));
-    ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
-
-    VLOG(1) << "Test: Calling disconnect.";
-    client->disconnect();
-    auto snd = client->connectAsync(absl::Seconds(10));
-    ASSERT_EQ(snd.wait_for(std::chrono::seconds(1)), std::future_status::ready);
-    EXPECT_EQ(snd.get(), absl::OkStatus());
-}
-
 TEST_F(CallbackClientTest, Destructor_DuringAsyncConnection_Cancels) {
     // StartServer();
     android::base::ScopedSocket s0;

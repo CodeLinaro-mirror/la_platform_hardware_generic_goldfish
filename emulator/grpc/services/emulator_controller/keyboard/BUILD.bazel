@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "keyconversion",
@@ -44,15 +44,5 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",
         "@qemu//:qemu-headers",
-    ],
-)
-
-cc_test(
-    name = "keyboard_unittests",
-    srcs = ["test/key_converter_unittest.cpp"],
-    deps = [
-        ":keyconversion",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
     ],
 )

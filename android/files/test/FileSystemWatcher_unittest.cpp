@@ -114,23 +114,6 @@ class FileSystemWatcherTest : public ::testing::Test {
     std::filesystem::path mTempDir;
 };
 
-// TODO FIX this test segfaults
-TEST_F(FileSystemWatcherTest, DISABLED_DetectsFileCreation) {
-    auto expected_path = (mTempDir / "test_file1.txt").string();
-    TestEventHandler handler(expected_path);
-
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir.string(), std::ref(handler));
-    ASSERT_TRUE(mWatcher->start());
-
-    createFile("test_file1.txt");
-
-    auto changes = handler.waitForChange(absl::Seconds(5));
-    // createFile generates both a CREATE and a MODIFY event. We only care
-    // that the CREATE event was received.
-    EXPECT_THAT(changes,
-                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Created)));
-}
-
 TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     auto expected_path = (mTempDir / "test_file2.txt").string();
     TestEventHandler handler(expected_path);

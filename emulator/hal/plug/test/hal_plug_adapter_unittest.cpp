@@ -191,26 +191,3 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
     onCloseCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
     unplugImplCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
-
-// TODO Fix this test is very flakey
-TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
-    connect();
-    bool callClose = false;
-    absl::Notification unplugCalled;
-    absl::Notification postedClose;
-    EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() -> cable::PlugPtr {
-        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->get_id());
-        unplugCalled.Notify();
-        mSocketIsOpen = false;
-        return nullptr;
-    }));
-
-    mClientLoop->post([&] {
-        mMockHalPlug->getSocket()->close();
-        callClose = true;
-        postedClose.Notify();
-    });
-    postedClose.WaitForNotificationWithTimeout(absl::Milliseconds(100));
-    unplugCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
-    ASSERT_TRUE(callClose);
-}
