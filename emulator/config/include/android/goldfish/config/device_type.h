@@ -27,4 +27,4 @@ enum class DeviceType : uint8_t {
     kUnknown = 255,
 };
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

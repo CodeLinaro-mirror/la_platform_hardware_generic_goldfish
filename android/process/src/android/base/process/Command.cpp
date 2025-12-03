@@ -41,7 +41,7 @@ ProcessExitCode Process::exitCode() const {
 class ProcessOutputImpl : public ProcessOutput {
   public:
     explicit ProcessOutputImpl(std::unique_ptr<RingStreambuf> buffer)
-        : mBuffer(std::move(buffer)), mStream(mBuffer.get()) {}
+            : mBuffer(std::move(buffer)), mStream(mBuffer.get()) {}
 
     std::string asString() override {
         return std::string(std::istreambuf_iterator<char>{asStream()}, {});

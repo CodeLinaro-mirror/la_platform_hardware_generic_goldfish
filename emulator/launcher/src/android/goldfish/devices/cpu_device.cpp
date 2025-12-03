@@ -23,7 +23,6 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/utils/status_macros.h"
-
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
@@ -51,29 +50,35 @@ Avd::CpuArchitecture getHostArch() {
 #endif
 }
 
-bool getAccelForcedOff(const EmulatorConfig &emulator) {
+bool getAccelForcedOff(const EmulatorConfig& emulator) {
     if (char* accel = emulator.opts().accel; accel && std::string_view(accel) == "off"sv) {
         return true;
     }
     return emulator.opts().no_accel;
 }
 
-absl::StatusOr<std::string> getAccelString(const EmulatorConfig &emulator, Avd::CpuArchitecture host_arch, Avd::CpuArchitecture target_arch) {
+absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
+                                           Avd::CpuArchitecture host_arch,
+                                           Avd::CpuArchitecture target_arch) {
     if (getAccelForcedOff(emulator)) {
         LOG(WARNING) << "-no-accel option passed so forcing TCG. This will "
-                        << "result in a very slow emulator!";
+                     << "result in a very slow emulator!";
         return "tcg";
     }
 
     auto supported = GetCurrentCpuAccelerator();
     if (supported == CPU_ACCELERATOR_NONE) {
-        return absl::InvalidArgumentError("CPU accelerator not available. If you really want to use TCG then pass -no-accel option");
+        return absl::InvalidArgumentError(
+                "CPU accelerator not available. If you really want to use TCG then pass -no-accel "
+                "option");
     }
 
     if (target_arch != host_arch) {
         LOG(WARNING) << "target arch does not match host arch so forcing TCG. "
-                        << "This will result in a very slow emulator!";
-        return absl::InvalidArgumentError("CPU accelerator does not match target arch. If you really want to use TCG then pass -no-accel option");
+                     << "This will result in a very slow emulator!";
+        return absl::InvalidArgumentError(
+                "CPU accelerator does not match target arch. If you really want to use TCG then "
+                "pass -no-accel option");
     }
 
     // TODO(whollins): support any other values of -accel flag?
@@ -83,21 +88,21 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig &emulator, Avd::
 
 absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch) {
     switch (target_arch) {
-        case Avd::CpuArchitecture::kArm:
-            return "cortex-a53";
-        case Avd::CpuArchitecture::kX86:
-            // TODO(hshan): switch to better cpu model for linux/windows
-            // Maybe "host"?
-            return "SandyBridge";
-        case Avd::CpuArchitecture::kRiscV:
-        case Avd::CpuArchitecture::kUnknown:
-        default:
-            return absl::UnimplementedError("No CPU available for target architecture");
+    case Avd::CpuArchitecture::kArm:
+        return "cortex-a53";
+    case Avd::CpuArchitecture::kX86:
+        // TODO(hshan): switch to better cpu model for linux/windows
+        // Maybe "host"?
+        return "SandyBridge";
+    case Avd::CpuArchitecture::kRiscV:
+    case Avd::CpuArchitecture::kUnknown:
+    default:
+        return absl::UnimplementedError("No CPU available for target architecture");
     }
 }
 
-absl::StatusOr<int> getCores(const EmulatorConfig &emulator, const HardwareConfig &hw) {
-    if (auto *c = emulator.opts().cores; c != nullptr) {
+absl::StatusOr<int> getCores(const EmulatorConfig& emulator, const HardwareConfig& hw) {
+    if (auto* c = emulator.opts().cores; c != nullptr) {
         uint64_t cores;
         if (absl::SimpleAtoi(c, &cores)) {
             return cores;
@@ -132,9 +137,7 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
 
 std::vector<std::string> CpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     return {
-        "-smp", std::to_string(mCores),
-        "-cpu", mCpu,
-        "-accel", mAccelerator,
+        "-smp", std::to_string(mCores), "-cpu", mCpu, "-accel", mAccelerator,
     };
 }
 

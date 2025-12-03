@@ -34,9 +34,9 @@ typedef struct {
  * specified by 'cpu_index'.
  *
  * Args:
- *   cpu_index: The index of the CPU core (0 to aemu_cpus_count() - 1) on which the callback should run.
- *   callback: A pointer to a cpus_callback struct containing the function and opaque data. This callback
- *   object must live until the callback has been run.
+ *   cpu_index: The index of the CPU core (0 to aemu_cpus_count() - 1) on which the callback should
+ * run. callback: A pointer to a cpus_callback struct containing the function and opaque data. This
+ * callback object must live until the callback has been run.
  *
  * Returns:
  *   true if the callback was successfully scheduled, false otherwise.

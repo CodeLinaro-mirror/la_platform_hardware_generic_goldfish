@@ -9,12 +9,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include <filesystem>
-#include <fstream>
-#include <memory>
+#include "disk_drive.h"
 
 #include <gtest/gtest.h>
 #include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
+#include <memory>
 
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
@@ -23,8 +25,6 @@
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/goldfish/devices/fake_emulator.h"
-
-#include "disk_drive.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
@@ -90,7 +90,6 @@ TEST(RoDrive, MissingImage) {
     EXPECT_THAT(dev.initialize(emu.config()), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-
 TEST(RwDrive, Basic_x86) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
@@ -101,7 +100,7 @@ TEST(RwDrive, Basic_x86) {
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
-        .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu.config()));
@@ -126,7 +125,7 @@ TEST(RwDrive, Basic_arm) {
 
     FakeEmulator emu;
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
-        .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
+            .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
     EXPECT_OK(dev.initialize(emu.config()));

@@ -30,14 +30,14 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
  * configuration properties necessary for the emulator to boot.
  */
 class InitrdDevice : public Device {
- public:
-  explicit InitrdDevice() : Device("initrd") {}
+  public:
+    explicit InitrdDevice() : Device("initrd") {}
 
-  absl::Status initialize(const EmulatorConfig& emulator) override;
-  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
- private:
-  fs::path mUserRamdisk;
+  private:
+    fs::path mUserRamdisk;
 };
 
 }  // namespace android::goldfish

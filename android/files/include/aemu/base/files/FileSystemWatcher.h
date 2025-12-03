@@ -14,7 +14,8 @@
 
 #pragma once
 
-#include <stddef.h>       // for size_t
+#include <stddef.h>  // for size_t
+
 #include <filesystem>
 #include <functional>     // for function
 #include <memory>         // for unique_ptr
@@ -31,7 +32,7 @@ namespace base {
 // Note: It is very expensive on mac os, so do not observe large directory
 // structures with this.
 class FileSystemWatcher {
-public:
+  public:
     // On one day we will have std::filesystem everywhere..
     using Path = std::filesystem::path;
 
@@ -44,11 +45,9 @@ public:
     };
 
     // Change type, and file that was created, deleted or changed.
-    using FileSystemWatcherCallback =
-            std::function<void(WatcherChangeType, const Path&)>;
+    using FileSystemWatcherCallback = std::function<void(WatcherChangeType, const Path&)>;
 
-    FileSystemWatcher(FileSystemWatcherCallback callback)
-        : mChangeCallback(callback) {}
+    FileSystemWatcher(FileSystemWatcherCallback callback) : mChangeCallback(callback) {}
     virtual ~FileSystemWatcher() = default;
 
     virtual bool start() = 0;
@@ -57,8 +56,7 @@ public:
     // Watches for changes in the given directory.
     // Returns nullptr if path is not a directory.
     static std::unique_ptr<FileSystemWatcher> getFileSystemWatcher(
-            Path path,
-            FileSystemWatcherCallback onChangeCallback);
+            Path path, FileSystemWatcherCallback onChangeCallback);
 
     FileSystemWatcherCallback mChangeCallback;
 };

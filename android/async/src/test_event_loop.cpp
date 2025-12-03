@@ -23,6 +23,7 @@
 #include <queue>
 #include <thread>
 #include <vector>
+
 #include "absl/status/status.h"
 
 namespace goldfish::async::testing {
@@ -30,6 +31,7 @@ namespace goldfish::async::testing {
 // The concrete implementation class, hidden entirely within this .cpp file.
 class TestEventLoopImpl : public TestEventLoop {
     class TestTimer;
+
   public:
     TestEventLoopImpl();
     ~TestEventLoopImpl() override;
@@ -48,8 +50,8 @@ class TestEventLoopImpl : public TestEventLoop {
     void advanceClock(std::chrono::milliseconds duration) override;
     size_t taskCount() const override;
 
-    void reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer, std::chrono::milliseconds new_delay,
-                    std::chrono::milliseconds new_interval);
+    void reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer,
+                    std::chrono::milliseconds new_delay, std::chrono::milliseconds new_interval);
 
   private:
     struct ScheduledTask {
@@ -68,13 +70,14 @@ class TestEventLoopImpl : public TestEventLoop {
 
     class TestTimer : public Timer, public std::enable_shared_from_this<TestTimer> {
       public:
-        TestTimer(TestEventLoopImpl* loop, Task task) : mLoop(loop), mPendingTask(std::make_shared<Task>(std::move(task))) {}
+        TestTimer(TestEventLoopImpl* loop, Task task)
+                : mLoop(loop), mPendingTask(std::make_shared<Task>(std::move(task))) {}
         ~TestTimer() override { cancel(); }
         void cancel() override { mCancelled = true; }
         bool isCancelled() const { return mCancelled; }
         std::shared_ptr<Task> task() { return mPendingTask; }
         void schedule(std::chrono::milliseconds new_delay,
-                                 std::chrono::milliseconds new_interval) override {
+                      std::chrono::milliseconds new_interval) override {
             mLoop->reschedule(shared_from_this(), new_delay, new_interval);
         }
 

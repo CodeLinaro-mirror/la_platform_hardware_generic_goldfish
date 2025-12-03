@@ -41,7 +41,7 @@ class IniFile {
         using value_type = std::string;
 
         explicit const_iterator(ElementOrderList::const_iterator keyIterator)
-            : ElementOrderList::const_iterator(keyIterator) {}
+                : ElementOrderList::const_iterator(keyIterator) {}
 
         const value_type& operator*() const {
             return ElementOrderList::const_iterator::operator*()->first;
@@ -54,7 +54,7 @@ class IniFile {
     // When created without a backing file, all |read|/|write*| operations will
     // fail unless |setBackingFile| is called to point to a valid file path.
     explicit IniFile(std::filesystem::path backingFilePath = {})
-        : mBackingFilePath(backingFilePath) {}
+            : mBackingFilePath(backingFilePath) {}
 
     // This constructor reads the data from memory at |data| of |size| bytes.
     IniFile(const char* data, int size);

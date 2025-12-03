@@ -54,7 +54,9 @@ TEST(ScopedPtr, FuncDelete_GetsCalled) {
         free(ptr);
         called = true;
     };
-    { auto ptr1 = makeCustomScopedPtr(malloc(1), freeAsLambda); }
+    {
+        auto ptr1 = makeCustomScopedPtr(malloc(1), freeAsLambda);
+    }
     ASSERT_TRUE(called);
 }
 

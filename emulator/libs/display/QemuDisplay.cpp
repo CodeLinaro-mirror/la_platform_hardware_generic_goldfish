@@ -96,7 +96,7 @@ void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
     absl::MutexLock lock(&mSendLock);
     VLOG(2) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
     (void)mQemuLoop->post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
-                     mask = button_mask] {
+                           mask = button_mask] {
         if (last != mask) {
             qemu_input_update_buttons(con, bmap, last, mask);
         }

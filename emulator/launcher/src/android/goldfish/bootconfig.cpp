@@ -56,7 +56,8 @@ std::vector<char> flattenBootconfig(
     return bits;
 }
 
-absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::string>>& bootconfig, fs::path dst) {
+absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::string>>& bootconfig,
+                              fs::path dst) {
     ASSIGN_OR_RETURN(auto old_size, android::base::file::file_size(dst));
     std::vector<char> blob = buildBootconfigBlob(old_size.bytes(), bootconfig);
 
@@ -65,7 +66,7 @@ absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::stri
     if (!out) {
         return absl::InternalError("failed to open initrd for writing");
     }
-    if(out << std::string_view(blob.data(), blob.size())) {
+    if (out << std::string_view(blob.data(), blob.size())) {
         return absl::OkStatus();
     }
     return absl::InternalError("failed to append bootconfig to initrd");
@@ -95,9 +96,11 @@ std::vector<char> buildBootconfigBlob(
     return blob;
 }
 
-absl::Status createRamdiskWithBootconfig(fs::path srcRamdiskPath, fs::path dstRamdiskPath,
+absl::Status createRamdiskWithBootconfig(
+        fs::path srcRamdiskPath, fs::path dstRamdiskPath,
         const std::vector<std::pair<std::string, std::string>>& bootconfig) {
-    RETURN_IF_ERROR(android::base::file::cp_file(srcRamdiskPath, dstRamdiskPath, /*overwrite=*/true));
+    RETURN_IF_ERROR(
+            android::base::file::cp_file(srcRamdiskPath, dstRamdiskPath, /*overwrite=*/true));
     return appendBootconfig(bootconfig, dstRamdiskPath);
 }
 

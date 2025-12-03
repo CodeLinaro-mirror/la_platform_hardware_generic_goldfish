@@ -105,8 +105,8 @@ std::ostream& operator<<(std::ostream& os, const HalSocket& socket);
 namespace internal {
 // A non-functional socket implementation used as a safe null object.
 class NullHalSocket : public HalSocket {
-  void send(std::string data) override {}
-  void close() override {}
+    void send(std::string data) override {}
+    void close() override {}
 };
 }  // namespace internal
 

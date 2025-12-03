@@ -43,7 +43,7 @@ namespace base {
 class FileSystemWatcherPosix : public FileSystemWatcher {
   public:
     FileSystemWatcherPosix(Path path, FileSystemWatcherCallback onChangeCallback)
-        : FileSystemWatcher(onChangeCallback), mPath(path) {}
+            : FileSystemWatcher(onChangeCallback), mPath(path) {}
 
     ~FileSystemWatcherPosix() { stop(); }
 

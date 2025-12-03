@@ -56,8 +56,7 @@ class AsyncSocketTest : public ::testing::Test {
     }
 
     template <typename T>
-    void runUntil(std::future<T>& future,
-                  std::chrono::milliseconds timeout = 2s) {
+    void runUntil(std::future<T>& future, std::chrono::milliseconds timeout = 2s) {
         ASSERT_EQ(future.wait_for(timeout), std::future_status::ready);
     }
 
@@ -241,8 +240,7 @@ TEST_F(AsyncSocketTest, EchoTest) {
 TEST_F(AsyncSocketTest, LargeDataTransfer) {
     std::string large_message;
     large_message.reserve(5 * 1024 * 1024);
-    for (int i = 0; i < (5 * 1024 * 1024) / 10; ++i)
-        large_message.append("0123456789");
+    for (int i = 0; i < (5 * 1024 * 1024) / 10; ++i) large_message.append("0123456789");
 
     ScopedAsyncSocket server_socket;  // Will hold the server-side socket
     std::promise<size_t> received_size_promise;
@@ -255,9 +253,8 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
             std::lock_guard<std::mutex> lock(received_mutex);
             received_data << data;
         });
-        socket->setOnCloseCallback([&] {
-            received_size_promise.set_value(received_data.str().size());
-        });
+        socket->setOnCloseCallback(
+                [&] { received_size_promise.set_value(received_data.str().size()); });
 
         // Assign to the Scoped wrapper in the outer scope to manage lifetime
         server_socket = ScopedAsyncSocket(std::move(socket));
@@ -297,8 +294,7 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
 }
 
 TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
-    const std::string message_per_thread =
-            "This is a message from one of many threads. ";
+    const std::string message_per_thread = "This is a message from one of many threads. ";
     const int num_threads = 10;
     std::promise<size_t> received_size_promise;
     auto received_size_future = received_size_promise.get_future();
@@ -311,9 +307,8 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
             std::lock_guard<std::mutex> lock(received_mutex);
             received_data << data;
         });
-        socket->setOnCloseCallback([&] {
-            received_size_promise.set_value(received_data.str().size());
-        });
+        socket->setOnCloseCallback(
+                [&] { received_size_promise.set_value(received_data.str().size()); });
         server_socket = ScopedAsyncSocket(std::move(socket));
         return true;
     };
@@ -351,8 +346,7 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
             absl::Notification bytesAway;
             mRawEventLoop->post([&]() {
                 VLOG(1) << "Sending data from thread: " << i;
-                ASSERT_THAT(client->send(message_per_thread.data(),
-                                         message_per_thread.size(),
+                ASSERT_THAT(client->send(message_per_thread.data(), message_per_thread.size(),
                                          [&](auto) { bytesAway.Notify(); }),
                             IsOk());
             });
@@ -370,8 +364,7 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     mRawEventLoop->post([&] { client->close(); });
 
     runUntil(received_size_future);
-    EXPECT_EQ(received_size_future.get(),
-              num_threads * message_per_thread.size());
+    EXPECT_EQ(received_size_future.get(), num_threads * message_per_thread.size());
 }
 
 TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {

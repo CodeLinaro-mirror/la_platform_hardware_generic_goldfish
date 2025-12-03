@@ -71,27 +71,27 @@ class Battery : public IBattery {
     void setHealth(Health health) override {
         int value;
         switch (health) {
-            case Health::GOOD:
-                value = POWER_SUPPLY_HEALTH_GOOD;
-                break;
-            case Health::FAILED:
-                value = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
-                break;
-            case Health::DEAD:
-                value = POWER_SUPPLY_HEALTH_DEAD;
-                break;
-            case Health::OVERVOLTAGE:
-                value = POWER_SUPPLY_HEALTH_OVERVOLTAGE;
-                break;
-            case Health::OVERHEATED:
-                value = POWER_SUPPLY_HEALTH_OVERHEAT;
-                break;
-            case Health::UNKNOWN:
-                value = POWER_SUPPLY_HEALTH_UNKNOWN;
-                break;
-            default:
-                value = POWER_SUPPLY_HEALTH_UNKNOWN;
-                break;
+        case Health::GOOD:
+            value = POWER_SUPPLY_HEALTH_GOOD;
+            break;
+        case Health::FAILED:
+            value = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
+            break;
+        case Health::DEAD:
+            value = POWER_SUPPLY_HEALTH_DEAD;
+            break;
+        case Health::OVERVOLTAGE:
+            value = POWER_SUPPLY_HEALTH_OVERVOLTAGE;
+            break;
+        case Health::OVERHEATED:
+            value = POWER_SUPPLY_HEALTH_OVERHEAT;
+            break;
+        case Health::UNKNOWN:
+            value = POWER_SUPPLY_HEALTH_UNKNOWN;
+            break;
+        default:
+            value = POWER_SUPPLY_HEALTH_UNKNOWN;
+            break;
         }
 
         goldfish_battery_set_prop(0, POWER_SUPPLY_PROP_HEALTH, value);
@@ -99,20 +99,20 @@ class Battery : public IBattery {
 
     Health getHealth() const override {
         switch (goldfish_battery_read_prop(POWER_SUPPLY_PROP_HEALTH)) {
-            case POWER_SUPPLY_HEALTH_GOOD:
-                return Health::GOOD;
-            case POWER_SUPPLY_HEALTH_UNSPEC_FAILURE:
-                return Health::FAILED;
-            case POWER_SUPPLY_HEALTH_DEAD:
-                return Health::DEAD;
-            case POWER_SUPPLY_HEALTH_OVERVOLTAGE:
-                return Health::OVERVOLTAGE;
-            case POWER_SUPPLY_HEALTH_OVERHEAT:
-                return Health::OVERHEATED;
-            case POWER_SUPPLY_HEALTH_UNKNOWN:
-                return Health::UNKNOWN;
-            default:
-                return Health::UNKNOWN;
+        case POWER_SUPPLY_HEALTH_GOOD:
+            return Health::GOOD;
+        case POWER_SUPPLY_HEALTH_UNSPEC_FAILURE:
+            return Health::FAILED;
+        case POWER_SUPPLY_HEALTH_DEAD:
+            return Health::DEAD;
+        case POWER_SUPPLY_HEALTH_OVERVOLTAGE:
+            return Health::OVERVOLTAGE;
+        case POWER_SUPPLY_HEALTH_OVERHEAT:
+            return Health::OVERHEATED;
+        case POWER_SUPPLY_HEALTH_UNKNOWN:
+            return Health::UNKNOWN;
+        default:
+            return Health::UNKNOWN;
         }
     }
 
@@ -120,24 +120,24 @@ class Battery : public IBattery {
     void setStatus(Status status) override {
         int value;
         switch (status) {
-            case Status::UNKNOWN:
-                value = POWER_SUPPLY_STATUS_UNKNOWN;
-                break;
-            case Status::CHARGING:
-                value = POWER_SUPPLY_STATUS_CHARGING;
-                break;
-            case Status::DISCHARGING:
-                value = POWER_SUPPLY_STATUS_DISCHARGING;
-                break;
-            case Status::NOT_CHARGING:
-                value = POWER_SUPPLY_STATUS_NOT_CHARGING;
-                break;
-            case Status::FULL:
-                value = POWER_SUPPLY_STATUS_FULL;
-                break;
-            default:
-                value = POWER_SUPPLY_STATUS_UNKNOWN;
-                break;
+        case Status::UNKNOWN:
+            value = POWER_SUPPLY_STATUS_UNKNOWN;
+            break;
+        case Status::CHARGING:
+            value = POWER_SUPPLY_STATUS_CHARGING;
+            break;
+        case Status::DISCHARGING:
+            value = POWER_SUPPLY_STATUS_DISCHARGING;
+            break;
+        case Status::NOT_CHARGING:
+            value = POWER_SUPPLY_STATUS_NOT_CHARGING;
+            break;
+        case Status::FULL:
+            value = POWER_SUPPLY_STATUS_FULL;
+            break;
+        default:
+            value = POWER_SUPPLY_STATUS_UNKNOWN;
+            break;
         }
 
         goldfish_battery_set_prop(0, POWER_SUPPLY_PROP_STATUS, value);
@@ -145,18 +145,18 @@ class Battery : public IBattery {
 
     Status getStatus() const override {
         switch (goldfish_battery_read_prop(POWER_SUPPLY_PROP_STATUS)) {
-            case POWER_SUPPLY_STATUS_UNKNOWN:
-                return Status::UNKNOWN;
-            case POWER_SUPPLY_STATUS_CHARGING:
-                return Status::CHARGING;
-            case POWER_SUPPLY_STATUS_DISCHARGING:
-                return Status::DISCHARGING;
-            case POWER_SUPPLY_STATUS_NOT_CHARGING:
-                return Status::NOT_CHARGING;
-            case POWER_SUPPLY_STATUS_FULL:
-                return Status::FULL;
-            default:
-                return Status::UNKNOWN;
+        case POWER_SUPPLY_STATUS_UNKNOWN:
+            return Status::UNKNOWN;
+        case POWER_SUPPLY_STATUS_CHARGING:
+            return Status::CHARGING;
+        case POWER_SUPPLY_STATUS_DISCHARGING:
+            return Status::DISCHARGING;
+        case POWER_SUPPLY_STATUS_NOT_CHARGING:
+            return Status::NOT_CHARGING;
+        case POWER_SUPPLY_STATUS_FULL:
+            return Status::FULL;
+        default:
+            return Status::UNKNOWN;
         }
     }
 };

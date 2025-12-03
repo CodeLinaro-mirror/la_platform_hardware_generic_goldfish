@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "display_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
@@ -17,8 +19,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "display_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -63,30 +63,18 @@ TEST(DisplayDeviceTest, GetQemuParameters_VncEnabled) {
     EXPECT_THAT(params,
                 ElementsAre(Eq("-display"),
                             StartsWith("vnc=unix:/tmp/.qemu-emu-vnc,display=gpu0,head=0"),
-                            Eq("-device"),
-                            Eq("virtio-keyboard-pci,display=gpu0,head=0"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=0"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=1"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=2"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=3"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=4"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=5"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=6"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=7"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=8"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=9"),
-                            Eq("-device"),
-                            Eq("virtio-input-android-pci,display=gpu0,head=10")));
+                            Eq("-device"), Eq("virtio-keyboard-pci,display=gpu0,head=0"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=0"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=1"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=2"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=3"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=4"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=5"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=6"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=7"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=8"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=9"),
+                            Eq("-device"), Eq("virtio-input-android-pci,display=gpu0,head=10")));
 }
 #endif
 

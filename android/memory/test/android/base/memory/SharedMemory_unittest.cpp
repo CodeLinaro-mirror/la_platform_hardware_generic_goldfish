@@ -37,7 +37,7 @@ int get_random() {
 TEST(SharedMemory, ShareVisibleWithinSameProc) {
     const mode_t user_read_only = 0600;
     std::string unique_name = absl::StrCat("tst_21654869810548-", get_random());
-    
+
     std::string message = "Hello World!";
     base::SharedMemory mWriter(unique_name, message.size());
     base::SharedMemory mReader(unique_name, message.size());

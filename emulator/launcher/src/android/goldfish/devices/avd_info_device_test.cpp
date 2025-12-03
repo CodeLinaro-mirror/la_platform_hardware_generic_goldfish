@@ -1,3 +1,5 @@
+#include "avd_info_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status_matchers.h"
@@ -5,8 +7,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "avd_info_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -21,7 +21,8 @@ TEST(AvdInfoDeviceTest, Basic) {
 
     AvdInfoDevice dev;
     EXPECT_THAT(dev.initialize(emu.config()), absl_testing::IsOk());
-    EXPECT_THAT(dev.getQemuParameters(emu.config()), ::testing::ElementsAre(Eq("-device"), ::testing::HasSubstr("avdstart,")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                ::testing::ElementsAre(Eq("-device"), ::testing::HasSubstr("avdstart,")));
 }
 
 }  // namespace android::goldfish::test

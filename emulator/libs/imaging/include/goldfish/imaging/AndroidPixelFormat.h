@@ -19,9 +19,9 @@ namespace goldfish::imaging {
 
 // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/common/aidl/android/hardware/graphics/common/PixelFormat.aidl
 enum class AndroidPixelFormat {
-  UNSPECIFIED = 0,
-  RGBA_8888 = 0x1,
-  YCBCR_420_888 = 0x23,  // arbitrary YUV layout
+    UNSPECIFIED = 0,
+    RGBA_8888 = 0x1,
+    YCBCR_420_888 = 0x23,  // arbitrary YUV layout
 };
 
 }  // namespace goldfish::imaging

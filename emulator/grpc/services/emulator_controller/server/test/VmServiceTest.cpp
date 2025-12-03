@@ -56,13 +56,9 @@ class MockVmOperations : public VmOperations {
 };
 
 struct VmServiceTest : public ::testing::Test {
-    void SetUp() override {
-        vmService = std::make_unique<VmServiceImpl>(&vmOperations);
-    }
+    void SetUp() override { vmService = std::make_unique<VmServiceImpl>(&vmOperations); }
 
-    void TearDown() override {
-        vmService.reset();
-    }
+    void TearDown() override { vmService.reset(); }
 
     MockVmOperations vmOperations;
     std::unique_ptr<VmServiceImpl> vmService;
@@ -230,7 +226,6 @@ TEST_F(VmServiceTest, GetVmStatePostMigrate) {
 
 TEST_F(VmServiceTest, GetVmStatePreLaunch) {
     EXPECT_CALL(vmOperations, getRunState()).WillOnce(Return(EmuRunState::PreLaunch));
-
 
     VmRunState reply;
     ASSERT_GRPC_STATUS(vmService->getVmState(&reply));

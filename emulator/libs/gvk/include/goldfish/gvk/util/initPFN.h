@@ -16,19 +16,20 @@
 #pragma once
 
 #include "absl/log/log.h"
+
 #include "goldfish/gvk/util/GetPFN.h"
 
 namespace goldfish::gvk::util {
 
 template <typename PFN>
 bool initPFN(PFN& dst, const GetPFN& getPFN, const char* name, const char* from) {
-  dst = reinterpret_cast<PFN>(getPFN(name));
-  if (dst) {
-    return true;
-  } else {
-    LOG(ERROR) << "Could not load `" << name << "` from `" << from << "`.";
-    return false;
-  }
+    dst = reinterpret_cast<PFN>(getPFN(name));
+    if (dst) {
+        return true;
+    } else {
+        LOG(ERROR) << "Could not load `" << name << "` from `" << from << "`.";
+        return false;
+    }
 }
 
 }  // namespace goldfish::gvk::util

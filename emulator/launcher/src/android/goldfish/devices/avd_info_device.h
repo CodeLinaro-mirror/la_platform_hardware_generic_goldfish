@@ -14,8 +14,8 @@
 
 #pragma once
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "absl/status/status.h"
 
@@ -25,14 +25,13 @@
 namespace android::goldfish {
 
 class AvdInfoDevice : public Device {
-public:
+  public:
     AvdInfoDevice() : Device("avd_info") {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
-    std::vector<std::string> getQemuParameters(
-            const EmulatorConfig& emulator) const override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
-private:
+  private:
     std::string mAvdParams;
 };
 

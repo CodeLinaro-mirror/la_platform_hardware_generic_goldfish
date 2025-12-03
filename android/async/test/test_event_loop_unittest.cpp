@@ -154,9 +154,8 @@ TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
 
     // Schedule a task to run every 10ms, starting immediately.
     auto timer = loop->createTimer([&execution_count]() { execution_count++; });
-    timer->schedule(
-        0ms,  // Initial delay of 0 means it's due immediately.
-        10ms  // Repeat every 10ms.
+    timer->schedule(0ms,  // Initial delay of 0 means it's due immediately.
+                    10ms  // Repeat every 10ms.
     );
 
     // ACT & ASSERT (First Execution)

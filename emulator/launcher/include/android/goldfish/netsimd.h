@@ -26,11 +26,13 @@ namespace android::goldfish {
 
 int read_netsim_port();
 
-using NetsimConnection_ptr = std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>;
+using NetsimConnection_ptr =
+        std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient>;
 
-absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string &endpoint, absl::Duration connection_deadline);
+absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string& endpoint,
+                                                       absl::Duration connection_deadline);
 
-absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(const std::filesystem::path& netsim_binary, const AndroidOptions& opts);
+absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
+        const std::filesystem::path& netsim_binary, const AndroidOptions& opts);
 
-
-} // namespace android::goldfish
+}  // namespace android::goldfish

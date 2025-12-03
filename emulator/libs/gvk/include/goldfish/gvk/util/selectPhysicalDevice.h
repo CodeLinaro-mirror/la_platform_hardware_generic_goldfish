@@ -25,13 +25,13 @@
 namespace goldfish::gvk::util {
 
 enum class PhysicalDeviceRejectionReason : int32_t {
-  NONE,
-  NOT_VULKAN,       // apiVersion has a non-zero variant
-  LOW_API_VERSION,  // `apiVersion` does not meet the requirements
-  MISSING_EXTENSIONS,
-  SKIPPED,  // by an explicit filter, e.g. we need exactly llvmpipe
-            // or exactly this `VkPhysicalDeviceProperties::pipelineCacheUUID`
-  BLOCKLISTED,
+    NONE,
+    NOT_VULKAN,       // apiVersion has a non-zero variant
+    LOW_API_VERSION,  // `apiVersion` does not meet the requirements
+    MISSING_EXTENSIONS,
+    SKIPPED,  // by an explicit filter, e.g. we need exactly llvmpipe
+              // or exactly this `VkPhysicalDeviceProperties::pipelineCacheUUID`
+    BLOCKLISTED,
 };
 
 using PhysicalDeviceScoringFunction = std::function<int32_t(const VkPhysicalDeviceProperties&)>;

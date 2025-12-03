@@ -23,13 +23,13 @@ namespace android::goldfish {
 // The gpu card lives in the first pci slot (01.0)
 class GpuDevice : public PciDevice {
   public:
-   explicit GpuDevice(std::string_view gpu_name) : PciDevice("gpu", "01.0"), mGpuName(gpu_name) {}
+    explicit GpuDevice(std::string_view gpu_name) : PciDevice("gpu", "01.0"), mGpuName(gpu_name) {}
 
-   absl::Status initialize(const EmulatorConfig& emulator) override;
-   std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
-   std::string mGpuName;
+    std::string mGpuName;
 };
 
 }  // namespace android::goldfish

@@ -128,7 +128,7 @@ class TestConnectorRegistry : public ConnectorRegistry {
         mHalSocket = std::make_shared<TestHalSocket>();
         mHalPlug = mHalFactory();
         HalPlugTesting::establishConnection(mHalPlug.get(), mHalSocket);
-        //registerInternal(std::string(T::serviceName), mHalPlug);  b/448934377
+        // registerInternal(std::string(T::serviceName), mHalPlug);  b/448934377
         return reinterpret_cast<T*>(mHalPlug.get());
     }
 

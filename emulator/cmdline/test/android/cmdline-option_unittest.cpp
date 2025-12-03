@@ -22,13 +22,13 @@ TEST(CmdLineOptions, parsePort) {
         int expectConsolePort;
         int expectAdbPort;
     } kData[] = {
-            {"5554", true, 5554, 5555}, {"5555", true, 5555, 5556},  // Odd port.
-            {"5552", true, 5552, 5553},  // Port below lower bound of 5554.
-            {"5553", true, 5553, 5554},  // Port below lower bound of 5554.
-            {"6000", true, 6000, 6001},  // Port above upper bound.
-            {"6001", true, 6001, 6002},  // Even port above range
-            {"foo", false, 0, 0},       {"5554trailingText", false, 0, 0},
-            {"", false, 0, 0},          {nullptr, false, 0, 0},
+        {"5554", true, 5554, 5555}, {"5555", true, 5555, 5556},  // Odd port.
+        {"5552", true, 5552, 5553},                              // Port below lower bound of 5554.
+        {"5553", true, 5553, 5554},                              // Port below lower bound of 5554.
+        {"6000", true, 6000, 6001},                              // Port above upper bound.
+        {"6001", true, 6001, 6002},                              // Even port above range
+        {"foo", false, 0, 0},       {"5554trailingText", false, 0, 0},
+        {"", false, 0, 0},          {nullptr, false, 0, 0},
     };
 
     for (const auto& data : kData) {
@@ -49,25 +49,25 @@ TEST(CmdLineOptions, parsePorts) {
         int expectConsolePort;
         int expectAdbPort;
     } kData[] = {
-            {"5554,5555", true, 5554, 5555},
-            {"1,200", true, 1, 200},  // No restrictions on ports
-            {"65000,7", true, 65000, 7},
-            {"-2,5555", false, 0, 0},           // No negative values
-            {"5554,-42", false, 0, 0},          // No negative values
-            {" 5554, 5555", true, 5554, 5555},  // Leading spaces are fine
-            {"5554 ,5555", false, 0, 0},        // But not trailing spaces
-            {"5554,5555 ", false, 0, 0},        // But not trailing spaces
-            {"5554,5555trailingText", false, 0, 0},
-            {"5554trailingtext,5555", false, 0, 0},
-            {"345,", false, 0, 0},
-            {",678", false, 0, 0},
-            {"123", false, 0, 0},
-            {"123 456", false, 0, 0},
-            {"0,234", false, 0, 0},  // No ports below 1
-            {"234,0", false, 0, 0},
-            {"65536,234", false, 0, 0},  // No ports above 65535
-            {"234,65536", false, 0, 0},
-            {nullptr, false, 0, 0},
+        {"5554,5555", true, 5554, 5555},
+        {"1,200", true, 1, 200},  // No restrictions on ports
+        {"65000,7", true, 65000, 7},
+        {"-2,5555", false, 0, 0},           // No negative values
+        {"5554,-42", false, 0, 0},          // No negative values
+        {" 5554, 5555", true, 5554, 5555},  // Leading spaces are fine
+        {"5554 ,5555", false, 0, 0},        // But not trailing spaces
+        {"5554,5555 ", false, 0, 0},        // But not trailing spaces
+        {"5554,5555trailingText", false, 0, 0},
+        {"5554trailingtext,5555", false, 0, 0},
+        {"345,", false, 0, 0},
+        {",678", false, 0, 0},
+        {"123", false, 0, 0},
+        {"123 456", false, 0, 0},
+        {"0,234", false, 0, 0},  // No ports below 1
+        {"234,0", false, 0, 0},
+        {"65536,234", false, 0, 0},  // No ports above 65535
+        {"234,65536", false, 0, 0},
+        {nullptr, false, 0, 0},
     };
 
     for (const auto& data : kData) {
@@ -86,13 +86,13 @@ TEST(CmdLineOptions, validatePorts) {
         int adbPortInput;
         bool expectSuccess;
     } kData[] = {
-            {5554, 5555, true},  {5553, 5554, false}, {5552, 5553, false},
-            {5584, 5585, true},   // At least 16 port combinations are supported.
-            {5555, 5556, false},  // Odd ports not allowed.
-            {5552, 5553, false},  // Port below lower bound.
-            {5553, 5554, false},  // Port below lower bound.
-            {6000, 6001, false},  // Port above upper bound.
-            {6001, 6002, false},  // Port above upper bound.
+        {5554, 5555, true},  {5553, 5554, false},
+        {5552, 5553, false}, {5584, 5585, true},  // At least 16 port combinations are supported.
+        {5555, 5556, false},                      // Odd ports not allowed.
+        {5552, 5553, false},                      // Port below lower bound.
+        {5553, 5554, false},                      // Port below lower bound.
+        {6000, 6001, false},                      // Port above upper bound.
+        {6001, 6002, false},                      // Port above upper bound.
     };
 
     for (const auto& data : kData) {
@@ -108,10 +108,10 @@ TEST(CmdLineOptions, parseModemSimulatorPort) {
         bool expectSuccess;
         int expectModemSimulatorPort;
     } kData[] = {
-            {"10000", true, 10000}, {"0", false, 0},  // No ports below 1
-            {"65536", false, 0},                      // No ports above 65535
-            {"foo", false, 0},      {"5554trailingText", false, 0},
-            {"", false, 0},         {nullptr, false, 0},
+        {"10000", true, 10000}, {"0", false, 0},  // No ports below 1
+        {"65536", false, 0},                      // No ports above 65535
+        {"foo", false, 0},      {"5554trailingText", false, 0},
+        {"", false, 0},         {nullptr, false, 0},
     };
 
     for (const auto& data : kData) {
@@ -128,11 +128,11 @@ TEST(CmdLineOptions, validateUserModeNetworkingOption) {
         const char* input;
         bool expectSuccess;
     } kData[] = {
-            {"ipv6=off,host=10.4.4.7,dhcpstart=10.4.4.4", true},
-            {"ipv6=off,host=10.4.4.7,dns=10.0.2.3", false},
-            {"", true},
-            {"ipv6=", false},
-            {",,", false},
+        {"ipv6=off,host=10.4.4.7,dhcpstart=10.4.4.4", true},
+        {"ipv6=off,host=10.4.4.7,dns=10.0.2.3", false},
+        {"", true},
+        {"ipv6=", false},
+        {",,", false},
     };
     for (const auto& data : kData) {
         bool result = android_validate_user_mode_networking_option(data.input);

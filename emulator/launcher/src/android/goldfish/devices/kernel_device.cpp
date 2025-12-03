@@ -46,7 +46,8 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
     }
 
     // Get the one defined in the avd.
-    auto options = {Avd::ImageType::KERNELRANCHU, Avd::ImageType::KERNELRANCHU64, Avd::ImageType::KERNEL};
+    auto options = {Avd::ImageType::KERNELRANCHU, Avd::ImageType::KERNELRANCHU64,
+                    Avd::ImageType::KERNEL};
     for (const auto& option : options) {
         auto kernel_image = avd.getSystemImageFilePath(option);
         if (kernel_image.ok()) {
@@ -61,26 +62,29 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
 
 absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& opts) {
     // btree to provide deterministic (sorted) order.
-    absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check",  "8250.nr_uarts=1", "loop.max_part=7", "mac80211_hwsim.radios=0"};
+    absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
+                                       "loop.max_part=7", "mac80211_hwsim.radios=0"};
     // TODO add ramoops args?
     switch (auto a = avd.detectArchitecture(); a) {
-        case Avd::CpuArchitecture::kArm:
-            cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0", "keep_bootcon", "ndns=3"});
-            break;
-        case Avd::CpuArchitecture::kX86:
-            cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0", "clocksource=pit", "memmap=0x10000$0xff018000"});
-            break;
-        case Avd::CpuArchitecture::kRiscV:
-        default:
-            return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
+    case Avd::CpuArchitecture::kArm:
+        cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0",
+                                              "keep_bootcon", "ndns=3"});
+        break;
+    case Avd::CpuArchitecture::kX86:
+        cl.merge(absl::btree_set<std::string>{"console=ttyS0,38400", "earlyprintk=ttyS0",
+                                              "clocksource=pit", "memmap=0x10000$0xff018000"});
+        break;
+    case Avd::CpuArchitecture::kRiscV:
+    default:
+        return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
     }
 
     if (opts.shell || opts.shell_serial || opts.show_kernel) {
         cl.insert("printk.devkmsg=on");
     }
 
-    // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86 only) but the set takes care of that.
-    // for 16k image, there is extra kernel_cmdline.txt
+    // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
+    // only) but the set takes care of that. for 16k image, there is extra kernel_cmdline.txt
     {
         auto kernel_cmdline_txt = avd.getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
         if (kernel_cmdline_txt.ok() && base::file::exists(*kernel_cmdline_txt) &&
@@ -89,13 +93,14 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
             std::string first_line;
             if (cmdline_file.is_open()) {
                 if (std::getline(cmdline_file, first_line)) {
-                    cl.merge(absl::btree_set<std::string>(absl::StrSplit(first_line, ' ', absl::SkipEmpty())));
+                    cl.merge(absl::btree_set<std::string>(
+                            absl::StrSplit(first_line, ' ', absl::SkipEmpty())));
                 }
             }
         }
     }
 
-    for (auto *a = opts.append; a != nullptr; a = a->next) {
+    for (auto* a = opts.append; a != nullptr; a = a->next) {
         cl.insert(a->param);
     }
 

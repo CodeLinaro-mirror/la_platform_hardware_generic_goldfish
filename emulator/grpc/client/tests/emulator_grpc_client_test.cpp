@@ -221,7 +221,8 @@ TEST_F(CallbackClientTest, ConnectAsync_WithNoServer_Fails) {
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
-// TODO FIX this test is flakey due to a race in the connectAsync callback handling - the fix will require changing how the grpc connection monitor works.
+// TODO FIX this test is flakey due to a race in the connectAsync callback handling - the fix will
+// require changing how the grpc connection monitor works.
 TEST_F(CallbackClientTest, DISABLED_Disconnect_DuringAsyncConnection_Cancels) {
     StartServer();
     VLOG(1) << "Test: Creating client.";

@@ -30,12 +30,12 @@ using grpc::Status;
 namespace {
 Location protoToLocation(const GpsState& proto) {
     return {
-            .latitude = proto.latitude(),
-            .longitude = proto.longitude(),
-            .speed = proto.speed(),
-            .bearing = proto.bearing(),
-            .altitude = proto.altitude(),
-            .satellites = proto.satellites(),
+        .latitude = proto.latitude(),
+        .longitude = proto.longitude(),
+        .speed = proto.speed(),
+        .bearing = proto.bearing(),
+        .altitude = proto.altitude(),
+        .satellites = proto.satellites(),
     };
 }
 

@@ -128,11 +128,11 @@ class QemuVmOperations : public VmOperations {
         // Make sure that ac->name matches with pair.first!
         constexpr static std::array<std::pair<std::string_view, VmHypervisorType>, 5>
                 hyperVisorData = {{
-                        {"unknown", VmHypervisorType::Unknown},  // Unused.
-                        {"tcg", VmHypervisorType::None},         // qemu/accel/tcg/tcg-all.c
-                        {"KVM", VmHypervisorType::Kvm},          // qemu/accel/kvm/kvm-all.c
-                        {"HVF", VmHypervisorType::Hvf},          // qemu/accel/hvf/hvf-accel-ops.c
-                        {"WHPX", VmHypervisorType::Whpx},        // qemu/target/i386/whpx/whpx-all.c
+                    {"unknown", VmHypervisorType::Unknown},  // Unused.
+                    {"tcg", VmHypervisorType::None},         // qemu/accel/tcg/tcg-all.c
+                    {"KVM", VmHypervisorType::Kvm},          // qemu/accel/kvm/kvm-all.c
+                    {"HVF", VmHypervisorType::Hvf},          // qemu/accel/hvf/hvf-accel-ops.c
+                    {"WHPX", VmHypervisorType::Whpx},        // qemu/target/i386/whpx/whpx-all.c
                 }};
         static_assert(std::size(hyperVisorData) == ((int)VmHypervisorType::Max));
 

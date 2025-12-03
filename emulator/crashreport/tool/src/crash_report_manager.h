@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
-#include <optional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "client/crash_report_database.h"

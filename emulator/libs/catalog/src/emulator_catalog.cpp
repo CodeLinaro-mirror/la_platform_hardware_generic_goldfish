@@ -47,8 +47,8 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
 
 EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath, Private)
         : mDiscoveryPath(std::move(discoveryPath)) {
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mDiscoveryPath,
-            [this](auto change, auto path) { onFileChanged(change, path); });
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(
+            mDiscoveryPath, [this](auto change, auto path) { onFileChanged(change, path); });
 }
 
 EmulatorCatalog::~EmulatorCatalog() {

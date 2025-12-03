@@ -26,14 +26,14 @@ namespace android::goldfish {
 namespace {
 absl::StatusOr<std::string> machine(const Avd& avd) {
     switch (auto a = avd.detectArchitecture(); a) {
-        case Avd::CpuArchitecture::kArm: {
-            return "goldfish-arm";
-        }
-        case Avd::CpuArchitecture::kX86:
-            return "goldfish";
-        case Avd::CpuArchitecture::kRiscV:
-        default:
-            return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
+    case Avd::CpuArchitecture::kArm: {
+        return "goldfish-arm";
+    }
+    case Avd::CpuArchitecture::kX86:
+        return "goldfish";
+    case Avd::CpuArchitecture::kRiscV:
+    default:
+        return absl::UnimplementedError(absl::StrCat("Machine type not supported: ", a));
     }
 }
 }  // namespace

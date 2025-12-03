@@ -74,4 +74,4 @@ GrallocDetailsPtr getGrallocImpl() {
     return std::make_shared<RutabagaImpl>(r);
 }
 
-}  // namespace android::goldfish::avd_info
+}  // namespace goldfish::avd_info

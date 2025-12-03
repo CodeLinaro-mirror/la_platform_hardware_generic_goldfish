@@ -27,7 +27,7 @@ using android::base::TestSystem;
 using android::base::TestTempDir;
 
 class [[deprecated("This class is deprecated, use FakeAvd instead")]] AvdTest
-    : public ::testing::Test {
+        : public ::testing::Test {
   public:
     AvdTest() {
         TestSystem sys("/home", "/");

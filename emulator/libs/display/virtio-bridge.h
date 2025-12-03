@@ -33,7 +33,7 @@ typedef struct VirtIOInputHID VirtIOInputHID;
 typedef struct VirtioDeviceInfo {
     const char*
             display;  ///< The display name associated with the virtio input device (e.g., "gpu0").
-    uint32_t head;         ///< The head number associated with the virtio input device.
+    uint32_t head;    ///< The head number associated with the virtio input device.
     VirtIOInputHID* vhid;  ///< A pointer to the VirtIOInputHID structure representing the found
                            ///< virtio input device.
 } VirtioDeviceInfo;

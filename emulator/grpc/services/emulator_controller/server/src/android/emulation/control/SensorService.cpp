@@ -21,12 +21,12 @@ namespace emulation {
 namespace control {
 
 using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::AndroidSensor;
+using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::devices::sensor::SensorData;
 
 SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
-    : mRegistry(connectorRegistry) {}
+        : mRegistry(connectorRegistry) {}
 
 grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();

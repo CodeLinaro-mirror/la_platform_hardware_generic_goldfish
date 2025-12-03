@@ -43,7 +43,7 @@ int find_virtio_device(Object* obj, void* opaque) {
 void virtio_input_send_evdev(VirtIOInputHID* vhid, uint16_t type, uint16_t code, uint32_t value) {
     VirtIOInput* vinput = VIRTIO_INPUT(vhid);
     virtio_input_event event = {
-            .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
+        .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
     ALOGV(1, "Sending generic evdev event (%d, %d, %d) to display:%s, head:%d", type, code, value,
           vhid->display, vhid->head);
     virtio_input_send(vinput, &event);

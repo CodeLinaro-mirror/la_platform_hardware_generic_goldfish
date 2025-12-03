@@ -20,19 +20,19 @@
 namespace goldfish::gvk {
 
 struct DeviceQueueLocation {
-  static constexpr uint16_t kEmptyFamily = ~uint16_t(0);
+    static constexpr uint16_t kEmptyFamily = ~uint16_t(0);
 
-  uint16_t familyIndex = kEmptyFamily;
-  uint16_t queueIndex = 0;
+    uint16_t familyIndex = kEmptyFamily;
+    uint16_t queueIndex = 0;
 
-  bool ok() const { return familyIndex != kEmptyFamily; }
+    bool ok() const { return familyIndex != kEmptyFamily; }
 };
 
 struct DeviceQueueLocations {
-  DeviceQueueLocation graphics;
-  DeviceQueueLocation presentation;
-  DeviceQueueLocation compute;
-  DeviceQueueLocation transfer;
+    DeviceQueueLocation graphics;
+    DeviceQueueLocation presentation;
+    DeviceQueueLocation compute;
+    DeviceQueueLocation transfer;
 };
 
 }  // namespace goldfish::gvk

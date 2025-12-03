@@ -14,15 +14,15 @@
 
 #pragma once
 
-#include <memory>
-
 #include <grpc++/grpc++.h>
+
+#include <memory>
 
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/display/MultiDisplay.h"
 #include "goldfish/devices/connector_registry.h"
+#include "goldfish/display/MultiDisplay.h"
 
 extern "C" {
 struct QemuConsole;
@@ -35,8 +35,8 @@ namespace control {
 std::shared_ptr<grpc::Service> getEmulatorController(
         android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
         ::goldfish::devices::ConnectorRegistry* connectorRegistry, int avd_api_level,
-        const android::goldfish::HardwareConfig& hw, ::goldfish::display::IMultiDisplay* multiDisplay,
-        ::goldfish::async::EventLoop* qemuLoop);
+        const android::goldfish::HardwareConfig& hw,
+        ::goldfish::display::IMultiDisplay* multiDisplay, ::goldfish::async::EventLoop* qemuLoop);
 
 }  // namespace control
 }  // namespace emulation

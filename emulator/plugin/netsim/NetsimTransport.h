@@ -19,6 +19,7 @@
 #include <queue>
 
 #include "absl/synchronization/notification.h"
+
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
@@ -36,47 +37,47 @@ std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field);
 
 class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketRequest,
                                                        ::netsim::packet::PacketResponse> {
- public:
-  using RecvCallback = std::function<bool(::netsim::packet::PacketResponse *packet)>;
+  public:
+    using RecvCallback = std::function<bool(::netsim::packet::PacketResponse* packet)>;
 
-  NetsimTransport(std::string endpoint, RecvCallback recv_cb);
-  ~NetsimTransport() override;
+    NetsimTransport(std::string endpoint, RecvCallback recv_cb);
+    ~NetsimTransport() override;
 
-  absl::Status initialize(::netsim::startup::Chip chip);
+    absl::Status initialize(::netsim::startup::Chip chip);
 
-  void send(::netsim::packet::PacketRequest msg);
+    void send(::netsim::packet::PacketRequest msg);
 
-  void next_recv();
+    void next_recv();
 
- private:
-  void cancel();
-  void OnDone(const grpc::Status& s) override;
+  private:
+    void cancel();
+    void OnDone(const grpc::Status& s) override;
 
-  void OnReadDone(bool ok) override;
+    void OnReadDone(bool ok) override;
 
-  void OnWriteDone(bool ok) override;
-  void NextWrite_locked();
+    void OnWriteDone(bool ok) override;
+    void NextWrite_locked();
 
-  std::string mEndpoint;
-  RecvCallback mRecvCb;
+    std::string mEndpoint;
+    RecvCallback mRecvCb;
 
-  std::string mKindName;
+    std::string mKindName;
 
-  std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient> mGrpcClient;
-  std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
+    std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient> mGrpcClient;
+    std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
 
-  std::unique_ptr<grpc::ClientContext> mStreamPacketsContext;
+    std::unique_ptr<grpc::ClientContext> mStreamPacketsContext;
 
-  std::mutex mWritelock;
-  std::queue<::netsim::packet::PacketRequest> mWriteQueue;
-  bool mWriting{false};
-  bool mWriteDone{false};
+    std::mutex mWritelock;
+    std::queue<::netsim::packet::PacketRequest> mWriteQueue;
+    bool mWriting{false};
+    bool mWriteDone{false};
 
-  ::netsim::packet::PacketResponse mReadBuffer;
-  std::mutex mReadlock;
-  bool mReadDone{false};
+    ::netsim::packet::PacketResponse mReadBuffer;
+    std::mutex mReadlock;
+    bool mReadDone{false};
 
-  absl::Notification mDone;
+    absl::Notification mDone;
 };
 
 }  // namespace goldfish::netsim

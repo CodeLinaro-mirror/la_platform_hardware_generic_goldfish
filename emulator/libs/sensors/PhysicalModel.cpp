@@ -19,11 +19,11 @@
 #include "absl/log/check.h"
 
 #include "android/goldfish/config/hardware_config.h"
-#include "goldfish/sensors/FoldableModel.h"
 #include "goldfish/physics/AmbientEnvironment.h"
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/GlmHelpers.h"
 #include "goldfish/physics/InertialModel.h"
+#include "goldfish/sensors/FoldableModel.h"
 
 using goldfish::physics::AmbientState;
 using goldfish::physics::BodyState;
@@ -374,7 +374,7 @@ T PhysicalModel::getSensorValue(const AndroidSensor sensor, const T* overrideMem
 #define PHYSICAL_NAME(x) getPhysical##x
 
 // Implement sensor overrides.
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                          \
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                              \
     void PhysicalModel::OVERRIDE_FUNCTION_NAME(z)(v override_value) {   \
         setOverride(SENSOR_NAME(x), &OVERRIDE_NAME(z), override_value); \
     }
@@ -406,7 +406,7 @@ vec3 PhysicalModel::getPhysicalAccelerometer() const {
     // represented by device_rotation_quat to the "absolute" coordinates
     // of the vectors.
     return glm::conjugate(mInertialModel.getRotation()) *
-            (mInertialModel.getAcceleration() - mAmbientEnvironment.getGravity());
+           (mInertialModel.getAcceleration() - mAmbientEnvironment.getGravity());
 }
 
 vec3 PhysicalModel::getPhysicalAccelerometerUncalibrated() const {
@@ -524,8 +524,8 @@ void PhysicalModel::physicalStateChanging() {
     }
 
     PhysicalModelChangeEvent event{
-            .type = PhysicalModelChangeEvent::Type::PhysicalStateChanging,
-            .model = this,
+        .type = PhysicalModelChangeEvent::Type::PhysicalStateChanging,
+        .model = this,
     };
     fireEvent(event);
 }
@@ -544,8 +544,8 @@ void PhysicalModel::physicalStateStabilized() {
     }
 
     PhysicalModelChangeEvent event{
-            .type = PhysicalModelChangeEvent::Type::PhysicalStateStabilized,
-            .model = this,
+        .type = PhysicalModelChangeEvent::Type::PhysicalStateStabilized,
+        .model = this,
     };
     fireEvent(event);
 }
@@ -560,8 +560,8 @@ void PhysicalModel::targetStateChanged() {
     }
 
     PhysicalModelChangeEvent event{
-            .type = PhysicalModelChangeEvent::Type::TargetStateChanged,
-            .model = this,
+        .type = PhysicalModelChangeEvent::Type::TargetStateChanged,
+        .model = this,
     };
     fireEvent(event);
 }

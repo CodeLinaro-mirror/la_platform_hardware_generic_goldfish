@@ -26,7 +26,8 @@ namespace fs = std::filesystem;
 std::vector<char> buildBootconfigBlob(
         const size_t srcSize, const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
-absl::Status createRamdiskWithBootconfig(fs::path srcRamdiskPath, fs::path dstRamdiskPath,
-                                const std::vector<std::pair<std::string, std::string>>& bootconfig);
+absl::Status createRamdiskWithBootconfig(
+        fs::path srcRamdiskPath, fs::path dstRamdiskPath,
+        const std::vector<std::pair<std::string, std::string>>& bootconfig);
 
 }  // namespace goldfish::bootconfig

@@ -74,6 +74,7 @@ struct CatalogEntry {
  */
 class EmulatorCatalog {
     struct Private {};
+
   public:
     /**
      * @brief Factory function to create and initialize an EmulatorCatalog

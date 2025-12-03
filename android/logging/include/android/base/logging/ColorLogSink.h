@@ -34,7 +34,7 @@ LOGGING_API class ColorLogSink : public absl::LogSink {
      * @param useColor Whether to use ANSI color codes in the output.
      */
     ColorLogSink(std::ostream* stream, bool useColor)
-        : mOutputStream(stream), mUseColor(useColor) {}
+            : mOutputStream(stream), mUseColor(useColor) {}
     virtual ~ColorLogSink() = default;
 
     /**

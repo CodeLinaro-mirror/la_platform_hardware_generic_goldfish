@@ -48,7 +48,7 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
      * in a minidump.
      */
     explicit AnnotationStreambuf(const char name[])
-        : Annotation(Type::kString, name, mBuffer), mBuffer() {
+            : Annotation(Type::kString, name, mBuffer), mBuffer() {
         setp(mBuffer, mBuffer + MaxSize);
     }
 

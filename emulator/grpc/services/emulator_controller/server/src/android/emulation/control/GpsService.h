@@ -44,7 +44,6 @@ class GpsServiceImpl {
      */
     explicit GpsServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
 
-
     /**
      * @brief Sets the GPS state.
      *

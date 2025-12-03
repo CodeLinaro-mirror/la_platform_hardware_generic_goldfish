@@ -18,4 +18,4 @@ namespace goldfish::grpc {
 
 void grpc_register_types(void);
 
-} // namespace goldfish::grpc
+}  // namespace goldfish::grpc

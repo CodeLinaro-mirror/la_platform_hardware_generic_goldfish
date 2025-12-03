@@ -51,7 +51,7 @@ class SlotRegistry {
      *                       Defaults to kTOUCH_EXPIRE_AFTER_120S (120 seconds).
      */
     SlotRegistry(absl::Duration slotExpiration = kTOUCH_EXPIRE_AFTER_120S)
-        : mSlotExpiration(slotExpiration) {};
+            : mSlotExpiration(slotExpiration) {};
 
     /**
      * @brief Acquires a free slot for a given touch identifier.

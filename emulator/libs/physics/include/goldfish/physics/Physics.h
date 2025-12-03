@@ -17,13 +17,13 @@
 #pragma once
 
 enum class PhysicalInterpolation {
-  SMOOTH = 0,
-  STEP = 1,
+    SMOOTH = 0,
+    STEP = 1,
 };
 
 enum class ParameterValueType {
-  TARGET = 0,
-  CURRENT = 1,
-  CURRENT_NO_AMBIENT_MOTION = 2,
-  DEFAULT = 3,
+    TARGET = 0,
+    CURRENT = 1,
+    CURRENT_NO_AMBIENT_MOTION = 2,
+    DEFAULT = 3,
 };

@@ -22,9 +22,9 @@ namespace crashreport {
 class TestCrashSystem : public CrashSystem {
   public:
     TestCrashSystem(const std::string& crashDir, const std::string& crashURL)
-        : mPrevCrashSystem(CrashSystem::setForTesting(this)),
-          mCrashDir(crashDir),
-          mCrashURL(crashURL) {}
+            : mPrevCrashSystem(CrashSystem::setForTesting(this))
+            , mCrashDir(crashDir)
+            , mCrashURL(crashURL) {}
 
     virtual ~TestCrashSystem() { CrashSystem::setForTesting(mPrevCrashSystem); }
 

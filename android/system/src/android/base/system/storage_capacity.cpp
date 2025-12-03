@@ -18,59 +18,59 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/log/log.h"
 
 namespace android::base {
 
-    StorageCapacity& StorageCapacity::operator-=(const StorageCapacity& rhs) {
-        // Handle potential underflow
-        if (mBytes < rhs.bytes()) {
-            LOG(WARNING) << "StorageCapacity cannot be negative";
-        }
-        mBytes -= rhs.bytes();
-        return *this;
+StorageCapacity& StorageCapacity::operator-=(const StorageCapacity& rhs) {
+    // Handle potential underflow
+    if (mBytes < rhs.bytes()) {
+        LOG(WARNING) << "StorageCapacity cannot be negative";
     }
+    mBytes -= rhs.bytes();
+    return *this;
+}
 
-    StorageCapacity StorageCapacity::operator-(const StorageCapacity& rhs) const {
-        // Handle potential underflow
-        if (mBytes < rhs.bytes()) {
-            LOG(WARNING) << "StorageCapacity cannot be negative";
-        }
-        unsigned long long differenceBytes = mBytes - rhs.bytes();
-        return StorageCapacity(differenceBytes);
+StorageCapacity StorageCapacity::operator-(const StorageCapacity& rhs) const {
+    // Handle potential underflow
+    if (mBytes < rhs.bytes()) {
+        LOG(WARNING) << "StorageCapacity cannot be negative";
     }
+    unsigned long long differenceBytes = mBytes - rhs.bytes();
+    return StorageCapacity(differenceBytes);
+}
 
-    StorageCapacity::operator int() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into an int";
-        }
-        return static_cast<int>(mBytes);
+StorageCapacity::operator int() const {
+    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+        LOG(WARNING) << "StorageCapacity is too large to fit into an int";
     }
+    return static_cast<int>(mBytes);
+}
 
-    StorageCapacity::operator long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into a long";
-        }
-        return static_cast<long>(mBytes);
+StorageCapacity::operator long() const {
+    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
+        LOG(WARNING) << "StorageCapacity is too large to fit into a long";
     }
+    return static_cast<long>(mBytes);
+}
 
-    StorageCapacity::operator unsigned long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into an unsigned long";
-        }
-        return static_cast<unsigned long>(mBytes);
+StorageCapacity::operator unsigned long() const {
+    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
+        LOG(WARNING) << "StorageCapacity is too large to fit into an unsigned long";
     }
+    return static_cast<unsigned long>(mBytes);
+}
 
-    StorageCapacity::operator long long() const {
-        if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
-            LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
-        }
-        return static_cast<long long>(mBytes);
+StorageCapacity::operator long long() const {
+    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+        LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
     }
+    return static_cast<long long>(mBytes);
+}
 
 absl::StatusOr<uint64_t> parseFromString(const std::string_view& str) {
     size_t processed_chars = 0;
@@ -91,24 +91,24 @@ absl::StatusOr<uint64_t> parseFromString(const std::string_view& str) {
 
     if (processed_chars < str.size()) {
         switch (*ptr) {
-            case 'k':
-            case 'K':
-                result *= 1024ULL;
-                break;
-            case 'm':
-            case 'M':
-                result *= 1024 * 1024ULL;
-                break;
-            case 'g':
-            case 'G':
-                result *= 1024 * 1024 * 1024ULL;
-                break;
-            case 't':
-            case 'T':
-                result *= 1024 * 1024 * 1024 * 1024ULL;
-                break;
-            default:
-                return absl::InvalidArgumentError(absl::StrCat("Unknown label in: ", str));
+        case 'k':
+        case 'K':
+            result *= 1024ULL;
+            break;
+        case 'm':
+        case 'M':
+            result *= 1024 * 1024ULL;
+            break;
+        case 'g':
+        case 'G':
+            result *= 1024 * 1024 * 1024ULL;
+            break;
+        case 't':
+        case 'T':
+            result *= 1024 * 1024 * 1024 * 1024ULL;
+            break;
+        default:
+            return absl::InvalidArgumentError(absl::StrCat("Unknown label in: ", str));
         }
     }
 

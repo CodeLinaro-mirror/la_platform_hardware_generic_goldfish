@@ -45,23 +45,23 @@ inline static constexpr std::string_view kColorBgCyan = "\033[46m";
 std::string_view ColorLogSink::TranslateSeverity(const absl::LogEntry& entry) const {
     if (entry.verbosity() > 0) {
         switch (entry.verbosity()) {
-            case 1:
-                return "DEBUG  ";
-            case 2:
-                return "VERBOSE";
-            default:
-                return "TRACE  ";
+        case 1:
+            return "DEBUG  ";
+        case 2:
+            return "VERBOSE";
+        default:
+            return "TRACE  ";
         }
     }
     switch (entry.log_severity()) {
-        case absl::LogSeverity::kInfo:
-            return "INFO   ";
-        case absl::LogSeverity::kWarning:
-            return "WARNING";
-        case absl::LogSeverity::kError:
-            return "ERROR  ";
-        case absl::LogSeverity::kFatal:
-            return "FATAL  ";
+    case absl::LogSeverity::kInfo:
+        return "INFO   ";
+    case absl::LogSeverity::kWarning:
+        return "WARNING";
+    case absl::LogSeverity::kError:
+        return "ERROR  ";
+    case absl::LogSeverity::kFatal:
+        return "FATAL  ";
     }
 }
 
@@ -94,16 +94,16 @@ std::string_view ColorLogSink::Color(absl::LogSeverity severity) const {
         return kColorNoFormat;
     }
     switch (severity) {
-        case absl::LogSeverity::kInfo:
-            return kColorNormal;
-        case absl::LogSeverity::kWarning:
-            return kColorNormalYellow;
-        case absl::LogSeverity::kError:
-            return kColorNormalRed;
-        case absl::LogSeverity::kFatal:
-            return kColorBoldRed;
-        default:
-            return kColorNoFormat;
+    case absl::LogSeverity::kInfo:
+        return kColorNormal;
+    case absl::LogSeverity::kWarning:
+        return kColorNormalYellow;
+    case absl::LogSeverity::kError:
+        return kColorNormalRed;
+    case absl::LogSeverity::kFatal:
+        return kColorBoldRed;
+    default:
+        return kColorNoFormat;
     }
 }
 

@@ -27,7 +27,7 @@ inline void intrusive_ptr_release(pixman_image_t* p) {
 }
 
 inline void intrusive_ptr_ctor(pixman_image_t*) {
-  // do nothing, the counter initialized to 1
+    // do nothing, the counter initialized to 1
 }
 
 namespace goldfish::display {

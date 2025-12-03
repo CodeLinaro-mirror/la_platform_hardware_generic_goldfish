@@ -21,8 +21,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
+#include "VCpuEventLoop.h"
 #include "aemu/base/files/IniFile.h"
-
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
@@ -33,15 +33,12 @@
 #include "android/goldfish/config/hardware_config.h"
 #include "android/gps/GpsDevice.h"
 #include "android/misc/GuestStatusDevice.h"
-
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 #include "goldfish/display/MultiDisplay.h"
-
-#include "VCpuEventLoop.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -104,7 +101,7 @@ ConnectorRegistry& connector_registry() {
     return ConnectorRegistry::defaultRegistry();
 }
 
-::goldfish::async::EventLoop *getQemuEventLoop() {
+::goldfish::async::EventLoop* getQemuEventLoop() {
     if (!gQemuLoop) {
         LOG(FATAL) << "The QemuEventLoop instance is not yet available. "
                       "This is a QEMU configuration issue which must be fixed in the launcher.";
@@ -174,22 +171,22 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto* clientLoop = goldfish::async::globalEventLoop();
 
     gQemuLoop = goldfish::async::QemuEventLoop::create();
-    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper("QemuEventLoop", *gQemuLoop, absl::Seconds(15));
+    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+            "QemuEventLoop", *gQemuLoop, absl::Seconds(15));
 
     gQemuCpuLoops = createVCpuEventLoops();
-    for (auto &loop: gQemuCpuLoops) {
-        android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
+    for (auto& loop : gQemuCpuLoops) {
+        android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+                absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
     }
 
     auto* registry = &connector_registry();
 
     namespace DEVS = goldfish::devices;
 
-    DEVS::sensor::ISensorDevice::registerDevice(
-            registry, avd_props.avd_type, avd_props.avd_api,
-            avd_props.hw_config, clientLoop, gQemuLoop.get());
-    DEVS::clipboard::IClipboardDevice::registerDevice(registry, clientLoop,
-                                                                   gQemuLoop.get());
+    DEVS::sensor::ISensorDevice::registerDevice(registry, avd_props.avd_type, avd_props.avd_api,
+                                                avd_props.hw_config, clientLoop, gQemuLoop.get());
+    DEVS::clipboard::IClipboardDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
     DEVS::guest_status::IGuestStatusDevice::registerDevice(
             registry, {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop,
             gQemuLoop.get(), avd_props.quit_after_boot_timeout_seconds);
@@ -336,7 +333,8 @@ void avd_info_instance_finalize(Object* obj) {
     VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
     auto f = gQemuLoop->shutdown();
-    // In the current Qemu implementation, we are already running on the Qemu main thread and so shutdown will have run serially.
+    // In the current Qemu implementation, we are already running on the Qemu main thread and so
+    // shutdown will have run serially.
     if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
         LOG(FATAL) << "Qemu loop shutdown failed to complete within 15s";
     }

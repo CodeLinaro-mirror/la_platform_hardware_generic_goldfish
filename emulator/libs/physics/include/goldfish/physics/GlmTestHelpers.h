@@ -20,24 +20,24 @@
 
 namespace glm {
 inline void PrintTo(const glm::vec3& v, std::ostream* os) {
-  *os << "vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
+    *os << "vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
 }
 
 inline void PrintTo(const glm::quat& q, std::ostream* os) {
-  *os << "quat(" << q.x << " " << q.y << " " << q.z << " " << q.w << ")";
+    *os << "quat(" << q.x << " " << q.y << " " << q.z << " " << q.w << ")";
 }
 }  // namespace glm
 
 // Use as: EXPECT_THAT(quat, Vec3Near(expected, 0.01f));
 MATCHER_P2(Vec3Near, expected, epsilon,
            std::string(negation ? "isn't" : "is") + " near " + ::testing::PrintToString(expected) +
-               ", within epsilon=" + ::testing::PrintToString(epsilon)) {
-  return vectorNearEqual(arg, expected, epsilon);
+                   ", within epsilon=" + ::testing::PrintToString(epsilon)) {
+    return vectorNearEqual(arg, expected, epsilon);
 }
 
 // Use as: EXPECT_THAT(quat, QuatNear(expected, 0.01f));
 MATCHER_P2(QuatNear, expected, epsilon,
            std::string(negation ? "isn't" : "is") + " near " + ::testing::PrintToString(expected) +
-               ", within epsilon=" + ::testing::PrintToString(epsilon)) {
-  return quaternionNearEqual(arg, expected, epsilon);
+                   ", within epsilon=" + ::testing::PrintToString(epsilon)) {
+    return quaternionNearEqual(arg, expected, epsilon);
 }

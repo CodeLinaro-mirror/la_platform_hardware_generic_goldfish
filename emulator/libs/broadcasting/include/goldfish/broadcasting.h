@@ -94,7 +94,7 @@ struct Ticket {
     using value_t = unsigned;
 
     Ticket(std::weak_ptr<TopicBase> topic, const value_t value)
-        : mTopic(std::move(topic)), mValue(value) {}
+            : mTopic(std::move(topic)), mValue(value) {}
 
     void release() { mTopic.reset(); }
 
@@ -160,14 +160,14 @@ struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>
     using TopicT::subscribe;
 
     template <class T>
-    Ticket subscribe(T& object, std::optional<Ticket> (T::*const method)(Args...)) {
+    Ticket subscribe(T& object, std::optional<Ticket> (T::* const method)(Args...)) {
         return subscribe([&object, method](Args... args) {
             return (object.*method)(std::forward<Args>(args)...);
         });
     }
 
     template <class T>
-    Ticket subscribe(T& object, void (T::*const method)(Args...)) {
+    Ticket subscribe(T& object, void (T::* const method)(Args...)) {
         return subscribe([&object, method](Args... args) {
             (object.*method)(std::forward<Args>(args)...);
             return std::nullopt;
@@ -200,12 +200,12 @@ struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>>
     using TopicT::subscribe;
 
     template <class T>
-    Ticket subscribe(T& object, std::optional<Ticket> (T::*const method)()) {
+    Ticket subscribe(T& object, std::optional<Ticket> (T::* const method)()) {
         return subscribe([&object, method]() { return (object.*method)(); });
     }
 
     template <class T>
-    Ticket subscribe(T& object, void (T::*const method)()) {
+    Ticket subscribe(T& object, void (T::* const method)()) {
         return subscribe([&object, method]() {
             (object.*method)();
             return std::nullopt;

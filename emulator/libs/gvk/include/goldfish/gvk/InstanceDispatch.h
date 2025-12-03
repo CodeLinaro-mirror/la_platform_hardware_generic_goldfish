@@ -22,60 +22,61 @@
 #include "goldfish/gvk/util/GetPFN.h"
 
 #define GOLDFISH_GVK_InstanceDispatch_FUNC_LIST(VISITOR) \
-  VISITOR(vkEnumeratePhysicalDevices)                    \
-  VISITOR(vkGetPhysicalDeviceProperties)                 \
-  VISITOR(vkGetPhysicalDeviceQueueFamilyProperties)      \
-  VISITOR(vkGetPhysicalDeviceMemoryProperties)           \
-  VISITOR(vkEnumerateDeviceExtensionProperties)          \
-  VISITOR(vkCreateDevice)                                \
-  VISITOR(vkGetDeviceProcAddr)                           \
-  VISITOR(vkCreateRenderPass)
+    VISITOR(vkEnumeratePhysicalDevices)                  \
+    VISITOR(vkGetPhysicalDeviceProperties)               \
+    VISITOR(vkGetPhysicalDeviceQueueFamilyProperties)    \
+    VISITOR(vkGetPhysicalDeviceMemoryProperties)         \
+    VISITOR(vkEnumerateDeviceExtensionProperties)        \
+    VISITOR(vkCreateDevice)                              \
+    VISITOR(vkGetDeviceProcAddr)                         \
+    VISITOR(vkCreateRenderPass)
 
 namespace goldfish::gvk {
 
 struct DeviceDispatch;
 
 class InstanceDispatch {
- public:
-  using Ptr = std::shared_ptr<const InstanceDispatch>;
+  public:
+    using Ptr = std::shared_ptr<const InstanceDispatch>;
 
-  static Ptr create(const IMetaLoader::Ptr&, const VkInstanceCreateInfo&);
-  static Ptr create(const IMetaLoader::Ptr&, uint32_t maxApiVersion, const char* appName = nullptr,
-                    uint32_t enabledLayerCount = 0, const char* const* enabledLayerNames = nullptr,
-                    uint32_t enabledExtensionCount = 0,
-                    const char* const* enabledExtensionNames = nullptr);
+    static Ptr create(const IMetaLoader::Ptr&, const VkInstanceCreateInfo&);
+    static Ptr create(const IMetaLoader::Ptr&, uint32_t maxApiVersion,
+                      const char* appName = nullptr, uint32_t enabledLayerCount = 0,
+                      const char* const* enabledLayerNames = nullptr,
+                      uint32_t enabledExtensionCount = 0,
+                      const char* const* enabledExtensionNames = nullptr);
 
-  VkResult enumeratePhysicalDevices(uint32_t* pPhysicalDeviceCount,
-                                    VkPhysicalDevice* pPhysicalDevices) const;
-  VkPhysicalDeviceProperties getPhysicalDeviceProperties(VkPhysicalDevice) const;
-  std::vector<VkQueueFamilyProperties> getPhysicalDeviceQueueFamilyProperties(
-      VkPhysicalDevice) const;
-  VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(VkPhysicalDevice) const;
-  std::vector<VkExtensionProperties> enumerateDeviceExtensionProperties(
-      VkPhysicalDevice, const char* layerName) const;
+    VkResult enumeratePhysicalDevices(uint32_t* pPhysicalDeviceCount,
+                                      VkPhysicalDevice* pPhysicalDevices) const;
+    VkPhysicalDeviceProperties getPhysicalDeviceProperties(VkPhysicalDevice) const;
+    std::vector<VkQueueFamilyProperties> getPhysicalDeviceQueueFamilyProperties(
+            VkPhysicalDevice) const;
+    VkPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties(VkPhysicalDevice) const;
+    std::vector<VkExtensionProperties> enumerateDeviceExtensionProperties(
+            VkPhysicalDevice, const char* layerName) const;
 
- private:
-  friend DeviceDispatch;
-  struct Private {};
+  private:
+    friend DeviceDispatch;
+    struct Private {};
 
-  VkDevice createDevice(VkPhysicalDevice, const VkDeviceCreateInfo&) const;
-  PFN_vkGetDeviceProcAddr getDeviceProcAddr() const { return mPFN_vkGetDeviceProcAddr; }
-  bool initPFNs(const util::GetPFN&);
+    VkDevice createDevice(VkPhysicalDevice, const VkDeviceCreateInfo&) const;
+    PFN_vkGetDeviceProcAddr getDeviceProcAddr() const { return mPFN_vkGetDeviceProcAddr; }
+    bool initPFNs(const util::GetPFN&);
 
-  const IMetaLoader::Ptr mLoader;
-  const VkInstance mVkInstance;
-  const PFN_vkDestroyInstance mPFN_vkDestroyInstance;
+    const IMetaLoader::Ptr mLoader;
+    const VkInstance mVkInstance;
+    const PFN_vkDestroyInstance mPFN_vkDestroyInstance;
 
-  GOLDFISH_GVK_InstanceDispatch_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
+    GOLDFISH_GVK_InstanceDispatch_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
 
- public:
-  InstanceDispatch(IMetaLoader::Ptr, VkInstance, PFN_vkDestroyInstance, Private);
-  ~InstanceDispatch();
+  public:
+    InstanceDispatch(IMetaLoader::Ptr, VkInstance, PFN_vkDestroyInstance, Private);
+    ~InstanceDispatch();
 
-  InstanceDispatch(const InstanceDispatch&) = delete;
-  InstanceDispatch(InstanceDispatch&&) = delete;
-  InstanceDispatch& operator=(const InstanceDispatch&) = delete;
-  InstanceDispatch& operator=(InstanceDispatch&&) = delete;
+    InstanceDispatch(const InstanceDispatch&) = delete;
+    InstanceDispatch(InstanceDispatch&&) = delete;
+    InstanceDispatch& operator=(const InstanceDispatch&) = delete;
+    InstanceDispatch& operator=(InstanceDispatch&&) = delete;
 };
 
 }  // namespace goldfish::gvk

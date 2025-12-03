@@ -1803,7 +1803,7 @@ static const OptionHelp option_help[] = {
 #define OPT_LIST OPT_PARAM
 #include "android/cmdline-options.h"
 
-        {NULL, NULL, NULL, NULL}};
+    {NULL, NULL, NULL, NULL}};
 
 typedef struct {
     const char* name;
@@ -1812,14 +1812,14 @@ typedef struct {
 } TopicHelp;
 
 static const TopicHelp topic_help[] = {
-        {"disk-images", "about disk images", help_disk_images},
-        {"debug-tags", "debug tags for -debug <tags>", help_debug_tags},
-        {"char-devices", "character <device> specification", help_char_devices},
-        {"environment", "environment variables", help_environment},
-        {"virtual-device", "virtual device management", help_virtual_device},
-        {"sdk-images", "about disk images when using the SDK", help_sdk_images},
-        {"build-images", "about disk images when building Android", help_build_images},
-        {NULL, NULL, NULL}};
+    {"disk-images", "about disk images", help_disk_images},
+    {"debug-tags", "debug tags for -debug <tags>", help_debug_tags},
+    {"char-devices", "character <device> specification", help_char_devices},
+    {"environment", "environment variables", help_environment},
+    {"virtual-device", "virtual device management", help_virtual_device},
+    {"sdk-images", "about disk images when using the SDK", help_sdk_images},
+    {"build-images", "about disk images when building Android", help_build_images},
+    {NULL, NULL, NULL}};
 
 int android_help_for_option(const char* option, stralloc_t* out) {
     const OptionHelp* oo;

@@ -93,4 +93,4 @@ class FakeMultiDisplay : public IMultiDisplay {
     bool mEnabled;
 };
 
-}  // namespace android::goldfish
+}  // namespace goldfish::display::test

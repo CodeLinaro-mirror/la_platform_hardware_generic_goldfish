@@ -206,7 +206,11 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void close() {
-        (void)mClientLoop->postAndWait([this] { if (mSocketServer) { mSocketServer->close(); }});
+        (void)mClientLoop->postAndWait([this] {
+            if (mSocketServer) {
+                mSocketServer->close();
+            }
+        });
     }
 
   private:
@@ -312,7 +316,7 @@ static void vsock_fwd_unrealize(DeviceState* dev) {
 
     VLOG(VLOG_DBG) << "Erasing vsock forwarder: (host:guest) " << vsock_fwd_device->host_port << ":"
                    << vsock_fwd_device->guest_port;
-    static_cast<VSockProxyImpl *>(vsock_fwd_device->forwarder)->close();
+    static_cast<VSockProxyImpl*>(vsock_fwd_device->forwarder)->close();
     delete vsock_fwd_device->forwarder;
 }
 

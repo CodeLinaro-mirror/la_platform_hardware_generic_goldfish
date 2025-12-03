@@ -59,29 +59,29 @@ void AbslStringify(Sink& sink, apacket* packet) {
             } else {
                 // Escape special characters for JSON
                 switch (packet->data[i]) {
-                    case '"':
-                        absl::Format(&sink, "\\\"");
-                        break;
-                    case '\\':
-                        absl::Format(&sink, "\\\\");
-                        break;
-                    case '\b':
-                        absl::Format(&sink, "\\b");
-                        break;
-                    case '\f':
-                        absl::Format(&sink, "\\f");
-                        break;
-                    case '\n':
-                        absl::Format(&sink, "\\n");
-                        break;
-                    case '\r':
-                        absl::Format(&sink, "\\r");
-                        break;
-                    case '\t':
-                        absl::Format(&sink, "\\t");
-                        break;
-                    default:
-                        absl::Format(&sink, "\\u%04x", packet->data[i]);
+                case '"':
+                    absl::Format(&sink, "\\\"");
+                    break;
+                case '\\':
+                    absl::Format(&sink, "\\\\");
+                    break;
+                case '\b':
+                    absl::Format(&sink, "\\b");
+                    break;
+                case '\f':
+                    absl::Format(&sink, "\\f");
+                    break;
+                case '\n':
+                    absl::Format(&sink, "\\n");
+                    break;
+                case '\r':
+                    absl::Format(&sink, "\\r");
+                    break;
+                case '\t':
+                    absl::Format(&sink, "\\t");
+                    break;
+                default:
+                    absl::Format(&sink, "\\u%04x", packet->data[i]);
                 }
             }
         }
@@ -131,8 +131,8 @@ void AdbMessageLogger::observe(const void* data, size_t size) {
 }
 
 AdbLogger::AdbLogger(int hostPort, int guestPort)
-    : mToGuest(AdbMessageLogger(absl::StrFormat(">> (%d) ", guestPort))),
-      mToHost(AdbMessageLogger(absl::StrFormat("<< (%d) ", hostPort))) {}
+        : mToGuest(AdbMessageLogger(absl::StrFormat(">> (%d) ", guestPort)))
+        , mToHost(AdbMessageLogger(absl::StrFormat("<< (%d) ", hostPort))) {}
 
 void AdbLogger::toSocket(const void* data, size_t dataSize) {
     mToGuest.observe(data, dataSize);

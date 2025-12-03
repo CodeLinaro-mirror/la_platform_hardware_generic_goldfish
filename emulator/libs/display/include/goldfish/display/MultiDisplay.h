@@ -16,9 +16,9 @@
 #include <atomic>
 #include <vector>
 
-#include "goldfish/display/Display.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/event_loop_dispatcher.h"
+#include "goldfish/display/Display.h"
 
 namespace goldfish::display {
 

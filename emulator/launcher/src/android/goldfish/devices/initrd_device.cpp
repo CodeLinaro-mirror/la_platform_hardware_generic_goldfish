@@ -27,7 +27,6 @@
 #include "absl/strings/str_replace.h"
 
 #include "aemu/base/utils/status_macros.h"
-
 #include "android/emulation/control/adb/adbkey.h"
 #include "android/goldfish/bootconfig.h"
 #include "android/goldfish/config/avd.h"
@@ -306,7 +305,7 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
     // unlocked state
 
     // if (emulator.opts().writable_system) {
-        verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
+    verified_boot_params.push_back("androidboot.verifiedbootstate=orange");
     // }
     return verified_boot_params;
 }
@@ -334,10 +333,11 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
 
     fs::path system_ramdisk;
-    if (auto *ramdisk = emulator.opts().ramdisk; ramdisk != nullptr) {
+    if (auto* ramdisk = emulator.opts().ramdisk; ramdisk != nullptr) {
         system_ramdisk = fs::path(ramdisk);
         if (!fs::exists(system_ramdisk)) {
-            return absl::NotFoundError(absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
+            return absl::NotFoundError(
+                    absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
         }
     } else {
         ASSIGN_OR_RETURN(system_ramdisk, avd.getSystemImageFilePath(Avd::ImageType::RAMDISK));
@@ -345,11 +345,13 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
 
     // Why doesn't it use Avd::getImageFilename(Avd::ImageType::USERRAMDISK) ?
     mUserRamdisk = avd.getContentPath() / "initrd";
-    // TODO(whollins): if mUserRamdisk exists then don't overwrite it (but then boot properties aren't updated)?
+    // TODO(whollins): if mUserRamdisk exists then don't overwrite it (but then boot properties
+    // aren't updated)?
 
     // Ok.. let's create it
     LOG(INFO) << "Creating initrd from " << system_ramdisk << " -> " << mUserRamdisk;
-    return ::goldfish::bootconfig::createRamdiskWithBootconfig(system_ramdisk, mUserRamdisk, properties);
+    return ::goldfish::bootconfig::createRamdiskWithBootconfig(system_ramdisk, mUserRamdisk,
+                                                               properties);
 }
 
 // TODO(jansene) add Initrd versioning magic to add/subtract parameters,

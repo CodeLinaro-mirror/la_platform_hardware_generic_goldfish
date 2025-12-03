@@ -26,57 +26,57 @@ namespace goldfish::sensors {
 #define ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS 3
 
 enum class FoldablePostures {
-  UNKNOWN = 0,
-  CLOSED = 1,
-  HALF_OPENED = 2,
-  OPENED = 3,
-  FLIPPED = 4,
-  TENT = 5,
-  POSTURE_MAX
+    UNKNOWN = 0,
+    CLOSED = 1,
+    HALF_OPENED = 2,
+    OPENED = 3,
+    FLIPPED = 4,
+    TENT = 5,
+    POSTURE_MAX
 };
 
 struct AnglesToPosture {
-  struct Angles {
-    float left;
-    float right;
-    float default_value;
-  };
+    struct Angles {
+        float left;
+        float right;
+        float default_value;
+    };
 
-  Angles angles[ANDROID_FOLDABLE_MAX_HINGES_ROLLS];
-  FoldablePostures posture;
+    Angles angles[ANDROID_FOLDABLE_MAX_HINGES_ROLLS];
+    FoldablePostures posture;
 };
 
 enum class FoldableDisplayType {
-  // Horizontal split means something like a laptop, i.e.
-  // |-----| Camera is here
-  // | top |
-  // |-----| hinge 0
-  // |     |
-  // |-----| hinge 1
-  // |     |
-  // |-----|
-  HORIZONTAL_SPLIT = 0,
+    // Horizontal split means something like a laptop, i.e.
+    // |-----| Camera is here
+    // | top |
+    // |-----| hinge 0
+    // |     |
+    // |-----| hinge 1
+    // |     |
+    // |-----|
+    HORIZONTAL_SPLIT = 0,
 
-  // Vertical split is left to right, rotated version of horizontal split:
-  // |-camera|-------|------|-------|
-  // |       |       |      |       |
-  // |       |       |      |       |
-  // |-------|-------|------|-------|
-  // hinge:  0       1      2
-  // |-----|
-  // | top |
-  // |-----| hinge 0
-  // |     |
-  // |-----| hinge 1
-  // |     |
-  // |-----|
-  VERTICAL_SPLIT = 1,
+    // Vertical split is left to right, rotated version of horizontal split:
+    // |-camera|-------|------|-------|
+    // |       |       |      |       |
+    // |       |       |      |       |
+    // |-------|-------|------|-------|
+    // hinge:  0       1      2
+    // |-----|
+    // | top |
+    // |-----| hinge 0
+    // |     |
+    // |-----| hinge 1
+    // |     |
+    // |-----|
+    VERTICAL_SPLIT = 1,
 
-  // Roll configurations (essentially the # hinges are infinite,
-  // representable via separate parameters)
-  HORIZONTAL_ROLL = 2,
-  VERTICAL_ROLL = 3,
-  TYPE_MAX
+    // Roll configurations (essentially the # hinges are infinite,
+    // representable via separate parameters)
+    HORIZONTAL_ROLL = 2,
+    VERTICAL_ROLL = 3,
+    TYPE_MAX
 };
 
 struct FoldableHingeParameters {
@@ -98,24 +98,24 @@ struct RollableParameters {
 };
 
 struct FoldableConfig {
-  FoldableDisplayType type;
+    FoldableDisplayType type;
 
-  // For hinges only
-  int numHinges;
-  FoldablePostures foldAtPosture;
-  FoldableHingeParameters hingeParams[ANDROID_FOLDABLE_MAX_HINGES];
+    // For hinges only
+    int numHinges;
+    FoldablePostures foldAtPosture;
+    FoldableHingeParameters hingeParams[ANDROID_FOLDABLE_MAX_HINGES];
 
-  // For rollables only
-  int numRolls;
-  FoldablePostures resizeAtPosture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
-  RollableParameters rollableParams[ANDROID_FOLDABLE_MAX_ROLLS];
+    // For rollables only
+    int numRolls;
+    FoldablePostures resizeAtPosture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
+    RollableParameters rollableParams[ANDROID_FOLDABLE_MAX_ROLLS];
 };
 
 struct FoldableState {
-  FoldableConfig config;
-  float currentHingeDegrees[ANDROID_FOLDABLE_MAX_HINGES];
-  float currentRolledPercent[ANDROID_FOLDABLE_MAX_ROLLS];
-  FoldablePostures currentPosture;
+    FoldableConfig config;
+    float currentHingeDegrees[ANDROID_FOLDABLE_MAX_HINGES];
+    float currentRolledPercent[ANDROID_FOLDABLE_MAX_ROLLS];
+    FoldablePostures currentPosture;
 };
 
 }  // namespace goldfish::sensors

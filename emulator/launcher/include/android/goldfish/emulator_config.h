@@ -30,8 +30,13 @@ struct EmulatorPorts {
 
 class EmulatorConfig {
   public:
-    EmulatorConfig(EmulatorPorts ports, const std::string &netsim_endpoint, ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
-        : mPorts(std::move(ports)), mNetsimEndpoint(netsim_endpoint), mResolvedPaths(std::move(resolved_paths)), mAvd(std::move(avd)), mOpts(std::move(opts)) {}
+    EmulatorConfig(EmulatorPorts ports, const std::string& netsim_endpoint,
+                   ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
+            : mPorts(std::move(ports))
+            , mNetsimEndpoint(netsim_endpoint)
+            , mResolvedPaths(std::move(resolved_paths))
+            , mAvd(std::move(avd))
+            , mOpts(std::move(opts)) {}
 
     // The resolved paths to input binaries and data
     const ResolvedInputPaths& paths() const { return mResolvedPaths; }
@@ -42,7 +47,7 @@ class EmulatorConfig {
     // The android options used to configure this emulator
     const AndroidOptions& opts() const { return mOpts; }
 
-    const std::string &netsim_endpoint() const { return mNetsimEndpoint; }
+    const std::string& netsim_endpoint() const { return mNetsimEndpoint; }
 
     int serial_number() const { return mPorts.serial_number; }
     int adb_port() const { return mPorts.adb_port; }

@@ -66,9 +66,9 @@ bool Bazel::inBazel() {
         return false;
     }
     std::array<std::string, 3> markers = {
-            "BUILD_WORKING_DIRECTORY",
-            "TEST_BINARY",
-            "RUNFILES_DIR",
+        "BUILD_WORKING_DIRECTORY",
+        "TEST_BINARY",
+        "RUNFILES_DIR",
     };
     for (const auto& marker : markers) {
         if (!System::get()->getEnvironmentVariable(marker).empty()) {

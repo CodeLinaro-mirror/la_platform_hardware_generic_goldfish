@@ -115,8 +115,7 @@ class BootPropertiesDeviceTest : public ::testing::Test {
 
   public:
     void registerWithProps(IBootPropertiesDevice::Properties props) {
-        IBootPropertiesDevice::registerDevice(&registry, props, mClientLoop.get(),
-                                              mQemuLoop.get());
+        IBootPropertiesDevice::registerDevice(&registry, props, mClientLoop.get(), mQemuLoop.get());
         device = registry.constructHalDevice<IBootPropertiesDevice>();
         test_socket = registry.halSocket();
         clear();

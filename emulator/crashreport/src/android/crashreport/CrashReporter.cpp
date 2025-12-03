@@ -25,13 +25,11 @@
 #include <vector>
 
 #include "android/base/bazel/bazel_info.h"
-#include "android/base/system/abseil_clock.h"
 #include "android/base/system/System.h"
-#include "android/crashreport/crash-handler.h"
+#include "android/base/system/abseil_clock.h"
 #include "android/crashreport/SimpleStringAnnotation.h"
-
+#include "android/crashreport/crash-handler.h"
 #include "client/annotation.h"
-
 #include "goldfish/tools/aemu_version.h"
 
 #ifdef _WIN32
@@ -52,16 +50,17 @@ const constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".
 
 using DefaultStringAnnotation = crashpad::StringAnnotation<1024>;
 
-CrashReporter::CrashReporter() :
-    mHangDetector(HangDetector::create(
-                [](std::string_view message) {
-                  std::string copy(message);
-                  CrashReporter::get()->die(copy.c_str());
-                }, HangDetector::defaultTiming(),
-                             std::make_unique<android::base::AbseilClock>())) {}
+CrashReporter::CrashReporter()
+        : mHangDetector(HangDetector::create(
+                  [](std::string_view message) {
+                      std::string copy(message);
+                      CrashReporter::get()->die(copy.c_str());
+                  },
+                  HangDetector::defaultTiming(), std::make_unique<android::base::AbseilClock>())) {}
 
 fs::path CrashReporter::databaseDirectory() {
-    if (auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE"); !database_directory.empty()) {
+    if (auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
+        !database_directory.empty()) {
         return fs::path(database_directory);
     }
     return System::get()->getTempDir() / kCrashpadDatabase;

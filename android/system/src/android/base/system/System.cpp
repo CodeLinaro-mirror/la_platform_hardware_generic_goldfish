@@ -29,15 +29,14 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/strings/strip.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 
 #include "aemu/base/memory/NoDestructor.h"
 #include "aemu/base/process/Command.h"
-
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/CStrWrapper.h"
 #include "android/base/system/storage_capacity.h"
@@ -964,8 +963,7 @@ void System::addLibrarySearchDir(fs::path path) {
 
     std::string libSearchPath = system->envGet(varName);
     if (libSearchPath.size()) {
-        libSearchPath =
-                absl::StrFormat("%s%c%s", path.string(), kPathSeparator, libSearchPath);
+        libSearchPath = absl::StrFormat("%s%c%s", path.string(), kPathSeparator, libSearchPath);
     } else {
         libSearchPath = path.string();
     }

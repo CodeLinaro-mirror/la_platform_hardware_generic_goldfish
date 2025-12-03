@@ -32,39 +32,39 @@
 namespace goldfish::os {
 
 struct DynamicLibrary {
-  DynamicLibrary() = default;
-  explicit DynamicLibrary(const std::filesystem::path& path);
-  DynamicLibrary(DynamicLibrary&& rhs);
-  DynamicLibrary& operator=(DynamicLibrary&& rhs);
+    DynamicLibrary() = default;
+    explicit DynamicLibrary(const std::filesystem::path& path);
+    DynamicLibrary(DynamicLibrary&& rhs);
+    DynamicLibrary& operator=(DynamicLibrary&& rhs);
 
-  bool ok() const;
-  void* operator[](const char*) const;
+    bool ok() const;
+    void* operator[](const char*) const;
 
-  friend void swap(DynamicLibrary& lhs, DynamicLibrary& rhs);
+    friend void swap(DynamicLibrary& lhs, DynamicLibrary& rhs);
 
-  DynamicLibrary(const DynamicLibrary&) = delete;
-  DynamicLibrary& operator=(const DynamicLibrary&) = delete;
+    DynamicLibrary(const DynamicLibrary&) = delete;
+    DynamicLibrary& operator=(const DynamicLibrary&) = delete;
 
- private:
+  private:
 #if defined(_WIN32)
-  struct HandleDeleter {
-    struct Empty {};
-    HandleDeleter() = default;
-    HandleDeleter(Empty) {}
-    void operator()(HMODULE) const;
-  };
-  using LibraryHandle = goldfish::base::UniqueHandle<HMODULE, nullptr, HandleDeleter>;
+    struct HandleDeleter {
+        struct Empty {};
+        HandleDeleter() = default;
+        HandleDeleter(Empty) {}
+        void operator()(HMODULE) const;
+    };
+    using LibraryHandle = goldfish::base::UniqueHandle<HMODULE, nullptr, HandleDeleter>;
 #else
-  struct HandleDeleter {
-    struct Empty {};
-    HandleDeleter() = default;
-    HandleDeleter(Empty) {}
-    void operator()(void*) const;
-  };
-  using LibraryHandle = goldfish::base::UniqueHandle<void*, nullptr, HandleDeleter>;
+    struct HandleDeleter {
+        struct Empty {};
+        HandleDeleter() = default;
+        HandleDeleter(Empty) {}
+        void operator()(void*) const;
+    };
+    using LibraryHandle = goldfish::base::UniqueHandle<void*, nullptr, HandleDeleter>;
 #endif
 
-  LibraryHandle mHandle;
+    LibraryHandle mHandle;
 };
 
 }  // namespace goldfish::os

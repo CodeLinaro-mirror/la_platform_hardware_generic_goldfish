@@ -14,8 +14,9 @@
 
 #pragma once
 
-#include <filesystem>
 #include <stdint.h>
+
+#include <filesystem>
 
 #include "android/utils/compiler.h"
 
@@ -35,7 +36,8 @@ ANDROID_BEGIN_HEADER
 //    -1 - indicating that formatting the arguments failed
 //    -2 - indicating a system call went wrong
 //    Otherwise the exit code of the resize2fs process is returned.
-int resizeExt4Partition(std::filesystem::path binary_directory, const char* partitionPath, int64_t newByteSize);
+int resizeExt4Partition(std::filesystem::path binary_directory, const char* partitionPath,
+                        int64_t newByteSize);
 
 // Returns true if |byteSize| is a valid ext4 partition size; i.e. within the
 // range of 128 MiB and 16 TiB inclusive, false otherwise.

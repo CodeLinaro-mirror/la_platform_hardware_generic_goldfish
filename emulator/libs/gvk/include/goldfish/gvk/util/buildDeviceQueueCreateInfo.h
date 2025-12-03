@@ -28,7 +28,7 @@ namespace goldfish::gvk::util {
 constexpr uint32_t GVK_QUEUE_PRESENTATION_BIT = 1U << 31;
 
 using BuildDeviceQueueCreateInfoResult =
-    std::pair<std::vector<VkDeviceQueueCreateInfo>, goldfish::gvk::DeviceQueueLocations>;
+        std::pair<std::vector<VkDeviceQueueCreateInfo>, goldfish::gvk::DeviceQueueLocations>;
 
 /*
  * Builds a set of `VkDeviceQueueCreateInfo` structures and maps logical queue

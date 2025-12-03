@@ -409,7 +409,9 @@ OPT_FLAG(enable_vnc, "enable vnc debug display")
 OPT_PARAM(qemu, "<qemu>", "flags to pass directly to Qemu")
 
 OPT_FLAG(no_wifi, "disable wifi device")
-OPT_FLAG(no_netsim, "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, uwb")
+OPT_FLAG(no_netsim,
+         "disable launching netsimd and configuring any devices that depend on it e.g. wifi, bt, "
+         "uwb")
 OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 
 OPT_PARAM(V, "<v log level>", "Set the global vlog level to this integer value")

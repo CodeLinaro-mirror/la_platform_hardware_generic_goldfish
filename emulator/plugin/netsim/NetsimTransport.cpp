@@ -67,9 +67,9 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     auto& avdprops = goldfish::avd_info::getAvd().props();
 
     ::netsim::packet::PacketRequest initial_request;
-    auto *initial_info = initial_request.mutable_initial_info();
+    auto* initial_info = initial_request.mutable_initial_info();
     *initial_info->mutable_chip() = std::move(chip);
-    auto *device_info = initial_info->mutable_device_info();
+    auto* device_info = initial_info->mutable_device_info();
     device_info->set_name(avdprops.avd_name);
     device_info->set_kind("EMULATOR");
     device_info->set_version(VERSION);
@@ -78,7 +78,8 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     device_info->set_variant(avdprops.build_flavour);
     device_info->set_arch(avdprops.avd_abi);
 
-    VLOG(1) << "Netsim Transport " << mEndpoint << " - creating gRPC channel to netsimd endpoint: " << mEndpoint;
+    VLOG(1) << "Netsim Transport " << mEndpoint
+            << " - creating gRPC channel to netsimd endpoint: " << mEndpoint;
     android::emulation::control::Endpoint endpoint_config;
     endpoint_config.set_target(mEndpoint);
 
@@ -156,10 +157,11 @@ void NetsimTransport::OnReadDone(bool ok) {
 
 void NetsimTransport::OnDone(const grpc::Status& s) {
     if (s.error_code() == grpc::StatusCode::CANCELLED) {
-        LOG(INFO) << "Netsim Transport " << mKindName << " - connection to " << mStreamPacketsContext->peer() << " was cancelled";
+        LOG(INFO) << "Netsim Transport " << mKindName << " - connection to "
+                  << mStreamPacketsContext->peer() << " was cancelled";
     } else {
-        LOG(WARNING) << "Netsim Transport " << mKindName << " - connection to " << mStreamPacketsContext->peer() << " is gone due to "
-                    << s.error_message();
+        LOG(WARNING) << "Netsim Transport " << mKindName << " - connection to "
+                     << mStreamPacketsContext->peer() << " is gone due to " << s.error_message();
     }
     mDone.Notify();
 }

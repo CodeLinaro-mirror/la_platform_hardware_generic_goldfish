@@ -122,9 +122,9 @@ static UploadResult UploadReport(const CrashReportDatabase::UploadReport* report
         const char* key;
         const char* url_field_name;
     } kURLParameterMappings[] = {
-            {"prod", "product"},
-            {"ver", "version"},
-            {"guid", "guid"},
+        {"prod", "product"},
+        {"ver", "version"},
+        {"guid", "guid"},
     };
 
     for (const auto& parameter_mapping : kURLParameterMappings) {
@@ -165,23 +165,23 @@ UploadResult ProcessPendingReport(CrashReportDatabase* database_,
     UploadResult upload_result = UploadReport(upload_report.get(), &response_body);
 
     switch (upload_result) {
-        case UploadResult::kSuccess:
-            database_->RecordUploadComplete(std::move(upload_report), response_body);
-            break;
-        case UploadResult::kPermanentFailure:
-            upload_report.reset();
-            database_->SkipReportUpload(
-                    report.uuid, crashpad::Metrics::CrashSkippedReason::kPrepareForUploadFailed);
-            break;
-        case UploadResult::kRetry:
-            upload_report.reset();
+    case UploadResult::kSuccess:
+        database_->RecordUploadComplete(std::move(upload_report), response_body);
+        break;
+    case UploadResult::kPermanentFailure:
+        upload_report.reset();
+        database_->SkipReportUpload(report.uuid,
+                                    crashpad::Metrics::CrashSkippedReason::kPrepareForUploadFailed);
+        break;
+    case UploadResult::kRetry:
+        upload_report.reset();
 
-            // TODO(mark): Deal with retries properly: don’t call
-            // SkipReportUpload() if the result was kRetry and the report
-            // hasn’t already been retried too many times.
-            database_->SkipReportUpload(report.uuid,
-                                        crashpad::Metrics::CrashSkippedReason::kUploadFailed);
-            break;
+        // TODO(mark): Deal with retries properly: don’t call
+        // SkipReportUpload() if the result was kRetry and the report
+        // hasn’t already been retried too many times.
+        database_->SkipReportUpload(report.uuid,
+                                    crashpad::Metrics::CrashSkippedReason::kUploadFailed);
+        break;
     }
 
     return upload_result;

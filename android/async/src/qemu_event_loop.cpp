@@ -83,7 +83,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
 
       public:
         static std::shared_ptr<QemuTimer> create(QemuEventLoopImpl* loop, Task task,
-                                              bool auto_cancel) {
+                                                 bool auto_cancel) {
             auto timer = std::make_shared<QemuTimer>(loop, std::move(task), auto_cancel, Private());
             timer->addItselfToActiveTimers();
             return timer;
@@ -106,7 +106,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         void cancel() override {
-            if (auto *loop = mEventLoop.load()) {
+            if (auto* loop = mEventLoop.load()) {
                 // Stop and delete the timer from the event loop.
                 loop->postImmediatelyInternal([self = shared_from_this()]() { self->doCancel(); });
             } else {
@@ -115,9 +115,11 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         }
 
         void schedule(std::chrono::milliseconds new_delay,
-                                 std::chrono::milliseconds new_interval) override {
-            if (auto *loop = mEventLoop.load()) {
-                loop->postImmediatelyInternal([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
+                      std::chrono::milliseconds new_interval) override {
+            if (auto* loop = mEventLoop.load()) {
+                loop->postImmediatelyInternal([self = shared_from_this(),
+                                               new_delay_ms = new_delay.count(),
+                                               new_interval_ms = new_interval.count()] {
                     self->mInterval_ms = new_interval_ms;
                     if (QEMUTimer* qemuTimer = self->getQemuTimer()) {
                         timer_mod(qemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + new_delay_ms);
@@ -131,11 +133,12 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
       private:
         void addItselfToActiveTimers() {
             // shared_from_this() is not available in the ctor
-            auto *loop = mEventLoop.load();
+            auto* loop = mEventLoop.load();
             loop->postImmediatelyInternal([loop, self = shared_from_this()]() {
                 DCHECK(!self->mPinned);
                 self->mPinned = self;
-                timer_init_ms(&self->mQemuTimerHandle, QEMU_CLOCK_REALTIME, &QemuTimer::onTimer, self.get());
+                timer_init_ms(&self->mQemuTimerHandle, QEMU_CLOCK_REALTIME, &QemuTimer::onTimer,
+                              self.get());
                 DCHECK(!self->mQemuTimerHandleValid.load());
                 self->mQemuTimerHandleValid.store(true);
 
@@ -158,14 +161,18 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
             if (self->mAutoCancel) {
                 self->doCancel();
             } else if (self->mInterval_ms != 0) {
-                // The Qemu Timer API doesn't natively support repeating timers so we have to kick it off again.
+                // The Qemu Timer API doesn't natively support repeating timers so we have to kick
+                // it off again.
                 if (QEMUTimer* qemuTimer = self->getQemuTimer()) {
-                    timer_mod(qemuTimer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + self->mInterval_ms);
+                    timer_mod(qemuTimer,
+                              qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + self->mInterval_ms);
                 }
             }
         }
 
-        QEMUTimer* getQemuTimer() { return mQemuTimerHandleValid.load() ? &mQemuTimerHandle : nullptr; }
+        QEMUTimer* getQemuTimer() {
+            return mQemuTimerHandleValid.load() ? &mQemuTimerHandle : nullptr;
+        }
 
         QEMUTimer* takeOwnershipQemuTimer() {
             return mQemuTimerHandleValid.exchange(false) ? &mQemuTimerHandle : nullptr;
@@ -227,7 +234,8 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     }
 
     void removeActiveTimer(QemuTimer* const t) {
-        LOG_IF(DFATAL, !isOnLoopThread()) << "removeActiveTimer must be called from the loop thread";
+        LOG_IF(DFATAL, !isOnLoopThread())
+                << "removeActiveTimer must be called from the loop thread";
         const size_t erased = mActiveTimers.erase(t);
         DCHECK(erased == 1) << "Tried to remove a timer that didn't exist";
     }
@@ -333,9 +341,8 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::createTimer(Task task) {
 // --- Factory Function ---
 std::unique_ptr<QemuEventLoop> QemuEventLoop::create() {
     auto loop = std::make_unique<QemuEventLoopImpl>();
-    (void)loop->post([loop_ptr = loop.get()] {
-        loop_ptr->setState(LooperStatusEvent::State::RUNNING);
-    });
+    (void)loop->post(
+            [loop_ptr = loop.get()] { loop_ptr->setState(LooperStatusEvent::State::RUNNING); });
 
     return loop;
 }

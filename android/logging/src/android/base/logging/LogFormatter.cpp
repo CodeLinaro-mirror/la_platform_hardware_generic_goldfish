@@ -58,8 +58,8 @@ inline static const std::string_view translate_sev(LogSeverity value) {
         SEV(EMULATOR_LOG_WARNING, "WARNING")
         SEV(EMULATOR_LOG_ERROR, "ERROR  ")
         SEV(EMULATOR_LOG_FATAL, "FATAL  ")
-        default:
-            return "UNKWOWN";
+    default:
+        return "UNKWOWN";
     }
 #undef SEV
 }
@@ -77,8 +77,8 @@ inline static const char* translate_color(LogSeverity value) {
         SEV(EMULATOR_LOG_WARNING, "\x1b[33mWARNING")
         SEV(EMULATOR_LOG_ERROR, "\x1b[31mERROR  ")
         SEV(EMULATOR_LOG_FATAL, "\x1b[35mFATAL  ")
-        default:
-            return "\x1b[94mUNKNOWN";
+    default:
+        return "\x1b[94mUNKNOWN";
     }
 #undef SEV
 }
@@ -185,7 +185,7 @@ std::string VerboseLogFormatter::format(const LogParams& params, const std::stri
 };
 
 NoDuplicateLinesFormatter::NoDuplicateLinesFormatter(std::shared_ptr<LogFormatter> logger)
-    : mInner(logger) {}
+        : mInner(logger) {}
 
 std::string NoDuplicateLinesFormatter::format(const LogParams& params, const std::string& line) {
     // We really care about order here, so we have to lock..
@@ -206,23 +206,23 @@ std::string NoDuplicateLinesFormatter::format(const LogParams& params, const std
     std::string result;
 
     switch (duplicates) {
-        case 0:
-            // Not a duplicate, let the inner formatter decorate the message
-            // properly.
-            result = mInner->format(params, line);
-            break;
-        case 1:
-            // No need to include a counter, just log the double line
-            static const auto sgl_format_string = absl::ParsedFormat<'s', 's'>("%s\n%s");
-            result = absl::StrFormat(sgl_format_string, mInner->format(mPrevParams, mPrevLogLine),
-                                     mInner->format(params, line));
-            break;
-        default:
-            static const auto dbl_format_string = absl::ParsedFormat<'s', 'd', 's'>("%s (%dx)\n%s");
-            // include a counter, we have double logged at least 2 lines.
-            result = absl::StrFormat(dbl_format_string, mInner->format(mPrevParams, mPrevLogLine),
-                                     duplicates, mInner->format(params, line));
-            break;
+    case 0:
+        // Not a duplicate, let the inner formatter decorate the message
+        // properly.
+        result = mInner->format(params, line);
+        break;
+    case 1:
+        // No need to include a counter, just log the double line
+        static const auto sgl_format_string = absl::ParsedFormat<'s', 's'>("%s\n%s");
+        result = absl::StrFormat(sgl_format_string, mInner->format(mPrevParams, mPrevLogLine),
+                                 mInner->format(params, line));
+        break;
+    default:
+        static const auto dbl_format_string = absl::ParsedFormat<'s', 'd', 's'>("%s (%dx)\n%s");
+        // include a counter, we have double logged at least 2 lines.
+        result = absl::StrFormat(dbl_format_string, mInner->format(mPrevParams, mPrevLogLine),
+                                 duplicates, mInner->format(params, line));
+        break;
     }
 
     // Handle the case where we have matching logparams, but a mismatch in

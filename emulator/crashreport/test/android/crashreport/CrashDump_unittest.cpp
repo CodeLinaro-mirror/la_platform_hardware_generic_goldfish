@@ -67,23 +67,22 @@ class CrashTest : public ::testing::Test {
 
     std::unique_ptr<CrashReportDatabase> InitializeCrashDatabase() {
         if (Bazel::inBazel()) {
-            auto crashpad_handler =
-                    Bazel::runfilesPath("crashpad+/handler/crashpad_handler");
+            auto crashpad_handler = Bazel::runfilesPath("crashpad+/handler/crashpad_handler");
             LOG(INFO) << "Using AEMU_CRASHPAD_HANDLER:" << crashpad_handler;
             System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
         auto handler_path = CrashReporter::handlerExe();
         auto database_path = CrashReporter::databaseDirectory();
-        auto crashDatabase = crashpad::CrashReportDatabase::Initialize(base::FilePath(database_path));
+        auto crashDatabase =
+                crashpad::CrashReportDatabase::Initialize(base::FilePath(database_path));
         crashDatabase->GetSettings()->SetUploadsEnabled(false);
 
         return crashDatabase;
     }
 
     void crash() {
-        fs::path executable =
-                Bazel::runfilesPath("goldfish+/emulator/crashreport/crash-me");
+        fs::path executable = Bazel::runfilesPath("goldfish+/emulator/crashreport/crash-me");
         if (!Bazel::inBazel()) {
             GTEST_SKIP() << "This test can only be run under Bazel";
         }

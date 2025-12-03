@@ -52,7 +52,7 @@ class FakeConnectorRegistry : public ConnectorRegistry {
     std::shared_ptr<sensor::FakeSensorDevice> sensorDevice() { return mSensorDevice; }
 
   private:
-      void registerTest(std::string_view name, std::shared_ptr<HalPlug> plug) {
+    void registerTest(std::string_view name, std::shared_ptr<HalPlug> plug) {
         registerInternal(std::string(name), {});  // b/448934377
     }
 

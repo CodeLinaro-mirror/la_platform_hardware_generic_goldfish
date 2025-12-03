@@ -52,7 +52,7 @@ class ClipboardDevice : public IClipboardDevice {
 
             std::string clipboardData(&mReceiveData[sizeof(uint32_t)], dataSize);
             mReceiveData.erase(mReceiveData.begin(),
-                            mReceiveData.begin() + sizeof(uint32_t) + dataSize);
+                               mReceiveData.begin() + sizeof(uint32_t) + dataSize);
 
             VLOG(1) << "Clipboard update from guest to (" << dataSize << "):" << clipboardData;
 

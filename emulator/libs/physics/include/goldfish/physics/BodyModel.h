@@ -24,34 +24,34 @@ namespace goldfish {
 namespace physics {
 
 enum class BodyState {
-  CHANGING = 0,
-  STABLE = 1,
+    CHANGING = 0,
+    STABLE = 1,
 };
 
 class BodyModel {
- public:
-  BodyModel() = default;
+  public:
+    BodyModel() = default;
 
-  /*
-   * Sets the current time of the AmbientEnvironment simulation.  This time is
-   * used as the current time in calculating body states, along
-   * with the time when target state change requests are recorded as taking
-   * place.  Time values must be non-decreasing.
-   */
-  BodyState setCurrentTime(uint64_t time_ns);
+    /*
+     * Sets the current time of the AmbientEnvironment simulation.  This time is
+     * used as the current time in calculating body states, along
+     * with the time when target state change requests are recorded as taking
+     * place.  Time values must be non-decreasing.
+     */
+    BodyState setCurrentTime(uint64_t time_ns);
 
-  /*
-   * Sets the body heart rate.
-   */
-  void setHeartRate(float bpm, PhysicalInterpolation mode);
+    /*
+     * Sets the body heart rate.
+     */
+    void setHeartRate(float bpm, PhysicalInterpolation mode);
 
-  float getHeartRate(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getHeartRate(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
 
- private:
-  /* BPM */
-  static constexpr float kDefaultHeartRate = 0.f;
+  private:
+    /* BPM */
+    static constexpr float kDefaultHeartRate = 0.f;
 
-  float mHeartRate = kDefaultHeartRate;
+    float mHeartRate = kDefaultHeartRate;
 };
 }  // namespace physics
 }  // namespace goldfish

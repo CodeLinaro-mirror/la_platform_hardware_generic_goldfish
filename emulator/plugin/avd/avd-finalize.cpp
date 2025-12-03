@@ -47,10 +47,10 @@ void avd_finalize_class_init(ObjectClass* oc, void* data) {
 }
 
 const TypeInfo avd_finalize_type_info = {
-        .name = TYPE_AVD_FINAL,
-        .parent = TYPE_DEVICE,
-        .instance_size = sizeof(AvdEndDev),
-        .class_init = avd_finalize_class_init,
+    .name = TYPE_AVD_FINAL,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(AvdEndDev),
+    .class_init = avd_finalize_class_init,
 };
 
 }  // namespace

@@ -55,4 +55,4 @@ absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = 
 
 absl::Status touch(const fs::path& path);
 
-} // namespace android::base::file
+}  // namespace android::base::file

@@ -22,51 +22,52 @@ namespace goldfish::base {
 
 template <typename Type, Type kEmpty, typename Deleter>
 struct UniqueHandle : private Deleter {
-  ~UniqueHandle() {
-    if (ok()) {
-      (*this)(mValue);
+    ~UniqueHandle() {
+        if (ok()) {
+            (*this)(mValue);
+        }
     }
-  }
 
-  UniqueHandle() : Deleter(typename Deleter::Empty()), mValue(kEmpty) {}
+    UniqueHandle() : Deleter(typename Deleter::Empty()), mValue(kEmpty) {}
 
-  explicit UniqueHandle(Type value, Deleter d = Deleter()) : Deleter(std::move(d)), mValue(value) {}
+    explicit UniqueHandle(Type value, Deleter d = Deleter())
+            : Deleter(std::move(d)), mValue(value) {}
 
-  UniqueHandle(UniqueHandle&& rhs) noexcept(std::is_nothrow_move_constructible_v<Deleter>)
-      : Deleter(std::move(static_cast<Deleter&>(rhs))), mValue(rhs.release()) {}
+    UniqueHandle(UniqueHandle&& rhs) noexcept(std::is_nothrow_move_constructible_v<Deleter>)
+            : Deleter(std::move(static_cast<Deleter&>(rhs))), mValue(rhs.release()) {}
 
-  UniqueHandle& operator=(UniqueHandle&& rhs) noexcept(noexcept(swap(*this, rhs))) {
-    UniqueHandle tmp(std::move(rhs));
-    swap(*this, tmp);
-    return *this;
-  }
-
-  explicit operator bool() const { return ok(); }
-  bool ok() const { return mValue != kEmpty; }
-
-  Type get() const { return mValue; }
-
-  Type release() { return std::exchange(mValue, kEmpty); }
-
-  void reset(Type value = kEmpty) {
-    Type old_value = std::exchange(mValue, value);
-    if (old_value != kEmpty) {
-      (*this)(old_value);  // Deleter::operator()
+    UniqueHandle& operator=(UniqueHandle&& rhs) noexcept(noexcept(swap(*this, rhs))) {
+        UniqueHandle tmp(std::move(rhs));
+        swap(*this, tmp);
+        return *this;
     }
-  }
 
-  UniqueHandle(const UniqueHandle&) = delete;
-  UniqueHandle& operator=(const UniqueHandle&) = delete;
+    explicit operator bool() const { return ok(); }
+    bool ok() const { return mValue != kEmpty; }
 
-  friend void swap(UniqueHandle& lhs,
-                   UniqueHandle& rhs) noexcept(std::is_nothrow_swappable_v<Deleter>) {
-    using std::swap;
-    swap(static_cast<Deleter&>(lhs), static_cast<Deleter&>(rhs));
-    swap(lhs.mValue, rhs.mValue);
-  }
+    Type get() const { return mValue; }
 
- private:
-  Type mValue = kEmpty;
+    Type release() { return std::exchange(mValue, kEmpty); }
+
+    void reset(Type value = kEmpty) {
+        Type old_value = std::exchange(mValue, value);
+        if (old_value != kEmpty) {
+            (*this)(old_value);  // Deleter::operator()
+        }
+    }
+
+    UniqueHandle(const UniqueHandle&) = delete;
+    UniqueHandle& operator=(const UniqueHandle&) = delete;
+
+    friend void swap(UniqueHandle& lhs,
+                     UniqueHandle& rhs) noexcept(std::is_nothrow_swappable_v<Deleter>) {
+        using std::swap;
+        swap(static_cast<Deleter&>(lhs), static_cast<Deleter&>(rhs));
+        swap(lhs.mValue, rhs.mValue);
+    }
+
+  private:
+    Type mValue = kEmpty;
 };
 
 }  // namespace goldfish::base

@@ -26,8 +26,8 @@
 #define EXT4_ERROR LOG_IF(ERROR, DEBUG_EXT4)
 #define EXT4_PERROR PLOG_IF(ERROR, DEBUG_EXT4)
 
-auto android_createEmptyExt4Image(const char* filePath, uint64_t size,
-                                  const char* mountpoint) -> int {
+auto android_createEmptyExt4Image(const char* filePath, uint64_t size, const char* mountpoint)
+        -> int {
     return android_createExt4ImageFromDir(filePath, nullptr, size, mountpoint);
 }
 

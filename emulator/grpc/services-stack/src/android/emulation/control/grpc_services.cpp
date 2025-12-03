@@ -148,7 +148,8 @@ Builder& Builder::withSecureService(std::shared_ptr<Service> service) {
 Builder& Builder::withAuthToken(std::string token) {
     mAuthToken = token;
     mValid = !token.empty();
-    mAuthMode = Authorization(static_cast<int>(mAuthMode) | static_cast<int>(Authorization::StaticToken));
+    mAuthMode = Authorization(static_cast<int>(mAuthMode) |
+                              static_cast<int>(Authorization::StaticToken));
     return *this;
 }
 
@@ -156,7 +157,8 @@ Builder& Builder::withJwtAuthDiscoveryDir(fs::path jwks, fs::path jwkLoadedPath)
     mJwkPath = std::move(jwks);
     mJwkLoadedPath = std::move(jwkLoadedPath);
     mValid = file::exists(mJwkPath) && file::can_read(mJwkPath);
-    mAuthMode = Authorization(static_cast<int>(mAuthMode) | static_cast<int>(Authorization::JwtToken));
+    mAuthMode =
+            Authorization(static_cast<int>(mAuthMode) | static_cast<int>(Authorization::JwtToken));
     return *this;
 }
 

@@ -305,8 +305,8 @@ TEST_F(NotificationServiceTest, DISABLED_DisplayResolutionChange) {
     ASSERT_TRUE(reader->Read(&reply));
 
     // Get the default display and resize it.
-    auto display = mMultiDisplay->getDisplay<ActiveFakePixmanDisplay>(
-            mMultiDisplay->defaultDisplay());
+    auto display =
+            mMultiDisplay->getDisplay<ActiveFakePixmanDisplay>(mMultiDisplay->defaultDisplay());
     display->start();
     display->resize(1080, 1920);
 

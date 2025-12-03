@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "goldfish/display/MultiDisplay.h"
-#include "goldfish/display/MultiDisplayCallbacks.h"
 
 #include <misc.h>
 
@@ -28,11 +27,11 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 
+#include "QemuDisplay.h"
 #include "goldfish/display/Display.h"
+#include "goldfish/display/MultiDisplayCallbacks.h"
 #include "goldfish/physics/Rotation.h"
 #include "goldfish/physics/SkinRotation.h"
-
-#include "QemuDisplay.h"
 
 extern "C" {
 // clang-format off

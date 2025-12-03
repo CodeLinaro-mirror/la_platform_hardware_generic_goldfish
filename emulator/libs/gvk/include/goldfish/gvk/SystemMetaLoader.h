@@ -21,37 +21,37 @@
 #include "goldfish/os/DynamicLibrary.h"
 
 #define GOLDFISH_GVK_SystemMetaLoader_FUNC_LIST(VISITOR) \
-  VISITOR(vkEnumerateInstanceVersion)                    \
-  VISITOR(vkEnumerateInstanceLayerProperties)            \
-  VISITOR(vkEnumerateInstanceExtensionProperties)        \
-  VISITOR(vkCreateInstance)                              \
-  VISITOR(vkGetInstanceProcAddr)
+    VISITOR(vkEnumerateInstanceVersion)                  \
+    VISITOR(vkEnumerateInstanceLayerProperties)          \
+    VISITOR(vkEnumerateInstanceExtensionProperties)      \
+    VISITOR(vkCreateInstance)                            \
+    VISITOR(vkGetInstanceProcAddr)
 
 namespace goldfish::gvk {
 
 class SystemMetaLoader : public IMetaLoader {
- public:
-  static IMetaLoader::Ptr get();
+  public:
+    static IMetaLoader::Ptr get();
 
-  uint32_t enumerateInstanceVersion() const override;
-  std::vector<VkLayerProperties> enumerateInstanceLayerProperties() const override;
-  std::vector<VkExtensionProperties> enumerateInstanceExtensionProperties(
-      const char* layerName) const override;
+    uint32_t enumerateInstanceVersion() const override;
+    std::vector<VkLayerProperties> enumerateInstanceLayerProperties() const override;
+    std::vector<VkExtensionProperties> enumerateInstanceExtensionProperties(
+            const char* layerName) const override;
 
- private:
-  struct Private {};
+  private:
+    struct Private {};
 
-  bool initPFNs(const util::GetPFN&);
+    bool initPFNs(const util::GetPFN&);
 
-  PFN_vkGetInstanceProcAddr getInstanceProcAddr() const override;
-  VkInstance createInstance(const VkInstanceCreateInfo&) const override;
+    PFN_vkGetInstanceProcAddr getInstanceProcAddr() const override;
+    VkInstance createInstance(const VkInstanceCreateInfo&) const override;
 
-  os::DynamicLibrary mLib;
+    os::DynamicLibrary mLib;
 
-  GOLDFISH_GVK_SystemMetaLoader_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
+    GOLDFISH_GVK_SystemMetaLoader_FUNC_LIST(GOLDFISH_GVK_POPULATE_MEMBER_PFN_VISITOR);
 
- public:
-  SystemMetaLoader(Private) {}
+  public:
+    SystemMetaLoader(Private) {}
 };
 
 }  // namespace goldfish::gvk

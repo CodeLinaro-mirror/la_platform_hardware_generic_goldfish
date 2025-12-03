@@ -45,9 +45,9 @@ class MemoryTracker::Impl {
   public:
 #if AEMU_TCMALLOC_ENABLED && defined(__linux__)
     Impl()
-        : mData([](const FuncRange* a, const FuncRange* b) {
-              return a->mAddr + a->mLength < b->mAddr + b->mLength;
-          }) {}
+            : mData([](const FuncRange* a, const FuncRange* b) {
+                return a->mAddr + a->mLength < b->mAddr + b->mLength;
+            }) {}
 
     bool addToGroup(const std::string& group, const std::string& func) {
         std::string key = group + func;

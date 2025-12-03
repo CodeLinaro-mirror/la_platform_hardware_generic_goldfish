@@ -25,7 +25,7 @@
 #include <vector>   // for vector
 
 #include "absl/log/log.h"                      // for LogStreamVoidify
-#include "absl/strings/str_cat.h"                      // for LogStreamVoidify
+#include "absl/strings/str_cat.h"              // for LogStreamVoidify
 #include "benchmark/benchmark.h"               // for State, Benchmark
 #include "google/protobuf/empty.pb.h"          // for Empty
 #include "grpcpp/impl/grpc_library.h"          // Hack Attack! Needed for static initializer

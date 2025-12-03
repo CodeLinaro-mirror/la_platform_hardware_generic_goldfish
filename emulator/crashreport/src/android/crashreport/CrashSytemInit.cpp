@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/crashreport/CrashSystem.h"
-
 #include <map>
 #include <memory>
 #include <string>
@@ -24,18 +22,16 @@
 
 #include "aemu/base/Compiler.h"
 #include "aemu/base/process/Process.h"
-
 #include "android/base/system/System.h"
 #include "android/crashreport/CrashConsent.h"
 #include "android/crashreport/CrashReporter.h"
+#include "android/crashreport/CrashSystem.h"
 #include "android/crashreport/Uploader.h"
-
-#include "goldfish/tools/aemu_version.h"
-
 #include "base/files/file_path.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/settings.h"
+#include "goldfish/tools/aemu_version.h"
 #include "util/misc/uuid.h"
 
 #ifdef _WIN32
@@ -82,8 +78,9 @@ class CrashSystem {
 
         ABSL_VLOG(1) << "Starting crashpad-handler: " << handler_path;
         auto file_path = ::base::FilePath(mDatabasePath.native());
-        bool active = mClient->StartHandler(::base::FilePath(handler_path.native()), file_path, metrics_path, CrashURL,
-                                            annotations, {"--no-rate-limit"}, true, false);
+        bool active = mClient->StartHandler(::base::FilePath(handler_path.native()), file_path,
+                                            metrics_path, CrashURL, annotations,
+                                            {"--no-rate-limit"}, true, false);
 
         ABSL_VLOG(1) << "Status of handler: " << (active ? "active" : "inactive");
         mDatabase = CrashReportDatabase::Initialize(file_path);
@@ -153,7 +150,9 @@ class CrashSystem {
     }
 
     void setConsentProvider(CrashConsent* replacement) { mConsentProvider.reset(replacement); }
-    void setConsentProvider(std::unique_ptr<CrashConsent> replacement) { mConsentProvider = std::move(replacement); }
+    void setConsentProvider(std::unique_ptr<CrashConsent> replacement) {
+        mConsentProvider = std::move(replacement);
+    }
 
   private:
     void processReport(const CrashReportDatabase::Report& report) {
@@ -234,5 +233,4 @@ bool crashhandler_init(int argc, char** argv) {
     // This promises to not launch any threads...
     return CrashSystem::get()->initialize();
 }
-
 }

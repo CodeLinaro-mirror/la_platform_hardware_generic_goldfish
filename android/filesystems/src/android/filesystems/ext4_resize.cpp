@@ -84,7 +84,8 @@ static auto runExt4Program(std::filesystem::path executable,
     return 0;
 }
 
-auto resizeExt4Partition(std::filesystem::path binary_path, const char* partitionPath, int64_t newByteSize) -> int {
+auto resizeExt4Partition(std::filesystem::path binary_path, const char* partitionPath,
+                         int64_t newByteSize) -> int {
     // sanity checks
     if (partitionPath == nullptr || !checkExt4PartitionSize(newByteSize)) {
         return -1;

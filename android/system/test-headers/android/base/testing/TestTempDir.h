@@ -21,7 +21,6 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/Compiler.h"
-
 #include "android/base/system/File.h"
 
 #ifdef _WIN32

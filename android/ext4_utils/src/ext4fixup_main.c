@@ -39,15 +39,15 @@ int main(int argc, char** argv) {
 
     while ((opt = getopt(argc, argv, "vnd:")) != -1) {
         switch (opt) {
-            case 'v':
-                verbose = 1;
-                break;
-            case 'n':
-                no_write = 1;
-                break;
-            case 'd':
-                sscanf(optarg, "%d,%d,%d", &stop_phase, &stop_loc, &stop_count);
-                break;
+        case 'v':
+            verbose = 1;
+            break;
+        case 'n':
+            no_write = 1;
+            break;
+        case 'd':
+            sscanf(optarg, "%d,%d,%d", &stop_phase, &stop_loc, &stop_count);
+            break;
         }
     }
 

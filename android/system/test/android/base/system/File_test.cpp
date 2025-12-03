@@ -1,14 +1,13 @@
 #include "android/base/system/File.h"
 
+#include <gtest/gtest.h>
+
 #include <filesystem>
 #include <fstream>
-
-#include <gtest/gtest.h>
 
 #include "absl/status/status_matchers.h"
 
 #include "aemu/base/EintrWrapper.h"
-
 #include "android/base/testing/TestTempDir.h"
 
 #define EXPECT_OK(x) EXPECT_THAT(x, absl_testing::IsOk())
@@ -162,4 +161,4 @@ TEST(File, scanDirEntriesWithFullPaths) {
     }
 }
 
-} // namespace android::base
+}  // namespace android::base

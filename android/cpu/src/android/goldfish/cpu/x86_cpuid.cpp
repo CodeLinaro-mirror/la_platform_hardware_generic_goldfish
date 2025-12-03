@@ -69,11 +69,11 @@ void android_get_x86_cpuid(uint32_t function, uint32_t count, uint32_t* eax, uin
 
 bool android_get_x86_cpuid_vendor_id_is_vmhost(const char* vendor_id) {
     static const char* const VMHostCPUID[] = {
-            "VMwareVMware",  // VMware
-            "KVMKVMKVM",     // KVM
-            "VBoxVBoxVBox",  // VirtualBox
-            "Microsoft Hv",  // Microsoft Hyper-V or Windows Virtual PC
-            "XenVMMXenVMM",  // Xen HVM
+        "VMwareVMware",  // VMware
+        "KVMKVMKVM",     // KVM
+        "VBoxVBoxVBox",  // VirtualBox
+        "Microsoft Hv",  // Microsoft Hyper-V or Windows Virtual PC
+        "XenVMMXenVMM",  // Xen HVM
     };
 
     const int VMHostCPUIDCount = sizeof(VMHostCPUID) / sizeof(VMHostCPUID[0]);

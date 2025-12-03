@@ -25,7 +25,7 @@ namespace goldfish::network {
 // The client of this class is responsible for freeing up
 // the memory allocated in iov_base.
 class IOVector {
-public:
+  public:
     using iterator = struct iovec*;
     using const_iterator = const struct iovec*;
     IOVector() {}
@@ -33,9 +33,7 @@ public:
     // STL-style container methods.
     void push_back(const struct iovec& iov) { mIOVecs.push_back(iov); }
 
-    struct iovec& operator[](size_t n) {
-        return mIOVecs[n];
-    }
+    struct iovec& operator[](size_t n) { return mIOVecs[n]; }
 
     const struct iovec& operator[](size_t n) const { return mIOVecs[n]; }
 
@@ -61,17 +59,14 @@ public:
     // Append new iovecs from this IOVector to destination IOVector,
     // starting at the offset in this IOVector.
     // Return the number of bytes capacity added to the destination. .
-    size_t appendEntriesTo(IOVector* destination,
-                           size_t offset,
-                           size_t size) const;
+    size_t appendEntriesTo(IOVector* destination, size_t offset, size_t size) const;
 
     size_t summedLength() const {
-        return std::accumulate(
-                mIOVecs.begin(), mIOVecs.end(), size_t(0),
-                [](size_t a, const struct iovec& b) { return a + b.iov_len; });
+        return std::accumulate(mIOVecs.begin(), mIOVecs.end(), size_t(0),
+                               [](size_t a, const struct iovec& b) { return a + b.iov_len; });
     }
 
-private:
+  private:
     struct iovec_lookup {
         int iov_index = 0;
         size_t current_offset = 0;

@@ -140,7 +140,7 @@ auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     return {};
 }
 
-auto ConfigDirs::getSdkRootDirectoryByPath(const fs::path &launcher_dir, bool verbose) -> fs::path {
+auto ConfigDirs::getSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose) -> fs::path {
     fs::path sdkRoot = launcher_dir;
     for (int i = 0; i < 3; ++i) {
         sdkRoot = sdkRoot.parent_path();
@@ -156,7 +156,7 @@ auto ConfigDirs::getSdkRootDirectoryByPath(const fs::path &launcher_dir, bool ve
 }
 
 // static
-auto ConfigDirs::getSdkRootDirectory(const fs::path &launcher_dir, bool verbose) -> fs::path {
+auto ConfigDirs::getSdkRootDirectory(const fs::path& launcher_dir, bool verbose) -> fs::path {
     auto sdkRoot = getSdkRootDirectoryByEnv(verbose);
     if (!sdkRoot.empty()) {
         return sdkRoot;

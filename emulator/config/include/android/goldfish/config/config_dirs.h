@@ -77,7 +77,7 @@ struct ConfigDirs {
      * @param verbose Whether to print verbose log messages.
      * @return fs::path The path to the Android SDK root directory.
      */
-    static fs::path getSdkRootDirectoryByPath(const fs::path &launcher_dir, bool verbose = false);
+    static fs::path getSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose = false);
 
     /**
      * @brief Returns the path to the root of the Android SDK.
@@ -93,7 +93,7 @@ struct ConfigDirs {
      * @param verbose Whether to print verbose log messages.
      * @return fs::path The path to the Android SDK root directory.
      */
-    static fs::path getSdkRootDirectory(const fs::path &launcher_dir, bool verbose = false);
+    static fs::path getSdkRootDirectory(const fs::path& launcher_dir, bool verbose = false);
 
     /**
      * @brief Returns the path to the Android Studio emulator discovery directory.

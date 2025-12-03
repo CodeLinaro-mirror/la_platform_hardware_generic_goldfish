@@ -25,15 +25,15 @@ class DeviceDispatch;
 namespace goldfish::gvk::util {
 
 std::tuple<DeviceMemory, Buffer, DeviceMemory, Buffer> createStagingBuffers(
-    const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
-    const void* data, size_t dataSize, VkBufferUsageFlags dstUsage);
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
+        const void* data, size_t dataSize, VkBufferUsageFlags dstUsage);
 
 std::pair<DeviceMemory, Buffer> allocateBuffer(
-    const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
-    size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags);
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
+        size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags);
 
 std::pair<DeviceMemory, Image> allocateImage(
-    const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
-    const VkImageCreateInfo&, VkMemoryPropertyFlags memoryPropertyFlags);
+        const gvk::DeviceDispatch& dd, const VkPhysicalDeviceMemoryProperties& memoryProperties,
+        const VkImageCreateInfo&, VkMemoryPropertyFlags memoryPropertyFlags);
 
 }  // namespace goldfish::gvk::util

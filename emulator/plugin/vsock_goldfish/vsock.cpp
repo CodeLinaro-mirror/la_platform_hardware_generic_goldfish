@@ -58,7 +58,7 @@ struct GoldfishVirtioVsockDevice;
 
 struct VsockStream : public goldfish::devices::cable::ISocket {
     VsockStream(GoldfishVirtioVsockDevice& dev, const uint32_t guest, const uint32_t host)
-        : vsockDev(dev), guestPort(guest), hostPort(host) {}
+            : vsockDev(dev), guestPort(guest), hostPort(host) {}
 
     static constexpr size_t kBufferSizeHighWatermark = size_t(8) << 20;  // 8 MiB
     static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 2;
@@ -178,9 +178,7 @@ struct GoldfishVirtioVsockDevice {
 
     GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
 
-    ~GoldfishVirtioVsockDevice() {
-        DEBUG_MSG("this=%p", this);
-    }
+    ~GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
 
     void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
         DEBUG_MSG("this=%p", this);
@@ -271,12 +269,12 @@ struct GoldfishVirtioVsockDevice {
 
         // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
         struct virtio_vsock_hdr hdr = {
-                .src_port = srcPort,
-                .dst_port = dstPort,
-                .len = len,
-                .op = static_cast<uint16_t>(op),
-                .buf_alloc = kHostBufAllocSize,
-                .fwd_cnt = hostFwdCnt,
+            .src_port = srcPort,
+            .dst_port = dstPort,
+            .len = len,
+            .op = static_cast<uint16_t>(op),
+            .buf_alloc = kHostBufAllocSize,
+            .fwd_cnt = hostFwdCnt,
         };
 
         return hdr;
@@ -361,34 +359,34 @@ struct GoldfishVirtioVsockDevice {
                 stream.guestFwdCnt = hdr.fwd_cnt;
 
                 switch (hdr.op) {
-                    case VIRTIO_VSOCK_OP_RESPONSE:
-                        stream.isConnected = true;
-                        NOT_NULL(stream.plug)->onConnect();
-                        break;
+                case VIRTIO_VSOCK_OP_RESPONSE:
+                    stream.isConnected = true;
+                    NOT_NULL(stream.plug)->onConnect();
+                    break;
 
-                    case VIRTIO_VSOCK_OP_RST:
-                        recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_INVALID);
-                        mStreams.erase(streamI);
-                        break;
+                case VIRTIO_VSOCK_OP_RST:
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_INVALID);
+                    mStreams.erase(streamI);
+                    break;
 
-                    case VIRTIO_VSOCK_OP_SHUTDOWN:
-                        recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
-                        mStreams.erase(streamI);
-                        break;
+                case VIRTIO_VSOCK_OP_SHUTDOWN:
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
+                    mStreams.erase(streamI);
+                    break;
 
-                    case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
-                        // we already updated guest counters (guestBufAlloc and guestFwdCnt)
-                        break;
+                case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
+                    // we already updated guest counters (guestBufAlloc and guestFwdCnt)
+                    break;
 
-                    case VIRTIO_VSOCK_OP_CREDIT_REQUEST:
-                        stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
-                        break;
+                case VIRTIO_VSOCK_OP_CREDIT_REQUEST:
+                    stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
+                    break;
 
-                    default:
-                        DEBUG_MSG("unexpected op=%u", hdr.op);
-                        recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_RST);
-                        mStreams.erase(streamI);
-                        break;
+                default:
+                    DEBUG_MSG("unexpected op=%u", hdr.op);
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_RST);
+                    mStreams.erase(streamI);
+                    break;
                 }
             } else if (hdr.op != VIRTIO_VSOCK_OP_RST) {
                 DEBUG_MSG("unexpected packet {src=%u, dst=%u, len=%u, op=%u}", hdr.src_port,
@@ -474,10 +472,10 @@ struct GoldfishVirtioVsockDevice {
 
             if (sendOpMask) {
                 static const enum virtio_vsock_op ops[] = {
-                        VIRTIO_VSOCK_OP_REQUEST,
-                        VIRTIO_VSOCK_OP_RESPONSE,
-                        VIRTIO_VSOCK_OP_CREDIT_UPDATE,
-                        VIRTIO_VSOCK_OP_CREDIT_REQUEST,
+                    VIRTIO_VSOCK_OP_REQUEST,
+                    VIRTIO_VSOCK_OP_RESPONSE,
+                    VIRTIO_VSOCK_OP_CREDIT_UPDATE,
+                    VIRTIO_VSOCK_OP_CREDIT_REQUEST,
                 };
 
                 for (const auto op : ops) {

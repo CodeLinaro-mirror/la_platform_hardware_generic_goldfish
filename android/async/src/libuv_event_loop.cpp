@@ -120,7 +120,8 @@ class LibuvEventLoopImpl : public LibuvEventLoop {
     }
 
     void removeActiveTimer(LibuvTimer* const t) {
-        LOG_IF(DFATAL, !isOnLoopThread()) << "removeActiveTimer must be called from the loop thread";
+        LOG_IF(DFATAL, !isOnLoopThread())
+                << "removeActiveTimer must be called from the loop thread";
         const size_t erased = mActiveTimers.erase(t);
         DCHECK(erased == 1)
                 << "Tried to remove a timer that didn't exist in the active timers set.";
@@ -220,7 +221,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void cancel() override {
-        if (auto *loop = mEventLoop.load()) {
+        if (auto* loop = mEventLoop.load()) {
             // Stop and delete the timer from the event loop.
             loop->postImmediatelyInternal([self = shared_from_this()]() { self->doCancel(); });
         } else {
@@ -229,9 +230,11 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
     }
 
     void schedule(std::chrono::milliseconds new_delay,
-                             std::chrono::milliseconds new_interval) override {
-        if (auto *loop = mEventLoop.load()) {
-            loop->postImmediatelyInternal([self = shared_from_this(), new_delay_ms = new_delay.count(), new_interval_ms = new_interval.count()] {
+                  std::chrono::milliseconds new_interval) override {
+        if (auto* loop = mEventLoop.load()) {
+            loop->postImmediatelyInternal([self = shared_from_this(),
+                                           new_delay_ms = new_delay.count(),
+                                           new_interval_ms = new_interval.count()] {
                 if (uv_timer_t* uvTimer = self->getUvTimer()) {
                     uv_timer_stop(uvTimer);
                     uv_timer_start(uvTimer, onTimer, new_delay_ms, new_interval_ms);
@@ -245,7 +248,7 @@ class LibuvTimer : public EventLoop::Timer, public std::enable_shared_from_this<
   private:
     void addItselfToActiveTimers() {
         // shared_from_this() is not available in the ctor
-        auto *loop = mEventLoop.load();
+        auto* loop = mEventLoop.load();
         loop->postImmediatelyInternal([loop, self = shared_from_this()]() {
             DCHECK(!self->mPinnedByUvTimer) << "Timer should not be pinned before initialization.";
             self->mPinnedByUvTimer = self;
@@ -304,7 +307,8 @@ LibuvEventLoopImpl::LibuvEventLoopImpl() {
 }
 
 LibuvEventLoopImpl::~LibuvEventLoopImpl() {
-    LOG_IF(FATAL, getState() != LooperStatusEvent::State::NOT_STARTED && !mIsShuttingDown) << "Uv loop has not been shutdown prior to destruction";
+    LOG_IF(FATAL, getState() != LooperStatusEvent::State::NOT_STARTED && !mIsShuttingDown)
+            << "Uv loop has not been shutdown prior to destruction";
     DCHECK(mActiveTimers.empty()) << "All timers should have been cancelled and removed before the "
                                      "event loop is destroyed.";
 
@@ -402,12 +406,14 @@ absl::Status LibuvEventLoopImpl::run() {
 std::future<absl::Status> LibuvEventLoopImpl::shutdown() {
     std::promise<absl::Status> promise;
     if (getState() != LooperStatusEvent::State::RUNNING) {
-        promise.set_value(absl::InvalidArgumentError("You cannot shutdown a loop that is not running."));
+        promise.set_value(
+                absl::InvalidArgumentError("You cannot shutdown a loop that is not running."));
         return promise.get_future();
     }
 
     if (isOnLoopThread()) {
-        promise.set_value(absl::InvalidArgumentError("You cannot shutdown an event loop from the loop thread."));
+        promise.set_value(absl::InvalidArgumentError(
+                "You cannot shutdown an event loop from the loop thread."));
         return promise.get_future();
     }
 
@@ -423,7 +429,7 @@ std::future<absl::Status> LibuvEventLoopImpl::shutdown() {
 
         if (uv_async_t* uvAsync = takeOwnershipAsync()) {
             uv_close((uv_handle_t*)uvAsync, [](uv_handle_t* handle) {
-                auto *self = static_cast<LibuvEventLoopImpl*>(handle->data);
+                auto* self = static_cast<LibuvEventLoopImpl*>(handle->data);
                 uv_stop(&self->mUvLoopHandle);
                 // We expect this to be sent by uv_run's return value (see run() below).
                 if (!self->mPromiseSet.exchange(true)) {

@@ -25,9 +25,8 @@ TEST(AndroidNetworkConstants, ParseSpeed) {
         double expected_upload;
         double expected_download;
     } kData[] = {
-            {nullptr, true, 0., 0.},          {"", true, 0., 0.},
-            {"unknown-speed", false, 0., 0.}, {"abcd12345", false, 0., 0.},
-            {"1000", true, 1e6, 1e6},         {"1000:20000", true, 1e6, 2e7},
+        {nullptr, true, 0., 0.},      {"", true, 0., 0.},       {"unknown-speed", false, 0., 0.},
+        {"abcd12345", false, 0., 0.}, {"1000", true, 1e6, 1e6}, {"1000:20000", true, 1e6, 2e7},
     };
 
     for (size_t n = 0; n < ARRAYLEN(kData); ++n) {
@@ -61,9 +60,8 @@ TEST(AndroidNetworkConstants, ParseLatency) {
         double expected_min_ms;
         double expected_max_ms;
     } kData[] = {
-            {nullptr, true, 0., 0.},          {"", true, 0., 0.},
-            {"unknown-speed", false, 0., 0.}, {"abcd12345", false, 0., 0.},
-            {"1000", true, 1e3, 1e3},         {"1000:20000", true, 1e3, 2e4},
+        {nullptr, true, 0., 0.},      {"", true, 0., 0.},       {"unknown-speed", false, 0., 0.},
+        {"abcd12345", false, 0., 0.}, {"1000", true, 1e3, 1e3}, {"1000:20000", true, 1e3, 2e4},
     };
 
     for (size_t n = 0; n < ARRAYLEN(kData); ++n) {

@@ -50,16 +50,16 @@ std::string_view formatString(char* buffer, int bufferSize, const char* format, 
 
 inline absl::LogSeverity severityToAbsl(int severity) {
     switch (severity) {
-        case 0:
-            return absl::LogSeverity::kInfo;
-        case 1:
-            return absl::LogSeverity::kWarning;
-        case 2:
-            return absl::LogSeverity::kError;
-        case 3:
-            return absl::LogSeverity::kFatal;
-        default:
-            return absl::LogSeverity::kInfo;
+    case 0:
+        return absl::LogSeverity::kInfo;
+    case 1:
+        return absl::LogSeverity::kWarning;
+    case 2:
+        return absl::LogSeverity::kError;
+    case 3:
+        return absl::LogSeverity::kFatal;
+    default:
+        return absl::LogSeverity::kInfo;
     }
 }
 

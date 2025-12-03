@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "memory_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
@@ -17,8 +19,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "memory_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -36,8 +36,7 @@ TEST(MemoryDevice, Basic) {
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(Eq("-m"), Eq("512")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(Eq("-m"), Eq("512")));
 }
 
 TEST(MemoryDevice, Default) {
@@ -49,14 +48,12 @@ TEST(MemoryDevice, Default) {
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(Eq("-m"), Eq("2048")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(Eq("-m"), Eq("2048")));
 }
 
 TEST(MemoryDevice, Override) {
     AndroidOptions opts{.memory = "1024"};
     FakeEmulator emu(std::move(opts));
-
 
     auto hw = HardwareConfig();
     hw.hw_ramSize = 512;
@@ -64,8 +61,7 @@ TEST(MemoryDevice, Override) {
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(Eq("-m"), Eq("1024")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(Eq("-m"), Eq("1024")));
 }
 
 TEST(MemoryDevice, InvalidOverride) {

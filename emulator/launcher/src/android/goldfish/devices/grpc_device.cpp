@@ -47,15 +47,16 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
 
     if (Bazel::inBazel()) {
         // Development environment, allow access to the emulator.
-        allowlist = fs::path(Bazel::runfilesPath(
-                "goldfish+/emulator/grpc/security/test/"
-                "android/emulation/control/secure/test_allow_list.json"));
+        allowlist = fs::path(
+                Bazel::runfilesPath("goldfish+/emulator/grpc/security/test/"
+                                    "android/emulation/control/secure/test_allow_list.json"));
         assert(fs::exists(allowlist));
         LOG(WARNING) << "** Using development allow list, do not use in production **";
     }
 
     std::string grpc_device =
-            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string(), ",discovery_dir=", emulator.paths().discovery_directory.string());
+            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string(),
+                         ",discovery_dir=", emulator.paths().discovery_directory.string());
 
     return {"-device", grpc_device, "-trace", "module_*"};
 }

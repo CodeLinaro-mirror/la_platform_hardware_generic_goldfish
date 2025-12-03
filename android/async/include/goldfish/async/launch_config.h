@@ -20,15 +20,15 @@
 namespace goldfish::async {
 
 struct LaunchConfig {
-  std::filesystem::path exe_path;
+    std::filesystem::path exe_path;
 
-  std::vector<std::string> args;
+    std::vector<std::string> args;
 
-  std::vector<std::string> environment;
+    std::vector<std::string> environment;
 
-  bool daemon;
+    bool daemon;
 
-  bool keep_stdio;
+    bool keep_stdio;
 };
 
 }  // namespace goldfish::async

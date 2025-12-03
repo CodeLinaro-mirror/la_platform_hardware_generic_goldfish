@@ -33,8 +33,8 @@ TEST(bazel_info, can_get_data_file) {
 }
 
 TEST(bazel_info, can_read_data_file) {
-    std::string path = Bazel::runfilesPath(
-            "goldfish+/android/system/test/android/base/bazel/info.txt");
+    std::string path =
+            Bazel::runfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt");
     std::ifstream file(path);
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     EXPECT_EQ(content, "Hello World!");

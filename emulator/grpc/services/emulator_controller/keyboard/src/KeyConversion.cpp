@@ -35,58 +35,58 @@ typedef struct SkinKeyEntry {
 } SkinKeyEntry;
 
 static const SkinKeyEntry cmap[] = {
-        /* keycode                   base   caps    fn  caps+fn   number */
+    /* keycode                   base   caps    fn  caps+fn   number */
 
-        {Q_KEY_CODE_A, 'a', 'A', 0xe1, 0xc1, 'a'},
-        {Q_KEY_CODE_B, 'b', 'B', 'b', 'B', 'b'},
-        {Q_KEY_CODE_C, 'c', 'C', 0xa9, 0xa2, 'c'},
-        {Q_KEY_CODE_D, 'd', 'D', 0xf0, 0xd0, '\''},
-        {Q_KEY_CODE_E, 'e', 'E', 0xe9, 0xc9, '"'},
-        {Q_KEY_CODE_F, 'f', 'F', '[', '[', '['},
-        {Q_KEY_CODE_G, 'g', 'G', ']', ']', ']'},
-        {Q_KEY_CODE_H, 'h', 'H', '<', '<', '<'},
-        {Q_KEY_CODE_I, 'i', 'I', 0xed, 0xcd, '-'},
-        {Q_KEY_CODE_J, 'j', 'J', '>', '>', '>'},
-        {Q_KEY_CODE_K, 'k', 'K', ';', 'K', ';'},
-        {Q_KEY_CODE_L, 'l', 'L', 0xf8, 0xd8, ':'},
-        {Q_KEY_CODE_M, 'm', 'M', 0xb5, 'M', '%'},
-        {Q_KEY_CODE_N, 'n', 'N', 0xf1, 0xd1, 'n'},
-        {Q_KEY_CODE_O, 'o', 'O', 0xf3, 0xd3, '+'},
-        {Q_KEY_CODE_P, 'p', 'P', 0xf6, 0xd6, '='},
-        {Q_KEY_CODE_Q, 'q', 'Q', 0xe4, 0xc4, '|'},
-        {Q_KEY_CODE_R, 'r', 'R', 0xae, 'R', '`'},
-        {Q_KEY_CODE_S, 's', 'S', 0xdf, 0xa7, '\\'},
-        {Q_KEY_CODE_T, 't', 'T', 0xfe, 0xde, '}'},
-        {Q_KEY_CODE_U, 'u', 'U', 0xfa, 0xda, '_'},
-        {Q_KEY_CODE_V, 'v', 'V', 'v', 'V', 'v'},
-        {Q_KEY_CODE_W, 'w', 'W', 0xe5, 0xc5, '~'},
-        {Q_KEY_CODE_X, 'x', 'X', 'x', 'X', 'x'},
-        {Q_KEY_CODE_Y, 'y', 'Y', 0xfc, 0xdc, '}'},
-        {Q_KEY_CODE_Z, 'z', 'Z', 0xe6, 0xc6, 'z'},
-        {Q_KEY_CODE_COMMA, ',', '<', 0xe7, 0xc7, ','},
-        {Q_KEY_CODE_DOT, '.', '>', '.', 0x2026, '.'},
-        {Q_KEY_CODE_SLASH, '/', '?', 0xbf, '?', '/'},
-        {Q_KEY_CODE_SPC, 0x20, 0x20, 0x9, 0x9, 0x20},
-        {Q_KEY_CODE_LF, 0xa, 0xa, 0xa, 0xa, 0xa},
-        {Q_KEY_CODE_0, '0', ')', 0x2bc, ')', '0'},
-        {Q_KEY_CODE_1, '1', '!', 0xa1, 0xb9, '1'},
-        {Q_KEY_CODE_2, '2', '@', 0xb2, '@', '2'},
-        {Q_KEY_CODE_3, '3', '#', 0xb3, '#', '3'},
-        {Q_KEY_CODE_4, '4', '$', 0xa4, 0xa3, '4'},
-        {Q_KEY_CODE_5, '5', '%', 0x20ac, '%', '5'},
-        {Q_KEY_CODE_6, '6', '^', 0xbc, 0x0302, '6'},
-        {Q_KEY_CODE_7, '7', '&', 0xbd, '&', '7'},
-        {Q_KEY_CODE_8, '8', '*', 0xbe, '*', '8'},
-        {Q_KEY_CODE_9, '9', '(', 0x2bb, '(', '9'},
-        {Q_KEY_CODE_TAB, 0x9, 0x9, 0x9, 0x9, 0x9},
-        {Q_KEY_CODE_GRAVE_ACCENT, '`', '~', 0x300, 0x0303, '`'},
-        {Q_KEY_CODE_MINUS, '-', '_', 0xa5, '_', '-'},
-        {Q_KEY_CODE_EQUAL, '=', '+', 0xd7, 0xf7, '='},
-        {Q_KEY_CODE_BRACKET_LEFT, '[', '{', 0xab, '{', '['},
-        {Q_KEY_CODE_BRACKET_RIGHT, ']', '}', 0xbb, '}', ']'},
-        {Q_KEY_CODE_BACKSLASH, '\\', '|', 0xac, 0xa6, '\\'},
-        {Q_KEY_CODE_SEMICOLON, ';', ':', 0xb6, 0xb0, ';'},
-        {Q_KEY_CODE_APOSTROPHE, '\'', '"', 0x301, 0x308, '\''},
+    {Q_KEY_CODE_A, 'a', 'A', 0xe1, 0xc1, 'a'},
+    {Q_KEY_CODE_B, 'b', 'B', 'b', 'B', 'b'},
+    {Q_KEY_CODE_C, 'c', 'C', 0xa9, 0xa2, 'c'},
+    {Q_KEY_CODE_D, 'd', 'D', 0xf0, 0xd0, '\''},
+    {Q_KEY_CODE_E, 'e', 'E', 0xe9, 0xc9, '"'},
+    {Q_KEY_CODE_F, 'f', 'F', '[', '[', '['},
+    {Q_KEY_CODE_G, 'g', 'G', ']', ']', ']'},
+    {Q_KEY_CODE_H, 'h', 'H', '<', '<', '<'},
+    {Q_KEY_CODE_I, 'i', 'I', 0xed, 0xcd, '-'},
+    {Q_KEY_CODE_J, 'j', 'J', '>', '>', '>'},
+    {Q_KEY_CODE_K, 'k', 'K', ';', 'K', ';'},
+    {Q_KEY_CODE_L, 'l', 'L', 0xf8, 0xd8, ':'},
+    {Q_KEY_CODE_M, 'm', 'M', 0xb5, 'M', '%'},
+    {Q_KEY_CODE_N, 'n', 'N', 0xf1, 0xd1, 'n'},
+    {Q_KEY_CODE_O, 'o', 'O', 0xf3, 0xd3, '+'},
+    {Q_KEY_CODE_P, 'p', 'P', 0xf6, 0xd6, '='},
+    {Q_KEY_CODE_Q, 'q', 'Q', 0xe4, 0xc4, '|'},
+    {Q_KEY_CODE_R, 'r', 'R', 0xae, 'R', '`'},
+    {Q_KEY_CODE_S, 's', 'S', 0xdf, 0xa7, '\\'},
+    {Q_KEY_CODE_T, 't', 'T', 0xfe, 0xde, '}'},
+    {Q_KEY_CODE_U, 'u', 'U', 0xfa, 0xda, '_'},
+    {Q_KEY_CODE_V, 'v', 'V', 'v', 'V', 'v'},
+    {Q_KEY_CODE_W, 'w', 'W', 0xe5, 0xc5, '~'},
+    {Q_KEY_CODE_X, 'x', 'X', 'x', 'X', 'x'},
+    {Q_KEY_CODE_Y, 'y', 'Y', 0xfc, 0xdc, '}'},
+    {Q_KEY_CODE_Z, 'z', 'Z', 0xe6, 0xc6, 'z'},
+    {Q_KEY_CODE_COMMA, ',', '<', 0xe7, 0xc7, ','},
+    {Q_KEY_CODE_DOT, '.', '>', '.', 0x2026, '.'},
+    {Q_KEY_CODE_SLASH, '/', '?', 0xbf, '?', '/'},
+    {Q_KEY_CODE_SPC, 0x20, 0x20, 0x9, 0x9, 0x20},
+    {Q_KEY_CODE_LF, 0xa, 0xa, 0xa, 0xa, 0xa},
+    {Q_KEY_CODE_0, '0', ')', 0x2bc, ')', '0'},
+    {Q_KEY_CODE_1, '1', '!', 0xa1, 0xb9, '1'},
+    {Q_KEY_CODE_2, '2', '@', 0xb2, '@', '2'},
+    {Q_KEY_CODE_3, '3', '#', 0xb3, '#', '3'},
+    {Q_KEY_CODE_4, '4', '$', 0xa4, 0xa3, '4'},
+    {Q_KEY_CODE_5, '5', '%', 0x20ac, '%', '5'},
+    {Q_KEY_CODE_6, '6', '^', 0xbc, 0x0302, '6'},
+    {Q_KEY_CODE_7, '7', '&', 0xbd, '&', '7'},
+    {Q_KEY_CODE_8, '8', '*', 0xbe, '*', '8'},
+    {Q_KEY_CODE_9, '9', '(', 0x2bb, '(', '9'},
+    {Q_KEY_CODE_TAB, 0x9, 0x9, 0x9, 0x9, 0x9},
+    {Q_KEY_CODE_GRAVE_ACCENT, '`', '~', 0x300, 0x0303, '`'},
+    {Q_KEY_CODE_MINUS, '-', '_', 0xa5, '_', '-'},
+    {Q_KEY_CODE_EQUAL, '=', '+', 0xd7, 0xf7, '='},
+    {Q_KEY_CODE_BRACKET_LEFT, '[', '{', 0xab, '{', '['},
+    {Q_KEY_CODE_BRACKET_RIGHT, ']', '}', 0xbb, '}', ']'},
+    {Q_KEY_CODE_BACKSLASH, '\\', '|', 0xac, 0xa6, '\\'},
+    {Q_KEY_CODE_SEMICOLON, ';', ':', 0xb6, 0xb0, ';'},
+    {Q_KEY_CODE_APOSTROPHE, '\'', '"', 0x301, 0x308, '\''},
 };
 
 QKeyCode evdev_to_qcode(uint32_t evdev) {
@@ -179,21 +179,21 @@ uint32_t dom_to_evdev(DomCode key) {
 uint32_t keycode_to_evdev(uint32_t from, KeyCodeType source) {
     for (const auto& entry : usb_keycode_map) {
         switch (source) {
-            case KeyCodeType::usb:
-                if (entry.usb == from) return entry.evdev;
-                break;
-            case KeyCodeType::evdev:
-                if (entry.evdev == from) return entry.evdev;
-                break;
-            case KeyCodeType::xkb:
-                if (entry.xkb == from) return entry.evdev;
-                break;
-            case KeyCodeType::win:
-                if (entry.win == from) return entry.evdev;
-                break;
-            case KeyCodeType::mac:
-                if (entry.mac == from) return entry.evdev;
-                break;
+        case KeyCodeType::usb:
+            if (entry.usb == from) return entry.evdev;
+            break;
+        case KeyCodeType::evdev:
+            if (entry.evdev == from) return entry.evdev;
+            break;
+        case KeyCodeType::xkb:
+            if (entry.xkb == from) return entry.evdev;
+            break;
+        case KeyCodeType::win:
+            if (entry.win == from) return entry.evdev;
+            break;
+        case KeyCodeType::mac:
+            if (entry.mac == from) return entry.evdev;
+            break;
         }
     }
     return 0;

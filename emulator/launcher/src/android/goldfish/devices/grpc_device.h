@@ -23,13 +23,13 @@ namespace android::goldfish {
 
 class GrpcDevice : public Device {
   public:
-   explicit GrpcDevice() : Device("grpc") {}
+    explicit GrpcDevice() : Device("grpc") {}
 
-   absl::Status initialize(const EmulatorConfig& emulator) override;
-   std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
-   uint16_t mPort;
+    uint16_t mPort;
 };
 
 }  // namespace android::goldfish

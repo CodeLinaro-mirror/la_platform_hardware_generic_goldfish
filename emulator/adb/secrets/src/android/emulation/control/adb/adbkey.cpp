@@ -209,7 +209,8 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     std::error_code ec;
     fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
 
-    if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath.c_str())) {
+    if (android::base::file::is_file(adbKeyPath) &&
+        android::base::file::can_read(adbKeyPath.c_str())) {
         return adbKeyPath;
     }
     D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());

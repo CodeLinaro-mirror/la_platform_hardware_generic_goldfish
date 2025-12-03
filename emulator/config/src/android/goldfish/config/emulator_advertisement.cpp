@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/goldfish/config/emulator_advertisment.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -33,6 +31,7 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system/File.h"
+#include "android/goldfish/config/emulator_advertisment.h"
 
 namespace android {
 namespace goldfish {
@@ -176,10 +175,10 @@ int EmulatorAdvertisement::garbageCollect() const {
             collected++;
             // Emulator is not running, or unreachable.
             if (base::file::is_file(entry)) {
-              base::file::rm(entry);
+                base::file::rm(entry);
             }
             if (base::file::is_dir(entry)) {
-              base::file::rm_recursive(entry);
+                base::file::rm_recursive(entry);
             }
         }
     }
@@ -192,7 +191,7 @@ int EmulatorAdvertisement::garbageCollect() const {
 std::vector<fs::path> EmulatorAdvertisement::discoverRunningEmulators() const {
     DD("Scanning %s", mSharedDirectory.string().c_str());
     std::vector<fs::path> discovered;
-    for (const fs::path &entry : base::file::scan_dir(mSharedDirectory, true)) {
+    for (const fs::path& entry : base::file::scan_dir(mSharedDirectory, true)) {
         if (entry != location() && mLivenessChecker->isAlive(location(), entry)) {
             discovered.push_back(entry);
         }
@@ -203,7 +202,7 @@ std::vector<fs::path> EmulatorAdvertisement::discoverRunningEmulators() const {
 
 fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
         const EmulatorProperties& props) const {
-    for (const fs::path &discoveryFile : discoverRunningEmulators()) {
+    for (const fs::path& discoveryFile : discoverRunningEmulators()) {
         IniFile ini(discoveryFile);
         if (!ini.read()) continue;
 

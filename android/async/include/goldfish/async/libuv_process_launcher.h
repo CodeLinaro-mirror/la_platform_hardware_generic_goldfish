@@ -17,29 +17,32 @@
 #include <memory>
 
 #include "absl/status/statusor.h"
+
 #include "goldfish/async/launch_config.h"
 #include "uv.h"
 
 namespace goldfish::async {
 
 class UvProcessLauncher {
- protected:
-  using ProcessHandle = std::unique_ptr<uv_process_t>;
+  protected:
+    using ProcessHandle = std::unique_ptr<uv_process_t>;
 
-  static UvProcessLauncher& get_launcher(const uv_process_t& handle) {
-    return *static_cast<UvProcessLauncher*>(handle.data);
-  }
+    static UvProcessLauncher& get_launcher(const uv_process_t& handle) {
+        return *static_cast<UvProcessLauncher*>(handle.data);
+    }
 
-  static void close_handle(ProcessHandle handle) { uv_close((uv_handle_t*)handle.get(), nullptr); }
+    static void close_handle(ProcessHandle handle) {
+        uv_close((uv_handle_t*)handle.get(), nullptr);
+    }
 
-  static int get_pid(const ProcessHandle& handle) { return handle->pid; }
+    static int get_pid(const ProcessHandle& handle) { return handle->pid; }
 
-  UvProcessLauncher(uv_loop_t* uv_loop) : mUvLoop(uv_loop) {}
+    UvProcessLauncher(uv_loop_t* uv_loop) : mUvLoop(uv_loop) {}
 
-  absl::StatusOr<ProcessHandle> launch(const LaunchConfig& config, uv_exit_cb exit_cb);
+    absl::StatusOr<ProcessHandle> launch(const LaunchConfig& config, uv_exit_cb exit_cb);
 
- private:
-  uv_loop_t* mUvLoop;
+  private:
+    uv_loop_t* mUvLoop;
 };
 
 }  // namespace goldfish::async

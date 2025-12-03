@@ -194,7 +194,8 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
     bool watchForChanges() {
         mCfRunLoop = nullptr;
-        auto dir = CFStringCreateWithCString(nullptr, mPath.string().c_str(), kCFStringEncodingUTF8);
+        auto dir =
+                CFStringCreateWithCString(nullptr, mPath.string().c_str(), kCFStringEncodingUTF8);
         auto pathsToWatch = CFArrayCreate(nullptr, reinterpret_cast<const void**>(&dir), 1,
                                           &kCFTypeArrayCallBacks);
 

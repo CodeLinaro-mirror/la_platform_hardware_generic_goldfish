@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "cpu_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
@@ -18,8 +20,6 @@
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
 #include "android/goldfish/cpu/CpuAccelerator.h"
-
-#include "cpu_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -38,15 +38,16 @@ TEST(Cpu, Basic_x86) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
-                                     testing::Eq("-accel"), testing::Eq("kvm")));
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                     testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                     testing::Eq("kvm")));
 }
 
 TEST(Cpu, Basic_arm64) {
@@ -60,15 +61,16 @@ TEST(Cpu, Basic_arm64) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("cortex-a53"),
-                                     testing::Eq("-accel"), testing::Eq("hvf")));
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                     testing::Eq("cortex-a53"), testing::Eq("-accel"),
+                                     testing::Eq("hvf")));
 }
 
 TEST(Cpu, NoAccel) {
@@ -83,15 +85,16 @@ TEST(Cpu, NoAccel) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("cortex-a53"),
-                                     testing::Eq("-accel"), testing::Eq("tcg")));
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                     testing::Eq("cortex-a53"), testing::Eq("-accel"),
+                                     testing::Eq("tcg")));
 }
 
 TEST(Cpu, AccelOff) {
@@ -106,15 +109,16 @@ TEST(Cpu, AccelOff) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"),
-                                     testing::Eq("-cpu"), testing::Eq("cortex-a53"),
-                                     testing::Eq("-accel"), testing::Eq("tcg")));
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("3"), testing::Eq("-cpu"),
+                                     testing::Eq("cortex-a53"), testing::Eq("-accel"),
+                                     testing::Eq("tcg")));
 }
 
 TEST(Cpu, HostAndTargetMismatch) {
@@ -128,11 +132,13 @@ TEST(Cpu, HostAndTargetMismatch) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_HVF,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kArm);
 
     CpuDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(dev.initialize(emu.config()),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(Cpu, NoHardwareAcceleratorAvailable) {
@@ -146,11 +152,14 @@ TEST(Cpu, NoHardwareAcceleratorAvailable) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_NONE, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_ACCEL_NOT_INSTALLED, "");
+    SetCurrentCpuAcceleratorForTesting(
+            CpuAccelerator::CPU_ACCELERATOR_NONE,
+            AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_ACCEL_NOT_INSTALLED, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     CpuDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(dev.initialize(emu.config()),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(Cpu, CoresFlagOverride) {
@@ -165,15 +174,16 @@ TEST(Cpu, CoresFlagOverride) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     CpuDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"),
-                                     testing::Eq("-cpu"), testing::Eq("SandyBridge"),
-                                     testing::Eq("-accel"), testing::Eq("kvm")));
+                testing::ElementsAre(testing::Eq("-smp"), testing::Eq("5"), testing::Eq("-cpu"),
+                                     testing::Eq("SandyBridge"), testing::Eq("-accel"),
+                                     testing::Eq("kvm")));
 }
 
 TEST(Cpu, CoresFlagInvalid) {
@@ -188,7 +198,8 @@ TEST(Cpu, CoresFlagInvalid) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM, AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
+    SetCurrentCpuAcceleratorForTesting(CpuAccelerator::CPU_ACCELERATOR_KVM,
+                                       AndroidCpuAcceleration::ANDROID_CPU_ACCELERATION_READY, "");
     CpuDevice::forceHostArch_TestOnly(Avd::CpuArchitecture::kX86);
 
     CpuDevice dev;

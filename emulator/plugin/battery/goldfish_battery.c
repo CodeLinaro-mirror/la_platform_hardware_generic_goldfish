@@ -96,54 +96,54 @@ int goldfish_battery_read_prop(int property) {
     }
 
     switch (property) {
-        case POWER_SUPPLY_PROP_ONLINE:
-            retVal = battery_state->ac_online;
-            break;
-        case POWER_SUPPLY_PROP_STATUS:
-            retVal = battery_state->status;
-            break;
-        case POWER_SUPPLY_PROP_HEALTH:
-            retVal = battery_state->health;
-            break;
-        case POWER_SUPPLY_PROP_HAS_BATTERY:
-            retVal = battery_state->hw_has_battery;
-            break;
-        case POWER_SUPPLY_PROP_PRESENT:
-            retVal = battery_state->present;
-            break;
-        case POWER_SUPPLY_PROP_CAPACITY:
-            retVal = battery_state->capacity;
-            break;
-        case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-            retVal = battery_state->voltage;
-            break;
-        case POWER_SUPPLY_PROP_TEMP:
-            retVal = battery_state->temp;
-            break;
-        case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-            retVal = battery_state->charge_counter;
-            break;
-        case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-            retVal = battery_state->voltage_max;
-            break;
-        case POWER_SUPPLY_PROP_CURRENT_MAX:
-            retVal = battery_state->current_max;
-            break;
-        case POWER_SUPPLY_PROP_CURRENT_NOW:
-            retVal = battery_state->current_now;
-            break;
-        case POWER_SUPPLY_PROP_CURRENT_AVG:
-            retVal = battery_state->current_avg;
-            break;
-        case POWER_SUPPLY_PROP_CHARGE_FULL:
-            retVal = battery_state->charge_full_uah;
-            break;
-        case POWER_SUPPLY_PROP_CYCLE_COUNT:
-            retVal = battery_state->cycle_count;
-            break;
-        default:
-            retVal = 0;
-            break;
+    case POWER_SUPPLY_PROP_ONLINE:
+        retVal = battery_state->ac_online;
+        break;
+    case POWER_SUPPLY_PROP_STATUS:
+        retVal = battery_state->status;
+        break;
+    case POWER_SUPPLY_PROP_HEALTH:
+        retVal = battery_state->health;
+        break;
+    case POWER_SUPPLY_PROP_HAS_BATTERY:
+        retVal = battery_state->hw_has_battery;
+        break;
+    case POWER_SUPPLY_PROP_PRESENT:
+        retVal = battery_state->present;
+        break;
+    case POWER_SUPPLY_PROP_CAPACITY:
+        retVal = battery_state->capacity;
+        break;
+    case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+        retVal = battery_state->voltage;
+        break;
+    case POWER_SUPPLY_PROP_TEMP:
+        retVal = battery_state->temp;
+        break;
+    case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+        retVal = battery_state->charge_counter;
+        break;
+    case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+        retVal = battery_state->voltage_max;
+        break;
+    case POWER_SUPPLY_PROP_CURRENT_MAX:
+        retVal = battery_state->current_max;
+        break;
+    case POWER_SUPPLY_PROP_CURRENT_NOW:
+        retVal = battery_state->current_now;
+        break;
+    case POWER_SUPPLY_PROP_CURRENT_AVG:
+        retVal = battery_state->current_avg;
+        break;
+    case POWER_SUPPLY_PROP_CHARGE_FULL:
+        retVal = battery_state->charge_full_uah;
+        break;
+    case POWER_SUPPLY_PROP_CYCLE_COUNT:
+        retVal = battery_state->cycle_count;
+        break;
+    default:
+        retVal = 0;
+        break;
     }
     return retVal;
 }
@@ -179,36 +179,36 @@ void goldfish_battery_set_prop(int ac, int property, int value) {
 
     if (ac) {
         switch (property) {
-            case POWER_SUPPLY_PROP_ONLINE:
-                battery_state->ac_online = value;
-                break;
+        case POWER_SUPPLY_PROP_ONLINE:
+            battery_state->ac_online = value;
+            break;
         }
     } else {
         switch (property) {
-            case POWER_SUPPLY_PROP_STATUS:
-                battery_state->status = value;
-                break;
-            case POWER_SUPPLY_PROP_HEALTH:
-                battery_state->health = value;
-                break;
-            case POWER_SUPPLY_PROP_PRESENT:
-                battery_state->present = value;
-                break;
-            case POWER_SUPPLY_PROP_CAPACITY:
-                battery_state->capacity = value;
-                break;
-            case POWER_SUPPLY_PROP_CURRENT_NOW:
-                battery_state->current_now = value;
-                break;
-            case POWER_SUPPLY_PROP_CURRENT_AVG:
-                battery_state->current_avg = value;
-                break;
-            case POWER_SUPPLY_PROP_CHARGE_FULL:
-                battery_state->charge_full_uah = value;
-                break;
-            case POWER_SUPPLY_PROP_CYCLE_COUNT:
-                battery_state->cycle_count = value;
-                break;
+        case POWER_SUPPLY_PROP_STATUS:
+            battery_state->status = value;
+            break;
+        case POWER_SUPPLY_PROP_HEALTH:
+            battery_state->health = value;
+            break;
+        case POWER_SUPPLY_PROP_PRESENT:
+            battery_state->present = value;
+            break;
+        case POWER_SUPPLY_PROP_CAPACITY:
+            battery_state->capacity = value;
+            break;
+        case POWER_SUPPLY_PROP_CURRENT_NOW:
+            battery_state->current_now = value;
+            break;
+        case POWER_SUPPLY_PROP_CURRENT_AVG:
+            battery_state->current_avg = value;
+            break;
+        case POWER_SUPPLY_PROP_CHARGE_FULL:
+            battery_state->charge_full_uah = value;
+            break;
+        case POWER_SUPPLY_PROP_CYCLE_COUNT:
+            battery_state->cycle_count = value;
+            break;
         }
     }
 
@@ -223,47 +223,47 @@ static uint64_t goldfish_battery_read(void* opaque, hwaddr offset, unsigned size
     struct goldfish_battery_state* s = opaque;
 
     switch (offset) {
-        case BATTERY_INT_STATUS:
-            // return current buffer status flags
-            ret = s->int_status & s->int_enable;
-            if (ret) {
-                qemu_irq_lower(s->irq);
-                s->int_status = 0;
-            }
-            return ret;
+    case BATTERY_INT_STATUS:
+        // return current buffer status flags
+        ret = s->int_status & s->int_enable;
+        if (ret) {
+            qemu_irq_lower(s->irq);
+            s->int_status = 0;
+        }
+        return ret;
 
-        case BATTERY_INT_ENABLE:
-            return s->int_enable;
-        case BATTERY_AC_ONLINE:
-            return s->ac_online;
-        case BATTERY_STATUS:
-            return s->status;
-        case BATTERY_HEALTH:
-            return s->health;
-        case BATTERY_PRESENT:
-            return s->present;
-        case BATTERY_CAPACITY:
-            return s->capacity;
-        case BATTERY_VOLTAGE:
-            return s->voltage;
-        case BATTERY_TEMP:
-            return s->temp;
-        case BATTERY_CHARGE_COUNTER:
-            return s->charge_counter;
-        case BATTERY_VOLTAGE_MAX:
-            return s->voltage_max;
-        case BATTERY_CURRENT_MAX:
-            return s->current_max;
-        case BATTERY_CURRENT_NOW:
-            return s->current_now;
-        case BATTERY_CURRENT_AVG:
-            return s->current_avg;
-        case BATTERY_CHARGE_FULL_UAH:
-            return s->charge_full_uah;
-        case BATTERY_CYCLE_COUNT:
-            return s->cycle_count;
-        default:
-            return 0;
+    case BATTERY_INT_ENABLE:
+        return s->int_enable;
+    case BATTERY_AC_ONLINE:
+        return s->ac_online;
+    case BATTERY_STATUS:
+        return s->status;
+    case BATTERY_HEALTH:
+        return s->health;
+    case BATTERY_PRESENT:
+        return s->present;
+    case BATTERY_CAPACITY:
+        return s->capacity;
+    case BATTERY_VOLTAGE:
+        return s->voltage;
+    case BATTERY_TEMP:
+        return s->temp;
+    case BATTERY_CHARGE_COUNTER:
+        return s->charge_counter;
+    case BATTERY_VOLTAGE_MAX:
+        return s->voltage_max;
+    case BATTERY_CURRENT_MAX:
+        return s->current_max;
+    case BATTERY_CURRENT_NOW:
+        return s->current_now;
+    case BATTERY_CURRENT_AVG:
+        return s->current_avg;
+    case BATTERY_CHARGE_FULL_UAH:
+        return s->charge_full_uah;
+    case BATTERY_CYCLE_COUNT:
+        return s->cycle_count;
+    default:
+        return 0;
     }
 }
 
@@ -271,25 +271,25 @@ static void goldfish_battery_write(void* opaque, hwaddr offset, uint64_t val, un
     struct goldfish_battery_state* s = opaque;
 
     switch (offset) {
-        case BATTERY_INT_ENABLE:
-            /* enable interrupts */
-            s->int_enable = val;
+    case BATTERY_INT_ENABLE:
+        /* enable interrupts */
+        s->int_enable = val;
 
-            uint32_t now_active = (s->int_enable & s->int_status);
-            if (now_active != 0) {
-                // Some interrupt is now unmasked, signal IRQ
-                qemu_set_irq(s->irq, now_active);
-            }
-            break;
+        uint32_t now_active = (s->int_enable & s->int_status);
+        if (now_active != 0) {
+            // Some interrupt is now unmasked, signal IRQ
+            qemu_set_irq(s->irq, now_active);
+        }
+        break;
     }
 }
 
 static const MemoryRegionOps goldfish_battery_iomem_ops = {
-        .read = goldfish_battery_read,
-        .write = goldfish_battery_write,
-        .endianness = DEVICE_NATIVE_ENDIAN,
-        .impl.min_access_size = 4,
-        .impl.max_access_size = 4,
+    .read = goldfish_battery_read,
+    .write = goldfish_battery_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
 };
 
 static void goldfish_battery_realize(DeviceState* dev, Error** errp) {
@@ -368,13 +368,12 @@ static void goldfish_battery_class_init(ObjectClass* klass, void* data) {
 }
 
 static const TypeInfo goldfish_battery_info = {
-        .name = TYPE_GOLDFISH_BATTERY,
-        .parent = TYPE_SYS_BUS_DEVICE,
-        .instance_size = sizeof(struct goldfish_battery_state),
-        .class_init = goldfish_battery_class_init,
+    .name = TYPE_GOLDFISH_BATTERY,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct goldfish_battery_state),
+    .class_init = goldfish_battery_class_init,
 };
 
 void goldfish_battery_register_types(void) {
     type_register_static(&goldfish_battery_info);
 }
-

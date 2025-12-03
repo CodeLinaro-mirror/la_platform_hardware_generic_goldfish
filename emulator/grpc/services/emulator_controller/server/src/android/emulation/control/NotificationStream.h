@@ -34,14 +34,14 @@ namespace control {
 
 using android::base::eventing::CallbackEventSource;
 using android::base::eventing::EventListener;
+using ::goldfish::devices::ConnectorRegistry;
+using ::goldfish::devices::guest_status::AndroidGuestStatus;
 using ::goldfish::display::DisplayEvent;
 using ::goldfish::display::DisplayId;
 using ::goldfish::display::DisplayPtr;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::ResizeEvent;
 using ::goldfish::display::ResizeEventCallbackSource;
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::guest_status::AndroidGuestStatus;
 
 // EventChangeSupport which can use optional values for the event.
 class NotificationEventChangeSupport : public CallbackEventSource<Notification> {

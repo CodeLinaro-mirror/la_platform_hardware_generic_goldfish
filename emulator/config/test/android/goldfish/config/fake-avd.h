@@ -56,12 +56,12 @@ using android::base::operator""_GiB;
 class FakeAvd : public Avd {
   public:
     FakeAvd()
-        : mName("default_fake_avd"),
-          mContentPath("/tmp/fake_avd"),
-          mApiLevel(35),
-          mDessert("V"),
-          mApiDescription("15.0 (V) - API 35"),
-          mPlaystore(true) {
+            : mName("default_fake_avd")
+            , mContentPath("/tmp/fake_avd")
+            , mApiLevel(35)
+            , mDessert("V")
+            , mApiDescription("15.0 (V) - API 35")
+            , mPlaystore(true) {
         // Initialize mHwCfg with values from the provided .ini file
         mHwCfg.hw_cpu_arch = "arm64";
         mHwCfg.hw_cpu_ncore = 4;
@@ -242,25 +242,15 @@ class FakeAvd : public Avd {
     std::string display_name() const override { return mDisplayName; }
     void setDisplayName(const std::string& displayName) { mDisplayName = displayName; }
 
-    std::string id() const override {
-        return name();
-    }
+    std::string id() const override { return name(); }
 
-    std::string abi() const override {
-        return "";
-    }
+    std::string abi() const override { return ""; }
 
-    std::string build_sdk() const override {
-        return "";
-    }
+    std::string build_sdk() const override { return ""; }
 
-    std::string build_id() const override {
-        return "";
-    }
+    std::string build_id() const override { return ""; }
 
-    std::string build_flavour() const override {
-        return "";
-    }
+    std::string build_flavour() const override { return ""; }
 
   private:
     std::string mName;

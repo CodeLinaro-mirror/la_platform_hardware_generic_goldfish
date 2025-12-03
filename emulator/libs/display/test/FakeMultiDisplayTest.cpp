@@ -8,18 +8,17 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
-//#include "goldfish/display/MultiDisplay.h"
+// #include "goldfish/display/MultiDisplay.h"
 
-//#include ".h"
-//#include "goldfish/display/PixmanDisplay.h"
+// #include ".h"
+// #include "goldfish/display/PixmanDisplay.h"
 
 // #include "goldfish/display/PixmanImagePtr.h"
+#include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/display/test/FakeMultiDisplay.h"
 #include "goldfish/display/test/FakePixmanDisplay.h"
 #include "goldfish/display/test/ImageGenerationStrategy.h"
-
-#include "goldfish/async/libuv_event_loop.h"
-#include "goldfish/async/threaded_event_loop.h"
 
 using android::base::eventing::EventListener;
 

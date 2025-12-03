@@ -26,9 +26,9 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/sensors/AndroidSensor.h"
 #include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/physics/Rotation.h"
+#include "goldfish/sensors/AndroidSensor.h"
 
 namespace android::base {
 class IClock;
@@ -128,12 +128,13 @@ class ISensorDevice : public HalPlug,
      * externally to ensure they outlive the registry.
      */
     static void registerDevice(IConnectorRegistry* registry, android::goldfish::DeviceType avd_type,
-                                int avd_api, const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
-                                EventLoop* qemuLoop);
+                               int avd_api, const android::goldfish::HardwareConfig& hw,
+                               EventLoop* clientLoop, EventLoop* qemuLoop);
     // Test seam
     static void registerDevice(IConnectorRegistry* registry, android::goldfish::DeviceType avd_type,
-                                int avd_api, const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
-                                EventLoop* qemuLoop, ::android::base::IClock* clock);
+                               int avd_api, const android::goldfish::HardwareConfig& hw,
+                               EventLoop* clientLoop, EventLoop* qemuLoop,
+                               ::android::base::IClock* clock);
 };
 
 /**
@@ -169,7 +170,8 @@ class SensorObserver : public CallbackEventSource<SensorData> {
             mDeviceListener;               ///< Listener for device registration events.
     std::weak_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
     const AndroidSensor mId;
-    CallbackId mCallbackId = 1234567890;  ///< The ID of the registered callback in the ISensorDevice.
+    CallbackId mCallbackId =
+            1234567890;  ///< The ID of the registered callback in the ISensorDevice.
 };
 
 }  // namespace goldfish::devices::sensor

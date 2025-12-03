@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "grpc_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
@@ -17,14 +19,12 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "grpc_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
 
 TEST(Grpc, DefaultPort) {
-    EmulatorPorts ports{.serial_number=5560};
+    EmulatorPorts ports{.serial_number = 5560};
     FakeEmulator emu(std::move(ports), {});
 
     GrpcDevice dev;

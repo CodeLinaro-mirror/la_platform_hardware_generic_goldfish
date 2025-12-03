@@ -27,13 +27,12 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/utils/status_macros.h"
-
 #include "android/base/bazel/bazel_info.h"
 #include "android/base/system/System.h"
 #include "android/cmdline-option.h"
-#include "android/crashreport/crash-initializer.h"
 #include "android/crashreport/CrashConsent.h"
 #include "android/crashreport/CrashSystem.h"
+#include "android/crashreport/crash-initializer.h"
 #include "android/goldfish/config/avd.h"
 #include "android/goldfish/emulator.h"
 #include "android/goldfish/emulator_config.h"
@@ -41,7 +40,6 @@
 #include "android/goldfish/logging.h"
 #include "android/goldfish/netsimd.h"
 #include "android/main-help.h"
-
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -74,8 +72,8 @@ static void show_banner() {
 
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
-    Launcher(::goldfish::async::LibuvEventLoop& event_loop,
-             ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
+    Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
+             std::unique_ptr<Avd> avd, AndroidOptions opts)
             : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.getRawLoop()))
             , mEventLoop(event_loop)
             , mResolvedPaths(std::move(resolved_paths))
@@ -99,12 +97,18 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     int emulator_exit_status() const { return mEmulatorExitStatus; }
-    void join_shutdown_thread() { if (mShutdownThread.joinable()) { mShutdownThread.join(); } }
+    void join_shutdown_thread() {
+        if (mShutdownThread.joinable()) {
+            mShutdownThread.join();
+        }
+    }
 
   private:
-    absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>> open_tcp_server_port(::goldfish::async::EventLoop &event_loop, ::goldfish::async::LibuvAsyncSocketFactory &factory, int port) {
+    absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>> open_tcp_server_port(
+            ::goldfish::async::EventLoop& event_loop,
+            ::goldfish::async::LibuvAsyncSocketFactory& factory, int port) {
         ASSIGN_OR_RETURN(auto e, ::goldfish::network::Endpoint::create("127.0.0.1", port));
-        auto sock = factory.createServer(&event_loop, e, [] (auto) {
+        auto sock = factory.createServer(&event_loop, e, [](auto) {
             VLOG(1) << "Ignoring connection to serial port reservation server";
             return false;
         });
@@ -114,7 +118,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         return absl::UnavailableError("unable to open server socket");
     }
 
-    absl::Status hunt_for_free_port(::goldfish::async::EventLoop &event_loop, ::goldfish::async::LibuvAsyncSocketFactory &factory) {
+    absl::Status hunt_for_free_port(::goldfish::async::EventLoop& event_loop,
+                                    ::goldfish::async::LibuvAsyncSocketFactory& factory) {
         constexpr int kStartingPort = 5554;
         std::shared_ptr<::goldfish::async::AsyncSocketServer> sock;
         for (int port = kStartingPort; port < 5585; port += 2) {
@@ -129,23 +134,26 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         return absl::UnavailableError("No available emulator serial console port (5554-5584)");
     }
 
-    absl::Status setup_emulator_ports(const AndroidOptions& opts, ::goldfish::async::EventLoop &event_loop) {
+    absl::Status setup_emulator_ports(const AndroidOptions& opts,
+                                      ::goldfish::async::EventLoop& event_loop) {
         auto factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>();
         if (opts.ports) {
             // Format should be console_port,adb_port
             std::vector<std::string_view> parts = absl::StrSplit(opts.ports, ',');
             if (parts.size() != 2) {
-                return absl::InvalidArgumentError(absl::StrCat("Failed to parse -ports: ", opts.ports));
+                return absl::InvalidArgumentError(
+                        absl::StrCat("Failed to parse -ports: ", opts.ports));
             }
             if (!absl::SimpleAtoi(parts[0], &mPorts.serial_number)) {
-                return absl::InvalidArgumentError(
-                        absl::StrCat("Failed to parse serial port number from -ports: ", opts.ports));
+                return absl::InvalidArgumentError(absl::StrCat(
+                        "Failed to parse serial port number from -ports: ", opts.ports));
             }
             if (!absl::SimpleAtoi(parts[1], &mPorts.adb_port)) {
                 return absl::InvalidArgumentError(
                         absl::StrCat("Failed to parse ADB port number from -ports: ", opts.ports));
             }
-            ASSIGN_OR_RETURN(mSerialPortReservation, open_tcp_server_port(event_loop, *factory, mPorts.serial_number));
+            ASSIGN_OR_RETURN(mSerialPortReservation,
+                             open_tcp_server_port(event_loop, *factory, mPorts.serial_number));
         } else if (opts.port) {
             // opts.port specifies the telnet console port and by default ADB port is that +1
             int port;
@@ -155,7 +163,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             }
             mPorts.serial_number = port;
             mPorts.adb_port = port + 1;
-            ASSIGN_OR_RETURN(mSerialPortReservation, open_tcp_server_port(event_loop, *factory, port));
+            ASSIGN_OR_RETURN(mSerialPortReservation,
+                             open_tcp_server_port(event_loop, *factory, port));
         } else {
             RETURN_IF_ERROR(hunt_for_free_port(event_loop, *factory));
         }
@@ -166,7 +175,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         }
         if (mPorts.adb_port % 2 != 1) {
             LOG(WARNING) << "ADB port specified is not an odd number, adb may not work properly: "
-                        << mPorts.adb_port;
+                         << mPorts.adb_port;
         }
 
         return absl::OkStatus();
@@ -253,7 +262,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->cancel();
         mFindNetsimd.reset();
-        (void)mEventLoop.post([this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
+        (void)mEventLoop.post(
+                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
     }
 
     void try_connect_netsimd(std::string netsimd_endpoint) {
@@ -422,17 +432,16 @@ int main(int argc, char** argv) {
         // Bug: 454403989
         // when systme has XDG_RUNTIME_DIR set, we need to pass it
         // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
-        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR",
-                              xdg_runtime_dir_val);
+        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
 #endif
     }
 #endif
 
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
-        auto launcher_dir =
-                fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
-        LOG_IF(FATAL, !fs::exists(launcher_dir)) << "Unable to locate launcher directory: " << launcher_dir;
+        auto launcher_dir = fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
+        LOG_IF(FATAL, !fs::exists(launcher_dir))
+                << "Unable to locate launcher directory: " << launcher_dir;
         System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
         if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
             System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
@@ -457,7 +466,8 @@ int main(int argc, char** argv) {
     }
 
     // TODO change consent before release
-    android::crashreport::upload_crashes(std::make_unique<android::goldfish::CrashConsentProviderAlways>());
+    android::crashreport::upload_crashes(
+            std::make_unique<android::goldfish::CrashConsentProviderAlways>());
 
     absl::FailureSignalHandlerOptions options;
     // Call crashpad after printing stack trace.
@@ -508,8 +518,7 @@ int main(int argc, char** argv) {
 
     auto event_loop = goldfish::async::LibuvEventLoop::create();
 
-    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths),
-                                  *std::move(avd), opts);
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
 
     if (auto s = event_loop->run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;

@@ -59,7 +59,9 @@ class AnnotationCircularStreambuf : public std::streambuf {
      * @param name The name of the annotation. This is how it will show up in a minidump.
      */
     explicit AnnotationCircularStreambuf(std::string name)
-        : mBuffer(), mName(name), mAnnotation(Annotation::Type::kString, mName.c_str(), mBuffer) {
+            : mBuffer()
+            , mName(name)
+            , mAnnotation(Annotation::Type::kString, mName.c_str(), mBuffer) {
         setp(mBuffer, mBuffer + MaxSize);
     }
 

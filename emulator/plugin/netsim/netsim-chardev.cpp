@@ -244,13 +244,13 @@ struct NetsimChardev {
 int netsim_chardev_write(Chardev* chr, const uint8_t* buf, int len) {
     // From guest -> netsim
     VLOG(2) << "NETSIM: receive (netsim <- guest)";
-    auto *state = NETSIM_CHARDEV(chr)->state;
+    auto* state = NETSIM_CHARDEV(chr)->state;
 
     // parser writes into parser_packet_queue
     uint64_t left = len;
     while (left > 0) {
-        uint64_t send = std::min<uint64_t>(
-                left, state->protocol->guest_to_netsim_parser_bytes_requested());
+        uint64_t send =
+                std::min<uint64_t>(left, state->protocol->guest_to_netsim_parser_bytes_requested());
         state->protocol->guest_to_netsim_parser_consume(buf, send);
         buf += send;
         left -= send;
@@ -270,17 +270,16 @@ void netsim_chardev_set_fe_open(Chardev* chr, int fe_open) {
     }
 
     VLOG(1) << "NETSIM chardev: frontend connected, sending reset: " << chr->label;
-    auto *state = NETSIM_CHARDEV(chr)->state;
+    auto* state = NETSIM_CHARDEV(chr)->state;
 
     // TODO maybe connect in background
     // TODO maybe reconnect - ondone callback and then call initialize again (also send reset to
     // guest).
     state->protocol->reset();
 
-    if (auto status = state->transport->initialize(state->protocol->chip_info());
-        !status.ok()) {
+    if (auto status = state->transport->initialize(state->protocol->chip_info()); !status.ok()) {
         error_printf("failed to initialize netsim transport %s: %s", chr->label,
-                status.ToString().c_str());
+                     status.ToString().c_str());
         return;
     }
 
@@ -308,9 +307,9 @@ void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened,
             });
 
     // Note that we don't initialize the connection to Netsimd here.
-    // This is because chardevs are opened way before "device"s and so no AVD information is yet available.
-    // However, the frontend is also a device and ordered after the device. So we connect to Netsimd at that point
-    // (netsim_chardev_set_fe_open).
+    // This is because chardevs are opened way before "device"s and so no AVD information is yet
+    // available. However, the frontend is also a device and ordered after the device. So we connect
+    // to Netsimd at that point (netsim_chardev_set_fe_open).
 }
 
 void netsim_chardev_parse(QemuOpts* opts, ChardevBackend* backend, Error** errp) {

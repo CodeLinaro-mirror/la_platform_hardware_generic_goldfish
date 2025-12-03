@@ -15,10 +15,9 @@
 
 #include <optional>
 
+#include "absl/strings/numbers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-#include "absl/strings/numbers.h"
 
 #include "android/base/testing/TestSystem.h"
 #include "goldfish//async/testing/test_event_loop.h"

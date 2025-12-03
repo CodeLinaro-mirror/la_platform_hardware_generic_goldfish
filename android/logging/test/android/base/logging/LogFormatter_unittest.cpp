@@ -32,8 +32,8 @@ inline static std::string translate_sev(LogSeverity value) {
         SEV(EMULATOR_LOG_WARNING, "WARNING")
         SEV(EMULATOR_LOG_ERROR, "ERROR")
         SEV(EMULATOR_LOG_FATAL, "FATAL")
-        default:
-            return "UNKWOWN";
+    default:
+        return "UNKWOWN";
     }
 #undef SEV
 }

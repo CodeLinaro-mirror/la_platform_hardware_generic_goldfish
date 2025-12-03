@@ -27,7 +27,8 @@ using android::base::System;
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::guest_status::IGuestStatusDevice;
 
-std::unordered_map<std::string, std::string> getQemuConfig(int api_level, const android::goldfish::HardwareConfig &hw) {
+std::unordered_map<std::string, std::string> getQemuConfig(
+        int api_level, const android::goldfish::HardwareConfig& hw) {
     std::unordered_map<std::string, std::string> cfg;
 
     /* use the magic of macros to implement the hardware configuration loaded */
@@ -44,8 +45,9 @@ std::unordered_map<std::string, std::string> getQemuConfig(int api_level, const 
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw)
-    : mRegistry(connectorRegistry), mApiLevel(api_level), mHw(hw) {}
+StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level,
+                                     const android::goldfish::HardwareConfig& hw)
+        : mRegistry(connectorRegistry), mApiLevel(api_level), mHw(hw) {}
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`

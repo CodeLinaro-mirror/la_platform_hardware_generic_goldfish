@@ -58,7 +58,8 @@ class JwkDirectoryObserverTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
-        mTempDir = std::make_unique<TestTempDir>(absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
+        mTempDir = std::make_unique<TestTempDir>(
+                absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")
@@ -111,7 +112,6 @@ class JwkDirectoryObserverTest : public ::testing::Test {
         write(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
-
 
   protected:
     std::unique_ptr<TestTempDir> mTempDir;
@@ -166,31 +166,30 @@ TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
 
 TEST_F(JwkDirectoryObserverTest, finds_jwks) {
     write("sample.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) {
-                                    EXPECT_EQ(keyset, nullptr);
-                                    mTestEv.signal();
-                                });
+    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+        EXPECT_EQ(keyset, nullptr);
+        mTestEv.signal();
+    });
     mTestEv.wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) {
-                                    EXPECT_EQ(keyset, nullptr);
-                                    mTestEv.signal(); });
+    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+        EXPECT_EQ(keyset, nullptr);
+        mTestEv.signal();
+    });
     mTestEv.wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, merging_multiple) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", ES256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(),
-                                  [this](auto keyset) {
-                                    EXPECT_NE(keyset, nullptr);
-                                    mTestEv.signal(); });
+    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+        EXPECT_NE(keyset, nullptr);
+        mTestEv.signal();
+    });
     mTestEv.wait();
 }
 

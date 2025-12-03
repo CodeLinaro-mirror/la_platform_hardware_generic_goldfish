@@ -51,16 +51,16 @@ struct AvdProperties {
  * the `avd_info_realize` and `avd_info_unrealize` events.
  */
 struct AvdUniverse {
-  const AvdProperties& props() const { return *mProps; }
+    const AvdProperties& props() const { return *mProps; }
 
-  AvdUniverse(std::unique_ptr<AvdProperties> props);
-  AvdUniverse(const AvdUniverse&) = delete;
-  AvdUniverse(AvdUniverse&&) = delete;
-  AvdUniverse& operator=(const AvdUniverse&) = delete;
-  AvdUniverse& operator=(AvdUniverse&&) = delete;
+    AvdUniverse(std::unique_ptr<AvdProperties> props);
+    AvdUniverse(const AvdUniverse&) = delete;
+    AvdUniverse(AvdUniverse&&) = delete;
+    AvdUniverse& operator=(const AvdUniverse&) = delete;
+    AvdUniverse& operator=(AvdUniverse&&) = delete;
 
- private:
-  const std::unique_ptr<const AvdProperties> mProps;
+  private:
+    const std::unique_ptr<const AvdProperties> mProps;
 };
 
 AvdUniverse& getAvd();

@@ -17,7 +17,6 @@
 #include <filesystem>
 
 #include "aemu/base/files/IniFile.h"
-
 #include "android/base/system/storage_capacity.h"
 
 namespace android::goldfish {
@@ -46,7 +45,7 @@ void HardwareConfig::load(const IniFile& ini) {
     hw_sdCard_size = ini.getDiskSize("sdcard.size", hw_sdCard_size.bytes());
 }
 
-void HardwareConfig::applyDefaults(const fs::path &sdk_root_path, const fs::path &avd_home_path) {
+void HardwareConfig::applyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path) {
     if (android_sdk_root.empty()) {
         android_sdk_root = sdk_root_path.string();
     }
@@ -71,12 +70,11 @@ void HardwareConfig::applyDefaults(const fs::path &sdk_root_path, const fs::path
 }
 
 void HardwareConfig::write(IniFile* ini) {
-
-#define   HWCFG_BOOL(n,s,d,a,t)       ini->setBool(s, n);
-#define   HWCFG_INT(n,s,d,a,t)        ini->setInt(s, n);
-#define   HWCFG_STRING(n,s,d,a,t)     ini->setString(s, n);
-#define   HWCFG_DOUBLE(n,s,d,a,t)     ini->setDouble(s, n);
-#define   HWCFG_DISKSIZE(n,s,d,a,t)   ini->setDiskSize(s, static_cast<IniFile::DiskSize>(n));
+#define HWCFG_BOOL(n, s, d, a, t) ini->setBool(s, n);
+#define HWCFG_INT(n, s, d, a, t) ini->setInt(s, n);
+#define HWCFG_STRING(n, s, d, a, t) ini->setString(s, n);
+#define HWCFG_DOUBLE(n, s, d, a, t) ini->setDouble(s, n);
+#define HWCFG_DISKSIZE(n, s, d, a, t) ini->setDiskSize(s, static_cast<IniFile::DiskSize>(n));
 
 #include "avd/hw-config-defs.h"
 

@@ -38,45 +38,45 @@ enum class QemuShutdownCause {
 template <typename Sink>
 void AbslStringify(Sink& sink, QemuShutdownCause e) {
     switch (e) {
-        case QemuShutdownCause::None:
-            absl::Format(&sink, "None");
-            break;
-        case QemuShutdownCause::HostError:
-            absl::Format(&sink, "HostError");
-            break;
-        case QemuShutdownCause::HostQmpQuit:
-            absl::Format(&sink, "HostQmpQuit");
-            break;
-        case QemuShutdownCause::HostQmpSystemReset:
-            absl::Format(&sink, "HostQmpSystemReset");
-            break;
-        case QemuShutdownCause::HostSignal:
-            absl::Format(&sink, "HostSignal");
-            break;
-        case QemuShutdownCause::HostUi:
-            absl::Format(&sink, "HostUi");
-            break;
-        case QemuShutdownCause::GuestShutdown:
-            absl::Format(&sink, "GuestShutdown");
-            break;
-        case QemuShutdownCause::GuestReset:
-            absl::Format(&sink, "GuestReset");
-            break;
-        case QemuShutdownCause::GuestPanic:
-            absl::Format(&sink, "GuestPanic");
-            break;
-        case QemuShutdownCause::SubsystemReset:
-            absl::Format(&sink, "SubsystemReset");
-            break;
-        case QemuShutdownCause::SnapshotLoad:
-            absl::Format(&sink, "SnapshotLoad");
-            break;
-        case QemuShutdownCause::Max:
-            absl::Format(&sink, "Max");
-            break;
-        default:
-            absl::Format(&sink, "Unknown QemuShutdownCause (%d)", static_cast<int>(e));
-            break;
+    case QemuShutdownCause::None:
+        absl::Format(&sink, "None");
+        break;
+    case QemuShutdownCause::HostError:
+        absl::Format(&sink, "HostError");
+        break;
+    case QemuShutdownCause::HostQmpQuit:
+        absl::Format(&sink, "HostQmpQuit");
+        break;
+    case QemuShutdownCause::HostQmpSystemReset:
+        absl::Format(&sink, "HostQmpSystemReset");
+        break;
+    case QemuShutdownCause::HostSignal:
+        absl::Format(&sink, "HostSignal");
+        break;
+    case QemuShutdownCause::HostUi:
+        absl::Format(&sink, "HostUi");
+        break;
+    case QemuShutdownCause::GuestShutdown:
+        absl::Format(&sink, "GuestShutdown");
+        break;
+    case QemuShutdownCause::GuestReset:
+        absl::Format(&sink, "GuestReset");
+        break;
+    case QemuShutdownCause::GuestPanic:
+        absl::Format(&sink, "GuestPanic");
+        break;
+    case QemuShutdownCause::SubsystemReset:
+        absl::Format(&sink, "SubsystemReset");
+        break;
+    case QemuShutdownCause::SnapshotLoad:
+        absl::Format(&sink, "SnapshotLoad");
+        break;
+    case QemuShutdownCause::Max:
+        absl::Format(&sink, "Max");
+        break;
+    default:
+        absl::Format(&sink, "Unknown QemuShutdownCause (%d)", static_cast<int>(e));
+        break;
     }
 }
 
@@ -93,27 +93,27 @@ enum class VmHypervisorType {
 template <typename Sink>
 void AbslStringify(Sink& sink, VmHypervisorType e) {
     switch (e) {
-        case VmHypervisorType::Unknown:
-            absl::Format(&sink, "Unknown");
-            break;
-        case VmHypervisorType::None:
-            absl::Format(&sink, "None");
-            break;
-        case VmHypervisorType::Kvm:
-            absl::Format(&sink, "Kvm");
-            break;
-        case VmHypervisorType::Hvf:
-            absl::Format(&sink, "Hvf");
-            break;
-        case VmHypervisorType::Whpx:
-            absl::Format(&sink, "Whpx");
-            break;
-        case VmHypervisorType::Max:
-            absl::Format(&sink, "Max");
-            break;
-        default:
-            absl::Format(&sink, "Unknown VmHypervisorType (%d)", static_cast<int>(e));
-            break;
+    case VmHypervisorType::Unknown:
+        absl::Format(&sink, "Unknown");
+        break;
+    case VmHypervisorType::None:
+        absl::Format(&sink, "None");
+        break;
+    case VmHypervisorType::Kvm:
+        absl::Format(&sink, "Kvm");
+        break;
+    case VmHypervisorType::Hvf:
+        absl::Format(&sink, "Hvf");
+        break;
+    case VmHypervisorType::Whpx:
+        absl::Format(&sink, "Whpx");
+        break;
+    case VmHypervisorType::Max:
+        absl::Format(&sink, "Max");
+        break;
+    default:
+        absl::Format(&sink, "Unknown VmHypervisorType (%d)", static_cast<int>(e));
+        break;
     }
 }
 
@@ -160,60 +160,60 @@ enum class EmuRunState {
 template <typename Sink>
 void AbslStringify(Sink& sink, EmuRunState e) {
     switch (e) {
-        case EmuRunState::Debug:
-            absl::Format(&sink, "Debug");
-            break;
-        case EmuRunState::InMigrate:
-            absl::Format(&sink, "InMigrate");
-            break;
-        case EmuRunState::InternalError:
-            absl::Format(&sink, "InternalError");
-            break;
-        case EmuRunState::IoError:
-            absl::Format(&sink, "IoError");
-            break;
-        case EmuRunState::Paused:
-            absl::Format(&sink, "Paused");
-            break;
-        case EmuRunState::PostMigrate:
-            absl::Format(&sink, "PostMigrate");
-            break;
-        case EmuRunState::PreLaunch:
-            absl::Format(&sink, "PreLaunch");
-            break;
-        case EmuRunState::FinishMigrate:
-            absl::Format(&sink, "FinishMigrate");
-            break;
-        case EmuRunState::RestoreVm:
-            absl::Format(&sink, "RestoreVm");
-            break;
-        case EmuRunState::Running:
-            absl::Format(&sink, "Running");
-            break;
-        case EmuRunState::SaveVm:
-            absl::Format(&sink, "SaveVm");
-            break;
-        case EmuRunState::Shutdown:
-            absl::Format(&sink, "Shutdown");
-            break;
-        case EmuRunState::Suspended:
-            absl::Format(&sink, "Suspended");
-            break;
-        case EmuRunState::Watchdog:
-            absl::Format(&sink, "Watchdog");
-            break;
-        case EmuRunState::GuestPanicked:
-            absl::Format(&sink, "GuestPanicked");
-            break;
-        case EmuRunState::Colo:
-            absl::Format(&sink, "Colo");
-            break;
-        case EmuRunState::Max:
-            absl::Format(&sink, "Max");
-            break;
-        default:
-            absl::Format(&sink, "Unknown EmuRunState (%d)", static_cast<int>(e));
-            break;
+    case EmuRunState::Debug:
+        absl::Format(&sink, "Debug");
+        break;
+    case EmuRunState::InMigrate:
+        absl::Format(&sink, "InMigrate");
+        break;
+    case EmuRunState::InternalError:
+        absl::Format(&sink, "InternalError");
+        break;
+    case EmuRunState::IoError:
+        absl::Format(&sink, "IoError");
+        break;
+    case EmuRunState::Paused:
+        absl::Format(&sink, "Paused");
+        break;
+    case EmuRunState::PostMigrate:
+        absl::Format(&sink, "PostMigrate");
+        break;
+    case EmuRunState::PreLaunch:
+        absl::Format(&sink, "PreLaunch");
+        break;
+    case EmuRunState::FinishMigrate:
+        absl::Format(&sink, "FinishMigrate");
+        break;
+    case EmuRunState::RestoreVm:
+        absl::Format(&sink, "RestoreVm");
+        break;
+    case EmuRunState::Running:
+        absl::Format(&sink, "Running");
+        break;
+    case EmuRunState::SaveVm:
+        absl::Format(&sink, "SaveVm");
+        break;
+    case EmuRunState::Shutdown:
+        absl::Format(&sink, "Shutdown");
+        break;
+    case EmuRunState::Suspended:
+        absl::Format(&sink, "Suspended");
+        break;
+    case EmuRunState::Watchdog:
+        absl::Format(&sink, "Watchdog");
+        break;
+    case EmuRunState::GuestPanicked:
+        absl::Format(&sink, "GuestPanicked");
+        break;
+    case EmuRunState::Colo:
+        absl::Format(&sink, "Colo");
+        break;
+    case EmuRunState::Max:
+        absl::Format(&sink, "Max");
+        break;
+    default:
+        absl::Format(&sink, "Unknown EmuRunState (%d)", static_cast<int>(e));
+        break;
     }
 }
 

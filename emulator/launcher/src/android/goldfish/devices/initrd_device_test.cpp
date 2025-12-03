@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstring>
+#include "initrd_device.h"
 
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <fstream>
 
 #include "gmock/gmock.h"
@@ -23,8 +24,6 @@
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/cmdline-definitions.h"
-
-#include "initrd_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -43,9 +42,9 @@ TEST(BootProperties, Basic) {
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{
-        std::pair{"androidboot.hardware", "ranchu"},
-        std::pair{"androidboot.logcat", "*:V"},
-    }));
+                                                     std::pair{"androidboot.hardware", "ranchu"},
+                                                     std::pair{"androidboot.logcat", "*:V"},
+                                                 }));
 }
 
 TEST(BootProperties, NoBootAnim) {
@@ -62,7 +61,8 @@ TEST(BootProperties, NoBootAnim) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
+    EXPECT_THAT(getBootProperties(emu.config()),
+                testing::IsSupersetOf(std::vector{std::pair{"android.bootanim", "0"}}));
 }
 
 TEST(BootProperties, Logcat) {
@@ -79,7 +79,9 @@ TEST(BootProperties, Logcat) {
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    EXPECT_THAT(getBootProperties(emu.config()), testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
+    EXPECT_THAT(
+            getBootProperties(emu.config()),
+            testing::IsSupersetOf(std::vector{std::pair{"androidboot.logcat", "*:S,Zygote:E"}}));
 }
 
 TEST(Initrd, Basic) {
@@ -98,16 +100,21 @@ TEST(Initrd, Basic) {
     EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
     EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
-            .Times(1).WillRepeatedly(testing::Return(system_initrd.string()));
+            .Times(1)
+            .WillRepeatedly(testing::Return(system_initrd.string()));
     EXPECT_CALL(emu.mock_avd(), getContentPath())
-            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
+            .Times(1)
+            .WillRepeatedly(testing::Return((launcher_path / "content").string()));
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     InitrdDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(
+                        testing::Eq("-initrd"),
+                        testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
 }
 
 TEST(Initrd, RamdiskFlag) {
@@ -132,9 +139,11 @@ TEST(Initrd, RamdiskFlag) {
     EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
     EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
     EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
-            .Times(0).WillRepeatedly(testing::Return(system_initrd.string()));
+            .Times(0)
+            .WillRepeatedly(testing::Return(system_initrd.string()));
     EXPECT_CALL(emu.mock_avd(), getContentPath())
-            .Times(1).WillRepeatedly(testing::Return((launcher_path/ "content").string()));
+            .Times(1)
+            .WillRepeatedly(testing::Return((launcher_path / "content").string()));
     EXPECT_CALL(emu.mock_avd(), detectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
@@ -143,7 +152,10 @@ TEST(Initrd, RamdiskFlag) {
     EXPECT_OK(dev.initialize(emu.config()));
     auto params = dev.getQemuParameters(emu.config());
 
-    EXPECT_THAT(params, testing::ElementsAre(testing::Eq("-initrd"), testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
+    EXPECT_THAT(params,
+                testing::ElementsAre(
+                        testing::Eq("-initrd"),
+                        testing::EndsWith(fs::path("content/initrd").make_preferred().string())));
     std::string contents;
     std::ifstream{params[1]} >> contents;
     EXPECT_THAT(contents, testing::StartsWith("abc"));

@@ -31,11 +31,11 @@ class FakeSensorDevice : public ISensorDevice,
 
     // IPlug implementation
 
-  void onConnect() override { VLOG(1) << "FakeSensorDevice device has been connected"; }
-  void onClose() override { VLOG(1) << "FakeSensorDevice device has been disconnected"; }
-  void onReceive(std::string_view data) override {
-    VLOG(1) << "FakeSensorDevice device received " << data;
-  }
+    void onConnect() override { VLOG(1) << "FakeSensorDevice device has been connected"; }
+    void onClose() override { VLOG(1) << "FakeSensorDevice device has been disconnected"; }
+    void onReceive(std::string_view data) override {
+        VLOG(1) << "FakeSensorDevice device received " << data;
+    }
 
   private:
     std::map<AndroidSensor, SensorData> mSensorData;

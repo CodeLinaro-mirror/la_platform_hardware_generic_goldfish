@@ -23,6 +23,7 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
+#include "grpc_display.h"
 
 #include "aemu/base/process/Process.h"
 #include "android/base/system/File.h"
@@ -30,15 +31,12 @@
 #include "android/emulation/control/grpc_services.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 #include "android/goldfish/vm/VmInterface.h"
-
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/display/MultiDisplay.h"
 #include "goldfish/tools/aemu_version.h"
-
-#include "grpc_display.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -85,7 +83,7 @@ struct GrpcConfig {
 struct GrpcDev {
     DeviceClass parent_class;
 
-    GrpcConfig *config;
+    GrpcConfig* config;
 };
 
 #define TYPE_GRPC "grpc"
@@ -109,7 +107,7 @@ std::string generateToken(int cnt) {
 
 void grpc_realize(DeviceState* dev, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(dev);
-    auto *config = grpc_device->config;
+    auto* config = grpc_device->config;
 
     if (!config->port) {
         error_setg(errp, "port attribute not set");
@@ -122,9 +120,11 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     }
 
     if (!fs::exists(config->discovery_path)) {
-        LOG(WARNING) << "Discovery directory: " << config->discovery_path.string() << ", does not exist. creating";
+        LOG(WARNING) << "Discovery directory: " << config->discovery_path.string()
+                     << ", does not exist. creating";
         if (auto s = file::mkdir_recursive(config->discovery_path, 0700); !s.ok()) {
-            LOG(ERROR) << "Failed to create discovery directory: " << config->discovery_path.string() << " - " << s;
+            LOG(ERROR) << "Failed to create discovery directory: "
+                       << config->discovery_path.string() << " - " << s;
         }
     }
 
@@ -170,7 +170,9 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         props["grpc.token"] = token;
     }
 
-    fs::path jwkDir = config->discovery_path / std::to_string(::android::base::Process::me()->pid()) / "jwks" / generateToken(16);
+    fs::path jwkDir = config->discovery_path /
+                      std::to_string(::android::base::Process::me()->pid()) / "jwks" /
+                      generateToken(16);
     if (auto s = file::mkdir_recursive(jwkDir, 0700); !s.ok()) {
         LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << s;
         error_setg(errp, "failed to create jwk directory");
@@ -205,7 +207,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 void grpc_unrealize(DeviceState* dev) {
     VLOG(1) << "Finalizing gRPC endpoint";
     GrpcDev* grpc_device = GRPC_DEV(dev);
-    auto *config = grpc_device->config;
+    auto* config = grpc_device->config;
     config->advertiser->remove();
 
     if (config->grpc_service) {
@@ -258,8 +260,7 @@ void grpc_set_port(Object* obj, Visitor* v, const char* name, void* opaque, Erro
     grpc_device->config->port = value;
 }
 
-void grpc_set_idle_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
-                                  Error** errp) {
+void grpc_set_idle_timeout(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     uint32_t value;
 
@@ -348,10 +349,10 @@ const TypeInfo grpc_type_info = {
     .class_init = grpc_class_init,
 };
 
-} // namespace
+}  // namespace
 
 void grpc_register_types(void) {
     type_register_static(&grpc_type_info);
 }
 
-} // namespace goldfish::grpc
+}  // namespace goldfish::grpc

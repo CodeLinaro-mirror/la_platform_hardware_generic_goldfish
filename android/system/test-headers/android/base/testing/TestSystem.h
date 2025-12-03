@@ -57,20 +57,18 @@ class TestSystem : public System {
     using System::setEnvironmentVariable;
 
     explicit TestSystem(fs::path ignored, fs::path homeDir = "/home", fs::path appDataDir = "")
-        : mHomeDir(homeDir),
-          mAppDataDir(appDataDir),
-          mIsRemoteSession(false),
-          mRemoteSessionType(),
-          mTempDir(std::make_unique<TestTempDir>("TestSystem")),
-          mEnvPairs(),
-          mPrevSystem(System::setForTesting(this)),
-          mTimes(),
-          mShellOpaque(nullptr),
-          mUnixTime() {}
+            : mHomeDir(homeDir)
+            , mAppDataDir(appDataDir)
+            , mIsRemoteSession(false)
+            , mRemoteSessionType()
+            , mTempDir(std::make_unique<TestTempDir>("TestSystem"))
+            , mEnvPairs()
+            , mPrevSystem(System::setForTesting(this))
+            , mTimes()
+            , mShellOpaque(nullptr)
+            , mUnixTime() {}
 
-    ~TestSystem() override {
-        System::setForTesting(mPrevSystem);
-    }
+    ~TestSystem() override { System::setForTesting(mPrevSystem); }
 
     const fs::path getHomeDirectory() const override { return mHomeDir; }
 
@@ -159,9 +157,7 @@ class TestSystem : public System {
         return false;
     }
 
-    TestTempDir* getTempRoot() const {
-        return mTempDir.get();
-    }
+    TestTempDir* getTempRoot() const { return mTempDir.get(); }
 
     bool isRemoteSession(std::string* sessionType) const override {
         if (!mIsRemoteSession) {

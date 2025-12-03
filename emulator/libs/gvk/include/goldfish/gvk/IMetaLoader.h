@@ -25,21 +25,21 @@ namespace goldfish::gvk {
 struct InstanceDispatch;
 
 class IMetaLoader {
- public:
-  using Ptr = std::shared_ptr<const IMetaLoader>;
+  public:
+    using Ptr = std::shared_ptr<const IMetaLoader>;
 
-  virtual ~IMetaLoader() = default;
+    virtual ~IMetaLoader() = default;
 
-  virtual uint32_t enumerateInstanceVersion() const = 0;
-  virtual std::vector<VkLayerProperties> enumerateInstanceLayerProperties() const = 0;
-  virtual std::vector<VkExtensionProperties> enumerateInstanceExtensionProperties(
-      const char* layerName) const = 0;
+    virtual uint32_t enumerateInstanceVersion() const = 0;
+    virtual std::vector<VkLayerProperties> enumerateInstanceLayerProperties() const = 0;
+    virtual std::vector<VkExtensionProperties> enumerateInstanceExtensionProperties(
+            const char* layerName) const = 0;
 
- private:
-  friend InstanceDispatch;
+  private:
+    friend InstanceDispatch;
 
-  virtual VkInstance createInstance(const VkInstanceCreateInfo&) const = 0;
-  virtual PFN_vkGetInstanceProcAddr getInstanceProcAddr() const = 0;
+    virtual VkInstance createInstance(const VkInstanceCreateInfo&) const = 0;
+    virtual PFN_vkGetInstanceProcAddr getInstanceProcAddr() const = 0;
 };
 
 }  // namespace goldfish::gvk

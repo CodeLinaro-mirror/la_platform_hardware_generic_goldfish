@@ -24,7 +24,7 @@
 namespace android::goldfish {
 
 absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
-    std::vector<std::pair<std::string, std::string>> params {
+    std::vector<std::pair<std::string, std::string>> params{
         {"serial_number", absl::StrCat(emulator.serial_number())},
         {"adb_port", absl::StrCat(emulator.adb_port())},
         {"avd_name", emulator.avd().display_name()},
@@ -38,15 +38,16 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"build_flavour", emulator.avd().build_flavour()},
     };
 
-    mAvdParams = absl::StrJoin(params, ",", [] (std::string *s, const auto& pair) {
+    mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);
     });
 
-    if (char *quit_after_boot = emulator.opts().quit_after_boot) {
+    if (char* quit_after_boot = emulator.opts().quit_after_boot) {
         if (int timeout; absl::SimpleAtoi(quit_after_boot, &timeout)) {
             absl::StrAppend(&mAvdParams, ",quit_after_boot_timeout=", timeout);
         } else {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -quit-after-boot parameter as int: ", quit_after_boot));
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "Failed to parse -quit-after-boot parameter as int: ", quit_after_boot));
         }
     }
     return absl::OkStatus();

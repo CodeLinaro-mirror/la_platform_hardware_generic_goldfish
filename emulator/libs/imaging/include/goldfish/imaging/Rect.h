@@ -21,13 +21,13 @@ namespace goldfish::imaging {
 
 template <class T>
 struct Rect {
-  Rect() = default;
-  Rect(T width_, T height_) : width(width_), height(height_) {}
+    Rect() = default;
+    Rect(T width_, T height_) : width(width_), height(height_) {}
 
-  size_t area() const { return size_t(width) * size_t(height); }
+    size_t area() const { return size_t(width) * size_t(height); }
 
-  T width{};
-  T height{};
+    T width{};
+    T height{};
 };
 
 }  // namespace goldfish::imaging

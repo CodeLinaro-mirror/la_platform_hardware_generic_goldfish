@@ -128,17 +128,17 @@ static int get_fs_fixup_state(int fd) {
     }
 
     switch (magic) {
-        case MAGIC_STATE_MARKING_INUMS:
-            ret = STATE_MARKING_INUMS;
-            break;
-        case MAGIC_STATE_UPDATING_INUMS:
-            ret = STATE_UPDATING_INUMS;
-            break;
-        case MAGIC_STATE_UPDATING_SB:
-            ret = STATE_UPDATING_SB;
-            break;
-        default:
-            ret = STATE_UNSET;
+    case MAGIC_STATE_MARKING_INUMS:
+        ret = STATE_MARKING_INUMS;
+        break;
+    case MAGIC_STATE_UPDATING_INUMS:
+        ret = STATE_UPDATING_INUMS;
+        break;
+    case MAGIC_STATE_UPDATING_SB:
+        ret = STATE_UPDATING_SB;
+        break;
+    default:
+        ret = STATE_UNSET;
     }
     return ret;
 }
@@ -154,19 +154,19 @@ static int set_fs_fixup_state(int fd, int state) {
     }
 
     switch (state) {
-        case STATE_MARKING_INUMS:
-            magic = MAGIC_STATE_MARKING_INUMS;
-            break;
-        case STATE_UPDATING_INUMS:
-            magic = MAGIC_STATE_UPDATING_INUMS;
-            break;
-        case STATE_UPDATING_SB:
-            magic = MAGIC_STATE_UPDATING_SB;
-            break;
-        case STATE_UNSET:
-        default:
-            magic = 0ll;
-            break;
+    case STATE_MARKING_INUMS:
+        magic = MAGIC_STATE_MARKING_INUMS;
+        break;
+    case STATE_UPDATING_INUMS:
+        magic = MAGIC_STATE_UPDATING_INUMS;
+        break;
+    case STATE_UPDATING_SB:
+        magic = MAGIC_STATE_UPDATING_SB;
+        break;
+    case STATE_UNSET:
+    default:
+        magic = 0ll;
+        break;
     }
 
     lseek64(fd, 0, SEEK_SET);
@@ -606,12 +606,12 @@ static int recurse_dir(int fd, struct ext4_inode* inode, char* dirbuf, int dirsi
     char* tmp_dirbuf;
 
     switch (mode) {
-        case SANITY_CHECK_PASS:
-        case MARK_INODE_NUMS:
-        case UPDATE_INODE_NUMS:
-            break;
-        default:
-            critical_error("recurse_dir() called witn unknown mode!\n");
+    case SANITY_CHECK_PASS:
+    case MARK_INODE_NUMS:
+    case UPDATE_INODE_NUMS:
+        break;
+    default:
+        critical_error("recurse_dir() called witn unknown mode!\n");
     }
 
     if (dirsize % info.block_size) {

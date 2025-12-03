@@ -12,20 +12,17 @@ class FakeEmulator {
         auto avd = std::make_unique<MockAvd>();
 
         mMockAvd = avd.get();
-        mEmulatorConfig = std::make_unique<EmulatorConfig>(std::move(ports), "", ResolvedInputPaths{}, std::move(avd), std::move(opts));
+        mEmulatorConfig = std::make_unique<EmulatorConfig>(
+                std::move(ports), "", ResolvedInputPaths{}, std::move(avd), std::move(opts));
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
 
     FakeEmulator() : FakeEmulator(AndroidOptions{}) {}
 
-    MockAvd& mock_avd() {
-        return *mMockAvd;
-    }
+    MockAvd& mock_avd() { return *mMockAvd; }
 
-    const EmulatorConfig &config() {
-        return *mEmulatorConfig;
-    }
+    const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:
     MockAvd* mMockAvd{nullptr};

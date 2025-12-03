@@ -68,9 +68,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
         socket()->send(std::move(msg));
     }
 
-    uint64_t heartbeat() const override {
-        return mHeartbeat;
-    }
+    uint64_t heartbeat() const override { return mHeartbeat; }
 
     std::optional<std::chrono::milliseconds> bootTime() const override {
         if (mBootTime == std::chrono::milliseconds(0)) return std::nullopt;
@@ -96,7 +94,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
             onReceiveMsg(std::string_view(&mReceiveData[sizeof(uint32_t)], msgSize));
 
             mReceiveData.erase(mReceiveData.begin(),
-                            mReceiveData.begin() + sizeof(uint32_t) + msgSize);
+                               mReceiveData.begin() + sizeof(uint32_t) + msgSize);
         }
     }
 
@@ -121,9 +119,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
         send(ok ? "OK"s : "KO"s);
     }
 
-    void onReceiveHeartbeat() {
-        fireEvent(createHeartbeatEvent(++mHeartbeat));
-    }
+    void onReceiveHeartbeat() { fireEvent(createHeartbeatEvent(++mHeartbeat)); }
 
     void onReceiveBootcomplete() {
         const std::chrono::milliseconds bootTime = uptime() - mResetTimestampMs;
@@ -137,17 +133,19 @@ class GuestStatusDevice : public IGuestStatusDevice {
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
             // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-            (void)mQemuLoop->post([] () {
-                android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(android::goldfish::QemuShutdownCause::GuestShutdown);
+            (void)mQemuLoop->post([]() {
+                android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
+                        android::goldfish::QemuShutdownCause::GuestShutdown);
             });
         }
     }
 
     void unregisterResetHandler() {
         if (mResetCallbacks.do_unregister) {
-                    mResetCallbacks.do_unregister(GuestStatusDevice::QEMUResetHandler, this);
+            mResetCallbacks.do_unregister(GuestStatusDevice::QEMUResetHandler, this);
         }
     }
+
   private:
     static void QEMUResetHandler(void* opaque) {
         auto device = static_cast<GuestStatusDevice*>(opaque);
@@ -165,7 +163,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
     EmulatorResetCallbacks mResetCallbacks;
-    async::EventLoop *mQemuLoop;
+    async::EventLoop* mQemuLoop;
     std::vector<char> mReceiveData;
     const int mQuitAfterBootTimeoutSeconds;
     uint64_t mHeartbeat;
@@ -174,7 +172,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
 };
 
 // TODO: b/456020509: do something better here
-static    std::shared_ptr<GuestStatusDevice> s_GuestStatusDevice;
+static std::shared_ptr<GuestStatusDevice> s_GuestStatusDevice;
 
 bool IGuestStatusDevice::isBootCompleted() {
     if (s_GuestStatusDevice) {
@@ -189,12 +187,13 @@ void IGuestStatusDevice::registerDevice(IConnectorRegistry* registry,
                                         int quitAfterBootTimeoutSeconds) {
     registry->registerHalDevice(std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
                                 [resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds] {
-                if (s_GuestStatusDevice) {
-                    s_GuestStatusDevice->unregisterResetHandler();
-                }
-                s_GuestStatusDevice =
-                std::make_shared<GuestStatusDevice>(resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds);
-                return s_GuestStatusDevice; });
+                                    if (s_GuestStatusDevice) {
+                                        s_GuestStatusDevice->unregisterResetHandler();
+                                    }
+                                    s_GuestStatusDevice = std::make_shared<GuestStatusDevice>(
+                                            resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds);
+                                    return s_GuestStatusDevice;
+                                });
 }
 
 }  // namespace goldfish::devices::guest_status

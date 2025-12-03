@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "machine.h"
+
 #include <gtest/gtest.h>
 #include <unistd.h>
 
@@ -19,8 +21,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/base/testing/TestSystem.h"
-
-#include "machine.h"
 #include "fake_emulator.h"
 
 using ::absl_testing::IsOk;
@@ -53,8 +53,9 @@ TEST(Machine, Basic_x86) {
 
     Machine dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()), testing::ElementsAre(testing::StartsWith("-machine"),
-                                                                 testing::StartsWith("goldfish")));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::StartsWith("-machine"), testing::StartsWith("goldfish")));
 }
 
 TEST(Machine, Basic_arm64) {

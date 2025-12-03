@@ -34,9 +34,8 @@
 typedef int8_t s8;
 typedef uint8_t u8;
 typedef uint16_t u16;
-#include "standard-headers/linux/mac80211_hwsim.h"
-
 #include "android/base/logging/AbseilLogBridge.h"
+#include "standard-headers/linux/mac80211_hwsim.h"
 
 /* Limit the number of packets that can be sent via a single flush
  * of the TX queue.  This gives us a guaranteed exit condition and
@@ -72,7 +71,7 @@ struct VirtIOWifi {
     uint16_t status;
     int32_t tx_burst;
     VirtIOWifiQueue* vqs;
-    NICState *nic;
+    NICState* nic;
     NICConf nic_conf;
 
     bool netdev_set, mac_prefix_set;
@@ -85,33 +84,30 @@ static void virtio_wifi_state_save(QEMUFile* file, void* opaque) {
     // TODO
 }
 
-static int virtio_wifi_state_load(QEMUFile* file,
-                                  void* opaque,
-                                  int version_id) {
+static int virtio_wifi_state_load(QEMUFile* file, void* opaque, int version_id) {
     // TODO
     return 0;
 }
 
 static const SaveVMHandlers virtio_wifi_vmhandlers = {
-        .save_state = virtio_wifi_state_save,
-        .load_state = virtio_wifi_state_load,
+    .save_state = virtio_wifi_state_save,
+    .load_state = virtio_wifi_state_load,
 };
 
 static const VMStateDescription virtio_wifi_vmstate = {
-        .name = TYPE_VIRTIO_WIFI,
-        .version_id = 1,
-        .minimum_version_id = 1,
-        .fields =
-                (VMStateField[]){VMSTATE_VIRTIO_DEVICE, VMSTATE_END_OF_LIST()},
+    .name = TYPE_VIRTIO_WIFI,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (VMStateField[]){VMSTATE_VIRTIO_DEVICE, VMSTATE_END_OF_LIST()},
 };
 
-static bool virtio_wifi_started(VirtIOWifi *wifi, uint8_t status) {
-    VirtIODevice *vdev = VIRTIO_DEVICE(wifi);
-    return (status & VIRTIO_CONFIG_S_DRIVER_OK) &&
-        (wifi->status & VIRTIO_WIFI_LINK_UP) && vdev->vm_running;
+static bool virtio_wifi_started(VirtIOWifi* wifi, uint8_t status) {
+    VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
+    return (status & VIRTIO_CONFIG_S_DRIVER_OK) && (wifi->status & VIRTIO_WIFI_LINK_UP) &&
+           vdev->vm_running;
 }
 
-static void virtio_wifi_drop_tx_queue_data(VirtIODevice *vdev, VirtIOWifiQueue* q) {
+static void virtio_wifi_drop_tx_queue_data(VirtIODevice* vdev, VirtIOWifiQueue* q) {
     unsigned int dropped = virtqueue_drop_all(q->tx);
     if (dropped) {
         virtio_notify(vdev, q->tx);
@@ -124,7 +120,7 @@ static void virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
     bool link_down = (wifi->status & VIRTIO_WIFI_LINK_UP) == 0;
 
     for (size_t i = 0; i < kQueueSize; i++) {
-        NetClientState *ncs = qemu_get_subqueue(wifi->nic, i);
+        NetClientState* ncs = qemu_get_subqueue(wifi->nic, i);
         VirtIOWifiQueue* q = &wifi->vqs[i];
 
         ncs->link_down = link_down;
@@ -147,7 +143,7 @@ static void virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
             ALOGV(1, "Set status: down");
             qemu_bh_cancel(q->tx_bh);
             if ((wifi->status & VIRTIO_WIFI_LINK_UP) == 0 &&
-             (queue_status & VIRTIO_CONFIG_S_DRIVER_OK && vdev->vm_running)) {
+                (queue_status & VIRTIO_CONFIG_S_DRIVER_OK && vdev->vm_running)) {
                 q->tx_waiting = 0;
                 virtio_queue_set_notification(q->tx, 1);
                 virtio_wifi_drop_tx_queue_data(vdev, q);
@@ -158,7 +154,7 @@ static void virtio_wifi_set_status(VirtIODevice* vdev, uint8_t status) {
 
 // set virtio-wifi link status according to netclientstate
 static void virtio_wifi_nic_link_status_changed(NetClientState* nc) {
-    VirtIOWifi *wifi = qemu_get_nic_opaque(nc);
+    VirtIOWifi* wifi = qemu_get_nic_opaque(nc);
     VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
     uint16_t old_status = wifi->status;
     ALOGV(2, "Set link status: %d", !nc->link_down);
@@ -177,28 +173,26 @@ static void virtio_wifi_nic_link_status_changed(NetClientState* nc) {
 }
 
 static bool virtio_wifi_nic_can_rx(NetClientState* nc) {
-    VirtIOWifi *wifi = qemu_get_nic_opaque(nc);
+    VirtIOWifi* wifi = qemu_get_nic_opaque(nc);
     VirtIOWifiQueue* q = &wifi->vqs[nc->queue_index];
     VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
     if (!vdev->vm_running) {
         ALOGV(2, "NIC can receive: false");
         return false;
     }
-    if (!virtio_queue_ready(q->rx) ||
-        !(vdev->status & VIRTIO_CONFIG_S_DRIVER_OK)) {
+    if (!virtio_queue_ready(q->rx) || !(vdev->status & VIRTIO_CONFIG_S_DRIVER_OK)) {
         ALOGV(2, "NIC can receive: false");
         return false;
     }
     return true;
 }
 
-static int virtio_wifi_has_rx_buffers(VirtIOWifiQueue *q, int bufsize) {
+static int virtio_wifi_has_rx_buffers(VirtIOWifiQueue* q, int bufsize) {
     int opaque;
     unsigned int in_bytes;
 
     while (virtio_queue_empty(q->rx)) {
-        opaque = virtqueue_get_avail_bytes(q->rx, &in_bytes, NULL,
-                                           bufsize, 0);
+        opaque = virtqueue_get_avail_bytes(q->rx, &in_bytes, NULL, bufsize, 0);
         // Buffer is enough, disable notification
         if (bufsize <= in_bytes) {
             break;
@@ -226,7 +220,7 @@ static ssize_t virtio_wifi_nic_rx(NetClientState* nc, const uint8_t* buf, size_t
         return -1;
     }
 
-    VirtIOWifi *wifi = qemu_get_nic_opaque(nc);
+    VirtIOWifi* wifi = qemu_get_nic_opaque(nc);
     VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
 
     VirtIOWifiQueue* q = &wifi->vqs[nc->queue_index];
@@ -243,7 +237,8 @@ static ssize_t virtio_wifi_nic_rx(NetClientState* nc, const uint8_t* buf, size_t
 
     const uint32_t elemCapacity = iov_size(elem->in_sg, elem->in_num);
     if (elemCapacity < size) {
-        ALOGW("VirtIO WiFi: received a very large (%d bytes) buffer, truncating to %d bytes.", size, elemCapacity);
+        ALOGW("VirtIO WiFi: received a very large (%d bytes) buffer, truncating to %d bytes.", size,
+              elemCapacity);
         size = elemCapacity;
     }
 
@@ -251,7 +246,7 @@ static ssize_t virtio_wifi_nic_rx(NetClientState* nc, const uint8_t* buf, size_t
     virtqueue_push(q->rx, elem, size);
     g_free(elem);
 
-    //virtqueue_flush(q->rx, 1);
+    // virtqueue_flush(q->rx, 1);
     virtio_notify(vdev, q->rx);
 
     return size;
@@ -268,9 +263,9 @@ static void virtio_wifi_q_handle_rx(VirtIODevice* vdev, VirtQueue* vq) {
 
 static void virtio_wifi_nic_tx_complete(NetClientState* nc, ssize_t len) {
     ALOGV(1, "NIC async TX completed");
-    VirtIOWifi *wifi = qemu_get_nic_opaque(nc);
+    VirtIOWifi* wifi = qemu_get_nic_opaque(nc);
     VirtIOWifiQueue* q = &wifi->vqs[nc->queue_index];
-    VirtIODevice *vdev = VIRTIO_DEVICE(wifi);
+    VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
 
     virtqueue_push(q->tx, q->async_tx.elem, 0);
     virtio_notify(vdev, q->tx);
@@ -288,7 +283,7 @@ static bool virtio_wifi_flush_tx_to_nic(VirtIOWifiQueue* q) {
     ALOGV(2, "NIC TX (<- guest)");
     VirtIOWifi* wifi = q->wifi_dev;
     VirtIODevice* vdev = VIRTIO_DEVICE(wifi);
-    VirtQueueElement *elem;
+    VirtQueueElement* elem;
     size_t num_packets = 0;
 
     // Only one NIC queue
@@ -316,8 +311,8 @@ static bool virtio_wifi_flush_tx_to_nic(VirtIOWifiQueue* q) {
             virtio_queue_set_notification(q->tx, 0);
         }
 
-        ret = qemu_sendv_packet_async(qemu_get_subqueue(wifi->nic, queue_index),
-                                      elem->out_sg, elem->out_num, virtio_wifi_nic_tx_complete);
+        ret = qemu_sendv_packet_async(qemu_get_subqueue(wifi->nic, queue_index), elem->out_sg,
+                                      elem->out_num, virtio_wifi_nic_tx_complete);
         if (ret == 0) {
             q->async_tx.elem = elem;
             return false;
@@ -368,7 +363,7 @@ static void virtio_wifi_tx_bh(void* opaque) {
 static void virtio_wifi_q_handle_tx(VirtIODevice* vdev, VirtQueue* vq) {
     ALOGV(2, "virtio tx q data buffers available");
     VirtIOWifi* wifi = VIRTIO_WIFI(vdev);
-    VirtIOWifiQueue* q = &wifi->vqs[virtio_get_queue_index(vq)/2];
+    VirtIOWifiQueue* q = &wifi->vqs[virtio_get_queue_index(vq) / 2];
     if (unlikely(wifi->status & VIRTIO_WIFI_LINK_UP) == 0) {
         virtio_wifi_drop_tx_queue_data(vdev, q);
         return;
@@ -417,26 +412,25 @@ static void virtio_wifi_device_realize(DeviceState* dev, Error** errp) {
         q->tx_waiting = 0;
         q->async_tx.elem = NULL;
 
-        // Per http://cs/h/android/kernel/superproject/+/common-android-mainline:common/drivers/net/wireless/virtual/mac80211_hwsim.h
+        // Per
+        // http://cs/h/android/kernel/superproject/+/common-android-mainline:common/drivers/net/wireless/virtual/mac80211_hwsim.h
         // TX must be queue 0
-        q->tx = virtio_add_queue(
-                vdev, VIRTIO_WIFI_TX_QUEUE_DEFAULT_SIZE, virtio_wifi_q_handle_tx);
+        q->tx = virtio_add_queue(vdev, VIRTIO_WIFI_TX_QUEUE_DEFAULT_SIZE, virtio_wifi_q_handle_tx);
         q->tx_bh = qemu_bh_new_guarded(virtio_wifi_tx_bh, q, &DEVICE(vdev)->mem_reentrancy_guard);
 
         // RX must be queue 1
-        q->rx = virtio_add_queue(
-                vdev, VIRTIO_WIFI_RX_QUEUE_DEFAULT_SIZE, virtio_wifi_q_handle_rx);
+        q->rx = virtio_add_queue(vdev, VIRTIO_WIFI_RX_QUEUE_DEFAULT_SIZE, virtio_wifi_q_handle_rx);
     }
 
     wifi->status = VIRTIO_WIFI_LINK_UP;
 
-    //qemu_macaddr_default_if_unset(&wifi->nic_conf.macaddr);
+    // qemu_macaddr_default_if_unset(&wifi->nic_conf.macaddr);
     memcpy(wifi->nic_conf.macaddr.a, wifi->mac, sizeof(wifi->mac));
 
     wifi->nic_conf.peers.queues = kQueueSize;
-    wifi->nic = qemu_new_nic(&virtio_wifi_nic_info, &wifi->nic_conf,
-                            object_get_typename(OBJECT(dev)), dev->id,
-                            &dev->mem_reentrancy_guard, wifi);
+    wifi->nic =
+            qemu_new_nic(&virtio_wifi_nic_info, &wifi->nic_conf, object_get_typename(OBJECT(dev)),
+                         dev->id, &dev->mem_reentrancy_guard, wifi);
 
     qemu_format_nic_info_str(qemu_get_queue(wifi->nic), wifi->nic_conf.macaddr.a);
 
@@ -463,9 +457,7 @@ static void virtio_wifi_device_unrealize(DeviceState* dev) {
     virtio_cleanup(vdev);
 }
 
-static uint64_t virtio_wifi_get_features(VirtIODevice* vdev,
-                                         uint64_t features,
-                                         Error** errp) {
+static uint64_t virtio_wifi_get_features(VirtIODevice* vdev, uint64_t features, Error** errp) {
     return 0;
 }
 
@@ -476,24 +468,24 @@ static uint64_t virtio_wifi_bad_features(VirtIODevice* vdev) {
 }
 
 static void virtio_wifi_instance_init(Object* obj) {
-    //VirtIOWifi* wifi = VIRTIO_WIFI(obj);
+    // VirtIOWifi* wifi = VIRTIO_WIFI(obj);
 }
 
-static void flush_or_purge_queued_packets(NetClientState *nc) {
+static void flush_or_purge_queued_packets(NetClientState* nc) {
     if (!nc->peer) {
         return;
     }
 
     qemu_flush_or_purge_queued_packets(nc->peer, true);
 
-    VirtIOWifi *wifi = qemu_get_nic_opaque(nc);
+    VirtIOWifi* wifi = qemu_get_nic_opaque(nc);
     assert(!wifi->vqs[nc->queue_index].async_tx.elem);
 }
 
-static void virtio_wifi_queue_reset(VirtIODevice *vdev, uint32_t queue_index) {
+static void virtio_wifi_queue_reset(VirtIODevice* vdev, uint32_t queue_index) {
     ALOGV(1, "queue reset");
-    VirtIOWifi *wifi = VIRTIO_WIFI(vdev);
-    NetClientState *nc;
+    VirtIOWifi* wifi = VIRTIO_WIFI(vdev);
+    NetClientState* nc;
 
     // Only one NIC Queue
     queue_index = 0;
@@ -506,9 +498,9 @@ static void virtio_wifi_queue_reset(VirtIODevice *vdev, uint32_t queue_index) {
     flush_or_purge_queued_packets(nc);
 }
 
-static void virtio_wifi_reset(VirtIODevice *vdev) {
+static void virtio_wifi_reset(VirtIODevice* vdev) {
     ALOGV(1, "device reset");
-    VirtIOWifi *wifi = VIRTIO_WIFI(vdev);
+    VirtIOWifi* wifi = VIRTIO_WIFI(vdev);
 
     // Only one NIC Queue
     uint32_t queue_index = 0;
@@ -517,31 +509,30 @@ static void virtio_wifi_reset(VirtIODevice *vdev) {
 }
 
 // copied from set_netdev() in qdev-properties-system.c
-static void virtio_wifi_set_netdev(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
-    char *netdev;
+static void virtio_wifi_set_netdev(Object* obj, Visitor* v, const char* name, void* opaque,
+                                   Error** errp) {
+    char* netdev;
     if (!visit_type_str(v, name, &netdev, errp)) {
         return;
     }
 
     ALOGV(1, "netdev = %s", netdev);
 
-    VirtIOWifi *wifi = VIRTIO_WIFI(obj);
-    NICPeers *peers_ptr = &wifi->nic_conf.peers;
-    NetClientState **ncs = peers_ptr->ncs;
+    VirtIOWifi* wifi = VIRTIO_WIFI(obj);
+    NICPeers* peers_ptr = &wifi->nic_conf.peers;
+    NetClientState** ncs = peers_ptr->ncs;
 
-    NetClientState *peers[MAX_QUEUE_NUM];
+    NetClientState* peers[MAX_QUEUE_NUM];
     int queues, i = 0;
-    queues = qemu_find_net_clients_except(netdev, peers,
-                                          NET_CLIENT_DRIVER_NIC,
-                                          MAX_QUEUE_NUM);
+    queues = qemu_find_net_clients_except(netdev, peers, NET_CLIENT_DRIVER_NIC, MAX_QUEUE_NUM);
     if (queues == 0) {
         error_setg(errp, "backend '%s' has 0 queue", netdev);
         goto out;
     }
 
     if (queues > MAX_QUEUE_NUM) {
-        error_setg(errp, "queues of backend '%s'(%d) exceeds QEMU limitation(%d)",
-                   netdev, queues, MAX_QUEUE_NUM);
+        error_setg(errp, "queues of backend '%s'(%d) exceeds QEMU limitation(%d)", netdev, queues,
+                   MAX_QUEUE_NUM);
         goto out;
     }
 
@@ -579,7 +570,7 @@ static void virtio_wifi_set_mac_prefix(Object* obj, Visitor* v, const char* name
 
     ALOGV(1, "mac_prefix = %d", mac_prefix);
 
-    VirtIOWifi *wifi = VIRTIO_WIFI(obj);
+    VirtIOWifi* wifi = VIRTIO_WIFI(obj);
 
     memcpy(wifi->mac, kMacAddr, ETH_ALEN);
     wifi->mac[4] = (mac_prefix >> 8) & 0xff;
@@ -595,7 +586,8 @@ static void virtio_wifi_class_init(ObjectClass* klass, void* data) {
     dc->vmsd = &virtio_wifi_vmstate;
 
     object_class_property_add(klass, "netdev", "str", NULL, virtio_wifi_set_netdev, NULL, NULL);
-    object_class_property_add(klass, "mac_prefix", "int32", NULL, &virtio_wifi_set_mac_prefix, NULL, NULL);
+    object_class_property_add(klass, "mac_prefix", "int32", NULL, &virtio_wifi_set_mac_prefix, NULL,
+                              NULL);
 
     VirtioDeviceClass* vdc = VIRTIO_DEVICE_CLASS(klass);
     vdc->realize = virtio_wifi_device_realize;
@@ -625,42 +617,42 @@ typedef struct VirtIOWifiPCI {
 #define TYPE_VIRTIO_WIFI_PCI "virtio-wifi-pci"
 DECLARE_INSTANCE_CHECKER(VirtIOWifiPCI, VIRTIO_WIFI_PCI, TYPE_VIRTIO_WIFI_PCI);
 
-static void virtio_wifi_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp) {
+static void virtio_wifi_pci_realize(VirtIOPCIProxy* vpci_dev, Error** errp) {
     vpci_dev->nvectors = kQueueSize * 2 + 1;
     vpci_dev->flags |= VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT;
 
-    VirtIOWifiPCI *dev = VIRTIO_WIFI_PCI(vpci_dev);
-    DeviceState *vdev = DEVICE(&dev->vdev);
+    VirtIOWifiPCI* dev = VIRTIO_WIFI_PCI(vpci_dev);
+    DeviceState* vdev = DEVICE(&dev->vdev);
 
     // This is a "legacy" device.
     vpci_dev->disable_legacy = ON_OFF_AUTO_OFF;
     qdev_realize(vdev, BUS(&vpci_dev->bus), errp);
 }
 
-static void virtio_wifi_pci_class_init(ObjectClass *klass, void *data) {
-    DeviceClass *dc = DEVICE_CLASS(klass);
+static void virtio_wifi_pci_class_init(ObjectClass* klass, void* data) {
+    DeviceClass* dc = DEVICE_CLASS(klass);
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
 
-    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+    PCIDeviceClass* k = PCI_DEVICE_CLASS(klass);
     k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
     k->device_id = PCI_DEVICE_ID_VIRTIO_MAC80211_WLAN;
     k->revision = VIRTIO_PCI_ABI_VERSION;
     k->class_id = PCI_CLASS_NETWORK_ETHERNET;
 
-    VirtioPCIClass *vpciklass = VIRTIO_PCI_CLASS(klass);
+    VirtioPCIClass* vpciklass = VIRTIO_PCI_CLASS(klass);
     vpciklass->realize = virtio_wifi_pci_realize;
 }
 
-static void virtio_wifi_pci_instance_init(Object *obj) {
-    VirtIOWifiPCI *dev = VIRTIO_WIFI_PCI(obj);
+static void virtio_wifi_pci_instance_init(Object* obj) {
+    VirtIOWifiPCI* dev = VIRTIO_WIFI_PCI(obj);
     virtio_instance_init_common(obj, &dev->vdev, sizeof(dev->vdev), TYPE_VIRTIO_WIFI);
 }
 
 static const VirtioPCIDeviceTypeInfo virtio_wifi_pci_info = {
-    .generic_name          = TYPE_VIRTIO_WIFI_PCI,
-    .instance_size         = sizeof(VirtIOWifiPCI),
-    .instance_init         = virtio_wifi_pci_instance_init,
-    .class_init            = virtio_wifi_pci_class_init,
+    .generic_name = TYPE_VIRTIO_WIFI_PCI,
+    .instance_size = sizeof(VirtIOWifiPCI),
+    .instance_init = virtio_wifi_pci_instance_init,
+    .class_init = virtio_wifi_pci_class_init,
 };
 
 void virtio_wifi_register_types(void) {

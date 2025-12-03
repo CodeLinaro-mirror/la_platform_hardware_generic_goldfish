@@ -82,8 +82,8 @@ bool ProcessMinidump(const std::string& minidump_file, MinidumpProcessor& minidu
 int main(int argc, char* argv[]) {
     absl::SetProgramUsageMessage(
             absl::StrFormat("List, upload and examine emulator related crashdumps.\n"
-            "The database can be found here: \n%v",
-            android::crashreport::CrashReporter::databaseDirectory()));
+                            "The database can be found here: \n%v",
+                            android::crashreport::CrashReporter::databaseDirectory()));
     absl::ParseCommandLine(argc, argv);
     absl::InitializeLog();
     if (android::base::Bazel::inBazel()) {

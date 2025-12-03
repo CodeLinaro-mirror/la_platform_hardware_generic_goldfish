@@ -44,7 +44,7 @@ void writeToFile(fs::path path, std::string text) {
     iniFile.close();
 }
 
-ResolvedInputPaths setupPaths(TestTempDir *tmp) {
+ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     tmp->makeSubDir("android_home");
     tmp->makeSubDir(pj("android_home", "avd"));
 
@@ -55,7 +55,7 @@ ResolvedInputPaths setupPaths(TestTempDir *tmp) {
     };
 }
 
-void createTestAvd(const ResolvedInputPaths &paths, const std::string& targetString) {
+void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
     fs::create_directories(avd_dir);
 
@@ -151,7 +151,8 @@ TEST(Avd, path_getAvdSystemImage) {
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "q"));
-    EXPECT_THAT(avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
+    EXPECT_THAT(avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM),
+                IsOkAndHolds(expectedPath));
 
     std::remove(expectedPath.string().c_str());
 
@@ -160,7 +161,8 @@ TEST(Avd, path_getAvdSystemImage) {
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd2, Avd::fromName(paths, "q", tmp->path() / "nothome" / "blah"));
-    EXPECT_THAT(avd2->getSystemImageFilePath(Avd::ImageType::INITSYSTEM), IsOkAndHolds(expectedPath));
+    EXPECT_THAT(avd2->getSystemImageFilePath(Avd::ImageType::INITSYSTEM),
+                IsOkAndHolds(expectedPath));
 }
 
 TEST(FakeAvdTest, DefaultValues) {

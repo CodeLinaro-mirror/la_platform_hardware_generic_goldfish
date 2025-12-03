@@ -86,74 +86,74 @@ int main(int argc, char** argv) {
 
     while ((opt = getopt(argc, argv, "l:j:b:g:i:I:L:a:S:fwzJsctv")) != -1) {
         switch (opt) {
-            case 'l':
-                info.len = parse_num(optarg);
-                break;
-            case 'j':
-                info.journal_blocks = parse_num(optarg);
-                break;
-            case 'b':
-                info.block_size = parse_num(optarg);
-                break;
-            case 'g':
-                info.blocks_per_group = parse_num(optarg);
-                break;
-            case 'i':
-                info.inodes = parse_num(optarg);
-                break;
-            case 'I':
-                info.inode_size = parse_num(optarg);
-                break;
-            case 'L':
-                info.label = optarg;
-                break;
-            case 'f':
-                force = 1;
-                break;
-            case 'a':
+        case 'l':
+            info.len = parse_num(optarg);
+            break;
+        case 'j':
+            info.journal_blocks = parse_num(optarg);
+            break;
+        case 'b':
+            info.block_size = parse_num(optarg);
+            break;
+        case 'g':
+            info.blocks_per_group = parse_num(optarg);
+            break;
+        case 'i':
+            info.inodes = parse_num(optarg);
+            break;
+        case 'I':
+            info.inode_size = parse_num(optarg);
+            break;
+        case 'L':
+            info.label = optarg;
+            break;
+        case 'f':
+            force = 1;
+            break;
+        case 'a':
 #ifdef ANDROID
-                fs_config_func = fs_config;
-                mountpoint = optarg;
+            fs_config_func = fs_config;
+            mountpoint = optarg;
 #else
-                fprintf(stderr, "can't set android permissions - built without android support\n");
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
+            fprintf(stderr, "can't set android permissions - built without android support\n");
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
 #endif
-                break;
-            case 'w':
-                wipe = 1;
-                break;
-            case 'z':
-                gzip = 1;
-                break;
-            case 'J':
-                info.no_journal = 1;
-                break;
-            case 'c':
-                crc = 1;
-                break;
-            case 's':
-                sparse = 1;
-                break;
-            case 't':
-                fprintf(stderr, "Warning: -t (initialize inode tables) is deprecated\n");
-                break;
-            case 'S':
+            break;
+        case 'w':
+            wipe = 1;
+            break;
+        case 'z':
+            gzip = 1;
+            break;
+        case 'J':
+            info.no_journal = 1;
+            break;
+        case 'c':
+            crc = 1;
+            break;
+        case 's':
+            sparse = 1;
+            break;
+        case 't':
+            fprintf(stderr, "Warning: -t (initialize inode tables) is deprecated\n");
+            break;
+        case 'S':
 #if !defined(USE_MINGW) && !defined(_MSC_VER)
-                seopts[0].value = optarg;
-                sehnd = selabel_open(SELABEL_CTX_FILE, seopts, 1);
-                if (!sehnd) {
-                    perror(optarg);
-                    exit(EXIT_FAILURE);
-                }
-#endif
-                break;
-            case 'v':
-                verbose = 1;
-                break;
-            default: /* '?' */
-                usage(argv[0]);
+            seopts[0].value = optarg;
+            sehnd = selabel_open(SELABEL_CTX_FILE, seopts, 1);
+            if (!sehnd) {
+                perror(optarg);
                 exit(EXIT_FAILURE);
+            }
+#endif
+            break;
+        case 'v':
+            verbose = 1;
+            break;
+        default: /* '?' */
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
 

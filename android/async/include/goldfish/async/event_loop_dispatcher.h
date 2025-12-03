@@ -34,38 +34,40 @@ namespace goldfish::async {
  * and posts a task to the loop, preventing deadlocks.
  */
 class EventLoopDispatcher {
- public:
-  EventLoopDispatcher(goldfish::async::EventLoop* loop) : mLoop(loop) { assert(mLoop != nullptr); }
-
-  template <class T, class StoragePolicy>
-  void dispatch(const T& event, typename StoragePolicy::Container& listeners, std::mutex& lock) {
-    using Ptr = typename StoragePolicy::Ptr;
-    std::vector<Ptr> listeners_copy;
-    {
-      const std::lock_guard<std::mutex> guard(lock);
-      listeners_copy = StoragePolicy::copy(listeners);
+  public:
+    EventLoopDispatcher(goldfish::async::EventLoop* loop) : mLoop(loop) {
+        assert(mLoop != nullptr);
     }
 
-    if (listeners_copy.empty()) {
-      return;
+    template <class T, class StoragePolicy>
+    void dispatch(const T& event, typename StoragePolicy::Container& listeners, std::mutex& lock) {
+        using Ptr = typename StoragePolicy::Ptr;
+        std::vector<Ptr> listeners_copy;
+        {
+            const std::lock_guard<std::mutex> guard(lock);
+            listeners_copy = StoragePolicy::copy(listeners);
+        }
+
+        if (listeners_copy.empty()) {
+            return;
+        }
+
+        auto dispatch_work = [event, listeners_copy = std::move(listeners_copy)]() {
+            for (const auto& listener_ptr : listeners_copy) {
+                android::base::eventing::EventDispatcher::dispatch(listener_ptr, event);
+            }
+        };
+
+        // If we are already on the loop thread, execute directly.
+        if (mLoop->isOnLoopThread()) {
+            dispatch_work();
+        } else {
+            mLoop->post(std::move(dispatch_work));
+        }
     }
 
-    auto dispatch_work = [event, listeners_copy = std::move(listeners_copy)]() {
-      for (const auto& listener_ptr : listeners_copy) {
-        android::base::eventing::EventDispatcher::dispatch(listener_ptr, event);
-      }
-    };
-
-    // If we are already on the loop thread, execute directly.
-    if (mLoop->isOnLoopThread()) {
-      dispatch_work();
-    } else {
-      mLoop->post(std::move(dispatch_work));
-    }
-  }
-
- private:
-  goldfish::async::EventLoop* mLoop;
+  private:
+    goldfish::async::EventLoop* mLoop;
 };
 
 /**
@@ -81,10 +83,10 @@ class EventLoopDispatcher {
  */
 template <typename T>
 using LoopBoundSafeSource = android::base::eventing::EventSource<
-    T,
-    android::base::eventing::HybridStoragePolicy<
-        T, 16, std::weak_ptr<android::base::eventing::EventListener<T>>>,
-    EventLoopDispatcher>;
+        T,
+        android::base::eventing::HybridStoragePolicy<
+                T, 16, std::weak_ptr<android::base::eventing::EventListener<T>>>,
+        EventLoopDispatcher>;
 
 /**
  * @brief A full-featured, loop-bound event source with a modern callback API.

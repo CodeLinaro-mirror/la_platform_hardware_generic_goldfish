@@ -54,8 +54,7 @@ static int nlmsg_msg_size(int payload) {
 }
 
 static int nlmsg_valid_hdr(const struct nlmsghdr* nlh, int hdrlen) {
-    if (nlh->nlmsg_len < nlmsg_msg_size(hdrlen))
-        return 0;
+    if (nlh->nlmsg_len < nlmsg_msg_size(hdrlen)) return 0;
 
     return 1;
 }
@@ -89,21 +88,19 @@ static struct nlattr* nla_next(const struct nlattr* nla, int* remaining) {
     int totlen = nla_align(nla->nla_len);
 
     *remaining -= totlen;
-    return reinterpret_cast<struct nlattr*>(const_cast<char*>(reinterpret_cast<const char *>(nla)) + totlen);
+    return reinterpret_cast<struct nlattr*>(const_cast<char*>(reinterpret_cast<const char*>(nla)) +
+                                            totlen);
 }
 
 static int nla_type(const struct nlattr* nla) {
     return nla->nla_type & NLA_TYPE_MASK;
 }
 
-static struct nlattr* nla_find(const struct nlattr* head,
-                               int len,
-                               int attrtype) {
+static struct nlattr* nla_find(const struct nlattr* head, int len, int attrtype) {
     const struct nlattr* nla;
     int rem;
     for (nla = head, rem = len; nla_ok(nla, rem); nla = nla_next(nla, &(rem))) {
-        if (nla_type(nla) == attrtype)
-            return const_cast<struct nlattr*>(nla);
+        if (nla_type(nla) == attrtype) return const_cast<struct nlattr*>(nla);
     }
 
     return NULL;
@@ -125,32 +122,24 @@ static int nla_memcpy(void* dest, const struct nlattr* src, int count) {
 
 }  // namespace
 
-GenericNetlinkMessage::GenericNetlinkMessage(uint32_t port,
-                                             uint32_t seq,
-                                             int family,
-                                             int hdrlen,
-                                             int flags,
-                                             uint8_t cmd,
-                                             uint8_t version)
-    : mData(NLMSG_HDRLEN + GENL_HDRLEN, 0), mUserHeaderLen(hdrlen) {
-    VLOG(3) << "Generic netlink header type=" << family
-                 << ", flags=" << flags << ", pid=" << port << ", seq=" << seq
-                 << ", cmd =" << (int)cmd << ", version =" << (int)version;
+GenericNetlinkMessage::GenericNetlinkMessage(uint32_t port, uint32_t seq, int family, int hdrlen,
+                                             int flags, uint8_t cmd, uint8_t version)
+        : mData(NLMSG_HDRLEN + GENL_HDRLEN, 0), mUserHeaderLen(hdrlen) {
+    VLOG(3) << "Generic netlink header type=" << family << ", flags=" << flags << ", pid=" << port
+            << ", seq=" << seq << ", cmd =" << (int)cmd << ", version =" << (int)version;
     putHeader(port, seq, family, flags);
     auto* hdr = genericNetlinkHeader();
     hdr->cmd = cmd;
     hdr->version = version;
 }
 
-GenericNetlinkMessage::GenericNetlinkMessage(const uint8_t* data,
-                                             size_t size,
-                                             int hdrlen)
-    : mData(data, data + size), mUserHeaderLen(hdrlen) {
+GenericNetlinkMessage::GenericNetlinkMessage(const uint8_t* data, size_t size, int hdrlen)
+        : mData(data, data + size), mUserHeaderLen(hdrlen) {
     resizeByHeaderLength(size);
 }
 
 GenericNetlinkMessage::GenericNetlinkMessage(IOVector iovec, int hdrlen)
-    : mData(iovec.summedLength()), mUserHeaderLen(hdrlen) {
+        : mData(iovec.summedLength()), mUserHeaderLen(hdrlen) {
     iovec.copyTo(mData.data(), 0, mData.size());
     resizeByHeaderLength(mData.size());
 }
@@ -178,8 +167,7 @@ const uint8_t* GenericNetlinkMessage::userHeader() const {
 }
 
 uint8_t* GenericNetlinkMessage::userData() {
-    return mData.data() +
-           (NLMSG_HDRLEN + GENL_HDRLEN + nlmsg_align(mUserHeaderLen));
+    return mData.data() + (NLMSG_HDRLEN + GENL_HDRLEN + nlmsg_align(mUserHeaderLen));
 }
 
 const uint8_t* GenericNetlinkMessage::userData() const {
@@ -187,8 +175,7 @@ const uint8_t* GenericNetlinkMessage::userData() const {
 }
 
 size_t GenericNetlinkMessage::userDataLen() const {
-    return dataLen() -
-           (NLMSG_HDRLEN + GENL_HDRLEN + nlmsg_align(mUserHeaderLen));
+    return dataLen() - (NLMSG_HDRLEN + GENL_HDRLEN + nlmsg_align(mUserHeaderLen));
 }
 
 uint8_t* GenericNetlinkMessage::data() {
@@ -206,16 +193,11 @@ size_t GenericNetlinkMessage::dataLen() const {
 // only validate netlink header and generic netlink header
 bool GenericNetlinkMessage::isValid() const {
     const auto* nlh = netlinkHeader();
-    if (!nlmsg_valid_hdr(nlh, mUserHeaderLen))
-        return false;
-    return (nlh->nlmsg_len - GENL_HDRLEN - NLMSG_HDRLEN) >=
-           nlmsg_align(mUserHeaderLen);
+    if (!nlmsg_valid_hdr(nlh, mUserHeaderLen)) return false;
+    return (nlh->nlmsg_len - GENL_HDRLEN - NLMSG_HDRLEN) >= nlmsg_align(mUserHeaderLen);
 }
 
-void GenericNetlinkMessage::putHeader(uint32_t pid,
-                                      uint32_t seq,
-                                      int type,
-                                      int flags) {
+void GenericNetlinkMessage::putHeader(uint32_t pid, uint32_t seq, int type, int flags) {
     // Resize std::vector to be big enough for nlmsg header, genlmsg header and
     // user header.
     mData.resize(NLMSG_HDRLEN + GENL_HDRLEN + nlmsg_align(mUserHeaderLen), 0);
@@ -238,36 +220,31 @@ void GenericNetlinkMessage::resizeByHeaderLength(size_t currentSize) {
     }
 }
 
-bool GenericNetlinkMessage::getAttribute(int attributeId,
-                                         void* dst,
-                                         size_t size) const {
-    const struct nlattr* head =
-            reinterpret_cast<const struct nlattr*>(userData());
+bool GenericNetlinkMessage::getAttribute(int attributeId, void* dst, size_t size) const {
+    const struct nlattr* head = reinterpret_cast<const struct nlattr*>(userData());
     struct nlattr* src = nla_find(head, userDataLen(), attributeId);
     if (!src) {
-       VLOG(3) << "NLA attribute " << attributeId << "is not found";
+        VLOG(3) << "NLA attribute " << attributeId << "is not found";
     }
     return src && dst && nla_memcpy(dst, src, size) > 0;
 }
 
 struct iovec GenericNetlinkMessage::getAttribute(int attributeId) const {
     struct iovec iov = {.iov_base = nullptr, .iov_len = 0};
-    const struct nlattr* head =
-            reinterpret_cast<const struct nlattr*>(userData());
+    const struct nlattr* head = reinterpret_cast<const struct nlattr*>(userData());
     struct nlattr* src = nla_find(head, userDataLen(), attributeId);
     if (!src) {
-       VLOG(3) << "NLA attribute " << attributeId << "is not found";
+        VLOG(3) << "NLA attribute " << attributeId << "is not found";
     } else {
-        iov.iov_base = nla_data(src),
-        iov.iov_len = static_cast<size_t>(nla_len(src));
+        iov.iov_base = nla_data(src), iov.iov_len = static_cast<size_t>(nla_len(src));
     }
     return iov;
 }
 
-bool GenericNetlinkMessage::putAttribute(int attributeId,
-                                         const void* src,
-                                         size_t size) {
-    if (!src) { return false; }
+bool GenericNetlinkMessage::putAttribute(int attributeId, const void* src, size_t size) {
+    if (!src) {
+        return false;
+    }
     struct iovec iov = getAttribute(attributeId);
     // Copy contents if attribute already exists
     if (iov.iov_len != 0) {

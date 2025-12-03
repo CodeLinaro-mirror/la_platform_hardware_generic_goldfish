@@ -21,9 +21,8 @@
 #include <vector>
 
 #include "android/crashreport/AnnotationStreambuf.h"
-#include "android/crashreport/crash-handler.h"
 #include "android/crashreport/HangDetector.h"
-
+#include "android/crashreport/crash-handler.h"
 #include "client/annotation.h"
 
 namespace crashpad {

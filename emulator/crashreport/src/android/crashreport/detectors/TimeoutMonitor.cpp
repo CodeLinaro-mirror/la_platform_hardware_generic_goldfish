@@ -17,7 +17,7 @@ namespace android {
 namespace crashreport {
 
 TimeoutMonitor::TimeoutMonitor(std::chrono::milliseconds timeout, std::function<void()> callback)
-    : mTimeoutMs(timeout), mThreadRunning(true), mTimeoutFn(callback) {
+        : mTimeoutMs(timeout), mThreadRunning(true), mTimeoutFn(callback) {
     mWatcherThread = std::thread([this]() {
         std::unique_lock<std::mutex> lock(mMutex);
         if (!mCv.wait_for(lock, mTimeoutMs, [this]() { return !mThreadRunning; })) {

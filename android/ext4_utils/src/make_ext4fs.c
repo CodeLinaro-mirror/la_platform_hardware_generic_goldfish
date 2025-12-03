@@ -35,8 +35,8 @@
 #ifndef _MSC_VER
 #include <libgen.h>
 #endif
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #if defined(USE_MINGW) || defined(_MSC_VER)
@@ -123,12 +123,12 @@ static u32 build_default_directory_structure(const char* dir_path, struct selabe
     u32 inode;
     u32 root_inode;
     struct dentry dentries = {
-            .filename = "lost+found",
-            .file_type = EXT4_FT_DIR,
-            .mode = S_IRWXU,
-            .uid = 0,
-            .gid = 0,
-            .mtime = 0,
+        .filename = "lost+found",
+        .file_type = EXT4_FT_DIR,
+        .mode = S_IRWXU,
+        .uid = 0,
+        .gid = 0,
+        .mtime = 0,
     };
     root_inode = make_directory(0, 1, &dentries, 1);
     inode = make_directory(root_inode, 0, NULL, 0);

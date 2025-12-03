@@ -31,7 +31,8 @@ namespace android::goldfish {
 class ParameterList : public Device {
   public:
     explicit ParameterList(std::initializer_list<std::string> params)
-        : Device("params_" + std::to_string(++gIdCounter)), mParams(params.begin(), params.end()) {}
+            : Device("params_" + std::to_string(++gIdCounter))
+            , mParams(params.begin(), params.end()) {}
 
     explicit ParameterList(std::vector<std::string> params);
     ~ParameterList() override = default;

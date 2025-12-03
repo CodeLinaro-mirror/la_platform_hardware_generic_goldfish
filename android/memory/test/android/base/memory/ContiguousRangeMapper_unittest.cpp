@@ -22,7 +22,7 @@ namespace base {
 
 TEST(ContiguousRangeMapper, Basic) {
     std::vector<uintptr_t> elements = {
-            1, 2, 3, 5, 6, 7,
+        1, 2, 3, 5, 6, 7,
     };
 
     int numTotalRanges = 0;
@@ -52,7 +52,7 @@ TEST(ContiguousRangeMapper, Basic) {
 
 TEST(ContiguousRangeMapper, Pages) {
     std::vector<uintptr_t> elements = {
-            0x1000, 0x2000, 0x3000, 0x5000, 0x6000, 0x7000, 0xa000, 0xc000,
+        0x1000, 0x2000, 0x3000, 0x5000, 0x6000, 0x7000, 0xa000, 0xc000,
     };
 
     int numTotalRanges = 0;
@@ -71,17 +71,17 @@ TEST(ContiguousRangeMapper, Pages) {
 
 TEST(ContiguousRangeMapper, PagesBatched) {
     std::vector<uintptr_t> elements = {
-            0x1000, 0x2000,
+        0x1000, 0x2000,
 
-            0x3000,
+        0x3000,
 
-            0x5000, 0x6000,
+        0x5000, 0x6000,
 
-            0x7000,
+        0x7000,
 
-            0xa000,
+        0xa000,
 
-            0xc000,
+        0xc000,
     };
 
     int numTotalRanges = 0;

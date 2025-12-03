@@ -27,7 +27,7 @@ class SimpleStringAnnotation : public crashpad::Annotation {
 
     // Name of the annotation.. This is how it will show up in a minidump.
     SimpleStringAnnotation(std::string name, std::string msg)
-        : Annotation(Type::kString, mName, mBuffer), mBuffer() {
+            : Annotation(Type::kString, mName, mBuffer), mBuffer() {
         memcpy(mName, name.c_str(), std::min<size_t>(name.size(), kNameMaxLength));
         auto dataSize = std::min<size_t>(msg.size(), MaxSize);
         memcpy(mBuffer, msg.c_str(), dataSize);

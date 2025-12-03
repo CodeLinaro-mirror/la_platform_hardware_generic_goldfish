@@ -29,8 +29,8 @@ uint32_t loadLE32(const void* m) {
 
 TEST(buildBootconfigBlob, OptsMagic) {
     const std::vector<std::pair<std::string, std::string>> bootconfig = {
-            {"a", "b"},
-            {"c", "2"},
+        {"a", "b"},
+        {"c", "2"},
     };
 
     constexpr auto propsBlob = "a=\"b\"\nc=\"2\"\n\0"sv;
@@ -45,7 +45,7 @@ TEST(buildBootconfigBlob, OptsMagic) {
 
 TEST(buildBootconfigBlob, SizeAlignmentCsum) {
     const std::vector<std::pair<std::string, std::string>> bootconfig = {
-            {"a", "b"},
+        {"a", "b"},
     };
 
     constexpr auto propsBlob = "a=\"b\"\n\0"sv;  // 7 byte long

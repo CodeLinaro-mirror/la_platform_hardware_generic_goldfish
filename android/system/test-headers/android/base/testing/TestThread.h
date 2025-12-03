@@ -37,7 +37,7 @@ class TestThread {
     // Constructor actually launches a new platform thread.
     TestThread(ThreadFunction* func, void* funcParam, int stackSize = 16384) {
 #ifdef _WIN32
-        mThread = CreateThread(NULL, stackSize, (DWORD WINAPI(*)(void*))func, funcParam, 0, NULL);
+        mThread = CreateThread(NULL, stackSize, (DWORD WINAPI (*)(void*))func, funcParam, 0, NULL);
 #else
         pthread_attr_t attr;
         pthread_attr_init(&attr);

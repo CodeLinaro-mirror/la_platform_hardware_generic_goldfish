@@ -162,7 +162,8 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
 
     auto want = base / "avd" / "running";
     if (GetParam()) {
-        ASSERT_TRUE(fs::create_directories(sys.getTempRoot()->path() / want)) << "creating: " << want;
+        ASSERT_TRUE(fs::create_directories(sys.getTempRoot()->path() / want))
+                << "creating: " << want;
         fs::permissions(want, fs::perms::owner_all, fs::perm_options::remove);
     }
 

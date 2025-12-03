@@ -38,8 +38,7 @@ void FoldableModel::initFoldableRoll(const android::goldfish::HardwareConfig& hw
     int numRolls = hw.hw_sensor_roll_count;
     if (numRolls < 0 || numRolls > ANDROID_FOLDABLE_MAX_ROLLS) {
         numRolls = 0;
-        LOG(WARNING) << "Incorrect roll count " << hw.hw_sensor_roll_count
-                     << ", default to 0";
+        LOG(WARNING) << "Incorrect roll count " << hw.hw_sensor_roll_count << ", default to 0";
     }
     config.numRolls = numRolls;
 
@@ -74,12 +73,12 @@ void FoldableModel::initFoldableRoll(const android::goldfish::HardwareConfig& hw
 
             } else {
                 config.rollableParams[i] = {
-                        .rollRadiusAsDisplayPercent = std::stof(rollRadiusTokens[i]),
-                        .displayId = 0,  // TODO: put 0 for now
-                        .minRolledPercent = std::stof(range[0]),
-                        .maxRolledPercent = std::stof(range[1]),
-                        .defaultRolledPercent = std::stof(rollDefaultTokens[i]),
-                        .direction = std::stoi(rollDirectionTokens[i]),
+                    .rollRadiusAsDisplayPercent = std::stof(rollRadiusTokens[i]),
+                    .displayId = 0,  // TODO: put 0 for now
+                    .minRolledPercent = std::stof(range[0]),
+                    .maxRolledPercent = std::stof(range[1]),
+                    .defaultRolledPercent = std::stof(rollDefaultTokens[i]),
+                    .direction = std::stoi(rollDirectionTokens[i]),
                 };
             }
         }

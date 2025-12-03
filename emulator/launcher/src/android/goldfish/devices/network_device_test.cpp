@@ -9,13 +9,13 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "network_device.h"
+
 #include <gtest/gtest.h>
 
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-
-#include "network_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -28,9 +28,11 @@ TEST(Network, Basic_x86) {
 
     NetworkDevice dev("0a.0");
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
-                                     testing::Eq("-device"), testing::Eq("virtio-net-pci,addr=0a.0,netdev=mynet")));
+    EXPECT_THAT(
+            dev.getQemuParameters(emu.config()),
+            testing::ElementsAre(testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
+                                 testing::Eq("-device"),
+                                 testing::Eq("virtio-net-pci,addr=0a.0,netdev=mynet")));
 }
 
 TEST(Network, Basic_arm64) {
@@ -42,8 +44,9 @@ TEST(Network, Basic_arm64) {
     NetworkDevice dev("0a.0");
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
-                                     testing::Eq("-device"), testing::Eq("virtio-net-device,netdev=mynet")));
+                testing::ElementsAre(
+                        testing::Eq("-netdev"), testing::Eq("hubport,id=mynet,hubid=1234"),
+                        testing::Eq("-device"), testing::Eq("virtio-net-device,netdev=mynet")));
 }
 
 }  // namespace android::goldfish::test

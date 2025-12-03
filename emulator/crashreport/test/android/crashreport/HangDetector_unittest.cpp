@@ -22,9 +22,7 @@
 #include "gtest/gtest.h"
 
 #include "aemu/base/Debug.h"
-
 #include "android/base/system/abseil_clock.h"
-
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
@@ -109,7 +107,8 @@ TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
 TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
     // Note test loop has to be used as trying to destroy the uv loop hangs waiting for all tasks to
     // complete.
-    auto event_loop = goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+    auto event_loop =
+            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 

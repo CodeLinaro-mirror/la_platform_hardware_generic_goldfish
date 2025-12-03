@@ -33,10 +33,10 @@ TEST(Win32UnicodeString, Constructors) {
         const char* utf8;
         const wchar_t* utf16;
     } kData[] = {
-            {"", L""},
-            {"Hello World!", L"Hello World!"},
-            {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
-            {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
+        {"", L""},
+        {"Hello World!", L"Hello World!"},
+        {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
+        {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
     const size_t kDataSize = ARRAY_SIZE(kData);
 
@@ -75,10 +75,10 @@ TEST(Win32UnicodeString, convertToUtf8) {
         const char* utf8;
         const wchar_t* utf16;
     } kData[] = {
-            {"", L""},
-            {"Hello World!", L"Hello World!"},
-            {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
-            {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
+        {"", L""},
+        {"Hello World!", L"Hello World!"},
+        {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
+        {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
     const size_t kDataSize = ARRAY_SIZE(kData);
 
@@ -127,10 +127,10 @@ TEST(Win32UnicodeString, convertFromUtf8) {
         const char* utf8;
         const wchar_t* utf16;
     } kData[] = {
-            {"", L""},
-            {"Hello World!", L"Hello World!"},
-            {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
-            {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
+        {"", L""},
+        {"Hello World!", L"Hello World!"},
+        {"T\xC3\xA9l\xC3\xA9vision", L"T\xE9l\xE9vision"},
+        {"foo\xE1\x80\x80 bar", L"foo\x1000 bar"},
     };
     const size_t kDataSize = ARRAY_SIZE(kData);
 
@@ -171,10 +171,10 @@ TEST(Win32UnicodeString, appending) {
         const wchar_t* second;
         const wchar_t* result;
     } kData[] = {
-            {L"foo", L"bar", L"foobar"},
-            {L"", L"bar", L"bar"},
-            {L"foo", L"", L"foo"},
-            {L"foobar", L" with ice cream", L"foobar with ice cream"},
+        {L"foo", L"bar", L"foobar"},
+        {L"", L"bar", L"bar"},
+        {L"foo", L"", L"foo"},
+        {L"foobar", L" with ice cream", L"foobar with ice cream"},
     };
 
     for (const auto& data : kData) {

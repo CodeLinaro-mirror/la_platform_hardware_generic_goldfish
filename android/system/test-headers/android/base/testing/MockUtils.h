@@ -49,10 +49,10 @@ class MockReplacementHandle {
     MockReplacementHandle() {}
 
     MockReplacementHandle(T* location, T original)
-        : mLocation(location), mOriginal(std::move(original)) {}
+            : mLocation(location), mOriginal(std::move(original)) {}
 
     MockReplacementHandle(MockReplacementHandle&& other)
-        : mLocation(std::move(other.mLocation)), mOriginal(std::move(other.mOriginal)) {
+            : mLocation(std::move(other.mLocation)), mOriginal(std::move(other.mOriginal)) {
         other.mLocation = nullptr;
     }
 

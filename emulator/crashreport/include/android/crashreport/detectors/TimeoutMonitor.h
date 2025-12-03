@@ -71,10 +71,11 @@ class CrashOnTimeout : public TimeoutMonitor {
      * @param Message to be included when the crash method is called.
      */
     CrashOnTimeout(std::chrono::milliseconds timeout, std::string message)
-        : TimeoutMonitor(timeout, [msg = message, t = timeout]() {
-              auto timeout_msg = "Task timeout after " + std::to_string(t.count()) + " ms. :" + msg;
-              crashhandler_die(timeout_msg.c_str());
-          }) {}
+            : TimeoutMonitor(timeout, [msg = message, t = timeout]() {
+                auto timeout_msg =
+                        "Task timeout after " + std::to_string(t.count()) + " ms. :" + msg;
+                crashhandler_die(timeout_msg.c_str());
+            }) {}
 };
 }  // namespace crashreport
 }  // namespace android

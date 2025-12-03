@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+
 #include "aemu/base/Compiler.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/Connector.h"
@@ -77,7 +78,7 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
     [[deprecated("Use registerHalQemuDevice instead.")]] virtual bool registerQemuDevice(
-        std::string_view name, Connector::DeviceFactory factory) = 0;
+            std::string_view name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a device with the registry.
@@ -91,7 +92,7 @@ struct IConnectorRegistry : public CallbackEventSource<DeviceName> {
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
     [[deprecated("Use registerHalDevice instead.")]] virtual bool registerDevice(
-        std::string_view name, Connector::DeviceFactory factory) = 0;
+            std::string_view name, Connector::DeviceFactory factory) = 0;
 
     /**
      * @brief Registers a thread-safe HAL device with the registry.
@@ -199,29 +200,29 @@ class ConnectorRegistry : public IConnectorRegistry {
         std::lock_guard<std::mutex> lock(mActivePlugsMutex);
         auto it = mActivePlugs.find(T::serviceName);
         if (it == mActivePlugs.end()) {
-          return {};
+            return {};
         }
 
         const std::shared_ptr<cable::IPlug> impl = it->second.lock();
         if (!impl) {
-          mActivePlugs.erase(it);
-          return {};
+            mActivePlugs.erase(it);
+            return {};
         }
 
         std::shared_ptr<T> result;
         if constexpr (std::derived_from<T, cable::IPlug>) {
-          result = std::dynamic_pointer_cast<T>(impl);
+            result = std::dynamic_pointer_cast<T>(impl);
         } else if constexpr (std::derived_from<T, HalPlug>) {
-          if (auto adapter = std::dynamic_pointer_cast<HalPlugToIPlugAdapter>(impl)) {
-            result = std::dynamic_pointer_cast<T>(adapter->getHalPlug());
-          }
+            if (auto adapter = std::dynamic_pointer_cast<HalPlugToIPlugAdapter>(impl)) {
+                result = std::dynamic_pointer_cast<T>(adapter->getHalPlug());
+            }
         } else {
-          static_assert(false, "We should not get here");
+            static_assert(false, "We should not get here");
         }
 
         if (!result) {
-          LOG(DFATAL) << "The '" << T::serviceName
-                      << "' service was found but it was registered with an incompatible type.";
+            LOG(DFATAL) << "The '" << T::serviceName
+                        << "' service was found but it was registered with an incompatible type.";
         }
 
         return std::weak_ptr<T>(std::move(result));
@@ -240,28 +241,27 @@ class ConnectorRegistry : public IConnectorRegistry {
      *
      * @protected This method is protected to allow access from test classes.
      */
-   void registerInternal(std::string registryName, const std::shared_ptr<cable::IPlug>& plug);
+    void registerInternal(std::string registryName, const std::shared_ptr<cable::IPlug>& plug);
 
   private:
-   bool registerDeviceImpl(std::string_view prefix,
-                           std::string_view name,
-                           Connector::DeviceFactory factory);
+    bool registerDeviceImpl(std::string_view prefix, std::string_view name,
+                            Connector::DeviceFactory factory);
 
-   using DeviceRegistration = std::function<bool(std::string, Connector::DeviceFactory)>;
-   void registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
-                              async::EventLoop* qemuLoop, HalDeviceFactory factory,
-                              DeviceRegistration registerFn);
+    using DeviceRegistration = std::function<bool(std::string, Connector::DeviceFactory)>;
+    void registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
+                               async::EventLoop* qemuLoop, HalDeviceFactory factory,
+                               DeviceRegistration registerFn);
 
-   const std::shared_ptr<PingTopic> mPingTopic;
-   bool mAcceptingRegistries = true;
-   std::mutex mEntriesMutex;
-   std::mutex mActivePlugsMutex;
-   absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
+    const std::shared_ptr<PingTopic> mPingTopic;
+    bool mAcceptingRegistries = true;
+    std::mutex mEntriesMutex;
+    std::mutex mActivePlugsMutex;
+    absl::flat_hash_map<std::string, Connector::DeviceFactory> mEntries;
 
-   // This map holds weak pointers to all currently active plugs, allowing for
-   // inspection via the `activeDevice<T>()` method.
-   absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
-   std::vector<Connector::DeviceEntry> mDevices;
+    // This map holds weak pointers to all currently active plugs, allowing for
+    // inspection via the `activeDevice<T>()` method.
+    absl::flat_hash_map<std::string, std::weak_ptr<cable::IPlug>> mActivePlugs;
+    std::vector<Connector::DeviceEntry> mDevices;
 };
 
 template <class IDevice>

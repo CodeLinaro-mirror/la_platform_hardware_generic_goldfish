@@ -65,17 +65,13 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     ThreadedEventLoopImpl(ThreadedEventLoopImpl&& other) noexcept = delete;
     ThreadedEventLoopImpl& operator=(ThreadedEventLoopImpl&& other) noexcept = delete;
 
-    std::future<absl::Status> shutdown() override {
-        return mLoop->shutdown();
-    }
+    std::future<absl::Status> shutdown() override { return mLoop->shutdown(); }
 
     /**
      * @brief Checks if the caller is on the background event loop thread.
      * @return Delegates the call to the underlying EventLoop.
      */
-    bool isOnLoopThread() const override {
-        return mLoop->isOnLoopThread();
-    }
+    bool isOnLoopThread() const override { return mLoop->isOnLoopThread(); }
 
     std::shared_ptr<Timer> createTimer(Task task) override {
         return mLoop->createTimer(std::move(task));
@@ -87,9 +83,7 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
 
     std::thread::id get_id() const override { return mRunner.get_id(); }
 
-    LooperStatusEvent::State getState() const override {
-        return mLoop->getState();
-    }
+    LooperStatusEvent::State getState() const override { return mLoop->getState(); }
 
     absl::Status start() override;
 
@@ -127,7 +121,8 @@ ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
     } else {
         // There is likely a hung task blocking the loop.
         // Join will hang if the loop has not shutdown. All we can do is crash with an error.
-        LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: " << absl::FromChrono(getTimeout());
+        LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: "
+                   << absl::FromChrono(getTimeout());
     }
 
     if (mRunner.joinable()) {
@@ -157,7 +152,8 @@ absl::Status ThreadedEventLoopImpl::start() {
     return absl::OkStatus();
 }
 
-std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(std::unique_ptr<LibuvEventLoop> toRun) {
+std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(
+        std::unique_ptr<LibuvEventLoop> toRun) {
     if (!toRun) {
         LOG(WARNING) << "No looper present";
         return nullptr;

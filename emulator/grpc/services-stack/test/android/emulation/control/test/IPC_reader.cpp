@@ -124,30 +124,30 @@ class TestRunnerImpl final : public TestRunner::Service {
             mService->stop();
         }
         switch (request->target()) {
-            case Test::Nothing:
-                response->set_chksum(request->chksum());
-                break;
-            case Test::SharedMemory:
-                response->set_chksum(prepare_shared_mem(request->handle(), request->size()));
-                break;
-            case Test::Grpc:
-                response->set_chksum(prepare_grpc(request->size()));
-                response->set_port(mService->port());
-                break;
-            case Test::RawSocket:
-                response->set_chksum(prepare_socket(request->size()));
-                response->set_port(mSrs->port());
-                break;
-            case Test::SyncStreamPerf:
-                prepare_sync_heartbeat();
-                response->set_port(mService->port());
-                break;
-            case Test::AsyncStreamPerf:
-                prepare_async_heartbeat();
-                response->set_port(mService->port());
-                break;
-            default:
-                LOG(ERROR) << "Unknown test type.";
+        case Test::Nothing:
+            response->set_chksum(request->chksum());
+            break;
+        case Test::SharedMemory:
+            response->set_chksum(prepare_shared_mem(request->handle(), request->size()));
+            break;
+        case Test::Grpc:
+            response->set_chksum(prepare_grpc(request->size()));
+            response->set_port(mService->port());
+            break;
+        case Test::RawSocket:
+            response->set_chksum(prepare_socket(request->size()));
+            response->set_port(mSrs->port());
+            break;
+        case Test::SyncStreamPerf:
+            prepare_sync_heartbeat();
+            response->set_port(mService->port());
+            break;
+        case Test::AsyncStreamPerf:
+            prepare_async_heartbeat();
+            response->set_port(mService->port());
+            break;
+        default:
+            LOG(ERROR) << "Unknown test type.";
         }
         std::clock_t c_end = std::clock();
         response->set_cputime(c_end - c_start);
@@ -230,11 +230,11 @@ static void parseArgs(int argc, char** argv) {
     int opt = 0;
     while ((opt = getopt_long(argc, argv, "", long_options, &long_index)) != -1) {
         switch (opt) {
-            case 'p':
-                port = atoi(optarg);
-                break;
-            default:
-                break;
+        case 'p':
+            port = atoi(optarg);
+            break;
+        default:
+            break;
         }
     }
 }

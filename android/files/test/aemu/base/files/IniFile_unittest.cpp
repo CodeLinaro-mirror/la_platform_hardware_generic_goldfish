@@ -110,34 +110,34 @@ class IniFileTest : public ::testing::Test {
 
 TEST_F(IniFileTest, readWrite) {
     static const unordered_map<string, int> intData = {
-            {"zeroInt", 0},
-            {"positiveInt", 1},
-            {"negativeInt", -1},
-            {"maxInt", numeric_limits<int>::max()},
-            {"minInt", numeric_limits<int>::min()},
-            {"lowestInt", numeric_limits<int>::lowest()}};
+        {"zeroInt", 0},
+        {"positiveInt", 1},
+        {"negativeInt", -1},
+        {"maxInt", numeric_limits<int>::max()},
+        {"minInt", numeric_limits<int>::min()},
+        {"lowestInt", numeric_limits<int>::lowest()}};
     static const unordered_map<string, int64_t> int64Data = {
-            {"zeroInt64", 0ULL},
-            {"positiveInt64", 1ULL},
-            {"negativeInt64", -1ULL},
-            {"maxInt64", numeric_limits<int64_t>::max()},
-            {"minInt64", numeric_limits<int64_t>::min()},
-            {"lowestInt64", numeric_limits<int64_t>::lowest()}};
+        {"zeroInt64", 0ULL},
+        {"positiveInt64", 1ULL},
+        {"negativeInt64", -1ULL},
+        {"maxInt64", numeric_limits<int64_t>::max()},
+        {"minInt64", numeric_limits<int64_t>::min()},
+        {"lowestInt64", numeric_limits<int64_t>::lowest()}};
     static const unordered_map<string, double> doubleData = {
-            {"zeroDouble", 0.0},
-            {"positiveDouble", 1.5},
-            {"negativeDouble", -1.5},
-            {"maxDouble", numeric_limits<double>::max()},
-            // minDouble fails because of rounding errors.
-            // {"minDouble", numeric_limits<double>::min()},
-            {"lowestDouble", numeric_limits<double>::lowest()}};
+        {"zeroDouble", 0.0},
+        {"positiveDouble", 1.5},
+        {"negativeDouble", -1.5},
+        {"maxDouble", numeric_limits<double>::max()},
+        // minDouble fails because of rounding errors.
+        // {"minDouble", numeric_limits<double>::min()},
+        {"lowestDouble", numeric_limits<double>::lowest()}};
 
     // This doesn't actually test the format in which values are persisted.
     // But it does test that serialize-deserialize are consistent.
     static const unordered_map<string, bool> boolData = {{"trueKey", true}, {"falseKey", false}};
     static const unordered_map<string, IniFile::DiskSize> diskSizeData = {
-            {"ds0", 0ULL},         {"ds1000B", 1000ULL},     {"ds1K", 1024ULL},
-            {"ds5k", 5 * 1024ULL}, {"ds1M", 1024 * 1024ULL}, {"ds3G", 3 * 1024 * 1024 * 1024ULL}};
+        {"ds0", 0ULL},         {"ds1000B", 1000ULL},     {"ds1K", 1024ULL},
+        {"ds5k", 5 * 1024ULL}, {"ds1M", 1024 * 1024ULL}, {"ds3G", 3 * 1024 * 1024 * 1024ULL}};
 
     for (const auto& keyval : intData) {
         mIni->setInt(keyval.first, keyval.second);
@@ -220,8 +220,8 @@ TEST_F(IniFileTest, duplicateAndMissingKeys) {
 
 TEST_F(IniFileTest, valueFormat) {
     static const vector<string> fileData = {
-            "key1 = value with spaces", "key2 = value with trailing spaces  ",
-            "key3 = \"value with redundant quotes\"", "keyAllSpaces =       "};
+        "key1 = value with spaces", "key2 = value with trailing spaces  ",
+        "key3 = \"value with redundant quotes\"", "keyAllSpaces =       "};
     writeIniFileData(fileData);
 
     ASSERT_TRUE(mIni->read());
@@ -302,21 +302,21 @@ TEST_F(IniFileTest, environmentSubstitution) {
 TEST_F(IniFileTest, readMalformedFile) {
     static const int defaultInt = -99;
     static const vector<string> fileData = {
-            "a = 5",
-            "; This comment will be skipped",
-            "  b = 4",
-            "   # So will this: irrelevant ; and #",
-            "c=43",
-            "d= 37malformedint,otherwiseOK",
-            "This is actually malformed, and will be skipped with warning",
-            " d = 45.6 now this becomes malformed here",
-            "d = 43 ; hanging comments are not supported.",
-            " ee = 546",
-            "f=\"56\"",
-            "f32ASDF_-.dfae3=1",
-            "90=KeyMustStartWithAlpha",
-            "a9%0=KeyCanNotContainPercent",
-            ""};
+        "a = 5",
+        "; This comment will be skipped",
+        "  b = 4",
+        "   # So will this: irrelevant ; and #",
+        "c=43",
+        "d= 37malformedint,otherwiseOK",
+        "This is actually malformed, and will be skipped with warning",
+        " d = 45.6 now this becomes malformed here",
+        "d = 43 ; hanging comments are not supported.",
+        " ee = 546",
+        "f=\"56\"",
+        "f32ASDF_-.dfae3=1",
+        "90=KeyMustStartWithAlpha",
+        "a9%0=KeyCanNotContainPercent",
+        ""};
     static const unordered_map<string, int> validEntries = {{"a", 5},
                                                             {"b", 4},
                                                             {"c", 43},
@@ -342,11 +342,8 @@ static void formatToLines(vector<string>* lines, const unordered_map<string, str
 }
 
 TEST_F(IniFileTest, boolFormat) {
-    static const unordered_map<string, string> validTrues = {{"true1", "yes"},
-                                                             {"true2", "YES"},
-                                                             {"true3", "true"},
-                                                             {"true4", "TRUE"},
-                                                             {"true5", "1"}};
+    static const unordered_map<string, string> validTrues = {
+        {"true1", "yes"}, {"true2", "YES"}, {"true3", "true"}, {"true4", "TRUE"}, {"true5", "1"}};
     static const unordered_map<string, string> validFalses = {{"false1", "no"},
                                                               {"false2", "NO"},
                                                               {"false3", "false"},
@@ -388,13 +385,13 @@ TEST_F(IniFileTest, boolFormat) {
 
 TEST_F(IniFileTest, diskSizeFormat) {
     static const unordered_map<string, string> validDiskSizes = {
-            {"ThirtyB", "30"},  {"OneKilo", "1k"}, {"FiveKilo", "5K"}, {"OneMega", "1m"},
-            {"FiveMega", "5M"}, {"OneGiga", "1g"}, {"FiveGiga", "5G"}};
+        {"ThirtyB", "30"},  {"OneKilo", "1k"}, {"FiveKilo", "5K"}, {"OneMega", "1m"},
+        {"FiveMega", "5M"}, {"OneGiga", "1g"}, {"FiveGiga", "5G"}};
     static const unordered_map<string, string> invalidDiskSizes = {
-            {"WrongUnit", "30hertz"},
-            {"FractionalNumber", "2.14142135423"},
-            {"FractionalKilo", "3.14K"},
-            {"smiley_really", ";-)"}};
+        {"WrongUnit", "30hertz"},
+        {"FractionalNumber", "2.14142135423"},
+        {"FractionalKilo", "3.14K"},
+        {"smiley_really", ";-)"}};
 
     vector<string> lines;
     formatToLines(&lines, validDiskSizes);
@@ -488,9 +485,9 @@ TEST_F(IniFileTest, iterator) {
 
 TEST_F(IniFileTest, diskFileOrder) {
     vector<string> lines = {
-            "first = some valid value", "second line is invalid",    "; Third line is a comment",
-            "fourth = is valid",        "# Fifth is also a comment", "",
-            ";Sixth was a comment",     "3p0 = is an invalid key",   "lets = finish with valid"};
+        "first = some valid value", "second line is invalid",    "; Third line is a comment",
+        "fourth = is valid",        "# Fifth is also a comment", "",
+        ";Sixth was a comment",     "3p0 = is an invalid key",   "lets = finish with valid"};
     vector<string> rewritten_lines = {"first = some valid value",
                                       "; Third line is a comment",
                                       "fourth = is valid",

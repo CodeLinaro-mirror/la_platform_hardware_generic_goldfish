@@ -92,7 +92,8 @@ class JwkTokenAuthTest : public ::testing::Test {
         ASSERT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
         ASSERT_TRUE(status.ok());
-        mTempDir = std::make_unique<TestTempDir>(absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
+        mTempDir = std::make_unique<TestTempDir>(
+                absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
 
         absl::Time now = absl::Now();
         mSampleJwt = tink::RawJwtBuilder()

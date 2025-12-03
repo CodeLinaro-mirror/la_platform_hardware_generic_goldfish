@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "kernel_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status.h"
@@ -16,8 +18,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "kernel_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -45,7 +45,8 @@ TEST(Kernel, Basic_x86) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"), testing::HasSubstr("console=ttyS0,38400 ")));
+                                     testing::Eq("-append"),
+                                     testing::HasSubstr("console=ttyS0,38400 ")));
 }
 
 TEST(Kernel, Basic_arm64) {
@@ -69,10 +70,10 @@ TEST(Kernel, Basic_arm64) {
 
     KernelDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
-    EXPECT_THAT(
-            dev.getQemuParameters(emu.config()),
-            testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                 testing::Eq("-append"), testing::HasSubstr("console=ttyAMA0,38400")));
+    EXPECT_THAT(dev.getQemuParameters(emu.config()),
+                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                                     testing::Eq("-append"),
+                                     testing::HasSubstr("console=ttyAMA0,38400")));
 }
 
 TEST(Kernel, AppendExtras) {
@@ -101,8 +102,10 @@ TEST(Kernel, AppendExtras) {
     KernelDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                testing::ElementsAre(testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
-                                     testing::Eq("-append"), testing::AllOf(testing::HasSubstr("foo"), testing::HasSubstr("bar"))));
+                testing::ElementsAre(
+                        testing::Eq("-kernel"), testing::Eq("some/path/kernel-ranchu"),
+                        testing::Eq("-append"),
+                        testing::AllOf(testing::HasSubstr("foo"), testing::HasSubstr("bar"))));
 }
 
 }  // namespace android::goldfish::test

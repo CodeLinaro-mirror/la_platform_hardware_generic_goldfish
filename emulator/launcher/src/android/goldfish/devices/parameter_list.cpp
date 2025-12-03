@@ -32,6 +32,6 @@ absl::Status ParameterList::initialize(const EmulatorConfig& emulator) {
 }
 
 ParameterList::ParameterList(std::vector<std::string> params)
-    : Device("params_" + std::to_string(++gIdCounter)), mParams(params) {}
+        : Device("params_" + std::to_string(++gIdCounter)), mParams(params) {}
 
 }  // namespace android::goldfish

@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stdint.h>
+
 #include <vector>
 
 #include "IOVector.h"
@@ -45,15 +46,10 @@ struct genlmsghdr {
  *
  */
 class GenericNetlinkMessage {
-public:
+  public:
     class Builder;
-    GenericNetlinkMessage(uint32_t port,
-                          uint32_t seq,
-                          int family,
-                          int hdrlen,
-                          int flags,
-                          uint8_t cmd,
-                          uint8_t version);
+    GenericNetlinkMessage(uint32_t port, uint32_t seq, int family, int hdrlen, int flags,
+                          uint8_t cmd, uint8_t version);
 
     GenericNetlinkMessage(const uint8_t* data, size_t size, int hdrlen = 0);
     GenericNetlinkMessage(IOVector iovec, int hdrlen = 0);
@@ -89,7 +85,7 @@ public:
     static constexpr int NL_AUTO_PORT = 0;
     static constexpr int NLMSG_MIN_TYPE = 0x10;
 
-private:
+  private:
     void putHeader(uint32_t pid, uint32_t seq, int type, int flags);
     void resizeByHeaderLength(size_t size);
 

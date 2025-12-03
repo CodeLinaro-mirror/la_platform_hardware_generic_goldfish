@@ -33,7 +33,6 @@
 #endif
 
 #include <cstdio>
-
 #include <filesystem>
 #include <fstream>
 
@@ -123,7 +122,7 @@ struct GlobalState {
 };
 
 GlobalState gGlobals = {
-        false, false, CPU_ACCELERATOR_NONE, {'\0'}, {'\0'}, ANDROID_CPU_ACCELERATION_ERROR, {}};
+    false, false, CPU_ACCELERATOR_NONE, {'\0'}, {'\0'}, ANDROID_CPU_ACCELERATION_ERROR, {}};
 
 // Windows Hypervisor Platform (WHPX) support
 
@@ -261,11 +260,11 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
         if (is) {
             std::ostringstream ss;
             ss << is.rdbuf();
-            for (auto &line : absl::StrSplit(ss.str(), '\n')) {
-                 if (!strncmp("kvm:", line.data(), 4)) {
-                     etcGroupsKvmLine = line.data();
-                 }
-             }
+            for (auto& line : absl::StrSplit(ss.str(), '\n')) {
+                if (!strncmp("kvm:", line.data(), 4)) {
+                    etcGroupsKvmLine = line.data();
+                }
+            }
         }
 
         absl::StrAppendFormat(status,
@@ -740,35 +739,35 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo() {
     char vendor_id[13];
     android_get_x86_cpuid_vendor_id(vendor_id, sizeof(vendor_id));
     switch (android_get_x86_cpuid_vendor_id_type(vendor_id)) {
-        case VENDOR_ID_AMD:
-            flags |= ANDROID_CPU_INFO_AMD;
-            status += "AMD CPU\n";
-            if (android_get_x86_cpuid_svm_support()) {
-                flags |= ANDROID_CPU_INFO_VIRT_SUPPORTED;
-                status += "Virtualization is supported\n";
-            }
-            break;
-        case VENDOR_ID_INTEL:
-            flags |= ANDROID_CPU_INFO_INTEL;
-            status += "Intel CPU\n";
-            if (android_get_x86_cpuid_vmx_support()) {
-                flags |= ANDROID_CPU_INFO_VIRT_SUPPORTED;
-                status += "Virtualization is supported\n";
-            }
-            break;
-        default:
+    case VENDOR_ID_AMD:
+        flags |= ANDROID_CPU_INFO_AMD;
+        status += "AMD CPU\n";
+        if (android_get_x86_cpuid_svm_support()) {
+            flags |= ANDROID_CPU_INFO_VIRT_SUPPORTED;
+            status += "Virtualization is supported\n";
+        }
+        break;
+    case VENDOR_ID_INTEL:
+        flags |= ANDROID_CPU_INFO_INTEL;
+        status += "Intel CPU\n";
+        if (android_get_x86_cpuid_vmx_support()) {
+            flags |= ANDROID_CPU_INFO_VIRT_SUPPORTED;
+            status += "Virtualization is supported\n";
+        }
+        break;
+    default:
 #ifdef APPLE_SILICON
-            flags |= ANDROID_CPU_INFO_APPLE;
-            status += "Apple CPU\n";
-            status += "Virtualization is supported\n";  // we have not found
-                                                        // otherwise on apple cpu
+        flags |= ANDROID_CPU_INFO_APPLE;
+        status += "Apple CPU\n";
+        status += "Virtualization is supported\n";  // we have not found
+                                                    // otherwise on apple cpu
 #else
-            flags |= ANDROID_CPU_INFO_OTHER;
-            status += "Other CPU: ";
-            status += vendor_id;
+        flags |= ANDROID_CPU_INFO_OTHER;
+        status += "Other CPU: ";
+        status += vendor_id;
 #endif
-            status += '\n';
-            break;
+        status += '\n';
+        break;
     }
 
     if (android_get_x86_cpuid_is_vcpu()) {
@@ -790,19 +789,19 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo() {
 
 std::string CpuAcceleratorToString(CpuAccelerator type) {
     switch (type) {
-        case CPU_ACCELERATOR_KVM:
-            return "kvm";
-        case CPU_ACCELERATOR_HAX:
-            return "hax (deprecated)";
-        case CPU_ACCELERATOR_HVF:
-            return "hvf";
-        case CPU_ACCELERATOR_WHPX:
-            return "whpx";
-        case CPU_ACCELERATOR_AEHD:
-            return "aehd";
-        case CPU_ACCELERATOR_NONE:
-        case CPU_ACCELERATOR_MAX:
-            return "tcg";
+    case CPU_ACCELERATOR_KVM:
+        return "kvm";
+    case CPU_ACCELERATOR_HAX:
+        return "hax (deprecated)";
+    case CPU_ACCELERATOR_HVF:
+        return "hvf";
+    case CPU_ACCELERATOR_WHPX:
+        return "whpx";
+    case CPU_ACCELERATOR_AEHD:
+        return "aehd";
+    case CPU_ACCELERATOR_NONE:
+    case CPU_ACCELERATOR_MAX:
+        return "tcg";
     }
     return "";
 }

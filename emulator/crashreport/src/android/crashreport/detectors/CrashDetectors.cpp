@@ -16,7 +16,7 @@ namespace android {
 namespace crashreport {
 
 TimedHangDetector::TimedHangDetector(System::Duration intervalMs, StatefulHangdetector* check)
-    : mInner(check), mIntervalMs(intervalMs) {
+        : mInner(check), mIntervalMs(intervalMs) {
     mNextCheck = System::get()->getUnixTimeUs() + (mIntervalMs * 1000);
 }
 
@@ -30,7 +30,7 @@ bool TimedHangDetector::check() {
 }
 
 HeartBeatDetector::HeartBeatDetector(std::function<int()> getHeartbeat)
-    : mGetHeartbeat(getHeartbeat) {}
+        : mGetHeartbeat(getHeartbeat) {}
 
 bool HeartBeatDetector::check() {
     int now = mGetHeartbeat();

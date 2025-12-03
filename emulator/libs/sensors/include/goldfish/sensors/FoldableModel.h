@@ -61,11 +61,11 @@ class FoldableModel {
     PostureListener* getPostureListener() { return &mPostureListener; }
 
   private:
-   void initFoldableRoll(const android::goldfish::HardwareConfig& hw);
+    void initFoldableRoll(const android::goldfish::HardwareConfig& hw);
 
-   FoldableState mState;
-   std::vector<AnglesToPosture> mAnglesToPostures;
-   PostureListener mPostureListener;
+    FoldableState mState;
+    std::vector<AnglesToPosture> mAnglesToPostures;
+    PostureListener mPostureListener;
 };
 
 }  // namespace goldfish::sensors

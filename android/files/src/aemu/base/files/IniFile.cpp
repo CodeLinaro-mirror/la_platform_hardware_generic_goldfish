@@ -11,16 +11,10 @@
 
 #include "aemu/base/files/IniFile.h"
 
-#include <filesystem>
-
-#include "absl/log/log.h"
-
-#include "android/base/system/System.h"
-#include "android/base/system/File.h"
-
 #include <assert.h>
 #include <string.h>
 
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <istream>
@@ -29,6 +23,11 @@
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include "absl/log/log.h"
+
+#include "android/base/system/File.h"
+#include "android/base/system/System.h"
 
 namespace android {
 namespace goldfish {
@@ -301,12 +300,12 @@ bool IniFile::writeCommon(const bool discardEmpty) {
             LOG(WARNING) << "Failed to save '" << mBackingFilePath.string() << "'";
         }
 
-	base::file::rm(iniFileNew);
+        base::file::rm(iniFileNew);
         return false;
     }
 
     if (deleteOldConfig) {
-	    base::file::rm(iniFileOld);
+        base::file::rm(iniFileOld);
     }
 
     return true;
@@ -472,9 +471,9 @@ double IniFile::getDouble(const string& key, double defaultValue) const {
 }
 
 #if defined(_WIN32)
-#  include <string.h>
-#  define strcasecmp _stricmp
-#  define strncasecmp _strnicmp
+#include <string.h>
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
 #endif
 
 static bool isBoolTrue(std::string_view value) {
@@ -526,22 +525,22 @@ static IniFile::DiskSize parseDiskSize(std::string_view valueStr, IniFile::DiskS
     bool malformed = (errno != 0);
     if (!malformed) {
         switch (*end) {
-            case 0:
-                break;
-            case 'k':
-            case 'K':
-                result *= 1024ULL;
-                break;
-            case 'm':
-            case 'M':
-                result *= 1024 * 1024ULL;
-                break;
-            case 'g':
-            case 'G':
-                result *= 1024 * 1024 * 1024ULL;
-                break;
-            default:
-                malformed = true;
+        case 0:
+            break;
+        case 'k':
+        case 'K':
+            result *= 1024ULL;
+            break;
+        case 'm':
+        case 'M':
+            result *= 1024 * 1024ULL;
+            break;
+        case 'g':
+        case 'G':
+            result *= 1024 * 1024 * 1024ULL;
+            break;
+        default:
+            malformed = true;
         }
     }
 

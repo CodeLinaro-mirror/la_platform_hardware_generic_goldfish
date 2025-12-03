@@ -21,48 +21,48 @@
 namespace goldfish {
 
 struct SocketBuffer {
-  constexpr static size_t kMinCapacity = 1024;
-  constexpr static size_t kLargeCapacityReleaseIfEmpty = 4U << 20;
+    constexpr static size_t kMinCapacity = 1024;
+    constexpr static size_t kLargeCapacityReleaseIfEmpty = 4U << 20;
 
-  size_t size() const { return mSize; }
-  size_t capacity() const { return mCapacity; }
+    size_t size() const { return mSize; }
+    size_t capacity() const { return mCapacity; }
 
-  /**
-   * Appends the data to the buffer.
-   *
-   * You want to check the returned size (and potentially pause the
-   * producer) to prevent unbounded growth of the buffer.
-   */
-  [[nodiscard]] size_t append(const void* data, size_t size);
+    /**
+     * Appends the data to the buffer.
+     *
+     * You want to check the returned size (and potentially pause the
+     * producer) to prevent unbounded growth of the buffer.
+     */
+    [[nodiscard]] size_t append(const void* data, size_t size);
 
-  // Returns the contiguous portion of the buffer, it could be shorter than the whole buffer.
-  std::pair<const void*, size_t> peek() const;
+    // Returns the contiguous portion of the buffer, it could be shorter than the whole buffer.
+    std::pair<const void*, size_t> peek() const;
 
-  /**
-   * Consumes the `size` bytes from the buffer.
-   * It must the less or equal than the value returned by `peek`.
-   *
-   * You want to check the returned size to resume the producer.
-   */
-  [[nodiscard]] size_t consume(size_t size);
+    /**
+     * Consumes the `size` bytes from the buffer.
+     * It must the less or equal than the value returned by `peek`.
+     *
+     * You want to check the returned size to resume the producer.
+     */
+    [[nodiscard]] size_t consume(size_t size);
 
-  void clear(bool alsoFreeMemory = false);
+    void clear(bool alsoFreeMemory = false);
 
-  void saveToSnapshot(archive::IWriter& writer) const;
-  int loadFromSnapshot(archive::IReader& reader);
+    void saveToSnapshot(archive::IWriter& writer) const;
+    int loadFromSnapshot(archive::IReader& reader);
 
-  SocketBuffer() = default;
-  SocketBuffer(const SocketBuffer&) = delete;
-  SocketBuffer(SocketBuffer&&) = delete;
-  SocketBuffer& operator=(const SocketBuffer&) = delete;
-  SocketBuffer& operator=(SocketBuffer&&) = delete;
+    SocketBuffer() = default;
+    SocketBuffer(const SocketBuffer&) = delete;
+    SocketBuffer(SocketBuffer&&) = delete;
+    SocketBuffer& operator=(const SocketBuffer&) = delete;
+    SocketBuffer& operator=(SocketBuffer&&) = delete;
 
- private:
-  std::unique_ptr<char[]> mData;
-  size_t mCapacity = 0;
-  size_t mSize = 0;
-  size_t mProduce = 0;
-  size_t mConsume = 0;
+  private:
+    std::unique_ptr<char[]> mData;
+    size_t mCapacity = 0;
+    size_t mSize = 0;
+    size_t mProduce = 0;
+    size_t mConsume = 0;
 };
 
 }  // namespace goldfish

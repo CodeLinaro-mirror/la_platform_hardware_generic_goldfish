@@ -17,8 +17,8 @@
 #include <iostream>
 #include <string_view>
 
-#include "absl/strings/str_format.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 
 namespace android::base {
 
@@ -63,21 +63,21 @@ class StorageCapacity {
      */
     constexpr StorageCapacity(unsigned long long bytes, Unit unit) {
         switch (unit) {
-            case Unit::B:
-                mBytes = bytes;
-                break;
-            case Unit::KiB:
-                mBytes = bytes * 1024ULL;
-                break;
-            case Unit::MiB:
-                mBytes = bytes * 1024ULL * 1024ULL;
-                break;
-            case Unit::GiB:
-                mBytes = bytes * 1024ULL * 1024ULL * 1024ULL;
-                break;
-            case Unit::TiB:
-                mBytes = bytes * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
-                break;
+        case Unit::B:
+            mBytes = bytes;
+            break;
+        case Unit::KiB:
+            mBytes = bytes * 1024ULL;
+            break;
+        case Unit::MiB:
+            mBytes = bytes * 1024ULL * 1024ULL;
+            break;
+        case Unit::GiB:
+            mBytes = bytes * 1024ULL * 1024ULL * 1024ULL;
+            break;
+        case Unit::TiB:
+            mBytes = bytes * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
+            break;
         }
     }
     ~StorageCapacity() = default;

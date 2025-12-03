@@ -18,6 +18,7 @@
 
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+
 #include "aemu/base/events/EventSources.h"
 #include "goldfish/display/PixmanImagePtr.h"
 
@@ -33,68 +34,68 @@ enum class Color { Red, Green, Blue };
  * This class creates pixman images and notifies listeners whenever a new image is generated.
  */
 class PixmanImageGenerator : public CallbackEventSource<PixmanImagePtr> {
- public:
-  /**
-   * @brief Constructs a PixmanImageGenerator.
-   *
-   * @param fps The frames per second at which to generate images.
-   * @param width The width of the generated images.
-   * @param height The height of the generated images.
-   */
-  PixmanImageGenerator(int fps, int width, int height);
-  virtual ~PixmanImageGenerator();
+  public:
+    /**
+     * @brief Constructs a PixmanImageGenerator.
+     *
+     * @param fps The frames per second at which to generate images.
+     * @param width The width of the generated images.
+     * @param height The height of the generated images.
+     */
+    PixmanImageGenerator(int fps, int width, int height);
+    virtual ~PixmanImageGenerator();
 
-  /**
-   * @brief Starts the image generation process.
-   */
-  void start();
+    /**
+     * @brief Starts the image generation process.
+     */
+    void start();
 
-  /**
-   * @brief Stops the image generation process.
-   */
-  void stop();
+    /**
+     * @brief Stops the image generation process.
+     */
+    void stop();
 
-  /**
-   * @brief Resizes the generated images.
-   *
-   * @param w The new width.
-   * @param h The new height.
-   */
-  void resize(int w, int h);
+    /**
+     * @brief Resizes the generated images.
+     *
+     * @param w The new width.
+     * @param h The new height.
+     */
+    void resize(int w, int h);
 
-  /**
-   * @brief Generates a pixman image with the specified color.
-   */
-  PixmanImagePtr generateImage(Color color);
+    /**
+     * @brief Generates a pixman image with the specified color.
+     */
+    PixmanImagePtr generateImage(Color color);
 
-  /**
-   * @brief Waits for a specific number of frames to be generated with a timeout.
-   *
-   * @param n The number of frames to wait for.
-   * @param timeout The maximum time to wait.
-   * @return True if the desired number of frames were generated within the timeout, false
-   * otherwise.
-   */
-  bool waitForFramesWithTimeout(int n, absl::Duration timeout);
+    /**
+     * @brief Waits for a specific number of frames to be generated with a timeout.
+     *
+     * @param n The number of frames to wait for.
+     * @param timeout The maximum time to wait.
+     * @return True if the desired number of frames were generated within the timeout, false
+     * otherwise.
+     */
+    bool waitForFramesWithTimeout(int n, absl::Duration timeout);
 
-  /**
-   * @brief Returns the number of frames that have been generated.
-   *
-   * @return The number of frames generated.
-   */
-  int frameCount() const;
+    /**
+     * @brief Returns the number of frames that have been generated.
+     *
+     * @return The number of frames generated.
+     */
+    int frameCount() const;
 
- private:
-  void generateImagesLoop();
+  private:
+    void generateImagesLoop();
 
-  int mFps;
-  int mWidth ABSL_GUARDED_BY(mMutex);
-  int mHeight ABSL_GUARDED_BY(mMutex);
-  bool mRunning;
-  std::unique_ptr<std::thread> mThread;
-  mutable absl::Mutex mMutex;
-  int mFrameCount ABSL_GUARDED_BY(mMutex);
-  absl::CondVar mFrameCv;
+    int mFps;
+    int mWidth ABSL_GUARDED_BY(mMutex);
+    int mHeight ABSL_GUARDED_BY(mMutex);
+    bool mRunning;
+    std::unique_ptr<std::thread> mThread;
+    mutable absl::Mutex mMutex;
+    int mFrameCount ABSL_GUARDED_BY(mMutex);
+    absl::CondVar mFrameCv;
 };
 
 }  // namespace goldfish::display::test

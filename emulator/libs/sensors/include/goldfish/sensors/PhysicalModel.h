@@ -232,7 +232,6 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     T getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
                      const GETTER& physicalGetter, long* measurement_id) const;
 
-
     void physicalStateChanging();    ///< Called when physical state begins changing
     void physicalStateStabilized();  ///< Called when physical state stabilizes
     void targetStateChanged();       ///< Called when target state changes
@@ -246,9 +245,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     mutable long mMeasurementId[kNumSensors] = {0};  ///< Measurement IDs
 
-    bool mIsPhysicalStateChanging{false};            ///< True if physical state is changing
-    bool isLoadingSnapshot{false};                   ///< True if loading from snapshot
-    bool mUseOverride[kNumSensors] = {false};        ///< Sensor override flags
+    bool mIsPhysicalStateChanging{false};      ///< True if physical state is changing
+    bool isLoadingSnapshot{false};             ///< True if loading from snapshot
+    bool mUseOverride[kNumSensors] = {false};  ///< Sensor override flags
 
 #define OVERRIDE_NAME(x) m##x##Override
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v OVERRIDE_NAME(z){0.f};

@@ -33,7 +33,7 @@
 // should start with the most specific path and work their
 // way up to the root.
 static const struct fs_path_config android_dirs[] = {
-        // clang-format off
+    // clang-format off
     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data/app" },
     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data/app-private" },
     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data/app-ephemeral" },
@@ -52,11 +52,11 @@ static const struct fs_path_config android_dirs[] = {
     { 00775, AID_ROOT,         AID_ROOT,         0, "data/preloads" },
     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data" },
     { 00755, AID_ROOT,         AID_ROOT,         0, 0 },
-        // clang-format on
+    // clang-format on
 };
 
 static const struct fs_path_config android_files[] = {
-        // clang-format off
+    // clang-format off
     { 00644, AID_SYSTEM,    AID_SYSTEM,    0, "data/app/*" },
     { 00644, AID_SYSTEM,    AID_SYSTEM,    0, "data/app-ephemeral/*" },
     { 00644, AID_SYSTEM,    AID_SYSTEM,    0, "data/app-private/*" },
@@ -67,7 +67,7 @@ static const struct fs_path_config android_files[] = {
     { 00750, AID_ROOT,      AID_SHELL,     0, "data/nativetest/*" },
     { 00750, AID_ROOT,      AID_SHELL,     0, "data/nativetest64/*" },
     { 00644, AID_ROOT,      AID_ROOT,      0, 0 },
-        // clang-format on
+    // clang-format on
 };
 
 static inline int prefix_cmp(int partial, const char* prefix, size_t len, const char* path,

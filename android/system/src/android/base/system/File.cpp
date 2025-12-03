@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unistd.h>
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-
-#include <unistd.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -26,7 +26,6 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/EintrWrapper.h"
-
 #include "android/base/system/File.h"
 #include "android/base/system/storage_capacity.h"
 
@@ -37,8 +36,8 @@ bool exists(const fs::path& path) {
     // Ignore EC - false is returned when there's an error too.
     return fs::exists(path, ec);
     // Alternatively:
-    //int ret = path_access(path, F_OK);
-    //return (ret == 0) || (errno != ENOENT);
+    // int ret = path_access(path, F_OK);
+    // return (ret == 0) || (errno != ENOENT);
 }
 
 bool is_file(const fs::path& path) {
@@ -86,7 +85,7 @@ int path_access(const fs::path& path, int mode) {
 #endif  // !_WIN32
 }
 
-} // namespace
+}  // namespace
 
 bool can_read(const fs::path& path) {
     return path_access(path, R_OK) == 0;
@@ -105,14 +104,15 @@ absl::StatusOr<StorageCapacity> file_size(const fs::path& path) {
     if (std::uintmax_t size = fs::file_size(path, ec); !ec) {
         return size;
     }
-    return absl::InternalError(absl::StrCat("Failed to get size of: ", path.string(), " - ", ec.message()));
+    return absl::InternalError(
+            absl::StrCat("Failed to get size of: ", path.string(), " - ", ec.message()));
 }
 
 std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) {
     std::error_code ec;
 
     std::vector<fs::path> x;
-    for (const auto &e : std::filesystem::directory_iterator(dirPath, ec)) {
+    for (const auto& e : std::filesystem::directory_iterator(dirPath, ec)) {
         if (fullPath) {
             // This will be relative if dirPath is relative.
             x.push_back(e.path());
@@ -146,18 +146,21 @@ fs::perms octal_mode_to_perms(int octalMode) {
 
     return mode;
 }
-}
+}  // namespace
 
 absl::Status chmod(const fs::path& path, int octalMode) {
-    if (std::error_code ec; fs::permissions(path, octal_mode_to_perms(octalMode), fs::perm_options::replace, ec), ec) {
-        return absl::InternalError(absl::StrCat("Failed to chmod: ", path.string(), " - ", ec.message()));
+    if (std::error_code ec;
+        fs::permissions(path, octal_mode_to_perms(octalMode), fs::perm_options::replace, ec), ec) {
+        return absl::InternalError(
+                absl::StrCat("Failed to chmod: ", path.string(), " - ", ec.message()));
     }
     return absl::OkStatus();
 }
 
 absl::Status mkdir(const fs::path& path, int octalMode) {
     if (std::error_code ec; !fs::create_directory(path, ec)) {
-        return absl::InternalError(absl::StrCat("Failed to mkdir: ", path.string(), " - ", ec.message()));
+        return absl::InternalError(
+                absl::StrCat("Failed to mkdir: ", path.string(), " - ", ec.message()));
     }
     return chmod(path, octalMode);
 }
@@ -183,22 +186,26 @@ absl::Status mkdir_recursive(const fs::path& path, int octalMode) {
 
 absl::Status rm(const fs::path& path) {
     if (std::error_code ec; fs::remove(path, ec), ec) {
-        return absl::InternalError(absl::StrCat("Failed to rm: ", path.string(), " - ", ec.message()));
+        return absl::InternalError(
+                absl::StrCat("Failed to rm: ", path.string(), " - ", ec.message()));
     }
     return absl::OkStatus();
 }
 
 absl::Status rm_recursive(const fs::path& path) {
     if (std::error_code ec; fs::remove_all(path, ec), ec) {
-        return absl::InternalError(absl::StrCat("Failed to rm recursively: ", path.string(), " - ", ec.message()));
+        return absl::InternalError(
+                absl::StrCat("Failed to rm recursively: ", path.string(), " - ", ec.message()));
     }
     return absl::OkStatus();
 }
 
 absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) {
-    fs::copy_options opt = overwrite ? fs::copy_options::overwrite_existing : fs::copy_options::none;
+    fs::copy_options opt =
+            overwrite ? fs::copy_options::overwrite_existing : fs::copy_options::none;
     if (std::error_code ec; fs::copy_file(from, to, opt, ec), ec) {
-        return absl::InternalError(absl::StrCat("Failed to copy_file: ", from.string(), "->", to.string(), " - ", ec.message()));
+        return absl::InternalError(absl::StrCat("Failed to copy_file: ", from.string(), "->",
+                                                to.string(), " - ", ec.message()));
     }
     return absl::OkStatus();
 }
@@ -211,4 +218,4 @@ absl::Status touch(const fs::path& path) {
     return absl::DataLossError(absl::StrCat("Unable to create file: ", path.string()));
 }
 
-} // namespace android::base::file
+}  // namespace android::base::file

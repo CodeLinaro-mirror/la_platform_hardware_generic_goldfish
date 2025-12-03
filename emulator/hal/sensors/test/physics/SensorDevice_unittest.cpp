@@ -52,8 +52,9 @@ class SensorDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        ISensorDevice::registerDevice(&registry, /*avd_type=*/android::goldfish::DeviceType::kPhone, /*avd_api=*/30,
-                                      mAvd.hw(), mClientLoop.get(), mQemuLoop.get(), &mClock);
+        ISensorDevice::registerDevice(&registry, /*avd_type=*/android::goldfish::DeviceType::kPhone,
+                                      /*avd_api=*/30, mAvd.hw(), mClientLoop.get(), mQemuLoop.get(),
+                                      &mClock);
         device = registry.constructHalDevice<ISensorDevice>();
         test_socket = registry.halSocket();
         clear();

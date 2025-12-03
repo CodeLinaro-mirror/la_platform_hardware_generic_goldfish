@@ -36,15 +36,15 @@ namespace emulation {
 namespace control {
 
 using android::base::eventing::MultiEventSourceWaiter;
+using ::goldfish::devices::sensor::AndroidSensor;
+using ::goldfish::devices::sensor::ISensorDevice;
+using ::goldfish::devices::sensor::SensorData;
+using ::goldfish::devices::sensor::SensorObserver;
 using ::goldfish::display::FrameInfo;
 using ::goldfish::display::FrameInfoCallbackSource;
 using ::goldfish::display::IDisplay;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
-using ::goldfish::devices::sensor::AndroidSensor;
-using ::goldfish::devices::sensor::ISensorDevice;
-using ::goldfish::devices::sensor::SensorData;
-using ::goldfish::devices::sensor::SensorObserver;
 using ::grpc::Status;
 using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
@@ -196,14 +196,14 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         if (!possibleRotation.ok()) {
             VLOG(1) << "Unable to retrieve rotation information due to: "
                     << possibleRotation.status();
-            //return Status(abslStatusToGrpcStatus(possibleRotation.status()));
+            // return Status(abslStatusToGrpcStatus(possibleRotation.status()));
             deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
         } else {
             deviceRotation = possibleRotation.value();
         }
     } else {
         VLOG(1) << "Unable to retrieve rotation because ISensorDevice is not available";
-        //return Status(grpc::StatusCode::UNAVAILABLE, "ISensorDevice is not available");
+        // return Status(grpc::StatusCode::UNAVAILABLE, "ISensorDevice is not available");
         deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
     }
 
@@ -232,7 +232,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     // it shows landscape, no idea what went wrong. for now,
     // just do a simple scale according to the ratio of display w/h
     // TODO: fix this b/448504524
-    const double desired_over_display_ratio = ((double)desiredWidth)/((double)width);
+    const double desired_over_display_ratio = ((double)desiredWidth) / ((double)width);
     desiredHeight = (int)(desired_over_display_ratio * height);
 
     // Depending on the rotation state width and height need to be

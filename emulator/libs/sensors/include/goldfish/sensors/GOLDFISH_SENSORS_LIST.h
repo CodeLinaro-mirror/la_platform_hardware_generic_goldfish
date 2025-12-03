@@ -23,26 +23,26 @@
  *       DO NOT CHANGE THE ORDER IN THIS LIST, UNLESS YOU INTEND
  *       TO BREAK SNAPSHOTS!
  */
-#define GOLDFISH_SENSORS_LIST                                                                       \
-    GOLDFISH_SENSOR_DEF(ACCELERATION, "acceleration", Accelerometer, vec3, "acceleration:%g:%g:%g") \
-    GOLDFISH_SENSOR_DEF(GYROSCOPE, "gyroscope", Gyroscope, vec3, "gyroscope:%g:%g:%g")              \
-    GOLDFISH_SENSOR_DEF(MAGNETIC_FIELD, "magnetic-field", Magnetometer, vec3, "magnetic:%g:%g:%g")  \
-    GOLDFISH_SENSOR_DEF(ORIENTATION, "orientation", Orientation, vec3, "orientation:%g:%g:%g")      \
-    GOLDFISH_SENSOR_DEF(TEMPERATURE, "temperature", Temperature, float, "temperature:%g")           \
-    GOLDFISH_SENSOR_DEF(PROXIMITY, "proximity", Proximity, float, "proximity:%g")                   \
-    GOLDFISH_SENSOR_DEF(LIGHT, "light", Light, float, "light:%g")                                   \
-    GOLDFISH_SENSOR_DEF(PRESSURE, "pressure", Pressure, float, "pressure:%g")                       \
-    GOLDFISH_SENSOR_DEF(HUMIDITY, "humidity", Humidity, float, "humidity:%g")                       \
-    GOLDFISH_SENSOR_DEF(MAGNETIC_FIELD_UNCALIBRATED, "magnetic-field-uncalibrated",                 \
-                        MagnetometerUncalibrated, vec3, "magnetic-uncalibrated:%g:%g:%g")           \
-    GOLDFISH_SENSOR_DEF(GYROSCOPE_UNCALIBRATED, "gyroscope-uncalibrated",                           \
-                        GyroscopeUncalibrated, vec3, "gyroscope-uncalibrated:%g:%g:%g")             \
-    GOLDFISH_SENSOR_DEF(HINGE_ANGLE0, "hinge-angle0", HingeAngle0, float, "hinge-angle0:%g")        \
-    GOLDFISH_SENSOR_DEF(HINGE_ANGLE1, "hinge-angle1", HingeAngle1, float, "hinge-angle1:%g")        \
-    GOLDFISH_SENSOR_DEF(HINGE_ANGLE2, "hinge-angle2", HingeAngle2, float, "hinge-angle2:%g")        \
-    GOLDFISH_SENSOR_DEF(HEART_RATE, "heart-rate", HeartRate, float, "heart-rate:%g")                \
-    GOLDFISH_SENSOR_DEF(RGBC_LIGHT, "rgbc-light", RgbcLight, vec4, "rgbc-light:%g:%g:%g:%g")        \
-    GOLDFISH_SENSOR_DEF(WRIST_TILT, "wrist-tilt", WristTilt, float, "wrist-tilt:%g")                \
-    GOLDFISH_SENSOR_DEF(ACCELERATION_UNCALIBRATED, "acceleration-uncalibrated",                     \
-                        AccelerometerUncalibrated, vec3, "acceleration-uncalibrated:%g:%g:%g")      \
-
+#define GOLDFISH_SENSORS_LIST                                                                      \
+    GOLDFISH_SENSOR_DEF(ACCELERATION, "acceleration", Accelerometer, vec3,                         \
+                        "acceleration:%g:%g:%g")                                                   \
+    GOLDFISH_SENSOR_DEF(GYROSCOPE, "gyroscope", Gyroscope, vec3, "gyroscope:%g:%g:%g")             \
+    GOLDFISH_SENSOR_DEF(MAGNETIC_FIELD, "magnetic-field", Magnetometer, vec3, "magnetic:%g:%g:%g") \
+    GOLDFISH_SENSOR_DEF(ORIENTATION, "orientation", Orientation, vec3, "orientation:%g:%g:%g")     \
+    GOLDFISH_SENSOR_DEF(TEMPERATURE, "temperature", Temperature, float, "temperature:%g")          \
+    GOLDFISH_SENSOR_DEF(PROXIMITY, "proximity", Proximity, float, "proximity:%g")                  \
+    GOLDFISH_SENSOR_DEF(LIGHT, "light", Light, float, "light:%g")                                  \
+    GOLDFISH_SENSOR_DEF(PRESSURE, "pressure", Pressure, float, "pressure:%g")                      \
+    GOLDFISH_SENSOR_DEF(HUMIDITY, "humidity", Humidity, float, "humidity:%g")                      \
+    GOLDFISH_SENSOR_DEF(MAGNETIC_FIELD_UNCALIBRATED, "magnetic-field-uncalibrated",                \
+                        MagnetometerUncalibrated, vec3, "magnetic-uncalibrated:%g:%g:%g")          \
+    GOLDFISH_SENSOR_DEF(GYROSCOPE_UNCALIBRATED, "gyroscope-uncalibrated", GyroscopeUncalibrated,   \
+                        vec3, "gyroscope-uncalibrated:%g:%g:%g")                                   \
+    GOLDFISH_SENSOR_DEF(HINGE_ANGLE0, "hinge-angle0", HingeAngle0, float, "hinge-angle0:%g")       \
+    GOLDFISH_SENSOR_DEF(HINGE_ANGLE1, "hinge-angle1", HingeAngle1, float, "hinge-angle1:%g")       \
+    GOLDFISH_SENSOR_DEF(HINGE_ANGLE2, "hinge-angle2", HingeAngle2, float, "hinge-angle2:%g")       \
+    GOLDFISH_SENSOR_DEF(HEART_RATE, "heart-rate", HeartRate, float, "heart-rate:%g")               \
+    GOLDFISH_SENSOR_DEF(RGBC_LIGHT, "rgbc-light", RgbcLight, vec4, "rgbc-light:%g:%g:%g:%g")       \
+    GOLDFISH_SENSOR_DEF(WRIST_TILT, "wrist-tilt", WristTilt, float, "wrist-tilt:%g")               \
+    GOLDFISH_SENSOR_DEF(ACCELERATION_UNCALIBRATED, "acceleration-uncalibrated",                    \
+                        AccelerometerUncalibrated, vec3, "acceleration-uncalibrated:%g:%g:%g")

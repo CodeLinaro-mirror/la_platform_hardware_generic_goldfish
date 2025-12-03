@@ -39,8 +39,8 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::display::IMultiDisplay;
 using ::goldfish::devices::ConnectorRegistry;
+using ::goldfish::display::IMultiDisplay;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;
 using grpc::Status;

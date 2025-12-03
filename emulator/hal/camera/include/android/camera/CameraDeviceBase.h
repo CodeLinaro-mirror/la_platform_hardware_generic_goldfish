@@ -43,7 +43,7 @@ struct CameraDeviceBase : public CameraProtocolBase {
     void stopCapturingImpl() const;
     ImageFormat getImageFormatFromAndroid(AndroidPixelFormat) const;
 
-   private:
+  private:
     int imageSink(const CameraImageProviderStreamCaptureInfo& sci, const void* framebufferPtr,
                   const size_t framebufferSize) const;
     static int imageSinkStatic(void* that, const CameraImageProviderStreamCaptureInfo* sci,

@@ -207,7 +207,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
   private:
-    template <size_t kMaxAllocs> struct ReadBufferAllocator {
+    template <size_t kMaxAllocs>
+    struct ReadBufferAllocator {
         ReadBufferAllocator(uint32_t bufSize) : mBufferSize(bufSize) {}
 
         // https://docs.libuv.org/en/v1.x/handle.html#c.uv_alloc_cb

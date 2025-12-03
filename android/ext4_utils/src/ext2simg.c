@@ -170,18 +170,18 @@ int main(int argc, char** argv) {
 
     while ((opt = getopt(argc, argv, "cvzS")) != -1) {
         switch (opt) {
-            case 'c':
-                crc = 1;
-                break;
-            case 'v':
-                verbose = 1;
-                break;
-            case 'z':
-                gzip = 1;
-                break;
-            case 'S':
-                sparse = 0;
-                break;
+        case 'c':
+            crc = 1;
+            break;
+        case 'v':
+            verbose = 1;
+            break;
+        case 'z':
+            gzip = 1;
+            break;
+        case 'S':
+            sparse = 0;
+            break;
         }
     }
 

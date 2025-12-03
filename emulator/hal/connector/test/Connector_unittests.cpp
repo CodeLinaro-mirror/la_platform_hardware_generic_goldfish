@@ -41,9 +41,9 @@ struct TestSocket : public cable::ISocket {
 
 struct TestDevice : public cable::IPlug {
     TestDevice(cable::SocketPtr socket, bool isQemud, std::string_view args)
-        : mSocket(std::move(socket)),
-          mIsQemud(isQemud),
-          mArgs(std::string(args.begin(), args.end())) {}
+            : mSocket(std::move(socket))
+            , mIsQemud(isQemud)
+            , mArgs(std::string(args.begin(), args.end())) {}
 
     cable::SocketPtr onUnplug() override { return std::move(mSocket); }
 
@@ -71,16 +71,16 @@ struct TestDevice : public cable::IPlug {
 };
 
 const Connector::DeviceEntry kDeviceEntries[] = {
-        {"-TestDevice",
-         [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-            std::string_view args) {
-             return std::make_shared<TestDevice>(std::move(socket), false, args);
-         }},
-        {"qTestDevice",
-         [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
-            std::string_view args) {
-             return std::make_shared<TestDevice>(std::move(socket), true, args);
-         }},
+    {"-TestDevice",
+     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+        std::string_view args) {
+         return std::make_shared<TestDevice>(std::move(socket), false, args);
+     }},
+    {"qTestDevice",
+     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+        std::string_view args) {
+         return std::make_shared<TestDevice>(std::move(socket), true, args);
+     }},
 };
 
 constexpr size_t kDeviceEntriesSize = sizeof(kDeviceEntries) / sizeof(kDeviceEntries[0]);

@@ -39,7 +39,8 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     }
     if (emulator.opts().memory != nullptr) {
         if (!absl::SimpleAtoi(emulator.opts().memory, &mMemorySizeMiB)) {
-            return absl::InvalidArgumentError(absl::StrCat("Failed to parse -memory flag: ", emulator.opts().memory));
+            return absl::InvalidArgumentError(
+                    absl::StrCat("Failed to parse -memory flag: ", emulator.opts().memory));
         }
     }
 
@@ -110,7 +111,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
         return absl::ResourceExhaustedError(
                 absl::StrFormat("Insufficient space available. Need: %s, available: %s",
                                 requiredFreeSpace.string(), availableSpace.string()));
-    }*/ 
+    }*/
 
     return absl::OkStatus();
 }
@@ -118,13 +119,13 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
 std::vector<std::string> MemoryDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     auto hw = emulator.avd().hw();
     return {
-            "-m", std::to_string(mMemorySizeMiB)
-            //  ,"-object",
-            // absl::StrFormat("memory-backend-file,id=android.ram,size=%dM,mem-path=%s,"
-            //                 "prealloc=on,share=on",
-            //                 mMemorySizeMiB,
-            //                 avd->getMemoryMappedDirectory() / "ram.bin"
-            //)
+        "-m", std::to_string(mMemorySizeMiB)
+        //  ,"-object",
+        // absl::StrFormat("memory-backend-file,id=android.ram,size=%dM,mem-path=%s,"
+        //                 "prealloc=on,share=on",
+        //                 mMemorySizeMiB,
+        //                 avd->getMemoryMappedDirectory() / "ram.bin"
+        //)
     };
 }
 

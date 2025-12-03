@@ -44,13 +44,13 @@ TEST(Win32Utils, quoteCommandLine) {
         const char* input;
         const char* expected;
     } kData[] = {
-            {"foo", "foo"},
-            {"foo bar", "\"foo bar\""},
-            {"foo\\bar", "foo\\bar"},
-            {"foo\\\\bar", "foo\\\\bar"},
-            {"foo\"bar", "\"foo\\\"bar\""},
-            {"foo\\\"bar", "\"foo\\\\\\\"bar\""},
-            {"foo\\bar zoo", "\"foo\\bar zoo\""},
+        {"foo", "foo"},
+        {"foo bar", "\"foo bar\""},
+        {"foo\\bar", "foo\\bar"},
+        {"foo\\\\bar", "foo\\\\bar"},
+        {"foo\"bar", "\"foo\\\"bar\""},
+        {"foo\\\"bar", "\"foo\\\\\\\"bar\""},
+        {"foo\\bar zoo", "\"foo\\bar zoo\""},
     };
     for (size_t n = 0; n < ARRAY_SIZE(kData); ++n) {
         const char* input = kData[n].input;

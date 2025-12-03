@@ -28,9 +28,9 @@ std::vector<std::string> DisplayDevice::getQemuParameters(const EmulatorConfig& 
         params.push_back(absl::StrCat("vnc=unix:/tmp/.qemu-emu-vnc,display=", mGpuName, ",head=0"));
         LOG(INFO) << "VNC will be available on /tmp/.qemu-emu-vnc";
         LOG(INFO) << "Tunnel over ssh with: `ssh -L localhost:5901:/tmp/.qemu-emu-vnc "
-                          "<remote-host>``";
+                     "<remote-host>``";
         LOG(INFO) << "Or run `socat TCP-LISTEN:5901,fork,reuseaddr "
-                          "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
+                     "UNIX-CONNECT:/tmp/.qemu-emu-vnc` for buggy vnc viewers.";
     } else {
         params.push_back("android");
     }

@@ -25,8 +25,8 @@ static const struct {
     int flag;
     const char* text;
 } debug_tags[] = {
-        // VERBOSE_TAG_LIST
-        {0, 0, 0}};
+    // VERBOSE_TAG_LIST
+    {0, 0, 0}};
 
 void parse_env_debug_tags(void);
 
@@ -52,7 +52,7 @@ static const OptionInfo option_keys[] = {
 #define CFG_FLAG(_name, _descr) OPTION(_name, OPTION_IS_FLAG, 1)
 #define CFG_PARAM(_name, _template, _descr) OPTION(_name, OPTION_IS_PARAM, 1)
 #include "android/cmdline-options.h"
-        {NULL, 0, 0, 0}};
+    {NULL, 0, 0, 0}};
 
 int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
     int nargs = *pargc - 1;
@@ -395,9 +395,9 @@ bool modem_simulator_parse_port_option(const char* port_string, int* modem_simul
 }
 
 static const char* kUserModeNetworkingOpts[] = {
-        "ipv4",      "ipv6",         "dhcpstart", "host",        "net",           "restrict",
-        "ipv6-host", "ipv6-net",     "hostname",  "tftp",        "bootfile",      "hostfwd",
-        "guestfwd",  "ipv6-hostfwd", "ipv6-dns",  "ipv6-prefix", "ipv6-prefixlen"};
+    "ipv4",      "ipv6",         "dhcpstart", "host",        "net",           "restrict",
+    "ipv6-host", "ipv6-net",     "hostname",  "tftp",        "bootfile",      "hostfwd",
+    "guestfwd",  "ipv6-hostfwd", "ipv6-dns",  "ipv6-prefix", "ipv6-prefixlen"};
 
 // Check if the option is defined in kUserModeNetworkingOpts.
 bool android_validate_user_mode_networking_option(const char* opt) {

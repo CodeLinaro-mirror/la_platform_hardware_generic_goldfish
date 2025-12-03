@@ -47,19 +47,19 @@ class CaptureLogSink : public absl::LogSink {
     void Send(const absl::LogEntry& entry) override {
         char level = 'I';
         switch (entry.log_severity()) {
-            case absl::LogSeverity::kInfo:
-                level = 'I';
-                break;
-            case absl::LogSeverity::kError:
-                level = 'E';
-                break;
-            case absl::LogSeverity::kWarning:
-                level = 'W';
-                break;
+        case absl::LogSeverity::kInfo:
+            level = 'I';
+            break;
+        case absl::LogSeverity::kError:
+            level = 'E';
+            break;
+        case absl::LogSeverity::kWarning:
+            level = 'W';
+            break;
 
-            case absl::LogSeverity::kFatal:
-                level = 'F';
-                break;
+        case absl::LogSeverity::kFatal:
+            level = 'F';
+            break;
         }
         captured_log_ = absl::StrFormat("%c %s:%d - %s", level, entry.source_basename(),
                                         entry.source_line(), entry.text_message());

@@ -47,12 +47,9 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::launch(
     uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
-        .exit_cb = exit_cb,
-        .file = exe.c_str(),
-        .args = args,
-        .flags = config.daemon ? UV_PROCESS_DETACHED : 0u,
-        .stdio_count = 3,
-        .stdio = stdio,
+        .exit_cb = exit_cb, .file = exe.c_str(),
+        .args = args,       .flags = config.daemon ? UV_PROCESS_DETACHED : 0u,
+        .stdio_count = 3,   .stdio = stdio,
     };
 
     auto handle = std::make_unique<uv_process_t>();

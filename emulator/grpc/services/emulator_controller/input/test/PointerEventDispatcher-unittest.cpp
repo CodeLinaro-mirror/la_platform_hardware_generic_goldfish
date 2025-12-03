@@ -185,10 +185,10 @@ TEST(TouchEvDevTest, toEvDevEventsPress) {
 
     // Expected events for a touch press.
     EvDevEvents expected_events = {
-            {EV_ABS, ABS_MT_TRACKING_ID, 0},   {EV_ABS, ABS_MT_SLOT, 0},
-            {EV_ABS, ABS_MT_TOUCH_MAJOR, 10},  {EV_ABS, ABS_MT_TOUCH_MINOR, 5},
-            {EV_ABS, ABS_MT_ORIENTATION, 45},  {EV_ABS, ABS_MT_PRESSURE, 50},
-            {EV_ABS, ABS_MT_POSITION_X, 3199}, {EV_ABS, ABS_MT_POSITION_Y, 8533}};
+        {EV_ABS, ABS_MT_TRACKING_ID, 0},   {EV_ABS, ABS_MT_SLOT, 0},
+        {EV_ABS, ABS_MT_TOUCH_MAJOR, 10},  {EV_ABS, ABS_MT_TOUCH_MINOR, 5},
+        {EV_ABS, ABS_MT_ORIENTATION, 45},  {EV_ABS, ABS_MT_PRESSURE, 50},
+        {EV_ABS, ABS_MT_POSITION_X, 3199}, {EV_ABS, ABS_MT_POSITION_Y, 8533}};
 
     EXPECT_EQ(events.size(), expected_events.size());
     EXPECT_THAT(events, Eq(expected_events));

@@ -52,8 +52,12 @@
  * and an optional prefix if `FAILURE_DEBUG_PREFIX` is defined.
  */
 #ifdef FAILURE_DEBUG_PREFIX
-#define FAILURE_STR(LITERAL, X) \
-  ([]() { LOG(ERROR) << FAILURE_DEBUG_PREFIX << ":" << __func__ << ": failure: " << LITERAL; }(), X)
+#define FAILURE_STR(LITERAL, X)                                                                    \
+    (                                                                                              \
+            []() {                                                                                 \
+                LOG(ERROR) << FAILURE_DEBUG_PREFIX << ":" << __func__ << ": failure: " << LITERAL; \
+            }(),                                                                                   \
+            X)
 #else
 #define FAILURE_STR(LITERAL, X) ([]() { LOG(ERROR) << __func__ << ": failure: " << LITERAL; }(), X)
 #endif

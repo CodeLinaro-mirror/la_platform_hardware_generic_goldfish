@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/status/statusor.h"
 #include "absl/status/status_matchers.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
@@ -72,7 +72,8 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     // Starts the libuv event loop in a background thread. No-op for qemu.
     void runInThread() {
         if (mLoopType == "libuv") {
-            loop_thread = std::thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
+            loop_thread =
+                    std::thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
         }
         // Wait for it to actually start.
         while (loop->getState() != LooperStatusEvent::State::RUNNING) {
@@ -465,7 +466,8 @@ TEST_P(EventLoopTest, ScheduleDelayedHelperExecutesSuccessfully) {
                             delay.count(), tolerance.count());
                 }
                 task_completed.set_value();
-            }, delay);
+            },
+            delay);
 
     auto future = task_completed.get_future();
     runUntil(future);
@@ -479,16 +481,14 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
     const auto delay = std::chrono::milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
-    auto handle = loop->createTimer(
-            [&]() {
-                if (mLoopType == "libuv") {
-                    auto elapsed = std::chrono::steady_clock::now() - start_time;
-                    EXPECT_NEAR(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                            delay.count(), tolerance.count());
-                }
-                task_completed.set_value();
-            });
+    auto handle = loop->createTimer([&]() {
+        if (mLoopType == "libuv") {
+            auto elapsed = std::chrono::steady_clock::now() - start_time;
+            EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                        delay.count(), tolerance.count());
+        }
+        task_completed.set_value();
+    });
     handle->schedule(delay);
 
     auto future = task_completed.get_future();
@@ -575,8 +575,8 @@ TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
                     promise.set_value();
                 }
             },
-    10ms,   // Initial delay
-    50ms);  // Interval
+            10ms,   // Initial delay
+            50ms);  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
@@ -590,15 +590,13 @@ TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
     std::atomic<int> counter = 0;
     const int target_count = 3;
 
-    auto handle = loop->createTimer(
-            [&]() {
-                if (++counter == target_count) {
-                    promise.set_value();
-                }
-            });
-    handle->schedule(
-    10ms,   // Initial delay
-    50ms);  // Interval
+    auto handle = loop->createTimer([&]() {
+        if (++counter == target_count) {
+            promise.set_value();
+        }
+    });
+    handle->schedule(10ms,   // Initial delay
+                     50ms);  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
@@ -635,11 +633,10 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
     auto creator_thread_func = [&, loop_ptr = loop](int creator_id) {
         for (int i = 0; i < num_tasks_per_creator; ++i) {
             // Schedule a repeating timer.
-            auto handle = loop_ptr->createTimer(
-                    [&]() { /* Task body not critical for this test */ });
-            handle->schedule(
-                    std::chrono::milliseconds(10),  // Initial delay
-                    std::chrono::seconds(10)        // Long interval to avoid accidental ticks
+            auto handle =
+                    loop_ptr->createTimer([&]() { /* Task body not critical for this test */ });
+            handle->schedule(std::chrono::milliseconds(10),  // Initial delay
+                             std::chrono::seconds(10)  // Long interval to avoid accidental ticks
             );
 
             // Push the handle into the shared queue.
@@ -929,7 +926,8 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     // down, verifying that no TSan failures or crashes occur.
     auto threaded_loop = ThreadedEventLoop::create(LibuvEventLoop::create());
     auto s = threaded_loop->shutdownAndWait(1s);
-    ASSERT_THAT(s, absl_testing::IsOk()) << "Shutdown failed, the thread host run is likely not active.";
+    ASSERT_THAT(s, absl_testing::IsOk())
+            << "Shutdown failed, the thread host run is likely not active.";
 }
 
 TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
@@ -945,35 +943,31 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     auto reschedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
     auto last_fire_time = std::make_shared<std::chrono::steady_clock::time_point>();
 
-    auto handle = loop->createTimer(
-            [&, schedule_time, reschedule_time, last_fire_time]() {
-                auto now = std::chrono::steady_clock::now();
-                int c = ++counter;
+    auto handle = loop->createTimer([&, schedule_time, reschedule_time, last_fire_time]() {
+        auto now = std::chrono::steady_clock::now();
+        int c = ++counter;
 
-                if (mLoopType == "libuv") {
-                    if (c == 1) {
-                        auto elapsed = now - *schedule_time;
-                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
-                                            .count(),
-                                    100, tolerance.count());
-                    } else if (c == 2) {
-                        auto elapsed = now - *reschedule_time;
-                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
-                                            .count(),
-                                    200, tolerance.count());
-                    } else if (c == 3) {
-                        auto elapsed = now - *last_fire_time;
-                        EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed)
-                                            .count(),
-                                    200, tolerance.count());
-                    }
-                }
-                *last_fire_time = now;
+        if (mLoopType == "libuv") {
+            if (c == 1) {
+                auto elapsed = now - *schedule_time;
+                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                            100, tolerance.count());
+            } else if (c == 2) {
+                auto elapsed = now - *reschedule_time;
+                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                            200, tolerance.count());
+            } else if (c == 3) {
+                auto elapsed = now - *last_fire_time;
+                EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+                            200, tolerance.count());
+            }
+        }
+        *last_fire_time = now;
 
-                if (c == 1) fired1_promise.set_value();
-                if (c == 2) fired2_promise.set_value();
-                if (c == 3) fired3_promise.set_value();
-            });
+        if (c == 1) fired1_promise.set_value();
+        if (c == 2) fired2_promise.set_value();
+        if (c == 3) fired3_promise.set_value();
+    });
     handle->schedule(100ms, 100ms);
 
     *schedule_time = std::chrono::steady_clock::now();

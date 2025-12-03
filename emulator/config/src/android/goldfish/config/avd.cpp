@@ -37,9 +37,7 @@
 #include "android/base/system/File.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/input_paths.h"
-
 #include "host-common/constants.h"
-
 #include "keys.h"
 
 /* technical note on how all of this is supposed to work:
@@ -80,7 +78,7 @@ namespace {
 
 const std::string_view _imageFileNames[static_cast<int>(Avd::ImageType::AVD_IMAGE_MAX)] = {
 #define _AVD_IMG(x, y, z) y,
-        AVD_IMAGE_LIST
+    AVD_IMAGE_LIST
 #undef _AVD_IMG
 };
 
@@ -90,29 +88,29 @@ struct ApiLevelInfo {
 };
 
 const absl::flat_hash_map<int, ApiLevelInfo> kApiLevelInfo = {
-        {10, {"Gingerbread", "2.3.3 (Gingerbread) - API 10 (Rev 2)"}},
-        {14, {"Ice Cream Sandwich", "4.0 (Ice Cream Sandwich) - API 14 (Rev 4)"}},
-        {15, {"Ice Cream Sandwich", "4.0.3 (Ice Cream Sandwich) - API 15 (Rev 5)"}},
-        {16, {"Jelly Bean", "4.1 (Jelly Bean) - API 16 (Rev 5)"}},
-        {17, {"Jelly Bean", "4.2 (Jelly Bean) - API 17 (Rev 3)"}},
-        {18, {"Jelly Bean", "4.3 (Jelly Bean) - API 18 (Rev 3)"}},
-        {19, {"KitKat", "4.4 (KitKat) - API 19 (Rev 4)"}},
-        {20, {"KitKat", "4.4 (KitKat Wear) - API 20 (Rev 2)"}},
-        {21, {"Lollipop", "5.0 (Lollipop) - API 21 (Rev 2)"}},
-        {22, {"Lollipop", "5.1 (Lollipop) - API 22 (Rev 2)"}},
-        {23, {"Marshmallow", "6.0 (Marshmallow) - API 23 (Rev 1)"}},
-        {24, {"Nougat", "7.0 (Nougat) - API 24"}},
-        {25, {"Nougat", "7.1 (Nougat) - API 25"}},
-        {26, {"Oreo", "8.0 (Oreo) - API 26"}},
-        {27, {"Oreo", "8.1 (Oreo) - API 27"}},
-        {28, {"Pie", "9.0 (Pie) - API 28"}},
-        {29, {"Q", "10.0 (Q) - API 29"}},
-        {30, {"R", "11.0 (R) - API 30"}},
-        {31, {"S", "12.0 (S) - API 31"}},
-        {32, {"Sv2", "12.0 (S) - API 32"}},
-        {33, {"Tiramisu", "13.0 (T) - API 33"}},
-        {34, {"UpsideDownCake", "14.0 (U) - API 34"}},
-        {35, {"VanillaIceCream", "15.0 (V) - API 35"}},
+    {10, {"Gingerbread", "2.3.3 (Gingerbread) - API 10 (Rev 2)"}},
+    {14, {"Ice Cream Sandwich", "4.0 (Ice Cream Sandwich) - API 14 (Rev 4)"}},
+    {15, {"Ice Cream Sandwich", "4.0.3 (Ice Cream Sandwich) - API 15 (Rev 5)"}},
+    {16, {"Jelly Bean", "4.1 (Jelly Bean) - API 16 (Rev 5)"}},
+    {17, {"Jelly Bean", "4.2 (Jelly Bean) - API 17 (Rev 3)"}},
+    {18, {"Jelly Bean", "4.3 (Jelly Bean) - API 18 (Rev 3)"}},
+    {19, {"KitKat", "4.4 (KitKat) - API 19 (Rev 4)"}},
+    {20, {"KitKat", "4.4 (KitKat Wear) - API 20 (Rev 2)"}},
+    {21, {"Lollipop", "5.0 (Lollipop) - API 21 (Rev 2)"}},
+    {22, {"Lollipop", "5.1 (Lollipop) - API 22 (Rev 2)"}},
+    {23, {"Marshmallow", "6.0 (Marshmallow) - API 23 (Rev 1)"}},
+    {24, {"Nougat", "7.0 (Nougat) - API 24"}},
+    {25, {"Nougat", "7.1 (Nougat) - API 25"}},
+    {26, {"Oreo", "8.0 (Oreo) - API 26"}},
+    {27, {"Oreo", "8.1 (Oreo) - API 27"}},
+    {28, {"Pie", "9.0 (Pie) - API 28"}},
+    {29, {"Q", "10.0 (Q) - API 29"}},
+    {30, {"R", "11.0 (R) - API 30"}},
+    {31, {"S", "12.0 (S) - API 31"}},
+    {32, {"Sv2", "12.0 (S) - API 32"}},
+    {33, {"Tiramisu", "13.0 (T) - API 33"}},
+    {34, {"UpsideDownCake", "14.0 (U) - API 34"}},
+    {35, {"VanillaIceCream", "15.0 (V) - API 35"}},
 };
 
 std::string_view getApiDessertName(int apiLevel) {
@@ -198,18 +196,18 @@ int getApiLevel(std::string_view target) {
 
 std::string getIconForDeviceType(DeviceType flavor) {
     switch (flavor) {
-        case DeviceType::kPhone:
-            return "📱";  // 📱 (Smartphone)
-        case DeviceType::kTv:
-            return "📺";  // 📺 (Television)
-        case DeviceType::kWear:
-            return "⌚️";  // ⌚️ (Smartwatch)
-        case DeviceType::kAndroidAuto:
-            return "🚗";  // 🚗 (Car)
-        case DeviceType::kDesktop:
-            return "🖥️";  // 🖥️ (Desktop computer)
-        default:
-            return "🤷";  // 🤷 (Unknown)
+    case DeviceType::kPhone:
+        return "📱";  // 📱 (Smartphone)
+    case DeviceType::kTv:
+        return "📺";  // 📺 (Television)
+    case DeviceType::kWear:
+        return "⌚️";  // ⌚️ (Smartwatch)
+    case DeviceType::kAndroidAuto:
+        return "🚗";  // 🚗 (Car)
+    case DeviceType::kDesktop:
+        return "🖥️";  // 🖥️ (Desktop computer)
+    default:
+        return "🤷";  // 🤷 (Unknown)
     }
 }
 
@@ -244,13 +242,13 @@ bool FileBackedAvd::loadBuildProps() {
     auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
     if (!buildprop.ok()) {
         LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
-                          << ", using unknown avd device type.";
+                     << ", using unknown avd device type.";
         return false;
     }
 
     if (!base::file::exists(*buildprop) || !base::file::can_read(*buildprop)) {
         LOG(WARNING) << "Unable to read build properties: " << buildprop->string()
-                          << ", using unknown device type.";
+                     << ", using unknown device type.";
         return false;
     }
     mBuildIni.setBackingFile(*buildprop);
@@ -261,9 +259,9 @@ DeviceType FileBackedAvd::getDeviceType() const {
     DeviceType res = DeviceType::kUnknown;
 
     const std::unordered_map<std::string, DeviceType> labelMap{
-            {"phone", DeviceType::kPhone},     {"atv", DeviceType::kTv},
-            {"wear", DeviceType::kWear},       {"aw", DeviceType::kWear},
-            {"car", DeviceType::kAndroidAuto}, {"pc", DeviceType::kDesktop}};
+        {"phone", DeviceType::kPhone},     {"atv", DeviceType::kTv},
+        {"wear", DeviceType::kWear},       {"aw", DeviceType::kWear},
+        {"car", DeviceType::kAndroidAuto}, {"pc", DeviceType::kDesktop}};
 
     const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
 
@@ -293,14 +291,15 @@ absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType im
 
     VLOG(1) << "Searching for sys image: " << image_file_name;
     fs::path path = "no-sysimg";
-    for (const auto &sys_path: mSysImagePaths) {
+    for (const auto& sys_path : mSysImagePaths) {
         if (path = sys_path / image_file_name; check_path(path)) {
             VLOG(1) << "Found image in system dir: " << path;
             return path;
         }
         VLOG(1) << "Not found in system dir: " << path;
     }
-    return absl::NotFoundError(absl::StrCat("System image not found: ", image_file_name.string(), " (last checked ", path.string(), ")"));
+    return absl::NotFoundError(absl::StrCat("System image not found: ", image_file_name.string(),
+                                            " (last checked ", path.string(), ")"));
 }
 
 std::string FileBackedAvd::details(const bool verbose) const {
@@ -313,7 +312,9 @@ std::string FileBackedAvd::details(const bool verbose) const {
     }
 }
 
-FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path, fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths)
+FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
+                             fs::path avd_path, fs::path content_path,
+                             std::vector<fs::path> sys_image_paths)
         : mName(name)
         , mConfig(std::move(config))
         , mSdkPath(std::move(sdk_path))
@@ -350,14 +351,18 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
 }
 
 // static
-absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override) {
+absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
+        std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path,
+        fs::path content_path, fs::path sysdir_override) {
     if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
-        return absl::NotFoundError(absl::StrCat("Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
+        return absl::NotFoundError(absl::StrCat(
+                "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
     }
 
     auto config = std::make_unique<IniFile>(config_ini_path);
     if (!config->read()) {
-        return absl::InternalError(absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
+        return absl::InternalError(
+                absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
     }
 
     std::vector<fs::path> sys_image_paths;
@@ -371,7 +376,9 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(std::string 
         }
     }
 
-    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(std::move(name), std::move(config), std::move(sdk_path), std::move(avd_path), std::move(content_path), std::move(sys_image_paths)));
+    return std::unique_ptr<FileBackedAvd>(new FileBackedAvd(
+            std::move(name), std::move(config), std::move(sdk_path), std::move(avd_path),
+            std::move(content_path), std::move(sys_image_paths)));
 }
 
 namespace {
@@ -386,7 +393,7 @@ bool _checkAvdName(const std::string& name) {
 }  // namespace
 
 // static
-std::vector<std::string> Avd::list(const fs::path &avd_directory) {
+std::vector<std::string> Avd::list(const fs::path& avd_directory) {
     std::vector<std::string> avds;
     auto pattern = std::regex(".*.ini");
 
@@ -406,9 +413,9 @@ std::vector<std::string> Avd::list(const fs::path &avd_directory) {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(const android::goldfish::ResolvedInputPaths &paths, std::string name, fs::path sysdir_override,
-                                                   fs::path writable_content_override) {
-
+absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(
+        const android::goldfish::ResolvedInputPaths& paths, std::string name,
+        fs::path sysdir_override, fs::path writable_content_override) {
     auto ini_path = paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
@@ -431,7 +438,8 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(const android::goldfish::Reso
         content_path = std::move(writable_content_override);
     }
 
-    return FileBackedAvd::parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory, std::move(content_path), std::move(sysdir_override));
+    return FileBackedAvd::parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
+                                std::move(content_path), std::move(sysdir_override));
 }
 
 // static

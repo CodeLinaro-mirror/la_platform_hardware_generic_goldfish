@@ -108,7 +108,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          * set to 0 the timer will not repeat.
          */
         virtual void schedule(std::chrono::milliseconds new_delay,
-                                         std::chrono::milliseconds new_interval) = 0;
+                              std::chrono::milliseconds new_interval) = 0;
 
         /**
          * @brief (Re)Schedules a timer with a new delay.
@@ -119,16 +119,20 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          *
          * @param new_delay The new delay before the next execution.
          */
-        void schedule(std::chrono::milliseconds new_delay) { schedule(new_delay, std::chrono::milliseconds::zero()); }
+        void schedule(std::chrono::milliseconds new_delay) {
+            schedule(new_delay, std::chrono::milliseconds::zero());
+        }
     };
 
     virtual ~EventLoop() = default;
 
-    absl::Status shutdownAndWait(std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
+    absl::Status shutdownAndWait(
+            std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
         auto future = shutdown();
         if (timeout != std::chrono::milliseconds::zero()) {
             if (future.wait_for(timeout) != std::future_status::ready) {
-                return absl::DeadlineExceededError("Loop shutdown did not return a result within the deadline");
+                return absl::DeadlineExceededError(
+                        "Loop shutdown did not return a result within the deadline");
             }
         }
         return future.get();
@@ -204,7 +208,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * will immediately exit with a FATAL warning.
      */
     template <typename F>
-    auto postAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status, absl::StatusOr<decltype(task())>> {
+    auto postAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status,
+                                                     absl::StatusOr<decltype(task())>> {
         if (isOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
@@ -245,9 +250,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param interval The time between subsequent executions.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> scheduleRepeating(Task task,
-                                                     std::chrono::milliseconds initial_delay,
-                                                     std::chrono::milliseconds interval) {
+    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+                                             std::chrono::milliseconds interval) {
         auto timer = createTimer(std::move(task));
         timer->schedule(initial_delay, interval);
         return timer;
@@ -255,7 +259,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
     // Implementation specific loop.
     virtual void* getRawLoop() {
-      return nullptr;  // `nullptr` is a valid value here
+        return nullptr;  // `nullptr` is a valid value here
     }
 
     /**

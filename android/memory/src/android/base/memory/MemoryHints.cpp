@@ -91,34 +91,34 @@ static void rewriteMemory(void* toRewrite, uint64_t length) {
 bool memoryHint(void* start, uint64_t length, MemoryHint hint) {
 #ifdef _WIN32
     switch (hint) {
-        case MemoryHint::DontNeed:
-        case MemoryHint::PageOut:
-            // https://blogs.msdn.microsoft.com/oldnewthing/20170113-00/?p=95185
-            // "Around the Windows NT 4 era, a new trick arrived on the scene:
-            // You could VirtualUnlock memory that was already unlocked in order
-            // to remove it from your working set. This was a trick, because it
-            // took what used to be a programming error and gave it additional
-            // meaning, but in a way that didn't break backward compatibility
-            // because the contractual behavior of the memory did not change:
-            // The contents of the memory remain valid and the program is still
-            // free to access it at any time. The new behavior is that unlocking
-            // unlocked memory also takes it out of the process's working set,
-            // so that it becomes a prime candidate for being paged out and used
-            // to satisfy another memory allocation."
-            VirtualUnlock(start, length);
-            VirtualUnlock(start, length);
-            return true;
-        case MemoryHint::Touch:
-            rewriteMemory(start, length);
-            return true;
-        case MemoryHint::Normal:
-            return true;
-        // TODO: Find some way to implement those on Windows
-        case MemoryHint::Random:
-        case MemoryHint::Sequential:
-            return true;
-        default:
-            return true;
+    case MemoryHint::DontNeed:
+    case MemoryHint::PageOut:
+        // https://blogs.msdn.microsoft.com/oldnewthing/20170113-00/?p=95185
+        // "Around the Windows NT 4 era, a new trick arrived on the scene:
+        // You could VirtualUnlock memory that was already unlocked in order
+        // to remove it from your working set. This was a trick, because it
+        // took what used to be a programming error and gave it additional
+        // meaning, but in a way that didn't break backward compatibility
+        // because the contractual behavior of the memory did not change:
+        // The contents of the memory remain valid and the program is still
+        // free to access it at any time. The new behavior is that unlocking
+        // unlocked memory also takes it out of the process's working set,
+        // so that it becomes a prime candidate for being paged out and used
+        // to satisfy another memory allocation."
+        VirtualUnlock(start, length);
+        VirtualUnlock(start, length);
+        return true;
+    case MemoryHint::Touch:
+        rewriteMemory(start, length);
+        return true;
+    case MemoryHint::Normal:
+        return true;
+    // TODO: Find some way to implement those on Windows
+    case MemoryHint::Random:
+    case MemoryHint::Sequential:
+        return true;
+    default:
+        return true;
     }
 #else  // macOS and Linux
 
@@ -127,46 +127,46 @@ bool memoryHint(void* start, uint64_t length, MemoryHint hint) {
     bool skipAdvise = false;
 
     switch (hint) {
-        case MemoryHint::DontNeed:
+    case MemoryHint::DontNeed:
 #ifdef __APPLE__
 #if DISABLE_DONTNEED
-            // On darwin-arm64, mprotect doesn't seem to work properly.
-            skipAdvise = true;
-            reprotect = false;
+        // On darwin-arm64, mprotect doesn't seem to work properly.
+        skipAdvise = true;
+        reprotect = false;
 #else
-            asAdviseFlag = MADV_FREE;
-            // On Mac, an explicit mprotect() needs to happen to kick the page
-            // out.
-            reprotect = true;
+        asAdviseFlag = MADV_FREE;
+        // On Mac, an explicit mprotect() needs to happen to kick the page
+        // out.
+        reprotect = true;
 #endif  // __APPLE__
 #else   // Linux
         // MADV_FREE would be best, but it is not necessarily
         // supported on all Linux systems.
-            asAdviseFlag = MADV_DONTNEED;
+        asAdviseFlag = MADV_DONTNEED;
 #endif  // __APPLE__
-            break;
-        case MemoryHint::PageOut:
-            // MADV_DONTNEED / MADV_FREE change the semantics of the memory,
-            // so all we do here is skip the madvise call and mprotect().
-            skipAdvise = true;
+        break;
+    case MemoryHint::PageOut:
+        // MADV_DONTNEED / MADV_FREE change the semantics of the memory,
+        // so all we do here is skip the madvise call and mprotect().
+        skipAdvise = true;
 #ifdef __APPLE__
-            reprotect = true;
+        reprotect = true;
 #endif
-            break;
-        case MemoryHint::Normal:
-            asAdviseFlag = MADV_NORMAL;
-            break;
-        case MemoryHint::Random:
-            asAdviseFlag = MADV_RANDOM;
-            break;
-        case MemoryHint::Sequential:
-            asAdviseFlag = MADV_SEQUENTIAL;
-            break;
-        case MemoryHint::Touch:
-            rewriteMemory(start, length);
-            break;
-        default:
-            break;
+        break;
+    case MemoryHint::Normal:
+        asAdviseFlag = MADV_NORMAL;
+        break;
+    case MemoryHint::Random:
+        asAdviseFlag = MADV_RANDOM;
+        break;
+    case MemoryHint::Sequential:
+        asAdviseFlag = MADV_SEQUENTIAL;
+        break;
+    case MemoryHint::Touch:
+        rewriteMemory(start, length);
+        break;
+    default:
+        break;
     }
 
     int res = 0;

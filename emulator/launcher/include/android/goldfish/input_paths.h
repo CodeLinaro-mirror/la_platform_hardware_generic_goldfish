@@ -63,4 +63,4 @@ struct ResolvedInputPaths {
 
 absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search);
 
-} // namespace android::goldfish
+}  // namespace android::goldfish

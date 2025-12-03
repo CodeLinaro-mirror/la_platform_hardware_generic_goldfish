@@ -24,7 +24,7 @@ enum class AndroidSensor {
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) x,
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
-    MAX_SENSORS /* do not remove */
+            MAX_SENSORS /* do not remove */
 };
 
 }  // namespace goldfish::sensors

@@ -57,9 +57,7 @@ class ThreadedEventLoop : public EventLoop {
      * timers were leaked, preventing a graceful shutdown.
      * @return A `std::chrono::milliseconds` value representing the timeout.
      */
-    static constexpr std::chrono::milliseconds getTimeout() {
-        return std::chrono::seconds(5);
-    }
+    static constexpr std::chrono::milliseconds getTimeout() { return std::chrono::seconds(5); }
 
     /**
      * @brief Gets the current state of the event loop.

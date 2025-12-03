@@ -23,8 +23,8 @@
 const AndroidNetworkSpeed android_network_speeds[] = {
 #define DEFINE_NET_SPEED(name, display_name, upload, download, min_latency, max_latency) \
     {#name, display_name, (upload) * 1000, (download) * 1000},
-        ANDROID_NETWORK_LIST_MODES(DEFINE_NET_SPEED){"5g", "no limit", 0, 0},
-        {"full", "no limit", 0, 0},
+    ANDROID_NETWORK_LIST_MODES(DEFINE_NET_SPEED){"5g", "no limit", 0, 0},
+    {"full", "no limit", 0, 0},
 };
 const size_t android_network_speeds_count = ARRAYLEN(android_network_speeds);
 
@@ -68,8 +68,8 @@ bool android_network_speed_parse(const char* speed, double* upload_bauds, double
 const AndroidNetworkLatency android_network_latencies[] = {
 #define DEFINE_NET_LATENCY(name, display_name, upload, download, min_latency, max_latency) \
     {#name, display_name, min_latency, max_latency},
-        ANDROID_NETWORK_LIST_MODES(DEFINE_NET_LATENCY){"5g", "no latency", 0, 0},
-        {"none", "no latency", 0, 0},
+    ANDROID_NETWORK_LIST_MODES(DEFINE_NET_LATENCY){"5g", "no latency", 0, 0},
+    {"none", "no latency", 0, 0},
 };
 const size_t android_network_latencies_count = ARRAYLEN(android_network_latencies);
 

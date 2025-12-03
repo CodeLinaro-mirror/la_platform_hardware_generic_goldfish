@@ -21,15 +21,14 @@
 #include <memory>
 #include <thread>
 
-#include "absl/synchronization/notification.h"
 #include "absl/status/status_matchers.h"
+#include "absl/synchronization/notification.h"
 
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"
-
 #include "hal_plug_testing_friend.h"
 
 using namespace goldfish::devices;

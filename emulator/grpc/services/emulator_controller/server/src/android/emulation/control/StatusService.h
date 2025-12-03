@@ -29,14 +29,15 @@ using grpc::Status;
 
 class StatusServiceImpl {
   public:
-    StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level, const android::goldfish::HardwareConfig &hw);
+    StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level,
+                      const android::goldfish::HardwareConfig& hw);
 
     Status getStatus(EmulatorStatus* reply);
 
   private:
     ConnectorRegistry* mRegistry;
     int mApiLevel;
-    const android::goldfish::HardwareConfig &mHw;
+    const android::goldfish::HardwareConfig& mHw;
 };
 
 }  // namespace control

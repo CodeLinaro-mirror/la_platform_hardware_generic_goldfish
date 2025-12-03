@@ -36,8 +36,8 @@ std::string Win32Utils::getErrorString(DWORD error_code) {
         result = Win32UnicodeString::convertToUtf8(error_string);
         ::LocalFree(error_string);
     } else {
-      absl::StrAppendFormat(&result, "Error Code: %li (FormatMessage result: %li)", error_code,
-                           format_result);
+        absl::StrAppendFormat(&result, "Error Code: %li (FormatMessage result: %li)", error_code,
+                              format_result);
     }
     return result;
 }

@@ -63,8 +63,7 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      * @param interval The retry interval.
      */
     ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
-                      ConnectionCallback onConnected, std::chrono::milliseconds interval,
-                      Private);
+                      ConnectionCallback onConnected, std::chrono::milliseconds interval, Private);
 
     /**
      * @brief Destructor. Stops the connection retry task.

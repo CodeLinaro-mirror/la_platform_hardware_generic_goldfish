@@ -37,8 +37,7 @@ using grpc::Status;
  */
 class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, ClipboardEvent> {
   public:
-    ClipDataEventStreamWriter(CallbackEventSource<ClipboardEvent>* listener,
-                              std::string peerId)
+    ClipDataEventStreamWriter(CallbackEventSource<ClipboardEvent>* listener, std::string peerId)
             : BaseEventStreamWriter<ClipData, ClipboardEvent>(listener)
             , mPeerId(std::move(peerId)) {}
 

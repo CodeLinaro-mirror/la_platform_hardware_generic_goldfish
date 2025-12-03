@@ -32,13 +32,13 @@
 
 namespace android::emulation::control {
 
+using ::goldfish::devices::TestConnectorRegistry;
+using ::goldfish::devices::sensor::AndroidSensor;
+using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
 using ::goldfish::display::test::ActiveFakePixmanDisplay;
 using ::goldfish::display::test::FakeMultiDisplay;
-using ::goldfish::devices::TestConnectorRegistry;
-using ::goldfish::devices::sensor::AndroidSensor;
-using ::goldfish::devices::sensor::ISensorDevice;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
@@ -55,7 +55,8 @@ class DisplayServiceTest : public GrcpServiceTest {
         // Clear all displays except the default one before each test
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mMultiDisplay->clear();
-        ISensorDevice::registerDevice(&mRegistry, /*avd_type=*/android::goldfish::DeviceType::kPhone,
+        ISensorDevice::registerDevice(&mRegistry,
+                                      /*avd_type=*/android::goldfish::DeviceType::kPhone,
                                       /*avd_api=*/30, mAvd.hw(), mLoop.get(), mQemuLoop.get());
         mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), &mRegistry);
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);

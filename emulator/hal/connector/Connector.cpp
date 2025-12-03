@@ -32,10 +32,10 @@ bool qnameEquals(const char q, const std::string_view name, const std::string_vi
 
 Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
                      const DeviceEntry* devicesEntries, const size_t devicesEntriesSize)
-    : mSocket(std::move(socket)),
-      mPingTopic(std::move(pingTopic)),
-      mDevicesEntries(devicesEntries),
-      mDevicesEntriesSize(devicesEntriesSize) {}
+        : mSocket(std::move(socket))
+        , mPingTopic(std::move(pingTopic))
+        , mDevicesEntries(devicesEntries)
+        , mDevicesEntriesSize(devicesEntriesSize) {}
 
 SocketPtr Connector::onUnplug() {
     return std::move(mSocket);

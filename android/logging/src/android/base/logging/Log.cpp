@@ -46,21 +46,21 @@ LogFormatter* gFormatter = &defaultFormatter;
 void write_log_line(LogSeverity prio, const char* file, int line, const std::string& msg) {
     int priority = (int)prio;
     switch (priority) {
-        case 0:  // INFO
-            ABSL_LOG(INFO).AtLocation(file, line) << msg;
-            break;
-        case 1:  // WARNING
-            ABSL_LOG(WARNING).AtLocation(file, line) << msg;
-            break;
-        case 2:  // ERROR
-            ABSL_LOG(ERROR).AtLocation(file, line) << msg;
-            break;
-        case 3:  // FATAL
-            ABSL_LOG(FATAL).AtLocation(file, line) << msg;
-            break;
-        default:
-            ABSL_LOG(INFO).AtLocation(file, line).WithVerbosity(abs(priority)) << msg;
-            break;
+    case 0:  // INFO
+        ABSL_LOG(INFO).AtLocation(file, line) << msg;
+        break;
+    case 1:  // WARNING
+        ABSL_LOG(WARNING).AtLocation(file, line) << msg;
+        break;
+    case 2:  // ERROR
+        ABSL_LOG(ERROR).AtLocation(file, line) << msg;
+        break;
+    case 3:  // FATAL
+        ABSL_LOG(FATAL).AtLocation(file, line) << msg;
+        break;
+    default:
+        ABSL_LOG(INFO).AtLocation(file, line).WithVerbosity(abs(priority)) << msg;
+        break;
     };
 }
 
@@ -140,7 +140,7 @@ LogString::LogString(const char* fmt, ...) {
 // LogStream
 
 LogStream::LogStream(const char* file, int lineno, LogSeverity severity, bool quiet)
-    : mParams(file, lineno, severity, quiet), mStream(&mStreamBuf) {}
+        : mParams(file, lineno, severity, quiet), mStream(&mStreamBuf) {}
 
 std::ostream& operator<<(std::ostream& stream, const android::base::LogString& str) {
     stream << str.string();
@@ -199,7 +199,7 @@ char* LogstreamBuf::str() {
 // LogMessage
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, bool quiet)
-    : mStream(new LogStream(file, line, severity, quiet)) {}
+        : mStream(new LogStream(file, line, severity, quiet)) {}
 
 LogMessage::~LogMessage() {
     logMessage(mStream->params(), mStream->str(), mStream->size());
@@ -209,7 +209,7 @@ LogMessage::~LogMessage() {
 // ErrnoLogMessage
 
 ErrnoLogMessage::ErrnoLogMessage(const char* file, int line, LogSeverity severity, int errnoCode)
-    : mStream(nullptr), mErrno(errnoCode) {
+        : mStream(nullptr), mErrno(errnoCode) {
     mStream = new LogStream(file, line, severity, false);
 }
 

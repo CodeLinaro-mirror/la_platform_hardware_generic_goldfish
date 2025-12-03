@@ -46,8 +46,12 @@
 #include "android/goldfish/config/hardware_config.h"
 
 #ifdef _WIN32
-void intrusive_ptr_add_ref(IUnknown* x) { x->AddRef(); }
-void intrusive_ptr_release(IUnknown* x) { x->Release(); }
+void intrusive_ptr_add_ref(IUnknown* x) {
+    x->AddRef();
+}
+void intrusive_ptr_release(IUnknown* x) {
+    x->Release();
+}
 void intrusive_ptr_ctor(IUnknown* x) {}
 #endif
 
@@ -133,10 +137,9 @@ std::string AudioDevice::detectHostAudioBackend() {
 #elif defined(_WIN32)
 using ::goldfish::base::IntrusivePtr;
 
-template <class T> IntrusivePtr<T> CoCreateInstanceT(REFCLSID  rclsid,
-                                                     LPUNKNOWN pUnkOuter,
-                                                     DWORD     dwClsContext,
-                                                     REFIID    riid) {
+template <class T>
+IntrusivePtr<T> CoCreateInstanceT(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext,
+                                  REFIID riid) {
     void* instance;
     HRESULT hr = ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, &instance);
     if (FAILED(hr)) {
@@ -152,8 +155,8 @@ std::string AudioDevice::detectHostAudioBackend() {
 
     ::CoInitialize(nullptr);
 
-    const auto dsound = CoCreateInstanceT<IDirectSound>(
-            CLSID_DirectSound, nullptr, CLSCTX_ALL, IID_IDirectSound);
+    const auto dsound = CoCreateInstanceT<IDirectSound>(CLSID_DirectSound, nullptr, CLSCTX_ALL,
+                                                        IID_IDirectSound);
     if (!dsound || FAILED(dsound->Initialize(nullptr))) {
         return {};
     }

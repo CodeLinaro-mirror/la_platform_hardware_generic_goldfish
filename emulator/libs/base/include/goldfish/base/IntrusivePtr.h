@@ -96,15 +96,15 @@ class IntrusivePtr {
     constexpr IntrusivePtr() noexcept : mPtr(nullptr) {}
 
     explicit IntrusivePtr(T* p) noexcept : mPtr(p) {
-      if (mPtr) {
-        intrusive_ptr_ctor(mPtr);
-      }
+        if (mPtr) {
+            intrusive_ptr_ctor(mPtr);
+        }
     }
 
     IntrusivePtr(const IntrusivePtr& other) noexcept : mPtr(other.mPtr) {
-      if (mPtr) {
-        intrusive_ptr_add_ref(mPtr);
-      }
+        if (mPtr) {
+            intrusive_ptr_add_ref(mPtr);
+        }
     }
 
     IntrusivePtr(IntrusivePtr&& other) noexcept : mPtr(std::exchange(other.mPtr, nullptr)) {}
@@ -116,8 +116,8 @@ class IntrusivePtr {
     }
 
     IntrusivePtr& operator=(const IntrusivePtr& other) noexcept {
-      IntrusivePtr(other).swap(*this);
-      return *this;
+        IntrusivePtr(other).swap(*this);
+        return *this;
     }
 
     IntrusivePtr& operator=(IntrusivePtr&& other) noexcept {
@@ -126,10 +126,10 @@ class IntrusivePtr {
     }
 
     void reset() noexcept {
-      if (mPtr) {
-        intrusive_ptr_release(mPtr);
-        mPtr = nullptr;
-      }
+        if (mPtr) {
+            intrusive_ptr_release(mPtr);
+            mPtr = nullptr;
+        }
     }
 
     void swap(IntrusivePtr& other) noexcept { std::swap(mPtr, other.mPtr); }
@@ -145,17 +145,17 @@ class IntrusivePtr {
 
 template <class T>
 inline void swap(const IntrusivePtr<T>& a, const IntrusivePtr<T>& b) noexcept {
-  a.swap(b);
+    a.swap(b);
 }
 
 template <class T, class U>
 inline bool operator==(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) noexcept {
-  return a.get() == b.get();
+    return a.get() == b.get();
 }
 
 template <class T, class U>
 inline bool operator!=(const IntrusivePtr<T>& a, const IntrusivePtr<U>& b) noexcept {
-  return a.get() != b.get();
+    return a.get() != b.get();
 }
 
 template <class T>

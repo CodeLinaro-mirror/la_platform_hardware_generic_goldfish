@@ -23,21 +23,21 @@ namespace goldfish::async {
  * existing QEMU main event loop.
  */
 class QemuEventLoop : public EventLoop {
- public:
-  /**
-   * @brief Creates an instance of the QEMU-based event loop.
-   *
-   * This event loop is tied to the main QEMU thread. It does not support
-   * the run() method, as the QEMU loop is managed by the application's
-   * main function.
-   *
-   * @note All created instances of this class will post tasks to the same
-   * underlying QEMU event loop, so there is usually no need to create more
-   * than one.
-   *
-   * @return A std::unique_ptr to a new QemuEventLoop instance.
-   */
-   static std::unique_ptr<QemuEventLoop> create();
+  public:
+    /**
+     * @brief Creates an instance of the QEMU-based event loop.
+     *
+     * This event loop is tied to the main QEMU thread. It does not support
+     * the run() method, as the QEMU loop is managed by the application's
+     * main function.
+     *
+     * @note All created instances of this class will post tasks to the same
+     * underlying QEMU event loop, so there is usually no need to create more
+     * than one.
+     *
+     * @return A std::unique_ptr to a new QemuEventLoop instance.
+     */
+    static std::unique_ptr<QemuEventLoop> create();
 };
 
 }  // namespace goldfish::async

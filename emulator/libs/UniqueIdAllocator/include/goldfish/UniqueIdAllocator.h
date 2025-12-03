@@ -29,17 +29,17 @@ namespace goldfish {
  * This class can be saved to a snapshot to be restored later.
  */
 struct UniqueIdAllocator {
-  static constexpr uint32_t kEmptyId = 0;
+    static constexpr uint32_t kEmptyId = 0;
 
-  uint32_t get();
-  void put(uint32_t id);
-  void reset();
-  void saveToSnapshot(archive::IWriter& writer) const;
-  int loadFromSnapshot(archive::IReader& reader);
+    uint32_t get();
+    void put(uint32_t id);
+    void reset();
+    void saveToSnapshot(archive::IWriter& writer) const;
+    int loadFromSnapshot(archive::IReader& reader);
 
- private:
-  uint32_t mLastId = kEmptyId;
-  std::set<uint32_t, std::greater<uint32_t>> mReturnedIds;
+  private:
+    uint32_t mLastId = kEmptyId;
+    std::set<uint32_t, std::greater<uint32_t>> mReturnedIds;
 };
 
 }  // namespace goldfish

@@ -260,10 +260,10 @@ enum virtio_vsock_queue_id {
 static void virtio_vsock_device_realize(DeviceState* dev, Error** errp) {
     add_deletable_object(OBJECT(dev));
     static const GoldfishVirtIOVSockDevAPI dev_api = {
-            .haveHostToGuestPackets = &virtio_vsock_have_host_to_guest_packets,
-            .sendPacketHostToGuest = &virtio_vsock_send_packet_host_to_guest,
-            .haveHostToGuestEvents = &virtio_vsock_have_host_to_guest_events,
-            .sendEventHostToGuest = &virtio_vsock_send_event_host_to_guest,
+        .haveHostToGuestPackets = &virtio_vsock_have_host_to_guest_packets,
+        .sendPacketHostToGuest = &virtio_vsock_send_packet_host_to_guest,
+        .haveHostToGuestEvents = &virtio_vsock_have_host_to_guest_events,
+        .sendEventHostToGuest = &virtio_vsock_send_event_host_to_guest,
     };
 
     VirtIOVSock* const s = VIRTIO_VSOCK(dev);
@@ -353,9 +353,9 @@ static int vmstate_info_virtio_vsock_impl_save(QEMUFile* const f, void* const op
 }
 
 static const VMStateInfo vmstate_info_virtio_vsock_impl = {
-        .name = "vmstate_info_virtio_vsock_impl",
-        .get = &vmstate_info_virtio_vsock_impl_load,
-        .put = &vmstate_info_virtio_vsock_impl_save,
+    .name = "vmstate_info_virtio_vsock_impl",
+    .get = &vmstate_info_virtio_vsock_impl_load,
+    .put = &vmstate_info_virtio_vsock_impl_save,
 };
 
 /*
@@ -392,10 +392,10 @@ static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
 }
 
 static const TypeInfo virtio_vsock_typeinfo = {
-        .name = TYPE_VIRTIO_VSOCK,
-        .parent = TYPE_VIRTIO_DEVICE,
-        .instance_size = sizeof(VirtIOVSock),
-        .class_init = &virtio_vsock_class_init,
+    .name = TYPE_VIRTIO_VSOCK,
+    .parent = TYPE_VIRTIO_DEVICE,
+    .instance_size = sizeof(VirtIOVSock),
+    .class_init = &virtio_vsock_class_init,
 };
 
 /******************** VirtioVsockPCI *****************/
@@ -444,12 +444,12 @@ static void virtio_vsock_pci_instance_init(Object* obj) {
 }
 
 static const VirtioPCIDeviceTypeInfo virtio_vsock_pci_typeinfo = {
-        .base_name = TYPE_VIRTIO_VSOCK_PCI_BASE,
-        .generic_name = TYPE_VIRTIO_VSOCK_PCI_GENERIC,
-        .non_transitional_name = TYPE_VIRTIO_VSOCK_PCI_GENERIC "-non-transitional",
-        .instance_size = sizeof(VirtioVsockPCI),
-        .instance_init = virtio_vsock_pci_instance_init,
-        .class_init = virtio_vsock_pci_class_init,
+    .base_name = TYPE_VIRTIO_VSOCK_PCI_BASE,
+    .generic_name = TYPE_VIRTIO_VSOCK_PCI_GENERIC,
+    .non_transitional_name = TYPE_VIRTIO_VSOCK_PCI_GENERIC "-non-transitional",
+    .instance_size = sizeof(VirtioVsockPCI),
+    .instance_init = virtio_vsock_pci_instance_init,
+    .class_init = virtio_vsock_pci_class_init,
 };
 
 void vsock_low_level_register_types(void) {

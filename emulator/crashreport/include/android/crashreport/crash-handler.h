@@ -13,20 +13,20 @@
 // limitations under the License.
 #pragma once
 
-#include "aemu/base/c_header.h"
-
 #include <stdarg.h>
+
+#include "aemu/base/c_header.h"
 
 #ifdef __cplusplus
 
-#include <utility>
 #include <stdio.h>
+
+#include <utility>
 #else
 #include <stdbool.h>
 #endif
 
-
-#if defined(__cplusplus) && ! defined(__clang__)
+#if defined(__cplusplus) && !defined(__clang__)
 #define ANDROID_NORETURN [[noreturn]]
 #else  // !__cplusplus || __clang__
 #ifdef _MSC_VER
@@ -45,7 +45,7 @@ void crashhandler_enable_message_store();
 // Useful for saving debugging information just before a crash.
 //
 // Note, this message will be added to a crash attrbute, it is not
-// guaranteed to make it to the final report as we only have 
+// guaranteed to make it to the final report as we only have
 // limited amount of storage space available.
 void crashhandler_append_message(const char* message);
 
@@ -59,20 +59,17 @@ void crashhandler_append_message_format_v(const char* format, va_list args);
 // The strings are stored in the minidump as 'name' : 'string'
 void crashhandler_add_string(const char* name, const char* string);
 
-// Reads the contents of file |source| and attaching it as a string annotation 
+// Reads the contents of file |source| and attaching it as a string annotation
 // under |source|. This is the same as reading the file source and calling
 // crashhandler_add_string(destination, contents_of_file_source)
 bool crashhandler_copy_attachment(const char* destination, const char* source);
-
-
 
 // Track crashes on exit.
 void crashhandler_exitmode(const char* message);
 
 // Abort the program execution immediately, recording the message
 // with the crashreport if possible.
-ANDROID_NORETURN void crashhandler_die(const char* message)
-    __attribute__((noinline));
+ANDROID_NORETURN void crashhandler_die(const char* message) __attribute__((noinline));
 
 // A variadic overload with C interface
 ANDROID_NORETURN void crashhandler_die_format(const char* format, ...);

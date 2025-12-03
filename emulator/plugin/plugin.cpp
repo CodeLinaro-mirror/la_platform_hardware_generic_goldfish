@@ -21,13 +21,12 @@
 #include "absl/strings/str_split.h"
 
 #include "android/base/system/System.h"
-#include "android/crashreport/crash-initializer.h"
 #include "android/crashreport/CrashReporter.h"
-
+#include "android/crashreport/crash-initializer.h"
 #include "goldfish/adb/adb-device.h"
 #include "goldfish/avd/avd-finalize.h"
-#include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/avd-info-register_types.h"
+#include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/battery/goldfish_battery.h"
 #include "goldfish/grpc/grpc.h"
@@ -35,9 +34,9 @@
 #include "goldfish/net/virtio-wifi.h"
 #include "goldfish/netsim/netsim-chardev.h"
 #include "goldfish/netsim/netsim-netdev.h"
+#include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/vsock_low_level.h"
 #include "goldfish/vsock/vsock_port_fwd.h"
-#include "goldfish/tools/aemu_version.h"
 
 // library and initialize the crashpad crash engine upon launch.
 #include "google/system/aemu_func_defs.h"
@@ -60,7 +59,7 @@ void setup_debug_logging() {
         if (int v_level; !absl::SimpleAtoi(v_str, &v_level)) {
             LOG(ERROR) << "AEMU_VLOG_LEVEL was set to an invalid value: " << v_str;
         } else {
-          absl::SetGlobalVLogLevel(v_level);
+            absl::SetGlobalVLogLevel(v_level);
         }
     }
 
@@ -147,13 +146,15 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InstallFailureSignalHandler(options);
 
     auto* clientLoop = goldfish::async::globalEventLoop();
-    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper("GlobalEventLoop", *clientLoop, absl::Seconds(15));
+    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+            "GlobalEventLoop", *clientLoop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* clientLoop = goldfish::async::globalEventLoop();
-    LOG_IF(FATAL, !clientLoop->shutdownAndWait(std::chrono::seconds(10)).ok()) << "global event loop shutdown failed within 10s";
+    LOG_IF(FATAL, !clientLoop->shutdownAndWait(std::chrono::seconds(10)).ok())
+            << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "goldfish/input/virtio-input-android.h"
+
 #include "virtio-input-android-internal.h"
 
 // clang-format off
@@ -31,7 +32,6 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-
 #include "android/base/logging/AbseilLogBridge.h"
 
 #define DEBUG 0
@@ -47,43 +47,43 @@
 #define TYPE_VIRTIO_INPUT_HID_PCI "virtio-input-hid-pci"
 
 static const unsigned short keymap_button[INPUT_BUTTON__MAX] = {
-        [INPUT_BUTTON_LEFT] = BTN_LEFT,
-        [INPUT_BUTTON_RIGHT] = BTN_RIGHT,
-        [INPUT_BUTTON_MIDDLE] = BTN_MIDDLE,
-        [INPUT_BUTTON_WHEEL_UP] = BTN_GEAR_UP,
-        [INPUT_BUTTON_WHEEL_DOWN] = BTN_GEAR_DOWN,
-        [INPUT_BUTTON_SIDE] = BTN_SIDE,
-        [INPUT_BUTTON_EXTRA] = BTN_EXTRA,
-        [INPUT_BUTTON_TOUCH] = BTN_TOUCH,
+    [INPUT_BUTTON_LEFT] = BTN_LEFT,
+    [INPUT_BUTTON_RIGHT] = BTN_RIGHT,
+    [INPUT_BUTTON_MIDDLE] = BTN_MIDDLE,
+    [INPUT_BUTTON_WHEEL_UP] = BTN_GEAR_UP,
+    [INPUT_BUTTON_WHEEL_DOWN] = BTN_GEAR_DOWN,
+    [INPUT_BUTTON_SIDE] = BTN_SIDE,
+    [INPUT_BUTTON_EXTRA] = BTN_EXTRA,
+    [INPUT_BUTTON_TOUCH] = BTN_TOUCH,
 };
 
 static const unsigned short axismap_tch[INPUT_AXIS__MAX] = {
-        [INPUT_AXIS_X] = ABS_MT_POSITION_X,
-        [INPUT_AXIS_Y] = ABS_MT_POSITION_Y,
+    [INPUT_AXIS_X] = ABS_MT_POSITION_X,
+    [INPUT_AXIS_Y] = ABS_MT_POSITION_Y,
 };
 
 // --- debug functions ---
 #define MAX_STRING_LENGTH 64
 const char* get_button_name(unsigned short button_index) {
     switch (button_index) {
-        case INPUT_BUTTON_LEFT:
-            return "INPUT_BUTTON_LEFT";
-        case INPUT_BUTTON_RIGHT:
-            return "INPUT_BUTTON_RIGHT";
-        case INPUT_BUTTON_MIDDLE:
-            return "INPUT_BUTTON_MIDDLE";
-        case INPUT_BUTTON_WHEEL_UP:
-            return "INPUT_BUTTON_WHEEL_UP";
-        case INPUT_BUTTON_WHEEL_DOWN:
-            return "INPUT_BUTTON_WHEEL_DOWN";
-        case INPUT_BUTTON_SIDE:
-            return "INPUT_BUTTON_SIDE";
-        case INPUT_BUTTON_EXTRA:
-            return "INPUT_BUTTON_EXTRA";
-        case INPUT_BUTTON_TOUCH:
-            return "INPUT_BUTTON_TOUCH";
-        default:
-            return "UNKNOWN_BUTTON_INDEX";
+    case INPUT_BUTTON_LEFT:
+        return "INPUT_BUTTON_LEFT";
+    case INPUT_BUTTON_RIGHT:
+        return "INPUT_BUTTON_RIGHT";
+    case INPUT_BUTTON_MIDDLE:
+        return "INPUT_BUTTON_MIDDLE";
+    case INPUT_BUTTON_WHEEL_UP:
+        return "INPUT_BUTTON_WHEEL_UP";
+    case INPUT_BUTTON_WHEEL_DOWN:
+        return "INPUT_BUTTON_WHEEL_DOWN";
+    case INPUT_BUTTON_SIDE:
+        return "INPUT_BUTTON_SIDE";
+    case INPUT_BUTTON_EXTRA:
+        return "INPUT_BUTTON_EXTRA";
+    case INPUT_BUTTON_TOUCH:
+        return "INPUT_BUTTON_TOUCH";
+    default:
+        return "UNKNOWN_BUTTON_INDEX";
     }
 }
 
@@ -91,37 +91,37 @@ static const char* get_abs_axis_name(unsigned short axis_code) {
     static char buffer[MAX_STRING_LENGTH];
 
     switch (axis_code) {
-        case ABS_X:
-            return "ABS_X";
-        case ABS_Y:
-            return "ABS_Y";
-        case ABS_MT_POSITION_X:
-            return "ABS_MT_POSITION_X";
-        case ABS_MT_POSITION_Y:
-            return "ABS_MT_POSITION_Y";
-        default:
-            snprintf(buffer, MAX_STRING_LENGTH, "UNKNOWN_ABS_AXIS (0x%04x)", axis_code);
-            return buffer;
+    case ABS_X:
+        return "ABS_X";
+    case ABS_Y:
+        return "ABS_Y";
+    case ABS_MT_POSITION_X:
+        return "ABS_MT_POSITION_X";
+    case ABS_MT_POSITION_Y:
+        return "ABS_MT_POSITION_Y";
+    default:
+        snprintf(buffer, MAX_STRING_LENGTH, "UNKNOWN_ABS_AXIS (0x%04x)", axis_code);
+        return buffer;
     }
 }
 
 // -- device configuration --
 static struct virtio_input_config virtio_input_android_template[] = {
-        {
-                .select = VIRTIO_INPUT_CFG_ID_NAME,
-                .size = sizeof(VIRTIO_ID_NAME_ANDROID),
-                .u.string = VIRTIO_ID_NAME_ANDROID,
-        },
-        {.select = VIRTIO_INPUT_CFG_ID_DEVIDS,
-         .size = sizeof(struct virtio_input_devids),
-         .u.ids =
-                 {
-                         .bustype = const_le16(BUS_VIRTUAL),
-                         .vendor = const_le16(0),
-                         .product = const_le16(0),
-                         .version = const_le16(0),
-                 }},
-        {/* end of list */},
+    {
+        .select = VIRTIO_INPUT_CFG_ID_NAME,
+        .size = sizeof(VIRTIO_ID_NAME_ANDROID),
+        .u.string = VIRTIO_ID_NAME_ANDROID,
+    },
+    {.select = VIRTIO_INPUT_CFG_ID_DEVIDS,
+     .size = sizeof(struct virtio_input_devids),
+     .u.ids =
+             {
+                 .bustype = const_le16(BUS_VIRTUAL),
+                 .vendor = const_le16(0),
+                 .product = const_le16(0),
+                 .version = const_le16(0),
+             }},
+    {/* end of list */},
 };
 
 // clang-format off
@@ -162,94 +162,94 @@ static struct virtio_input_config virtio_input_android_template[] = {
  */
 // clang-format on
 static struct virtio_input_config virtio_android_config[] = {
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_X,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
-                .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_Y,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
-                .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_Z,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
-                .u.abs.max = const_le32(1),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_SLOT,
-                .size = sizeof(virtio_input_absinfo),
-                // SLOT max value seems to be TRACKING_ID-1
-                .u.abs.max = const_le32(MTS_POINTERS_NUM),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_TOUCH_MAJOR,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(MTS_TOUCH_AXIS_RANGE_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_TOUCH_MINOR,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(MTS_TOUCH_AXIS_RANGE_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_ORIENTATION,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(MTS_ORIENTATION_RANGE_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_POSITION_X,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_POSITION_Y,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_TOOL_TYPE,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(MT_TOOL_MAX),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_TRACKING_ID,
-                .size = sizeof(virtio_input_absinfo),
-                // TRACKING_ID max value seems to be 0xFFFF
-                .u.abs.max = const_le32(MTS_POINTERS_NUM + 1),
-        },
-        {
-                .select = VIRTIO_INPUT_CFG_ABS_INFO,
-                .subsel = ABS_MT_PRESSURE,
-                .size = sizeof(virtio_input_absinfo),
-                .u.abs.max = const_le32(MTS_PRESSURE_RANGE_MAX),
-        },
-        {
-                // Needed for fold/unfold (EV_SW)
-                .select = VIRTIO_INPUT_CFG_EV_BITS,
-                .subsel = EV_SW,
-                .size = 1,
-                .u.bitmap =
-                        {
-                                1,
-                        },
-        },
-        {/* end of list */},
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_X,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
+        .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_Y,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
+        .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_Z,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.min = const_le32(INPUT_EVENT_ABS_MIN),
+        .u.abs.max = const_le32(1),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_SLOT,
+        .size = sizeof(virtio_input_absinfo),
+        // SLOT max value seems to be TRACKING_ID-1
+        .u.abs.max = const_le32(MTS_POINTERS_NUM),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_TOUCH_MAJOR,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(MTS_TOUCH_AXIS_RANGE_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_TOUCH_MINOR,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(MTS_TOUCH_AXIS_RANGE_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_ORIENTATION,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(MTS_ORIENTATION_RANGE_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_POSITION_X,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_POSITION_Y,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(INPUT_EVENT_ABS_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_TOOL_TYPE,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(MT_TOOL_MAX),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_TRACKING_ID,
+        .size = sizeof(virtio_input_absinfo),
+        // TRACKING_ID max value seems to be 0xFFFF
+        .u.abs.max = const_le32(MTS_POINTERS_NUM + 1),
+    },
+    {
+        .select = VIRTIO_INPUT_CFG_ABS_INFO,
+        .subsel = ABS_MT_PRESSURE,
+        .size = sizeof(virtio_input_absinfo),
+        .u.abs.max = const_le32(MTS_PRESSURE_RANGE_MAX),
+    },
+    {
+        // Needed for fold/unfold (EV_SW)
+        .select = VIRTIO_INPUT_CFG_EV_BITS,
+        .subsel = EV_SW,
+        .size = 1,
+        .u.bitmap =
+                {
+                    1,
+                },
+    },
+    {/* end of list */},
 };
 
 static const unsigned short ev_key_codes[] = {BTN_TOOL_RUBBER, BTN_STYLUS};
@@ -302,7 +302,7 @@ static void virtio_input_extend_config(VirtIOInput* vinput, const unsigned short
  */
 static inline void send_event(VirtIOInput* vinput, uint16_t type, uint16_t code, uint32_t value) {
     virtio_input_event event = {
-            .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
+        .type = cpu_to_le16(type), .code = cpu_to_le16(code), .value = cpu_to_le32(value)};
     DD("Sending generic event (%d, %d, %d)", type, code, value);
     virtio_input_send(vinput, &event);
 }
@@ -472,103 +472,103 @@ static void virtio_input_handle_event(DeviceState* dev, QemuConsole* src, InputE
     DD("virtio_input_handle_event: for virtio_input_multi_touch_%d %s (%d)", vahid->device_id,
        vhid->display, vhid->head);
     switch (evt->type) {
-        case INPUT_EVENT_KIND_KEY:
-            ALOGE("Keyboard events cannot be handled by this device (%s:%d), dropping event",
-                  vhid->display, vhid->head);
-            break;
-        case INPUT_EVENT_KIND_BTN:
-            btn = evt->u.btn.data;
-            // This android device only understands touch events, so we will be translating this
-            // button event into a touch "event"
-            if (vhid->wheel_axis &&
-                (btn->button == INPUT_BUTTON_WHEEL_UP || btn->button == INPUT_BUTTON_WHEEL_DOWN) &&
-                btn->down) {
-                ALOGW("We do not yet translate wheel events to touch events, ignoring.");
-            } else if (keymap_button[btn->button]) {
-                DD("Handling button event: %s tracked as: %d (%s)", get_button_name(btn->button),
-                   btn->button, btn->down ? "down" : "up");
-                int x = vahid->tracked_pointers[btn->button].x;
-                int y = vahid->tracked_pointers[btn->button].y;
-                if (btn->down) {
-                    vahid->keymap_button_down[btn->button] = true;
-                    _mts_pointer_down(dev, btn->button, x, y, MTS_PRESSURE_RANGE_MAX);
-                } else {
-                    vahid->keymap_button_down[btn->button] = false;
-                    _mts_pointer_up(dev, btn->button);
-                }
+    case INPUT_EVENT_KIND_KEY:
+        ALOGE("Keyboard events cannot be handled by this device (%s:%d), dropping event",
+              vhid->display, vhid->head);
+        break;
+    case INPUT_EVENT_KIND_BTN:
+        btn = evt->u.btn.data;
+        // This android device only understands touch events, so we will be translating this
+        // button event into a touch "event"
+        if (vhid->wheel_axis &&
+            (btn->button == INPUT_BUTTON_WHEEL_UP || btn->button == INPUT_BUTTON_WHEEL_DOWN) &&
+            btn->down) {
+            ALOGW("We do not yet translate wheel events to touch events, ignoring.");
+        } else if (keymap_button[btn->button]) {
+            DD("Handling button event: %s tracked as: %d (%s)", get_button_name(btn->button),
+               btn->button, btn->down ? "down" : "up");
+            int x = vahid->tracked_pointers[btn->button].x;
+            int y = vahid->tracked_pointers[btn->button].y;
+            if (btn->down) {
+                vahid->keymap_button_down[btn->button] = true;
+                _mts_pointer_down(dev, btn->button, x, y, MTS_PRESSURE_RANGE_MAX);
             } else {
-                if (btn->down) {
-                    ALOGW("unmapped button: %d [%s], ignoring.", btn->button,
-                          InputButton_str(btn->button));
-                }
+                vahid->keymap_button_down[btn->button] = false;
+                _mts_pointer_up(dev, btn->button);
             }
-            break;
-        case INPUT_EVENT_KIND_REL:
-            ALOGW("This handler cannot handle RELATIVE mouse events.");
-            break;
-        case INPUT_EVENT_KIND_ABS:
-            move = evt->u.abs.data;
-            DD("Handling INPUT_EVENT_KIND_ABS: %s", get_abs_axis_name(move->axis));
-            // We now will translate this to and individual touch move for every button
-            for (int i = 0; i < INPUT_BUTTON__MAX; i++) {
-                int x = vahid->tracked_pointers[i].x;
-                int y = vahid->tracked_pointers[i].y;
-                if (move->axis == INPUT_AXIS_X) {
-                    x = move->value;
-                } else if (move->axis == INPUT_AXIS_Y) {
-                    y = move->value;
-                }
-                // Send updated location.
-                if (vahid->keymap_button_down[i]) {
-                    _mts_pointer_move(dev, i, x, y, MTS_PRESSURE_RANGE_MAX);
-                }
-                if (move->axis == INPUT_AXIS_X) {
-                    vahid->tracked_pointers[i].x = move->value;
-                } else if (move->axis == INPUT_AXIS_Y) {
-                    vahid->tracked_pointers[i].y = move->value;
-                }
+        } else {
+            if (btn->down) {
+                ALOGW("unmapped button: %d [%s], ignoring.", btn->button,
+                      InputButton_str(btn->button));
             }
-            break;
-        case INPUT_EVENT_KIND_MTT:
-            mtt = evt->u.mtt.data;
-            if (mtt->type == INPUT_MULTI_TOUCH_TYPE_DATA) {
-                DD("Handling INPUT_MULTI_TOUCH_TYPE_DATA, axis: %s", get_abs_axis_name(mtt->axis));
-                event.type = cpu_to_le16(EV_ABS);
-                event.code = cpu_to_le16(axismap_tch[mtt->axis]);
-                event.value = cpu_to_le32(mtt->value);
-                virtio_input_send(vinput, &event);
-            } else {
-                event.type = cpu_to_le16(EV_ABS);
-                event.code = cpu_to_le16(ABS_MT_SLOT);
-                event.value = cpu_to_le32(mtt->slot);
-                virtio_input_send(vinput, &event);
-                event.type = cpu_to_le16(EV_ABS);
-                event.code = cpu_to_le16(ABS_MT_TRACKING_ID);
-                event.value = cpu_to_le32(mtt->tracking_id);
-                virtio_input_send(vinput, &event);
+        }
+        break;
+    case INPUT_EVENT_KIND_REL:
+        ALOGW("This handler cannot handle RELATIVE mouse events.");
+        break;
+    case INPUT_EVENT_KIND_ABS:
+        move = evt->u.abs.data;
+        DD("Handling INPUT_EVENT_KIND_ABS: %s", get_abs_axis_name(move->axis));
+        // We now will translate this to and individual touch move for every button
+        for (int i = 0; i < INPUT_BUTTON__MAX; i++) {
+            int x = vahid->tracked_pointers[i].x;
+            int y = vahid->tracked_pointers[i].y;
+            if (move->axis == INPUT_AXIS_X) {
+                x = move->value;
+            } else if (move->axis == INPUT_AXIS_Y) {
+                y = move->value;
             }
-            break;
-        default:
-            break;
+            // Send updated location.
+            if (vahid->keymap_button_down[i]) {
+                _mts_pointer_move(dev, i, x, y, MTS_PRESSURE_RANGE_MAX);
+            }
+            if (move->axis == INPUT_AXIS_X) {
+                vahid->tracked_pointers[i].x = move->value;
+            } else if (move->axis == INPUT_AXIS_Y) {
+                vahid->tracked_pointers[i].y = move->value;
+            }
+        }
+        break;
+    case INPUT_EVENT_KIND_MTT:
+        mtt = evt->u.mtt.data;
+        if (mtt->type == INPUT_MULTI_TOUCH_TYPE_DATA) {
+            DD("Handling INPUT_MULTI_TOUCH_TYPE_DATA, axis: %s", get_abs_axis_name(mtt->axis));
+            event.type = cpu_to_le16(EV_ABS);
+            event.code = cpu_to_le16(axismap_tch[mtt->axis]);
+            event.value = cpu_to_le32(mtt->value);
+            virtio_input_send(vinput, &event);
+        } else {
+            event.type = cpu_to_le16(EV_ABS);
+            event.code = cpu_to_le16(ABS_MT_SLOT);
+            event.value = cpu_to_le32(mtt->slot);
+            virtio_input_send(vinput, &event);
+            event.type = cpu_to_le16(EV_ABS);
+            event.code = cpu_to_le16(ABS_MT_TRACKING_ID);
+            event.value = cpu_to_le32(mtt->tracking_id);
+            virtio_input_send(vinput, &event);
+        }
+        break;
+    default:
+        break;
     }
 }
 
 static void virtio_input_handle_sync(DeviceState* dev) {
     VirtIOInput* vinput = VIRTIO_INPUT(dev);
     virtio_input_event event = {
-            .type = cpu_to_le16(EV_SYN),
-            .code = cpu_to_le16(SYN_REPORT),
-            .value = 0,
+        .type = cpu_to_le16(EV_SYN),
+        .code = cpu_to_le16(SYN_REPORT),
+        .value = 0,
     };
 
     virtio_input_send(vinput, &event);
 }
 
 static const QemuInputHandler virtio_android_handler_template = {
-        .name = VIRTIO_ID_NAME_ANDROID,
-        .mask = INPUT_EVENT_MASK_MTT | INPUT_EVENT_MASK_ABS | INPUT_EVENT_MASK_BTN,
-        .event = virtio_input_handle_event,
-        .sync = virtio_input_handle_sync,
+    .name = VIRTIO_ID_NAME_ANDROID,
+    .mask = INPUT_EVENT_MASK_MTT | INPUT_EVENT_MASK_ABS | INPUT_EVENT_MASK_BTN,
+    .event = virtio_input_handle_event,
+    .sync = virtio_input_handle_sync,
 };
 
 static void virtio_android_init(Object* obj) {
@@ -652,11 +652,11 @@ static void virtio_android_fini(Object* obj) {
 }
 
 static const TypeInfo virtio_android_info = {
-        .name = TYPE_VIRTIO_INPUT_ANDROID_HID,
-        .parent = TYPE_VIRTIO_INPUT_HID,
-        .instance_size = sizeof(VirtIOInputAndroidHID),
-        .instance_init = virtio_android_init,
-        .instance_finalize = virtio_android_fini,
+    .name = TYPE_VIRTIO_INPUT_ANDROID_HID,
+    .parent = TYPE_VIRTIO_INPUT_HID,
+    .instance_size = sizeof(VirtIOInputAndroidHID),
+    .instance_init = virtio_android_init,
+    .instance_finalize = virtio_android_fini,
 };
 
 /* ----------------------------------------------------------------- */
@@ -672,11 +672,11 @@ static void virtio_input_android_initfn(Object* obj) {
 }
 
 static const VirtioPCIDeviceTypeInfo virtio_android_pci_info = {
-        .generic_name = TYPE_VIRTIO_INPUT_ANDROID_PCI,
-        .parent = TYPE_VIRTIO_INPUT_HID_PCI,
-        .class_init = virtio_input_android_pci_class_init,
-        .instance_size = sizeof(VirtIOInputAndroidHIDPCI),
-        .instance_init = virtio_input_android_initfn,
+    .generic_name = TYPE_VIRTIO_INPUT_ANDROID_PCI,
+    .parent = TYPE_VIRTIO_INPUT_HID_PCI,
+    .class_init = virtio_input_android_pci_class_init,
+    .instance_size = sizeof(VirtIOInputAndroidHIDPCI),
+    .instance_init = virtio_input_android_initfn,
 };
 
 /* ----------------------------------------------------------------- */
@@ -685,4 +685,3 @@ void virtio_input_android_register_types(void) {
     type_register_static(&virtio_android_info);
     virtio_pci_types_register(&virtio_android_pci_info);
 }
-

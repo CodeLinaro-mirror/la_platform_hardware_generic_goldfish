@@ -21,26 +21,28 @@ namespace goldfish::devices::camera {
 
 template <typename IMPL>
 struct ImageProviderCppAdapter {
-  static void* create(const CameraImageProviderInfo* info, const CameraImageProviderVtbl** ppVtbl) {
-    static const CameraImageProviderVtbl vtbl = {
-        .getId = [](const void* that) { return static_cast<const IMPL*>(that)->getId(); },
-        .start = [](void* that, const CameraImageProviderStreamConfig* s,
-                    unsigned n) { return static_cast<IMPL*>(that)->start(s, n); },
-        .capture =
-            [](void* that, const CameraImageProviderCaptureOpts* opts,
-               CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
-               const CameraImageProviderStreamCaptureInfo* sci, unsigned scin) {
-              return static_cast<IMPL*>(that)->capture(*opts, sink, sinkOpaque, sci, scin);
-            },
-        .stop = [](void* that) { static_cast<IMPL*>(that)->stop(); },
-        .dctor = [](void* that) { delete static_cast<IMPL*>(that); },
-    };
+    static void* create(const CameraImageProviderInfo* info,
+                        const CameraImageProviderVtbl** ppVtbl) {
+        static const CameraImageProviderVtbl vtbl = {
+            .getId = [](const void* that) { return static_cast<const IMPL*>(that)->getId(); },
+            .start = [](void* that, const CameraImageProviderStreamConfig* s,
+                        unsigned n) { return static_cast<IMPL*>(that)->start(s, n); },
+            .capture =
+                    [](void* that, const CameraImageProviderCaptureOpts* opts,
+                       CameraImageProviderStreamCaptureSink sink, void* sinkOpaque,
+                       const CameraImageProviderStreamCaptureInfo* sci, unsigned scin) {
+                        return static_cast<IMPL*>(that)->capture(*opts, sink, sinkOpaque, sci,
+                                                                 scin);
+                    },
+            .stop = [](void* that) { static_cast<IMPL*>(that)->stop(); },
+            .dctor = [](void* that) { delete static_cast<IMPL*>(that); },
+        };
 
-    void* instance = IMPL::create(*info);
-    *ppVtbl = instance ? &vtbl : nullptr;
+        void* instance = IMPL::create(*info);
+        *ppVtbl = instance ? &vtbl : nullptr;
 
-    return instance;
-  }
+        return instance;
+    }
 };
 
 }  // namespace goldfish::devices::camera

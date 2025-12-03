@@ -16,7 +16,6 @@
 
 #include "user_data_drive.h"
 
-
 #include <filesystem>
 #include <fstream>
 
@@ -28,9 +27,9 @@
 #include "android/base/system/File.h"
 #include "android/base/system/storage_capacity.h"
 #include "android/emulation/control/adb/adbkey.h"
-#include "android/goldfish/config/config_dirs.h"
-#include "android/filesystems/ext4_utils.h"
 #include "android/filesystems/ext4_resize.h"
+#include "android/filesystems/ext4_utils.h"
+#include "android/goldfish/config/config_dirs.h"
 
 namespace android::goldfish {
 
@@ -61,22 +60,24 @@ absl::Status resizePartition(fs::path partition, StorageCapacity size) {
                                 partition.string(), maxSize.string(), size.string()));
     }
 
-    // TODO the extprogs are not currently bundled with emu-next. For this to work they should be included in the release zip.
-    int resizeResult = resizeExt4Partition(fs::path("some-dir-TODO"), partition.string().c_str(), size.bytes());
+    // TODO the extprogs are not currently bundled with emu-next. For this to work they should be
+    // included in the release zip.
+    int resizeResult = resizeExt4Partition(fs::path("some-dir-TODO"), partition.string().c_str(),
+                                           size.bytes());
 
     // Interpret the error codes can propagate.
     if (resizeResult != 0) {
         std::string resizeError;
         switch (resizeResult) {
-            case -1:
-                resizeError = "Argument formatting failed";
-                break;
-            case -2:
-                resizeError = "System call failed";
-                break;
-            default:
-                resizeError = absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
-                break;
+        case -1:
+            resizeError = "Argument formatting failed";
+            break;
+        case -2:
+            resizeError = "System call failed";
+            break;
+        default:
+            resizeError = absl::StrFormat("resize2fs failed with exit code %d", resizeResult);
+            break;
         }
         return absl::InternalError(absl::StrFormat("Could not resize partition %s. Error: %s",
                                                    partition.string(), resizeError));
@@ -93,7 +94,7 @@ bool pathIsExt4(fs::path path) {
         return false;
     }
     ifs.ignore(1080);
-    ifs.read(reinterpret_cast<char *>(magic), sizeof(magic));
+    ifs.read(reinterpret_cast<char*>(magic), sizeof(magic));
 
     return magic[0] == 0x53 && magic[1] == 0xEF;
 }
@@ -104,8 +105,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
         if (desired_size_bytes > 0 && current_data_size < desired_size_bytes) {
             // Log resize intent
             LOG(WARNING) << "Resizing userdata partition " << image << " from "
-                         << current_data_size.string() << " to "
-                         << desired_size_bytes;
+                         << current_data_size.string() << " to " << desired_size_bytes;
             RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
             // It will be recreated by RwDrive.
             fs::remove(fs::path(image).concat(".qcow2"));
@@ -115,8 +115,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
 }
 
 absl::Status createExt4ImageFromDirectory(fs::path source, fs::path destination,
-                                                            StorageCapacity size,
-                                                            std::string mount_point) {
+                                          StorageCapacity size, std::string mount_point) {
     if (android_createExt4ImageFromDir(destination.string().c_str(), source.string().c_str(),
                                        size.bytes(), mount_point.c_str()) == 0) {
         return absl::OkStatus();
@@ -183,8 +182,9 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
         std::error_code ec;
         fs::copy(adbKeyPubPath, guestAdbKeyPath, ec);
         if (ec) {
-            return absl::DataLossError(
-                    absl::StrFormat("Failed to copy from: %s to %s due to %s", adbKeyPubPath.string(), guestAdbKeyPath.string(), ec.message()));
+            return absl::DataLossError(absl::StrFormat("Failed to copy from: %s to %s due to %s",
+                                                       adbKeyPubPath.string(),
+                                                       guestAdbKeyPath.string(), ec.message()));
         }
     }
 
@@ -197,7 +197,8 @@ absl::Status prepareDataFolder(const fs::path& from, const fs::path& to) {
 
 }  // namespace
 
-absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size, bool wipe_data, bool resize) {
+absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
+                                      bool wipe_data, bool resize) {
     if (wipe_data) {
         fs::remove(user_data);
     }
@@ -209,11 +210,13 @@ absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, ui
         return minimizePartition(user_data, data_size);
     } else {
         if (!fs::is_directory(init_data)) {
-            return absl::InvalidArgumentError(absl::StrCat("data partition initialization path is not a directory: ", init_data.string()));
+            return absl::InvalidArgumentError(absl::StrCat(
+                    "data partition initialization path is not a directory: ", init_data.string()));
         }
         fs::path empty_data_path = init_data / "empty_data_disk";
         if (fs::exists(empty_data_path)) {
-            // Don't create anything - in this case, userdata should be created the same as cache or sdcard.
+            // Don't create anything - in this case, userdata should be created the same as cache or
+            // sdcard.
             return absl::OkStatus();
         }
 
@@ -223,7 +226,8 @@ absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, ui
         RETURN_IF_ERROR(prepareDataFolder(init_data, tmp_data_path));
 
         LOG(INFO) << "Creating image [" << user_data << "] of size " << data_size;
-        absl::Status create_status = createExt4ImageFromDirectory(tmp_data_path, user_data, data_size, "userdata");
+        absl::Status create_status =
+                createExt4ImageFromDirectory(tmp_data_path, user_data, data_size, "userdata");
         fs::remove_all(tmp_data_path);
         RETURN_IF_ERROR(create_status);
 

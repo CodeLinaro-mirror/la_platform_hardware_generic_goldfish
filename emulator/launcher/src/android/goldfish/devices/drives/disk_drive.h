@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+
 #include "android/goldfish/device.h"
 
 namespace android::goldfish {
@@ -26,15 +27,15 @@ namespace fs = std::filesystem;
 
 // A raw qemu.img that is read only.
 class RoDrive : public PciDevice {
- public:
-  explicit RoDrive(std::string id, std::string addr, fs::path image_path)
-      : PciDevice(id, addr), mImagePath(image_path) {}
+  public:
+    explicit RoDrive(std::string id, std::string addr, fs::path image_path)
+            : PciDevice(id, addr), mImagePath(image_path) {}
 
-  absl::Status initialize(const EmulatorConfig& emulator) override;
-  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
- protected:
-  fs::path mImagePath;
+  protected:
+    fs::path mImagePath;
 };
 
 /**
@@ -42,27 +43,27 @@ class RoDrive : public PciDevice {
  * the PCI bus.
  */
 class RwDrive : public PciDevice {
- public:
-  explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
-                   fs::path dst_image, fs::path qcow2_image, uint64_t size_bytes,
-                   bool wipe_existing)
-      : PciDevice(id, addr),
-        mSourcePath(src_path),
-        mDestinationImage(dst_image),
-        mQcow2Image(qcow2_image),
-        mSizeBytes(size_bytes),
-        mWipeExisting(wipe_existing) {}
+  public:
+    explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
+                     fs::path dst_image, fs::path qcow2_image, uint64_t size_bytes,
+                     bool wipe_existing)
+            : PciDevice(id, addr)
+            , mSourcePath(src_path)
+            , mDestinationImage(dst_image)
+            , mQcow2Image(qcow2_image)
+            , mSizeBytes(size_bytes)
+            , mWipeExisting(wipe_existing) {}
 
-  absl::Status initialize(const EmulatorConfig& emulator) override;
-  std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
+    absl::Status initialize(const EmulatorConfig& emulator) override;
+    std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
- protected:
-  std::optional<fs::path> mSourcePath;
-  fs::path mDestinationImage;
-  fs::path mQcow2Image;
-  uint64_t mSizeBytes;
+  protected:
+    std::optional<fs::path> mSourcePath;
+    fs::path mDestinationImage;
+    fs::path mQcow2Image;
+    uint64_t mSizeBytes;
 
-  bool mWipeExisting;
+    bool mWipeExisting;
 };
 
 }  // namespace android::goldfish

@@ -20,7 +20,6 @@
 
 #include "android/emulation/control/adb/AdbHostServer.h"
 #include "android/emulation/control/adb/AdbMessageLogger.h"
-
 #include "goldfish/avd/avd-info.h"
 // clang-format off
 // IWYU pragma: begin_keep
@@ -64,7 +63,7 @@ namespace {
 void adb_vsock_connected(VSockFwdDev* device) {
     auto adb_server = AdbHostServer::getClientPort();
     LOG(WARNING) << "Notifying adb server on port " << adb_server
-              << " that adbd is available on localhost:" << device->host_port;
+                 << " that adbd is available on localhost:" << device->host_port;
     AdbHostServer::notify(device->host_port, adb_server);
 
     auto& avd = goldfish::avd_info::getAvd().props();
@@ -73,10 +72,12 @@ void adb_vsock_connected(VSockFwdDev* device) {
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:packages/modules/adb/client/transport_emulator.cpp;l=79;drc=6d17979f120fcba950b024d1cc62ae24ab600a71
     int expected_serial = device->host_port - 1;
     if (avd.serial_number != expected_serial) {
-        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd.serial_number << " != " << expected_serial;
+        LOG(WARNING) << "Actual and expected serial numbers differ: " << avd.serial_number
+                     << " != " << expected_serial;
     }
     if (avd.adb_port != device->host_port) {
-        LOG(ERROR) << "Serious configuration error - adb_port defined with different values: " << avd.adb_port << " != " << device->host_port;
+        LOG(ERROR) << "Serious configuration error - adb_port defined with different values: "
+                   << avd.adb_port << " != " << device->host_port;
     }
 }
 
@@ -118,8 +119,8 @@ void adb_vsock_set_monitor(Object* obj, Visitor* v, const char* name, void* opaq
 }
 
 void adb_vsock_class_init(ObjectClass* oc, void* data) {
-    object_class_property_add(oc, "monitor", "bool", nullptr,
-                              adb_vsock_set_monitor, nullptr, nullptr);
+    object_class_property_add(oc, "monitor", "bool", nullptr, adb_vsock_set_monitor, nullptr,
+                              nullptr);
 
     AdbDeviceClass* dc = ADB_VSOCK_DEVICE_CLASS(oc);
 

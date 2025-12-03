@@ -89,8 +89,7 @@ class ApplicationSingletonTest : public ::testing::Test {
 
     // Helper function to get the path to the test helper executable.
     std::string getHelperPath(const std::string& helperName) {
-        return RunfilesPath(
-                "goldfish+/emulator/libs/application_singleton/" + helperName);
+        return RunfilesPath("goldfish+/emulator/libs/application_singleton/" + helperName);
     }
 
     // Helper function to run the second instance test helper.

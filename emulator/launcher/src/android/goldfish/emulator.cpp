@@ -35,8 +35,8 @@
 #include "android/base/system/System.h"
 #include "android/goldfish/config/avd.h"
 #include "devices/adb_device.h"
-#include "devices/avd_info_device.h"
 #include "devices/audio_device.h"
+#include "devices/avd_info_device.h"
 #include "devices/cpu_device.h"
 #include "devices/display_device.h"
 #include "devices/drives/configure_drives.h"
@@ -59,9 +59,10 @@ absl::Status Emulator::addDevices() {
     // Device are initialized in order of appearance
     // So if device B depends on device A, you should register them as:
     // -device A -device B ...
-    const auto &o = opts();
-    const auto &a = avd();
-    int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning);
+    const auto& o = opts();
+    const auto& a = avd();
+    int pluginLogLevel = static_cast<int>(o.verbose ? absl::LogSeverityAtLeast::kInfo
+                                                    : absl::LogSeverityAtLeast::kWarning);
 
     std::string vmodules = o.vmodule ? o.vmodule : "";
     if (System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
@@ -77,11 +78,12 @@ absl::Status Emulator::addDevices() {
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-nodefaults",
         // our iothread
-        "-object", "iothread,id=disk-iothread",
+        "-object",
+        "iothread,id=disk-iothread",
     });
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-name", absl::StrFormat("%s,debug-threads=on", a.name())});
+        "-name", absl::StrFormat("%s,debug-threads=on", a.name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -94,19 +96,24 @@ absl::Status Emulator::addDevices() {
 
     // Hardware RNG device
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-device", "virtio-rng-pci",
+        "-device",
+        "virtio-rng-pci",
     });
 
     // This is needed for virtconsole (logcat, bt, uwb).
     // TODO old emulator also created a virtio-serial device, do we need to?
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-device", "virtio-serial-pci,ioeventfd=off",
+        "-device",
+        "virtio-serial-pci,ioeventfd=off",
     });
 
     // virtio logcat consoles, note that order matters here!
     // This device is probably just to make sure that logcat is on device 1 and not 0.
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-device", "virtconsole,chardev=forhvc0,name=logcat_null", "-chardev", "null,id=forhvc0",
+        "-device",
+        "virtconsole,chardev=forhvc0,name=logcat_null",
+        "-chardev",
+        "null,id=forhvc0",
     });
     if (o.logcat_output) {
         // virtio logcat consoles, note that order matters here!
@@ -133,16 +140,22 @@ absl::Status Emulator::addDevices() {
         if (!o.no_wifi) {
             addDevice<WifiDevice>("0b.0");
         }
-        // The name of these vport devices should be used by http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
-        // It should lookup the actual port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
+        // The name of these vport devices should be used by
+        // http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp It should lookup the actual
+        // port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
         // /dev/vport8p3 for bt (4th port)
-        // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp to workaround.
+        // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp
+        // to workaround.
         addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-chardev", absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
-            "-device", "virtconsole,chardev=uwb,name=uwb",
+            "-chardev",
+            absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
+            "-device",
+            "virtconsole,chardev=uwb,name=uwb",
 
-            "-chardev", absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
-            "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
+            "-chardev",
+            absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
+            "-device",
+            "virtserialport,chardev=bluetooth,name=bluetooth",
         });
     }
 
@@ -171,15 +184,17 @@ absl::Status Emulator::addDevices() {
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, add the bios to the search path.
         // This is necessary because Qemu searches relative to the current executable path which is
-        // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is composed
-        // of symlinks so the link to the launcher directory is lost.
-        addDevice<ParameterList>(std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
+        // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is
+        // composed of symlinks so the link to the launcher directory is lost.
+        addDevice<ParameterList>(
+                std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
     }
 
     if (o.qemu_telnet) {
         // Debug monitor
         addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-monitor", "telnet::15454,server,nowait",
+            "-monitor",
+            "telnet::15454,server,nowait",
         });
     }
 
@@ -211,20 +226,20 @@ absl::Status Emulator::initialize() {
 }
 
 std::string Emulator::qemu_exe_path() const {
-    auto const &p = paths();
+    const auto& p = paths();
     std::string base;
     switch (avd().detectArchitecture()) {
-        case Avd::CpuArchitecture::kX86:
-            return p.qemu_system_x86_binary.string();
-        case Avd::CpuArchitecture::kArm:
-            return p.qemu_system_arm_binary.string();
-        case Avd::CpuArchitecture::kRiscV:
-            return p.qemu_system_riscv_binary.string();
-        default:
-            return "unknown";
+    case Avd::CpuArchitecture::kX86:
+        return p.qemu_system_x86_binary.string();
+    case Avd::CpuArchitecture::kArm:
+        return p.qemu_system_arm_binary.string();
+    case Avd::CpuArchitecture::kRiscV:
+        return p.qemu_system_riscv_binary.string();
+    default:
+        return "unknown";
     }
 
-  return base;
+    return base;
 }
 
 std::vector<std::string> Emulator::getCmdline() const {
@@ -239,8 +254,8 @@ std::vector<std::string> Emulator::getCmdline() const {
 }
 
 absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
-    const auto &o = opts();
-    const auto &a = avd();
+    const auto& o = opts();
+    const auto& a = avd();
     ABSL_LOG(INFO) << "Preparing " << a.details(true);
     auto status = initialize();
     if (!status.ok()) {
@@ -268,11 +283,11 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 
     if (bool gpu_host = o.gpu && std::string(o.gpu) == "host"; gpu_host) {
-      System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+        System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
-      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
+        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
 #else
-      System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
+        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
 #endif
     }
 
@@ -280,7 +295,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     std::vector<std::string> args = getCmdline();
     {
         std::vector<std::string> printableArgs;
-        printableArgs.reserve(args.size()+1);
+        printableArgs.reserve(args.size() + 1);
         printableArgs.push_back(exe_path.string());
         std::transform(args.begin(), args.end(), std::back_inserter(printableArgs),
                        [](const std::string& a) -> std::string {

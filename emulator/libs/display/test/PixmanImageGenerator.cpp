@@ -30,14 +30,14 @@ namespace goldfish::display::test {
 
 static uint32_t getColorValue(Color color) {
     switch (color) {
-        case Color::Red:
-            return 0xFFFF0000;
-        case Color::Green:
-            return 0xFF00FF00;
-        case Color::Blue:
-            return 0xFF0000FF;
-        default:
-            return 0xFF000000;  // Default to black if unknown
+    case Color::Red:
+        return 0xFFFF0000;
+    case Color::Green:
+        return 0xFF00FF00;
+    case Color::Blue:
+        return 0xFF0000FF;
+    default:
+        return 0xFF000000;  // Default to black if unknown
     }
 }
 

@@ -111,8 +111,8 @@ class InvalidPropertyName : public std::invalid_argument {
      * @param invalidChar The invalid character found in the property name.
      */
     InvalidPropertyName(char invalidChar)
-        : std::invalid_argument("Property name contains invalid character: '" +
-                                std::string(1, invalidChar) + "'") {}
+            : std::invalid_argument("Property name contains invalid character: '" +
+                                    std::string(1, invalidChar) + "'") {}
 };
 
 /**

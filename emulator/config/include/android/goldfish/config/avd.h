@@ -23,7 +23,6 @@
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/config/image_list.h"
 #include "android/goldfish/input_paths.h"
-
 #include "device_type.h"
 
 namespace android::goldfish {
@@ -52,7 +51,6 @@ namespace fs = std::filesystem;
  */
 class Avd {
   public:
-
 /* define the enumared values corresponding to each AVD image type
  * examples are: KERNEL, SYSTEM, etc..
  */
@@ -209,7 +207,7 @@ class Avd {
      *
      * @return A std::vector containing the names of discovered AVDs.
      */
-    static std::vector<std::string> list(const fs::path &avd_directory);
+    static std::vector<std::string> list(const fs::path& avd_directory);
 
     /**
      * @brief Constructs an AVD object from its name.
@@ -222,9 +220,9 @@ class Avd {
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<std::unique_ptr<Avd>> fromName(const android::goldfish::ResolvedInputPaths &paths, std::string name,
-                                                         fs::path sysdir_override = {},
-                                                         fs::path writable_content_override = {});
+    static absl::StatusOr<std::unique_ptr<Avd>> fromName(
+            const android::goldfish::ResolvedInputPaths& paths, std::string name,
+            fs::path sysdir_override = {}, fs::path writable_content_override = {});
 
     static constexpr int kUnknownApiLevel = 1000;
 
@@ -267,18 +265,19 @@ class FileBackedAvd : public Avd {
         return mBuildIni.getString("ro.build.version.sdk", "unknown");
     }
 
-    std::string build_id() const override {
-        return mBuildIni.getString("ro.build.id", "unknown");
-    }
+    std::string build_id() const override { return mBuildIni.getString("ro.build.id", "unknown"); }
 
     std::string build_flavour() const override {
         return mBuildIni.getString("ro.build.flavor", "unknown");
     }
 
-    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path, fs::path content_path, fs::path sysdir_override = {});
+    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(
+            std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path,
+            fs::path content_path, fs::path sysdir_override = {});
 
-   private:
-    FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path, fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
+  private:
+    FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
+                  fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
 
     bool loadBuildProps();
 

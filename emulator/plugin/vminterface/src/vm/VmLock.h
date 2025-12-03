@@ -40,7 +40,8 @@ namespace android::goldfish {
 
 class VmLock {
     DISALLOW_COPY_ASSIGN_AND_MOVE(VmLock);
-public:
+
+  public:
     VmLock() = default;
     virtual ~VmLock();
 
@@ -76,16 +77,13 @@ public:
 // Convenience class to perform scoped VM locking.
 class ScopedVmLock {
     DISALLOW_COPY_ASSIGN_AND_MOVE(ScopedVmLock);
-public:
-    ScopedVmLock(VmLock* vmLock = VmLock::get()) : mVmLock(vmLock) {
-        mVmLock->lock();
-    }
 
-    ~ScopedVmLock() {
-        mVmLock->unlock();
-    }
+  public:
+    ScopedVmLock(VmLock* vmLock = VmLock::get()) : mVmLock(vmLock) { mVmLock->lock(); }
 
-private:
+    ~ScopedVmLock() { mVmLock->unlock(); }
+
+  private:
     VmLock* const mVmLock;
 };
 
@@ -93,7 +91,8 @@ private:
 // to lock twice).
 class RecursiveScopedVmLock {
     DISALLOW_COPY_ASSIGN_AND_MOVE(RecursiveScopedVmLock);
-public:
+
+  public:
     RecursiveScopedVmLock(VmLock* vmLock = VmLock::get()) {
         if (vmLock->isLockedBySelf()) {
             mVmLock = nullptr;
@@ -109,7 +108,7 @@ public:
         }
     }
 
-private:
+  private:
     VmLock* mVmLock;
 };
 
@@ -117,7 +116,8 @@ private:
 // to lock twice), but no-ops if there is no instance.
 class RecursiveScopedVmLockIfInstance {
     DISALLOW_COPY_ASSIGN_AND_MOVE(RecursiveScopedVmLockIfInstance);
-public:
+
+  public:
     RecursiveScopedVmLockIfInstance() {
         if (!VmLock::hasInstance()) return;
 
@@ -137,15 +137,17 @@ public:
         }
     }
 
-private:
-    VmLock* mVmLock = nullptr;;
+  private:
+    VmLock* mVmLock = nullptr;
+    ;
 };
 
 // Another convenience class for a code that may run either under a lock or not
 // but needs to ensure that some part of it runs without a VmLock.
 class ScopedVmUnlock {
     DISALLOW_COPY_ASSIGN_AND_MOVE(ScopedVmUnlock);
-public:
+
+  public:
     ScopedVmUnlock(VmLock* vmLock = VmLock::get()) {
         if (vmLock->isLockedBySelf()) {
             mVmLock = vmLock;
@@ -161,7 +163,7 @@ public:
         }
     }
 
-private:
+  private:
     VmLock* mVmLock;
 };
 

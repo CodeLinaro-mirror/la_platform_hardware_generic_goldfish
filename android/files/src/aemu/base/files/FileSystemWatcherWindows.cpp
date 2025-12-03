@@ -19,10 +19,10 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/synchronization/Event.h"
 #include "aemu/base/files/FileSystemWatcher.h"
-#include "android/base/system/Win32UnicodeString.h"
+#include "aemu/base/synchronization/Event.h"
 #include "android/base/system/File.h"
+#include "android/base/system/Win32UnicodeString.h"
 
 #define DEBUG 0
 #if DEBUG >= 1
@@ -39,7 +39,7 @@ namespace base {
 class ReadDirectoryChangesWin32 : public FileSystemWatcher {
   public:
     ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback onChangeCallback)
-        : FileSystemWatcher(onChangeCallback), mPath(path) {}
+            : FileSystemWatcher(onChangeCallback), mPath(path) {}
 
     ~ReadDirectoryChangesWin32() { stop(); }
 
@@ -64,7 +64,8 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
 
   private:
     bool watchForChanges() {
-        mDirHandle = CreateFileW(mPath.wstring().c_str(), GENERIC_READ,
+        mDirHandle =
+                CreateFileW(mPath.wstring().c_str(), GENERIC_READ,
                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
                             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
@@ -91,23 +92,23 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                 Path changed = mPath / info->FileName;
                 DD("Action: %d - %s (%d)", info->Action, changed.string().c_str(), offset);
                 switch (info->Action) {
-                    case FILE_ACTION_ADDED:
-                        mChangeCallback(WatcherChangeType::Created, changed);
-                        break;
-                    case FILE_ACTION_MODIFIED:
-                        mChangeCallback(WatcherChangeType::Changed, changed);
-                        break;
-                    case FILE_ACTION_REMOVED:
-                        mChangeCallback(WatcherChangeType::Deleted, changed);
-                        break;
-                    case FILE_ACTION_RENAMED_NEW_NAME:
-                        mChangeCallback(WatcherChangeType::Created, changed);
-                        break;
-                    case FILE_ACTION_RENAMED_OLD_NAME:
-                        mChangeCallback(WatcherChangeType::Deleted, changed);
-                        break;
-                    default:
-                        break;
+                case FILE_ACTION_ADDED:
+                    mChangeCallback(WatcherChangeType::Created, changed);
+                    break;
+                case FILE_ACTION_MODIFIED:
+                    mChangeCallback(WatcherChangeType::Changed, changed);
+                    break;
+                case FILE_ACTION_REMOVED:
+                    mChangeCallback(WatcherChangeType::Deleted, changed);
+                    break;
+                case FILE_ACTION_RENAMED_NEW_NAME:
+                    mChangeCallback(WatcherChangeType::Created, changed);
+                    break;
+                case FILE_ACTION_RENAMED_OLD_NAME:
+                    mChangeCallback(WatcherChangeType::Deleted, changed);
+                    break;
+                default:
+                    break;
                 }
 
                 if (info->NextEntryOffset == 0) {

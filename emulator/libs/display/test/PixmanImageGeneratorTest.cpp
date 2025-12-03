@@ -46,15 +46,15 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
     for (size_t i = 0; i < listener->images.size(); ++i) {
         uint32_t expectedColor;
         switch (i % 3) {
-            case 0:
-                expectedColor = 0xFFFF0000;  // Red
-                break;
-            case 1:
-                expectedColor = 0xFF00FF00;  // Green
-                break;
-            case 2:
-                expectedColor = 0xFF0000FF;  // Blue
-                break;
+        case 0:
+            expectedColor = 0xFFFF0000;  // Red
+            break;
+        case 1:
+            expectedColor = 0xFF00FF00;  // Green
+            break;
+        case 2:
+            expectedColor = 0xFF0000FF;  // Blue
+            break;
         }
 
         uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener->images[i].get());

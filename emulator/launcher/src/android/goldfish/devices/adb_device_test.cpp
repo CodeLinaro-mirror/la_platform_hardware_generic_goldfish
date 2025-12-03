@@ -1,3 +1,5 @@
+#include "adb_device.h"
+
 #include <gtest/gtest.h>
 
 #include "absl/status/status_matchers.h"
@@ -5,8 +7,6 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline-definitions.h"
-
-#include "adb_device.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {
@@ -20,29 +20,28 @@ TEST(AdbDeviceTest, DefaultPort) {
     FakeEmulator emu;
 
     AdbDevice dev;
-    EXPECT_THAT(dev.initialize(emu.config()), absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+    EXPECT_THAT(dev.initialize(emu.config()),
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(AdbDeviceTest, CustomPortFromPort) {
-    EmulatorPorts ports{.adb_port=5581};
+    EmulatorPorts ports{.adb_port = 5581};
     FakeEmulator emu(std::move(ports), {});
 
     AdbDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-device"),
-                            Eq("virtio-goldfish-adb,host_port=5581")));
+                ElementsAre(Eq("-device"), Eq("virtio-goldfish-adb,host_port=5581")));
 }
 
 TEST(AdbDeviceTest, CustomPortFromPorts) {
-    EmulatorPorts ports{.serial_number=7777, .adb_port=5581};
+    EmulatorPorts ports{.serial_number = 7777, .adb_port = 5581};
     FakeEmulator emu(std::move(ports), {});
 
     AdbDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
-                ElementsAre(Eq("-device"),
-                            Eq("virtio-goldfish-adb,host_port=5581")));
+                ElementsAre(Eq("-device"), Eq("virtio-goldfish-adb,host_port=5581")));
 }
 
 TEST(AdbDeviceTest, InvalidPorts) {
