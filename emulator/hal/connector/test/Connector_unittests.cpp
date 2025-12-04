@@ -70,7 +70,7 @@ struct TestDevice : public cable::IPlug {
     std::string mData;
 };
 
-const Connector::DeviceEntry kDeviceEntries[] = {
+const DeviceEntry kDeviceEntries[] = {
     {"-TestDevice",
      [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
         std::string_view args) {

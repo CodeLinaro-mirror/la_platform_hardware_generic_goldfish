@@ -20,7 +20,7 @@
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/testing/test_event_loop.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/hal/plug/HalPlugToIPlugAdapter.h"
 #include "goldfish/hal/plug/MarshallingHalSocket.h"

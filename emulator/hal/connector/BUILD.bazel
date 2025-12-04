@@ -23,6 +23,40 @@ cc_library(
 )
 
 cc_library(
+    name = "PingTopic",
+    hdrs = [
+        "include/goldfish/devices/PingTopic.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/broadcasting",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "connector_registry",
+    hdrs = [
+        "include/goldfish/devices/connector_registry.h",
+        "include/goldfish/devices/device_entry.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":PingTopic",
+        ":cable",
+        "//android/async:async_api",
+        "//emulator/hal/plug:hal_plug",
+        "@aemu//base:event-support",
+    ],
+)
+
+cc_library(
     name = "qemud",
     srcs = [
         "qemud.cpp",
@@ -41,21 +75,6 @@ cc_library(
 )
 
 cc_library(
-    name = "PingTopic",
-    hdrs = [
-        "include/goldfish/devices/PingTopic.h",
-    ],
-    includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//emulator/libs/broadcasting",
-    ],
-    alwayslink = True,
-)
-
-cc_library(
     name = "devices",
     srcs = [
         "Connector.cpp",
@@ -68,8 +87,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        ":PingTopic",
-        ":cable",
+        ":connector_registry",
         ":qemud",
     ],
     alwayslink = True,
@@ -94,37 +112,18 @@ cc_library(
 )
 
 cc_library(
-    name = "connector_registry_hdrs",
-    hdrs = [
-        "include/goldfish/devices/connector_registry.h",
-    ],
-    includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        ":devices",
-        "//android/async:async_api",
-        "//emulator/hal/plug:hal_plug_to_i_plug_adapter",
-        "@abseil-cpp//absl/base:no_destructor",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
-        "@aemu//base:event-support",
-    ],
-)
-
-cc_library(
     name = "connector_registry_impl",
     srcs = [
-        "connector_registry.cpp",
+        "connector_registry_impl.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/devices/connector_registry_impl.h",
     ],
     includes = ["include"],
     visibility = [
         "//visibility:public",
     ],
     deps = [
-        ":connector_registry_hdrs",
         ":devices",
         "//android/async:async_api",
         "//emulator/hal/plug:hal_plug_factory",
@@ -146,7 +145,6 @@ cc_test(
         "test/connector_registry_unittest.cpp",
     ],
     deps = [
-        ":connector_registry_hdrs",
         ":connector_registry_impl",
         "//android/async:libuv_event_loop",
         "//android/async:threaded_event_loop",

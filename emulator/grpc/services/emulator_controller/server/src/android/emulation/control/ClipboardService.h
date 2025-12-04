@@ -20,7 +20,7 @@
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/emulation/control/utils/grpc_event_stream_support.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 
 namespace android {
 namespace emulation {

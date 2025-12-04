@@ -9,7 +9,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/hal/connector:connector_registry_hdrs",
+        "//emulator/hal/connector:connector_registry",
     ],
 )
 

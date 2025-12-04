@@ -65,7 +65,7 @@ cc_library(
         "//emulator/hal/camera/image_providers/webcam",
         "//emulator/hal/connector:PingTopic",
         "//emulator/hal/connector:cable",
-        "//emulator/hal/connector:connector_registry_hdrs",
+        "//emulator/hal/connector:connector_registry",
         "//emulator/libs/parsing",
         "@abseil-cpp//absl/log",
     ],

@@ -13,8 +13,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "goldfish/devices/connector_registry.h"
-
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -25,6 +23,7 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector_registry_impl.h"
 
 namespace goldfish {
 

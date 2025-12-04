@@ -15,7 +15,7 @@ cc_library(
         "//android/system",
         "//emulator/config:device_type",
         "//emulator/config:hardware_config",
-        "//emulator/hal/connector:connector_registry_hdrs",
+        "//emulator/hal/connector:connector_registry",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
         "//emulator/libs/physics",
@@ -27,6 +27,23 @@ cc_library(
         "@aemu//base:aemu-base",
         "@aemu//base:event-support",
         "@gfxstream//third_party/glm",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "sensor_observer",
+    srcs = [
+        "sensor_observer.cpp",
+    ],
+    hdrs = [
+        "include/goldfish/devices/sensor/sensor_observer.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sensors",
+        "//emulator/hal/connector:connector_registry_impl",
     ],
     alwayslink = True,
 )

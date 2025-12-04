@@ -24,7 +24,7 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 #include "goldfish/devices/cable/cable.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/hal/plug/HalPlug.h"
 
 using goldfish::async::EventLoop;
