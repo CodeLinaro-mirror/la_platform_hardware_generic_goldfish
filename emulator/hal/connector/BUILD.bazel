@@ -106,8 +106,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        ":cable",
         "//android/async:async_api",
-        "//emulator/hal/connector:cable",
     ],
 )
 
