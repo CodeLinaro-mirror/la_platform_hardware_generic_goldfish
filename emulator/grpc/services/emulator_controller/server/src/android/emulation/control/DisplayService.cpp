@@ -26,7 +26,7 @@
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
 #include "android/grpc/utils/absl_status_translate.h"
-#include "goldfish/devices/sensor/SensorDevice.h"
+#include "goldfish/devices/sensor/sensor_observer.h"
 #include "goldfish/display/Display.h"
 #include "goldfish/display/MultiDisplay.h"
 #include "goldfish/fps_calculator.h"

@@ -25,7 +25,7 @@
 #include "android/misc/GuestStatusDevice.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/event_loop_dispatcher.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/display/MultiDisplay.h"
 
 namespace android {

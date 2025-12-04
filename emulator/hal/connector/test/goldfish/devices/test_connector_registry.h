@@ -17,7 +17,7 @@
 #include "goldfish/devices/Connector.h"
 #include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/hal/plug/HalPlug.h"
 #include "hal_plug_testing_friend.h"
 
@@ -103,12 +103,12 @@ class TestConnectorRegistry : public ConnectorRegistry {
     TestConnectorRegistry() {}
     ~TestConnectorRegistry() = default;
 
-    bool registerQemuDevice(std::string_view name, Connector::DeviceFactory factory) override {
+    bool registerQemuDevice(std::string_view name, DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
 
-    bool registerDevice(std::string_view name, Connector::DeviceFactory factory) override {
+    bool registerDevice(std::string_view name, DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
@@ -136,7 +136,7 @@ class TestConnectorRegistry : public ConnectorRegistry {
     PlugPtr getPlug() { return mPlug; }
 
   private:
-    Connector::DeviceFactory mFactory;
+    DeviceFactory mFactory;
     HalDeviceFactory mHalFactory;
 
     PlugPtr mPlug;

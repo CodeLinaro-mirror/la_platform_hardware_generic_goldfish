@@ -36,6 +36,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/avd/GrallocImpl.h"
+#include "goldfish/avd/avd-private.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/sensor/SensorDevice.h"
 #include "goldfish/display/MultiDisplay.h"

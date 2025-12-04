@@ -16,8 +16,8 @@
 #include <string_view>
 #include <vector>
 
-#include "goldfish/devices/PingTopic.h"
-#include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/device_entry.h"
 
 namespace goldfish {
 namespace devices {
@@ -57,15 +57,6 @@ namespace devices {
  */
 
 struct Connector : public cable::IPlug {
-    using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
-                                                       const std::shared_ptr<PingTopic>& pingTopic,
-                                                       std::string_view args)>;
-
-    struct DeviceEntry {
-        std::string qname;  // prefixed with 'q' for qemud, use '-' otherwise
-        DeviceFactory factory;
-    };
-
     Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
               const DeviceEntry* devicesEntries, size_t devicesEntriesSize);
 

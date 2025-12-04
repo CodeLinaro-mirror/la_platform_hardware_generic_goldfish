@@ -12,7 +12,7 @@
 #pragma once
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/connector_registry.h"
+#include "goldfish/devices/connector_registry_impl.h"
 
 namespace goldfish::avd_info {
 

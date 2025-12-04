@@ -13,7 +13,6 @@
 // limitations under the License.
 #pragma once
 
-#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -24,7 +23,6 @@
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/physics/Rotation.h"
@@ -135,43 +133,6 @@ class ISensorDevice : public HalPlug,
                                int avd_api, const android::goldfish::HardwareConfig& hw,
                                EventLoop* clientLoop, EventLoop* qemuLoop,
                                ::android::base::IClock* clock);
-};
-
-/**
- * @brief Observes changes in sensor data for a specific Android sensor.
- *
- * The SensorObserver class allows you to monitor a particular Android sensor
- * and receive notifications when its data changes. It internally compares
- * the current sensor data with the previously observed data and triggers an
- * event if a change is detected.
- *
- * @tparam SensorData The type of data representing the sensor values (e.g., std::vector<float>).
- *
- * @note
- * The SensorObserver relies on the `ISensorDevice` to provide sensor data and
- * to notify it when sensor events occur.
- */
-class SensorObserver : public CallbackEventSource<SensorData> {
-  public:
-    /**
-     * @brief Constructs a SensorObserver for a specific sensor.
-     *
-     * @param registry Registry used to fetch the ISensorDevice
-     * @param id The AndroidSensor ID to observe.
-     */
-    SensorObserver(ConnectorRegistry* registry, AndroidSensor id);
-    ~SensorObserver();
-
-  private:
-    void registerDevice(std::weak_ptr<ISensorDevice> device);
-    void forwardEvent(const AndroidSensor sensorId);
-    SensorData mOld;  ///< The previously observed sensor data.
-    DeviceRegistrationListener<ISensorDevice>
-            mDeviceListener;               ///< Listener for device registration events.
-    std::weak_ptr<ISensorDevice> mDevice;  ///< The ISensorDevice being observed.
-    const AndroidSensor mId;
-    CallbackId mCallbackId =
-            1234567890;  ///< The ID of the registered callback in the ISensorDevice.
 };
 
 }  // namespace goldfish::devices::sensor

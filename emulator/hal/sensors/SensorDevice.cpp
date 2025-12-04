@@ -735,43 +735,4 @@ void ISensorDevice::registerDevice(IConnectorRegistry* registry,
                    &::android::base::IClock::get());
 }
 
-SensorObserver::SensorObserver(ConnectorRegistry* registry, AndroidSensor id)
-        : mDeviceListener(registry), mId(id) {
-    mDeviceListener.addCallback(
-            [this](std::weak_ptr<ISensorDevice> device) { registerDevice(device); });
-}
-
-void SensorObserver::registerDevice(std::weak_ptr<ISensorDevice> weakSensor) {
-    if (auto sensor = weakSensor.lock()) {
-        mDevice = sensor;
-        mCallbackId =
-                sensor->addCallback([this](AndroidSensor sensorId) { forwardEvent(sensorId); });
-    }
-}
-
-void SensorObserver::forwardEvent(const AndroidSensor sensorId) {
-    if (sensorId != mId) {
-        return;
-    }
-    auto device = mDevice.lock();
-    if (!device) {
-        return;
-    }
-    auto data = device->getSensorData(sensorId);
-    if (!data.ok()) {
-        return;
-    }
-
-    if (mOld != data.value()) {
-        mOld = data.value();
-        SensorObserver::fireEvent(mOld);
-    }
-}
-
-SensorObserver::~SensorObserver() {
-    if (auto sensor = mDevice.lock()) {
-        sensor->removeCallback(mCallbackId);
-    }
-}
-
 }  // namespace goldfish::devices::sensor
