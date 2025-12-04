@@ -12,7 +12,6 @@ license(
     license_kinds = [
         ":SPDX-license-identifier-GPL-2.0-only",
     ],
-    license_text = "COPYING",
     visibility = [":__subpackages__"],
 )
 
