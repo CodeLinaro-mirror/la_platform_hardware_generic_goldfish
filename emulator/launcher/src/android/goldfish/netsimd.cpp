@@ -20,9 +20,9 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/files/IniFile.h"
 #include "aemu/base/utils/status_macros.h"
 #include "android/cmdline-option.h"
+#include "android/files/IniFile.h"
 #include "goldfish/async/launch_config.h"
 #include "goldfish/network/dns_resolver.h"
 

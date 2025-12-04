@@ -33,8 +33,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/IniFile.h"
 #include "android/base/system/File.h"
+#include "android/files/IniFile.h"
 #include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/input_paths.h"
 #include "host-common/constants.h"

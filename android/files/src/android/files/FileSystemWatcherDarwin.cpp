@@ -25,9 +25,9 @@
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/files/FileSystemWatcher.h"
 #include "aemu/base/synchronization/Event.h"
 #include "android/base/system/File.h"
+#include "android/files/FileSystemWatcher.h"
 
 namespace android {
 namespace base {

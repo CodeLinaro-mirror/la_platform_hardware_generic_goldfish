@@ -17,10 +17,8 @@
 #include <stddef.h>  // for size_t
 
 #include <filesystem>
-#include <functional>     // for function
-#include <memory>         // for unique_ptr
-#include <string>         // for std::string
-#include <unordered_set>  // for unordered_set
+#include <functional>  // for function
+#include <memory>      // for unique_ptr
 
 namespace android {
 namespace base {

@@ -15,7 +15,7 @@
 #include <map>
 
 #include "aemu/base/events/EventSources.h"
-#include "aemu/base/files/FileSystemWatcher.h"
+#include "android/files/FileSystemWatcher.h"
 #include "android/goldfish/config/emulator_advertisment.h"
 
 namespace goldfish {

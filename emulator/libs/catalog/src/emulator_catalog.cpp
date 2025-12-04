@@ -16,8 +16,8 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 
-#include "aemu/base/files/IniFile.h"
 #include "android/base/system/File.h"
+#include "android/files/IniFile.h"
 #include "android/goldfish/config/config_dirs.h"
 
 namespace goldfish {

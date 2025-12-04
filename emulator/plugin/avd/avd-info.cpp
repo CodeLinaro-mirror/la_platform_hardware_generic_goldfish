@@ -22,12 +22,12 @@
 #include "absl/strings/str_cat.h"
 
 #include "VCpuEventLoop.h"
-#include "aemu/base/files/IniFile.h"
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/crashreport/CrashReporter.h"
+#include "android/files/IniFile.h"
 #include "android/fingerprint/FingerprintDevice.h"
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
