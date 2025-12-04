@@ -50,8 +50,8 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
 }
 
 absl::Status createExt4Image(fs::path destination, StorageCapacity size, std::string mount_point) {
-    if (android_createEmptyExt4Image(destination.string().c_str(), size.bytes(),
-                                     mount_point.c_str()) == 0) {
+    if (android::filesystems::android_createEmptyExt4Image(destination, size.bytes(),
+                                                           mount_point.c_str()) == 0) {
         return absl::OkStatus();
     }
 

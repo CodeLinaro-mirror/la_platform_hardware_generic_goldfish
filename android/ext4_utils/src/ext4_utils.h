@@ -175,7 +175,7 @@ struct selabel_handle;
 
 int make_ext4fs_internal(int fd, const char* directory, const char* mountpoint,
                          fs_config_func_t fs_config_func, int gzip, int sparse, int crc, int wipe,
-                         struct selabel_handle* sehnd, int verbose);
+                         int verbose);
 
 #ifdef __cplusplus
 }

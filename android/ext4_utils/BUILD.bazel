@@ -54,6 +54,6 @@ cc_library(
         "//third_party/sparse",
     ] + select({
         "@platforms//os:windows": ["@aemu//windows:compat"],
-        "//conditions:default": ["//third_party/libselinux:selinux"],
+        "//conditions:default": [],
     }),
 )

@@ -12,13 +12,16 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
+
+namespace android::filesystems {
+
+namespace fs = std::filesystem;
 
 // Create a new empty EXT4 partition image file at |filePath|
 // of |size| bytes. |mountPoint| is the name of the corresponding
 // mount point, e.g. 'cache' for the cache partition.
 // Returns 0 on success, or -errno on failure.
-int android_createEmptyExt4Image(const char* filePath, uint64_t size, const char* mountpoint);
+int android_createEmptyExt4Image(fs::path filePath, uint64_t size, const char* mountpoint);
 
-// Returns 0 when succeeds. Otherwise returns a negative error code.
-int android_createExt4ImageFromDir(const char* dstFilePath, const char* srcDirectory, uint64_t size,
-                                   const char* mountpoint);
+}  // namespace android::filesystems
