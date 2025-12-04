@@ -1,56 +1,54 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 [
-    [
-        cc_binary(
-            name = "goldfish_" + arch,
-            srcs = [
-                "plugin.cpp",
+    cc_binary(
+        name = "goldfish_" + arch,
+        srcs = [
+            "plugin.cpp",
+        ],
+        linkopts = select({
+            "@platforms//os:macos": ["-undefined dynamic_lookup"],
+            "//conditions:default": [],
+        }),
+        linkshared = True,
+        target_compatible_with = select({
+            # We only support x86 on Windows currently.
+            "@platforms//os:windows": [] if arch == "x86_64" else ["@platforms//:incompatible"],
+            "//conditions:default": [],
+        }),
+        visibility = ["//visibility:public"],
+        win_def_file = select({
+            "@platforms//os:windows": "goldfish_" + arch + ".def",
+            "//conditions:default": None,
+        }),
+        deps = [
+            "//emulator/plugin/adb-vsock",
+            "//emulator/plugin/avd:impl",
+            "//emulator/plugin/battery",
+            "//emulator/plugin/grpc",
+            "//emulator/plugin/netsim:netsim-chardev",
+            "//emulator/plugin/netsim:netsim-netdev",
+            "//emulator/plugin/virtio-input-android",
+            "//emulator/plugin/virtio-wifi",
+            "//emulator/plugin/vminterface:vm_ops",
+            "//emulator/tools:aemu_version",
+            "@abseil-cpp//absl/debugging:failure_signal_handler",
+            "@abseil-cpp//absl/debugging:symbolize",
+            "@abseil-cpp//absl/log",
+            "@qemu//:aemu_func_defs",
+            "@qemu//:qemu-headers",
+            "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
+        ] + select({
+            "@platforms//os:windows": [
+                "@qemu//:qemu-system-" + arch + ".if",
             ],
-            linkopts = select({
-                "@platforms//os:macos": ["-undefined dynamic_lookup"],
-                "//conditions:default": [],
-            }),
-            linkshared = True,
-            target_compatible_with = select({
-                # We only support x86 on Windows currently.
-                "@platforms//os:windows": [] if arch == "x86_64" else ["@platforms//:incompatible"],
-                "//conditions:default": [],
-            }),
-            visibility = ["//visibility:public"],
-            win_def_file = select({
-                "@platforms//os:windows": "goldfish_" + arch + ".def",
-                "//conditions:default": None,
-            }),
-            deps = [
-                "//emulator/plugin/adb-vsock",
-                "//emulator/plugin/avd:impl",
-                "//emulator/plugin/battery",
-                "//emulator/plugin/grpc",
-                "//emulator/plugin/netsim:netsim-chardev",
-                "//emulator/plugin/netsim:netsim-netdev",
-                "//emulator/plugin/virtio-input-android",
-                "//emulator/plugin/virtio-wifi",
-                "//emulator/plugin/vminterface:vm_ops",
-                "//emulator/tools:aemu_version",
-                "@abseil-cpp//absl/debugging:failure_signal_handler",
-                "@abseil-cpp//absl/debugging:symbolize",
-                "@abseil-cpp//absl/log",
-                "@qemu//:aemu_func_defs",
-                "@qemu//:qemu-headers",
-                "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,
-            ] + select({
-                "@platforms//os:windows": [
-                    "@qemu//:qemu-system-" + arch + ".if",
-                ],
-                "//conditions:default": [],
-            }) + [
-                # crashreport dep must go after the windows compat dep.
-                # buildifier: leave-alone
-                "//emulator/crashreport:init",
-            ],
-        ),
-    ]
+            "//conditions:default": [],
+        }) + [
+            # crashreport dep must go after the windows compat dep.
+            # buildifier: leave-alone
+            "//emulator/crashreport:init",
+        ],
+    )
     for arch in [
         "riscv64",
         "aarch64",
