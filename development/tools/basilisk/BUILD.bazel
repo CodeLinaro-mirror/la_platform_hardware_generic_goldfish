@@ -1,0 +1,21 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+
+py_library(
+    name = "basilisk_lib",
+    srcs = [
+        "__init__.py",
+        "config.py",
+        "file_processor.py",
+        "namespace_parser.py",
+        "refactor_manager.py",
+        "repository.py",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+py_binary(
+    name = "basilisk",
+    srcs = ["basilisk.py"],
+    visibility = ["//visibility:public"],
+    deps = [":basilisk_lib"],
+)
