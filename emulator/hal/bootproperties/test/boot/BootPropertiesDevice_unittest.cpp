@@ -13,29 +13,12 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "android/base/testing/TestSystem.h"
-#include "android/goldfish/config/fake-avd.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud.h"
 #include "goldfish/devices/test_connector_registry.h"
 
-namespace {
-
-typedef void QEMUResetHandler(void* opaque);
-
-static QEMUResetHandler* sResetHandler;
-static void* sOpaque;
-extern "C" {
-void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
-    sResetHandler = func;
-    sOpaque = opaque;
-}
-}
-}  // namespace
-
 namespace goldfish::devices::boot {
 
-using android::base::TestSystem;
 using goldfish::async::testing::TestEventLoop;
 using ::testing::Eq;
 using ::testing::Gt;

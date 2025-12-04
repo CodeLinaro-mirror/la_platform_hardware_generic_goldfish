@@ -26,7 +26,6 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:event-support",
     ],
     alwayslink = True,
 )
@@ -40,21 +39,7 @@ cc_test(
     deps = [
         ":bootproperties",
         "//android/system:googletest_main",
-        "//android/system:test-headers",
-        "//emulator/config:avd-test",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
-    ],
-)
-
-cc_library(
-    name = "test_bootproperties",
-    hdrs = [
-        "test/FakeBootPropertiesDevice.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
     ],
 )
