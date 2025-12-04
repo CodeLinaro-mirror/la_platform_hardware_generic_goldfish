@@ -71,8 +71,6 @@ using namespace std::string_view_literals;
  */
 class IBootPropertiesDevice : public HalPlug {
   public:
-    virtual ~IBootPropertiesDevice() override {}
-
     /**
      * @brief QEMU service name for the bootproperties device.
      */
