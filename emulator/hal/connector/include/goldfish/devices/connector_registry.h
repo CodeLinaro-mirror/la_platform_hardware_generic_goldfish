@@ -25,8 +25,6 @@
 namespace goldfish {
 namespace devices {
 
-using DeviceName = std::string;
-
 using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
                                                    const std::shared_ptr<PingTopic>& pingTopic,
                                                    std::string_view args)>;
@@ -49,7 +47,7 @@ using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
  */
 using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
 
-struct IConnectorRegistry : public android::base::eventing::CallbackEventSource<DeviceName> {
+struct IConnectorRegistry : public android::base::eventing::CallbackEventSource<std::string> {
     virtual ~IConnectorRegistry() = default;
 
     /**
