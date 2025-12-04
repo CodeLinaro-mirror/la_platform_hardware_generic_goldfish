@@ -14,7 +14,6 @@
 #pragma once
 
 #include <string_view>
-#include <unordered_map>
 
 #include "absl/container/flat_hash_map.h"
 
@@ -72,8 +71,6 @@ using namespace std::string_view_literals;
  */
 class IBootPropertiesDevice : public HalPlug {
   public:
-    virtual ~IBootPropertiesDevice() override {}
-
     /**
      * @brief QEMU service name for the bootproperties device.
      */
