@@ -185,6 +185,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
         if (auto* p = mEmulatorProcess.get()) {
             uv_process_kill(p, signum);
+        } else {
+            // If there is no emulator process yet then we want to shutdown directly.
+            shutdown();
         }
     }
 
@@ -290,19 +293,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         l.mEmulatorExitStatus = exit_status;
         close_handle(std::move(l.mEmulatorProcess));
 
-        l.mSerialPortReservation->close();
-        l.mSerialPortReservation.reset();
-        VLOG(1) << "Shutting down";
-        l.mShutdownThread = std::thread([&l] {
-            // Shut down the signal handlers before the loop.
-            l.mSignalHandlers.close();
-            // This can't run on the loop itself.
-            if (auto s = l.mEventLoop.shutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
-                LOG(ERROR) << "Event loop shutdown error: " << s;
-            } else {
-                VLOG(1) << "Event loop shutdown succeeded";
-            }
-        });
+        l.shutdown();
     }
 
     void launch_emulator(std::string netsimd_endpoint) {
@@ -319,6 +310,35 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         } else {
             LOG(FATAL) << "Fatal error whilst launching the emulator: " << emulator_config.status();
         }
+    }
+
+    void shutdown() {
+        if (mSerialPortReservation) {
+            mSerialPortReservation->close();
+            mSerialPortReservation.reset();
+        }
+
+        if (mFindNetsimd) {
+            mFindNetsimd->cancel();
+            mFindNetsimd.reset();
+        }
+
+        if (mNetsimdConnection) {
+            mNetsimdConnection->disconnect();
+            mNetsimdConnection.reset();
+        }
+
+        VLOG(1) << "Shutting down";
+        mShutdownThread = std::thread([this] {
+            // Shut down the signal handlers before the loop.
+            mSignalHandlers.close();
+            // This can't run on the loop itself.
+            if (auto s = mEventLoop.shutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
+                LOG(ERROR) << "Event loop shutdown error: " << s;
+            } else {
+                VLOG(1) << "Event loop shutdown succeeded";
+            }
+        });
     }
 
     ::goldfish::async::EventLoop& mEventLoop;
