@@ -710,7 +710,7 @@ class SensorDevice : public ISensorDevice {
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) {y, static_cast<int>(AndroidSensor::x)},
         GOLDFISH_SENSORS_LIST
-#undef SENSOR_
+#undef GOLDFISH_SENSOR_DEF
     };
 };
 
