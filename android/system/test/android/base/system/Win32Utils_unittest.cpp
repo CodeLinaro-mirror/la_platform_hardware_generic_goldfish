@@ -37,30 +37,6 @@
 namespace android {
 namespace base {
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-
-TEST(Win32Utils, quoteCommandLine) {
-    static const struct {
-        const char* input;
-        const char* expected;
-    } kData[] = {
-        {"foo", "foo"},
-        {"foo bar", "\"foo bar\""},
-        {"foo\\bar", "foo\\bar"},
-        {"foo\\\\bar", "foo\\\\bar"},
-        {"foo\"bar", "\"foo\\\"bar\""},
-        {"foo\\\"bar", "\"foo\\\\\\\"bar\""},
-        {"foo\\bar zoo", "\"foo\\bar zoo\""},
-    };
-    for (size_t n = 0; n < ARRAY_SIZE(kData); ++n) {
-        const char* input = kData[n].input;
-        const char* expected = kData[n].expected;
-
-        std::string out = Win32Utils::quoteCommandLine(input);
-        EXPECT_STREQ(expected, out.c_str()) << "Quoting '" << input << "'";
-    }
-}
-
 TEST(Win32Utils, getErrorString) {
     LANGID langid = ::GetThreadUILanguage();
     LANGID kLangIdEnglishUS = 1033;

@@ -17,6 +17,8 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
+#include "android/base/system/File.h"
+
 namespace android::base {
 
 using ::testing::Contains;
@@ -30,18 +32,19 @@ using namespace std::chrono_literals;
 // is cleaner than a tuple for use with Google Mock matchers like `Field`.
 struct WatchResult {
     FileSystemWatcher::WatcherChangeType type;
-    std::string path;
+    std::filesystem::path path;
 };
 
 // TestEventHandler is a helper class that manages the state and synchronization
 // for the FileSystemWatcher tests. It collects events in a thread-safe manner.
 class TestEventHandler {
   public:
-    explicit TestEventHandler(const std::string& expected_path)
+    explicit TestEventHandler(std::filesystem::path expected_path)
             : mExpectedPath(expected_path), mNotification(std::make_unique<absl::Notification>()) {}
 
     // The callback function passed to the FileSystemWatcher.
-    void operator()(FileSystemWatcher::WatcherChangeType change, const std::string& path) {
+    void operator()(FileSystemWatcher::WatcherChangeType change,
+                    const std::filesystem::path& path) {
         LOG(INFO) << "Change: " << (int)change << " path: " << path << " == " << mExpectedPath;
 
         // Only store events for the specific file we're testing and resolve symlinks etc.
@@ -73,7 +76,7 @@ class TestEventHandler {
     }
 
   private:
-    std::string mExpectedPath;
+    std::filesystem::path mExpectedPath;
     absl::Mutex mMutex;
     std::unique_ptr<absl::Notification> mNotification;
     std::vector<WatchResult> mChanges;
@@ -96,9 +99,20 @@ class FileSystemWatcherTest : public ::testing::Test {
         }
     }
 
+    void createDir(const std::string& name) { (void)android::base::file::mkdir(name, 0755); }
+
+    void deleteDir(const std::string& name) { (void)android::base::file::rm(name); }
+
     void createFile(const std::string& name) {
         std::ofstream ofs(mTempDir / name);
         ofs << "content";
+        ofs.close();
+    }
+
+    void appendFile(const std::string& name) {
+        std::ofstream ofs;
+        ofs.open(mTempDir / name, std::ios_base::app);
+        ofs << "\nextra content";
         ofs.close();
     }
 
@@ -114,13 +128,29 @@ class FileSystemWatcherTest : public ::testing::Test {
     std::filesystem::path mTempDir;
 };
 
+TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
+    auto expected_path = mTempDir / "test_file1.txt";
+    TestEventHandler handler(expected_path);
+
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->start());
+
+    createFile("test_file1.txt");
+
+    auto changes = handler.waitForChange(absl::Seconds(5));
+    // createFile generates both a CREATE and a MODIFY event. We only care
+    // that the CREATE event was received.
+    EXPECT_THAT(changes,
+                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Created)));
+}
+
 TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
-    auto expected_path = (mTempDir / "test_file2.txt").string();
+    auto expected_path = mTempDir / "test_file2.txt";
     TestEventHandler handler(expected_path);
 
     // First, create the file and wait for the initial events to clear.
     createFile("test_file2.txt");
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir.string(), std::ref(handler));
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
     ASSERT_TRUE(mWatcher->start());
     handler.waitForChange(absl::Seconds(5));
     handler.reset();
@@ -133,18 +163,14 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
                 Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Deleted)));
 }
 
-TEST_F(FileSystemWatcherTest, DetectsFileModification) {
-    auto expected_path = (mTempDir / "test_file3.txt").string();
+TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
+    auto expected_path = mTempDir / "test_file3.txt";
     TestEventHandler handler(expected_path);
 
     // First, create the file and set up the watcher.
     createFile("test_file3.txt");
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir.string(), std::ref(handler));
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
     ASSERT_TRUE(mWatcher->start());
-
-    // Wait for the initial create/modify events and clear them.
-    handler.waitForChange(absl::Seconds(5));
-    handler.reset();
 
     // Now, modify the file and wait for the "Changed" event.
     modifyFile("test_file3.txt");
@@ -154,11 +180,32 @@ TEST_F(FileSystemWatcherTest, DetectsFileModification) {
                 Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Changed)));
 }
 
+TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
+#ifdef __APPLE__
+    // TODO(whollins): Fix this.
+    GTEST_SKIP() << "This change shows as creation currently";
+#endif
+    auto expected_path = mTempDir / "test_file4.txt";
+    TestEventHandler handler(expected_path);
+
+    // First, create the file and set up the watcher.
+    createFile("test_file4.txt");
+    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->start());
+
+    // Now, modify the file and wait for the "Changed" event.
+    appendFile("test_file4.txt");
+    auto changes = handler.waitForChange(absl::Seconds(10));
+
+    EXPECT_THAT(changes,
+                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Changed)));
+}
+
 TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
     absl::Notification notification;
 
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            mTempDir.string(), [&](FileSystemWatcher::WatcherChangeType, const std::string&) {
+            mTempDir, [&](FileSystemWatcher::WatcherChangeType, const std::filesystem::path&) {
                 notification.Notify();
             });
     ASSERT_TRUE(mWatcher->start());

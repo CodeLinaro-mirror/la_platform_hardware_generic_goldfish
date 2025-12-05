@@ -7,6 +7,10 @@ cc_library(
     srcs = ["application_singleton.cpp"],
     hdrs = ["include/goldfish/singleton/application_singleton.h"],
     includes = ["include"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [

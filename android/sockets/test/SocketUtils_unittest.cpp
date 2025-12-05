@@ -18,6 +18,8 @@
 
 #include "aemu/base/sockets/ScopedSocket.h"
 
+#include "android/base/testing/NeedsWinsock.h"
+
 namespace android {
 namespace base {
 

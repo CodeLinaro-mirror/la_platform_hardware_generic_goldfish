@@ -27,14 +27,14 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
-#include "tools/cpp/runfiles/runfiles.h"
-
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
 #else
 #include <Windows.h>
 #endif  // !_WIN32
+
+#include "android/base/bazel/bazel_info.h"
 
 namespace android {
 namespace base {
@@ -58,21 +58,8 @@ class FakeOverseer : public NullOverseer {
 #define EXE ""
 #endif
 
-using ::bazel::tools::cpp::runfiles::Runfiles;
-
-std::string RunfilesPath(std::string path) {
-    std::string error;
-    std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
-    if (runfiles == nullptr) {
-        std::clog << "Unable to determine runfile path: " << error;
-        exit(1);
-    }
-
-    return runfiles->Rlocation(path);
-}
-
 std::string sleep_exe() {
-    return RunfilesPath(absl::StrCat("goldfish+/android/process/sleep_emu", EXE));
+    return Bazel::runfilesPath(absl::StrCat("goldfish+/android/process/sleep_emu", EXE));
 }
 
 // You can always make your own fake commands..
@@ -107,6 +94,7 @@ TEST(Process, find_me) {
 TEST(Process, discovered_proc_same_as_launched) {
     auto proc = Command::create({sleep_exe(), "--sleep", "1s"}).execute();
     auto sleep = Process::fromPid(proc->pid());
+    ASSERT_NE(sleep, nullptr);
     EXPECT_EQ(proc->pid(), sleep->pid());
     EXPECT_EQ(*proc, *sleep);
 }

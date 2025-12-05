@@ -48,7 +48,7 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
 EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath, Private)
         : mDiscoveryPath(std::move(discoveryPath)) {
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            mDiscoveryPath, [this](auto change, auto path) { onFileChanged(change, path); });
+            mDiscoveryPath, [this](auto change, std::filesystem::path path) { onFileChanged(change, path); });
 }
 
 EmulatorCatalog::~EmulatorCatalog() {
@@ -82,11 +82,11 @@ std::vector<CatalogEntry> EmulatorCatalog::listEmulators() const {
 }
 
 void EmulatorCatalog::onFileChanged(FileSystemWatcher::WatcherChangeType change,
-                                    const std::string& path) {
+                                    const std::filesystem::path& path) {
     // We only care about .ini files.
     VLOG(1) << "EmulatorCatalog: " << path << " changed: " << (int)change;
 
-    if (!absl::EndsWith(path, ".ini")) {
+    if (!absl::EndsWith(path.string(), ".ini")) {
         return;
     }
 

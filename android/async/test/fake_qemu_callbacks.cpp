@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <poll.h>
 #include <unistd.h>
 #endif
@@ -140,7 +142,11 @@ void fake_qemu_advance_ms(int64_t ms) {
         }
 
         // Use a non-blocking poll call with a 0ms timeout
+#ifdef _WIN32
+        int ret = WSAPoll(pollfds.data(), pollfds.size(), 0);
+#else
         int ret = poll(pollfds.data(), pollfds.size(), 0);
+#endif
 
         if (ret > 0) {
             for (const auto& p : pollfds) {

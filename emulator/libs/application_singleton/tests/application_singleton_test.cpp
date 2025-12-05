@@ -25,8 +25,9 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/process/Command.h"
+
+#include "android/base/bazel/bazel_info.h"
 #include "android/base/testing/TestSystem.h"
-#include "tools/cpp/runfiles/runfiles.h"
 
 #ifdef _WIN32
 #include <process.h>
@@ -37,21 +38,8 @@
 namespace goldfish::singleton {
 
 using android::base::TestSystem;
-using ::bazel::tools::cpp::runfiles::Runfiles;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
-
-// Bazel specific helper to find data dependencies.
-std::string RunfilesPath(const std::string& path) {
-    std::string error;
-    std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
-    if (runfiles == nullptr) {
-        ADD_FAILURE() << "Failed to create Runfiles: " << error;
-        return "";
-    }
-
-    return runfiles->Rlocation(path);
-}
 
 class ApplicationSingletonTest : public ::testing::Test {
   protected:
@@ -89,7 +77,7 @@ class ApplicationSingletonTest : public ::testing::Test {
 
     // Helper function to get the path to the test helper executable.
     std::string getHelperPath(const std::string& helperName) {
-        return RunfilesPath("goldfish+/emulator/libs/application_singleton/" + helperName);
+        return android::base::Bazel::runfilesPath("goldfish+/emulator/libs/application_singleton/" + helperName);
     }
 
     // Helper function to run the second instance test helper.

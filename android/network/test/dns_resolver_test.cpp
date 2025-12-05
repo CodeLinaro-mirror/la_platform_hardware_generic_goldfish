@@ -21,6 +21,9 @@
 #include "absl/status/status_matchers.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
+
+#include "android/base/testing/NeedsWinsock.h"
+
 #include "goldfish/network/endpoint.h"
 #include "goldfish/network/ip_address.h"
 
@@ -92,7 +95,7 @@ TEST(DnsResolverTest, GetSystemDnsServers_SanityCheck) {
         return;
     }
 
-    ASSERT_OK(result);
+    ASSERT_OK(result.status());
     const auto& servers = *result;
 
     // If the OS reports success, we generally expect at least one server,

@@ -20,6 +20,7 @@
 #include "aemu/base/sockets/SocketUtils.h"
 #include "aemu/base/testing/TestInputBufferSocketServerThread.h"
 #include "aemu/base/threads/Thread.h"
+#include "android/base/testing/NeedsWinsock.h"
 #include "android/base/testing/TestSystem.h"
 
 namespace goldfish::adb {

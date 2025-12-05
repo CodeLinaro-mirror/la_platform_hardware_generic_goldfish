@@ -65,7 +65,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
   private:
     bool watchForChanges() {
         mDirHandle =
-                CreateFileW(mPath.wstring().c_str(), GENERIC_READ,
+                CreateFileW(mPath.wstring().c_str(), FILE_LIST_DIRECTORY,
                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
                             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
@@ -79,7 +79,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             BYTE buffer[4096] = {0};
             if (ReadDirectoryChangesW(mDirHandle, buffer, sizeof(buffer), TRUE,
                                       FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
-                                              FILE_NOTIFY_CHANGE_ATTRIBUTES,
+                                              FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
                                       &dwBytesReturned, NULL, NULL) == 0) {
                 CloseHandle(mDirHandle);
                 mDirHandle = INVALID_HANDLE_VALUE;
@@ -89,7 +89,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
             while (mRunning) {
                 FILE_NOTIFY_INFORMATION* info =
                         reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buffer + offset);
-                Path changed = mPath / info->FileName;
+                Path changed = mPath / std::wstring_view(info->FileName, info->FileNameLength/sizeof(wchar_t));
                 DD("Action: %d - %s (%d)", info->Action, changed.string().c_str(), offset);
                 switch (info->Action) {
                 case FILE_ACTION_ADDED:

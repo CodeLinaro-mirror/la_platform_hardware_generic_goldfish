@@ -66,7 +66,11 @@ TEST_F(GpsDeviceTest, canSendLocation) {
 
     device->setLocation(kAmsterdam);
     EXPECT_THAT(test_socket->storage,
-                MatchesRegex("0039\\$GnssRpcV1,0,52\\.3676,4\\.9041,0,0,1,0,[0-9]+,0\\.5,2,0"));
+#ifdef _WIN32
+                MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,\d+,0\.5,2,0)"));
+#else
+                MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,[0-9]+,0\.5,2,0)"));
+#endif
 }
 
 }  // namespace goldfish::devices::gps

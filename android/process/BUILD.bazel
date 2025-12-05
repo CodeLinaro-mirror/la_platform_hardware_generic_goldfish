@@ -56,10 +56,10 @@ cc_test(
     deps = [
         ":process",
         "//android/files",
+        "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
-        "@bazel_tools//tools/cpp/runfiles",
     ],
 )

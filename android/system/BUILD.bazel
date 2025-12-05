@@ -84,6 +84,7 @@ cc_library(
     hdrs = [
         "test-headers/android/base/system/TestClock.h",
         "test-headers/android/base/testing/MockUtils.h",
+        "test-headers/android/base/testing/NeedsWinsock.h",
         "test-headers/android/base/testing/ResultMatchers.h",
         "test-headers/android/base/testing/TestEvent.h",
         "test-headers/android/base/testing/TestMemoryOutputStream.h",
@@ -135,7 +136,7 @@ cc_test(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":compat",
+        ":system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
     ],

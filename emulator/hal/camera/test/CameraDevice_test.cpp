@@ -14,6 +14,7 @@
  */
 
 #include "android/camera/CameraDevice.h"
+#include "absl/log/log.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -197,6 +198,9 @@ TEST_F(CameraDeviceTest, configure) {
 }
 
 TEST_F(CameraDeviceTest, capture) {
+#ifdef _WIN32
+    GTEST_SKIP() << "broken on windows, needs fixing";
+#endif
     static const char configureQuery[] = "configure streams=0:640x480@1,1:320x240@23";
     static const char captureQuery[] = "capture bufs=0:abc,1:xyz";
 

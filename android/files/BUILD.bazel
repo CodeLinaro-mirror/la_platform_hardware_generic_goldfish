@@ -43,6 +43,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":files",
+        "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/log",

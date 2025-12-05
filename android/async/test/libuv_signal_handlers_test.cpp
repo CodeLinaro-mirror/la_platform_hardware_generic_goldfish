@@ -30,19 +30,29 @@ TEST(UvSignalHandlers, AddBeforeLoopStarted) {
 
     absl::Notification signal_arrived;
     auto handlers = std::make_unique<UvSignalHandlers>(*uv_loop, [&signal_arrived](int signal) {
+#ifdef _WIN32
+        if (signal == SIGBREAK) {
+#else
         if (signal == SIGHUP) {
+#endif
             signal_arrived.Notify();
         } else {
-            ADD_FAILURE() << "unexpect signal received";
+            ADD_FAILURE() << "unexpect signal received:" << signal;
         }
     });
 
     std::thread t([&uv_loop] { uv_loop->run(); });
 
     uv_pid_t pid = uv_os_getpid();
+#ifdef _WIN32
+    //SetConsoleCtrlHandler(NULL, TRUE);
+    //GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+#else
     uv_kill(pid, SIGHUP);
+#endif
 
-    ASSERT_TRUE(signal_arrived.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    EXPECT_TRUE(signal_arrived.WaitForNotificationWithTimeout(absl::Seconds(5)));
 
     // Handlers must be closed before loop shutdown.
     handlers->close();
@@ -59,20 +69,30 @@ TEST(UvSignalHandlers, AddAfterLoopStarted) {
     std::unique_ptr<UvSignalHandlers> handlers;
     // In this case we have to create them on the running loop.
     ASSERT_THAT(loop->postAndWait([&handlers, &signal_arrived, uv_loop] {
-        handlers = std::make_unique<UvSignalHandlers>(*uv_loop, [&signal_arrived](int signal) {
+            handlers = std::make_unique<UvSignalHandlers>(*uv_loop, [&signal_arrived](int signal) {
+#ifdef _WIN32
+            if (signal == SIGBREAK) {
+#else
             if (signal == SIGHUP) {
+#endif
                 signal_arrived.Notify();
             } else {
-                ADD_FAILURE() << "unexpect signal received";
+                ADD_FAILURE() << "unexpect signal received:" << signal;
             }
         });
     }),
                 absl_testing::IsOk());
 
     uv_pid_t pid = uv_os_getpid();
+#ifdef _WIN32
+    //SetConsoleCtrlHandler(NULL, TRUE);
+    //GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+#else
     uv_kill(pid, SIGHUP);
+#endif
 
-    ASSERT_TRUE(signal_arrived.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    EXPECT_TRUE(signal_arrived.WaitForNotificationWithTimeout(absl::Seconds(5)));
 
     // Let the destructor close.
     handlers.reset();

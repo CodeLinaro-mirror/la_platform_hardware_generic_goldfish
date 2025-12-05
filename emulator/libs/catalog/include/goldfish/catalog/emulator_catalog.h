@@ -133,7 +133,7 @@ class EmulatorCatalog {
     bool start();
     void stop();
 
-    void onFileChanged(FileSystemWatcher::WatcherChangeType change, const std::string& path);
+    void onFileChanged(FileSystemWatcher::WatcherChangeType change, const std::filesystem::path& path);
     void addEmulator(const std::filesystem::path& path);
     void removeEmulator(const std::filesystem::path& path);
     void scanDirectory();

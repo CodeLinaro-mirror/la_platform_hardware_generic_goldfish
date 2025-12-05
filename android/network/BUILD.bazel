@@ -35,6 +35,7 @@ cc_test(
     deps = [
         ":network",
         "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

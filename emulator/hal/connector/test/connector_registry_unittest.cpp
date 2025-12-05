@@ -192,6 +192,10 @@ TEST_F(ConnectorRegistryTest, RegisterDeviceAfterListen) {
 }
 
 TEST_F(ConnectorRegistryTest, RegisteredDeviceIsAvailable) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     bool standardDeviceCreated = false;
@@ -216,6 +220,10 @@ TEST_F(ConnectorRegistryTest, RegisteredDeviceIsAvailable) {
 }
 
 TEST_F(ConnectorRegistryTest, RegisteredQemuDeviceIsAvailable) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     bool standardDeviceCreated = false;

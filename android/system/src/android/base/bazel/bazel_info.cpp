@@ -48,6 +48,9 @@ std::string Bazel::runfilesPath(const std::string& path) {
     }
     std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(BAZEL_CURRENT_REPOSITORY, &error));
 
+    if (runfiles == nullptr) {
+        return "<create-for-test-failed>";
+    }
     // 2 possibilities, it is under our workspace, or not.
     std::string location = runfiles->Rlocation(path);
     if (fs::exists(fs::path(location))) {

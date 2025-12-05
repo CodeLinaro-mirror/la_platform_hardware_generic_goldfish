@@ -30,6 +30,9 @@ class UvSignalHandlers {
     UvSignalHandlers(LibuvEventLoop& uv_loop, Callback signal_cb)
             : mUvLoop(uv_loop)
             , mSignalCallback(std::move(signal_cb))
+#ifdef _WIN32
+            , mSignalHandlerBreak(uv_loop, SIGBREAK, this, signal_handler)
+#endif
             , mSignalHandlerHup(uv_loop, SIGHUP, this, signal_handler)
             , mSignalHandlerInt(uv_loop, SIGINT, this, signal_handler)
             , mSignalHandlerQuit(uv_loop, SIGQUIT, this, signal_handler)
@@ -44,12 +47,18 @@ class UvSignalHandlers {
         LOG_IF(FATAL, mUvLoop.getState() != LooperStatusEvent::State::RUNNING)
                 << "event loop is not running but signal handlers are being closed";
         mUvLoop.postAndWait([this] {
+#ifdef _WIN32
+            mSignalHandlerBreak.close();
+#endif
             mSignalHandlerHup.close();
             mSignalHandlerInt.close();
             mSignalHandlerQuit.close();
             mSignalHandlerTerm.close();
         });
 
+#ifdef _WIN32
+        mSignalHandlerBreak.waitForClosed();
+#endif
         mSignalHandlerHup.waitForClosed();
         mSignalHandlerInt.waitForClosed();
         mSignalHandlerQuit.waitForClosed();
@@ -104,6 +113,9 @@ class UvSignalHandlers {
 
     LibuvEventLoop& mUvLoop;
     Callback mSignalCallback;
+#ifdef _WIN32
+    UvSignalHandler mSignalHandlerBreak;
+#endif
     UvSignalHandler mSignalHandlerHup;
     UvSignalHandler mSignalHandlerInt;
     UvSignalHandler mSignalHandlerQuit;

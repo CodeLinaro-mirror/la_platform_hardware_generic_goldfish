@@ -191,7 +191,14 @@ absl::StatusOr<std::vector<IpAddress>> resolveHostname(const std::string& hostna
 
     return addresses;
 }
+
 absl::StatusOr<std::vector<IpAddress>> getSystemDnsServers() {
+    // TODO(whollins): only do this once globally.
+    // Also: Cleanup c-ares library before exiting - ares_library_cleanup();
+    if (int status = ares_library_init(ARES_LIB_INIT_ALL); status != ARES_SUCCESS) {
+        return absl::InternalError(absl::StrFormat("Failed to initialize c-ares library: %s", ares_strerror(status)));
+    }
+
     ares_channel raw_channel = nullptr;
     if (int err = ares_init(&raw_channel); err != ARES_SUCCESS) {
         return absl::InternalError(

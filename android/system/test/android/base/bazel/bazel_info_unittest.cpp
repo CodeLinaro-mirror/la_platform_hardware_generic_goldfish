@@ -28,8 +28,7 @@ TEST(bazel_info, inBazel) {
 }
 
 TEST(bazel_info, can_get_data_file) {
-    EXPECT_FALSE(Bazel::runfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt")
-                         .empty());
+    EXPECT_FALSE(Bazel::runfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt").empty());
 }
 
 TEST(bazel_info, can_read_data_file) {

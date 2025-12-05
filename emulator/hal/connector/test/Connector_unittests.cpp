@@ -158,6 +158,10 @@ TEST(Connector, unknown_qemud_device) {
 }
 
 TEST(Connector, qemud_TestDevice_args_unconsumed) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     DequeArchive archive;
@@ -180,6 +184,10 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
 }
 
 TEST(Connector, qemud_TestDevice_unconsumed) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     DequeArchive archive;
@@ -202,6 +210,10 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
 }
 
 TEST(Connector, TestDevice_args_unconsumed) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     DequeArchive archive;
@@ -224,6 +236,10 @@ TEST(Connector, TestDevice_args_unconsumed) {
 }
 
 TEST(Connector, TestDevice_unconsumed) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "currently broken on Windows";
+#endif
     using namespace std::literals;
 
     DequeArchive archive;

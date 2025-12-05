@@ -48,6 +48,15 @@ using namespace std::chrono_literals;
 
 // Converts a std::string (utf-8) -> utf-16
 static std::wstring toWide(std::string str) {
+    std::mbstate_t state = std::mbstate_t();
+    std::wstring ws(str.size(), L' ');  // Overestimate number of code points.
+    const char* src = str.c_str();      // 0
+    int x = std::mbsrtowcs(&ws[0], &src, str.size(), &state);
+    if (x < 0) {
+        return std::wstring();
+    }
+    ws.resize(x);
+    return ws;
     // Utf8 -> Utf16, so width will always be smaller.
     wchar_t rspBuffer[str.size() + 1];
     size_t size = 0;

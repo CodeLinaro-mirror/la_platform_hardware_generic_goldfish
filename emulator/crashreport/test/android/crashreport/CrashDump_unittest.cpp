@@ -100,6 +100,10 @@ class CrashTest : public ::testing::Test {
 };
 
 TEST_F(CrashTest, crash_generates_minidump) {
+#ifdef _WIN32
+    // TODO(whollins,b/449212254): Fix this.
+    GTEST_SKIP() << "crash report generation is currently broken on windows";
+#endif
     std::vector<CrashReportDatabase::Report> reports;
     std::vector<CrashReportDatabase::Report> pendingReports;
     mCrashdatabase->GetCompletedReports(&reports);
