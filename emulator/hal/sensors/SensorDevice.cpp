@@ -60,9 +60,9 @@ struct SensorInfo {
 
 // Serialized sensor data
 struct SerializedSensor {
-    unsigned long measurement_id{0};
-    int length{0};
-    char value[128];
+    size_t measurement_id{0};
+    char value[127];
+    uint8_t length{0};
 };
 
 // Sensor data with enabled state
@@ -70,71 +70,6 @@ struct Sensor {
     bool enabled{false};
     SerializedSensor serialized;
 };
-
-// Helper functions to get vec3/vec4 values from float array
-void getvec3Size(size_t* size) {
-    if (size != nullptr) {
-        *size = 3;
-    }
-}
-
-void getvec4Size(size_t* size) {
-    if (size != nullptr) {
-        *size = 4;
-    }
-}
-
-void getfloatSize(size_t* size) {
-    if (size != nullptr) {
-        *size = 1;
-    }
-}
-
-vec3 getvec3Value(const float* val, const size_t count) {
-    return vec3{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0};
-}
-
-vec4 getvec4Value(const float* val, const size_t count) {
-    return vec4{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0,
-                count > 3 ? val[3] : 0};
-}
-
-float getfloatValue(const float* val, const size_t count) {
-    return count > 0 ? val[0] : 0;
-}
-
-// Helper functions to get size and values from vec3/vec4/float
-template <typename T>
-void getSize(size_t* size) {
-    if (size != nullptr) {
-        if constexpr (std::is_same_v<T, vec3>) {
-            *size = 3;
-        } else if constexpr (std::is_same_v<T, vec4>) {
-            *size = 4;
-        } else if constexpr (std::is_same_v<T, float>) {
-            *size = 1;
-        } else {
-            static_assert(false, "Unsupported type for getSize");
-        }
-    }
-}
-
-void getValues(const vec3 value, float* const* out, const size_t count) {
-    if (count > 0) *out[0] = value.x;
-    if (count > 1) *out[1] = value.y;
-    if (count > 2) *out[2] = value.z;
-}
-
-void getValues(const vec4 value, float* const* out, const size_t count) {
-    if (count > 0) *out[0] = value.x;
-    if (count > 1) *out[1] = value.y;
-    if (count > 2) *out[2] = value.z;
-    if (count > 3) *out[3] = value.w;
-}
-
-void getValues(const float value, float* const* out, const size_t count) {
-    if (count > 0) *out[0] = value;
-}
 
 /* a helper function that replaces commas (,) with points (.).
  * Each sensor string must be processed this way before being
@@ -148,6 +83,53 @@ void _sanitizeSensorString(char* string, int maxlen) {
         if (string[i] == ',') {
             string[i] = '.';
         }
+    }
+}
+
+const char* getSensorWireName(const AndroidSensor sensor_id) {
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) \
+    case AndroidSensor::x:                 \
+        return w;
+
+    switch (sensor_id) {
+        GOLDFISH_SENSORS_LIST
+
+    case AndroidSensor::MAX_SENSORS:
+        break;
+    }
+#undef GOLDFISH_SENSOR_DEF
+
+    LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
+}
+
+SerializedSensor serializeSensorData(const AndroidSensor sensor_id, const SensorData& d) {
+    const char* name = getSensorWireName(sensor_id);
+
+    SerializedSensor serialized;
+
+    switch (d.value.size()) {
+    case 1:
+        serialized.length = ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%zu",
+                                       name, d.value[0], d.measurement_id);
+        _sanitizeSensorString(serialized.value, serialized.length);
+        return serialized;
+
+    case 3:
+        serialized.length =
+                ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%g:%g:%zu", name,
+                           d.value[0], d.value[1], d.value[2], d.measurement_id);
+        _sanitizeSensorString(serialized.value, serialized.length);
+        return serialized;
+
+    case 4:
+        serialized.length =
+                ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%g:%g:%g:%zu", name,
+                           d.value[0], d.value[1], d.value[2], d.value[3], d.measurement_id);
+        _sanitizeSensorString(serialized.value, serialized.length);
+        return serialized;
+
+    default:
+        LOG(FATAL) << "Unexpected SensorValue size: " << d.value.size();
     }
 }
 
@@ -403,7 +385,7 @@ class SensorDevice : public ISensorDevice {
         return true;
     }
 
-    absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) override {
+    absl::Status overrideSensor(AndroidSensor sensor_id, const SensorValue& val) override {
         if (sensor_id >= AndroidSensor::MAX_SENSORS) {
             return absl::InvalidArgumentError(absl::StrFormat(
                     "SensorId: %zu, out of range (max:%zu)", static_cast<size_t>(sensor_id),
@@ -416,22 +398,22 @@ class SensorDevice : public ISensorDevice {
 
         switch (sensor_id) {
         case AndroidSensor::HINGE_ANGLE0:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, data.data(), data.size(),
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, val.data(), val.size(),
                                       PhysicalInterpolation::SMOOTH);
 
             break;
         case AndroidSensor::HINGE_ANGLE1:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, data.data(), data.size(),
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, val.data(), val.size(),
                                       PhysicalInterpolation::SMOOTH);
 
             break;
         case AndroidSensor::HINGE_ANGLE2:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, data.data(), data.size(),
+            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, val.data(), val.size(),
                                       PhysicalInterpolation::SMOOTH);
 
             break;
         default:
-            setSensorValue(sensor_id, data.data(), data.size());
+            setSensorValue(sensor_id, val);
             break;
         }
 
@@ -450,24 +432,17 @@ class SensorDevice : public ISensorDevice {
             return absl::UnavailableError("The sensor is disabled");
         }
 
-        size_t sz;
-        getSensorValueSize(sensor_id, &sz);
-        SensorData val(sz, 0);
-        absl::InlinedVector<float*, kSensorDataMaxDimensions> ptr(sz);
-        for (unsigned i = 0; i < sz; ++i) {
-            ptr[i] = &val[i];
-        }
-
-        getSensorValue(sensor_id, ptr.data(), ptr.size());
-        return val;
+        return mPhysicalModel->getSensorData(sensor_id);
     }
 
     absl::StatusOr<Rotation> getDeviceRotation() override {
-        auto out = getSensorData(AndroidSensor::ACCELERATION);
+        const auto out = getSensorData(AndroidSensor::ACCELERATION);
         if (!out.ok()) {
             return out.status();
         }
-        glm::vec3 device_accelerometer(out->at(0), out->at(1), out->at(2));
+        const SensorValue& val = out->value;
+
+        glm::vec3 device_accelerometer(val[0], val[1], val[2]);
         glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
 
         static const std::array<std::pair<glm::vec3, SkinRotation>, 4> directions{
@@ -483,10 +458,8 @@ class SensorDevice : public ISensorDevice {
             }
         }
 
-        Rotation r = {.rotation = coarse_orientation,
-                      .xAxis = out->at(0),
-                      .yAxis = out->at(1),
-                      .zAxis = out->at(2)};
+        Rotation r = {
+            .rotation = coarse_orientation, .xAxis = val[0], .yAxis = val[1], .zAxis = val[2]};
         return r;
     }
 
@@ -506,145 +479,14 @@ class SensorDevice : public ISensorDevice {
         return -1;
     }
 
-    // Helper functions to serialize sensor data
-    void serializeSensorValue(Sensor& sensor, AndroidSensor sensor_id) {
-        size_t measurement_id = -1L;
-
-        switch (sensor_id) {
-#define ENUM_NAME(x) AndroidSensor::x
-#define GET_FUNCTION_NAME(x) get##x
-#define SERIALIZE_VALUE_NAME(x) serializeValue
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                             \
-    case ENUM_NAME(x): {                                                               \
-        const v current_value = mPhysicalModel->GET_FUNCTION_NAME(z)(&measurement_id); \
-        if (measurement_id != sensor.serialized.measurement_id) {                      \
-            SERIALIZE_VALUE_NAME(v)                                                    \
-            (sensor, w ":%ld", current_value, measurement_id);                         \
-        }                                                                              \
-        break;                                                                         \
-    }
-            GOLDFISH_SENSORS_LIST
-#undef GOLDFISH_SENSOR_DEF
-#undef SERIALIZE_VALUE_NAME
-#undef GET_FUNCTION_NAME
-#undef ENUM_NAME
-        default:
-            assert(false);  // should never happen
-            return;
-        }
-        assert(sensor.serialized.length < sizeof(sensor.serialized.value));
-
-        if (measurement_id != sensor.serialized.measurement_id) {
-            _sanitizeSensorString(sensor.serialized.value, sensor.serialized.length);
-        }
-        sensor.serialized.measurement_id = measurement_id;
-    }
-
-    void serializeValue(Sensor& sensor, const char* format, float value, long measurement_id) {
-        sensor.serialized.length =
-                snprintf(sensor.serialized.value, sizeof(sensor.serialized.value), format, value,
-                         measurement_id);
-    }
-
-    void serializeValue(Sensor& sensor, const char* format, vec3 value, long measurement_id) {
-        sensor.serialized.length =
-                snprintf(sensor.serialized.value, sizeof(sensor.serialized.value), format, value.x,
-                         value.y, value.z, measurement_id);
-    }
-
-    void serializeValue(Sensor& sensor, const char* format, vec4 value, long measurement_id) {
-        sensor.serialized.length =
-                snprintf(sensor.serialized.value, sizeof(sensor.serialized.value), format, value.x,
-                         value.y, value.z, value.w, measurement_id);
-    }
-
     // Helper functions to set/get sensor values
-    void setSensorValue(AndroidSensor sensor_id, const float* val, const size_t count) {
-        switch (sensor_id) {
-#define OVERRIDE_FUNCTION_NAME(x) override##x
-#define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
-#define ENUM_NAME(x) AndroidSensor::x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                                      \
-    case ENUM_NAME(x):                                                                          \
-        mPhysicalModel->OVERRIDE_FUNCTION_NAME(z)(GET_TYPE_VALUE_FUNCTION_NAME(v)(val, count)); \
-        break;
-            GOLDFISH_SENSORS_LIST
-#undef GOLDFISH_SENSOR_DEF
-#undef ENUM_NAME
-#undef GET_TYPE_VALUE_FUNCTION_NAME
-#undef OVERRIDE_FUNCTION_NAME
-        default:
-            assert(false);  // should never happen
-            break;
-        }
+    void setSensorValue(AndroidSensor sensor_id, const SensorValue& val) {
+        mPhysicalModel->setSensorValue(sensor_id, val);
     }
 
-    void getSensorValue(AndroidSensor sensor_id, float* const* out, const size_t count) {
-        size_t measurement_id;
-        switch (sensor_id) {
-#define GET_FUNCTION_NAME(x) mPhysicalModel->get##x
-#define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues
-#define ENUM_NAME(x) AndroidSensor::x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                   \
-    case ENUM_NAME(x):                                       \
-        TYPE_GET_VALUES_FUNCTION_NAME(v)                     \
-        (GET_FUNCTION_NAME(z)(&measurement_id), out, count); \
-        break;
-            GOLDFISH_SENSORS_LIST
-#undef GOLDFISH_SENSOR_DEF
-#undef ENUM_NAME
-#undef TYPE_GET_VALUES_FUNCTION_NAME
-#undef GET_FUNCTION_NAME
-        default:
-            assert(false);  // should never happen
-            break;
-        }
-    }
-
-    void getSensorValueSize(AndroidSensor sensor_id, size_t* size) const {
-        switch (sensor_id) {
-#define GET_FUNCTION_NAME(x) physicalModel_get##x
-#define TYPE_GET_VALUES_FUNCTION_NAME(x) get##x##Size
-#define ENUM_NAME(x) AndroidSensor::x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) \
-    case ENUM_NAME(x):                     \
-        TYPE_GET_VALUES_FUNCTION_NAME(v)   \
-        (size);                            \
-        break;
-            GOLDFISH_SENSORS_LIST
-#undef GOLDFISH_SENSOR_DEF
-#undef ENUM_NAME
-#undef TYPE_GET_VALUES_FUNCTION_NAME
-#undef GET_FUNCTION_NAME
-        default:
-            assert(false);  // should never happen
-            break;
-        }
-    }
-
-    // Helper functions for physical parameters
     void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
                                    const size_t count, PhysicalInterpolation interpolation_mode) {
-        switch (parameter) {
-#define ENUM_NAME(x) PhysicalParameter::x
-#define GET_TYPE_VALUE_FUNCTION_NAME(x) get##x##Value
-#define SET_TARGET_FUNCTION_NAME(x) mPhysicalModel->setTarget##x
-#define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                        \
-    case ENUM_NAME(x):                                                     \
-        SET_TARGET_FUNCTION_NAME(z)                                        \
-        (GET_TYPE_VALUE_FUNCTION_NAME(w)(val, count), interpolation_mode); \
-        break;
-            GOLDFISH_PHYSICAL_PARAMETERS_LIST
-#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef SET_TARGET_FUNCTION_NAME
-#undef GET_TYPE_VALUE_FUNCTION_NAME
-#undef ENUM_NAME
-        default:
-            assert(false);  // should never happen
-            break;
-        }
-
-        // TODO(jansene): (fire sensor change event)
+        mPhysicalModel->setPhysicalParameterValue(parameter, val, count, interpolation_mode);
     }
 
     bool enabled(int sensorId) { return (mEnabledMask & (1 << sensorId)) != 0; }
@@ -662,9 +504,13 @@ class SensorDevice : public ISensorDevice {
             if (!enabled(sensor_id)) {
                 continue;
             }
-            serializeSensorValue(mSensors[sensor_id], (AndroidSensor)sensor_id);
-            send(std::string_view(mSensors[sensor_id].serialized.value,
-                                  mSensors[sensor_id].serialized.length));
+
+            const SensorData d =
+                    mPhysicalModel->getSensorData(static_cast<AndroidSensor>(sensor_id));
+            Sensor& s = mSensors[sensor_id];
+
+            s.serialized = serializeSensorData(static_cast<AndroidSensor>(sensor_id), d);
+            send(std::string_view(s.serialized.value, s.serialized.length));
         }
 
         send(absl::StrFormat("guest-sync:%d", absl::ToUnixNanos(now + mTimeOffset)));

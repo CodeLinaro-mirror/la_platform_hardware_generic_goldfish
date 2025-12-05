@@ -16,7 +16,6 @@
 #include <memory>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 
 #include "aemu/base/events/EventSources.h"
@@ -27,6 +26,7 @@
 #include "goldfish/hal/plug/HalPlug.h"
 #include "goldfish/physics/Rotation.h"
 #include "goldfish/sensors/AndroidSensor.h"
+#include "goldfish/sensors/sensor_data.h"
 
 namespace android::base {
 class IClock;
@@ -38,9 +38,8 @@ using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
 using goldfish::physics::Rotation;
 using goldfish::sensors::AndroidSensor;
-
-constexpr size_t kSensorDataMaxDimensions = 4;
-using SensorData = absl::InlinedVector<float, kSensorDataMaxDimensions>;
+using goldfish::sensors::SensorData;
+using goldfish::sensors::SensorValue;
 
 using namespace std::string_view_literals;
 
@@ -83,7 +82,7 @@ class ISensorDevice : public HalPlug,
      *
      * @note Triggers a sensor event after successfully setting the new values.
      */
-    virtual absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) = 0;
+    virtual absl::Status overrideSensor(AndroidSensor sensor_id, const SensorValue& val) = 0;
 
     /**
      * @brief Retrieves the device's current rotation based on accelerometer data.

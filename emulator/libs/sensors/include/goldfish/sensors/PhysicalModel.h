@@ -30,6 +30,7 @@
 #include "goldfish/sensors/AndroidSensor.h"
 #include "goldfish/sensors/FoldableModel.h"
 #include "goldfish/sensors/PhysicalParameter.h"
+#include "goldfish/sensors/sensor_data.h"
 
 namespace goldfish::sensors {
 
@@ -85,6 +86,12 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
 
     PhysicalModel(const android::goldfish::HardwareConfig& hw);
     ~PhysicalModel() = default;
+
+    SensorData getSensorData(AndroidSensor) const;
+    void setSensorValue(AndroidSensor, const SensorValue&);
+
+    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
+                                   const size_t count, PhysicalInterpolation interpolation_mode);
 
     /**
      * @brief Sets the current simulation time.
@@ -176,6 +183,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     android::base::EventNotificationSupport<FoldablePostures>* getPostureListener();
 
   private:
+    static size_t getSensorValueSize(AndroidSensor);
+    size_t getSensorDataImpl(AndroidSensor, float* out, const size_t count) const;
+    void setSensorValueImpl(AndroidSensor, const float* val, const size_t count);
+
     /*
      * Sets the target value for the given physical parameter that the physical
      * model should move towards.

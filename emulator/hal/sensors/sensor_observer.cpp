@@ -38,12 +38,13 @@ void SensorObserver::forwardEvent(const AndroidSensor sensorId) {
     if (!device) {
         return;
     }
+
     auto data = device->getSensorData(sensorId);
     if (!data.ok()) {
         return;
     }
 
-    if (mOld != data.value()) {
+    if (mOld.value != data.value().value) {
         mOld = data.value();
         SensorObserver::fireEvent(mOld);
     }

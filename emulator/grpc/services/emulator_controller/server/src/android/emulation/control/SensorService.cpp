@@ -23,7 +23,7 @@ namespace control {
 using ::goldfish::devices::ConnectorRegistry;
 using ::goldfish::devices::sensor::AndroidSensor;
 using ::goldfish::devices::sensor::ISensorDevice;
-using ::goldfish::devices::sensor::SensorData;
+using GoldfishSensorValue = ::goldfish::devices::sensor::SensorValue;
 
 SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
         : mRegistry(connectorRegistry) {}
@@ -31,8 +31,8 @@ SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
 grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
     auto weak = mRegistry->activeDevice<ISensorDevice>();
     if (auto sensor = weak.lock()) {
-        SensorData values(request.value().data().begin(), request.value().data().end());
-        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request.target()), values);
+        GoldfishSensorValue value(request.value().data().begin(), request.value().data().end());
+        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request.target()), value);
         return abslStatusToGrpcStatus(status);
     }
     return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
@@ -46,8 +46,10 @@ grpc::Status SensorServiceImpl::getSensor(const SensorValue& request, SensorValu
             return abslStatusToGrpcStatus(statusOrData.status());
         }
 
+        const GoldfishSensorValue& val = statusOrData->value;
+
         reply->set_target(request.target());
-        *reply->mutable_value()->mutable_data() = {statusOrData->begin(), statusOrData->end()};
+        *reply->mutable_value()->mutable_data() = {val.begin(), val.end()};
 
         return Status::OK;
     }

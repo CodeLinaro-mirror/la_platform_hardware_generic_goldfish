@@ -16,7 +16,7 @@
 
 #include "goldfish/sensors/PhysicalModel.h"
 
-#include "absl/log/check.h"
+#include "absl/log/log.h"
 
 #include "android/goldfish/config/hardware_config.h"
 #include "goldfish/physics/AmbientEnvironment.h"
@@ -30,6 +30,37 @@ using goldfish::physics::BodyState;
 using goldfish::physics::InertialState;
 
 namespace goldfish::sensors {
+namespace {
+void getValues(const vec3& value, float* out, const size_t count) {
+    if (count > 0) out[0] = value.x;
+    if (count > 1) out[1] = value.y;
+    if (count > 2) out[2] = value.z;
+}
+
+void getValues(const vec4& value, float* out, const size_t count) {
+    if (count > 0) out[0] = value.x;
+    if (count > 1) out[1] = value.y;
+    if (count > 2) out[2] = value.z;
+    if (count > 3) out[3] = value.w;
+}
+
+void getValues(const float value, float* out, const size_t count) {
+    if (count > 0) out[0] = value;
+}
+
+vec3 getvec3Value(const float* val, const size_t count) {
+    return vec3{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0};
+}
+
+vec4 getvec4Value(const float* val, const size_t count) {
+    return vec4{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0,
+                count > 3 ? val[3] : 0};
+}
+
+float getfloatValue(const float* val, const size_t count) {
+    return count > 0 ? val[0] : 0;
+}
+}  // namespace
 
 FoldableState PhysicalModel::getFoldableState() const {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
@@ -51,6 +82,96 @@ android::base::EventNotificationSupport<FoldablePostures>* PhysicalModel::getPos
 }
 
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : mFoldableModel(hw) {}
+
+SensorData PhysicalModel::getSensorData(const AndroidSensor sensor_id) const {
+    const size_t sz = getSensorValueSize(sensor_id);
+    SensorData data;
+    data.value.resize(sz);
+    data.measurement_id = getSensorDataImpl(sensor_id, data.value.data(), sz);
+    return data;
+}
+
+void PhysicalModel::setSensorValue(const AndroidSensor sensor_id, const SensorValue& val) {
+    setSensorValueImpl(sensor_id, val.data(), val.size());
+}
+
+size_t PhysicalModel::getSensorValueSize(AndroidSensor sensor_id) {
+#define VALUE_SIZE_float 1
+#define VALUE_SIZE_vec3 3
+#define VALUE_SIZE_vec4 4
+#define GOLDFISH_SENSOR_DEF(X, Y, Z, V, W) \
+    case AndroidSensor::X:                 \
+        return VALUE_SIZE_##V;
+
+    switch (sensor_id) {
+        GOLDFISH_SENSORS_LIST
+    case AndroidSensor::MAX_SENSORS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
+
+#undef GOLDFISH_SENSOR_DEF
+#undef VALUE_SIZE_vec4
+#undef VALUE_SIZE_vec3
+#undef VALUE_SIZE_float
+}
+
+size_t PhysicalModel::getSensorDataImpl(const AndroidSensor sensor_id, float* out,
+                                        const size_t count) const {
+#define GOLDFISH_SENSOR_DEF(X, Y, Z, V, W)              \
+    case AndroidSensor::X:                              \
+        getValues(get##Z(&measurement_id), out, count); \
+        return measurement_id;
+
+    size_t measurement_id = 0;
+    switch (sensor_id) {
+        GOLDFISH_SENSORS_LIST
+    case AndroidSensor::MAX_SENSORS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
+
+#undef GOLDFISH_SENSOR_DEF
+}
+
+void PhysicalModel::setSensorValueImpl(AndroidSensor sensor_id, const float* val,
+                                       const size_t count) {
+#define GOLDFISH_SENSOR_DEF(X, Y, Z, V, W)      \
+    case AndroidSensor::X:                      \
+        override##Z(get##V##Value(val, count)); \
+        return;
+
+    switch (sensor_id) {
+        GOLDFISH_SENSORS_LIST
+    case AndroidSensor::MAX_SENSORS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
+
+#undef GOLDFISH_SENSOR_DEF
+}
+
+void PhysicalModel::setPhysicalParameterValue(const PhysicalParameter parameter, const float* val,
+                                              const size_t count,
+                                              const PhysicalInterpolation interpolation_mode) {
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W)                  \
+    case PhysicalParameter::X:                                       \
+        setTarget##Z(get##W##Value(val, count), interpolation_mode); \
+        return;
+
+    switch (parameter) {
+        GOLDFISH_PHYSICAL_PARAMETERS_LIST
+    case PhysicalParameter::MAX_PHYSICAL_PARAMETERS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected parameter: " << static_cast<int>(parameter);
+
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
+}
 
 void PhysicalModel::setCurrentTime(int64_t time_ns) {
     bool stateStabilized = false;

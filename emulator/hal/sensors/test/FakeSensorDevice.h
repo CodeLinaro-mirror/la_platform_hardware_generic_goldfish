@@ -14,14 +14,20 @@ class FakeSensorDevice : public ISensorDevice,
   public:
     // ISensorDevice implementation
     absl::StatusOr<SensorData> getSensorData(AndroidSensor sensor_id) override {
-        if (mSensorData.count(sensor_id)) {
-            return mSensorData[sensor_id];
+        const auto i = mSensorData.find(sensor_id);
+        if (i == mSensorData.end()) {
+            return absl::NotFoundError("Sensor not found");
         }
-        return absl::NotFoundError("Sensor not found");
+
+        SensorData data;
+        data.measurement_id = 42;
+        data.value = i->second;
+
+        return data;
     }
 
-    absl::Status overrideSensor(AndroidSensor sensor_id, const SensorData& data) override {
-        mSensorData[sensor_id] = data;
+    absl::Status overrideSensor(AndroidSensor sensor_id, const SensorValue& val) override {
+        mSensorData[sensor_id] = val;
         fireEvent(sensor_id);
         return absl::OkStatus();
     }
@@ -38,7 +44,7 @@ class FakeSensorDevice : public ISensorDevice,
     }
 
   private:
-    std::map<AndroidSensor, SensorData> mSensorData;
+    std::map<AndroidSensor, SensorValue> mSensorData;
     std::set<AndroidSensor> mEnabledSensors;
     Rotation mRotation;
 };

@@ -14,6 +14,7 @@ cc_library(
         "include/goldfish/sensors/GOLDFISH_SENSORS_LIST.h",
         "include/goldfish/sensors/PhysicalModel.h",
         "include/goldfish/sensors/PhysicalParameter.h",
+        "include/goldfish/sensors/sensor_data.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
