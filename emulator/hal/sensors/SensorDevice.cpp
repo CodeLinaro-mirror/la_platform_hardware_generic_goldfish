@@ -508,7 +508,7 @@ class SensorDevice : public ISensorDevice {
 
     // Helper functions to serialize sensor data
     void serializeSensorValue(Sensor& sensor, AndroidSensor sensor_id) {
-        long measurement_id = -1L;
+        size_t measurement_id = -1L;
 
         switch (sensor_id) {
 #define ENUM_NAME(x) AndroidSensor::x
@@ -580,7 +580,7 @@ class SensorDevice : public ISensorDevice {
     }
 
     void getSensorValue(AndroidSensor sensor_id, float* const* out, const size_t count) {
-        long measurement_id;
+        size_t measurement_id;
         switch (sensor_id) {
 #define GET_FUNCTION_NAME(x) mPhysicalModel->get##x
 #define TYPE_GET_VALUES_FUNCTION_NAME(x) getValues

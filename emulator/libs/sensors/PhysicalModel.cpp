@@ -351,7 +351,7 @@ float PhysicalModel::getParameterWristTilt(ParameterValueType parameterValueType
 
 template <class T, class GETTER>
 T PhysicalModel::getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
-                                const GETTER& physicalGetter, long* measurement_id) const {
+                                const GETTER& physicalGetter, size_t* measurement_id) const {
     const size_t sensorIndex = static_cast<size_t>(sensor);
 
     std::lock_guard<std::recursive_mutex> lock(mMutex);
@@ -384,7 +384,7 @@ GOLDFISH_SENSORS_LIST
 
 // Implement getters that respect overrides.
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                          \
-    v PhysicalModel::GET_FUNCTION_NAME(z)(long* measurement_id) const {             \
+    v PhysicalModel::GET_FUNCTION_NAME(z)(size_t* measurement_id) const {           \
         return getSensorValue<v>(SENSOR_NAME(x), &OVERRIDE_NAME(z),                 \
                                  std::bind(&PhysicalModel::PHYSICAL_NAME(z), this), \
                                  measurement_id);                                   \

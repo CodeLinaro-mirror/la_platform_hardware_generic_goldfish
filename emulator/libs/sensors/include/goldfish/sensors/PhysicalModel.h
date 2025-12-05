@@ -133,7 +133,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Getters for all sensor values.
      * Can be called from any thread.
      */
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v get##z(long* measurement_id) const;
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v get##z(size_t* measurement_id) const;
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
@@ -215,7 +215,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     template <class T, class GETTER>
     T getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
-                     const GETTER& physicalGetter, long* measurement_id) const;
+                     const GETTER& physicalGetter, size_t* measurement_id) const;
 
     void physicalStateChanging();    ///< Called when physical state begins changing
     void physicalStateStabilized();  ///< Called when physical state stabilizes
@@ -228,7 +228,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     FoldableModel mFoldableModel;            ///< Models foldable device state
     BodyModel mBodyModel;                    ///< Models body-related sensors
 
-    mutable long mMeasurementId[kNumSensors] = {0};  ///< Measurement IDs
+    mutable size_t mMeasurementId[kNumSensors] = {0};  ///< Measurement IDs
 
     bool mIsPhysicalStateChanging{false};      ///< True if physical state is changing
     bool isLoadingSnapshot{false};             ///< True if loading from snapshot

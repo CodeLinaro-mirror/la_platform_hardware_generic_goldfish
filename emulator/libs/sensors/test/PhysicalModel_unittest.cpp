@@ -49,7 +49,7 @@ class PhysicalModelTest : public ::testing::Test {
 
 TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
     model->setCurrentTime(1000000000L);
-    long measurement_id;
+    size_t measurement_id;
     vec3 accelerometer = model->getAccelerometer(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 9.81f, 0.f}), accelerometer, 0.001f);
 
@@ -59,12 +59,12 @@ TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
 
 TEST_F(PhysicalModelTest, ConstantMeasurementId) {
     model->setCurrentTime(1000000000L);
-    long measurement_id0;
+    size_t measurement_id0;
     model->getAccelerometer(&measurement_id0);
 
     model->setCurrentTime(2000000000L);
 
-    long measurement_id1;
+    size_t measurement_id1;
     model->getAccelerometer(&measurement_id1);
 
     EXPECT_EQ(measurement_id0, measurement_id1);
@@ -72,7 +72,7 @@ TEST_F(PhysicalModelTest, ConstantMeasurementId) {
 
 TEST_F(PhysicalModelTest, NewMeasurementId) {
     model->setCurrentTime(1000000000L);
-    long measurement_id0;
+    size_t measurement_id0;
     model->getAccelerometer(&measurement_id0);
 
     model->setCurrentTime(2000000000L);
@@ -83,7 +83,7 @@ TEST_F(PhysicalModelTest, NewMeasurementId) {
     targetPosition.z = 4.0f;
     model->setTargetPosition(targetPosition, PhysicalInterpolation::SMOOTH);
 
-    long measurement_id1;
+    size_t measurement_id1;
     model->getAccelerometer(&measurement_id1);
 
     EXPECT_NE(measurement_id0, measurement_id1);
@@ -144,7 +144,7 @@ TEST_F(PhysicalModelTest, GravityAcceleration) {
         model->setCurrentTime(2000000000L);
         ;
 
-        long measurement_id;
+        size_t measurement_id;
         vec3 accelerometer = model->getAccelerometer(&measurement_id);
 
         EXPECT_VEC3_NEAR(testCase.expected_acceleration, accelerometer, 0.01f);
@@ -165,7 +165,7 @@ TEST_F(PhysicalModelTest, GravityOnlyAcceleration) {
     // at 2 seconds the target is still at (2, 3, 4);
     model->setTargetPosition(targetPosition, PhysicalInterpolation::STEP);
 
-    long measurement_id;
+    size_t measurement_id;
     // the acceleration is expected to be close to zero at this point.
     vec3 currentAcceleration = model->getAccelerometer(&measurement_id);
     EXPECT_VEC3_NEAR(kDefaultAccelerometer, currentAcceleration, 0.01f);
@@ -189,7 +189,7 @@ TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
 
     model->setCurrentTime(1000000000L + secondsToNs(kMinStateChangeTimeSeconds / 2.f));
 
-    long measurement_id;
+    size_t measurement_id;
     vec3 currentGyro = model->getGyroscope(&measurement_id);
     EXPECT_LE(currentGyro.x, -0.01f);
     EXPECT_NEAR(currentGyro.y, 0.0, 0.000001f);
@@ -212,7 +212,7 @@ TEST_F(PhysicalModelTest, InstantaneousRotation) {
     newRotation.z = 0.0f;
     model->setTargetRotation(newRotation, PhysicalInterpolation::STEP);
 
-    long measurement_id;
+    size_t measurement_id;
     vec3 currentGyro = model->getGyroscope(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 0.f, 0.f}), currentGyro, 0.000001f);
 }
@@ -220,7 +220,7 @@ TEST_F(PhysicalModelTest, InstantaneousRotation) {
 TEST_F(PhysicalModelTest, OverrideAccelerometer) {
     model->setCurrentTime(0L);
 
-    long initial_measurement_id;
+    size_t initial_measurement_id;
     model->getAccelerometer(&initial_measurement_id);
 
     vec3 overrideValue;
@@ -229,7 +229,7 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
     overrideValue.z = 3.f;
     model->overrideAccelerometer(overrideValue);
 
-    long override_measurement_id;
+    size_t override_measurement_id;
     vec3 sensorOverriddenValue = model->getAccelerometer(&override_measurement_id);
     EXPECT_VEC3_NEAR(overrideValue, sensorOverriddenValue, 0.000001f);
 
@@ -241,7 +241,7 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
     targetPosition.z = 0.f;
     model->setTargetPosition(targetPosition, PhysicalInterpolation::STEP);
 
-    long physical_measurement_id;
+    size_t physical_measurement_id;
     vec3 sensorPhysicalValue = model->getAccelerometer(&physical_measurement_id);
     EXPECT_VEC3_NEAR(kDefaultAccelerometer, sensorPhysicalValue, 0.000001f);
 
@@ -301,7 +301,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
     glm::vec3 velocity(0.f);
     glm::vec3 position(initialPosition.x, initialPosition.y, initialPosition.z);
     const float stepSeconds = nsToSeconds(stepNs);
-    long prevMeasurementId = -1;
+    size_t prevMeasurementId = -1;
     time += stepNs / 2;
 
     size_t iteration = 0;
@@ -311,7 +311,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->setCurrentTime(time);
-        long measurementId;
+        size_t measurementId;
         const vec3 measuredAcceleration = model->getAccelerometer(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
         prevMeasurementId = measurementId;
@@ -370,12 +370,12 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
                                                         glm::radians(initialRotation.y),
                                                         glm::radians(initialRotation.z)));
     const float stepSeconds = nsToSeconds(stepNs);
-    long prevMeasurementId = -1;
+    size_t prevMeasurementId = -1;
     time += stepNs / 2;
     while (physicalStateChanging) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->setCurrentTime(time);
-        long measurementId;
+        size_t measurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
         prevMeasurementId = measurementId;
@@ -452,13 +452,13 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
     glm::vec3 position(initialPosition.x, initialPosition.y, initialPosition.z);
 
     const float stepSeconds = nsToSeconds(stepNs);
-    long prevGyroMeasurementId = -1;
-    long prevAccelMeasurementId = -1;
+    size_t prevGyroMeasurementId = -1;
+    size_t prevAccelMeasurementId = -1;
     time += stepNs / 2;
     while (physicalStateChanging) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->setCurrentTime(time);
-        long gyroMeasurementId;
+        size_t gyroMeasurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
         ASSERT_NE(prevGyroMeasurementId, gyroMeasurementId);
         prevGyroMeasurementId = gyroMeasurementId;
@@ -471,7 +471,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 
         rotation = glm::quat_cast(deltaRotationMatrix) * rotation;
 
-        long accelMeasurementId;
+        size_t accelMeasurementId;
         const vec3 measuredAcceleration = model->getAccelerometer(&accelMeasurementId);
         EXPECT_NE(prevAccelMeasurementId, accelMeasurementId);
         prevAccelMeasurementId = accelMeasurementId;
@@ -554,8 +554,8 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
     const float stepSeconds = nsToSeconds(stepNs);
     const float maxConvergenceTimeNs = time + secondsToNs(5.0f);
-    long prevGyroMeasurementId = -1;
-    long prevAccelMeasurementId = -1;
+    size_t prevGyroMeasurementId = -1;
+    size_t prevAccelMeasurementId = -1;
     time += stepNs / 2;
     int stepsRemainingAfterStable = 10;
     while (physicalStateChanging || stepsRemainingAfterStable > 0) {
@@ -570,7 +570,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
             targetStateChanged = false;
         }
         model->setCurrentTime(time);
-        long gyroMeasurementId;
+        size_t gyroMeasurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
         if (physicalStateChanging) {
             ASSERT_NE(prevGyroMeasurementId, gyroMeasurementId);
@@ -585,7 +585,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
         rotation = glm::quat_cast(deltaRotationMatrix) * rotation;
 
-        long accelMeasurementId;
+        size_t accelMeasurementId;
         const vec3 measuredAcceleration = model->getAccelerometer(&accelMeasurementId);
         if (physicalStateChanging) {
             ASSERT_NE(prevAccelMeasurementId, accelMeasurementId);
