@@ -107,45 +107,35 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Target state setters and parameter getters
      */
-#define SET_TARGET_FUNCTION_NAME(x) setTarget##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    void SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode);
+    void setTarget##z(w value, PhysicalInterpolation mode);
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef SET_TARGET_FUNCTION_NAME
 
     /*
      * Gets current target state of the modeled object.
      */
-#define GET_TARGET_FUNCTION_NAME(x) getParameter##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    w GET_TARGET_FUNCTION_NAME(z)(ParameterValueType parameterValueType) const;
+    w getParameter##z(ParameterValueType parameterValueType) const;
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef GET_TARGET_FUNCTION_NAME
 
     /*
      * Sensor override methods
      */
-#define OVERRIDE_FUNCTION_NAME(x) override##x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void OVERRIDE_FUNCTION_NAME(z)(v override_value);
-
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void override##z(v override_value);
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
-#undef OVERRIDE_FUNCTION_NAME
 
     /*
      * Getters for all sensor values.
      * Can be called from any thread.
      */
-#define GET_FUNCTION_NAME(x) get##x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v GET_FUNCTION_NAME(z)(long* measurement_id) const;
-
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v get##z(long* measurement_id) const;
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
-#undef GET_FUNCTION_NAME
 
     /**
      * @brief Gets the current physical transform of the device.
@@ -191,23 +181,18 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * model should move towards.
      * Can be called from any thread.
      */
-#define SET_TARGET_INTERNAL_FUNCTION_NAME(x) setTargetInternal##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    void SET_TARGET_INTERNAL_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode);
+    void setTargetInternal##z(w value, PhysicalInterpolation mode);
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
-#undef SET_TARGET_INTERNAL_FUNCTION_NAME
 
     /*
      * Getters for non-overridden physical sensor values.
      */
-#define GET_PHYSICAL_NAME(x) getPhysical##x
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v GET_PHYSICAL_NAME(z)() const;
-
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v getPhysical##z() const;
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
-#undef GET_PHYSICAL_NAME
 
     /*
      * Helper for setting overrides.
@@ -249,12 +234,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     bool isLoadingSnapshot{false};             ///< True if loading from snapshot
     bool mUseOverride[kNumSensors] = {false};  ///< Sensor override flags
 
-#define OVERRIDE_NAME(x) m##x##Override
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v OVERRIDE_NAME(z){0.f};
-
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
-#undef OVERRIDE_NAME
 
     int64_t mModelTimeNs = 0L;  ///< Current model time in nanoseconds
 };
