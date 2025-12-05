@@ -57,6 +57,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
+    std::string androidbootHardwareGralloc = "androidboot.hardware.gralloc";
     std::string checkjniProp = "androidboot.dalvik.vm.checkjni";
     std::string bootanimProp = "androidboot.debug.sf.nobootanimation";
     std::string bootanimPropValue = "1";
@@ -116,6 +117,9 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     // Always on.
     params.push_back({qemuScreenOffTimeoutProp, "2147483647"});
     params.push_back({androidbootVerityMode, "enforcing"});
+
+    // only work with minigbm gralloc
+    params.push_back({androidbootHardwareGralloc, "minigbm"});
 
     // Set vsync rate
     params.push_back({qemuVsyncProp, absl::StrFormat("%u", hw.hw_lcd_vsync)});
