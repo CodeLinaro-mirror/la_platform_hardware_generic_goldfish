@@ -3,7 +3,7 @@
 #include "absl/log/log.h"
 #include "benchmark/benchmark.h"
 
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 
 static void BM_ALOGV(benchmark::State& state) {
     int i = 0;

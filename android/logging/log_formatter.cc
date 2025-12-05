@@ -9,8 +9,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "aemu/base/logging/LogFormatter.h"
-
 #include <string.h>
 
 #include <chrono>
@@ -22,6 +20,8 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
+
+#include "aemu/base/logging/LogFormatter.h"
 
 #ifdef __linux__
 #include <sys/syscall.h>

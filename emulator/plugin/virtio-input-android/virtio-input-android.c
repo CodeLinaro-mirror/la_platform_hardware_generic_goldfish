@@ -32,7 +32,7 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 
 #define DEBUG 0
 #if DEBUG

@@ -34,7 +34,7 @@
 typedef int8_t s8;
 typedef uint8_t u8;
 typedef uint16_t u16;
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 #include "standard-headers/linux/mac80211_hwsim.h"
 
 /* Limit the number of packets that can be sent via a single flush

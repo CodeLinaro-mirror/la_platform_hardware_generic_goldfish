@@ -19,7 +19,7 @@
 #include "absl/log/log_sink_registry.h"
 
 #include "aemu/base/logging/LogSeverity.h"
-#include "android/base/logging/ColorLogSink.h"
+#include "android/base/color_log_sink.h"
 #ifdef _WIN32
 #include <io.h>
 #else

@@ -14,7 +14,7 @@
 
 #include "absl/log/log_sink.h"
 
-#include "android/base/logging/LoggingApi.h"
+#include "android/base/logging/logging_api.h"
 
 namespace android {
 namespace base {

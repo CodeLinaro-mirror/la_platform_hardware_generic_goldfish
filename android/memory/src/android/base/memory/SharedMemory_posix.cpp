@@ -14,7 +14,7 @@
 
 #include <cassert>
 
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 #define dfatal ALOGF
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/memory/SharedMemory.h"
