@@ -31,7 +31,8 @@ class Config:
         }
         self.READ_ONLY_DIRS: Set[str] = {"third_party"}
         self.MANUAL_OVERRIDES: Dict[str, str] = {
-            "emulator/hal/camera/QemuMultidisplay/multi_display.h": "emulator/hal/camera/include/goldfish/multi_display.h"
+            "emulator/hal/camera/QemuMultidisplay/multi_display.h": "emulator/hal/camera/include/goldfish/multi_display.h",
+            "emulator/config/src/android/goldfish/config/keys.h": "emulator/config/keys.h",
         }
         self.STD_LIB_HEADERS: Set[str] = {
             "misc.h",
