@@ -22,7 +22,8 @@ rust_library(
     name = "codespan-reporting",
     srcs = glob(["**/*.rs"]),
     crate_name = "codespan_reporting",
-    edition = "2018",
+    edition = "2021",
+    crate_features = ["default", "termcolor", "std"],
     crate_root = "src/lib.rs",
     deps = [
         "@termcolor",
