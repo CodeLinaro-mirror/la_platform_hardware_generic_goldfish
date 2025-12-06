@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_report")
 load("@goldfish_build//rules:compile_commands.bzl", "compile_commands_json")
 
 # You can update the tests (on macos) by running:
@@ -153,4 +154,28 @@ filegroup(
     name = "clang_tidy_config",
     srcs = [".clang-tidy"],
     visibility = ["//visibility:public"],
+)
+
+# This target orchestrates the execution of clang-tidy across specified C/C++ targets.
+# It collects warnings and, more importantly, generates and *applies* suggested fixes
+# back to the source code when it is `run`, it will generate a report when using `build`
+#
+#
+# IMPORTANT CONSIDERATIONS:
+# 1.  **Execution Time:** If there are a large number of fixes to be merged and applied,
+#     running this target can be very expensive.
+# 2.  **Fix Application:** Running this target will *directly modify* source files by
+#     applying the clang-tidy generated fixes. Always review changes before committing.
+# 3.  **Invocation:** This target is tagged as "manual" and must be explicitly invoked,
+#     for example: `bazel build @goldfish//:clang_tidy_report` to generate fixes
+#     and `bazel run @goldfish//:clang_tidy_report` to apply fixes
+clang_tidy_report(
+    name = "clang_tidy_report",
+    testonly = True,
+    apply_fixes_in = "hardware/generic/goldfish",
+    rewrite_sed_pattern = "s/^m_//g",  # Make sure we don't end up with mMemberVar -> m_member_var_
+    source_path_substrings = ["goldfish+"],
+    tags = ["manual"],  # Invoke explicitly
+    targets = TESTS + PERF_TESTS + QEMU + EMULATOR,
+    tidy_config_file = ":clang_tidy_config",
 )
