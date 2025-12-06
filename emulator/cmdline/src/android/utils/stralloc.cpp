@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 #include "android/utils/misc.h"
 
 extern void stralloc_tabular(stralloc_t* out, const char** strings, int count, const char* prefix,

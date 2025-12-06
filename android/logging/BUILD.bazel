@@ -3,9 +3,9 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 cc_library(
     name = "absl-c-bridge",
     srcs = [
-        "src/android/base/logging/AbseilLogBridge.cpp",
+        "abseil_log_bridge.cc",
     ],
-    hdrs = ["include/android/base/logging/AbseilLogBridge.h"],
+    hdrs = ["include/android/base/logging/abseil_log_bridge.h"],
     includes = ["include"],
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],
@@ -21,16 +21,16 @@ cc_library(
     name = "backend",
     testonly = True,
     srcs = [
-        "src/android/base/logging/AbseilLogBridge.cpp",
-        "src/android/base/logging/ColorLogSink.cpp",
-        "src/android/base/logging/Log.cpp",
-        "src/android/base/logging/LogConfiguration.cpp",
-        "src/android/base/logging/LogFormatter.cpp",
+        "abseil_log_bridge.cc",
+        "color_log_sink.cc",
+        "log.cc",
+        "log_configuration.cc",
+        "log_formatter.cc",
     ],
     hdrs = [
-        "include/android/base/logging/AbseilLogBridge.h",
-        "include/android/base/logging/ColorLogSink.h",
-        "include/android/base/logging/LoggingApi.h",
+        "include/android/base/color_log_sink.h",
+        "include/android/base/logging/abseil_log_bridge.h",
+        "include/android/base/logging/logging_api.h",
     ],
     includes = ["include"],
     local_defines = ["LOGGING_API_SHARED"],
@@ -50,12 +50,12 @@ cc_library(
 cc_test(
     name = "backend_unittests",
     srcs = [
-        "test/android/base/logging/AbseilLogBridge_unittest.c",
-        "test/android/base/logging/AbseilLogBridge_unittest.cpp",
-        "test/android/base/logging/AbseilLogBridge_unittest2.c",
-        "test/android/base/logging/ColorLogSink_unittest.cpp",
-        "test/android/base/logging/LogFormatter_unittest.cpp",
-        "test/android/base/logging/Log_unittest.cpp",
+        "abseil_log_bridge_test.c",
+        "abseil_log_bridge_test.cc",
+        "abseil_log_bridge_test2.c",
+        "color_log_sink_test.cc",
+        "log_formatter_test.cc",
+        "log_test.cc",
         "test/android/base/logging/abseil_log_c_test.h",
     ],
     copts = ["-Wno-deprecated-declarations"],
@@ -73,7 +73,7 @@ cc_test(
 
 cc_binary(
     name = "log_bridge_perf",
-    srcs = ["test/android/base/logging/AbseilLogBridge_perf.cpp"],
+    srcs = ["abseil_log_bridge_perf.cc"],
     copts = ["-Wno-deprecated-declarations"],
     deps = [
         ":absl-c-bridge",

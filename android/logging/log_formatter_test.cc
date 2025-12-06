@@ -8,12 +8,11 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "aemu/base/logging/LogFormatter.h"
-
 #include <regex>
 
 #include "gtest/gtest.h"
 
+#include "aemu/base/logging/LogFormatter.h"
 #include "aemu/base/logging/LogSeverity.h"
 
 namespace android {

@@ -22,7 +22,7 @@
 // IWYU pragma: end_keep
 // clang-format on
 
-#include "android/base/logging/AbseilLogBridge.h"
+#include "android/base/logging/abseil_log_bridge.h"
 
 int find_virtio_device(Object* obj, void* opaque) {
     VirtioDeviceInfo* device = (VirtioDeviceInfo*)opaque;

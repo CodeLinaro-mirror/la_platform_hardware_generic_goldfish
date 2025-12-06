@@ -11,24 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "android/base/logging/AbseilLogBridge.h"
+#include <stdio.h>
 
-void test_c_info_log(const char* message) {
-    ALOGI("%s", message);
+#include "android/base/logging/abseil_log_bridge.h"
+
+void test_c2_vlog1(const char* message) {
+    ALOGV(1, "%s from file 2", message);
 }
 
-void test_c_error_log(const char* message) {
-    ALOGE("%s", message);
+void test_c2_vlog2(const char* message) {
+    ALOGV(2, "%s from file 2", message);
 }
 
-void test_c_warning_log(const char* message) {
-    ALOGW("%s", message);
-}
-
-void test_c_vlog1(const char* message) {
-    ALOGV(1, "%s", message);
-}
-
-void test_c_vlog2(const char* message) {
-    ALOGV(2, "%s", message);
+void test_c2_info(const char* message) {
+    ALOGI("%s from file 2", message);
 }
