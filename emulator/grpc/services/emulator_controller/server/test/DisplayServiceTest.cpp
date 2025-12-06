@@ -42,6 +42,7 @@ using ::goldfish::display::test::FakeMultiDisplay;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
+
 using namespace std::chrono_literals;
 
 class DisplayServiceTest : public GrcpServiceTest {
