@@ -29,6 +29,9 @@ class FileProcessor:
         s2 = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
         return re.sub(r"_+", "_", s2)
 
+    def to_new_name(self, name: str) -> str:
+        return self.to_snake_case(name).replace("unittest", "test").replace("-", "_")
+
     def find_module_root(self, file_path: Path) -> Optional[Path]:
         """Finds the Bazel module root for a given file.
 
@@ -47,4 +50,4 @@ class FileProcessor:
             if current == current.parent:
                 break
             current = current.parent
-        return None
+        return current

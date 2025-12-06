@@ -196,9 +196,11 @@ class RefactorManager:
                     quote_start = match.group(1)
                     inc_path = match.group(2)
                     quote_end = match.group(3)
-                    
+
                     logging.debug(f"Found include: {original_include}")
-                    logging.debug(f"  - Quote start: '{quote_start}', path: '{inc_path}', quote end: '{quote_end}'")
+                    logging.debug(
+                        f"  - Quote start: '{quote_start}', path: '{inc_path}', quote end: '{quote_end}'"
+                    )
 
                     dest_path = self.resolve_include_path(
                         original_path_context, inc_path
@@ -212,18 +214,27 @@ class RefactorManager:
                             try:
                                 rel_parts = dest_path.relative_to(dest_module).parts
                                 is_src = "src" in rel_parts
+                                is_test = "test" in rel_parts
                                 is_include = "include" in rel_parts
 
-                                if is_src:
+                                if is_src or is_test:
                                     # For C files in src (nested) OR Flat C++ files
                                     # Calculate relative to src/ root if possible
                                     try:
-                                        src_root = dest_module / "src"
-                                        rel_path = dest_path.relative_to(
-                                            src_root
-                                        ).as_posix()
+                                        if is_src:
+                                            src_root = dest_module / "src"
+                                            rel_path = dest_path.relative_to(
+                                                src_root
+                                            ).as_posix()
+                                        else:
+                                            src_root = dest_module / "src"
+                                            rel_path = dest_path.relative_to(
+                                                src_root
+                                            ).as_posix()
                                         new_include = f"#include {quote_start}{rel_path}{quote_end}"
-                                        logging.debug(f"  -> Replacing with (src relative): {new_include}")
+                                        logging.debug(
+                                            f"  -> Replacing with (src relative): {new_include}"
+                                        )
                                         return new_include
                                     except ValueError:
                                         pass
@@ -234,7 +245,9 @@ class RefactorManager:
                                         idx = rel_parts.index("include")
                                         clean_path = "/".join(rel_parts[idx + 1 :])
                                         new_include = f"#include {quote_start}{clean_path}{quote_end}"
-                                        logging.debug(f"  -> Replacing with (include relative): {new_include}")
+                                        logging.debug(
+                                            f"  -> Replacing with (include relative): {new_include}"
+                                        )
                                         return new_include
                                     except ValueError:
                                         pass
@@ -245,12 +258,16 @@ class RefactorManager:
                             new_inc_str = dest_path.relative_to(
                                 self.config.REPO_ROOT
                             ).as_posix()
-                            new_include = f"#include {quote_start}{new_inc_str}{quote_end}"
-                            logging.debug(f"  -> Replacing with (repo absolute): {new_include}")
+                            new_include = (
+                                f"#include {quote_start}{new_inc_str}{quote_end}"
+                            )
+                            logging.debug(
+                                f"  -> Replacing with (repo absolute): {new_include}"
+                            )
                             return new_include
                         except ValueError:
                             pass
-                    
+
                     logging.debug(f"  -> No change for include: {original_include}")
                     return original_include
 

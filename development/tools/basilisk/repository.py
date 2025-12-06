@@ -141,7 +141,7 @@ class Repository:
                 is_cpp_source = ext in [".cpp", ".cc"]
                 is_c_source = ext == ".c"
 
-                new_stem = self.file_processor.to_snake_case(file_path.stem)
+                new_stem = self.file_processor.to_new_name(file_path.stem)
                 target_base_dir = None
                 new_ext = ext
 
@@ -154,17 +154,12 @@ class Repository:
 
                 elif is_c_source:
                     # C Files: Flatten to src/, but keep .c extension
-                    target_base_dir = module_root / "src"
+                    target_base_dir = module_root
                     new_ext = ".c"
 
                 elif is_cpp_source or is_private_header:
-                    # C++ Source & Private Headers: Flatten to src/
-                    # UNLESS it's a test file.
-                    if not is_test:
-                        target_base_dir = module_root / "src"
-                    else:
-                        # Keep tests in their original directory structure
-                        target_base_dir = file_path.parent
+                    # C++ Source & Private Headers: Flatten /
+                    target_base_dir = module_root
 
                     if ext == ".cpp":
                         new_ext = ".cc"
@@ -245,7 +240,7 @@ class Repository:
                 return intended_target
 
             parent_name = parents[current_parent_idx].name.lower()
-            if parent_name in ["src", "include"]:
+            if parent_name in ["src", "test", "include"]:
                 current_parent_idx += 1
                 continue
 
