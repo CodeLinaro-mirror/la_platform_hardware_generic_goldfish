@@ -23,11 +23,6 @@
 #include "absl/strings/numbers.h"
 #include "absl/synchronization/mutex.h"
 
-#include "android/goldfish/config/avd.h"
-#include "goldfish/devices/qemud.h"
-
-using android::goldfish::Avd;
-
 namespace goldfish::devices::clipboard {
 
 class ClipboardDevice : public IClipboardDevice {

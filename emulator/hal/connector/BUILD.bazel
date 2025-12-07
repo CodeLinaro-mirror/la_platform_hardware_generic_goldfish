@@ -192,7 +192,6 @@ cc_library(
         ":connector_registry_impl",
         ":devices",
         "//android/async:async_testing",
-        "//emulator/hal/bootproperties:test_bootproperties",
         "//emulator/hal/camera:test_camera",
         "//emulator/hal/clipboard:test_clipboard",
         "//emulator/hal/fingerprint:test_fingerprint",

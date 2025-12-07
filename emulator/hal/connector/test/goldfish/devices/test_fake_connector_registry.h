@@ -1,13 +1,11 @@
 #pragma once
 
-#include "FakeBootPropertiesDevice.h"
 #include "FakeCameraDevice.h"
 #include "FakeClipboardDevice.h"
 #include "FakeFingerprintDevice.h"
 #include "FakeGpsDevice.h"
 #include "FakeGuestDevice.h"
 #include "FakeSensorDevice.h"
-#include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/CameraProtocolBase.h"
 #include "android/clipboard/ClipboardDevice.h"
 #include "android/fingerprint/FingerprintDevice.h"
@@ -24,14 +22,12 @@ namespace goldfish::devices {
 class FakeConnectorRegistry : public ConnectorRegistry {
   public:
     FakeConnectorRegistry() {
-        mBootPropertiesDevice = std::make_shared<boot::FakeBootPropertiesDevice>();
         mClipboardDevice = std::make_shared<clipboard::FakeClipboardDevice>();
         mFingerprintDevice = std::make_shared<fingerprint::FakeFingerprintDevice>();
         mGpsDevice = std::make_shared<gps::FakeGpsDevice>();
         mGuestStatusDevice = std::make_shared<guest_status::FakeGuestDevice>();
         mSensorDevice = std::make_shared<sensor::FakeSensorDevice>();
 
-        registerTest(boot::IBootPropertiesDevice::serviceName, mBootPropertiesDevice);
         registerTest(clipboard::IClipboardDevice::serviceName, mClipboardDevice);
         registerTest(fingerprint::IFingerprintDevice::serviceName, mFingerprintDevice);
         registerTest(gps::IGpsDevice::serviceName, mGpsDevice);
@@ -40,9 +36,6 @@ class FakeConnectorRegistry : public ConnectorRegistry {
     }
     ~FakeConnectorRegistry() = default;
 
-    std::shared_ptr<boot::FakeBootPropertiesDevice> bootPropertiesDevice() {
-        return mBootPropertiesDevice;
-    }
     std::shared_ptr<clipboard::FakeClipboardDevice> clipboardDevice() { return mClipboardDevice; }
     std::shared_ptr<fingerprint::FakeFingerprintDevice> fingerprintDevice() {
         return mFingerprintDevice;
@@ -60,7 +53,6 @@ class FakeConnectorRegistry : public ConnectorRegistry {
         registerInternal(std::string(name), plug);
     }
 
-    std::shared_ptr<boot::FakeBootPropertiesDevice> mBootPropertiesDevice;
     std::shared_ptr<clipboard::FakeClipboardDevice> mClipboardDevice;
     std::shared_ptr<fingerprint::FakeFingerprintDevice> mFingerprintDevice;
     std::shared_ptr<gps::FakeGpsDevice> mGpsDevice;
