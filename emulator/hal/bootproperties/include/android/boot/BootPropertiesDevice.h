@@ -31,43 +31,10 @@ using goldfish::devices::LimitedString;
 using namespace std::string_view_literals;
 
 /**
- * @brief Interface for reporting boot properties to the guest after the data
- * partition is mounted.
+ * @brief Interface for reporting boot properties
+ * (see `IBootPropertiesDevice::Properties`) to the guest.
  *
- * This interface facilitates communication between the emulator and the guest
- * operating system to provide boot properties after the guest's data partition
- * has been mounted.  The guest uses these properties for various
- * initialization and configuration tasks.  The implementation of this
- * interface within the emulator interacts with the `qemud` service to
- * transmit the properties to the guest.  The corresponding HAL implementation
- * resides in the Android source tree.
- *
- * The guest HAL lives in device/generic/goldfish/qemu-props/qemu-props.cpp
- *
- * Example usage:
- *
- * ```c++
- * class MyBootPropertyStatusListener : public EventListener<BootPropertyStatus> {
- * public:
- *     void eventArrived(const BootPropertyStatus& status) override {
- *         // Do something..
- *     }
- * };
- *
- * MyBootPropertyStatusListener listener;
- * bootPropertiesDevice->addListener(&listener);
- * // ... later
- * bootPropertiesDevice->removeListener(&listener);
- *
- * // Alternatively, using callbacks:
- * auto callbackId = bootPropertiesDevice->addCallback(
- *     [](const BootPropertyStatus& status) {
- *         // Process status updates.
- *     });
- * // ... later
- * bootPropertiesDevice->removeCallback(callbackId);
- *
- * ```
+ * This is deprecated and should be replaced with the bootconfig which we already have.
  */
 class IBootPropertiesDevice : public HalPlug {
   public:
