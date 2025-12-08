@@ -48,6 +48,7 @@ cc_test(
         "test/getMemoryTypeIndex_test.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":gvk",
         "//android/system:googletest_main",

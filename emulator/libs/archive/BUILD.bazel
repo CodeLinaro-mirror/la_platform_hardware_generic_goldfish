@@ -18,6 +18,7 @@ cc_test(
     srcs = [
         "zigzag_unittests.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":zigzag",
         "//android/system:googletest_main",
@@ -65,6 +66,7 @@ cc_test(
     srcs = [
         "reader_writer_unittests.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":DequeArchive",
         "//android/system:googletest_main",

@@ -49,6 +49,7 @@ cc_test(
         "test/BodyModel_unittest.cpp",
         "test/InertialModel_unittest.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":physics",
         "//android/system:googletest_main",

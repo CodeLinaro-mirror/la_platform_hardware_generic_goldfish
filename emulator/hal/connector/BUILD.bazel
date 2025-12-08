@@ -144,6 +144,7 @@ cc_test(
         "test/connector_registry_threading_unittest.cpp",
         "test/connector_registry_unittest.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":connector_registry_impl",
         "//android/async:libuv_event_loop",
@@ -162,6 +163,7 @@ cc_test(
         "test/datasniffer_unittests.cpp",
         "test/qemud_unittests.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":connection_awaiter",
         ":devices",

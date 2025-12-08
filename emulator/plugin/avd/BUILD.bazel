@@ -63,6 +63,7 @@ cc_test(
     srcs = [
         "test/global-event-loop-test.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":global-event-loop",
         "//android/system:googletest_main",

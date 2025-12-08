@@ -83,6 +83,7 @@ cc_test(
         "test/QueryParser_test.cpp",
         "test/getGuestEmulatedCameraProperty_test.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":camera",
         "//android/system:googletest_main",

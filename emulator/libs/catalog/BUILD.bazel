@@ -21,6 +21,7 @@ cc_test(
     name = "emulator_catalog_unittest",
     srcs = ["tests/emulator_catalog_unittest.cpp"],
     includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = [
         ":emulator_catalog",
         "//android/system:googletest_main",

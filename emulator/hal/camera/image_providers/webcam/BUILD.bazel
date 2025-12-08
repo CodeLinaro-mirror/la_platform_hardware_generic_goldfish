@@ -22,6 +22,7 @@ cc_test(
     srcs = [
         "test/todo.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":webcam",
         "//android/system:googletest_main",

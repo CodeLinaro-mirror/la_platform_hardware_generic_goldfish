@@ -39,6 +39,7 @@ cc_test(
         "test/android/network/constants_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":cmdline",
         "//android/system:googletest_main",

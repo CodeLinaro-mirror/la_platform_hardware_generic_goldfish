@@ -49,6 +49,7 @@ cc_library(
 cc_test(
     name = "emulator_grpc_client_test",
     srcs = ["tests/emulator_grpc_client_test.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":emulator_grpc_client",
         "//android/sockets",

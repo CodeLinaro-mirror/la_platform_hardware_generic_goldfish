@@ -25,9 +25,7 @@ cc_test(
     srcs = [
         "SocketBuffer_unittests.cpp",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":SocketBuffer",
         "//android/system:googletest_main",

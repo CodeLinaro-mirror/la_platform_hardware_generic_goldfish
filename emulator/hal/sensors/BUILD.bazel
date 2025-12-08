@@ -54,6 +54,7 @@ cc_test(
         "test/physics/SensorDevice_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":sensors",
         "//android/system:googletest_main",

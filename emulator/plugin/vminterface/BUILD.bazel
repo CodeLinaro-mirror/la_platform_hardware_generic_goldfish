@@ -86,6 +86,7 @@ cc_test(
         "test/vm_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":vminterface-test",
         "//android/system:googletest_main",

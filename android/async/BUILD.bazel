@@ -146,6 +146,7 @@ cc_test(
         ],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":libuv_event_loop",
         ":qemu_event_loop",
@@ -191,6 +192,7 @@ cc_test(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":libuv_sockets",
         "//android/network",
@@ -205,6 +207,7 @@ cc_test(
     srcs = [
         "test/event_loop_dispatcher_test.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":libuv_event_loop",
         "//android/system:googletest_main",
@@ -219,6 +222,7 @@ cc_binary(
         "-Wno-deprecated-declarations",
         "-Wno-unused-result",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":libuv_sockets",
         "@google_benchmark//:benchmark",
@@ -243,6 +247,7 @@ cc_library(
 cc_test(
     name = "async_testing_unittests",
     srcs = ["test/test_event_loop_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":async_testing",
         "//android/system:googletest_main",
@@ -290,6 +295,7 @@ cc_library(
 cc_test(
     name = "libuv_signal_handlers_test",
     srcs = ["test/libuv_signal_handlers_test.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":libuv_signal_handlers",
         "//android/system:googletest_main",

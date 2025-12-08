@@ -87,6 +87,7 @@ cc_test(
         "test/PixmanFrameManagerTest.cpp",
         "test/PixmanImageGeneratorTest.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":test-display",
         "//android/async:libuv_event_loop",

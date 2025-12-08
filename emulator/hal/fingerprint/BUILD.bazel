@@ -34,6 +34,7 @@ cc_test(
         "test/fingerprint/FingerprintDevice_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":fingerprint",
         "//android/system:googletest_main",

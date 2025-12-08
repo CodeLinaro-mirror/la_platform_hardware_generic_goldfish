@@ -31,6 +31,7 @@ cc_test(
         "test/queryInfo_unittests.cpp",
         "test/toVkFormat_unittests.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":imaging",
         "//android/system:googletest_main",

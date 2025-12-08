@@ -38,6 +38,7 @@ cc_test(
         "test/PhysicalModel_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":sensors",
         "//android/system:googletest_main",

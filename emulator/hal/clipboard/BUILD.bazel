@@ -37,6 +37,7 @@ cc_test(
         "test/clipboard/ClipboardDevice_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":clipboard",
         "//android/system:googletest_main",

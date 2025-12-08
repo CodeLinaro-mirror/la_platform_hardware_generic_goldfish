@@ -18,6 +18,7 @@ cc_test(
     srcs = [
         "broadcasting_unittests.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":broadcasting",
         "//android/system:googletest_main",

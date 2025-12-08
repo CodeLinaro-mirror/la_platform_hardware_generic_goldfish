@@ -34,6 +34,7 @@ cc_test(
         "test/PointerEventDispatcher-unittest.cpp",
         "test/SlotRegistry-unittest.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":input",
         "//android/async:async_testing",

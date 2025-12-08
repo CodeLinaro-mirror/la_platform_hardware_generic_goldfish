@@ -24,9 +24,7 @@ cc_test(
     srcs = [
         "UniqueIdAllocator_unittests.cpp",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":UniqueIdAllocator",
         "//android/system:googletest_main",

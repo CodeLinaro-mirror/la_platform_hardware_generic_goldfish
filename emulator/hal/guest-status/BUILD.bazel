@@ -47,6 +47,7 @@ cc_test(
         "test/misc/GuestStatusDevice_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":guest-status",
         "//android/async:async_testing",

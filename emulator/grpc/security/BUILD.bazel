@@ -69,6 +69,7 @@ cc_test(
     ],
     copts = ["-Wno-deprecated-declarations"],
     data = ["src/android/emulation/control/secure/emulator_access.json"],
+    visibility = ["//visibility:public"],
     deps = [
         ":security",
         "//android/system",

@@ -28,6 +28,7 @@ cc_test(
         "test/getKeyValueStr_test.cpp",
         "test/split2_test.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":parsing",
         "//android/system:googletest_main",

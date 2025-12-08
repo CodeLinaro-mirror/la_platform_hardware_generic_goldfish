@@ -31,6 +31,7 @@ cc_test(
         "test/endpoint_test.cpp",
         "test/ip_address_test.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":network",
         "//android/system:googletest_main",

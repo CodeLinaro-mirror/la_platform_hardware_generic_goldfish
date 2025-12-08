@@ -18,6 +18,7 @@ cc_test(
         "test/UniqueHandle_test.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":base",
         "//android/system:googletest_main",

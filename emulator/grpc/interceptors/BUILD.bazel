@@ -30,6 +30,7 @@ cc_test(
                 "test/android/emulation/control/interceptor/logging_interceptor_unittest.cpp",
             ],
         }),
+    visibility = ["//visibility:public"],
     deps = [
         ":interceptors",
         "//android/async:async_testing",

@@ -39,6 +39,7 @@ cc_test(
     name = "hang_detector_test",
     size = "small",
     srcs = ["test/android/crashreport/HangDetector_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":hang_detector",
         "//android/async:async_testing",
@@ -174,6 +175,7 @@ cc_test(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":always_consent",
         ":breadcrumb",

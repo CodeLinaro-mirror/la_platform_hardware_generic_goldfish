@@ -37,6 +37,7 @@ cc_test(
         ":crashing_test_helper",
         ":second_instance_test_helper",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":application_singleton",
         "//android/process",

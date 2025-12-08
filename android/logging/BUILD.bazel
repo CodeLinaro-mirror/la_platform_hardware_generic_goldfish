@@ -63,6 +63,7 @@ cc_test(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":absl-c-bridge",
         ":backend",
@@ -75,6 +76,7 @@ cc_binary(
     name = "log_bridge_perf",
     srcs = ["abseil_log_bridge_perf.cc"],
     copts = ["-Wno-deprecated-declarations"],
+    visibility = ["//visibility:public"],
     deps = [
         ":absl-c-bridge",
         "@google_benchmark//:benchmark",

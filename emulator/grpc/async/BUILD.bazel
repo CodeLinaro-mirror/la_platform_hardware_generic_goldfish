@@ -19,6 +19,7 @@ cc_library(
 cc_test(
     name = "async_library_test",
     srcs = ["test/android/emulation/control/utils/library_test.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":async",
         "//android/system:googletest_main",

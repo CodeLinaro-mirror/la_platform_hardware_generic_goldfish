@@ -115,6 +115,7 @@ cc_test(
         "test/android/base/system/storage_capacity_unittest.cpp",
     ],
     data = ["test/android/base/bazel/info.txt"],
+    visibility = ["//visibility:public"],
     deps = [
         ":system",
         ":test-headers",
@@ -132,6 +133,7 @@ cc_test(
     target_compatible_with = [
         "@platforms//os:windows",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":compat",
         "//android/system:googletest_main",
@@ -164,6 +166,7 @@ cc_binary(
         "-Wno-deprecated-declarations",
         "-Wno-unused-result",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":clock",
         ":system",

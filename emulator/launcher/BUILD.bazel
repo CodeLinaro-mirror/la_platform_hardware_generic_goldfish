@@ -64,6 +64,7 @@ cc_library(
 cc_test(
     name = "logging_test",
     srcs = ["test/android/goldfish/logging_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":logconfig",
         "//android/logging:backend",
@@ -85,6 +86,7 @@ cc_library(
 cc_test(
     name = "bootconfig_test",
     srcs = ["test/android/goldfish/bootconfig_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":bootconfig",
         "//android/logging:backend",

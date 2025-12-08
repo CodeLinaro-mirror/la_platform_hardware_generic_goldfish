@@ -17,6 +17,7 @@ cc_library(
 cc_test(
     name = "logger_unitests",
     srcs = ["test/AdbMessageLogger_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":logger",
         "//android/system:googletest_main",

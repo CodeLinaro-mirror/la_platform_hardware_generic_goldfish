@@ -21,6 +21,7 @@ cc_library(
 cc_test(
     name = "translate_test",
     srcs = ["test/absl_status_translate_test.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":translate",
         "//android/system:googletest_main",

@@ -18,6 +18,7 @@ cc_library(
 cc_test(
     name = "fps_calculator_unittests",
     srcs = ["fps_calculator_test.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":fps_calculator",
         "//android/system:googletest_main",

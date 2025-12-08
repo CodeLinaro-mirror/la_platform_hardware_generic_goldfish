@@ -36,6 +36,7 @@ cc_test(
         "test/boot/BootPropertiesDevice_unittest.cpp",
     ],
     includes = ["test"],
+    visibility = ["//visibility:public"],
     deps = [
         ":bootproperties",
         "//android/system:googletest_main",

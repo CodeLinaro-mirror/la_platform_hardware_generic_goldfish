@@ -65,6 +65,7 @@ cc_test(
         "test/QemuStubs.c",
         "test/VmServiceTest.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":emulator-service",
         "//android/async:libuv_event_loop",

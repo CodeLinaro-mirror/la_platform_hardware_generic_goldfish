@@ -43,6 +43,7 @@ cc_test(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":memory",
         "//android/files",

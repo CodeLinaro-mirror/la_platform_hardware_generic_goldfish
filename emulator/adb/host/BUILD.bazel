@@ -19,6 +19,7 @@ cc_library(
 cc_test(
     name = "host_unitests",
     srcs = ["test/AdbHostServer_unittest.cpp"],
+    visibility = ["//visibility:public"],
     deps = [
         ":host",
         "//android/system:googletest_main",
