@@ -52,7 +52,7 @@ class Endpoint {
      * @param port The port number for the endpoint.
      * @return absl::StatusOr<Endpoint> A valid Endpoint on success.
      */
-    static absl::StatusOr<Endpoint> create(std::string_view ip_address, int port);
+    static absl::StatusOr<Endpoint> Create(std::string_view ip_address, int port);
 
     /**
      * @brief Creates a valid Endpoint from a generic sockaddr struct.
@@ -63,19 +63,19 @@ class Endpoint {
      * @param sa A pointer to a valid sockaddr (e.g., from getaddrinfo).
      * @return absl::StatusOr<Endpoint> An Endpoint on success, or an error.
      */
-    static absl::StatusOr<Endpoint> fromSockAddr(const struct sockaddr* sa);
+    static absl::StatusOr<Endpoint> FromSockAddr(const struct sockaddr* sa);
 
     /**
      * @brief Returns the underlying IpAddress object.
      * @return const IpAddress& A reference to the IpAddress object.
      */
-    const IpAddress& address() const { return mIpAddress; }
+    [[nodiscard]] const IpAddress& Address() const { return ip_address_; }
 
     /**
      * @brief Returns the port number.
      * @return int The port number.
      */
-    int port() const { return mPort; }
+    [[nodiscard]] int Port() const { return port_; }
 
     /**
      * @brief Returns a string representation of the endpoint.
@@ -85,7 +85,7 @@ class Endpoint {
      *
      * @return std::string The formatted endpoint string.
      */
-    std::string toString() const;
+    [[nodiscard]] std::string ToString() const;
 
     /**
      * @brief Converts the Endpoint to a generic sockaddr_storage struct.
@@ -94,20 +94,20 @@ class Endpoint {
      *
      * @return sockaddr_storage The converted socket address.
      */
-    sockaddr_storage toSockaddr() const;
+    [[nodiscard]] sockaddr_storage ToSockaddr() const;
 
     bool operator==(const Endpoint& other) const {
-        return mIpAddress == other.mIpAddress && mPort == other.mPort;
+        return ip_address_ == other.ip_address_ && port_ == other.port_;
     }
 
   private:
-    IpAddress mIpAddress;
-    int mPort;
+    IpAddress ip_address_;
+    int port_;
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const Endpoint& endpoint) {
-    sink.Append(endpoint.toString());
+    sink.Append(endpoint.ToString());
 }
 
 }  // namespace goldfish::network

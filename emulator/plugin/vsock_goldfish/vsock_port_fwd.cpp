@@ -83,7 +83,7 @@ using goldfish::network::Endpoint;
 
 // Sorts endpoints to prefer IPv4 over IPv6.
 static bool isIpv4(const Endpoint& a) {
-    return a.address().isIpv4();
+    return a.Address().IsIpv4();
 }
 
 /// @note all calls are on the clientEventloop, nothing is on the qemu event
@@ -289,7 +289,7 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     const char* host = vsock_fwd_device->address ? vsock_fwd_device->address : "localhost";
     auto serverAddress = absl::StrFormat("%s:%d", host, vsock_fwd_device->host_port);
 
-    auto status = goldfish::network::resolveEndpoints(serverAddress);
+    auto status = goldfish::network::ResolveEndpoints(serverAddress);
     if (!status.ok() || status.value().empty()) {
         error_setg(errp, "Could not resolve address: %s",
                    std::string(status.status().message()).c_str());
@@ -358,7 +358,7 @@ static void vsock_fwd_set_guest_port(Object* obj, Visitor* v, const char* name, 
 
 static void vsock_fwd_set_address(Object* obj, const char* value, Error** errp) {
     // Let's resolve this address..
-    auto status = goldfish::network::resolveEndpoints(value);
+    auto status = goldfish::network::ResolveEndpoints(value);
     if (!status.ok() || status.value().empty()) {
         error_setg(errp, "Could not resolve address: %s",
                    std::string(status.status().message()).c_str());
@@ -376,7 +376,7 @@ static void vsock_fwd_set_address(Object* obj, const char* value, Error** errp) 
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(obj);
 
     g_free(vsock_fwd_device->address);
-    vsock_fwd_device->address = g_strdup(preferred->toString().c_str());
+    vsock_fwd_device->address = g_strdup(preferred->ToString().c_str());
 }
 
 static void vsock_fwd_class_init(ObjectClass* oc, void* data) {

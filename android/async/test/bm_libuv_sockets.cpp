@@ -45,7 +45,7 @@ class SocketBenchmark : public ::benchmark::Fixture {
 BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     std::string test_message = "ping";
     ScopedAsyncServer server(*postAndWait([&](void) {
-        auto endpoint = Endpoint::create("127.0.0.1", 0).value();
+        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
         return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
             socket->setOnReadCallbackNoFlowControl(
                     [s = socket](std::string_view data, auto status) {
@@ -58,7 +58,7 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     int port = *postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(*postAndWait([&] {
-        auto endpoint = Endpoint::create("127.0.0.1", port).value();
+        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
         return factory_->createSocket(loop_.get(), endpoint);
     }));
 
@@ -94,7 +94,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     ScopedAsyncSocket server_socket;
 
     ScopedAsyncServer server(*postAndWait([&] {
-        auto endpoint = Endpoint::create("127.0.0.1", 0).value();
+        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
         return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
             server_socket = ScopedAsyncSocket(socket);
             socket->setOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
@@ -104,7 +104,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     int port = *postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(*postAndWait([&] {
-        auto endpoint = Endpoint::create("127.0.0.1", port).value();
+        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
         return factory_->createSocket(loop_.get(), endpoint);
     }));
 

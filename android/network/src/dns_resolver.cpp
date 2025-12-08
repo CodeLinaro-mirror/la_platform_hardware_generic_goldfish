@@ -15,8 +15,8 @@
 #include "goldfish/network/dns_resolver.h"
 
 #include <ares.h>
-#include <string.h>
 
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -83,7 +83,7 @@ using AresServerListPtr = std::unique_ptr<struct ares_addr_node, AresDataDeleter
  *
  * @return absl::OkStatus() on success, or a NotFoundError on DNS failure.
  */
-absl::Status processAddrInfo(const std::string& host, const std::string& port,
+absl::Status ProcessAddrInfo(const std::string& host, const std::string& port,
                              const struct addrinfo* hints,
                              const std::function<void(const struct addrinfo&)>& processor) {
     struct addrinfo default_hints = {};
@@ -94,9 +94,10 @@ absl::Status processAddrInfo(const std::string& host, const std::string& port,
     }
 
     struct addrinfo* raw_result = nullptr;
-    int ret = getaddrinfo(host.c_str(), port.empty() ? nullptr : port.c_str(), hints, &raw_result);
+    const int ret =
+            getaddrinfo(host.c_str(), port.empty() ? nullptr : port.c_str(), hints, &raw_result);
 
-    AddrInfoPtr result(raw_result);
+    const AddrInfoPtr result(raw_result);
 
     // Handle DNS lookup failures
     if (ret != 0) {
@@ -136,8 +137,8 @@ struct HostPort {
 HostPort ParseHostPort(std::string_view address) {
     std::string_view host = address;
     std::string_view port_str;
-    size_t colon_pos = address.rfind(':');
-    size_t bracket_pos = address.rfind(']');
+    const size_t colon_pos = address.rfind(':');
+    const size_t bracket_pos = address.rfind(']');
 
     // Check for a port (a colon outside of IPv6 brackets)
     if (colon_pos != std::string_view::npos &&
@@ -150,19 +151,19 @@ HostPort ParseHostPort(std::string_view address) {
     if (!host.empty() && host.front() == '[' && host.back() == ']') {
         host = host.substr(1, host.length() - 2);
     }
-    return {std::string(host), std::string(port_str)};
+    return {.host = std::string(host), .port = std::string(port_str)};
 }
 }  // namespace
 
-absl::StatusOr<std::vector<Endpoint>> resolveEndpoints(const std::string& address,
+absl::StatusOr<std::vector<Endpoint>> ResolveEndpoints(const std::string& address,
                                                        const struct addrinfo* hints) {
-    HostPort hp = ParseHostPort(address);
+    const HostPort hp = ParseHostPort(address);
     std::vector<Endpoint> endpoints;
 
-    auto status = processAddrInfo(hp.host, hp.port, hints, [&endpoints](const struct addrinfo& rp) {
-        absl::StatusOr<Endpoint> endpoint = Endpoint::fromSockAddr(rp.ai_addr);
+    auto status = ProcessAddrInfo(hp.host, hp.port, hints, [&endpoints](const struct addrinfo& rp) {
+        absl::StatusOr<Endpoint> endpoint = Endpoint::FromSockAddr(rp.ai_addr);
         if (endpoint.ok()) {
-            endpoints.push_back(std::move(*endpoint));
+            endpoints.push_back(*endpoint);
         }
     });
 
@@ -173,15 +174,15 @@ absl::StatusOr<std::vector<Endpoint>> resolveEndpoints(const std::string& addres
     return endpoints;
 }
 
-absl::StatusOr<std::vector<IpAddress>> resolveHostname(const std::string& hostname,
+absl::StatusOr<std::vector<IpAddress>> ResolveHostname(const std::string& hostname,
                                                        const struct addrinfo* hints) {
     std::vector<IpAddress> addresses;
 
     auto status =
-            processAddrInfo(hostname, /*port=*/"", hints, [&addresses](const struct addrinfo& rp) {
-                absl::StatusOr<Endpoint> endpoint = Endpoint::fromSockAddr(rp.ai_addr);
+            ProcessAddrInfo(hostname, /*port=*/"", hints, [&addresses](const struct addrinfo& rp) {
+                absl::StatusOr<Endpoint> endpoint = Endpoint::FromSockAddr(rp.ai_addr);
                 if (endpoint.ok()) {
-                    addresses.push_back(endpoint->address());
+                    addresses.push_back(endpoint->Address());
                 }
             });
 
@@ -192,7 +193,7 @@ absl::StatusOr<std::vector<IpAddress>> resolveHostname(const std::string& hostna
     return addresses;
 }
 
-absl::StatusOr<std::vector<IpAddress>> getSystemDnsServers() {
+absl::StatusOr<std::vector<IpAddress>> GetSystemDnsServers() {
     // TODO(whollins): only do this once globally.
     // Also: Cleanup c-ares library before exiting - ares_library_cleanup();
     if (int status = ares_library_init(ARES_LIB_INIT_ALL); status != ARES_SUCCESS) {
@@ -200,18 +201,18 @@ absl::StatusOr<std::vector<IpAddress>> getSystemDnsServers() {
     }
 
     ares_channel raw_channel = nullptr;
-    if (int err = ares_init(&raw_channel); err != ARES_SUCCESS) {
+    if (const int err = ares_init(&raw_channel); err != ARES_SUCCESS) {
         return absl::InternalError(
                 absl::StrFormat("Failed to initialize c-ares: %s", ares_strerror(err)));
     }
-    AresChannelPtr channel(raw_channel);
+    const AresChannelPtr channel(raw_channel);
 
     struct ares_addr_node* raw_servers = nullptr;
-    if (int err = ares_get_servers(channel.get(), &raw_servers); err != ARES_SUCCESS) {
+    if (const int err = ares_get_servers(channel.get(), &raw_servers); err != ARES_SUCCESS) {
         return absl::InternalError(
                 absl::StrFormat("Failed to retrieve DNS servers: %s", ares_strerror(err)));
     }
-    AresServerListPtr servers(raw_servers);
+    const AresServerListPtr servers(raw_servers);
 
     // We have results! Let's parse them out.
     std::vector<IpAddress> results;
@@ -219,10 +220,10 @@ absl::StatusOr<std::vector<IpAddress>> getSystemDnsServers() {
         absl::StatusOr<IpAddress> ip;
 
         if (node->family == AF_INET) {
-            ip = IpAddress::fromBinary(&node->addr.addr4);
+            ip = IpAddress::FromBinary(&node->addr.addr4);
         } else if (node->family == AF_INET6) {
             // c-ares IPv6 struct is layout-compatible with standard in6_addr
-            ip = IpAddress::fromBinary(reinterpret_cast<const struct in6_addr*>(&node->addr.addr6));
+            ip = IpAddress::FromBinary(reinterpret_cast<const struct in6_addr*>(&node->addr.addr6));
         }
 
         // Very unlikely that the c-ares returns incorrect ip struct.

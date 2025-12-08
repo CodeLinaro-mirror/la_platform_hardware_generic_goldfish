@@ -30,19 +30,19 @@
 
 namespace goldfish::network {
 
-IpAddress::IpAddress(const in_addr* ipv4) : mFamily(Family::kIpv4) {
-    std::memset(mAddr.data(), 0, mAddr.size());
-    std::memcpy(mAddr.data(), ipv4, sizeof(struct in_addr));
+IpAddress::IpAddress(const in_addr* ipv4) : family_(Family::kIpv4) {
+    std::memset(addr_.data(), 0, addr_.size());
+    std::memcpy(addr_.data(), ipv4, sizeof(struct in_addr));
 }
 
-IpAddress::IpAddress(const in6_addr* ipv6) : mFamily(Family::kIpv6) {
-    std::memset(mAddr.data(), 0, mAddr.size());
-    std::memcpy(mAddr.data(), ipv6, sizeof(struct in6_addr));
+IpAddress::IpAddress(const in6_addr* ipv6) : family_(Family::kIpv6) {
+    std::memset(addr_.data(), 0, addr_.size());
+    std::memcpy(addr_.data(), ipv6, sizeof(struct in6_addr));
 }
 
-absl::StatusOr<IpAddress> IpAddress::create(std::string_view ip_address) {
+absl::StatusOr<IpAddress> IpAddress::Create(std::string_view ip_address) {
     // We need a null-terminated string for inet_pton.
-    std::string ip_str(ip_address);
+    const std::string ip_str(ip_address);
 
     // A temporary buffer to hold the binary conversion
     std::array<std::byte, sizeof(struct in6_addr)> buf;
@@ -58,7 +58,7 @@ absl::StatusOr<IpAddress> IpAddress::create(std::string_view ip_address) {
     return absl::InvalidArgumentError(absl::StrFormat("Invalid IP address: %s", ip_str));
 }
 
-absl::StatusOr<IpAddress> IpAddress::fromBinary(const struct in_addr* addr) {
+absl::StatusOr<IpAddress> IpAddress::FromBinary(const struct in_addr* addr) {
     if (addr == nullptr) {
         return absl::InvalidArgumentError("in_addr pointer cannot be null");
     }
@@ -66,39 +66,39 @@ absl::StatusOr<IpAddress> IpAddress::fromBinary(const struct in_addr* addr) {
 }
 
 // --- Factory: fromBinary (IPv6 Overload) ---
-absl::StatusOr<IpAddress> IpAddress::fromBinary(const struct in6_addr* addr) {
+absl::StatusOr<IpAddress> IpAddress::FromBinary(const struct in6_addr* addr) {
     if (addr == nullptr) {
         return absl::InvalidArgumentError("in6_addr pointer cannot be null");
     }
     return IpAddress(addr);
 }
 
-std::string IpAddress::toString() const {
+std::string IpAddress::ToString() const {
     char ip_str[INET6_ADDRSTRLEN];
-    const int af = (mFamily == Family::kIpv4) ? AF_INET : AF_INET6;
+    const int af = (family_ == Family::kIpv4) ? AF_INET : AF_INET6;
 
-    if (!inet_ntop(af, mAddr.data(), ip_str, sizeof(ip_str))) {
+    if (!inet_ntop(af, addr_.data(), ip_str, sizeof(ip_str))) {
         // Note, this cannot happen.
         LOG(FATAL) << "inet_ntop failed, this means the internal ip string got corrupted.";
     }
-    return std::string(ip_str);
+    return {ip_str};
 }
 
-const struct in_addr* IpAddress::asV4() const {
-    if (mFamily != Family::kIpv4) {
+const struct in_addr* IpAddress::AsV4() const {
+    if (family_ != Family::kIpv4) {
         return nullptr;
     }
 
-    static_assert(sizeof(mAddr) >= sizeof(struct in_addr));
-    return reinterpret_cast<const struct in_addr*>(mAddr.data());
+    static_assert(sizeof(addr_) >= sizeof(struct in_addr));
+    return reinterpret_cast<const struct in_addr*>(addr_.data());
 }
 
-const struct in6_addr* IpAddress::asV6() const {
-    if (mFamily != Family::kIpv6) {
+const struct in6_addr* IpAddress::AsV6() const {
+    if (family_ != Family::kIpv6) {
         return nullptr;
     }
-    static_assert(sizeof(mAddr) >= sizeof(struct in6_addr));
-    return reinterpret_cast<const struct in6_addr*>(mAddr.data());
+    static_assert(sizeof(addr_) >= sizeof(struct in6_addr));
+    return reinterpret_cast<const struct in6_addr*>(addr_.data());
 }
 
 }  // namespace goldfish::network

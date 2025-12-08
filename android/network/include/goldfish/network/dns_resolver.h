@@ -43,7 +43,7 @@ namespace goldfish::network {
  * * **Non-Ok Status:** The DNS lookup itself failed (e.g., absl::StatusCode::kNotFound if the host
  * does not exist).
  */
-absl::StatusOr<std::vector<Endpoint>> resolveEndpoints(const std::string& address,
+absl::StatusOr<std::vector<Endpoint>> ResolveEndpoints(const std::string& address,
                                                        const struct addrinfo* hints = nullptr);
 
 /**
@@ -61,7 +61,7 @@ absl::StatusOr<std::vector<Endpoint>> resolveEndpoints(const std::string& addres
  * * **Non-Ok Status:** The DNS lookup itself failed (e.g., absl::StatusCode::kNotFound if the host
  * does not exist).
  */
-absl::StatusOr<std::vector<IpAddress>> resolveHostname(const std::string& hostname,
+absl::StatusOr<std::vector<IpAddress>> ResolveHostname(const std::string& hostname,
                                                        const struct addrinfo* hints = nullptr);
 
 /**
@@ -73,6 +73,6 @@ absl::StatusOr<std::vector<IpAddress>> resolveHostname(const std::string& hostna
  * @return An absl::StatusOr<std::vector<IpAddress>> containing the list of unique
  * DNS server addresses found. Returns kNotFound if no servers could be determined.
  */
-absl::StatusOr<std::vector<IpAddress>> getSystemDnsServers();
+absl::StatusOr<std::vector<IpAddress>> GetSystemDnsServers();
 
 }  // namespace goldfish::network

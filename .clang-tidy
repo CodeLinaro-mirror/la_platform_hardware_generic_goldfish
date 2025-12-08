@@ -21,10 +21,12 @@ Checks:
   - '-readability-named-parameter'          # Verbose
   - '-readability-implicit-bool-conversion' # Allow 'if (ptr)'
   - '-misc-non-private-member-variables-in-classes' # Allow public struct members
+  - '-modernize-avoid-c-arrays'             # c-arrays are used in various places.
 
   # --- EXCLUSIONS ---
   - '-modernize-use-trailing-return-type'   # We do not use 'auto func() -> int'
   - '-google-readability-todo'              # We do not police TODO format
+  - '-modernize-use-std-format'             # We are using absl::StrFormat a lot.
 
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'

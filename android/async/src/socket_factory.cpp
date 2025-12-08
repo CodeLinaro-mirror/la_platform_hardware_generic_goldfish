@@ -20,7 +20,7 @@ namespace goldfish::async {
 
 std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factory, EventLoop* loop,
                                                       const std::string& hostname) {
-    auto endpoints = goldfish::network::resolveEndpoints(hostname);
+    auto endpoints = goldfish::network::ResolveEndpoints(hostname);
     if (!endpoints.ok()) {
         return nullptr;
     }
@@ -37,7 +37,7 @@ std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factor
 std::shared_ptr<AsyncSocketServer> createServerFromHostname(
         AsyncSocketFactory& factory, EventLoop* loop, const std::string& hostname,
         AsyncSocketServer::ConnectCallback connectCallback) {
-    auto endpoints = goldfish::network::resolveEndpoints(hostname);
+    auto endpoints = goldfish::network::ResolveEndpoints(hostname);
     if (!endpoints.ok()) {
         return nullptr;
     }
