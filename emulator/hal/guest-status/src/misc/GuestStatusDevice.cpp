@@ -126,9 +126,7 @@ class GuestStatusDevice : public IGuestStatusDevice {
         mBootTime = bootTime;
         fireEvent(createBootCompletedEvent(bootTime));
 
-        // use WARNING, otherwise, logger does no flush and we don't know
-        // it boot completes in timely manner
-        LOG(WARNING) << "Boot completed in " << bootTime.count() << " ms";
+        notifyToolsBootcomplete(bootTime.count());
 
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
@@ -147,6 +145,17 @@ class GuestStatusDevice : public IGuestStatusDevice {
     }
 
   private:
+    /*
+     * This magic string MUST be printed: this is how the tools detect
+     * that the system image booted.
+     *
+     * Use `WARNING`, otherwise, logger does no flush and we
+     * don't know it boot completes in timely manner.
+     */
+    static void notifyToolsBootcomplete(const size_t durationMs) {
+        LOG(WARNING) << "Boot completed in " << durationMs << " ms";
+    }
+
     static void QEMUResetHandler(void* opaque) {
         auto device = static_cast<GuestStatusDevice*>(opaque);
         device->handleResetEvent();
