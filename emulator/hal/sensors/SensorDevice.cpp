@@ -538,19 +538,20 @@ class SensorDevice : public ISensorDevice {
         mTimer->schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
     }
 
-    Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
     std::unique_ptr<PhysicalModel> mPhysicalModel;
-    absl::Duration mTimeOffset;
-    EventLoop* mLoop;
-    std::shared_ptr<EventLoop::Timer> mTimer;
-    ::android::base::IClock* mClock;
-    uint32_t mEnabledMask{0};
-    absl::Duration mDelay{absl::Milliseconds(800)};
+    EventLoop* const mLoop;
+    ::android::base::IClock* const mClock;
     qemud::Parser mQemudParser;
+    std::shared_ptr<EventLoop::Timer> mTimer;
+    absl::Duration mTimeOffset;
+    absl::Duration mDelay{absl::Milliseconds(800)};
 
     // We are having callbacks in a timer, we want to make sure we never
     // delete ourselves.
     std::shared_ptr<ISensorDevice> mSelf;
+
+    Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
+    uint32_t mEnabledMask{0};
 
     // Sensor and Physical Parameter information arrays
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
