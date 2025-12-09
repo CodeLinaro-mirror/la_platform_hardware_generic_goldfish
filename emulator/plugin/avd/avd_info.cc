@@ -41,6 +41,7 @@
 #include "goldfish/devices/gps/gps_device.h"
 #include "goldfish/devices/guest_status/guest_status_device.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/vsock/clear.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -351,6 +352,7 @@ void avd_info_instance_finalize(Object* obj) {
     auto s = f.get();
     LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
     gQemuLoop.reset();
+    goldfish::vsock::clear();
     delete avd_info->universe;
     delete avd_info->mutable_props;
 }
