@@ -326,6 +326,8 @@ struct GoldfishVirtioVsockDevice {
     void unrealize() {
         DEBUG_MSG("this=%p", this);
         clear();
+        mQemuDev = nullptr;
+        mQemuDevApi = nullptr;
     }
 
     void setStatus(const uint8_t status) {
@@ -444,7 +446,7 @@ struct GoldfishVirtioVsockDevice {
 
         bool needNotify = false;
         VirtIOVSockSendResult sendResult;
-        const auto sendPacketHostToGuest = mQemuDevApi->sendPacketHostToGuest;
+        const auto sendPacketHostToGuest = NOT_NULL(mQemuDevApi)->sendPacketHostToGuest;
 
         while (!mOrphanPackets.empty()) {
             sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev),
@@ -533,7 +535,7 @@ struct GoldfishVirtioVsockDevice {
 
     void sendPacketsAndNotifyLocked() {
         if (sendPacketsLocked()) {
-            (*mQemuDevApi->haveHostToGuestPackets)(mQemuDev);
+            (*NOT_NULL(mQemuDevApi)->haveHostToGuestPackets)(NOT_NULL(mQemuDev));
         }
     }
 
