@@ -76,6 +76,64 @@ using CallbackSource = goldfish::async::LoopBoundCallbackSource<TestEvent>;
 
 }  // namespace
 
+// TODO FIX: this test timesout
+TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedOnEventLoopThread) {
+    // 1. Create an EventLoop instance and run it in a background thread.
+    auto eventLoop = LibuvEventLoop::create();
+    std::thread loopThread([&]() { (void)eventLoop->run(); });
+
+    // 2. Create the EventSource, passing the event loop to the dispatcher's constructor.
+    LoopBoundSafeSource loopBoundSource(eventLoop.get());
+
+    // 3. Add a listener.
+    absl::Notification event_received;
+    auto listener = std::make_shared<TestListener>(eventLoop.get(), &event_received);
+    loopBoundSource.addListener(listener);
+
+    // 4. Fire an event from the main thread.
+    loopBoundSource.fireEvent({42, std::this_thread::get_id()});
+
+    // 5. Wait for the event to be processed.
+    ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
+
+    // 6. Verify the listener received the correct value.
+    EXPECT_EQ(listener->lastValue(), 42);
+
+    // 7. Cleanly shut down the loop.
+    (void)eventLoop->shutdownAndWait();
+    loopThread.join();
+}
+
+TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedImmediatelyWhenOnLoopThread) {
+    // 1. Create an EventLoop instance and run it in a background thread.
+    auto eventLoop = LibuvEventLoop::create();
+    std::thread loopThread([&]() { (void)eventLoop->run(); });
+
+    // 2. Create the EventSource.
+    LoopBoundSafeSource loopBoundSource(eventLoop.get());
+
+    // 3. Add a listener.
+    absl::Notification event_received;
+    auto listener = std::make_shared<TestListener>(eventLoop.get(), &event_received);
+    loopBoundSource.addListener(listener);
+
+    // 4. Post a task to the event loop to fire the event from there.
+    eventLoop->post([&]() {
+        // Now we are on the loop thread, the dispatch should be immediate.
+        loopBoundSource.fireEvent({99, std::this_thread::get_id()});
+    });
+
+    // 5. Wait for the event to be processed.
+    ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
+
+    // 6. Verify the listener received the correct value.
+    EXPECT_EQ(listener->lastValue(), 99);
+
+    // 7. Cleanly shut down the loop.
+    (void)eventLoop->shutdownAndWait(500ms);
+    loopThread.join();
+}
+
 TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     // 1. Create an EventLoop and run it.
     auto eventLoop = LibuvEventLoop::create();

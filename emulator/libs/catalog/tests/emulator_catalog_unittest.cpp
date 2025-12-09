@@ -73,6 +73,28 @@ TEST_F(EmulatorCatalogTest, InitialScanFindsExistingFiles) {
     ASSERT_EQ(2, emulators.size());
 }
 
+// TODO FIX flakey test
+TEST_F(EmulatorCatalogTest, DISABLED_EmulatorAddedEventFires) {
+    mCatalog = EmulatorCatalog::create(mTempDir);
+    ASSERT_NE(mCatalog, nullptr);
+
+    std::promise<CatalogEntry> entryPromise;
+    auto entryFuture = entryPromise.get_future();
+
+    auto handle = makeScopedCallback(mCatalog->emulatorAdded, [&](const CatalogEntry& entry) {
+        entryPromise.set_value(entry);
+    });
+
+    writeIniFile("emu-added.ini", "avd.name=added\nport.adb=5559");
+
+    // Wait for the event to fire, with a timeout.
+    ASSERT_EQ(std::future_status::ready, entryFuture.wait_for(1s));
+    auto addedEntry = entryFuture.get();
+
+    EXPECT_EQ("added", addedEntry.properties.at("avd.name"));
+    EXPECT_THAT(addedEntry.path.string(), ::testing::HasSubstr("emu-added.ini"));
+}
+
 TEST_F(EmulatorCatalogTest, EmulatorRemovedEventFires) {
     using namespace std::chrono_literals;
     writeIniFile("emu-to-remove.ini", "avd.name=toberemoved\nport.adb=5561");
@@ -96,6 +118,51 @@ TEST_F(EmulatorCatalogTest, EmulatorRemovedEventFires) {
 
     EXPECT_EQ("toberemoved", removedEntry.properties.at("avd.name"));
     EXPECT_TRUE(mCatalog->listEmulators().empty());
+}
+
+TEST_F(EmulatorCatalogTest, DISABLED_ListEmulatorsIsCorrectAfterMultipleChanges) {
+    mCatalog = EmulatorCatalog::create(mTempDir);
+    ASSERT_NE(mCatalog, nullptr);
+
+    std::mutex mtx;
+    std::condition_variable cv;
+    int eventCount = 0;
+
+    auto addHandle = makeScopedCallback(mCatalog->emulatorAdded, [&](const CatalogEntry&) {
+        std::lock_guard<std::mutex> lock(mtx);
+        eventCount++;
+        cv.notify_one();
+    });
+    auto removeHandle = makeScopedCallback(mCatalog->emulatorRemoved, [&](const CatalogEntry&) {
+        std::lock_guard<std::mutex> lock(mtx);
+        eventCount++;
+        cv.notify_one();
+    });
+
+    auto waitForEvents = [&](int expectedCount) {
+        std::unique_lock<std::mutex> lock(mtx);
+        return cv.wait_for(lock, 1s, [&] { return eventCount >= expectedCount; });
+    };
+
+    writeIniFile("emu-1.ini", "avd.name=test1");
+    ASSERT_TRUE(waitForEvents(1));
+    writeIniFile("emu-2.ini", "avd.name=test2");
+    ASSERT_TRUE(waitForEvents(2));
+    ASSERT_EQ(2, mCatalog->listEmulators().size());
+
+    writeIniFile("emu-3.ini", "avd.name=test3");
+    ASSERT_TRUE(waitForEvents(3));
+    ASSERT_EQ(3, mCatalog->listEmulators().size());
+
+    deleteIniFile("emu-1.ini");
+    ASSERT_TRUE(waitForEvents(4));
+    auto emulators = mCatalog->listEmulators();
+    ASSERT_EQ(2, emulators.size());
+
+    // Check that the correct one was removed.
+    for (const auto& entry : emulators) {
+        EXPECT_NE("test1", entry.properties.at("avd.name"));
+    }
 }
 
 TEST_F(EmulatorCatalogTest, IgnoresNonIniFiles) {

@@ -615,4 +615,47 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
     EXPECT_FALSE(targetStateChanged);
 }
 
+TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
+    // Foldable is not yet supported.
+    using android::goldfish::HardwareConfig;
+
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_width = 1260;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_height = 2400;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge = true;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_count = 2;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_type = 0;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_sub_type = 1;
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_defaults = (char*)"180,90";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_areas = (char*)"25-10, 50-10";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
+    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_angles_posture_definitions =
+            (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
+
+    model->setCurrentTime(1000000000L);
+
+    FoldableState ret = model->getFoldableState();
+    EXPECT_EQ(180, ret.currentHingeDegrees[0]);
+    EXPECT_EQ(90, ret.currentHingeDegrees[1]);
+    EXPECT_EQ(2, ret.config.numHinges);
+    EXPECT_EQ(FoldableDisplayType::HORIZONTAL_SPLIT, ret.config.type);
+    EXPECT_EQ(0, ret.config.hingeParams[0].displayId);
+    EXPECT_EQ(0, ret.config.hingeParams[0].x);
+    EXPECT_EQ(600, ret.config.hingeParams[0].y);
+    EXPECT_EQ(1260, ret.config.hingeParams[0].width);
+    EXPECT_EQ(10, ret.config.hingeParams[0].height);
+    EXPECT_EQ(0, ret.config.hingeParams[0].minDegrees);
+    EXPECT_EQ(360, ret.config.hingeParams[0].maxDegrees);
+    EXPECT_EQ(0, ret.config.hingeParams[1].displayId);
+    EXPECT_EQ(0, ret.config.hingeParams[1].x);
+    EXPECT_EQ(1200, ret.config.hingeParams[1].y);
+    EXPECT_EQ(1260, ret.config.hingeParams[1].width);
+    EXPECT_EQ(10, ret.config.hingeParams[1].height);
+    EXPECT_EQ(0, ret.config.hingeParams[1].minDegrees);
+    EXPECT_EQ(180, ret.config.hingeParams[1].maxDegrees);
+    EXPECT_EQ(180, ret.config.hingeParams[0].defaultDegrees);
+    EXPECT_EQ(90, ret.config.hingeParams[1].defaultDegrees);
+    EXPECT_EQ(FoldablePostures::OPENED, ret.currentPosture);
+}
+
 }  // namespace goldfish::sensors

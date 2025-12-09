@@ -243,6 +243,65 @@ void clearCloseOnExec(FILE* sharedFile) {
 #endif  // !_WIN32
 }
 
+// TODO(whollins): Fix these 2 tests to use a different type of FD.
+TEST(Command, DISABLED_we_do_not_inherit_handles) {
+    // Let's capture std err
+    /*std::string tmp_file = std::tmpnam(nullptr);
+
+    auto shareMode = android::base::FileShare::Write;
+    android::base::createFileForShare(tmp_file.c_str());
+    const char* mode = "wb";
+    FILE* sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
+    clearCloseOnExec(sharedFile);
+
+    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).execute();
+    std::this_thread::sleep_for(10ms);
+#ifndef _WIN32
+    android::base::internal::closeFileForShare(sharedFile);
+#else
+    _close(fileno(sharedFile));
+#endif
+    sharedFile = nullptr;
+    sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
+    EXPECT_TRUE(sharedFile != nullptr && proc->isAlive())
+            << "The file handle should not have been inherited and not be null, not: " << sharedFile
+            << (proc->isAlive() ? " proc is and should be alive!" : "should not be dead");
+
+    // Let's make sure we do not have any weird dangling file descriptors.
+    proc->terminate();
+#ifndef _WIN32
+    android::base::internal::closeFileForShare(sharedFile);
+#else
+    _close(fileno(sharedFile));
+#endif*/
+}
+
+TEST(Command, DISABLED_we_do_inherit_handles_if_we_explicitly_say_so) {
+    // Let's capture std err
+    /*std::string tmp_file = std::tmpnam(nullptr);
+
+    auto shareMode = android::base::FileShare::Write;
+    android::base::createFileForShare(tmp_file.c_str());
+    const char* mode = "wb";
+    FILE* sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
+    clearCloseOnExec(sharedFile);
+
+    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).inherit().execute();
+    std::this_thread::sleep_for(10ms);
+
+#ifndef _WIN32
+    android::base::internal::closeFileForShare(sharedFile);
+#else
+    _close(fileno(sharedFile));
+#endif
+    sharedFile = android::base::fsopen(tmp_file.c_str(), mode, shareMode);
+    EXPECT_TRUE(sharedFile == nullptr && proc->isAlive())
+            << "The file handle should have been inherited and be null, not: " << sharedFile
+            << (proc->isAlive() ? " proc is and should be alive!" : "should not be dead");
+
+    proc->terminate();*/
+}
+
 TEST(Command, we_can_capture_both) {
     // Let's capture std err
     auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
@@ -276,6 +335,39 @@ TEST(Command, can_terminate_daemon) {
     EXPECT_TRUE(proc->isAlive());
     EXPECT_TRUE(proc->terminate());
     EXPECT_FALSE(proc->isAlive());
+}
+
+// Note this a bit slow
+TEST(Command, DISABLED_we_can_stream_data) {
+#ifndef _WIN32
+    auto cmd = Command::create({"sh", "-c"});
+#else
+    auto cmd = Command::create({"cmd.exe", "/C"});
+#endif
+
+    // An example of streaming data, note if we do not receive
+    // data every second we will consider the stream closed!
+    auto proc = cmd.arg(R"##(for i in {1..2}; do echo "Hello $i"; sleep 0.2; done)##")
+                        .withStdoutBuffer(4096, std::chrono::seconds(1))
+                        .execute();
+
+    int i = 1;
+
+    // You can read from the stream, if the process goes awat
+    // the stream will close (and no longer be good)
+    std::istream& stream = proc->out()->asStream();
+    while (stream.good()) {
+        // Pull a line from the stream..
+        char buffer[80];
+        stream.getline(buffer, sizeof(buffer));
+        std::string line(buffer);
+
+        // Note, last line will be empty..
+        if (!line.empty()) ASSERT_EQ("Hello " + std::to_string(i++), line);
+    }
+
+    // Let's not have a dangling shell.
+    proc->terminate();
 }
 
 }  // namespace base
