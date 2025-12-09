@@ -16,6 +16,8 @@
 #include <string_view>
 #include <vector>
 
+#include "goldfish/devices/PingTopic.h"
+#include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/device_entry.h"
 
