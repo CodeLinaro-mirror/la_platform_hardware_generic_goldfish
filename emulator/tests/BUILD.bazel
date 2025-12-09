@@ -7,12 +7,16 @@ java_test(
         "//emulator/launcher",
     ] + select({
         "@platforms//os:linux": [
-            "//emulator/tests/sdk/linux:sdkhome",
             "@android_minigbm16k-x86_64//:system_image",
+            "@sdk_linux//:sdkhome",
         ],
         "@platforms//os:macos": [
-            "//emulator/tests/sdk/macosx:sdkhome",
             "@android_minigbm16k-arm64-v8a//:system_image",
+            "@sdk_macosx//:sdkhome",
+        ],
+        "@platforms//os:windows": [
+            "@android_minigbm16k-x86_64//:system_image",
+            "@sdk_windows//:sdkhome",
         ],
         "//conditions:default": [],
     }),
@@ -24,11 +28,11 @@ java_test(
         "-Demulator.test.emulator.is-emu-next=1",
     ] + select({
         "@platforms//os:linux": [
-            "-Demulator.test.sdk.path=../goldfish+/emulator/tests/sdk/linux",
+            "-Demulator.test.sdk.path=../goldfish_build++android_sdk+sdk_linux",
             "-Demulator.test.system.image.files=\"$(locations @android_minigbm16k-x86_64//:system_image)\"",
         ],
         "@platforms//os:macos": [
-            "-Demulator.test.sdk.path=../goldfish+/emulator/tests/sdk/macosx",
+            "-Demulator.test.sdk.path=../goldfish_build++android_sdk+sdk_macosx",
             "-Demulator.test.system.image.files=\"$(locations @android_minigbm16k-arm64-v8a//:system_image)\"",
         ],
         "//conditions:default": [],
