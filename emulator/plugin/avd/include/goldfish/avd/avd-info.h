@@ -16,6 +16,12 @@
 
 #include "android/goldfish/config/device_type.h"
 #include "android/goldfish/config/hardware_config.h"
+#include "goldfish/avd_universe/clipboard/ClipboardData.h"
+#include "goldfish/avd_universe/fingerprint/FingerprintSensor.h"
+#include "goldfish/avd_universe/gps/Location.h"
+#include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "goldfish/avd_universe/guest_status/GuestStatus.h"
+#include "goldfish/sensors/PhysicalModel.h"
 
 namespace goldfish::avd_info {
 
@@ -51,6 +57,17 @@ struct AvdProperties {
 struct AvdUniverse {
     const AvdProperties& props() const { return *mProps; }
 
+    avd_universe::clipboard::ClipboardChannel& getClipboardChannel() { return mClipboardChannel; }
+    avd_universe::fingerprint::ObservableFingerprintSensor& getFingerprintSensor() {
+        return mFingerprintSensor;
+    }
+    avd_universe::grpc::GrpcNotificationEventSource& getGrpcNotificationChannel() {
+        return mGrpcNotificationEventSource;
+    }
+    avd_universe::guest_status::GuestStatus& getGuestStatus() { return mGuestStatus; }
+    avd_universe::gps::ObservableLocation& getLocation() { return mLocation; }
+    sensors::PhysicalModel& getSensorsPhysicalModel() { return mSensorsPhysicalModel; }
+
     AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;
     AvdUniverse(AvdUniverse&&) = delete;
@@ -59,6 +76,13 @@ struct AvdUniverse {
 
   private:
     const std::unique_ptr<const AvdProperties> mProps;
+
+    avd_universe::clipboard::ClipboardChannel mClipboardChannel;
+    avd_universe::fingerprint::ObservableFingerprintSensor mFingerprintSensor;
+    avd_universe::grpc::GrpcNotificationEventSource mGrpcNotificationEventSource;
+    avd_universe::guest_status::GuestStatus mGuestStatus;
+    avd_universe::gps::ObservableLocation mLocation;
+    sensors::PhysicalModel mSensorsPhysicalModel;
 };
 
 AvdUniverse& getAvd();

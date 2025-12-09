@@ -17,18 +17,15 @@
 
 #include "android/base/system/System.h"
 #include "android/goldfish/config/hardware_config.h"
-#include "android/misc/GuestStatusDevice.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
 using android::base::System;
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::guest_status::IGuestStatusDevice;
 
 std::unordered_map<std::string, std::string> getQemuConfig(
-        int api_level, const android::goldfish::HardwareConfig& hw) {
+        const int api_level, const android::goldfish::HardwareConfig& hw) {
     std::unordered_map<std::string, std::string> cfg;
 
     /* use the magic of macros to implement the hardware configuration loaded */
@@ -45,21 +42,16 @@ std::unordered_map<std::string, std::string> getQemuConfig(
     return cfg;
 }
 
-StatusServiceImpl::StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level,
+StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const int api_level,
                                      const android::goldfish::HardwareConfig& hw)
-        : mRegistry(connectorRegistry), mApiLevel(api_level), mHw(hw) {}
+        : mGuestStatus(guestStatus), mHw(hw), mApiLevel(api_level) {}
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
     reply->set_uptime(System::get()->getProcessTimes().wallClockMs);
 
-    auto weak = mRegistry->activeDevice<IGuestStatusDevice>();
-    if (auto status = weak.lock()) {
-        VLOG(1) << "Getting status: " << status->hasBooted();
-        VLOG(1) << "Heartbeat: " << status->heartbeat();
-        reply->set_booted(status->hasBooted());
-        reply->set_heartbeat(status->heartbeat());
-    }
+    reply->set_booted(mGuestStatus.bootcomplete.getValue() != absl::UnixEpoch());
+    reply->set_heartbeat(mGuestStatus.heartbeat.getValue());
 
     auto cnf = getQemuConfig(mApiLevel, mHw);
 

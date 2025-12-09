@@ -17,13 +17,12 @@
 #include <grpcpp/grpcpp.h>
 
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/sensors/PhysicalModel.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
 using grpc::Status;
 
 /**
@@ -35,14 +34,14 @@ using grpc::Status;
  */
 class SensorServiceImpl {
   public:
-    SensorServiceImpl(ConnectorRegistry* connectorRegistry);
+    SensorServiceImpl(::goldfish::sensors::PhysicalModel& pm) : mPhysicalModel(pm) {}
 
     grpc::Status setSensor(const SensorValue& request);
 
     grpc::Status getSensor(const SensorValue& request, SensorValue* reply);
 
   private:
-    ConnectorRegistry* mRegistry;
+    ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 };
 
 }  // namespace control

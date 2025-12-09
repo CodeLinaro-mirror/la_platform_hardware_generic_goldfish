@@ -18,26 +18,26 @@
 
 #include "android/goldfish/config/hardware_config.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/avd_universe/guest_status/GuestStatus.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
+using ::goldfish::avd_universe::guest_status::GuestStatus;
 using grpc::Status;
 
 class StatusServiceImpl {
   public:
-    StatusServiceImpl(ConnectorRegistry* connectorRegistry, int api_level,
+    StatusServiceImpl(GuestStatus& guestStatus, int api_level,
                       const android::goldfish::HardwareConfig& hw);
 
     Status getStatus(EmulatorStatus* reply);
 
   private:
-    ConnectorRegistry* mRegistry;
-    int mApiLevel;
+    GuestStatus& mGuestStatus;
     const android::goldfish::HardwareConfig& mHw;
+    const int mApiLevel;
 };
 
 }  // namespace control

@@ -15,16 +15,21 @@
 
 #include "absl/log/log.h"
 
-#include "android/clipboard/ClipboardDevice.h"
-
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::clipboard::ClipboardData;
-using ::goldfish::devices::clipboard::IClipboardDevice;
-using grpc::Status;
+using goldfish::avd_universe::clipboard::ClipboardData;
+
+namespace {
+ClipboardEvent toClipboardEvent(const ClipboardData& clip) {
+    using namespace std::literals::string_literals;
+
+    ClipboardEvent result;
+    result.source = "android"s;
+    result.data.set_text(clip.contents);
+    return result;
+}
 
 /**
  * @brief A gRPC stream writer for clipboard data events.
@@ -75,6 +80,16 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
     ClipData mLastEvent;
     std::mutex mEventLock;
 };
+}  // namespace
+
+ClipboardServiceImpl::ClipboardServiceImpl(ClipboardChannel& channel) : mClipboardChannel(channel) {
+    mGuestUpdatesCallbackId = mClipboardChannel.guestToHost.addCallback(
+            [this](const ClipboardData& clip) { mGuestUpdates.fireEvent(toClipboardEvent(clip)); });
+}
+
+ClipboardServiceImpl::~ClipboardServiceImpl() {
+    mClipboardChannel.guestToHost.removeCallback(mGuestUpdatesCallbackId);
+}
 
 /**
  * @brief Streams clipboard data to the client.
@@ -91,63 +106,18 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
  * @return A gRPC server write reactor for streaming `ClipData` updates.
  */
 ::grpc::ServerWriteReactor<ClipData>* ClipboardServiceImpl::streamClipboard(std::string peerId) {
-    auto weak = mRegistry->activeDevice<IClipboardDevice>();
-
-    ClipboardEvent event{.source = "android"};
-    if (auto clipboard = weak.lock()) {
-        event.data.set_text(clipboard->getContents());
-
-        // Register the event forwarder if this has not already been done.
-        if (!mClipboardListenerRegistered.exchange(true)) {
-            assert(mClipboardListenerId == 0);
-            mClipboardListenerId = clipboard->addCallback([this](const ClipboardData& data) {
-                // This lambda function will be called when the clipboard data changes.
-                // We simply forward the event to any stream listeners.
-                ClipboardEvent event{.source = "android"};
-                event.data.set_text(data);
-                fireEvent(event);
-            });
-        }
-    }
-
-    auto stream = new ClipDataEventStreamWriter(this, std::move(peerId));
-    stream->eventArrived(event);
-    return stream;
-}
-
-ClipboardServiceImpl::~ClipboardServiceImpl() {
-    // Unregister listeners if the clipboard device is active and we have registered a listener.
-    if (mClipboardListenerId) {
-        auto weak = mRegistry->activeDevice<IClipboardDevice>();
-        if (auto clipboard = weak.lock()) {
-            clipboard->removeCallback(mClipboardListenerId);
-        }
-    }
+    auto stream = std::make_unique<ClipDataEventStreamWriter>(&mGuestUpdates, std::move(peerId));
+    stream->eventArrived(toClipboardEvent(mClipboardChannel.guestToHost.getValue()));
+    return stream.release();
 }
 
 Status ClipboardServiceImpl::getClipboard(ClipData* reply) {
-    auto weak = mRegistry->activeDevice<IClipboardDevice>();
-    if (auto clipboard = weak.lock()) {
-        reply->set_text(clipboard->getContents());
-        return Status::OK;
-    }
-
-    VLOG(1) << "Clipboard not (yet?) available, returning empty string.";
-    reply->set_text("");
+    reply->set_text(mClipboardChannel.guestToHost.getValue().contents);
     return Status::OK;
 }
 
-Status ClipboardServiceImpl::setClipboard(std::string source, const ClipData& clipData) {
-    auto weak = mRegistry->activeDevice<IClipboardDevice>();
-    if (auto clipboard = weak.lock()) {
-        clipboard->setContents(clipData.text());
-
-        ClipboardEvent event{.source = std::move(source)};
-        event.data.set_text(clipData.text());
-        fireEvent(event);
-        return Status::OK;
-    }
-    VLOG(1) << "Clipboard not (yet?) available, ignoring.";
+Status ClipboardServiceImpl::setClipboard(std::string /*source*/, const ClipData& clipData) {
+    mClipboardChannel.hostToGuest.setValue({.contents = clipData.text()});
     return Status::OK;
 }
 

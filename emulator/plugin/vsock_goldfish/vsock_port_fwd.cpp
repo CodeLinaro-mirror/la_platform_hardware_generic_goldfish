@@ -25,7 +25,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
-#include "android/misc/GuestStatusDevice.h"
 #include "goldfish/async/async_socket.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/async_socket_server.h"
@@ -34,6 +33,7 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/avd/avd-info.h"
 #include "goldfish/avd/avd-private.h"
 #include "goldfish/avd/global-event-loop.h"
 #include "goldfish/devices/cable/cable.h"
@@ -75,6 +75,7 @@ using goldfish::async::LibuvAsyncSocketFactory;
 using goldfish::async::LibuvEventLoop;
 using goldfish::async::QemuEventLoop;
 using goldfish::async::ThreadedEventLoop;
+using goldfish::avd_universe::guest_status::ObservableTimestamp;
 using goldfish::devices::ConnectionAwaiter;
 using goldfish::devices::HalPlugFactory;
 using goldfish::devices::cable::IPlug;
@@ -187,20 +188,23 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
  */
 class VSockProxyImpl : public VSockProxy {
   public:
-    VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device)
+    VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
+                   const ObservableTimestamp& bootcompleteTime)
             : mHostEndpoint(hostEndpoint)
             , mDevice(device)
             , mQemuLoop(goldfish::avd_info::getQemuEventLoop())
-            , mClientLoop(goldfish::async::globalEventLoop()) {
+            , mClientLoop(goldfish::async::globalEventLoop())
+            , mBootcompleteTime(bootcompleteTime) {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
                 mQemuLoop,
                 [&](auto plug) {
-                    if (goldfish::devices::guest_status::IGuestStatusDevice::isBootCompleted()) {
+                    if (isBootCompleted()) {
                         return goldfish::vsock::connect(mDevice->guest_port, plug);
                     } else {
                         return SocketPtr{};
                     }
+                    return SocketPtr{};
                 },
                 [&](SocketPtr sock) { vsockAliveOnQemuThread(); }, 100ms);
     }
@@ -266,11 +270,14 @@ class VSockProxyImpl : public VSockProxy {
         return true;
     }
 
+    bool isBootCompleted() const { return mBootcompleteTime.getValue() != absl::UnixEpoch(); }
+
     /// The vsock device definition
     const Endpoint mHostEndpoint;
     VSockFwdDev* mDevice;
     EventLoop* mQemuLoop;    // The main QEMU event loop
     EventLoop* mClientLoop;  // Client-side event loop for sockets
+    const ObservableTimestamp& mBootcompleteTime;
     LibuvAsyncSocketFactory mSocketFactory;
 
     /// The AsyncSocketServer used to listen for incoming connections.
@@ -306,7 +313,9 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
                      << " we will use: " << *preferred;
     }
 
-    vsock_fwd_device->forwarder = new VSockProxyImpl(*preferred, vsock_fwd_device);
+    vsock_fwd_device->forwarder =
+            new VSockProxyImpl(*preferred, vsock_fwd_device,
+                               goldfish::avd_info::getAvd().getGuestStatus().bootcomplete);
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << *preferred << "<->"
                    << vsock_fwd_device->guest_port;
 }

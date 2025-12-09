@@ -24,6 +24,7 @@ namespace goldfish::devices::gps {
 
 using android::base::TestSystem;
 using async::testing::TestEventLoop;
+using goldfish::avd_universe::gps::Location;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -34,7 +35,7 @@ class GpsDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IGpsDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
+        IGpsDevice::registerDevice(&location, &registry, mClientLoop.get(), mQemuLoop.get());
         device = registry.constructHalDevice<IGpsDevice>();
         test_socket = registry.halSocket();
     }
@@ -43,11 +44,12 @@ class GpsDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
+    ObservableLocation location;
     TestConnectorRegistry registry;
-    TestHalSocket* test_socket;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
     IGpsDevice* device;
+    TestHalSocket* test_socket;
 };
 
 TEST_F(GpsDeviceTest, canCreateDevice) {
@@ -64,7 +66,7 @@ TEST_F(GpsDeviceTest, canSendLocation) {
         .satellites = 0,  // Default satellites
     };
 
-    device->setLocation(kAmsterdam);
+    location.setValue(kAmsterdam);
     EXPECT_THAT(test_socket->storage,
 #ifdef _WIN32
                 MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,\d+,0\.5,2,0)"));

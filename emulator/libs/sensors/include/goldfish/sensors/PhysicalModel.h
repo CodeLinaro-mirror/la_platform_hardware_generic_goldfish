@@ -27,6 +27,7 @@
 #include "goldfish/physics/BodyModel.h"
 #include "goldfish/physics/InertialModel.h"
 #include "goldfish/physics/Physics.h"
+#include "goldfish/physics/Rotation.h"
 #include "goldfish/sensors/AndroidSensor.h"
 #include "goldfish/sensors/FoldableModel.h"
 #include "goldfish/sensors/PhysicalParameter.h"
@@ -39,6 +40,7 @@ using android::base::eventing::CallbackEventSource;
 using ::goldfish::physics::AmbientEnvironment;
 using ::goldfish::physics::BodyModel;
 using ::goldfish::physics::InertialModel;
+using ::goldfish::physics::Rotation;
 
 using glm::vec3;
 using glm::vec4;
@@ -157,6 +159,8 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     void getTransform(float* out_translation_x, float* out_translation_y, float* out_translation_z,
                       float* out_rotation_x, float* out_rotation_y, float* out_rotation_z,
                       int64_t* out_timestamp) const;
+
+    Rotation getDeviceRotation() const;
 
     /**
      * @brief Gets the current foldable device state.

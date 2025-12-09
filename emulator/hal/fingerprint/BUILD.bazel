@@ -1,7 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "headers",
+    name = "fingerprint",
+    srcs = [
+        "src/fingerprint/FingerprintDevice.cpp",
+    ],
     hdrs = [
         "include/android/fingerprint/FingerprintDevice.h",
     ],
@@ -9,19 +12,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/hal/connector:connector_registry",
-    ],
-)
-
-cc_library(
-    name = "fingerprint",
-    srcs = [
-        "src/fingerprint/FingerprintDevice.cpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
+        "//emulator/libs/avd_universe:fingerprint",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
     ],
@@ -42,17 +35,5 @@ cc_test(
         "//emulator/config:avd-test",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
-    ],
-)
-
-cc_library(
-    name = "test_fingerprint",
-    hdrs = [
-        "test/FakeFingerprintDevice.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
     ],
 )

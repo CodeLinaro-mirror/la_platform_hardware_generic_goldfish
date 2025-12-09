@@ -1,0 +1,88 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "clipboard",
+    hdrs = [
+        "include/goldfish/avd_universe/clipboard/ClipboardData.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/eventing",
+    ],
+)
+
+cc_library(
+    name = "fingerprint",
+    hdrs = [
+        "include/goldfish/avd_universe/fingerprint/FingerprintSensor.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/eventing",
+    ],
+)
+
+cc_library(
+    name = "grpc_notification",
+    hdrs = [
+        "include/goldfish/avd_universe/grpc/grpc_notification_channel.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
+        "//emulator/libs/eventing",
+    ],
+)
+
+cc_library(
+    name = "guest_status",
+    hdrs = [
+        "include/goldfish/avd_universe/guest_status/GuestStatus.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "location",
+    hdrs = [
+        "include/goldfish/avd_universe/gps/Location.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/eventing",
+    ],
+)
+
+cc_library(
+    name = "avd_universe",
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":clipboard",
+        ":fingerprint",
+        ":grpc_notification",
+        ":guest_status",
+        ":location",
+    ],
+)

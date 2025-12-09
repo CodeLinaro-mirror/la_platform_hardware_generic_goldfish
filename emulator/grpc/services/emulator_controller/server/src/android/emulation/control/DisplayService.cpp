@@ -26,29 +26,32 @@
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system/System.h"
 #include "android/grpc/utils/absl_status_translate.h"
-#include "goldfish/devices/sensor/sensor_observer.h"
-#include "goldfish/display/Display.h"
-#include "goldfish/display/MultiDisplay.h"
+#include "goldfish/eventing/ObservableValue.h"
 #include "goldfish/fps_calculator.h"
+#include "goldfish/physics/Rotation.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
 using android::base::eventing::MultiEventSourceWaiter;
-using ::goldfish::devices::sensor::AndroidSensor;
-using ::goldfish::devices::sensor::ISensorDevice;
-using ::goldfish::devices::sensor::SensorData;
-using ::goldfish::devices::sensor::SensorObserver;
 using ::goldfish::display::FrameInfo;
 using ::goldfish::display::FrameInfoCallbackSource;
 using ::goldfish::display::IDisplay;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
-using ::grpc::Status;
+using ::goldfish::eventing::ObservableValue;
+using ::goldfish::eventing::ObservableValueTriggerOnUpdate;
+using ::goldfish::sensors::AndroidSensor;
+using ::goldfish::sensors::PhysicalModel;
+using ::goldfish::sensors::PhysicalModelChangeEvent;
+
 using DeviceRotation = ::goldfish::physics::Rotation;
 using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
 using ProtoRotation = android::emulation::control::Rotation;
+
+using DeviceSkinRotationCallbackSource =
+        ObservableValue<DeviceSkinRotation, ObservableValueTriggerOnUpdate>;
 
 ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     ProtoRotation protoRotation;
@@ -91,7 +94,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool lastFrameWasEmpty = reply.format().width() == 0;
     int frame = 0;
 
-    auto screen = mMultiDisplay->getDisplay(request->display());
+    auto screen = mMultiDisplay.getDisplay(request->display());
     if (!screen.ok()) {
         return Status(::grpc::StatusCode::INVALID_ARGUMENT,
                       "Invalid display: " + std::to_string(request->display()), "");
@@ -102,10 +105,19 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
                       "Invalid display: " + std::to_string(request->display()), "");
     }
 
-    SensorObserver accObserver(mRegistry, AndroidSensor::ACCELERATION);
+    DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
+    const auto deviceSkinRotationSubscription = android::base::eventing::makeScopedCallback(
+            mPhysicalModel,
+            [this, &deviceSkinRotationCallbackSource](const PhysicalModelChangeEvent& event) {
+                if (event.type == PhysicalModelChangeEvent::Type::TargetStateChanged) {
+                    deviceSkinRotationCallbackSource.fireEvent(
+                            mPhysicalModel.getDeviceRotation().rotation);
+                }
+            });
+
     MultiEventSourceWaiter frameOrSensorEvent;
-    frameOrSensorEvent.listen(&accObserver);
     frameOrSensorEvent.listen<FrameInfoCallbackSource>(display.get());
+    frameOrSensorEvent.listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.
@@ -179,7 +191,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
                                          Image* reply) {
     AEMU_SCOPED_TRACE_CALL();
 
-    auto screen = mMultiDisplay->getDisplay(request->display());
+    auto screen = mMultiDisplay.getDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();
         return abslStatusToGrpcStatus(screen.status());
@@ -189,24 +201,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
     }
 
-    DeviceRotation deviceRotation;
-    // Let's get sensor data about our location
-    if (auto sensor = mRegistry->activeDevice<ISensorDevice>().lock()) {
-        auto possibleRotation = sensor->getDeviceRotation();
-        if (!possibleRotation.ok()) {
-            VLOG(1) << "Unable to retrieve rotation information due to: "
-                    << possibleRotation.status();
-            // return Status(abslStatusToGrpcStatus(possibleRotation.status()));
-            deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
-        } else {
-            deviceRotation = possibleRotation.value();
-        }
-    } else {
-        VLOG(1) << "Unable to retrieve rotation because ISensorDevice is not available";
-        // return Status(grpc::StatusCode::UNAVAILABLE, "ISensorDevice is not available");
-        deviceRotation.rotation = DeviceSkinRotation::PORTRAIT;  // b/448934377
-    }
-
+    const DeviceRotation deviceRotation = mPhysicalModel.getDeviceRotation();
     int desiredWidth = request->width();
     int desiredHeight = request->height();
 
@@ -292,9 +287,9 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     return Status::OK;
 }
 
-Status DisplayServiceImpl::getDisplayConfigurations(IMultiDisplay* multiDisplay,
+Status DisplayServiceImpl::getDisplayConfigurations(const IMultiDisplay& multiDisplay,
                                                     DisplayConfigurations* reply) {
-    for (const auto& weakdisplay : multiDisplay->displays()) {
+    for (const auto& weakdisplay : multiDisplay.displays()) {
         if (auto display = weakdisplay.lock()) {
             auto cfg = reply->add_displays();
             // cfg->set_width(1080);
@@ -308,7 +303,7 @@ Status DisplayServiceImpl::getDisplayConfigurations(IMultiDisplay* multiDisplay,
     }
 
     // TODO(jansene): Where should these really come from?
-    reply->set_maxdisplays(multiDisplay->maxDisplays);
+    reply->set_maxdisplays(multiDisplay.maxDisplays);
     reply->set_userconfigurable(3);
 
     return Status::OK;

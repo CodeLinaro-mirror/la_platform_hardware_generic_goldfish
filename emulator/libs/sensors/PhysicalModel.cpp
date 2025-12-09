@@ -598,6 +598,35 @@ void PhysicalModel::getTransform(float* out_translation_x, float* out_translatio
     *out_timestamp = mModelTimeNs;
 }
 
+Rotation PhysicalModel::getDeviceRotation() const {
+    using physics::SkinRotation;
+
+    size_t measurementId;
+    const vec3 device_accelerometer = getAccelerometer(&measurementId);
+    const glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
+
+    static const std::array<std::pair<glm::vec3, SkinRotation>, 4> directions{
+        std::make_pair(glm::vec3(0.0f, 1.0f, 0.0f), SkinRotation::PORTRAIT),
+        std::make_pair(glm::vec3(1.0f, 0.0f, 0.0f), SkinRotation::LANDSCAPE),
+        std::make_pair(glm::vec3(0.0f, -1.0f, 0.0f), SkinRotation::REVERSE_PORTRAIT),
+        std::make_pair(glm::vec3(-1.0f, 0.0f, 0.0f), SkinRotation::REVERSE_LANDSCAPE)};
+
+    auto coarse_orientation = SkinRotation::PORTRAIT;
+    for (const auto& v : directions) {
+        if (fabs(glm::dot(normalized_accelerometer, v.first) - 1.f) < 0.1f) {
+            coarse_orientation = v.second;
+            break;
+        }
+    }
+
+    return {
+        .rotation = coarse_orientation,
+        .xAxis = device_accelerometer.x,
+        .yAxis = device_accelerometer.y,
+        .zAxis = device_accelerometer.z,
+    };
+}
+
 float PhysicalModel::getPhysicalHingeAngle0() const {
     return mFoldableModel.getHingeAngle(0);
 }

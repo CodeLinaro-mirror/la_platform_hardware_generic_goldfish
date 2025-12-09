@@ -27,6 +27,7 @@ cc_grpc_library(
     grpc_only = True,
     visibility = [
         "//emulator/grpc:__subpackages__",
+        "//emulator/libs/avd_universe:__subpackages__",
         "//emulator/plugin/grpc:__subpackages__",
     ],
     deps = [":emulator_controller_cc_proto"],

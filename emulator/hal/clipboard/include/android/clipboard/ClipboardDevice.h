@@ -15,15 +15,13 @@
 
 #include <string_view>
 
-#include "aemu/base/events/EventSources.h"
+#include "goldfish/async/event_loop.h"
+#include "goldfish/avd_universe/clipboard/ClipboardData.h"
 #include "goldfish/devices/connector_registry.h"
 
 namespace goldfish::devices::clipboard {
 
-using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
-
-using ClipboardData = std::string_view;
 using namespace std::string_view_literals;
 
 /**
@@ -42,79 +40,12 @@ using namespace std::string_view_literals;
  * These messages can be sent from both the guest and the host. Note that
  * the current implementation only supports text data.
  *
- * To receive notifications when the guest updates the clipboard, you can register a callback or an
- * event listener.
- *
- * **1. Using a Callback:**
- *
- * ```c++
- * // Assuming 'clipboardDevice' is a valid pointer to an IClipboardDevice instance.
- * auto callbackId = clipboardDevice->addCallback(
- *     [](const ClipboardData& data) {
- *         // This lambda function will be called when the clipboard data changes.
- *         printf("Clipboard updated: %.*s\n", data.size(), data.data());
- *     });
- *
- * // ... later, to remove the callback:
- * clipboardDevice->removeCallback(callbackId);
- * ```
- *
- * **2. Using an Event Listener:**
- *
- * ```c++
- * class MyClipboardListener : public EventListener<ClipboardData> {
- * public:
- *     void eventArrived(const ClipboardData& data) override {
- *         printf("Clipboard updated: %.*s\n", data.size(), data.data());
- *     }
- * };
- *
- * MyClipboardListener listener;
- * clipboardDevice->addListener(&listener);
- *
- * // ... later, to remove the listener:
- * clipboardDevice->removeListener(&listener);
- * ```
- *
  * The guest side is in com/android/server/clipboard/EmulatorClipboardMonitor.java
  */
-class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardData> {
+class IClipboardDevice : public HalPlug {
   public:
     // Name under which you should register this in qemu
     static constexpr std::string_view serviceName = "clipboard"sv;
-
-    /**
-     * @brief Checks if the clipboard device is enabled.
-     * @return True if enabled, false otherwise.
-     */
-    virtual bool isEnabled() const = 0;
-
-    /**
-     * @brief Enables or disables the clipboard device.
-     * @param enable True to enable, false to disable.
-     */
-    virtual void enable(bool enable) = 0;
-
-    /**
-     * @brief Sets the clipboard contents.
-     *
-     * This method sends the given contents to the guest using the clipboard
-     * protocol. The data is prefixed with its size as a little-endian 32-bit
-     * integer and send to the guest.
-     *
-     * @param contents The clipboard data to set.
-     */
-    virtual void setContents(ClipboardData contents) = 0;
-
-    /**
-     * @brief Gets the current clipboard contents.
-     *
-     * This method retrieves the latest clipboard data received from the guest.  It does *not*
-     * return the data set by `setContents()`.
-     *
-     * @return The current clipboard data.
-     */
-    virtual ClipboardData getContents() const = 0;
 
     /**
      * @brief Registers the clipboard device with the connector registry.
@@ -124,6 +55,7 @@ class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardDat
      * through the qemud pipe. The `clientLoop` and `qemuLoop` manage the
      * asynchronous operations.
      *
+     * @param channel The physical representation of the clipboard.
      * @param registry The `IConnectorRegistry` instance to register with.
      * @param clientLoop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
@@ -134,7 +66,8 @@ class IClipboardDevice : public HalPlug, public CallbackEventSource<ClipboardDat
      *
      * @note A clipboard device is not a qemud device.
      */
-    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+    static void registerDevice(avd_universe::clipboard::ClipboardChannel* channel,
+                               IConnectorRegistry* registry, EventLoop* clientLoop,
                                EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::clipboard

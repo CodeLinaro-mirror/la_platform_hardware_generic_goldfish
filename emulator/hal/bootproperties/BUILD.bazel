@@ -1,7 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "headers",
+    name = "bootproperties",
+    srcs = [
+        "src/boot/BootPropertiesDevice.cpp",
+    ],
     hdrs = [
         "include/android/boot/BootPropertiesDevice.h",
         "include/android/boot/BootPropertyString.h",
@@ -10,17 +13,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/hal/connector:connector_registry",
-    ],
-)
-
-cc_library(
-    name = "bootproperties",
-    srcs = [
-        "src/boot/BootPropertiesDevice.cpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
         "@abseil-cpp//absl/container:flat_hash_map",

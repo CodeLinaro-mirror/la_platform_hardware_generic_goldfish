@@ -52,7 +52,6 @@ cc_library(
         ":cable",
         "//android/async:async_api",
         "//emulator/hal/plug:hal_plug",
-        "@aemu//base:event-support",
     ],
 )
 
@@ -124,6 +123,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        ":connector_registry",
         ":devices",
         "//android/async:async_api",
         "//emulator/hal/plug:hal_plug_factory",
@@ -178,9 +178,7 @@ cc_library(
     name = "test-helpers",
     testonly = True,
     hdrs = [
-        "include/goldfish/devices/connector_registry.h",
         "test/goldfish/devices/test_connector_registry.h",
-        "test/goldfish/devices/test_fake_connector_registry.h",
     ],
     includes = [
         "include",
@@ -194,13 +192,6 @@ cc_library(
         ":connector_registry_impl",
         ":devices",
         "//android/async:async_testing",
-        "//emulator/hal/camera:test_camera",
-        "//emulator/hal/clipboard:test_clipboard",
-        "//emulator/hal/fingerprint:test_fingerprint",
-        "//emulator/hal/gps:test_gps",
-        "//emulator/hal/guest-status:test_guest-status",
-        "//emulator/hal/plug:fake_vsock",
-        "//emulator/hal/sensors:test_sensors",
     ],
     alwayslink = True,
 )

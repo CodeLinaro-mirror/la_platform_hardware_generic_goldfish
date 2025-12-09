@@ -1,0 +1,14 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "eventing",
+    hdrs = [
+        "include/goldfish/eventing/ObservableValue.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@aemu//base:aemu-base",
+    ],
+    alwayslink = True,
+)

@@ -22,16 +22,19 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
+#include "goldfish/avd_universe/gps/Location.h"
 #include "goldfish/devices/qemud.h"
 
 namespace goldfish::devices::gps {
 
+using goldfish::avd_universe::gps::Location;
+using goldfish::avd_universe::gps::ObservableLocation;
+using LocationUpdateSubscription =
+        std::unique_ptr<android::base::eventing::ScopedEventCallback<ObservableLocation, Location>>;
+
 class GpsDevice : public IGpsDevice {
   public:
-    GpsDevice() {
-        VLOG(1) << "Gps device has been created";
-        setLocation(googleplex());
-    }
+    GpsDevice() { VLOG(1) << "Gps device has been created"; }
 
     void onConnect() override { VLOG(1) << "Gps device has been connected"; }
     void onClose() override { VLOG(1) << "Gps device has been disconnected"; }
@@ -39,17 +42,9 @@ class GpsDevice : public IGpsDevice {
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
-    Location getLocation() const override { return mLastKnownLocation; };
-
-    void setLocation(const Location& location) override {
-        VLOG(1) << "Setting the location to:" << location;
-        mLastKnownLocation = location;
-        send(location);
-        fireEvent(location);
-    };
-
-  private:
     void send(const Location& location) {
+        VLOG(1) << "Setting the location to:" << location;
+
         constexpr double kAccuracyMeters = 1;
         constexpr double kAccuracySpeed = 0.5;
         constexpr double kAccuracyHeading = 2;
@@ -66,30 +61,40 @@ class GpsDevice : public IGpsDevice {
                                  kAccuracySpeed, kAccuracyHeading, kUnused));
     }
 
+    void setLocationUpdateSubscription(LocationUpdateSubscription s) {
+        mLocationUpdateSubscription = std::move(s);
+    }
+
+  private:
     void sendImpl(std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         socket()->send(std::move(encoded));
     }
 
-    Location googleplex() {
-        return Location{
-            .latitude = 39.237256,
-            .longitude = -123.150032,
-            .speed = 0.0,
-            .bearing = 0.0,
-            .altitude = 0.0,
-            .satellites = 4,
-        };
-    };
-
-    Location mLastKnownLocation = googleplex();
+    LocationUpdateSubscription mLocationUpdateSubscription;
 };
 
-void IGpsDevice::registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+void IGpsDevice::registerDevice(ObservableLocation* observableLocation,
+                                IConnectorRegistry* registry, EventLoop* clientLoop,
                                 EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(std::string(IGpsDevice::serviceName), clientLoop, qemuLoop,
-                                    [] { return std::make_shared<GpsDevice>(); });
+    registry->registerHalQemuDevice(
+            std::string(GpsDevice::serviceName), clientLoop, qemuLoop, [observableLocation] {
+                auto dev = std::make_shared<GpsDevice>();
+                std::weak_ptr<GpsDevice> weakDev = dev;
+
+                auto locationUpdateSubscription = makeScopedCallback(
+                        *observableLocation,
+                        [weakDev = std::move(weakDev)](const Location& location) {
+                            if (const auto dev = weakDev.lock()) {
+                                dev->send(location);
+                            }
+                        });
+
+                dev->setLocationUpdateSubscription(std::move(locationUpdateSubscription));
+
+                return dev;
+            });
 }
 
 }  // namespace goldfish::devices::gps

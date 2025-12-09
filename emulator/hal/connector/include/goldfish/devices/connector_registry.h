@@ -47,7 +47,7 @@ using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
  */
 using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
 
-struct IConnectorRegistry : public android::base::eventing::CallbackEventSource<std::string> {
+struct IConnectorRegistry {
     virtual ~IConnectorRegistry() = default;
 
     /**

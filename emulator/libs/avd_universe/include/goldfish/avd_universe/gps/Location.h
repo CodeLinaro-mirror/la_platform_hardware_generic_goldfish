@@ -17,7 +17,9 @@
 
 #include "absl/strings/str_format.h"
 
-namespace goldfish::gps {
+#include "goldfish/eventing/ObservableValue.h"
+
+namespace goldfish::avd_universe::gps {
 
 /**
  * @brief Represents a GPS location.
@@ -43,4 +45,7 @@ struct Location {
     }
 };
 
-}  // namespace goldfish::gps
+using ObservableLocation =
+        eventing::ObservableValue<Location, eventing::ObservableValueTriggerAlways>;
+
+}  // namespace goldfish::avd_universe::gps

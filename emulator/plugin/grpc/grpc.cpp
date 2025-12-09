@@ -129,13 +129,10 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         }
     }
 
-    auto& avdprops = goldfish::avd_info::getAvd().props();
-    auto* registry = &goldfish::avd_info::connector_registry();
-
+    avd_info::AvdUniverse& avdUniverse = goldfish::avd_info::getAvd();
     auto service = ::android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), registry,
-            avdprops.avd_api, avdprops.hw_config, IMultiDisplay::instance(),
-            goldfish::avd_info::getQemuEventLoop());
+            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avdUniverse,
+            IMultiDisplay::instance(), goldfish::avd_info::getQemuEventLoop());
 
     // TODO config->addr is set but not used anywhere
     auto builder = EmulatorControllerService::Builder()
@@ -152,6 +149,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         builder.withIdleTimeout(std::chrono::seconds(config->idle_timeout), eventLoop);
     }
 
+    const auto& avdprops = avdUniverse.props();
     EmulatorProperties props{{"port.serial", std::to_string(avdprops.serial_number)},
                              {"emulator.build", BUILD_ID},
                              {"emulator.version", VERSION},

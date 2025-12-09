@@ -21,6 +21,7 @@ cc_library(
     deps = [
         "//android/logging:absl-c-bridge",
         "//emulator/config:hardware_config",
+        "//emulator/libs/eventing",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

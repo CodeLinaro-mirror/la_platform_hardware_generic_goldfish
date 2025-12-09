@@ -1,34 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "headers",
+    name = "guest-status",
+    srcs = [
+        "src/misc/GuestStatusDevice.cpp",
+    ],
     hdrs = [
         "include/android/misc/GuestStatusDevice.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/hal/common:emulator_reset",
-        "//emulator/hal/connector:connector_registry",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
-)
-
-cc_library(
-    name = "guest-status",
-    srcs = [
-        "src/misc/GuestStatusDevice.cpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
         "//android/async:async_api",
         "//android/system",
         "//emulator/hal/common:emulator_reset",
+        "//emulator/hal/connector:connector_registry",
         "//emulator/hal/connector:qemud",
+        "//emulator/libs/avd_universe:guest_status",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -57,14 +45,4 @@ cc_test(
         "//emulator/hal/plug:fake_vsock",
         "//emulator/plugin/vminterface:vminterface-test",
     ],
-)
-
-cc_library(
-    name = "test_guest-status",
-    hdrs = [
-        "test/FakeGuestDevice.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [":headers"],
 )

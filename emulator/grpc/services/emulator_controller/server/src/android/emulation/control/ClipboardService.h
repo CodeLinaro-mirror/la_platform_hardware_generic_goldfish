@@ -14,22 +14,18 @@
 #pragma once
 #include <grpcpp/grpcpp.h>
 
-#include <atomic>
-
-#include "aemu/base/events/EventSources.h"
-#include "android/clipboard/ClipboardDevice.h"
 #include "android/emulation/control/utils/grpc_event_stream_support.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/avd_universe/clipboard/ClipboardData.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::clipboard::ClipboardData;
-using ::goldfish::devices::clipboard::IClipboardDevice;
 using grpc::Status;
+
+using ::goldfish::avd_universe::clipboard::ClipboardChannel;
+using ::goldfish::avd_universe::clipboard::ObservableClipboardData;
 
 /**
  * @brief Represents a clipboard event.
@@ -52,9 +48,9 @@ struct ClipboardEvent {
  * filters out duplicate clipboard events to prevent unnecessary updates to
  * listeners.
  */
-class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent> {
+class ClipboardServiceImpl {
   public:
-    ClipboardServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
+    ClipboardServiceImpl(ClipboardChannel& channel);
     ~ClipboardServiceImpl();
 
     /**
@@ -94,9 +90,9 @@ class ClipboardServiceImpl : public CallbackEventSource<ClipboardEvent> {
     static std::string getPeerId(const ::grpc::ServerContextBase& context);
 
   private:
-    ConnectorRegistry* mRegistry;
-    IClipboardDevice::CallbackId mClipboardListenerId{0};  ///< The ID of the clipboard listener.
-    std::atomic_bool mClipboardListenerRegistered{false};  ///< Whether the listener is registered.
+    ClipboardChannel& mClipboardChannel;
+    android::base::eventing::CallbackEventSource<ClipboardEvent> mGuestUpdates;
+    ObservableClipboardData::CallbackId mGuestUpdatesCallbackId;
 };
 
 }  // namespace control

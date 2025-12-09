@@ -1,7 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "headers",
+    name = "gps",
+    srcs = [
+        "src/gps/GpsDevice.cpp",
+    ],
     hdrs = [
         "include/android/gps/GpsDevice.h",
     ],
@@ -9,23 +12,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/hal/connector:connector_registry",
-        "@abseil-cpp//absl/status",
-        "@aemu//base:event-support",
-    ],
-)
-
-cc_library(
-    name = "gps",
-    srcs = [
-        "src/gps/GpsDevice.cpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
-        "//emulator/hal/connector:PingTopic",
-        "//emulator/hal/connector:cable",
         "//emulator/hal/connector:qemud",
-        "//emulator/libs/gps",
+        "//emulator/libs/avd_universe:location",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
     ],
@@ -50,17 +38,5 @@ cc_test(
         "//emulator/config:avd-test",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
-    ],
-)
-
-cc_library(
-    name = "test_gps",
-    hdrs = [
-        "test/FakeGpsDevice.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
     ],
 )

@@ -18,10 +18,9 @@
 
 #include <memory>
 
-#include "android/goldfish/config/hardware_config.h"
 #include "android/goldfish/vm/VmInterface.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/avd/avd-info.h"
 #include "goldfish/display/MultiDisplay.h"
 
 extern "C" {
@@ -34,8 +33,7 @@ namespace control {
 
 std::shared_ptr<grpc::Service> getEmulatorController(
         android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
-        ::goldfish::devices::ConnectorRegistry* connectorRegistry, int avd_api_level,
-        const android::goldfish::HardwareConfig& hw,
+        ::goldfish::avd_info::AvdUniverse* avdUniverse,
         ::goldfish::display::IMultiDisplay* multiDisplay, ::goldfish::async::EventLoop* qemuLoop);
 
 }  // namespace control

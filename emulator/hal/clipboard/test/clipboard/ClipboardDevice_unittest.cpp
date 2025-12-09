@@ -32,7 +32,8 @@ class ClipboardDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IClipboardDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
+        IClipboardDevice::registerDevice(&mClipboardChannel, &registry, mClientLoop.get(),
+                                         mQemuLoop.get());
         device = registry.constructHalDevice<IClipboardDevice>();
 
         test_socket = registry.halSocket();
@@ -40,7 +41,7 @@ class ClipboardDeviceTest : public ::testing::Test {
     }
 
   public:
-    void receive(std::string_view msg) {
+    void sendGuestToHost(std::string_view msg) {
         uint32_t size = msg.size();
         device->onReceive(std::string(reinterpret_cast<const char*>(&size), sizeof(size)));
         device->onReceive(std::string(msg));
@@ -48,6 +49,7 @@ class ClipboardDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
+    avd_universe::clipboard::ClipboardChannel mClipboardChannel;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
     TestConnectorRegistry registry;
@@ -60,24 +62,13 @@ TEST_F(ClipboardDeviceTest, canCreateDevice) {
 }
 
 TEST_F(ClipboardDeviceTest, receiveClipboardDataFiresAnEvent) {
-    std::string received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](ClipboardData data) { received = data; });
-    receive("hello");
-    EXPECT_THAT(received, Eq("hello"));
-}
-
-TEST_F(ClipboardDeviceTest, canReceiveClipboardData) {
-    receive("hello");
-    EXPECT_THAT(device->getContents(), Eq("hello"));
+    sendGuestToHost("guestToHost");
+    EXPECT_THAT(mClipboardChannel.guestToHost.getValue().contents, "guestToHost");
 }
 
 TEST_F(ClipboardDeviceTest, canSendClipboardData) {
-    device->setContents("hello");
-
-    uint32_t size = absl::little_endian::Load32(test_socket->storage.data());
-    EXPECT_THAT(size, Eq(5));
-    EXPECT_THAT(test_socket->storage, HasSubstr("hello"));
+    mClipboardChannel.hostToGuest.setValue({.contents = "hostToGuest"});
+    EXPECT_THAT(test_socket->storage, HasSubstr("hostToGuest"));
 }
 
 }  // namespace goldfish::devices::clipboard

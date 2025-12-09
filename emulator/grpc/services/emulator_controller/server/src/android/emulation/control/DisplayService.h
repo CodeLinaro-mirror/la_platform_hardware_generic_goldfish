@@ -17,15 +17,13 @@
 #include <grpcpp/grpcpp.h>
 
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/display/MultiDisplay.h"
+#include "goldfish/sensors/PhysicalModel.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::display::IMultiDisplay;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;
 using grpc::Status;
@@ -35,8 +33,9 @@ using grpc::Status;
  */
 class DisplayServiceImpl : public EmulatorController::Service {
   public:
-    DisplayServiceImpl(IMultiDisplay* display, ConnectorRegistry* connectorRegistry)
-            : mMultiDisplay(display), mRegistry(connectorRegistry) {};
+    DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
+                       ::goldfish::sensors::PhysicalModel* pm)
+            : mMultiDisplay(*display), mPhysicalModel(*pm) {}
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override;
@@ -46,12 +45,12 @@ class DisplayServiceImpl : public EmulatorController::Service {
     Status getDisplayConfigurations(ServerContext* context, const Empty* request,
                                     DisplayConfigurations* reply) override;
 
-    static Status getDisplayConfigurations(IMultiDisplay* multiDisplay,
+  private:
+    static Status getDisplayConfigurations(const ::goldfish::display::IMultiDisplay& multiDisplay,
                                            DisplayConfigurations* reply);
 
-  private:
-    IMultiDisplay* mMultiDisplay;
-    ConnectorRegistry* mRegistry;
+    ::goldfish::display::IMultiDisplay& mMultiDisplay;
+    ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 };
 
 }  // namespace control

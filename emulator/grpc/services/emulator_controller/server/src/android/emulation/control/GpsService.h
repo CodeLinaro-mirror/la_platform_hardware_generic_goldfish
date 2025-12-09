@@ -16,13 +16,12 @@
 #include <grpcpp/grpcpp.h>
 
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/devices/connector_registry_impl.h"
+#include "goldfish/avd_universe/gps/Location.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
 using ::google::protobuf::Empty;
 using grpc::Status;
 
@@ -35,14 +34,8 @@ using grpc::Status;
  */
 class GpsServiceImpl {
   public:
-    /**
-     * @brief Constructs a new GpsServiceImpl.
-     *
-     * @param connectorRegistry The connector registry used to access the
-     *        `IGpsDevice` instance.  This registry provides access to
-     *        the emulated hardware devices.
-     */
-    explicit GpsServiceImpl(ConnectorRegistry* connectorRegistry) : mRegistry(connectorRegistry) {}
+    explicit GpsServiceImpl(::goldfish::avd_universe::gps::ObservableLocation& loc)
+            : mObservableLocation(loc) {}
 
     /**
      * @brief Sets the GPS state.
@@ -85,7 +78,7 @@ class GpsServiceImpl {
     Status getGps(GpsState* reply);
 
   private:
-    ConnectorRegistry* mRegistry;  ///< The connector registry.
+    ::goldfish::avd_universe::gps::ObservableLocation& mObservableLocation;
 };
 
 }  // namespace control

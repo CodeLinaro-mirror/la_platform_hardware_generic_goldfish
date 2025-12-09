@@ -14,46 +14,32 @@
 #include "android/emulation/control/SensorService.h"
 
 #include "android/grpc/utils/absl_status_translate.h"
-#include "goldfish/devices/sensor/SensorDevice.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
-using ::goldfish::devices::sensor::AndroidSensor;
-using ::goldfish::devices::sensor::ISensorDevice;
-using GoldfishSensorValue = ::goldfish::devices::sensor::SensorValue;
-
-SensorServiceImpl::SensorServiceImpl(ConnectorRegistry* connectorRegistry)
-        : mRegistry(connectorRegistry) {}
+using GoldfishSensor = ::goldfish::sensors::AndroidSensor;
+using GoldfishSensorData = ::goldfish::sensors::SensorData;
+using GoldfishSensorValue = ::goldfish::sensors::SensorValue;
 
 grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
-    auto weak = mRegistry->activeDevice<ISensorDevice>();
-    if (auto sensor = weak.lock()) {
-        GoldfishSensorValue value(request.value().data().begin(), request.value().data().end());
-        auto status = sensor->overrideSensor(static_cast<AndroidSensor>(request.target()), value);
-        return abslStatusToGrpcStatus(status);
-    }
-    return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
+    const GoldfishSensor sensor = static_cast<GoldfishSensor>(request.target());
+    const auto& requestData = request.value().data();
+    mPhysicalModel.setSensorValue(sensor,
+                                  GoldfishSensorValue(requestData.begin(), requestData.end()));
+    return Status::OK;
 }
 
 grpc::Status SensorServiceImpl::getSensor(const SensorValue& request, SensorValue* reply) {
-    auto weak = mRegistry->activeDevice<ISensorDevice>();
-    if (auto sensor = weak.lock()) {
-        auto statusOrData = sensor->getSensorData(static_cast<AndroidSensor>(request.target()));
-        if (!statusOrData.ok()) {
-            return abslStatusToGrpcStatus(statusOrData.status());
-        }
+    const GoldfishSensor sensor = static_cast<GoldfishSensor>(request.target());
+    const GoldfishSensorData sd = mPhysicalModel.getSensorData(sensor);
+    const GoldfishSensorValue& val = sd.value;
 
-        const GoldfishSensorValue& val = statusOrData->value;
+    reply->set_target(request.target());
+    *reply->mutable_value()->mutable_data() = {val.begin(), val.end()};
 
-        reply->set_target(request.target());
-        *reply->mutable_value()->mutable_data() = {val.begin(), val.end()};
-
-        return Status::OK;
-    }
-    return Status(grpc::StatusCode::UNAVAILABLE, "No active sensor device");
+    return Status::OK;
 }
 
 }  // namespace control

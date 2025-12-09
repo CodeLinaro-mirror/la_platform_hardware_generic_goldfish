@@ -24,7 +24,6 @@
 #include "absl/strings/str_cat.h"
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/Connector.h"
 #include "goldfish/hal/plug/HalPlugFactory.h"
 #include "goldfish/vsock/listen.h"
 
@@ -48,16 +47,7 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
     mAcceptingRegistries = false;
 
     for (auto& [key, factory_fn] : mEntries) {
-        DeviceFactory registerfn = [factory_fn = std::move(factory_fn), key, this](
-                                           auto socket, auto ping, auto args) {
-            auto connector = factory_fn(std::move(socket), std::move(ping), args);
-            auto registryName = key.substr(1);
-
-            registerInternal(registryName, connector);
-            return connector;
-        };
-
-        mDevices.push_back({std::move(key), std::move(registerfn)});
+        mDevices.push_back({std::move(key), std::move(factory_fn)});
     }
 
     mEntries.clear();
@@ -66,16 +56,6 @@ bool ConnectorRegistry::listen(ListenFn startListening) {
         return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
                                            mDevices.size());
     });
-}
-
-void ConnectorRegistry::registerInternal(const std::string registryName,
-                                         const std::shared_ptr<cable::IPlug>& plug) {
-    if (plug) {  // b/448934377, remove this `if`
-        std::lock_guard<std::mutex> lock(mActivePlugsMutex);
-        mActivePlugs[registryName] = plug;
-    }
-
-    fireEvent(registryName);
 }
 
 bool ConnectorRegistry::registerQemuDevice(const std::string_view name, DeviceFactory factory) {
@@ -103,7 +83,7 @@ void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* cl
                                           async::EventLoop* qemuLoop, HalDeviceFactory factory) {
     registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
                           [this](std::string name, DeviceFactory factory) {
-                              return registerDevice(std::move(name), std::move(factory));
+                              return registerDevice(name, std::move(factory));
                           });
 }
 
@@ -112,14 +92,14 @@ void ConnectorRegistry::registerHalQemuDevice(std::string name, async::EventLoop
                                               HalDeviceFactory factory) {
     registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
                           [this](std::string name, DeviceFactory factory) {
-                              return registerQemuDevice(std::move(name), std::move(factory));
+                              return registerQemuDevice(name, std::move(factory));
                           });
 }
 
 void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
                                               async::EventLoop* qemuLoop, HalDeviceFactory factory,
                                               DeviceRegistration registerFn) {
-    auto wrapperFactory = [this, name, qemuLoop, clientLoop, userFactory = std::move(factory)](
+    auto wrapperFactory = [name, qemuLoop, clientLoop, userFactory = std::move(factory)](
                                   SocketPtr qemuSocket, std::shared_ptr<PingTopic> pingTopic,
                                   std::string_view args) -> PlugPtr {
         // Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
@@ -129,12 +109,9 @@ void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop
 
         // Wrap the HAL plug in a marshalling layer. This will ensure that all calls to the
         // HAL plug are marshalled to the client thread and vice versa.
-        auto adapter = HalPlugFactory::wrapHalPlug(
+        return HalPlugFactory::wrapHalPlug(
                 std::move(qemuSocket), [realHalPlug = realHalPlug] { return realHalPlug; },
                 clientLoop, qemuLoop);
-
-        registerInternal(name, adapter);
-        return adapter;
     };
 
     registerFn(std::move(name), std::move(wrapperFactory));

@@ -23,22 +23,16 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "goldfish/devices/sensor/SensorDevice.h"
-#include "goldfish/devices/test_connector_registry.h"
-#include "goldfish/display/MultiDisplay.h"
-#include "goldfish/display/PixmanDisplay.h"
 #include "goldfish/display/test/FakeMultiDisplay.h"
 #include "goldfish/display/test/FakePixmanDisplay.h"
 
 namespace android::emulation::control {
 
-using ::goldfish::devices::TestConnectorRegistry;
-using ::goldfish::devices::sensor::AndroidSensor;
-using ::goldfish::devices::sensor::ISensorDevice;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
-using ::goldfish::display::test::ActiveFakePixmanDisplay;
 using ::goldfish::display::test::FakeMultiDisplay;
+using ::goldfish::sensors::AndroidSensor;
+using ::goldfish::sensors::PhysicalModel;
 using ::grpc::ServerContext;
 using ::grpc::Status;
 using ::grpc::StatusCode;
@@ -48,18 +42,14 @@ using namespace std::chrono_literals;
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
     void SetUp() override {
+        mPhysicalModel = std::make_unique<PhysicalModel>(mAvd.hw());
         mLoop = ::goldfish::async::ThreadedEventLoop::create(
                 ::goldfish::async::LibuvEventLoop::create());
         mQemuLoop = ::goldfish::async::ThreadedEventLoop::create(
                 ::goldfish::async::LibuvEventLoop::create());
-
-        // Clear all displays except the default one before each test
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
-        mMultiDisplay->clear();
-        ISensorDevice::registerDevice(&mRegistry,
-                                      /*avd_type=*/android::goldfish::DeviceType::kPhone,
-                                      /*avd_api=*/30, mAvd.hw(), mLoop.get(), mQemuLoop.get());
-        mDisplayService = std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), &mRegistry);
+        mDisplayService =
+                std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
         auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());
 
@@ -68,6 +58,8 @@ class DisplayServiceTest : public GrcpServiceTest {
 
     // This starts the generation of fake display images on the given display id.
     void startFrames(int displayId) {
+        using ::goldfish::display::test::ActiveFakePixmanDisplay;
+
         auto screen = mMultiDisplay->getDisplay(displayId);
         ASSERT_TRUE(screen.ok());
 
@@ -79,16 +71,11 @@ class DisplayServiceTest : public GrcpServiceTest {
     EmulatorController::Service* getService() override { return mDisplayService.get(); }
 
   protected:
-    void setRotation(ISensorDevice* device, Rotation_SkinRotation rotation) {
-        auto [x, y, z] = mRotationMap[rotation];
-        ASSERT_TRUE(device->overrideSensor(AndroidSensor::ACCELERATION, {x, y, z}).ok());
-    }
-
-    std::unique_ptr<FakeMultiDisplay> mMultiDisplay;
+    goldfish::FakeAvd mAvd;
+    std::unique_ptr<PhysicalModel> mPhysicalModel;
     std::unique_ptr<::goldfish::async::EventLoop> mLoop;
     std::unique_ptr<::goldfish::async::EventLoop> mQemuLoop;
-    goldfish::FakeAvd mAvd;
-    TestConnectorRegistry mRegistry;
+    std::unique_ptr<FakeMultiDisplay> mMultiDisplay;
     std::unique_ptr<DisplayServiceImpl> mDisplayService;
 
     // Maps rotation -> accelerometer values.

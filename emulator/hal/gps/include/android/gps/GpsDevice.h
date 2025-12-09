@@ -15,87 +15,25 @@
 
 #include <string_view>
 
-#include "aemu/base/events/EventSources.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/avd_universe/gps/Location.h"
 #include "goldfish/devices/connector_registry.h"
-#include "goldfish/gps/Location.h"
 
 namespace goldfish::devices::gps {
 
-using android::base::eventing::CallbackEventSource;
 using goldfish::async::EventLoop;
-using goldfish::gps::Location;
+using goldfish::avd_universe::gps::ObservableLocation;
 using namespace std::string_view_literals;
 
 /**
- * @brief Interface for emulating a GPS device in the Android emulator.
- *
- * This interface defines the methods for interacting with a simulated GPS
- * device. Location updates are sent over a vsock using the GnssRpcV1 protocol.
- * Location change events are sent to registered listeners.
- *
- * To receive notifications when the location is updated, you can register
- * a callback or an event listener.
- *
- * **1. Using a Callback:**
- *
- * ```c++
- * // Assuming 'gpsDevice' is a valid pointer to an IGpsDevice instance.
- * auto callbackId = gpsDevice->addCallback(
- *    (const Location& data) {
- *         // This lambda function will be called when the GPS location changes.
- *         LOG(INFO) << "New location: " << data; // Use 'data', not 'location'
- *     });
- *
- * //... later, to remove the callback:
- * gpsDevice->removeCallback(callbackId);
- * ```
- *
- * **2. Using an Event Listener:**
- *
- * ```c++
- * class MyGpsListener: public EventListener<Location> {
- * public:
- *     void eventArrived(const Location& data) override {
- *         LOG(INFO) << "New location: " << data; // Use 'data', not 'location'
- *     }
- * };
- *
- * MyGpsListener listener;
- * gpsDevice->addListener(&listener);
- *
- * //... later, to remove the listener:
- * gpsDevice->removeListener(&listener);
- * ```
- *
- * The guest HAL implementation resides in
- * `device/generic/goldfish/hals/gnss/GnssHwConn.cpp`.
+ * The guest HAL implementation resides in `device/generic/goldfish/hals/gnss`.
  */
-class IGpsDevice : public HalPlug, public CallbackEventSource<Location> {
+class IGpsDevice : public HalPlug {
   public:
     /**
      * @brief QEMU service name for the GPS device.
      */
     static constexpr std::string_view serviceName = "gps"sv;
-
-    /**
-     * @brief Sets the current location of the device.
-     *
-     * This method updates the simulated GPS location and sends a location change
-     * event to all registered listeners.
-     *
-     * @param location The new GPS location.
-     */
-    virtual void setLocation(const Location& location) = 0;
-
-    /**
-     * @brief Gets the last known location that was set.
-     *
-     * This method retrieves the most recently set GPS location.
-     *
-     * @return The last known GPS location.
-     */
-    virtual Location getLocation() const = 0;
 
     /**
      * @brief Registers the GPS device with the connector registry.
@@ -107,8 +45,8 @@ class IGpsDevice : public HalPlug, public CallbackEventSource<Location> {
      * @param clientLoop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      */
-    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+    static void registerDevice(ObservableLocation*, IConnectorRegistry* registry,
+                               EventLoop* clientLoop, EventLoop* qemuLoop);
 };
 
 }  // namespace goldfish::devices::gps

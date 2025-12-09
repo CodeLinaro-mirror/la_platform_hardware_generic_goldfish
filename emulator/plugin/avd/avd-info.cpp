@@ -22,6 +22,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "VCpuEventLoop.h"
+#include "android/base/system/System.h"
 #include "android/base/system/qemu_clock.h"
 #include "android/boot/BootPropertiesDevice.h"
 #include "android/camera/registerDevice.h"
@@ -87,7 +88,12 @@ std::vector<VCpuEventLoop> gQemuCpuLoops;
 
 }  // namespace
 
-AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props) : mProps(std::move(props)) {}
+AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
+        : mProps(std::move(props)), mSensorsPhysicalModel(mProps->hw_config) {
+    mGuestStatus.reset.setValue(
+            absl::UnixEpoch() +
+            absl::Milliseconds(android::base::System::get()->getProcessTimes().wallClockMs));
+}
 
 AvdUniverse& getAvd() {
     if (!gAvdUniverse) {
@@ -181,16 +187,21 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     auto* registry = &connector_registry();
 
-    namespace DEVS = goldfish::devices;
+    namespace DEVS = ::goldfish::devices;
 
-    DEVS::sensor::ISensorDevice::registerDevice(registry, avd_props.avd_type, avd_props.avd_api,
+    DEVS::sensor::ISensorDevice::registerDevice(&gAvdUniverse->getSensorsPhysicalModel(), registry,
+                                                avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, clientLoop, gQemuLoop.get());
-    DEVS::clipboard::IClipboardDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
+    DEVS::clipboard::IClipboardDevice::registerDevice(&gAvdUniverse->getClipboardChannel(),
+                                                      registry, clientLoop, gQemuLoop.get());
     DEVS::guest_status::IGuestStatusDevice::registerDevice(
-            registry, {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop,
-            gQemuLoop.get(), avd_props.quit_after_boot_timeout_seconds);
-    DEVS::fingerprint::IFingerprintDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
-    DEVS::gps::IGpsDevice::registerDevice(registry, clientLoop, gQemuLoop.get());
+            &gAvdUniverse->getGuestStatus(), registry,
+            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop, gQemuLoop.get(),
+            avd_props.quit_after_boot_timeout_seconds);
+    DEVS::fingerprint::IFingerprintDevice::registerDevice(&gAvdUniverse->getFingerprintSensor(),
+                                                          registry, clientLoop, gQemuLoop.get());
+    DEVS::gps::IGpsDevice::registerDevice(&gAvdUniverse->getLocation(), registry, clientLoop,
+                                          gQemuLoop.get());
 
     std::string emulatedCameraProp;
     DEVS::camera::registerDevice(registry, &emulatedCameraProp, avd_props.hw_config,

@@ -39,14 +39,16 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/qemud.h"
-#include "goldfish/physics/SkinRotation.h"
-#include "goldfish/sensors/PhysicalModel.h"
+#include "goldfish/sensors/AndroidSensor.h"
 
 namespace goldfish::devices::sensor {
 
 using goldfish::physics::SkinRotation;
+using goldfish::sensors::AndroidSensor;
 using goldfish::sensors::PhysicalModel;
 using goldfish::sensors::PhysicalParameter;
+using goldfish::sensors::SensorData;
+using goldfish::sensors::SensorValue;
 using goldfish::sensors::vec3;
 using goldfish::sensors::vec4;
 
@@ -137,10 +139,10 @@ SerializedSensor serializeSensorData(const AndroidSensor sensor_id, const Sensor
 
 class SensorDevice : public ISensorDevice {
   public:
-    SensorDevice(android::goldfish::DeviceType avd_type, int avd_api,
+    SensorDevice(PhysicalModel* pm, android::goldfish::DeviceType avd_type, int avd_api,
                  const android::goldfish::HardwareConfig& hw, EventLoop* eventLoop,
                  ::android::base::IClock* clock)
-            : mPhysicalModel(std::make_unique<PhysicalModel>(hw))
+            : mPhysicalModel(pm)
             , mLoop(eventLoop)
             , mClock(clock)
             , mQemudParser([this](const void* data, size_t size) {
@@ -208,13 +210,14 @@ class SensorDevice : public ISensorDevice {
             mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
         }
 
-        /* XXX: TODO: Add other tests when we add the corresponding
-         * properties to hardware-properties.ini et al. */
+        /*
+         * TODO: move `setPhysicalParameterValue` elsewhere so we are not overriding
+         * the universe in the code which provides sensor values for the guest side.
+         */
 
-        // Initialize physical parameters
-        const float kPressure = 1013.25F;
+        const float kPressure = 1013.25F;  // One "standard atmosphere"
         setPhysicalParameterValue(PhysicalParameter::PRESSURE, &kPressure, 1u,
-                                  PhysicalInterpolation::SMOOTH);  // One "standard atmosphere"
+                                  PhysicalInterpolation::SMOOTH);
 
         const float kProximity = 1.F;
         setPhysicalParameterValue(PhysicalParameter::PROXIMITY, &kProximity, 1u,
@@ -385,84 +388,6 @@ class SensorDevice : public ISensorDevice {
         return true;
     }
 
-    absl::Status overrideSensor(AndroidSensor sensor_id, const SensorValue& val) override {
-        if (sensor_id >= AndroidSensor::MAX_SENSORS) {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                    "SensorId: %zu, out of range (max:%zu)", static_cast<size_t>(sensor_id),
-                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
-        }
-
-        if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
-            return absl::UnavailableError("The sensor is disabled");
-        }
-
-        switch (sensor_id) {
-        case AndroidSensor::HINGE_ANGLE0:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE0, val.data(), val.size(),
-                                      PhysicalInterpolation::SMOOTH);
-
-            break;
-        case AndroidSensor::HINGE_ANGLE1:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE1, val.data(), val.size(),
-                                      PhysicalInterpolation::SMOOTH);
-
-            break;
-        case AndroidSensor::HINGE_ANGLE2:
-            setPhysicalParameterValue(PhysicalParameter::HINGE_ANGLE2, val.data(), val.size(),
-                                      PhysicalInterpolation::SMOOTH);
-
-            break;
-        default:
-            setSensorValue(sensor_id, val);
-            break;
-        }
-
-        fireEvent(sensor_id);
-        return absl::OkStatus();
-    }
-
-    absl::StatusOr<SensorData> getSensorData(AndroidSensor sensor_id) override {
-        if (sensor_id >= AndroidSensor::MAX_SENSORS) {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                    "SensorId: %zu, out of range (max:%zu)", static_cast<size_t>(sensor_id),
-                    static_cast<size_t>(AndroidSensor::MAX_SENSORS)));
-        }
-
-        if (!mSensors[static_cast<size_t>(sensor_id)].enabled) {
-            return absl::UnavailableError("The sensor is disabled");
-        }
-
-        return mPhysicalModel->getSensorData(sensor_id);
-    }
-
-    absl::StatusOr<Rotation> getDeviceRotation() override {
-        const auto out = getSensorData(AndroidSensor::ACCELERATION);
-        if (!out.ok()) {
-            return out.status();
-        }
-        const SensorValue& val = out->value;
-
-        glm::vec3 device_accelerometer(val[0], val[1], val[2]);
-        glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
-
-        static const std::array<std::pair<glm::vec3, SkinRotation>, 4> directions{
-            std::make_pair(glm::vec3(0.0f, 1.0f, 0.0f), SkinRotation::PORTRAIT),
-            std::make_pair(glm::vec3(1.0f, 0.0f, 0.0f), SkinRotation::LANDSCAPE),
-            std::make_pair(glm::vec3(0.0f, -1.0f, 0.0f), SkinRotation::REVERSE_PORTRAIT),
-            std::make_pair(glm::vec3(-1.0f, 0.0f, 0.0f), SkinRotation::REVERSE_LANDSCAPE)};
-        auto coarse_orientation = SkinRotation::PORTRAIT;
-        for (const auto& v : directions) {
-            if (fabs(glm::dot(normalized_accelerometer, v.first) - 1.f) < 0.1f) {
-                coarse_orientation = v.second;
-                break;
-            }
-        }
-
-        Rotation r = {
-            .rotation = coarse_orientation, .xAxis = val[0], .yAxis = val[1], .zAxis = val[2]};
-        return r;
-    }
-
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
         absl::Format(&s, "[SensorDevice socket=%v]", *socket());
@@ -477,11 +402,6 @@ class SensorDevice : public ISensorDevice {
             }
         }
         return -1;
-    }
-
-    // Helper functions to set/get sensor values
-    void setSensorValue(AndroidSensor sensor_id, const SensorValue& val) {
-        mPhysicalModel->setSensorValue(sensor_id, val);
     }
 
     void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
@@ -538,7 +458,7 @@ class SensorDevice : public ISensorDevice {
         mTimer->schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
     }
 
-    std::unique_ptr<PhysicalModel> mPhysicalModel;
+    PhysicalModel* const mPhysicalModel;
     EventLoop* const mLoop;
     ::android::base::IClock* const mClock;
     qemud::Parser mQemudParser;
@@ -561,24 +481,24 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-void ISensorDevice::registerDevice(IConnectorRegistry* registry,
+void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                    android::goldfish::DeviceType avd_type, int avd_api,
                                    const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop,
                                    ::android::base::IClock* clock) {
     registry->registerHalQemuDevice(std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
-                                    [avd_type, avd_api, &hw, clientLoop, clock]() {
-                                        return std::make_shared<SensorDevice>(avd_type, avd_api, hw,
-                                                                              clientLoop, clock);
+                                    [pm, avd_type, avd_api, &hw, clientLoop, clock]() {
+                                        return std::make_shared<SensorDevice>(
+                                                pm, avd_type, avd_api, hw, clientLoop, clock);
                                     });
 }
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(IConnectorRegistry* registry,
+void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                    android::goldfish::DeviceType avd_type, int avd_api,
                                    const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registerDevice(registry, avd_type, avd_api, hw, clientLoop, qemuLoop,
+    registerDevice(pm, registry, avd_type, avd_api, hw, clientLoop, qemuLoop,
                    &::android::base::IClock::get());
 }
 

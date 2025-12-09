@@ -13,17 +13,11 @@
 // limitations under the License.
 #include "android/emulation/control/GpsService.h"
 
-#include "android/gps/GpsDevice.h"
-#include "goldfish/gps/Location.h"
-
-using ::goldfish::devices::gps::IGpsDevice;
-using ::goldfish::gps::Location;
-
 namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
+using ::goldfish::avd_universe::gps::Location;
 using grpc::ServerContext;
 using grpc::Status;
 
@@ -54,21 +48,13 @@ GpsState locationToProto(const Location& location) {
 }  // namespace
 
 Status GpsServiceImpl::setGps(const GpsState& request) {
-    auto weak = mRegistry->activeDevice<IGpsDevice>();
-    if (auto gps = weak.lock()) {
-        gps->setLocation(protoToLocation(request));
-        return Status::OK;
-    }
-    return Status(grpc::StatusCode::UNAVAILABLE, "No active gps device");
+    mObservableLocation.setValue(protoToLocation(request));
+    return Status::OK;
 }
 
 Status GpsServiceImpl::getGps(GpsState* reply) {
-    auto weak = mRegistry->activeDevice<IGpsDevice>();
-    if (auto gps = weak.lock()) {
-        *reply = locationToProto(gps->getLocation());
-        return Status::OK;
-    }
-    return Status(grpc::StatusCode::UNAVAILABLE, "No active gps device");
+    *reply = locationToProto(mObservableLocation.getValue());
+    return Status::OK;
 }
 
 }  // namespace control

@@ -23,7 +23,7 @@
 #include "android/emulation/control/ClipboardService.h"
 #include "android/emulation/control/DisplayService.h"
 #include "android/emulation/control/GpsService.h"
-#include "android/emulation/control/NotificationStream.h"
+#include "android/emulation/control/NotificationStreamWriter.h"
 #include "android/emulation/control/SensorService.h"
 #include "android/emulation/control/StatusService.h"
 #include "android/emulation/control/VmService.h"
@@ -39,7 +39,8 @@ namespace android {
 namespace emulation {
 namespace control {
 
-using ::goldfish::devices::ConnectorRegistry;
+using ::goldfish::avd_info::AvdUniverse;
+using ::goldfish::avd_universe::grpc::GrpcNotificationEventSource;
 using ::goldfish::display::IMultiDisplay;
 using ::google::protobuf::Empty;
 using grpc::ServerContext;
@@ -54,19 +55,18 @@ class EmulatorControllerImpl final
                                           EmulatorController::WithCallbackMethod_streamNotification<
                                                   EmulatorController::Service>>>>> {
   public:
-    EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole,
-                           ConnectorRegistry* connectorRegistry, int avd_api_level,
-                           const android::goldfish::HardwareConfig& hw, IMultiDisplay* multidisplay,
-                           ::goldfish::async::EventLoop* qemuLoop)
-            : mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemuLoop))
-            , mNotificationStream(NotificationStream::create(multidisplay, connectorRegistry))
-            , mClipboardService(connectorRegistry)
-            , mDisplayService(multidisplay, connectorRegistry)
-            , mGpsService(connectorRegistry)
+    EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
+                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemuLoop)
+            : mVmService(vm)
+            , mGrpcNotificationChannel(avdUniverse->getGrpcNotificationChannel())
+            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemuLoop))
+            , mStatusService(avdUniverse->getGuestStatus(), avdUniverse->props().avd_api,
+                             avdUniverse->props().hw_config)
+            , mSensorService(avdUniverse->getSensorsPhysicalModel())
+            , mGpsService(avdUniverse->getLocation())
+            , mClipboardService(avdUniverse->getClipboardChannel())
             , mInputEventSender(multidisplay)
-            , mSensorService(connectorRegistry)
-            , mStatusService(connectorRegistry, avd_api_level, hw)
-            , mVmService(vm) {}
+            , mDisplayService(multidisplay, &avdUniverse->getSensorsPhysicalModel()) {}
 
     Status getStatus(ServerContext* /*context*/, const Empty* /*request*/,
                      EmulatorStatus* reply) override {
@@ -185,29 +185,27 @@ class EmulatorControllerImpl final
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
-        return mNotificationStream->notificationStream();
+        return new NotificationStreamWriter(&mGrpcNotificationChannel);
     }
 
   private:
-    const std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
-    const std::shared_ptr<NotificationStream> mNotificationStream;
-    ClipboardServiceImpl mClipboardService;
-    DisplayServiceImpl mDisplayService;
-    GpsServiceImpl mGpsService;
-    InputEventSender mInputEventSender;
-    SensorServiceImpl mSensorService;
-    StatusServiceImpl mStatusService;
     VmServiceImpl mVmService;
+    GrpcNotificationEventSource& mGrpcNotificationChannel;
+    const std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
+    StatusServiceImpl mStatusService;
+    SensorServiceImpl mSensorService;
+    GpsServiceImpl mGpsService;
+    ClipboardServiceImpl mClipboardService;
+    InputEventSender mInputEventSender;
+    DisplayServiceImpl mDisplayService;
 };
 
 std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, QemuConsole* keyboardConsole,
-                                                     ConnectorRegistry* connectorRegistry,
-                                                     int avd_api_level,
-                                                     const android::goldfish::HardwareConfig& hw,
+                                                     AvdUniverse* avdUniverse,
                                                      IMultiDisplay* multidisplay,
                                                      ::goldfish::async::EventLoop* qemuLoop) {
-    return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, connectorRegistry,
-                                                    avd_api_level, hw, multidisplay, qemuLoop);
+    return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, avdUniverse, multidisplay,
+                                                    qemuLoop);
 }
 
 }  // namespace control

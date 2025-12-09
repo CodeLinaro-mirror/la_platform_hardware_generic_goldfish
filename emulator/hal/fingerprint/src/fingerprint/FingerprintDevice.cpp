@@ -24,6 +24,11 @@
 
 namespace goldfish::devices::fingerprint {
 
+using TouchEventType = ObservableFingerprintSensor::EventType;
+
+using TouchEventSubscription = std::unique_ptr<
+        android::base::eventing::ScopedEventCallback<ObservableFingerprintSensor, TouchEventType>>;
+
 class FingerprintDevice : public IFingerprintDevice {
   public:
     FingerprintDevice() { VLOG(1) << "Fingerprint device has been created"; }
@@ -34,21 +39,46 @@ class FingerprintDevice : public IFingerprintDevice {
         VLOG(1) << "The guest is (unexpectedly) sending data to the fingerprint device: " << data;
     }
 
-    void send(std::string_view msg) {
+    void onEvent(const TouchEventType x) {
+        if (x == goldfish::avd_universe::fingerprint::kReleaseEvent) {
+            send("off");
+        } else {
+            send(absl::StrFormat("on:%d", int(x)));
+        }
+    }
+
+    void setTouchEventSubscription(TouchEventSubscription subscription) {
+        mTouchEventSubscription = std::move(subscription);
+    }
+
+  private:
+    void send(const std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         socket()->send(encoded);
     }
 
-    void touch(int id) override { send(absl::StrFormat("on:%d", id)); }
-
-    virtual void release() override { send("off"); };
+    TouchEventSubscription mTouchEventSubscription;
 };
 
-void IFingerprintDevice::registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
+void IFingerprintDevice::registerDevice(ObservableFingerprintSensor* sensor,
+                                        IConnectorRegistry* registry, EventLoop* clientLoop,
                                         EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(std::string(IFingerprintDevice::serviceName), clientLoop,
-                                    qemuLoop, [] { return std::make_shared<FingerprintDevice>(); });
+    registry->registerHalQemuDevice(
+            std::string(IFingerprintDevice::serviceName), clientLoop, qemuLoop, [sensor] {
+                auto dev = std::make_shared<FingerprintDevice>();
+                std::weak_ptr<FingerprintDevice> weakDev = dev;
+
+                auto touchEventSubscription = makeScopedCallback(
+                        *sensor, [weakDev = std::move(weakDev)](TouchEventType event) {
+                            if (const auto dev = weakDev.lock()) {
+                                dev->onEvent(event);
+                            }
+                        });
+
+                dev->setTouchEventSubscription(std::move(touchEventSubscription));
+                return dev;
+            });
 }
 
 }  // namespace goldfish::devices::fingerprint

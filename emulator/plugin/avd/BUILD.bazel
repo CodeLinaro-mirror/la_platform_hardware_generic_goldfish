@@ -13,6 +13,8 @@ cc_library(
     deps = [
         "//emulator/config:device_type",
         "//emulator/config:hardware_config",
+        "//emulator/libs/avd_universe",
+        "//emulator/libs/sensors",
     ],
 )
 

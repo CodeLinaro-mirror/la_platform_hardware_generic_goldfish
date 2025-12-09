@@ -33,7 +33,8 @@ class FingerprintDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IFingerprintDevice::registerDevice(&registry, mClientLoop.get(), mQemuLoop.get());
+        IFingerprintDevice::registerDevice(&mTouchSensor, &registry, mClientLoop.get(),
+                                           mQemuLoop.get());
 
         device = registry.constructHalDevice<IFingerprintDevice>();
         test_socket = registry.halSocket();
@@ -45,6 +46,7 @@ class FingerprintDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
+    ObservableFingerprintSensor mTouchSensor;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
 
@@ -58,12 +60,12 @@ TEST_F(FingerprintDeviceTest, canCreateDevice) {
 }
 
 TEST_F(FingerprintDeviceTest, canTouch) {
-    device->touch(1);
-    EXPECT_THAT(test_socket->storage, Eq("0004on:1"));
+    mTouchSensor.setValue(42);
+    EXPECT_THAT(test_socket->storage, Eq("0005on:42"));
 }
 
 TEST_F(FingerprintDeviceTest, canRelease) {
-    device->release();
+    mTouchSensor.setValue(avd_universe::fingerprint::kReleaseEvent);
     EXPECT_THAT(test_socket->storage, Eq("0003off"));
 }
 

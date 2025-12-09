@@ -15,6 +15,7 @@
 
 #include <string_view>
 
+#include "goldfish/avd_universe/fingerprint/FingerprintSensor.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/hal/plug/HalPlug.h"
 
@@ -22,6 +23,7 @@ namespace goldfish::devices::fingerprint {
 
 using namespace std::string_view_literals;
 using goldfish::async::EventLoop;
+using goldfish::avd_universe::fingerprint::ObservableFingerprintSensor;
 
 /**
  * @brief Interface for emulating a fingerprint sensor in the Android emulator.
@@ -43,19 +45,6 @@ class IFingerprintDevice : public HalPlug {
     static constexpr std::string_view serviceName = "fingerprintlisten"sv;
 
     /**
-     * @brief Simulates a finger touch on the sensor.
-     *
-     * @param id An identifier for the touch event.  This could be used to
-     *            distinguish between different fingers.
-     */
-    virtual void touch(int id) = 0;
-
-    /**
-     * @brief Simulates the release of a finger from the sensor.
-     */
-    virtual void release() = 0;
-
-    /**
      * @brief Registers the fingerprint device with the connector registry.
      *
      * This function registers the fingerprint device with the provided
@@ -66,7 +55,7 @@ class IFingerprintDevice : public HalPlug {
      * @param clientLoop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      */
-    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+    static void registerDevice(ObservableFingerprintSensor* sensor, IConnectorRegistry* registry,
+                               EventLoop* clientLoop, EventLoop* qemuLoop);
 };
 }  // namespace goldfish::devices::fingerprint

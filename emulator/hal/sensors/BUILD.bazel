@@ -31,23 +31,6 @@ cc_library(
     alwayslink = True,
 )
 
-cc_library(
-    name = "sensor_observer",
-    srcs = [
-        "sensor_observer.cpp",
-    ],
-    hdrs = [
-        "include/goldfish/devices/sensor/sensor_observer.h",
-    ],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":sensors",
-        "//emulator/hal/connector:connector_registry_impl",
-    ],
-    alwayslink = True,
-)
-
 cc_test(
     name = "sensors_unittests",
     srcs = [
@@ -62,17 +45,5 @@ cc_test(
         "//emulator/config:avd-test",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
-    ],
-)
-
-cc_library(
-    name = "test_sensors",
-    hdrs = [
-        "test/FakeSensorDevice.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":sensors",
     ],
 )

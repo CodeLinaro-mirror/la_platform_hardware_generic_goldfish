@@ -38,12 +38,13 @@ typedef void QEMUResetHandler(void* opaque);
 
 static QEMUResetHandler* sResetHandler;
 static void* sOpaque;
-extern "C" {
+
 void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
     sResetHandler = func;
     sOpaque = opaque;
 }
-}
+
+void qemu_unregister_reset(QEMUResetHandler* func, void* opaque) {}
 }  // namespace
 
 class GuestStatusDeviceTest : public ::testing::Test {
@@ -51,7 +52,8 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IGuestStatusDevice::registerDevice(&registry, {qemu_register_reset, nullptr},
+        IGuestStatusDevice::registerDevice(&mGuestStatus, &registry,
+                                           {qemu_register_reset, qemu_unregister_reset},
                                            mClientLoop.get(), mQemuLoop.get(), 0);
         device = registry.constructHalDevice<IGuestStatusDevice>();
         test_socket = registry.halSocket();
@@ -68,61 +70,23 @@ class GuestStatusDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
+    GuestStatus mGuestStatus;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
-
     TestConnectorRegistry registry;
-    TestHalSocket* test_socket;
     IGuestStatusDevice* device;
+    TestHalSocket* test_socket;
 };
 
 TEST_F(GuestStatusDeviceTest, canCreateDevice) {
     EXPECT_NE(device, nullptr);
 }
 
-TEST_F(GuestStatusDeviceTest, heartbeatSendsAnEvent) {
-    auto start = device->heartbeat();
-    AndroidGuestStatus received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](AndroidGuestStatus event) { received = event; });
-    receive("heartbeat\0"sv);
-    EXPECT_THAT(received.heartbeat(), Eq(start + 1));
-}
-
 TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
-    auto start = device->heartbeat();
-    for (int i = 0; i < 10; i++) {
+    for (unsigned i = 1; i <= 10; i++) {
         receive("heartbeat\0"sv);
+        EXPECT_THAT(mGuestStatus.heartbeat.getValue(), i);
     }
-    EXPECT_THAT(device->heartbeat(), Eq(10 + start));
-}
-
-TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
-    TestSystem test("/");
-    AndroidGuestStatus received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](AndroidGuestStatus event) { received = event; });
-
-    test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 100,
-    });
-    receive("bootcomplete\0"sv);
-    EXPECT_THAT(received.isBootCompletedEvent(), Eq(true));
-    EXPECT_THAT(received.bootTime().count(), Eq(100));
-}
-
-TEST_F(GuestStatusDeviceTest, tracksBootCompleted) {
-    TestSystem test("/");
-    test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 100,
-    });
-    receive("bootcomplete\0"sv);
-    EXPECT_THAT(device->hasBooted(), Eq(true));
-    EXPECT_THAT(device->bootTime()->count(), Eq(100));
 }
 
 TEST_F(GuestStatusDeviceTest, registersResetHandler) {
@@ -130,24 +94,46 @@ TEST_F(GuestStatusDeviceTest, registersResetHandler) {
     EXPECT_EQ(sOpaque, device);
 }
 
-TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
-    using namespace std::chrono_literals;
-    // Simulate a reset
-    sResetHandler(sOpaque);
-    EXPECT_THAT(device->hasBooted(), Eq(false));
-    EXPECT_THAT(device->bootTime(), Eq(std::nullopt));
-}
+TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
+    TestSystem test("/");
 
-TEST_F(GuestStatusDeviceTest, firesResetEvent) {
-    AndroidGuestStatus received;
-    auto scoped = android::base::eventing::makeScopedCallback(
-            *device, [&received](AndroidGuestStatus event) { received = event; });
+    test.setProcessTimes({
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 100,
+    });
 
     receive("bootcomplete\0"sv);
 
-    // Simulate a reset
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.getValue() - absl::UnixEpoch()),
+                Eq(100));
+}
+
+TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
+    TestSystem test("/");
+
+    test.setProcessTimes({
+        .userMs = 1,
+        .systemMs = 10,
+        .wallClockMs = 100,
+    });
+
+    receive("bootcomplete\0"sv);
+
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.getValue() - absl::UnixEpoch()),
+                Eq(100));
+
+    test.setProcessTimes({
+        .userMs = 2,
+        .systemMs = 20,
+        .wallClockMs = 200,
+    });
+
     sResetHandler(sOpaque);
-    EXPECT_THAT(received.isResetEvent(), Eq(true));
+
+    EXPECT_THAT(mGuestStatus.bootcomplete.getValue(), Eq(absl::UnixEpoch()));
+
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.reset.getValue() - absl::UnixEpoch()), Eq(200));
 }
 
 }  // namespace goldfish::devices::guest_status
