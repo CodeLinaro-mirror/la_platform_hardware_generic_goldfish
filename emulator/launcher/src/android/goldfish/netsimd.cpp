@@ -88,9 +88,9 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
     bool no_web_ui = true;   //! feature_is_enabled(kFeature_NetsimWebUi),
     std::string host_dns = opts.dns_server ? opts.dns_server : "";
     if (host_dns.empty()) {
-        if (auto al = ::goldfish::network::getSystemDnsServers(); al.ok()) {
+        if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {
             host_dns = absl::StrJoin(al.value(), ",", [](std::string* out, const auto& ip) {
-                absl::StrAppend(out, ip.toString());
+                absl::StrAppend(out, ip.ToString());
             });
         } else {
             LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();

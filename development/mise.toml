@@ -19,9 +19,18 @@ run = "cd $BAZEL_ROOT && bazel test @goldfish//..."
 description = "Generate the compilation database"
 run = "cd $BAZEL_ROOT && bazel run --nocheck_visibility @goldfish//:compile_commands"
 
+[tasks.tidy]
+description = "Generate the clang tidy report"
+run = "cd $BAZEL_ROOT && bazel build @goldfish//:clang_tidy_report"
+
+
 [tasks.submit]
 description = "Upload the current branch for code review"
 run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y'"
+
+[tasks.tidy_fix]
+description = "Apply fixes from the clang tidy report"
+run = "cd $BAZEL_ROOT && bazel run @goldfish//:clang_tidy_report"
 
 [tasks.presubmit]
 description = "Upload the current branch for code review and mark it presubmit ready"

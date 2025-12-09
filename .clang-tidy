@@ -21,16 +21,30 @@ Checks:
   - '-readability-named-parameter'          # Verbose
   - '-readability-implicit-bool-conversion' # Allow 'if (ptr)'
   - '-misc-non-private-member-variables-in-classes' # Allow public struct members
+  - '-modernize-avoid-c-arrays'             # c-arrays are used in various places.
 
   # --- EXCLUSIONS ---
   - '-modernize-use-trailing-return-type'   # We do not use 'auto func() -> int'
   - '-google-readability-todo'              # We do not police TODO format
+  - '-modernize-use-std-format'             # We are using absl::StrFormat a lot.
 
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'
-HeaderFileExtensions:         ['', 'h','hh','hpp','hxx']
+HeaderFileExtensions:         ['h','hh','hpp','hxx']
 ImplementationFileExtensions: ['c','cc','cpp','cxx']
-HeaderFilterRegex: "^goldfish.*|^android.*|^\\w+"
+
+# Note: The filter applies to the "resolved" include path
+# Since we are using this in bazel, we only want headers
+# from the "goldfish+" module, nothing else.
+# Keep in mind that this will *only* include warnings/errors
+# that originate from this headers. It can still be the case
+# that a replacement in a header gets triggered from an implementation
+# file. Our bazel aspect will *only* include a replacement if
+# this header filter matches this regex.
+HeaderFilterRegex: '.*goldfish\+.*'
+
+# Add exlcusions if you need them,
+ExcludeHeaderFilterRegex: '.*_virtual_includes.*'
 
 CheckOptions:
   # --- Function Complexity —
@@ -68,7 +82,9 @@ CheckOptions:
   # Public members (structs) do not get a suffix
   - key: readability-identifier-naming.PublicMemberCase
     value: lower_case
-
+  - key: readability-identifier-naming.StructMemberCase
+    value: lower_case
+  
   # 3. Functions: PascalCase (CamelCase)
   - key: readability-identifier-naming.FunctionCase
     value: CamelCase
@@ -96,3 +112,18 @@ CheckOptions:
     value: CamelCase
   - key: readability-identifier-naming.TypedefCase
     value: CamelCase
+
+  # 6. MACROS: UPPER_CASE (Screaming Snake Case)
+  - key: readability-identifier-naming.MacroCase
+    value: upper_case
+
+  # 7. NAMESPACES: lower_case (Snake Case)
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+
+  # 8. ENUM CONSTANTS: kCamelCase (for scoped enums) or UPPER_CASE (for unscoped)
+  # Assuming modern (scoped) enums, following the constant pattern (kPrefix).
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantPrefix
+    value: k

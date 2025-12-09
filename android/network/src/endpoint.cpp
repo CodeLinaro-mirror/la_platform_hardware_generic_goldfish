@@ -30,40 +30,39 @@
 
 namespace goldfish::network {
 
-Endpoint::Endpoint(IpAddress ip_address, int port)
-        : mIpAddress(std::move(ip_address)), mPort(port) {}
+Endpoint::Endpoint(IpAddress ip_address, int port) : ip_address_(ip_address), port_(port) {}
 
-absl::StatusOr<Endpoint> Endpoint::create(std::string_view ip_address, int port) {
-    auto ip = IpAddress::create(ip_address);
+absl::StatusOr<Endpoint> Endpoint::Create(std::string_view ip_address, int port) {
+    auto ip = IpAddress::Create(ip_address);
     if (!ip.ok()) {
         return ip.status();
     }
-    return Endpoint(std::move(*ip), port);
+    return Endpoint(*ip, port);
 }
 
-std::string Endpoint::toString() const {
-    if (mIpAddress.family() == IpAddress::Family::kIpv6) {
-        return absl::StrFormat("[%s]:%d", mIpAddress.toString(), mPort);
+std::string Endpoint::ToString() const {
+    if (ip_address_.Family() == IpAddress::Family::kIpv6) {
+        return absl::StrFormat("[%s]:%d", ip_address_.ToString(), port_);
     }
-    return absl::StrFormat("%s:%d", mIpAddress.toString(), mPort);
+    return absl::StrFormat("%s:%d", ip_address_.ToString(), port_);
 }
 
-sockaddr_storage Endpoint::toSockaddr() const {
+sockaddr_storage Endpoint::ToSockaddr() const {
     sockaddr_storage addr{};
 
-    switch (mIpAddress.family()) {
+    switch (ip_address_.Family()) {
     case IpAddress::Family::kIpv4: {
         addr.ss_family = AF_INET;
         auto* sin = reinterpret_cast<sockaddr_in*>(&addr);
-        sin->sin_port = htons(mPort);
-        inet_pton(AF_INET, mIpAddress.toString().c_str(), &sin->sin_addr);
+        sin->sin_port = htons(port_);
+        inet_pton(AF_INET, ip_address_.ToString().c_str(), &sin->sin_addr);
         break;
     }
     case IpAddress::Family::kIpv6: {
         addr.ss_family = AF_INET6;
         auto* sin6 = reinterpret_cast<sockaddr_in6*>(&addr);
-        sin6->sin6_port = htons(mPort);
-        inet_pton(AF_INET6, mIpAddress.toString().c_str(), &sin6->sin6_addr);
+        sin6->sin6_port = htons(port_);
+        inet_pton(AF_INET6, ip_address_.ToString().c_str(), &sin6->sin6_addr);
         break;
     }
     }
@@ -71,7 +70,7 @@ sockaddr_storage Endpoint::toSockaddr() const {
     return addr;
 }
 
-absl::StatusOr<Endpoint> Endpoint::fromSockAddr(const struct sockaddr* sa) {
+absl::StatusOr<Endpoint> Endpoint::FromSockAddr(const struct sockaddr* sa) {
     if (sa == nullptr) {
         return absl::InvalidArgumentError("sockaddr is null");
     }
@@ -83,14 +82,14 @@ absl::StatusOr<Endpoint> Endpoint::fromSockAddr(const struct sockaddr* sa) {
     case AF_INET: {
         const auto* sa_in = reinterpret_cast<const struct sockaddr_in*>(sa);
         port = ntohs(sa_in->sin_port);
-        ip = IpAddress::fromBinary(&sa_in->sin_addr);
+        ip = IpAddress::FromBinary(&sa_in->sin_addr);
         break;
     }
 
     case AF_INET6: {
         const auto* sa_in6 = reinterpret_cast<const struct sockaddr_in6*>(sa);
         port = ntohs(sa_in6->sin6_port);
-        ip = IpAddress::fromBinary(&sa_in6->sin6_addr);
+        ip = IpAddress::FromBinary(&sa_in6->sin6_addr);
         break;
     }
 
@@ -104,7 +103,7 @@ absl::StatusOr<Endpoint> Endpoint::fromSockAddr(const struct sockaddr* sa) {
         return ip.status();
     }
 
-    return Endpoint(std::move(*ip), port);
+    return Endpoint(*ip, port);
 }
 
 }  // namespace goldfish::network

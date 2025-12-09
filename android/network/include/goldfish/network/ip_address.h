@@ -14,6 +14,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -33,7 +34,7 @@ namespace goldfish::network {
  */
 class IpAddress {
   public:
-    enum class Family {
+    enum class Family : uint8_t {
         kIpv4,
         kIpv6,
     };
@@ -44,7 +45,7 @@ class IpAddress {
      * @param addr A string_view to a valid numeric IP address string
      * @return absl::StatusOr<IpAddress> A valid IpAddress on success.
      */
-    static absl::StatusOr<IpAddress> create(std::string_view ip_address);
+    static absl::StatusOr<IpAddress> Create(std::string_view ip_address);
 
     /**
      * @brief Creates a valid IpAddress from a binary IPv4 address.
@@ -52,36 +53,36 @@ class IpAddress {
      * @param addr A pointer to a valid struct in_addr.
      * @return absl::StatusOr<IpAddress> A valid IpAddress on success.
      */
-    static absl::StatusOr<IpAddress> fromBinary(const struct in_addr* addr);
+    static absl::StatusOr<IpAddress> FromBinary(const struct in_addr* addr);
 
     /**
      * @brief Creates a valid IpAddress from a binary IPv6 address.
      *
      * @param addr A pointer to a valid struct in6_addr.
      */
-    static absl::StatusOr<IpAddress> fromBinary(const struct in6_addr* addr);
+    static absl::StatusOr<IpAddress> FromBinary(const struct in6_addr* addr);
 
     /**
      * @brief Returns the numeric IP address string.
      *
      * @return std::string The IP address (e.g., "127.0.0.1" or "::1").
      */
-    std::string toString() const;
+    [[nodiscard]] std::string ToString() const;
 
     /**
      * @brief Returns the address family.
      */
-    Family family() const { return mFamily; }
+    [[nodiscard]] Family Family() const { return family_; }
 
     /**
      * @brief Checks if the address is an IPv4 address.
      */
-    bool isIpv4() const { return mFamily == Family::kIpv4; }
+    [[nodiscard]] bool IsIpv4() const { return family_ == Family::kIpv4; }
 
     /**
      * @brief Checks if the address is an IPv6 address.
      */
-    bool isIpv6() const { return mFamily == Family::kIpv6; }
+    [[nodiscard]] bool IsIpv6() const { return family_ == Family::kIpv6; }
 
     /**
      * @brief Provides a type-safe pointer to the binary IPv4 address.
@@ -89,7 +90,7 @@ class IpAddress {
      * @return A pointer to the internal in_addr data if this is an
      * IPv4 address, otherwise nullptr.
      */
-    const struct in_addr* asV4() const;
+    [[nodiscard]] const struct in_addr* AsV4() const;
 
     /**
      * @brief Provides a type-safe pointer to the binary IPv6 address.
@@ -97,23 +98,23 @@ class IpAddress {
      * @return A pointer to the internal in6_addr data if this is an
      * IPv6 address, otherwise nullptr.
      */
-    const struct in6_addr* asV6() const;
+    [[nodiscard]] const struct in6_addr* AsV6() const;
 
     bool operator==(const IpAddress& other) const {
-        return mFamily == other.mFamily && mAddr == other.mAddr;
+        return family_ == other.family_ && addr_ == other.addr_;
     }
 
   private:
-    IpAddress(const in_addr* ipv4);
-    IpAddress(const in6_addr* ipv6);
+    explicit IpAddress(const in_addr* ipv4);
+    explicit IpAddress(const in6_addr* ipv6);
 
-    Family mFamily;
-    std::array<std::byte, sizeof(struct in6_addr)> mAddr;
+    enum Family family_;
+    std::array<std::byte, sizeof(struct in6_addr)> addr_;
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const IpAddress& ip) {
-    sink.Append(ip.toString());
+    sink.Append(ip.ToString());
 }
 
 }  // namespace goldfish::network
