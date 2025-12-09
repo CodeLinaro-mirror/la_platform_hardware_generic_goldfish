@@ -9,10 +9,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/hal/connector:connector_registry",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
