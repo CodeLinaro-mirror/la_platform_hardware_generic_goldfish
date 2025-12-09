@@ -184,7 +184,7 @@ class EmulatorControllerImpl final
     }
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
-            ::grpc::CallbackServerContext* context, const Empty* request) override {
+            ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
         return mNotificationStream->notificationStream();
     }
 
