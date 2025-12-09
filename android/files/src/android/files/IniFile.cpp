@@ -45,7 +45,7 @@ static bool move(const fs::path& from, const fs::path& to) {
     if (fs::rename(from, to, ec); ec) {
         // Rename can fail if files are on different disks
         if (base::file::cp_file(from, to).ok()) {
-            base::file::rm(from.c_str());
+            base::file::rm(from);
             return true;
         } else {
             return false;

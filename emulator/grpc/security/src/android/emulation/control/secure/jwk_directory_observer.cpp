@@ -72,7 +72,7 @@ bool JwkDirectoryObserver::start() {
 void JwkDirectoryObserver::scanJwkPath() {
     mLoadedKeys.clear();
     LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
-    for (auto path : base::file::scan_dir(mJwkPath.c_str(), true)) {
+    for (auto path : base::file::scan_dir(mJwkPath, true)) {
         std::string strPath = path.string();
         auto status = mLoadedKeys.add(strPath);
         if (!status.ok()) {

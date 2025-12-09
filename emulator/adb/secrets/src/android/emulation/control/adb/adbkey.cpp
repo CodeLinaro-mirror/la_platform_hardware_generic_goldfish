@@ -193,7 +193,7 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
-    D("cannot read adb key file: %s", adbKeyPath.c_str());
+    D("cannot read adb key file: %s", adbKeyPath);
     D("trying again by copying from home dir");
 
     auto home = System::get()->getHomeDirectory();
@@ -210,7 +210,7 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
 
     if (android::base::file::is_file(adbKeyPath) &&
-        android::base::file::can_read(adbKeyPath.c_str())) {
+        android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
     D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());
