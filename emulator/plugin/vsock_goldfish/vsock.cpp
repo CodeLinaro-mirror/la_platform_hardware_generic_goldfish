@@ -301,6 +301,20 @@ struct GoldfishVirtioVsockDevice {
                 preparePacketHeaderLocked(request.dst_port, request.src_port, op, 0, 0));
     }
 
+    void clear() {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        for (const VsockStream& stream : mStreams) {
+            if (stream.plug) {
+                stream.plug->onUnplug().release();
+            }
+        }
+
+        mStreams.clear();
+        mHostEvents.clear();
+        mOrphanPackets.clear();
+        mSrcPortAllocator.reset();
+    }
+
     void realize(void* const dev, const GoldfishVirtIOVSockDevAPI* const devApi) {
         DEBUG_MSG("this=%p, dev=%p, devApi=%p", this, dev, devApi);
 
@@ -311,15 +325,7 @@ struct GoldfishVirtioVsockDevice {
 
     void unrealize() {
         DEBUG_MSG("this=%p", this);
-
-        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
-        // TODO
-
-        for (const VsockStream& stream : mStreams) {
-            if (stream.plug) {
-                stream.plug->onUnplug().release();
-            }
-        }
+        clear();
     }
 
     void setStatus(const uint8_t status) {
@@ -327,15 +333,7 @@ struct GoldfishVirtioVsockDevice {
 
         if (status & VIRTIO_CONFIG_S_NEEDS_RESET) {
             DEBUG_MSG("this=%p, status=S_NEEDS_RESET", this);
-            const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
-
-            for (const VsockStream& stream : mStreams) {
-                NOT_NULL(stream.plug)->onUnplug().release();
-            }
-
-            mHostEvents.clear();
-            mOrphanPackets.clear();
-            mSrcPortAllocator.reset();
+            clear();
         } else if (status & VIRTIO_CONFIG_S_DRIVER_OK) {
             DEBUG_MSG("this=%p, status=S_DRIVER_OK", this);
         } else {
