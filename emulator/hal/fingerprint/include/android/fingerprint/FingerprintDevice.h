@@ -37,8 +37,6 @@ using goldfish::avd_universe::fingerprint::ObservableFingerprintSensor;
  */
 class IFingerprintDevice : public HalPlug {
   public:
-    virtual ~IFingerprintDevice() override {}
-
     /**
      * @brief QEMU service name for the fingerprint device.
      */
