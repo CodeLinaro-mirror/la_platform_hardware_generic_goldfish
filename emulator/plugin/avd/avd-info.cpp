@@ -116,7 +116,7 @@ void BqlSafeUnregisterEmulatorReset(QEMUResetHandler* func, void* opaque) {
     if (bql_locked()) {
         qemu_unregister_reset(func, opaque);
     } else {
-        abort();
+        LOG(FATAL) << "Attempted to call qemu_unregister_reset with BQL held.";
     }
 }
 
