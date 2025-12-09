@@ -3,7 +3,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "fps_calculator",
-    srcs = ["fps_calculator.cpp"],
+    srcs = ["fps_calculator.cc"],
     hdrs = [
         "include/goldfish/fps_calculator.h",
     ],
@@ -17,7 +17,7 @@ cc_library(
 
 cc_test(
     name = "fps_calculator_unittests",
-    srcs = ["fps_calculator_test.cpp"],
+    srcs = ["fps_calculator_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fps_calculator",

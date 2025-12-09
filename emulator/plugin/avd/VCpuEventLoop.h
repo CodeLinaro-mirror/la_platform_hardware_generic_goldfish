@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include "QemuCpuWrapper.h"
+#include "emulator/plugin/avd/qemu_cpu_wrapper.h"
 #include "goldfish/async/event_loop.h"
 
 namespace goldfish::avd_info {

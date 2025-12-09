@@ -4,7 +4,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "zigzag",
     hdrs = [
-        "include/goldfish/archive/zigzag.h",
+        "include/goldfish/archive/zigzag/zigzag.h",
     ],
     includes = ["include"],
     visibility = [
@@ -16,7 +16,7 @@ cc_test(
     name = "zigzag_unittests",
     size = "small",
     srcs = [
-        "zigzag_unittests.cpp",
+        "zigzag_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -28,8 +28,8 @@ cc_test(
 cc_library(
     name = "archive",
     hdrs = [
-        "include/goldfish/archive/Reader.h",
-        "include/goldfish/archive/Writer.h",
+        "include/goldfish/archive/reader.h",
+        "include/goldfish/archive/writer.h",
     ],
     includes = ["include"],
     visibility = [
@@ -43,12 +43,12 @@ cc_library(
 cc_library(
     name = "DequeArchive",
     srcs = [
-        "DequeArchive.cpp",
+        "deque_archive.cc",
     ],
     hdrs = [
-        "include/goldfish/archive/DequeArchive.h",
-        "include/goldfish/archive/DequeReader.h",
-        "include/goldfish/archive/DequeWriter.h",
+        "include/goldfish/archive/deque_archive.h",
+        "include/goldfish/archive/deque_reader.h",
+        "include/goldfish/archive/deque_writer.h",
     ],
     includes = ["include"],
     visibility = [
@@ -64,7 +64,7 @@ cc_test(
     name = "reader_writer_unittests",
     size = "small",
     srcs = [
-        "reader_writer_unittests.cpp",
+        "reader_writer_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -76,11 +76,11 @@ cc_test(
 cc_library(
     name = "QEMUFileArchive",
     srcs = [
-        "QEMUFileArchive.cpp",
+        "qemu_file_archive.cc",
     ],
     hdrs = [
-        "include/goldfish/archive/QEMUFileReader.h",
-        "include/goldfish/archive/QEMUFileWriter.h",
+        "include/goldfish/archive/qemu_file_reader.h",
+        "include/goldfish/archive/qemu_file_writer.h",
     ],
     includes = ["include"],
     visibility = [

@@ -3,7 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "imagefile",
     srcs = [
-        "imagefile.cpp",
+        "imagefile.cc",
     ],
     hdrs = [
         "include/android/camera/image_providers/imagefile.h",
@@ -20,7 +20,7 @@ cc_library(
 cc_test(
     name = "imagefile_unittests",
     srcs = [
-        "test/todo.cpp",
+        "todo.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

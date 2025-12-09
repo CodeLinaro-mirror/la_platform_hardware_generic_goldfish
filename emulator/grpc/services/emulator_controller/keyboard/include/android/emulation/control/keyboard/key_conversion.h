@@ -29,7 +29,7 @@ typedef struct QKbdState QKbdState;
 #include <cstdint>
 #include <vector>
 
-#include "dom_key.h"
+#include "emulator/grpc/services/emulator_controller/keyboard/dom_key.h"
 
 // Necessary on Windows.
 #undef send

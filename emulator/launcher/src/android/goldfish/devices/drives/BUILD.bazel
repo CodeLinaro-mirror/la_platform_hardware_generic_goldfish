@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "user_data_drive",
-    srcs = ["user_data_drive.cpp"],
+    srcs = ["user_data_drive.cc"],
     hdrs = ["user_data_drive.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -18,7 +18,7 @@ cc_library(
 
 cc_library(
     name = "disk_drive",
-    srcs = ["disk_drive.cpp"],
+    srcs = ["disk_drive.cc"],
     hdrs = ["disk_drive.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -33,7 +33,7 @@ cc_library(
 
 cc_test(
     name = "disk_drive_test",
-    srcs = ["disk_drive_test.cpp"],
+    srcs = ["disk_drive_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":disk_drive",
@@ -47,7 +47,7 @@ cc_test(
 
 cc_library(
     name = "configure_drives",
-    srcs = ["configure_drives.cpp"],
+    srcs = ["configure_drives.cc"],
     hdrs = ["configure_drives.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -62,7 +62,7 @@ cc_library(
 
 cc_test(
     name = "configure_drives_test",
-    srcs = ["configure_drives_test.cpp"],
+    srcs = ["configure_drives_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":configure_drives",

@@ -3,7 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "grpc",
     srcs = [
-        "grpc.cpp",
+        "grpc.cc",
         "grpc_display.c",
         "grpc_display.h",
     ],

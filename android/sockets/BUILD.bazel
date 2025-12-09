@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "sockets",
-    srcs = ["src/SocketUtils.cpp"],
+    srcs = ["socket_utils.cc"],
     copts = select({
         "@platforms//os:windows": [
             "-Wno-microsoft-goto",
@@ -29,7 +29,7 @@ cc_library(
 
 cc_test(
     name = "sockets_unittests",
-    srcs = ["test/SocketUtils_unittest.cpp"],
+    srcs = ["socket_utils_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

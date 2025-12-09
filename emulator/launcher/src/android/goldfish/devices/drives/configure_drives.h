@@ -20,9 +20,9 @@
 #include "absl/status/statusor.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/cmdline-option.h"
-#include "android/goldfish/config/avd.h"
-#include "disk_drive.h"
+#include "android/cmdline_option.h"
+#include "android/goldfish/avd.h"
+#include "emulator/launcher/src/android/goldfish/devices/drives/disk_drive.h"
 
 namespace android::goldfish {
 

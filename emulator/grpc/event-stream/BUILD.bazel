@@ -4,7 +4,7 @@ package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "event-stream",
-    hdrs = ["include/android/emulation/control/utils/grpc_event_stream_support.h"],
+    hdrs = ["include/android/emulation/control/grpc_event_stream_support.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [

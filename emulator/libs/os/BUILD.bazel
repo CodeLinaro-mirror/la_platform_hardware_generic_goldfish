@@ -3,10 +3,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "os",
     srcs = [
-        "DynamicLibrary.cpp",
+        "dynamic_library.cc",
     ],
     hdrs = [
-        "include/goldfish/os/DynamicLibrary.h",
+        "include/goldfish/os/dynamic_library.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -19,7 +19,7 @@ cc_library(
 cc_test(
     name = "os_unittests",
     srcs = [
-        "test/todo.cpp",
+        "todo.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

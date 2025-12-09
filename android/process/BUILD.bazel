@@ -3,15 +3,15 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 cc_library(
     name = "process",
     srcs = [
-        "src/android/base/process/Command.cpp",
-        "src/android/base/process/exec.cpp",
-        "src/android/base/process/exec.h",
+        "command.cc",
+        "exec.cc",
+        "exec.h",
     ] + select({
         "@platforms//os:windows": [
-            "src/android/base/process/Command_Windows.cpp",
+            "command_windows.cc",
         ],
         "//conditions:default": [
-            "src/android/base/process/Command_Posix.cpp",
+            "command_posix.cc",
         ],
     }),
     copts = select({
@@ -37,7 +37,7 @@ cc_library(
 
 cc_binary(
     name = "sleep_emu",
-    srcs = ["test/android/base/process/sleep.cpp"],
+    srcs = ["sleep.cc"],
     deps = [
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
@@ -46,7 +46,7 @@ cc_binary(
 
 cc_test(
     name = "process_unittests",
-    srcs = ["test/android/base/process/Command_unittest.cpp"],
+    srcs = ["command_test.cc"],
     data = [":sleep_emu"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

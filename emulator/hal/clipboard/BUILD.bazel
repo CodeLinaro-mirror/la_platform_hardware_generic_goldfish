@@ -3,10 +3,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "clipboard",
     srcs = [
-        "src/clipboard/ClipboardDevice.cpp",
+        "clipboard_device.cc",
     ],
     hdrs = [
-        "include/android/clipboard/ClipboardDevice.h",
+        "include/goldfish/devices/clipboard/clipboard_device.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -22,7 +22,7 @@ cc_library(
 cc_test(
     name = "clipboard_unittests",
     srcs = [
-        "test/clipboard/ClipboardDevice_unittest.cpp",
+        "clipboard_device_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

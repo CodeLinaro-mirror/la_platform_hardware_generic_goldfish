@@ -3,10 +3,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "gps",
     srcs = [
-        "src/gps/GpsDevice.cpp",
+        "gps_device.cc",
     ],
     hdrs = [
-        "include/android/gps/GpsDevice.h",
+        "include/goldfish/devices/gps/gps_device.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -23,7 +23,7 @@ cc_library(
 cc_test(
     name = "gps_unittests",
     srcs = [
-        "test/gps/GpsDevice_unittest.cpp",
+        "gps_device_test.cc",
     ],
     includes = ["test"],
     linkopts = select({

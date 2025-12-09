@@ -4,12 +4,12 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "parsing",
     srcs = [
-        "getKeyValueStr.cpp",
-        "split2.cpp",
+        "get_key_value_str.cc",
+        "split2.cc",
     ],
     hdrs = [
-        "include/goldfish/parsing/fromChars.h",
-        "include/goldfish/parsing/getKeyValueStr.h",
+        "include/goldfish/parsing/from_chars.h",
+        "include/goldfish/parsing/get_key_value_str.h",
         "include/goldfish/parsing/split2.h",
     ],
     includes = ["include"],
@@ -25,8 +25,8 @@ cc_test(
     name = "parsing_unittests",
     size = "small",
     srcs = [
-        "test/getKeyValueStr_test.cpp",
-        "test/split2_test.cpp",
+        "get_key_value_str_test.cc",
+        "split2_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

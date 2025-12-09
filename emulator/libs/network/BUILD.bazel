@@ -3,12 +3,12 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 cc_library(
     name = "network",
     srcs = [
-        "GenericNetlinkMessage.cpp",
-        "IOVector.cpp",
+        "generic_netlink_message.cc",
+        "io_vector.cc",
     ],
     hdrs = [
-        "include/goldfish/network/GenericNetlinkMessage.h",
-        "include/goldfish/network/IOVector.h",
+        "include/goldfish/network/generic_netlink_message.h",
+        "include/goldfish/network/io_vector.h",
         "include/goldfish/network/iovec.h",
     ],
     includes = ["include"],

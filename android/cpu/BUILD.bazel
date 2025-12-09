@@ -3,19 +3,19 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "cpu",
     srcs = [
-        "src/android/goldfish/cpu/AppleCpuAccelerator.h",
-        "src/android/goldfish/cpu/CpuAccelerator.cpp",
-        "src/android/goldfish/cpu/x86_cpuid.cpp",
+        "apple_cpu_accelerator.h",
+        "cpu_accelerator.cc",
         "src/android/goldfish/cpu/x86_cpuid.h",
+        "x86_cpuid.cc",
     ] + select({
         "@platforms//os:windows": [
-            "src/android/windows_installer.cpp",
-            "src/android/windows_installer.h",
+            "windows_installer.cc",
+            "windows_installer.h",
         ],
         "//conditions:default": [],
     }),
     hdrs = [
-        "include/android/goldfish/cpu/CpuAccelerator.h",
+        "include/android/cpu_accelerator.h",
         "include/android/goldfish/cpu/cpu_accelerator.h",
     ],
     copts =
@@ -39,7 +39,7 @@ cc_library(
 
 cc_test(
     name = "cpu_unittests",
-    srcs = ["test/android/goldfish/cpu/x86_cpuid_unittest.cpp"],
+    srcs = ["x86_cpuid_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

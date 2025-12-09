@@ -30,7 +30,7 @@
 #endif
 #include <sys/types.h>
 
-#include "android_filesystem_capability.h"
+#include "private/android_filesystem_capability.h"
 
 #define CAP_MASK_LONG(cap_name) (1ULL << (cap_name))
 

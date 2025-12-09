@@ -19,14 +19,14 @@ cc_proto_library(
 cc_library(
     name = "emulator_grpc_client",
     srcs = [
-        "src/emulator_grpc_client.cpp",
-        "src/grpc_channel_factory.cpp",
-        "src/grpc_channel_factory.h",
-        "src/grpc_connection_monitor.cpp",
-        "src/grpc_connection_monitor.h",
+        "emulator_grpc_client.cc",
+        "grpc_channel_factory.cc",
+        "grpc_channel_factory.h",
+        "grpc_connection_monitor.cc",
+        "grpc_connection_monitor.h",
     ],
     hdrs = [
-        "include/android/emulation/control/utils/emulator_grpc_client.h",
+        "include/android/emulation/control/emulator_grpc_client.h",
     ],
     includes = [
         "include",
@@ -48,7 +48,7 @@ cc_library(
 
 cc_test(
     name = "emulator_grpc_client_test",
-    srcs = ["tests/emulator_grpc_client_test.cpp"],
+    srcs = ["emulator_grpc_client_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":emulator_grpc_client",

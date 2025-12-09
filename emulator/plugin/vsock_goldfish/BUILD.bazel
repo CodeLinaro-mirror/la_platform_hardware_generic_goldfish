@@ -20,9 +20,9 @@ cc_library(
 [cc_library(
     name = "vsock_impl_" + arch,
     srcs = [
-        "vsock.cpp",
+        "vsock.cc",
         "vsock_low_level.c",
-        "vsock_port_fwd.cpp",
+        "vsock_port_fwd.cc",
     ],
     defines = [
         "COMPILING_PER_TARGET",

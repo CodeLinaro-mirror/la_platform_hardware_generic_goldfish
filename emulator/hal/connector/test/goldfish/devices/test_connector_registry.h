@@ -14,12 +14,12 @@
 #include <memory>
 #include <string>
 
-#include "goldfish/devices/Connector.h"
-#include "goldfish/devices/PingTopic.h"
+#include "emulator/hal/plug/test/hal_plug_testing_friend.h"
 #include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/connector.h"
 #include "goldfish/devices/connector_registry_impl.h"
-#include "goldfish/hal/plug/HalPlug.h"
-#include "hal_plug_testing_friend.h"
+#include "goldfish/devices/internal/hal_plug.h"
+#include "goldfish/devices/ping_topic.h"
 
 namespace goldfish {
 namespace devices {

@@ -16,7 +16,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
-#include "goldfish/display/PixmanDisplay.h"
+#include "goldfish/display/pixman_display.h"
 
 extern "C" {
 #include "pixman.h"

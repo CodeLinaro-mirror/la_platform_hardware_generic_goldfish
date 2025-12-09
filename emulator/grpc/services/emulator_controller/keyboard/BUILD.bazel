@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "keyconversion",
     srcs = [
-        "src/KeyConversion.cpp",
-        "src/dom_key.h",
+        "dom_key.h",
+        "key_conversion.cc",
         "src/dom_key_data.inc",
         "src/keycode_converter_data.inc",
     ],
@@ -25,10 +25,10 @@ cc_library(
 cc_library(
     name = "keyboard",
     srcs = [
-        "src/KeyEventSender.cpp",
+        "key_event_sender.cc",
     ],
     hdrs = [
-        "include/android/emulation/control/keyboard/KeyEventSender.h",
+        "include/android/emulation/control/keyboard/key_event_sender.h",
     ],
     includes = [
         "include",
@@ -49,7 +49,7 @@ cc_library(
 
 cc_test(
     name = "keyboard_unittests",
-    srcs = ["test/key_converter_unittest.cpp"],
+    srcs = ["key_converter_test.cc"],
     deps = [
         ":keyconversion",
         "//android/system:googletest_main",

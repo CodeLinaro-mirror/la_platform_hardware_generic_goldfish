@@ -11,8 +11,8 @@
  */
 
 #pragma once
-#include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 #include "goldfish/devices/cable/cable.h"
 
 /* These functions should be used inside socket managers

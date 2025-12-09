@@ -6,7 +6,7 @@ load("launcher_test.bzl", "create_launch_emulator_test")
 
 cc_library(
     name = "input_paths",
-    srcs = ["src/android/goldfish/input_paths.cpp"],
+    srcs = ["input_paths.cc"],
     hdrs = ["include/android/goldfish/input_paths.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -46,7 +46,7 @@ cc_library(
 cc_library(
     name = "logconfig",
     srcs = [
-        "src/android/goldfish/logging.cpp",
+        "logging.cc",
     ],
     hdrs = [
         "include/android/goldfish/logging.h",
@@ -63,7 +63,7 @@ cc_library(
 
 cc_test(
     name = "logging_test",
-    srcs = ["test/android/goldfish/logging_unittest.cpp"],
+    srcs = ["logging_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":logconfig",
@@ -76,8 +76,8 @@ cc_test(
 
 cc_library(
     name = "bootconfig",
-    srcs = ["src/android/goldfish/bootconfig.cpp"],
-    hdrs = ["src/android/goldfish/bootconfig.h"],
+    srcs = ["bootconfig.cc"],
+    hdrs = ["bootconfig.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
     deps = ["//android/system"],
@@ -85,7 +85,7 @@ cc_library(
 
 cc_test(
     name = "bootconfig_test",
-    srcs = ["test/android/goldfish/bootconfig_unittest.cpp"],
+    srcs = ["bootconfig_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":bootconfig",
@@ -98,8 +98,8 @@ cc_test(
 cc_library(
     name = "emulator",
     srcs = [
+        "emulator.cc",
         "include/android/goldfish/emulator.h",
-        "src/android/goldfish/emulator.cpp",
     ],
     # Qemu roms needed for unittests - Emulator check that it is available.
     data = ["@qemu//:qemu-roms"],
@@ -136,7 +136,7 @@ cc_library(
 
 cc_library(
     name = "netsimd",
-    srcs = ["src/android/goldfish/netsimd.cpp"],
+    srcs = ["netsimd.cc"],
     hdrs = ["include/android/goldfish/netsimd.h"],
     includes = ["include"],
     deps = [
@@ -276,7 +276,7 @@ collect_plugins(
 
 cc_binary(
     name = "launcher",
-    srcs = ["src/android/goldfish/launcher.cpp"],
+    srcs = ["launcher.cc"],
     data = [
         ":binaries",
         ":keymaps",
@@ -343,7 +343,7 @@ create_launch_emulator_test(
     name = "emulator_produces_pixels",
     params = [
         "-vmodule",
-        "'PixmanDisplay=2'",
+        "'pixman_display=2'",
     ],
     target_log_line = "'updateSurface Display: 0 \\(1080x2400\\), seq: 25'",
     timeout_seconds = 180,

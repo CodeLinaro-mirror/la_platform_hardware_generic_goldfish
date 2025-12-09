@@ -2,8 +2,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "host",
-    srcs = ["src/AdbHostServer.cpp"],
-    hdrs = ["include/android/emulation/control/adb/AdbHostServer.h"],
+    srcs = ["adb_host_server.cc"],
+    hdrs = ["include/goldfish/adb/adb_host_server.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -18,7 +18,7 @@ cc_library(
 
 cc_test(
     name = "host_unitests",
-    srcs = ["test/AdbHostServer_unittest.cpp"],
+    srcs = ["adb_host_server_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":host",

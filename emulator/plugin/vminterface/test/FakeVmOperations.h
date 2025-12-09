@@ -1,6 +1,6 @@
 #pragma once
 
-#include "android/goldfish/vm/VmInterface.h"
+#include "android/goldfish/vm_interface.h"
 
 namespace android {
 namespace goldfish {

@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "filesystems",
     srcs = [
-        "src/android/filesystems/ext4_resize.cpp",
-        "src/android/filesystems/ext4_utils.cpp",
+        "ext4_resize.cc",
+        "ext4_utils.cc",
     ],
     hdrs = [
         "include/android/filesystems/ext4_resize.h",

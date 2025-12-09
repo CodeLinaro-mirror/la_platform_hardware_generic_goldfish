@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #pragma once
-#include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 
 namespace goldfish {
 namespace vsock {

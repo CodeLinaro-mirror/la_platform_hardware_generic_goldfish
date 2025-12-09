@@ -3,8 +3,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 cc_library(
     name = "headers",
     hdrs = [
-        "include/android/battery/battery.h",
         "include/goldfish/battery/goldfish_battery.h",
+        "include/goldfish/devices/battery/battery.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -13,7 +13,7 @@ cc_library(
 cc_library(
     name = "battery",
     srcs = [
-        "battery.cpp",
+        "battery.cc",
         "goldfish_battery.c",
     ],
     visibility = ["//visibility:public"],

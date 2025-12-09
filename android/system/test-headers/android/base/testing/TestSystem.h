@@ -21,8 +21,8 @@
 #include "absl/strings/match.h"
 
 #include "aemu/base/threads/Thread.h"
-#include "android/base/system/System.h"
-#include "android/base/testing/TestTempDir.h"
+#include "android/base/system.h"
+#include "android/system/test-headers/android/base/testing/TestTempDir.h"
 
 namespace android {
 namespace base {

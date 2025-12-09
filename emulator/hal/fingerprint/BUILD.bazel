@@ -3,10 +3,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "fingerprint",
     srcs = [
-        "src/fingerprint/FingerprintDevice.cpp",
+        "fingerprint_device.cc",
     ],
     hdrs = [
-        "include/android/fingerprint/FingerprintDevice.h",
+        "include/goldfish/devices/fingerprint/fingerprint_device.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -24,7 +24,7 @@ cc_library(
 cc_test(
     name = "fingerprint_unittests",
     srcs = [
-        "test/fingerprint/FingerprintDevice_unittest.cpp",
+        "fingerprint_device_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

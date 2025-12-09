@@ -4,16 +4,16 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "imaging",
     srcs = [
-        "queryInfo.cpp",
-        "toVkFormat.cpp",
+        "query_info.cc",
+        "to_vk_format.cc",
     ],
     hdrs = [
-        "include/goldfish/imaging/AndroidPixelFormat.h",
-        "include/goldfish/imaging/ImageFormat.h",
-        "include/goldfish/imaging/ImageRef.h",
-        "include/goldfish/imaging/Rect.h",
-        "include/goldfish/imaging/queryInfo.h",
-        "include/goldfish/imaging/toVkFormat.h",
+        "include/goldfish/imaging/android_pixel_format.h",
+        "include/goldfish/imaging/image_ref.h",
+        "include/goldfish/imaging/query_info.h",
+        "include/goldfish/imaging/rect.h",
+        "include/goldfish/imaging/to_vk_format.h",
+        "include/image_format.h",
     ],
     includes = ["include"],
     visibility = [
@@ -28,8 +28,8 @@ cc_library(
 cc_test(
     name = "imaging_unittests",
     srcs = [
-        "test/queryInfo_unittests.cpp",
-        "test/toVkFormat_unittests.cpp",
+        "query_info_tests.cc",
+        "to_vk_format_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

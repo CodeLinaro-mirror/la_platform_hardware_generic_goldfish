@@ -18,8 +18,8 @@
 #include <optional>
 #include <vector>
 
-#include "android/camera/CameraImageProviderAPI.h"
-#include "goldfish/gvk/DeviceDispatch.h"
+#include "android/camera/camera_image_provider_api.h"
+#include "goldfish/gvk/device_dispatch.h"
 
 namespace goldfish::camera_image_providers::virtualscene {
 

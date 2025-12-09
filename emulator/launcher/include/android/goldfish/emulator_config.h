@@ -17,8 +17,8 @@
 #include <memory>
 #include <string>
 
-#include "android/cmdline-option.h"
-#include "android/goldfish/config/avd.h"
+#include "android/cmdline_option.h"
+#include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
 
 namespace android::goldfish {

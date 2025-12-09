@@ -4,12 +4,12 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "clock",
     srcs = [
-        "src/abseil_clock.cpp",
-        "src/clock.cpp",
+        "abseil_clock.cc",
+        "clock.cc",
     ],
     hdrs = [
-        "include/android/base/system/abseil_clock.h",
-        "include/android/base/system/clock.h",
+        "include/android/base/abseil_clock.h",
+        "include/android/base/clock.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -22,30 +22,30 @@ cc_library(
 cc_library(
     name = "system",
     srcs = [
-        "src/android/base/Version.cpp",
-        "src/android/base/bazel/bazel_info.cpp",
-        "src/android/base/system/File.cpp",
-        "src/android/base/system/System.cpp",
-        "src/android/base/system/storage_capacity.cpp",
+        "bazel_info.cc",
+        "file.cc",
+        "storage_capacity.cc",
+        "system.cc",
+        "version.cc",
     ] + select({
         "@platforms//os:windows": [
-            "win/android/base/system/Win32UnicodeString.cpp",
-            "win/android/base/system/Win32Utils.cpp",
+            "win32_unicode_string.cc",
+            "win32_utils.cc",
         ],
         "//conditions:default": [],
     }),
     hdrs = [
-        "include/android/base/bazel/bazel_info.h",
-        "include/android/base/system/CStrWrapper.h",
-        "include/android/base/system/File.h",
-        "include/android/base/system/System.h",
-        "include/android/base/system/no_sigalarm.h",
-        "include/android/base/system/storage_capacity.h",
+        "include/android/base/bazel_info.h",
+        "include/android/base/c_str_wrapper.h",
+        "include/android/base/file/file.h",
+        "include/android/base/no_sigalarm.h",
+        "include/android/base/storage_capacity.h",
+        "include/android/base/system.h",
         "include/android/utils/compiler.h",
     ] + select({
         "@platforms//os:windows": [
-            "include/android/base/system/Win32UnicodeString.h",
-            "include/android/base/system/Win32Utils.h",
+            "include/android/base/win32_unicode_string.h",
+            "include/android/base/win32_utils.h",
         ],
         "//conditions:default": [],
     }),
@@ -80,19 +80,19 @@ cc_library(
 cc_library(
     name = "test-headers",
     testonly = True,
-    srcs = ["test/android/base/system/test_file_util_bazel.cc"],
+    srcs = ["test_file_util_bazel.cc"],
     hdrs = [
         "test-headers/android/base/system/TestClock.h",
-        "test-headers/android/base/testing/MockUtils.h",
-        "test-headers/android/base/testing/NeedsWinsock.h",
         "test-headers/android/base/testing/ResultMatchers.h",
-        "test-headers/android/base/testing/TestEvent.h",
         "test-headers/android/base/testing/TestMemoryOutputStream.h",
         "test-headers/android/base/testing/TestSystem.h",
         "test-headers/android/base/testing/TestTempDir.h",
         "test-headers/android/base/testing/TestThread.h",
-        "test-headers/android/base/testing/Utils.h",
+        "test-headers/android/base/testing/mock_utils.h",
+        "test-headers/android/base/testing/needs_winsock.h",
+        "test-headers/android/base/testing/test_event.h",
         "test-headers/android/base/testing/test_file_util.h",
+        "test-headers/android/base/testing/utils.h",
     ],
     includes = ["test-headers"],
     visibility = ["//visibility:public"],
@@ -109,11 +109,11 @@ cc_library(
 cc_test(
     name = "system-unittests",
     srcs = [
-        "test/android/base/Version_unittest.cpp",
-        "test/android/base/bazel/bazel_info_unittest.cpp",
-        "test/android/base/system/File_test.cpp",
-        "test/android/base/system/System_unittest.cpp",
-        "test/android/base/system/storage_capacity_unittest.cpp",
+        "bazel_info_test.cc",
+        "file_test.cc",
+        "storage_capacity_test.cc",
+        "system_test.cc",
+        "version_test.cc",
     ],
     data = ["test/android/base/bazel/info.txt"],
     visibility = ["//visibility:public"],
@@ -128,8 +128,8 @@ cc_test(
 cc_test(
     name = "win_compat_unittests",
     srcs = [
-        "test/android/base/system/Win32UnicodeString_unittest.cpp",
-        "test/android/base/system/Win32Utils_unittest.cpp",
+        "win32_unicode_string_test.cc",
+        "win32_utils_test.cc",
     ],
     target_compatible_with = [
         "@platforms//os:windows",
@@ -145,7 +145,7 @@ cc_test(
 cc_library(
     name = "googletest_main",
     testonly = True,
-    srcs = ["test/android/base/gtest_main.cpp"],
+    srcs = ["gtest_main.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":system",
@@ -162,7 +162,7 @@ cc_library(
 cc_binary(
     name = "clock_perf",
     testonly = True,
-    srcs = ["test/bm_clock.cpp"],
+    srcs = ["bm_clock.cc"],
     copts = [
         "-Wno-deprecated-declarations",
         "-Wno-unused-result",

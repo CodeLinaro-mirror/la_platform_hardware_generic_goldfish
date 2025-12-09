@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "goldfish/hal/plug/HalPlug.h"
+#include "goldfish/devices/internal/hal_plug.h"
 
 namespace goldfish {
 namespace devices {

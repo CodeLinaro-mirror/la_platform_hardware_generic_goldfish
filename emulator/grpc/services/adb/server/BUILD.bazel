@@ -4,8 +4,8 @@ package(default_visibility = ["//emulator/grpc:__subpackages__"])
 
 cc_library(
     name = "adb-service",
-    srcs = ["src/android/emulation/control/adb/AdbService.cpp"],
-    hdrs = ["include/android/emulation/control/adb/AdbService.h"],
+    srcs = ["adb_service.cc"],
+    hdrs = ["include/grpc/android/emulation/control/adb_service.h"],
     includes = ["include"],
     deps = [
         "//emulator/adb/secrets",

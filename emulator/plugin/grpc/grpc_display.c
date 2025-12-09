@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "grpc_display.h"
+#include "emulator/plugin/grpc/grpc_display.h"
 
-#include "goldfish/display/MultiDisplayCallbacks.h"
+#include "goldfish/display/multi_display_callbacks.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

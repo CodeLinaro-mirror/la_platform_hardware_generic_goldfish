@@ -3,8 +3,8 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "logger",
-    srcs = ["src/android/emulation/control/adb/AdbMesageLogger.cpp"],
-    hdrs = ["include/android/emulation/control/adb/AdbMessageLogger.h"],
+    srcs = ["adb_mesage_logger.cc"],
+    hdrs = ["include/goldfish/adb/adb_message_logger.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -16,7 +16,7 @@ cc_library(
 
 cc_test(
     name = "logger_unitests",
-    srcs = ["test/AdbMessageLogger_unittest.cpp"],
+    srcs = ["adb_message_logger_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":logger",

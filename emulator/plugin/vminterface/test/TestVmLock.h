@@ -14,7 +14,7 @@
 #pragma once
 
 #include "aemu/base/synchronization/Lock.h"
-#include "vm/VmLock.h"
+#include "emulator/plugin/vminterface/vm_lock.h"
 
 namespace android::goldfish {
 

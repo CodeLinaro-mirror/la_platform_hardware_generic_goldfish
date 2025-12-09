@@ -3,7 +3,7 @@
 
 #qt_cc_library(
 #    name = "aquarium_lib",
-#    srcs = ["src/aquarium.cpp"],
+#    srcs = ["aquarium.cc"],
 #    deps = [
 #        "//emulator/libs/application_singleton",
 #        "@abseil-cpp//absl/flags:flag",
@@ -17,7 +17,7 @@
 
 #qt_application(
 #    name = "aquarium",
-#    srcs = ["src/main.cpp"],
+#    srcs = ["main.cc"],
 #    linkstatic = False,
 #    deps = [
 #        ":aquarium_lib",

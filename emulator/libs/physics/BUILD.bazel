@@ -5,8 +5,8 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "glm_helpers",
     hdrs = [
-        "include/goldfish/physics/GlmHelpers.h",
-        "include/goldfish/physics/GlmTestHelpers.h",
+        "include/glm/glm_test_helpers.h",
+        "include/goldfish/physics/glm_helpers.h",
     ],
     includes = ["include"],
     visibility = [
@@ -20,17 +20,17 @@ cc_library(
 cc_library(
     name = "physics",
     srcs = [
-        "AmbientEnvironment.cpp",
-        "BodyModel.cpp",
-        "InertialModel.cpp",
+        "ambient_environment.cc",
+        "body_model.cc",
+        "inertial_model.cc",
     ],
     hdrs = [
-        "include/goldfish/physics/AmbientEnvironment.h",
-        "include/goldfish/physics/BodyModel.h",
-        "include/goldfish/physics/InertialModel.h",
-        "include/goldfish/physics/Physics.h",
-        "include/goldfish/physics/Rotation.h",
-        "include/goldfish/physics/SkinRotation.h",
+        "include/goldfish/physics/ambient_environment.h",
+        "include/goldfish/physics/body_model.h",
+        "include/goldfish/physics/inertial_model.h",
+        "include/goldfish/physics/physics.h",
+        "include/goldfish/physics/rotation.h",
+        "include/goldfish/physics/skin_rotation.h",
     ],
     includes = ["include"],
     visibility = [
@@ -45,9 +45,9 @@ cc_test(
     name = "physics_unittests",
     size = "small",
     srcs = [
-        "test/AmbientEnvironment_unittest.cpp",
-        "test/BodyModel_unittest.cpp",
-        "test/InertialModel_unittest.cpp",
+        "ambient_environment_test.cc",
+        "body_model_test.cc",
+        "inertial_model_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

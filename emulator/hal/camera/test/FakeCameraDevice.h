@@ -1,6 +1,6 @@
 #pragma once
 
-#include "android/camera/CameraProtocolBase.h"
+#include "goldfish/devices/camera/camera_protocol_base.h"
 
 namespace goldfish::devices::camera {
 

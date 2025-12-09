@@ -3,15 +3,15 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "input",
     srcs = [
-        "src/EventSender.cpp",
-        "src/PointerEventDispatcher.cpp",
-        "src/SlotRegistry.cpp",
+        "event_sender.cc",
+        "pointer_event_dispatcher.cc",
+        "slot_registry.cc",
     ],
     hdrs = [
-        "include/android/emulation/control/input/EvDevEvent.h",
-        "include/android/emulation/control/input/EventSender.h",
-        "include/android/emulation/control/input/PointerEventDispatcher.h",
-        "include/android/emulation/control/input/SlotRegistry.h",
+        "include/android/emulation/control/ev_dev_event.h",
+        "include/android/emulation/control/event_sender.h",
+        "include/android/emulation/control/internal/pointer_event_dispatcher.h",
+        "include/android/emulation/control/slot_registry.h",
     ],
     includes = [
         "include",
@@ -31,8 +31,8 @@ cc_library(
 cc_test(
     name = "input_unittests",
     srcs = [
-        "test/PointerEventDispatcher-unittest.cpp",
-        "test/SlotRegistry-unittest.cpp",
+        "pointer_event_dispatcher_test.cc",
+        "slot_registry_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

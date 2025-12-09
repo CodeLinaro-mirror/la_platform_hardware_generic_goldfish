@@ -4,9 +4,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "network",
     srcs = [
-        "src/dns_resolver.cpp",
-        "src/endpoint.cpp",
-        "src/ip_address.cpp",
+        "dns_resolver.cc",
+        "endpoint.cc",
+        "ip_address.cc",
     ],
     hdrs = [
         "include/goldfish/network/dns_resolver.h",
@@ -28,9 +28,9 @@ cc_test(
     name = "network_unittests",
     size = "small",
     srcs = [
-        "test/dns_resolver_test.cpp",
-        "test/endpoint_test.cpp",
-        "test/ip_address_test.cpp",
+        "dns_resolver_test.cc",
+        "endpoint_test.cc",
+        "ip_address_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

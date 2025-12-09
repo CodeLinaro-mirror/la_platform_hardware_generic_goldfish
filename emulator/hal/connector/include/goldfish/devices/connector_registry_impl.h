@@ -22,7 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/Connector.h"
+#include "goldfish/devices/connector.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/device_entry.h"
 

@@ -16,10 +16,10 @@
 #include <memory>
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/base/testing/TestSystem.h"
-#include "android/base/testing/TestTempDir.h"
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/fake-avd.h"
+#include "android/goldfish/avd.h"
+#include "android/system/test-headers/android/base/testing/TestSystem.h"
+#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "emulator/config/test/android/goldfish/config/fake-avd.h"
 namespace android::goldfish {
 
 using android::base::System;

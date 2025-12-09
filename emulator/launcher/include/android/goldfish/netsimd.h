@@ -18,8 +18,8 @@
 
 #include "absl/status/statusor.h"
 
-#include "android/cmdline-option.h"
-#include "android/emulation/control/utils/emulator_grpc_client.h"
+#include "android/cmdline_option.h"
+#include "android/emulation/control/emulator_grpc_client.h"
 #include "goldfish/async/launch_config.h"
 
 namespace android::goldfish {

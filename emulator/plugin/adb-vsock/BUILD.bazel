@@ -2,8 +2,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
     name = "adb-vsock",
-    srcs = ["adb-device.cpp"],
-    hdrs = ["include/goldfish/adb/adb-device.h"],
+    srcs = ["adb_device.cc"],
+    hdrs = ["include/goldfish/adb_device/adb_device.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [

@@ -13,7 +13,7 @@
 // limitations under the License.
 #pragma once
 
-#include "android/base/system/clock.h"
+#include "android/base/clock.h"
 
 namespace android::base {
 

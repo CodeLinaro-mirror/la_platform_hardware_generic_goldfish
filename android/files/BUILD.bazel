@@ -4,16 +4,16 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "files",
     srcs = [
-        "src/android/files/FileSystemWatcher.cpp",
-        "src/android/files/IniFile.cpp",
+        "file_system_watcher.cc",
+        "ini_file.cc",
     ] + select({
-        "@platforms//os:windows": ["src/android/files/FileSystemWatcherWindows.cpp"],
-        "@platforms//os:macos": ["src/android/files/FileSystemWatcherDarwin.cpp"],
-        "@platforms//os:linux": ["src/android/files/FileSystemWatcherPosix.cpp"],
+        "@platforms//os:windows": ["file_system_watcher_windows.cc"],
+        "@platforms//os:macos": ["file_system_watcher_darwin.cc"],
+        "@platforms//os:linux": ["file_system_watcher_posix.cc"],
     }),
     hdrs = [
-        "include/android/files/FileSystemWatcher.h",
-        "include/android/files/IniFile.h",
+        "include/android/base/file_system_watcher.h",
+        "include/android/goldfish/ini_file.h",
     ],
     defines = [
         "__STDC_LIMIT_MACROS=1",
@@ -33,8 +33,8 @@ cc_test(
     name = "files_unittests",
     size = "medium",
     srcs = [
-        "test/android/files/FileSystemWatcher_unittest.cpp",
-        "test/android/files/IniFile_unittest.cpp",
+        "file_system_watcher_test.cc",
+        "ini_file_test.cc",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

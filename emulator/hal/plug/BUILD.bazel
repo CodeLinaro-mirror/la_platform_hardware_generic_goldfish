@@ -7,10 +7,10 @@ package(
 cc_library(
     name = "hal_plug",
     srcs = [
-        "logging.cpp",
+        "logging.cc",
     ],
     hdrs = [
-        "include/goldfish/hal/plug/HalPlug.h",
+        "include/goldfish/devices/internal/hal_plug.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -21,8 +21,8 @@ cc_library(
 
 cc_library(
     name = "hal_plug_factory",
-    srcs = ["HalPlugFactory.cpp"],
-    hdrs = ["include/goldfish/hal/plug/HalPlugFactory.h"],
+    srcs = ["hal_plug_factory.cc"],
+    hdrs = ["include/goldfish/devices/hal_plug_factory.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -35,8 +35,8 @@ cc_library(
 
 cc_library(
     name = "marshalling_hal_socket",
-    srcs = ["MarshallingHalSocket.cpp"],
-    hdrs = ["include/goldfish/hal/plug/MarshallingHalSocket.h"],
+    srcs = ["marshalling_hal_socket.cc"],
+    hdrs = ["include/goldfish/devices/marshalling_hal_socket.h"],
     includes = ["include"],
     deps = [
         ":hal_plug",
@@ -47,8 +47,8 @@ cc_library(
 
 cc_library(
     name = "hal_plug_to_i_plug_adapter",
-    srcs = ["HalPlugToIPlugAdapter.cpp"],
-    hdrs = ["include/goldfish/hal/plug/HalPlugToIPlugAdapter.h"],
+    srcs = ["hal_plug_to_i_plug_adapter.cc"],
+    hdrs = ["include/goldfish/devices/hal_plug_to_i_plug_adapter.h"],
     includes = ["include"],
     deps = [
         ":hal_plug",
@@ -61,7 +61,7 @@ cc_library(
 cc_library(
     name = "fake_vsock",
     srcs = [
-        "test/fake_vsock.cpp",
+        "fake_vsock.cc",
     ],
     hdrs = [
         "test/fake_vsock.h",
@@ -83,10 +83,10 @@ cc_test(
     name = "hal_plug_adapter_unittests",
     size = "small",
     srcs = [
-        "test/hal_plug_adapter_concurrency_test.cpp",
-        "test/hal_plug_adapter_unittest.cpp",
-        "test/hal_plug_factory_listen_test.cpp",
-        "test/hal_plug_factory_test.cpp",
+        "hal_plug_adapter_concurrency_test.cc",
+        "hal_plug_adapter_test.cc",
+        "hal_plug_factory_listen_test.cc",
+        "hal_plug_factory_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

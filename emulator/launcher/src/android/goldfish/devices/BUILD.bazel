@@ -20,7 +20,7 @@ cc_library(
 
 cc_library(
     name = "audio_device",
-    srcs = ["audio_device.cpp"],
+    srcs = ["audio_device.cc"],
     hdrs = ["audio_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -34,7 +34,7 @@ cc_library(
 
 cc_library(
     name = "adb_device",
-    srcs = ["adb_device.cpp"],
+    srcs = ["adb_device.cc"],
     hdrs = ["adb_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -46,7 +46,7 @@ cc_library(
 
 cc_test(
     name = "adb_device_test",
-    srcs = ["adb_device_test.cpp"],
+    srcs = ["adb_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":adb_device",
@@ -61,7 +61,7 @@ cc_test(
 
 cc_library(
     name = "avd_info_device",
-    srcs = ["avd_info_device.cpp"],
+    srcs = ["avd_info_device.cc"],
     hdrs = ["avd_info_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -73,7 +73,7 @@ cc_library(
 
 cc_test(
     name = "avd_info_device_test",
-    srcs = ["avd_info_device_test.cpp"],
+    srcs = ["avd_info_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":avd_info_device",
@@ -88,7 +88,7 @@ cc_test(
 
 cc_library(
     name = "cpu_device",
-    srcs = ["cpu_device.cpp"],
+    srcs = ["cpu_device.cc"],
     hdrs = ["cpu_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -102,7 +102,7 @@ cc_library(
 
 cc_test(
     name = "cpu_device_test",
-    srcs = ["cpu_device_test.cpp"],
+    srcs = ["cpu_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":cpu_device",
@@ -117,7 +117,7 @@ cc_test(
 
 cc_library(
     name = "display_device",
-    srcs = ["display_device.cpp"],
+    srcs = ["display_device.cc"],
     hdrs = ["display_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -129,7 +129,7 @@ cc_library(
 
 cc_test(
     name = "display_device_test",
-    srcs = ["display_device_test.cpp"],
+    srcs = ["display_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":display_device",
@@ -144,7 +144,7 @@ cc_test(
 
 cc_library(
     name = "gpu_device",
-    srcs = ["gpu_device.cpp"],
+    srcs = ["gpu_device.cc"],
     hdrs = ["gpu_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -157,7 +157,7 @@ cc_library(
 
 cc_library(
     name = "grpc_device",
-    srcs = ["grpc_device.cpp"],
+    srcs = ["grpc_device.cc"],
     hdrs = ["grpc_device.h"],
     data = ["//emulator/grpc/security:unsecure-emulator-access"],
     visibility = ["//visibility:public"],
@@ -171,7 +171,7 @@ cc_library(
 
 cc_test(
     name = "grpc_device_test",
-    srcs = ["grpc_device_test.cpp"],
+    srcs = ["grpc_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -186,7 +186,7 @@ cc_test(
 
 cc_library(
     name = "initrd_device",
-    srcs = ["initrd_device.cpp"],
+    srcs = ["initrd_device.cc"],
     hdrs = ["initrd_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -202,7 +202,7 @@ cc_library(
 
 cc_test(
     name = "initrd_device_test",
-    srcs = ["initrd_device_test.cpp"],
+    srcs = ["initrd_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -217,7 +217,7 @@ cc_test(
 
 cc_library(
     name = "kernel_device",
-    srcs = ["kernel_device.cpp"],
+    srcs = ["kernel_device.cc"],
     hdrs = ["kernel_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -231,7 +231,7 @@ cc_library(
 
 cc_test(
     name = "kernel_device_test",
-    srcs = ["kernel_device_test.cpp"],
+    srcs = ["kernel_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -246,7 +246,7 @@ cc_test(
 
 cc_library(
     name = "machine",
-    srcs = ["machine.cpp"],
+    srcs = ["machine.cc"],
     hdrs = ["machine.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -259,7 +259,7 @@ cc_library(
 
 cc_test(
     name = "machine_test",
-    srcs = ["machine_test.cpp"],
+    srcs = ["machine_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -274,7 +274,7 @@ cc_test(
 
 cc_library(
     name = "memory_device",
-    srcs = ["memory_device.cpp"],
+    srcs = ["memory_device.cc"],
     hdrs = ["memory_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -287,7 +287,7 @@ cc_library(
 
 cc_test(
     name = "memory_device_test",
-    srcs = ["memory_device_test.cpp"],
+    srcs = ["memory_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -302,7 +302,7 @@ cc_test(
 
 cc_library(
     name = "network_device",
-    srcs = ["network_device.cpp"],
+    srcs = ["network_device.cc"],
     hdrs = ["network_device.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -315,7 +315,7 @@ cc_library(
 
 cc_test(
     name = "network_device_test",
-    srcs = ["network_device_test.cpp"],
+    srcs = ["network_device_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_emulator",
@@ -330,7 +330,7 @@ cc_test(
 
 cc_library(
     name = "parameter_list",
-    srcs = ["parameter_list.cpp"],
+    srcs = ["parameter_list.cc"],
     hdrs = ["parameter_list.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -343,7 +343,7 @@ cc_library(
 
 cc_library(
     name = "wifi_device",
-    srcs = ["wifi_device.cpp"],
+    srcs = ["wifi_device.cc"],
     hdrs = ["wifi_device.h"],
     visibility = ["//visibility:public"],
     deps = [

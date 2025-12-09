@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "android/camera/CameraImageProviderAPI.h"
+#include "android/camera/camera_image_provider_api.h"
 
 #ifdef __cplusplus
 extern "C" {

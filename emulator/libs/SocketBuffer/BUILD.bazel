@@ -4,10 +4,10 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "SocketBuffer",
     srcs = [
-        "SocketBuffer.cpp",
+        "socket_buffer.cc",
     ],
     hdrs = [
-        "include/goldfish/SocketBuffer.h",
+        "include/goldfish/socket_buffer.h",
     ],
     includes = ["include"],
     visibility = [
@@ -23,7 +23,7 @@ cc_test(
     name = "SocketBuffer_unittests",
     size = "small",
     srcs = [
-        "SocketBuffer_unittests.cpp",
+        "socket_buffer_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

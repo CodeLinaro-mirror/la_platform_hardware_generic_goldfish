@@ -4,10 +4,10 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "UniqueIdAllocator",
     srcs = [
-        "UniqueIdAllocator.cpp",
+        "unique_id_allocator.cc",
     ],
     hdrs = [
-        "include/goldfish/UniqueIdAllocator.h",
+        "include/goldfish/unique_id_allocator.h",
     ],
     includes = ["include"],
     visibility = [
@@ -22,7 +22,7 @@ cc_test(
     name = "UniqueIdAllocator_unittests",
     size = "small",
     srcs = [
-        "UniqueIdAllocator_unittests.cpp",
+        "unique_id_allocator_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

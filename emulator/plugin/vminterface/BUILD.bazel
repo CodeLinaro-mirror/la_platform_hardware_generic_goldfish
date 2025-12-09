@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "vm_lock",
     srcs = [
-        "src/vm/VmLock.cpp",
-        "src/vm/VmLock.h",
+        "vm_lock.cc",
+        "vm_lock.h",
     ],
     includes = ["src"],
     deps = [
@@ -16,8 +16,8 @@ cc_library(
 
 cc_library(
     name = "machine_info",
-    srcs = ["src/vm/qemu-machine-info.c"],
-    hdrs = ["src/vm/qemu-machine-info.h"],
+    srcs = ["qemu_machine_info.c"],
+    hdrs = ["src/vm/qemu_machine_info.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers"],
@@ -25,22 +25,22 @@ cc_library(
 
 cc_library(
     name = "fake_machine_info",
-    srcs = ["src/vm/fake-machine-info.c"],
-    hdrs = ["src/vm/qemu-machine-info.h"],
+    srcs = ["fake_machine_info.c"],
+    hdrs = ["src/vm/qemu_machine_info.h"],
     includes = ["src"],
     visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "vminterface",
-    hdrs = ["include/android/goldfish/vm/VmInterface.h"],
+    hdrs = ["include/android/goldfish/vm_interface.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "vm_ops",
-    srcs = ["src/vm/QemuVmOperations.cpp"],
+    srcs = ["qemu_vm_operations.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":machine_info",
@@ -52,7 +52,7 @@ cc_library(
 
 cc_library(
     name = "vm_ops_with_fake_machine_info",
-    srcs = ["src/vm/QemuVmOperations.cpp"],
+    srcs = ["qemu_vm_operations.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":fake_machine_info",
@@ -65,12 +65,12 @@ cc_library(
     name = "vminterface-test",
     testonly = True,
     srcs = [
-        "test/TestVmLock.cpp",
         "test/TestVmLock.h",
-        "test/vm-mock.c",
-        "test/vm-mock.h",
+        "test/vm_mock.h",
+        "test_vm_lock.cc",
+        "vm_mock.c",
     ],
-    hdrs = ["include/android/goldfish/vm/VmInterface.h"],
+    hdrs = ["include/android/goldfish/vm_interface.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -83,7 +83,7 @@ cc_test(
     name = "vminterface_unittests",
     testonly = True,
     srcs = [
-        "test/vm_unittest.cpp",
+        "vm_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

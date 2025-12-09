@@ -1,0 +1,813 @@
+// Copyright 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <cassert>
+#include <deque>
+#include <mutex>
+#include <set>
+#include <unordered_map>
+
+#include "absl/strings/str_format.h"
+
+#include "goldfish/archive/qemu_file_reader.h"
+#include "goldfish/archive/qemu_file_writer.h"
+#include "goldfish/debug.h"
+#include "goldfish/devices/cable/cable.h"
+#include "goldfish/devices/cable/saveload.h"
+#include "goldfish/socket_buffer.h"
+#include "goldfish/unique_id_allocator.h"
+#include "goldfish/vsock/connect.h"
+#include "goldfish/vsock/listen.h"
+#include "goldfish/vsock/snapshot.h"
+#include "goldfish/vsock/vsock_low_level.h"
+
+// clang-format off
+// IWYU pragma: begin_keep
+extern "C" {
+#include "qemu/compiler.h"
+#include "standard-headers/linux/virtio_vsock.h"
+}
+// IWYU pragma: end_keep
+// clang-format on
+#define DEBUG_MSG(FMT, ...)  // fprintf(stderr, "%s:%d: " FMT "\n", __func__, __LINE__, __VA_ARGS__)
+
+namespace {
+using goldfish::archive::IReader;
+using goldfish::archive::IWriter;
+using goldfish::devices::cable::IDataSniffer;
+using goldfish::devices::cable::IPlug;
+using goldfish::devices::cable::PlugOrSocket;
+using goldfish::devices::cable::PlugPtr;
+using goldfish::devices::cable::SocketPtr;
+using goldfish::vsock::HostPortListener;
+
+constexpr uint32_t kDynamicPortsStart = 1U << 31;
+
+struct GoldfishVirtioVsockDevice;
+
+struct VsockStream : public goldfish::devices::cable::ISocket {
+    VsockStream(GoldfishVirtioVsockDevice& dev, const uint32_t guest, const uint32_t host)
+            : vsockDev(dev), guestPort(guest), hostPort(host) {}
+
+    static constexpr size_t kBufferSizeHighWatermark = size_t(8) << 20;  // 8 MiB
+    static constexpr size_t kBufferSizeLowWatermark = kBufferSizeHighWatermark / 2;
+
+    GoldfishVirtioVsockDevice& vsockDev;
+    PlugPtr plug;
+    std::unique_ptr<IDataSniffer> dataSniffer;
+    goldfish::SocketBuffer hostToGuestBuf;
+    OnFlowControlEvent onFlowControlEvent;
+    const uint32_t guestPort;
+    const uint32_t hostPort;
+    uint32_t guestBufAlloc = 0;  // guest's buffer size
+    uint32_t guestFwdCnt = 0;    // how much the guest received
+    uint32_t hostSentCnt = 0;    // how much the host sent
+    uint32_t hostFwdCnt = 0;     // how much the host received
+    uint8_t sendOpMask = 0;      // bitmask of OPs to send
+    bool isConnected = false;
+    bool producerEnabled = true;
+
+    void setOnFlowControlEvent(OnFlowControlEvent fce) override;
+
+    void sendAsync(const void* data, size_t size) override;
+
+    PlugPtr unplugImpl() override;
+
+    PlugPtr switchPlug(PlugPtr newPlug) override {
+        plug.swap(newPlug);
+        return newPlug;
+    }
+
+    void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
+        dataSniffer = std::move(sniffer);
+    }
+
+    void sendOp(enum virtio_vsock_op op) {
+        assert(op > VIRTIO_VSOCK_OP_INVALID);
+        assert(op <= VIRTIO_VSOCK_OP_CREDIT_REQUEST);
+        sendOpMask |= (1U << op);
+    }
+
+    void setProducerEnabled(const bool newValue) {
+        // We don't want to spam the producer with the same value.
+        if ((producerEnabled != newValue) && onFlowControlEvent) {
+            producerEnabled = newValue;
+            onFlowControlEvent(newValue);
+        }
+    }
+
+    void AbslStringifyImpl(absl::FormatSink& sink) const override {
+        absl::Format(&sink,
+                     "[VsockStream %u <-> %u, %s,  gFwd:%u, "
+                     "hSent:%u, hFwd:%u]",
+                     hostPort, guestPort, isConnected ? "open" : "closed", guestFwdCnt, hostSentCnt,
+                     hostFwdCnt);
+    }
+};
+
+struct VsockStreamKey {
+    VsockStreamKey(uint32_t guest, uint32_t host) : guestPort(guest), hostPort(host) {}
+
+    const uint32_t guestPort;
+    const uint32_t hostPort;
+};
+
+struct PlugOrSocketVisitor {
+    PlugOrSocketVisitor(VsockStream& s) : stream(s) {}
+
+    bool operator()(PlugPtr plug) const {
+        stream.plug = std::move(NOT_NULL(plug));
+        return true;
+    }
+
+    bool operator()(SocketPtr socket) const {
+        socket.release();
+        return false;
+    }
+
+    VsockStream& stream;
+};
+
+struct GoldfishVirtioVsockDevice {
+    SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
+        DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        const uint32_t hostPort = mSrcPortAllocator.get() + kDynamicPortsStart;
+
+        const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
+        assert(inserted);
+
+        VsockStream& stream = const_cast<VsockStream&>(*streamI);
+        stream.plug = std::move(NOT_NULL(plug));
+        stream.sendOp(VIRTIO_VSOCK_OP_REQUEST);
+
+        sendPacketsAndNotifyLocked();
+        return SocketPtr(&stream);
+    }
+
+    bool listen(const uint32_t hostPort, HostPortListener hostPortListener) {
+        DEBUG_MSG("this=%p, hostPort=%u", this, hostPort);
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        return mHostPortListeners.insert({hostPort, std::move(hostPortListener)}).second;
+    }
+
+    void setParentStateSnapshotHandlers(void* parent, int (*save)(const void*, IWriter&),
+                                        int (*load)(void*, IReader&)) {
+        mParentStateArg = parent;
+        mParentStateSave = save;
+        mParentStateLoad = load;
+    }
+
+    static GoldfishVirtioVsockDevice& getInstance() {
+        static GoldfishVirtioVsockDevice instance;
+        return instance;
+    }
+
+    GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
+
+    ~GoldfishVirtioVsockDevice() { DEBUG_MSG("this=%p", this); }
+
+    void sendAsyncImpl(VsockStream& stream, const void* const data, const size_t size) {
+        DEBUG_MSG("this=%p", this);
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        if (stream.isConnected) {
+            if (stream.dataSniffer) {
+                stream.dataSniffer->toSocket(data, size);
+            }
+
+            if (stream.hostToGuestBuf.append(data, size) >= stream.kBufferSizeHighWatermark) {
+                stream.setProducerEnabled(false);
+            }
+
+            sendPacketsAndNotifyLocked();
+        }
+    }
+
+    void unplugFromDevice(VsockStream& stream) {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        recycleStreamLocked(stream, false, VIRTIO_VSOCK_OP_SHUTDOWN);
+        mStreams.erase(stream);
+        sendPacketsAndNotifyLocked();
+    }
+
+    void recycleStreamLocked(VsockStream& stream, const bool callOnUnplug,
+                             const enum virtio_vsock_op sendOp) {
+        DEBUG_MSG("this=%p stream=%p callOnUnplug=%d, sendOp=%d", this, &stream, callOnUnplug,
+                  sendOp);
+
+        if (callOnUnplug) {
+            NOT_NULL(stream.plug)->onUnplug().release();
+        }
+
+        if (sendOp != VIRTIO_VSOCK_OP_INVALID) {
+            queueOrphanPacketLocked(stream, sendOp);
+        }
+
+        const uint32_t hostPort = stream.hostPort;
+        if (hostPort >= kDynamicPortsStart) {
+            mSrcPortAllocator.put(hostPort - kDynamicPortsStart);
+        }
+    }
+
+    bool processPacketOpRequestLocked(const struct virtio_vsock_hdr& hdr) {
+        const uint32_t hostPort = hdr.dst_port;
+        const auto portListenerI = mHostPortListeners.find(hostPort);
+        if (portListenerI != mHostPortListeners.end()) {
+            const auto [streamI, inserted] = mStreams.emplace(*this, hdr.src_port, hostPort);
+            if (inserted) {
+                VsockStream& stream = const_cast<VsockStream&>(*streamI);
+
+                if (std::visit(PlugOrSocketVisitor(stream),
+                               (portListenerI->second)(SocketPtr(&stream)))) {
+                    stream.guestBufAlloc = hdr.buf_alloc;
+                    stream.guestFwdCnt = hdr.fwd_cnt;
+                    stream.isConnected = true;
+                    stream.sendOp(VIRTIO_VSOCK_OP_RESPONSE);
+                    NOT_NULL(stream.plug)->onConnect();
+                    return true;
+                } else {
+                    mStreams.erase(streamI);
+                    return false;
+                }
+            } else {
+                // The control enters here only if the vsock driver is
+                // misbehaving which we have never observed. If we do
+                // get here the virtio-spec does not say what to do here.
+                // https://lore.kernel.org/all/CAOGAQepPkUDF8vmzRiG41xOGhFdDuq8-EHmdTrdVrK6E346G7A@mail.gmail.com/
+                DEBUG_MSG(
+                        "duplicate src_port in VIRTIO_VSOCK_OP_REQUEST. "
+                        "hdr={src_port=%u, dst_port=%u}}",
+                        hdr.src_port, hdr.dst_port);
+                return true;
+            }
+        } else {
+            DEBUG_MSG("no listener for dst_port=%u", hostPort);
+            return false;
+        }
+    }
+
+    struct virtio_vsock_hdr preparePacketHeaderLocked(const uint32_t srcPort,
+                                                      const uint32_t dstPort,
+                                                      const enum virtio_vsock_op op,
+                                                      const uint32_t hostFwdCnt,
+                                                      const uint32_t len) const {
+        constexpr uint32_t kHostBufAllocSize = 64 * 1024;
+
+        // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
+        struct virtio_vsock_hdr hdr = {
+            .src_port = srcPort,
+            .dst_port = dstPort,
+            .len = len,
+            .op = static_cast<uint16_t>(op),
+            .buf_alloc = kHostBufAllocSize,
+            .fwd_cnt = hostFwdCnt,
+        };
+
+        return hdr;
+    }
+
+    struct virtio_vsock_hdr preparePacketHeaderLocked(const VsockStream& stream,
+                                                      const enum virtio_vsock_op op,
+                                                      const uint32_t len) const {
+        return preparePacketHeaderLocked(stream.hostPort, stream.guestPort, op, stream.hostFwdCnt,
+                                         len);
+    }
+
+    void queueOrphanPacketLocked(const struct virtio_vsock_hdr& hdr) {
+        mOrphanPackets.push_back(hdr);
+    }
+
+    void queueOrphanPacketLocked(const VsockStream& stream, const enum virtio_vsock_op op) {
+        queueOrphanPacketLocked(preparePacketHeaderLocked(stream, op, 0));
+    }
+
+    void queueOrphanPacketLocked(const struct virtio_vsock_hdr& request,
+                                 const enum virtio_vsock_op op) {
+        queueOrphanPacketLocked(
+                preparePacketHeaderLocked(request.dst_port, request.src_port, op, 0, 0));
+    }
+
+    void clear() {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        for (const VsockStream& stream : mStreams) {
+            if (stream.plug) {
+                stream.plug->onUnplug().release();
+            }
+        }
+
+        mStreams.clear();
+        mHostEvents.clear();
+        mOrphanPackets.clear();
+        mSrcPortAllocator.reset();
+    }
+
+    void realize(void* const dev, const GoldfishVirtIOVSockDevAPI* const devApi) {
+        DEBUG_MSG("this=%p, dev=%p, devApi=%p", this, dev, devApi);
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        mQemuDev = NOT_NULL(dev);
+        mQemuDevApi = NOT_NULL(devApi);
+    }
+
+    void unrealize() {
+        DEBUG_MSG("this=%p", this);
+        clear();
+        mQemuDev = nullptr;
+        mQemuDevApi = nullptr;
+    }
+
+    void setStatus(const uint8_t status) {
+        assert(!(status & VIRTIO_CONFIG_S_FAILED));
+
+        if (status & VIRTIO_CONFIG_S_NEEDS_RESET) {
+            DEBUG_MSG("this=%p, status=S_NEEDS_RESET", this);
+            clear();
+        } else if (status & VIRTIO_CONFIG_S_DRIVER_OK) {
+            DEBUG_MSG("this=%p, status=S_DRIVER_OK", this);
+        } else {
+            DEBUG_MSG("this=%p, status=0x%02X", this, status);
+        }
+    }
+
+    void onPacketReceiveControl(const struct virtio_vsock_hdr& hdr) {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        if (hdr.op == VIRTIO_VSOCK_OP_REQUEST) {
+            if (!processPacketOpRequestLocked(hdr)) {
+                queueOrphanPacketLocked(hdr, VIRTIO_VSOCK_OP_RST);
+            }
+        } else {
+            const VsockStreamKey key(hdr.src_port, hdr.dst_port);
+            const auto streamI = mStreams.find(key);
+
+            if (streamI != mStreams.end()) {
+                VsockStream& stream = const_cast<VsockStream&>(*streamI);
+                stream.guestBufAlloc = hdr.buf_alloc;
+                stream.guestFwdCnt = hdr.fwd_cnt;
+
+                switch (hdr.op) {
+                case VIRTIO_VSOCK_OP_RESPONSE:
+                    stream.isConnected = true;
+                    NOT_NULL(stream.plug)->onConnect();
+                    break;
+
+                case VIRTIO_VSOCK_OP_RST:
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_INVALID);
+                    mStreams.erase(streamI);
+                    break;
+
+                case VIRTIO_VSOCK_OP_SHUTDOWN:
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
+                    mStreams.erase(streamI);
+                    break;
+
+                case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
+                    // we already updated guest counters (guestBufAlloc and guestFwdCnt)
+                    break;
+
+                case VIRTIO_VSOCK_OP_CREDIT_REQUEST:
+                    stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
+                    break;
+
+                default:
+                    DEBUG_MSG("unexpected op=%u", hdr.op);
+                    recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_RST);
+                    mStreams.erase(streamI);
+                    break;
+                }
+            } else if (hdr.op != VIRTIO_VSOCK_OP_RST) {
+                DEBUG_MSG("unexpected packet {src=%u, dst=%u, len=%u, op=%u}", hdr.src_port,
+                          hdr.dst_port, hdr.len, hdr.op);
+                queueOrphanPacketLocked(hdr, VIRTIO_VSOCK_OP_RST);
+            }
+        }
+    }
+
+    void* onPacketReceiveRwStart(const struct virtio_vsock_hdr& hdr) {
+        const VsockStreamKey key(hdr.src_port, hdr.dst_port);
+
+        mStateMutex.lock();  // see onPacketReceiveRwEnd for unlock
+        const auto streamI = mStreams.find(key);
+        if (streamI != mStreams.end()) {
+            VsockStream& stream = const_cast<VsockStream&>(*streamI);
+            stream.guestBufAlloc = hdr.buf_alloc;
+            stream.guestFwdCnt = hdr.fwd_cnt;
+            return &stream;
+        } else {
+            // onPacketReceiveRwEnd is not required if there is no stream
+            mStateMutex.unlock();
+            return nullptr;
+        }
+    }
+
+    // see onPacketReceiveRwStart and onPacketReceiveRwEnd
+    int onPacketReceiveRw(void* streamPtr, const void* data, const size_t size) {
+        VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
+
+        if (stream.isConnected) {
+            if (stream.dataSniffer) {
+                stream.dataSniffer->toPlug(data, size);
+            }
+
+            if (NOT_NULL(stream.plug)->onReceive(data, size)) {
+                stream.hostFwdCnt += size;
+                stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+
+    void onPacketReceiveRwEnd(void* streamPtr, const int eraseStream) {
+        if (eraseStream) {
+            VsockStream& stream = *static_cast<VsockStream*>(streamPtr);
+            recycleStreamLocked(stream, true, VIRTIO_VSOCK_OP_SHUTDOWN);
+            mStreams.erase(stream);
+        }
+        mStateMutex.unlock();  // see onPacketReceiveRwStart
+    }
+
+    int sendPacketsLocked() {
+        DEBUG_MSG("this=%p", this);
+
+        bool needNotify = false;
+        VirtIOVSockSendResult sendResult;
+        const auto sendPacketHostToGuest = NOT_NULL(mQemuDevApi)->sendPacketHostToGuest;
+
+        while (!mOrphanPackets.empty()) {
+            sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev),
+                                                            &mOrphanPackets.front(), nullptr);
+            if (VirtIOVSockSendNeedNotify(sendResult)) {
+                needNotify = true;
+            }
+
+            if (VirtIOVSockSendIsVqFull(sendResult)) {
+                return needNotify;
+            } else {
+                mOrphanPackets.pop_front();
+            }
+        }
+
+        for (const VsockStream& cStream : mStreams) {
+            VsockStream& stream = const_cast<VsockStream&>(cStream);
+            size_t guestAvailSize =
+                    stream.guestBufAlloc - (stream.hostSentCnt - stream.guestFwdCnt);
+            unsigned sendOpMask =
+                    stream.sendOpMask |
+                    ((guestAvailSize == 0) ? (1U << VIRTIO_VSOCK_OP_CREDIT_REQUEST) : 0);
+
+            if (sendOpMask) {
+                static const enum virtio_vsock_op ops[] = {
+                    VIRTIO_VSOCK_OP_REQUEST,
+                    VIRTIO_VSOCK_OP_RESPONSE,
+                    VIRTIO_VSOCK_OP_CREDIT_UPDATE,
+                    VIRTIO_VSOCK_OP_CREDIT_REQUEST,
+                };
+
+                for (const auto op : ops) {
+                    if (sendOpMask & (1U << op)) {
+                        auto hdr = preparePacketHeaderLocked(stream, op, 0);
+                        sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr,
+                                                                        nullptr);
+                        if (VirtIOVSockSendNeedNotify(sendResult)) {
+                            needNotify = true;
+                        }
+                        if (VirtIOVSockSendIsVqFull(sendResult)) {
+                            stream.sendOpMask = sendOpMask;
+                            return needNotify;
+                        } else {
+                            sendOpMask &= ~(1U << op);
+                        }
+                    }
+                }
+
+                stream.sendOpMask = 0;
+            }
+
+            while (guestAvailSize > 0) {
+                const auto [data, chunkSize] = stream.hostToGuestBuf.peek();
+                if (chunkSize == 0) {
+                    break;
+                }
+
+                const size_t sendSize = std::min(chunkSize, guestAvailSize);
+                auto hdr = preparePacketHeaderLocked(stream, VIRTIO_VSOCK_OP_RW, sendSize);
+                sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr, data);
+
+                const size_t sentSize = VirtIOVSockSentSize(sendResult);
+                if (stream.hostToGuestBuf.consume(sentSize) < stream.kBufferSizeLowWatermark) {
+                    stream.setProducerEnabled(true);
+                }
+
+                stream.hostSentCnt += sentSize;
+                guestAvailSize -= sentSize;
+
+                if (VirtIOVSockSendNeedNotify(sendResult)) {
+                    needNotify = true;
+                }
+                if (VirtIOVSockSendIsVqFull(sendResult)) {
+                    return needNotify;
+                }
+            }
+        }
+
+        return needNotify;
+    }
+
+    int sendPackets() {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        return sendPacketsLocked();
+    }
+
+    void sendPacketsAndNotifyLocked() {
+        if (sendPacketsLocked()) {
+            (*NOT_NULL(mQemuDevApi)->haveHostToGuestPackets)(NOT_NULL(mQemuDev));
+        }
+    }
+
+    int sendEvents() {
+        DEBUG_MSG("this=%p", this);
+        bool needNotify = false;
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        // TODO
+        return needNotify;
+    }
+
+    int saveToSnapshot(IWriter& writer) const {
+        DEBUG_MSG("this=%p", this);
+        int r;
+        if (mParentStateSave) {
+            r = (*mParentStateSave)(mParentStateArg, writer);
+            if (r) {
+                return r;
+            }
+        }
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        mSrcPortAllocator.saveToSnapshot(writer);
+
+        writer << mOrphanPackets.size();
+        for (const auto& packet : mOrphanPackets) {
+            writer << packet.src_port << packet.dst_port << packet.op << packet.buf_alloc
+                   << packet.fwd_cnt;
+        }
+
+        writer << mStreams.size();
+        for (const VsockStream& stream : mStreams) {
+            writer << stream.guestPort << stream.hostPort << stream.hostFwdCnt;
+
+            assert(stream.plug);
+            const IPlug& plug = *NOT_NULL(stream.plug);
+            const bool supportsLoading = plug.supportsLoadingFromSnapshot();
+            writer << supportsLoading;
+            if (supportsLoading) {
+                assert(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
+
+                const unsigned flags = (stream.isConnected ? 1U : 0U) | stream.sendOpMask;
+
+                writer << stream.guestBufAlloc << stream.guestFwdCnt << stream.hostSentCnt << flags;
+
+                stream.hostToGuestBuf.saveToSnapshot(writer);
+
+                if (!savePlugToSnapshot(plug, writer)) {
+                    return 1;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    int loadFromSnapshot(IReader& reader) {
+        DEBUG_MSG("this=%p", this);
+        int r;
+        if (mParentStateLoad) {
+            r = (*mParentStateLoad)(mParentStateArg, reader);
+            if (r) {
+                return r;
+            }
+        }
+
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        r = mSrcPortAllocator.loadFromSnapshot(reader);
+        if (r) {
+            return r;
+        }
+
+        mOrphanPackets.clear();
+        for (size_t n = getUnsigned(reader); n > 0; --n) {
+            decltype(mOrphanPackets)::value_type packet;
+
+            packet.src_port = getUnsigned(reader);
+            packet.dst_port = getUnsigned(reader);
+            packet.op = getUnsigned(reader);
+            packet.buf_alloc = getUnsigned(reader);
+            packet.fwd_cnt = getUnsigned(reader);
+            packet.len = 0;  // orphan packets don't carry data
+            mOrphanPackets.push_back(packet);
+        }
+
+        bool needNotify = false;
+        mStreams.clear();
+        for (size_t n = getUnsigned(reader); n > 0; --n) {
+            const uint32_t guestPort = getUnsigned(reader);
+            const uint32_t hostPort = getUnsigned(reader);
+            const uint32_t hostFwdCnt = getUnsigned(reader);
+            const bool supportsLoading = (getUnsigned(reader) != 0);
+            if (supportsLoading) {
+                const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
+                if (!inserted) {
+                    return 1;
+                }
+
+                VsockStream& stream = const_cast<VsockStream&>(*streamI);
+
+                stream.hostFwdCnt = hostFwdCnt;
+                stream.guestBufAlloc = getUnsigned(reader);
+                stream.guestFwdCnt = getUnsigned(reader);
+                stream.hostSentCnt = getUnsigned(reader);
+                {
+                    const uint8_t flags = getUnsigned(reader);
+                    stream.isConnected = (flags & 1U) != 0;
+                    stream.sendOpMask = flags & ~1U;
+                }
+                stream.hostToGuestBuf.loadFromSnapshot(reader);
+                stream.producerEnabled = true;
+
+                if (std::visit(PlugOrSocketVisitor(stream),
+                               loadPlugFromSnapshot(SocketPtr(&stream), reader))) {
+                    return true;
+                } else {
+                    mStreams.erase(streamI);
+                    return 1;
+                }
+            } else {
+                // this stream does not support loading from
+                // a snapshot, send RST to the guest
+                queueOrphanPacketLocked(preparePacketHeaderLocked(
+                        hostPort, guestPort, VIRTIO_VSOCK_OP_RST, hostFwdCnt, 0));
+                needNotify = true;
+            }
+        }
+
+        if (needNotify) {
+            sendPacketsAndNotifyLocked();
+        }
+
+        return 0;
+    }
+
+    static GoldfishVirtioVsockDevice& from(void* ptr) {
+        return *static_cast<GoldfishVirtioVsockDevice*>(ptr);
+    }
+
+    static const GoldfishVirtioVsockDevice& from(const void* ptr) {
+        return *static_cast<const GoldfishVirtioVsockDevice*>(ptr);
+    }
+
+    struct VsockStreamComparer {
+        using is_transparent = void;
+
+        bool operator()(const VsockStream& lhs, const VsockStream& rhs) const {
+            return std::tie(lhs.guestPort, lhs.hostPort) < std::tie(rhs.guestPort, rhs.hostPort);
+        }
+
+        bool operator()(const VsockStreamKey& lhs, const VsockStream& rhs) const {
+            return std::tie(lhs.guestPort, lhs.hostPort) < std::tie(rhs.guestPort, rhs.hostPort);
+        }
+
+        bool operator()(const VsockStream& lhs, const VsockStreamKey& rhs) const {
+            return std::tie(lhs.guestPort, lhs.hostPort) < std::tie(rhs.guestPort, rhs.hostPort);
+        }
+    };
+
+    // IMPORTANT: std::set::erase
+    // Other iterators and references are not invalidated.
+    using Streams = std::set<VsockStream, VsockStreamComparer>;
+
+    mutable std::recursive_mutex mStateMutex;
+
+    void* mQemuDev = nullptr;
+    const GoldfishVirtIOVSockDevAPI* mQemuDevApi = nullptr;
+    void* mParentStateArg = nullptr;
+    int (*mParentStateSave)(const void*, IWriter&) = nullptr;
+    int (*mParentStateLoad)(void*, IReader&) = nullptr;
+    std::unordered_map<uint32_t, HostPortListener> mHostPortListeners;
+
+    // Everything below is snapshotted
+    goldfish::UniqueIdAllocator mSrcPortAllocator;
+    std::deque<struct virtio_vsock_hdr> mOrphanPackets;
+    std::deque<struct virtio_vsock_event> mHostEvents;
+    Streams mStreams;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+void VsockStream::setOnFlowControlEvent(OnFlowControlEvent fce) {
+    assert(fce);
+
+    const std::lock_guard<std::recursive_mutex> lock(vsockDev.mStateMutex);
+    onFlowControlEvent = std::move(fce);
+}
+
+void VsockStream::sendAsync(const void* data, size_t size) {
+    DEBUG_MSG("this=%p vsockDev=%p size=%zu", this, &vsockDev, size);
+    return vsockDev.sendAsyncImpl(*this, data, size);
+}
+
+PlugPtr VsockStream::unplugImpl() {
+    DEBUG_MSG("this=%p vsockDev=%p", this, &vsockDev);
+    PlugPtr p = std::move(NOT_NULL(plug));
+    vsockDev.unplugFromDevice(*this);  // calls ~VsockStream
+    return p;
+}
+}  // namespace
+
+namespace goldfish {
+namespace vsock {
+using devices::cable::IPlug;
+using devices::cable::SocketPtr;
+
+SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
+    auto& instance = GoldfishVirtioVsockDevice::getInstance();
+    return instance.connect(guestPort, std::move(NOT_NULL(plug)));
+}
+
+bool listen(const uint32_t hostPort, HostPortListener listener) {
+    auto& instance = GoldfishVirtioVsockDevice::getInstance();
+    return instance.listen(hostPort, std::move(listener));
+}
+
+void setParentStateSnapshotHandlers(void* parent, int (*save)(const void*, archive::IWriter&),
+                                    int (*load)(void*, archive::IReader&)) {
+    auto& instance = GoldfishVirtioVsockDevice::getInstance();
+    return instance.setParentStateSnapshotHandlers(parent, save, load);
+}
+}  // namespace vsock
+}  // namespace goldfish
+
+///////////////////////////////////////////////////////////////////////////////////////
+void* goldfish_virtio_vsock_impl_realize(void* dev, const GoldfishVirtIOVSockDevAPI* devApi) {
+    auto& instance = GoldfishVirtioVsockDevice::getInstance();
+    instance.realize(NOT_NULL(dev), NOT_NULL(devApi));
+    return &instance;
+}
+
+void goldfish_virtio_vsock_impl_unrealize(void* impl) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).unrealize();
+}
+
+void goldfish_virtio_vsock_set_status(void* impl, uint8_t status) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).setStatus(status);
+}
+
+void goldfish_virtio_vsock_accept_guest_to_host_control(void* impl,
+                                                        const struct virtio_vsock_hdr* hdr) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveControl(*hdr);
+}
+
+void* goldfish_virtio_vsock_accept_guest_to_host_rw_start(void* impl,
+                                                          const struct virtio_vsock_hdr* hdr) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRwStart(*hdr);
+}
+
+int goldfish_virtio_vsock_accept_guest_to_host_rw(void* impl, void* stream, const void* data,
+                                                  size_t size) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRw(stream, data, size);
+}
+
+void goldfish_virtio_vsock_accept_guest_to_host_rw_end(void* impl, void* stream, int erase_stream) {
+    GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).onPacketReceiveRwEnd(stream, erase_stream);
+}
+
+int goldfish_virtio_vsock_handle_host_to_guest(void* impl) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).sendPackets();
+}
+
+int goldfish_virtio_vsock_handle_event_to_guest(void* impl) {
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).sendEvents();
+}
+
+int goldfish_virtio_vsock_impl_save(const void* impl, QEMUFile* f) {
+    goldfish::archive::QEMUFileWriter writer(NOT_NULL(f));
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).saveToSnapshot(writer);
+}
+
+int goldfish_virtio_vsock_impl_load(void* impl, QEMUFile* f) {
+    goldfish::archive::QEMUFileReader reader(NOT_NULL(f));
+    return GoldfishVirtioVsockDevice::from(NOT_NULL(impl)).loadFromSnapshot(reader);
+}

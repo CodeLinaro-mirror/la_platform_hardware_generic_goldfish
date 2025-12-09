@@ -3,7 +3,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 cc_library(
     name = "clipboard",
     hdrs = [
-        "include/goldfish/avd_universe/clipboard/ClipboardData.h",
+        "include/goldfish/avd_universe/clipboard/clipboard_data.h",
     ],
     includes = ["include"],
     visibility = [
@@ -17,7 +17,7 @@ cc_library(
 cc_library(
     name = "fingerprint",
     hdrs = [
-        "include/goldfish/avd_universe/fingerprint/FingerprintSensor.h",
+        "include/goldfish/avd_universe/fingerprint/fingerprint_sensor.h",
     ],
     includes = ["include"],
     visibility = [
@@ -46,7 +46,7 @@ cc_library(
 cc_library(
     name = "guest_status",
     hdrs = [
-        "include/goldfish/avd_universe/guest_status/GuestStatus.h",
+        "include/goldfish/avd_universe/guest_status/guest_status.h",
     ],
     includes = ["include"],
     visibility = [
@@ -61,7 +61,7 @@ cc_library(
 cc_library(
     name = "location",
     hdrs = [
-        "include/goldfish/avd_universe/gps/Location.h",
+        "include/goldfish/avd_universe/gps/location.h",
     ],
     includes = ["include"],
     visibility = [

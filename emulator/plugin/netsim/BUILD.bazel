@@ -2,7 +2,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
     name = "netsim_transport",
-    srcs = ["NetsimTransport.cpp"],
+    srcs = ["netsim_transport.cc"],
     hdrs = ["NetsimTransport.h"],
     visibility = ["//visibility:public"],
     deps = [
@@ -18,8 +18,8 @@ cc_library(
 
 cc_library(
     name = "netsim-netdev",
-    srcs = ["netsim-netdev.cpp"],
-    hdrs = ["include/goldfish/netsim/netsim-netdev.h"],
+    srcs = ["netsim_netdev.cc"],
+    hdrs = ["include/goldfish/netsim/netsim_netdev.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -35,9 +35,9 @@ cc_library(
     srcs = [
         "h4_parser.cc",
         "h4_parser.h",
-        "netsim-chardev.cpp",
+        "netsim_chardev.cc",
     ],
-    hdrs = ["include/goldfish/netsim/netsim-chardev.h"],
+    hdrs = ["include/goldfish/netsim/netsim_chardev.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [

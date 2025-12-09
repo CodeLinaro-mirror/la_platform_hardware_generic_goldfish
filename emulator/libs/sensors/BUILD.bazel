@@ -3,17 +3,17 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "sensors",
     srcs = [
-        "FoldableModel.cpp",
-        "PhysicalModel.cpp",
+        "foldable_model.cc",
+        "physical_model.cc",
     ],
     hdrs = [
-        "include/goldfish/sensors/AndroidSensor.h",
-        "include/goldfish/sensors/Foldable.h",
-        "include/goldfish/sensors/FoldableModel.h",
-        "include/goldfish/sensors/GOLDFISH_PHYSICAL_PARAMETERS_LIST.h",
-        "include/goldfish/sensors/GOLDFISH_SENSORS_LIST.h",
-        "include/goldfish/sensors/PhysicalModel.h",
-        "include/goldfish/sensors/PhysicalParameter.h",
+        "include/goldfish/sensors/android_sensor.h",
+        "include/goldfish/sensors/foldable.h",
+        "include/goldfish/sensors/foldable_model.h",
+        "include/goldfish/sensors/goldfish_physical_parameters_list.h",
+        "include/goldfish/sensors/goldfish_sensors_list.h",
+        "include/goldfish/sensors/physical_model.h",
+        "include/goldfish/sensors/physical_parameter.h",
         "include/goldfish/sensors/sensor_data.h",
     ],
     includes = ["include"],
@@ -36,7 +36,7 @@ cc_library(
 cc_test(
     name = "sensors_unittests",
     srcs = [
-        "test/PhysicalModel_unittest.cpp",
+        "physical_model_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

@@ -4,7 +4,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "info",
     hdrs = [
-        "include/goldfish/avd/avd-info.h",
+        "include/goldfish/avd_info/avd_info.h",
     ],
     includes = ["include"],
     visibility = [
@@ -21,12 +21,12 @@ cc_library(
 cc_library(
     name = "gralloc_impl",
     srcs = [
-        "GrallocImpl.cpp",
+        "gralloc_impl.cc",
         "rutabaga_glue.c",
     ],
     hdrs = [
-        "include/goldfish/avd/GrallocImpl.h",
         "include/goldfish/avd/rutabaga_glue.h",
+        "include/goldfish/avd_info/gralloc_impl.h",
     ],
     copts = ["-Wno-extern-c-compat"],
     includes = ["include"],
@@ -46,9 +46,9 @@ cc_library(
 cc_library(
     name = "global-event-loop",
     srcs = [
-        "global-event-loop.cpp",
+        "global_event_loop.cc",
     ],
-    hdrs = ["include/goldfish/avd/global-event-loop.h"],
+    hdrs = ["include/goldfish/async/testing/global_event_loop.h"],
     includes = ["include"],
     visibility = [
         "//visibility:public",
@@ -63,7 +63,7 @@ cc_test(
     name = "global-event-loop-tests",
     size = "small",
     srcs = [
-        "test/global-event-loop-test.cpp",
+        "global_event_loop_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -74,10 +74,10 @@ cc_test(
 
 cc_library(
     name = "vcpu_event_loop",
-    srcs = ["QemuCpuWrapper.c"],
+    srcs = ["qemu_cpu_wrapper.c"],
     hdrs = [
-        "QemuCpuWrapper.h",
         "VCpuEventLoop.h",
+        "qemu_cpu_wrapper.h",
     ],
     visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers"],
@@ -86,13 +86,13 @@ cc_library(
 cc_library(
     name = "impl",
     srcs = [
-        "avd-finalize.cpp",
-        "avd-info.cpp",
+        "avd_finalize.cc",
+        "avd_info.cc",
     ],
     hdrs = [
-        "include/goldfish/avd/avd-finalize.h",
-        "include/goldfish/avd/avd-info-register_types.h",
-        "include/goldfish/avd/avd-private.h",
+        "include/goldfish/avd_finalize/avd_finalize.h",
+        "include/goldfish/avd_info/avd_info_register_types.h",
+        "include/goldfish/avd_info/avd_private.h",
     ],
     copts = ["-Wno-extern-c-compat"],
     includes = ["include"],

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "goldfish/display/Display.h"
+#include "goldfish/display/display.h"
 
 namespace goldfish::display {
 

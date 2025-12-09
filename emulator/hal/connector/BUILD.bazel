@@ -3,12 +3,12 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "cable",
     srcs = [
-        "cable.cpp",
-        "logging.cpp",
+        "cable.cc",
+        "logging.cc",
     ],
     hdrs = [
-        "include/goldfish/devices/cable/ErrorPlug.h",
         "include/goldfish/devices/cable/cable.h",
+        "include/goldfish/devices/cable/error_plug.h",
         "include/goldfish/devices/cable/saveload.h",
     ],
     includes = ["include"],
@@ -25,7 +25,7 @@ cc_library(
 cc_library(
     name = "PingTopic",
     hdrs = [
-        "include/goldfish/devices/PingTopic.h",
+        "include/goldfish/devices/ping_topic.h",
     ],
     includes = ["include"],
     visibility = [
@@ -58,10 +58,10 @@ cc_library(
 cc_library(
     name = "qemud",
     srcs = [
-        "qemud.cpp",
+        "qemud.cc",
     ],
     hdrs = [
-        "include/goldfish/devices/qemud.h",
+        "include/goldfish/devices/qemud/qemud.h",
     ],
     includes = ["include"],
     visibility = [
@@ -76,10 +76,10 @@ cc_library(
 cc_library(
     name = "devices",
     srcs = [
-        "Connector.cpp",
+        "connector.cc",
     ],
     hdrs = [
-        "include/goldfish/devices/Connector.h",
+        "include/goldfish/devices/connector.h",
     ],
     includes = ["include"],
     visibility = [
@@ -95,7 +95,7 @@ cc_library(
 cc_library(
     name = "connection_awaiter",
     srcs = [
-        "connection_awaiter.cpp",
+        "connection_awaiter.cc",
     ],
     hdrs = [
         "include/goldfish/devices/connection_awaiter.h",
@@ -113,7 +113,7 @@ cc_library(
 cc_library(
     name = "connector_registry_impl",
     srcs = [
-        "connector_registry_impl.cpp",
+        "connector_registry_impl.cc",
     ],
     hdrs = [
         "include/goldfish/devices/connector_registry_impl.h",
@@ -141,8 +141,8 @@ cc_test(
     name = "connector_registry_tests",
     size = "small",
     srcs = [
-        "test/connector_registry_threading_unittest.cpp",
-        "test/connector_registry_unittest.cpp",
+        "connector_registry_test.cc",
+        "connector_registry_threading_test.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -158,10 +158,10 @@ cc_test(
     name = "devices_unittests",
     size = "small",
     srcs = [
-        "test/Connector_unittests.cpp",
-        "test/connection_awaiter_unittest.cpp",
-        "test/datasniffer_unittests.cpp",
-        "test/qemud_unittests.cpp",
+        "connection_awaiter_test.cc",
+        "connector_tests.cc",
+        "datasniffer_tests.cc",
+        "qemud_tests.cc",
     ],
     visibility = ["//visibility:public"],
     deps = [

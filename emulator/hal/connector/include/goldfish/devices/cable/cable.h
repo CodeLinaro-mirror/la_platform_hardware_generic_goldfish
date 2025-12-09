@@ -19,8 +19,8 @@
 
 #include "absl/strings/str_format.h"
 
-#include "goldfish/archive/Reader.h"
-#include "goldfish/archive/Writer.h"
+#include "goldfish/archive/reader.h"
+#include "goldfish/archive/writer.h"
 
 namespace goldfish {
 namespace devices {

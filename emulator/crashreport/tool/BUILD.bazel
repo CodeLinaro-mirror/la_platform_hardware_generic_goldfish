@@ -4,16 +4,16 @@ load("@rules_python//python:defs.bzl", "py_binary")
 cc_library(
     name = "tool_lib",
     srcs = [
-        "src/annotation_extractor.cpp",
-        "src/crash_report_manager.cpp",
-        "src/formatter.cpp",
-        "src/minidump_processor.cpp",
+        "annotation_extractor.cc",
+        "crash_report_manager.cc",
+        "formatter.cc",
+        "minidump_processor.cc",
     ],
     hdrs = [
-        "src/annotation_extractor.h",
-        "src/crash_report_manager.h",
-        "src/formatter.h",
-        "src/minidump_processor.h",
+        "annotation_extractor.h",
+        "crash_report_manager.h",
+        "formatter.h",
+        "minidump_processor.h",
     ],
     deps = [
         "//android/system",
@@ -33,7 +33,7 @@ cc_library(
 
 cc_binary(
     name = "crashreport",
-    srcs = ["src/main.cpp"],
+    srcs = ["main.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":tool_lib",

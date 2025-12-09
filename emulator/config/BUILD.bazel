@@ -17,8 +17,8 @@ genrule(
 
 cc_library(
     name = "config_dirs",
-    srcs = ["src/android/goldfish/config/config_dirs.cpp"],
-    hdrs = ["include/android/goldfish/config/config_dirs.h"],
+    srcs = ["config_dirs.cc"],
+    hdrs = ["include/android/goldfish/config_dirs.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -31,10 +31,10 @@ cc_library(
 cc_library(
     name = "hardware_config",
     srcs = [
-        "src/android/goldfish/config/hardware_config.cpp",
+        "hardware_config.cc",
         ":hw-config-gen",
     ],
-    hdrs = ["include/android/goldfish/config/hardware_config.h"],
+    hdrs = ["include/android/goldfish/hardware_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -45,8 +45,8 @@ cc_library(
 
 cc_library(
     name = "emulator_advertisement",
-    srcs = ["src/android/goldfish/config/emulator_advertisement.cpp"],
-    hdrs = ["include/android/goldfish/config/emulator_advertisment.h"],
+    srcs = ["emulator_advertisement.cc"],
+    hdrs = ["include/android/goldfish/emulator_advertisment.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -58,7 +58,7 @@ cc_library(
 
 cc_library(
     name = "device_type",
-    hdrs = ["include/android/goldfish/config/device_type.h"],
+    hdrs = ["include/android/goldfish/device_type.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
 )
@@ -66,11 +66,11 @@ cc_library(
 cc_library(
     name = "avd",
     srcs = [
-        "src/android/goldfish/config/avd.cpp",
-        "src/android/goldfish/config/keys.h",
+        "avd.cc",
+        "keys.h",
     ],
     hdrs = [
-        "include/android/goldfish/config/avd.h",
+        "include/android/goldfish/avd.h",
         "include/android/goldfish/config/image_list.h",
     ],
     includes = ["include"],
@@ -108,8 +108,8 @@ cc_test(
     name = "config_unittests",
     size = "small",
     srcs = [
-        "test/android/goldfish/config/avd_unittest.cpp",
-        "test/android/goldfish/config/config_dirs_unittest.cpp",
+        "avd_test.cc",
+        "config_dirs_test.cc",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

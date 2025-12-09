@@ -3,7 +3,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 cc_library(
     name = "QEMUBH",
     hdrs = [
-        "include/goldfish/QEMUBH.h",
+        "include/goldfish/qemu/qemubh.h",
     ],
     includes = ["include"],
     visibility = [

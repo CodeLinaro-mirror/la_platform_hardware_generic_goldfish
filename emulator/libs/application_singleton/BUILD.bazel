@@ -4,7 +4,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
     name = "application_singleton",
-    srcs = ["application_singleton.cpp"],
+    srcs = ["application_singleton.cc"],
     hdrs = ["include/goldfish/singleton/application_singleton.h"],
     includes = ["include"],
     target_compatible_with = select({
@@ -24,19 +24,19 @@ cc_library(
 
 cc_binary(
     name = "second_instance_test_helper",
-    srcs = ["tests/second_instance_test.cpp"],
+    srcs = ["second_instance_test.cc"],
     deps = [":application_singleton"],
 )
 
 cc_binary(
     name = "crashing_test_helper",
-    srcs = ["tests/crashing_test_helper.cpp"],
+    srcs = ["crashing_test_helper.cc"],
     deps = [":application_singleton"],
 )
 
 cc_test(
     name = "ApplicationSingleton_test",
-    srcs = ["tests/application_singleton_test.cpp"],
+    srcs = ["application_singleton_test.cc"],
     data = [
         ":crashing_test_helper",
         ":second_instance_test_helper",

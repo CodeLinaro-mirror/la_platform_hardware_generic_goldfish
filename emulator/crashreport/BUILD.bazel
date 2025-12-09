@@ -2,11 +2,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "init",
-    srcs = ["src/android/crashreport/CrashSytemInit.cpp"],
+    srcs = ["crash_sytem_init.cc"],
     hdrs = [
-        "include/android/crashreport/CrashConsent.h",
-        "include/android/crashreport/CrashSystem.h",
-        "include/android/crashreport/crash-initializer.h",
+        "include/android/crashreport/crash_consent.h",
+        "include/android/crashreport/crash_initializer.h",
+        "include/android/crashreport/crash_system.h",
     ],
     data = ["@crashpad//handler:crashpad_handler"],
     includes = ["include"],
@@ -23,8 +23,8 @@ cc_library(
 
 cc_library(
     name = "hang_detector",
-    srcs = ["src/android/crashreport/HangDetector.cpp"],
-    hdrs = ["include/android/crashreport/HangDetector.h"],
+    srcs = ["hang_detector.cc"],
+    hdrs = ["include/android/crashreport/hang_detector.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -38,7 +38,7 @@ cc_library(
 cc_test(
     name = "hang_detector_test",
     size = "small",
-    srcs = ["test/android/crashreport/HangDetector_unittest.cpp"],
+    srcs = ["hang_detector_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":hang_detector",
@@ -56,12 +56,12 @@ cc_test(
 cc_library(
     name = "crash_reporter",
     srcs = [
-        "include/android/crashreport/AnnotationStreambuf.h",
-        "include/android/crashreport/SimpleStringAnnotation.h",
-        "include/android/crashreport/crash-handler.h",
-        "src/android/crashreport/CrashReporter.cpp",
+        "crash_reporter.cc",
+        "include/android/crashreport/annotation_streambuf.h",
+        "include/android/crashreport/crash_handler.h",
+        "include/android/crashreport/simple_string_annotation.h",
     ],
-    hdrs = ["include/android/crashreport/CrashReporter.h"],
+    hdrs = ["include/crashpad/android/crashreport/crash_reporter.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -81,11 +81,11 @@ cc_library(
 cc_library(
     name = "breadcrumb",
     srcs = [
-        "include/android/crashreport/AnnotationCircularStreambuf.h",
-        "src/android/crashreport/Breadcrumb.cpp",
+        "breadcrumb.cc",
+        "include/android/crashreport/annotation_circular_streambuf.h",
     ],
     hdrs = [
-        "include/android/crashreport/Breadcrumb.h",
+        "include/android/crashreport/breadcrumb.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -99,12 +99,12 @@ cc_library(
 cc_library(
     name = "detectors",
     srcs = [
-        "src/android/crashreport/detectors/CrashDetectors.cpp",
-        "src/android/crashreport/detectors/TimeoutMonitor.cpp",
+        "crash_detectors.cc",
+        "timeout_monitor.cc",
     ],
     hdrs = [
-        "include/android/crashreport/detectors/CrashDetectors.h",
-        "include/android/crashreport/detectors/TimeoutMonitor.h",
+        "include/android/crashreport/crash_detectors.h",
+        "include/android/crashreport/timeout_monitor.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -121,8 +121,8 @@ cc_library(
 cc_library(
     name = "uploader",
     srcs = [
-        "include/android/crashreport/Uploader.h",
-        "src/android/crashreport/CrashUploader.cpp",
+        "crash_uploader.cc",
+        "include/android/crashreport/uploader.h",
     ],
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
@@ -138,10 +138,10 @@ cc_library(
 
 cc_library(
     name = "always_consent",
-    srcs = ["src/android/crashreport/CrashConsentAlways.cpp"],
+    srcs = ["crash_consent_always.cc"],
     hdrs = [
-        "include/android/crashreport/CrashConsent.h",
-        "include/android/crashreport/crash-export.h",
+        "include/android/crashreport/crash_consent.h",
+        "include/android/crashreport/crash_export.h",
     ],
     defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
@@ -162,10 +162,10 @@ alias(
 cc_test(
     name = "crashreport_test",
     srcs = [
-        "test/android/crashreport/AnnotationBuffer_unittest.cpp",
-        "test/android/crashreport/CrashDump_unittest.cpp",
-        "test/android/crashreport/detectors/CrashDetectors_unittest.cpp",
-        "test/android/crashreport/detectors/TimeoutMonitor_unittest.cpp",
+        "annotation_buffer_test.cc",
+        "crash_detectors_test.cc",
+        "crash_dump_test.cc",
+        "timeout_monitor_test.cc",
     ],
     data = [
         ":crash-me",
@@ -195,7 +195,7 @@ cc_test(
 cc_binary(
     name = "crash-me",
     srcs = [
-        "test/android/crashreport/testing/main-test-crasher.cpp",
+        "main_test_crasher.cc",
     ],
     data = ["@crashpad//handler:crashpad_handler"],
     linkopts = select({

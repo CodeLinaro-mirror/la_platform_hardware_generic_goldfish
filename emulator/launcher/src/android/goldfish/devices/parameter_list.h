@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "android/goldfish/config/avd.h"
+#include "android/goldfish/avd.h"
 #include "android/goldfish/device.h"
 
 namespace android::goldfish {

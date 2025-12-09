@@ -46,7 +46,7 @@
 
 #include <sys/types.h>
 
-#include "fs_config.h"
+#include "private/fs_config.h"
 
 /* This is the master Users and Groups config for the platform.
  * DO NOT EVER RENUMBER

@@ -3,10 +3,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "sensors",
     srcs = [
-        "SensorDevice.cpp",
+        "sensor_device.cc",
     ],
     hdrs = [
-        "include/goldfish/devices/sensor/SensorDevice.h",
+        "include/android/base/goldfish/devices/sensor/sensor_device.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -34,7 +34,7 @@ cc_library(
 cc_test(
     name = "sensors_unittests",
     srcs = [
-        "test/physics/SensorDevice_unittest.cpp",
+        "sensor_device_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],

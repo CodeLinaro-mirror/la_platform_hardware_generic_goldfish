@@ -3,13 +3,13 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "interceptors",
     srcs = [
-        "src/android/emulation/control/interceptor/idle_interceptor.cpp",
-        "src/android/emulation/control/interceptor/logging_interceptor.cpp",
+        "idle_interceptor.cc",
+        "logging_interceptor.cc",
     ],
     hdrs = [
-        "include/android/emulation/control/interceptor/breadcrumb_interceptor.h",
-        "include/android/emulation/control/interceptor/idle_interceptor.h",
-        "include/android/emulation/control/interceptor/logging_interceptor.h",
+        "include/android/control/interceptor/breadcrumb_interceptor.h",
+        "include/android/control/interceptor/idle_interceptor.h",
+        "include/google/protobuf/android/control/interceptor/logging_interceptor.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -27,7 +27,7 @@ cc_test(
         select({
             "@platforms//os:windows": [],
             "//conditions:default": [
-                "test/android/emulation/control/interceptor/logging_interceptor_unittest.cpp",
+                "logging_interceptor_test.cc",
             ],
         }),
     visibility = ["//visibility:public"],

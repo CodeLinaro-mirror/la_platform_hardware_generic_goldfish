@@ -18,9 +18,9 @@
 #include <memory>
 
 #include "goldfish/async/event_loop.h"
-#include "goldfish/devices/PingTopic.h"
 #include "goldfish/devices/cable/cable.h"
-#include "goldfish/hal/plug/HalPlug.h"
+#include "goldfish/devices/internal/hal_plug.h"
+#include "goldfish/devices/ping_topic.h"
 
 namespace goldfish {
 namespace devices {

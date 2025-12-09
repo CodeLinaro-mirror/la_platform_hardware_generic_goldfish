@@ -17,8 +17,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-#include "android/goldfish/config/avd.h"
-#include "android/goldfish/config/hardware_config.h"
+#include "android/goldfish/avd.h"
+#include "android/goldfish/hardware_config.h"
 
 namespace android::goldfish {
 namespace fs = std::filesystem;

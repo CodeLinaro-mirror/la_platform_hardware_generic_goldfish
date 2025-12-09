@@ -7,6 +7,6 @@ package(default_visibility = [
 
 cc_library(
     name = "emulator_reset",
-    hdrs = ["include/goldfish/hal/common/emulator_reset.h"],
+    hdrs = ["include/goldfish/devices/emulator_reset.h"],
     strip_include_prefix = "include",
 )

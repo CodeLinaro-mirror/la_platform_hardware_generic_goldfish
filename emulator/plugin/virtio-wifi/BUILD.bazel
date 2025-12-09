@@ -23,8 +23,8 @@ license_kind(
 
 cc_library(
     name = "virtio-wifi",
-    srcs = ["virtio-wifi.c"],
-    hdrs = ["include/goldfish/net/virtio-wifi.h"],
+    srcs = ["virtio_wifi.c"],
+    hdrs = ["include/goldfish/net/virtio_wifi.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [

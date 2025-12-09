@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 cc_library(
     name = "base",
     hdrs = [
-        "include/goldfish/base/IntrusivePtr.h",
-        "include/goldfish/base/UniqueHandle.h",
+        "include/goldfish/base/intrusive_ptr.h",
+        "include/goldfish/base/unique_handle.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -14,8 +14,8 @@ cc_library(
 cc_test(
     name = "base_unittests",
     srcs = [
-        "test/IntrusivePtr_test.cpp",
-        "test/UniqueHandle_test.cpp",
+        "intrusive_ptr_test.cc",
+        "unique_handle_test.cc",
     ],
     includes = ["test"],
     visibility = ["//visibility:public"],
