@@ -157,7 +157,7 @@ EmulatorAdvertisement::EmulatorAdvertisement(
         : mStudioConfig(std::move(config))
         , mSharedDirectory(std::move(discoveryDirectory))
         , mLivenessChecker(std::move(livenessChecker)) {
-    assert(fs::exists(mSharedDirectory));
+    assert(base::file::exists(mSharedDirectory));
 }
 
 EmulatorAdvertisement::~EmulatorAdvertisement() {
@@ -175,10 +175,10 @@ int EmulatorAdvertisement::garbageCollect() const {
             collected++;
             // Emulator is not running, or unreachable.
             if (base::file::is_file(entry)) {
-                base::file::rm(entry);
+                (void)base::file::rm(entry);
             }
             if (base::file::is_dir(entry)) {
-                base::file::rm_recursive(entry);
+                (void)base::file::rm_recursive(entry);
             }
         }
     }
@@ -221,7 +221,7 @@ void EmulatorAdvertisement::remove() const {
     fs::path pid_dir = mSharedDirectory / std::to_string(Process::me()->pid());
     if (base::file::is_dir(pid_dir)) {
         DD("Deleting my pid dir %s", pid_dir.string().c_str());
-        base::file::rm_recursive(pid_dir);
+        (void)base::file::rm_recursive(pid_dir);
     }
 }
 

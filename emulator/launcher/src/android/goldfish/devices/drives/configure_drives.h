@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 
 #include "aemu/base/utils/status_macros.h"
+#include "android/base/file/file.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
 #include "emulator/launcher/src/android/goldfish/devices/drives/disk_drive.h"
@@ -58,7 +59,7 @@ absl::Status addDrives(T& emulator) {
                                                  dc.wipe_existing);
         } else {
             fs::path image;
-            if (fs::exists(dc.user_image_path)) {
+            if (base::file::exists(dc.user_image_path)) {
                 image = dc.user_image_path;
             } else if (dc.system_image_path_ro) {
                 image = *dc.system_image_path_ro;

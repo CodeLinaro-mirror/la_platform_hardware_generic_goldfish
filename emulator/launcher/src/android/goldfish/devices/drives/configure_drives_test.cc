@@ -53,9 +53,9 @@ TEST(ConfigureDrivesTest, AddDrives) {
     auto launcher_path = std::filesystem::temp_directory_path();
     auto user_dir = launcher_path / "user";
     auto system_dir = launcher_path / "system";
-    fs::create_directory(user_dir);
-    fs::create_directory(system_dir);
-    fs::create_directory(system_dir / "data");
+    base::file::mkdir(user_dir, 0755);
+    base::file::mkdir(system_dir, 0755);
+    base::file::mkdir(system_dir / "data", 0755);
     base::file::touch(system_dir / "data" / "empty_data_disk");
 
     android::base::System::get()->envSet("ANDROID_EMULATOR_HOME", launcher_path.string());

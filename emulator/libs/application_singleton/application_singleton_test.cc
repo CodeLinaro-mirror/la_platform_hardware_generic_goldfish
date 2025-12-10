@@ -50,7 +50,7 @@ class ApplicationSingletonTest : public ::testing::Test {
 
         mTempDir = std::filesystem::temp_directory_path() / "application_singleton_test" /
                    ::testing::UnitTest::GetInstance()->current_test_info()->name();
-        std::filesystem::create_directories(mTempDir);
+        android::base::file::mkdir_recursive(mTempDir, 0755);
         auto system = android::base::System::get();
         for (auto env : envs) {
             mOldEnvs[env] = system->envGet(env);
@@ -60,8 +60,8 @@ class ApplicationSingletonTest : public ::testing::Test {
 
     void TearDown() override {
         // Check if the directory exists before trying to remove it.
-        if (std::filesystem::exists(mTempDir)) {
-            std::filesystem::remove_all(mTempDir);
+        if (android::base::file::exists(mTempDir)) {
+            android::base::file::rm_recursive(mTempDir);
         }
         auto system = android::base::System::get();
         for (auto [k, v] : mOldEnvs) {
@@ -72,7 +72,7 @@ class ApplicationSingletonTest : public ::testing::Test {
     std::vector<std::string> envs{"LOCALAPPDATA", "XDG_RUNTIME_DIR", "HOME"};
     std::unordered_map<std::string, std::string> mOldEnvs;
     std::string mAppName;
-    std::filesystem::path mTempDir;
+    fs::path mTempDir;
 
     // Helper function to get the path to the test helper executable.
     std::string getHelperPath(const std::string& helperName) {

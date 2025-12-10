@@ -206,13 +206,12 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     D("Looking in %s", home.c_str());
 
     auto guessedSrcAdbKeyPub = home / ".android" / adbKeyFileName;
-    std::error_code ec;
-    fs::copy_file(adbKeyPath, guessedSrcAdbKeyPub, ec);
+    (void)android::base::file::cp_file(adbKeyPath, guessedSrcAdbKeyPub);
 
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
-    D("cannot read adb key file (failed): %s (%s)", adbKeyPath.c_str(), ec.message());
+    D("cannot read adb key file (failed): %s", adbKeyPath.c_str());
     return "";
 }
 

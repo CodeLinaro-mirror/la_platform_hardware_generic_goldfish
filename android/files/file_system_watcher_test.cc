@@ -32,19 +32,19 @@ using namespace std::chrono_literals;
 // is cleaner than a tuple for use with Google Mock matchers like `Field`.
 struct WatchResult {
     FileSystemWatcher::WatcherChangeType type;
-    std::filesystem::path path;
+    fs::path path;
 };
 
 // TestEventHandler is a helper class that manages the state and synchronization
 // for the FileSystemWatcher tests. It collects events in a thread-safe manner.
 class TestEventHandler {
   public:
-    explicit TestEventHandler(std::filesystem::path expected_path)
+    explicit TestEventHandler(fs::path expected_path)
             : mExpectedPath(expected_path), mNotification(std::make_unique<absl::Notification>()) {}
 
     // The callback function passed to the FileSystemWatcher.
     void operator()(FileSystemWatcher::WatcherChangeType change,
-                    const std::filesystem::path& path) {
+                    const fs::path& path) {
         LOG(INFO) << "Change: " << (int)change << " path: " << path << " == " << mExpectedPath;
 
         // Only store events for the specific file we're testing and resolve symlinks etc.
@@ -76,7 +76,7 @@ class TestEventHandler {
     }
 
   private:
-    std::filesystem::path mExpectedPath;
+    fs::path mExpectedPath;
     absl::Mutex mMutex;
     std::unique_ptr<absl::Notification> mNotification;
     std::vector<WatchResult> mChanges;
@@ -87,15 +87,15 @@ class FileSystemWatcherTest : public ::testing::Test {
     void SetUp() override {
         mTempDir = std::filesystem::temp_directory_path() / "fs_watcher_test" /
                    ::testing::UnitTest::GetInstance()->current_test_info()->name();
-        std::filesystem::create_directories(mTempDir);
+        (void)android::base::file::mkdir_recursive(mTempDir, 0755);
     }
 
     void TearDown() override {
         if (mWatcher) {
             mWatcher->stop();
         }
-        if (std::filesystem::exists(mTempDir)) {
-            std::filesystem::remove_all(mTempDir);
+        if (android::base::file::exists(mTempDir)) {
+            (void)android::base::file::rm_recursive(mTempDir);
         }
     }
 
@@ -122,10 +122,10 @@ class FileSystemWatcherTest : public ::testing::Test {
         std::filesystem::last_write_time(path, now);
     }
 
-    void deleteFile(const std::string& name) { std::filesystem::remove(mTempDir / name); }
+    void deleteFile(const std::string& name) { android::base::file::rm(mTempDir / name); }
 
     std::unique_ptr<FileSystemWatcher> mWatcher;
-    std::filesystem::path mTempDir;
+    fs::path mTempDir;
 };
 
 TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
@@ -205,7 +205,7 @@ TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
     absl::Notification notification;
 
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            mTempDir, [&](FileSystemWatcher::WatcherChangeType, const std::filesystem::path&) {
+            mTempDir, [&](FileSystemWatcher::WatcherChangeType, const fs::path&) {
                 notification.Notify();
             });
     ASSERT_TRUE(mWatcher->start());

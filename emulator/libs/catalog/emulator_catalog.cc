@@ -26,11 +26,11 @@ using android::base::FileSystemWatcher;
 using android::goldfish::ConfigDirs;
 using android::goldfish::IniFile;
 
-std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path discoveryPath) {
+std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(fs::path discoveryPath) {
     auto path =
             discoveryPath.empty() ? ConfigDirs::getDiscoveryDirectory() : std::move(discoveryPath);
 
-    if (!std::filesystem::exists(path) || !std::filesystem::is_directory(path)) {
+    if (!android::base::file::exists(path) || !android::base::file::is_dir(path)) {
         LOG(WARNING) << "Discovery path does not exist or is not a directory: " << path;
         return nullptr;
     }
@@ -45,11 +45,11 @@ std::unique_ptr<EmulatorCatalog> EmulatorCatalog::create(std::filesystem::path d
     return catalog;
 }
 
-EmulatorCatalog::EmulatorCatalog(std::filesystem::path discoveryPath, Private)
+EmulatorCatalog::EmulatorCatalog(fs::path discoveryPath, Private)
         : mDiscoveryPath(std::move(discoveryPath)) {
     mWatcher = FileSystemWatcher::getFileSystemWatcher(
             mDiscoveryPath,
-            [this](auto change, std::filesystem::path path) { onFileChanged(change, path); });
+            [this](auto change, fs::path path) { onFileChanged(change, path); });
 }
 
 EmulatorCatalog::~EmulatorCatalog() {
@@ -83,7 +83,7 @@ std::vector<CatalogEntry> EmulatorCatalog::listEmulators() const {
 }
 
 void EmulatorCatalog::onFileChanged(FileSystemWatcher::WatcherChangeType change,
-                                    const std::filesystem::path& path) {
+                                    const fs::path& path) {
     // We only care about .ini files.
     VLOG(1) << "EmulatorCatalog: " << path << " changed: " << (int)change;
 
@@ -106,11 +106,15 @@ void EmulatorCatalog::onFileChanged(FileSystemWatcher::WatcherChangeType change,
     }
 }
 
-void EmulatorCatalog::addEmulator(const std::filesystem::path& path) {
-    const auto canonicalPath = std::filesystem::canonical(path);
-    IniFile ini(canonicalPath.string());
+void EmulatorCatalog::addEmulator(const fs::path& path) {
+    auto canonicalPath = android::base::file::make_canonical(path);
+    if (!canonicalPath.ok()) {
+        LOG(ERROR) << "Could not canonicalize ini path: " << path << " - " << canonicalPath.status();
+        return;
+    }
+    IniFile ini(*canonicalPath);
     if (!ini.read()) {
-        LOG(WARNING) << "Could not parse ini file: " << path;
+        LOG(ERROR) << "Could not parse ini file: " << path;
         return;
     }
     EmulatorProperties props;
@@ -118,22 +122,22 @@ void EmulatorCatalog::addEmulator(const std::filesystem::path& path) {
         props[key] = ini.get<std::string>(key, "<unknown>");
     }
 
-    CatalogEntry entry{canonicalPath, props};
+    CatalogEntry entry{*canonicalPath, props};
 
     absl::MutexLock lock(&mMutex);
-    auto [it, inserted] = mEmulators.insert({canonicalPath, entry});
+    auto [it, inserted] = mEmulators.insert({*canonicalPath, entry});
     if (inserted) {
-        VLOG(1) << "Added emulator from: " << canonicalPath;
+        VLOG(1) << "Added emulator from: " << *canonicalPath;
         emulatorAdded.fireEvent(it->second);
     } else {
         // Update existing entry.
         it->second = entry;
-        VLOG(1) << "Updated emulator from: " << canonicalPath;
+        VLOG(1) << "Updated emulator from: " << *canonicalPath;
         emulatorAdded.fireEvent(it->second);
     }
 }
 
-void EmulatorCatalog::removeEmulator(const std::filesystem::path& path) {
+void EmulatorCatalog::removeEmulator(const fs::path& path) {
     absl::MutexLock lock(&mMutex);
     VLOG(1) << "Remove event for: " << path;
     auto it = mEmulators.find(path);
@@ -146,8 +150,7 @@ void EmulatorCatalog::removeEmulator(const std::filesystem::path& path) {
 }
 
 void EmulatorCatalog::scanDirectory() {
-    auto files = android::base::file::scan_dir(mDiscoveryPath, true);
-    for (const auto& file : files) {
+    for (const auto& file : android::base::file::scan_dir(mDiscoveryPath, true)) {
         VLOG(1) << "Discovered: " << file;
         if (absl::EndsWith(file.string(), ".ini")) {
             addEmulator(file);

@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include "absl/strings/str_cat.h"
+#include "absl/status/status_matchers.h"
 
 #include "android/system/test-headers/android/base/testing/TestSystem.h"
 
@@ -177,9 +178,10 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
 
     auto want = base / "avd" / "running";
     if (GetParam()) {
-        ASSERT_TRUE(fs::create_directories(sys.getTempRoot()->path() / want))
+        ASSERT_TRUE(android::base::file::mkdir_recursive(sys.getTempRoot()->path() / want, 0755).ok())
                 << "creating: " << want;
-        fs::permissions(want, fs::perms::owner_all, fs::perm_options::remove);
+        // Make sure that unreadable dir can be fixed.
+        (void)android::base::file::chmod(want, 0055);
     }
 
     sys.envSet("LOCALAPPDATA", (sys.getTempRoot()->path() / "runtime").string());
@@ -188,8 +190,8 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
 
     auto got = ConfigDirs::getDiscoveryDirectory();
     EXPECT_THAT(got.string(), testing::EndsWith(want.string()));
-    EXPECT_TRUE(fs::exists(got));
-    EXPECT_EQ(fs::status(got).permissions() & fs::perms::owner_all, fs::perms::owner_all);
+    EXPECT_TRUE(android::base::file::exists(got));
+    EXPECT_THAT(android::base::file::mode(got), absl_testing::IsOkAndHolds(0755));
 }
 
 INSTANTIATE_TEST_SUITE_P(DiscoveryDirectory, ConfigDirsTest, testing::Values(true, false));

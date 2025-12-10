@@ -21,6 +21,7 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/bazel_info.h"
+#include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/config_dirs.h"
 #include "goldfish/async/uv_to_absl.h"
@@ -48,7 +49,7 @@ absl::StatusOr<fs::path> get_program_path() {
 }
 
 absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view description) {
-    if (!fs::exists(path)) {
+    if (!android::base::file::exists(path)) {
         return absl::NotFoundError(
                 absl::StrCat("Path for \"", description, "\" does not exist: ", path.string()));
     }
@@ -57,16 +58,11 @@ absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view descriptio
 }
 
 absl::StatusOr<fs::path> canonicalize(const fs::path& path) {
-    std::error_code ec;
-    auto canon = fs::canonical(path, ec);
-    if (ec) {
-        return absl::InternalError(
-                absl::StrCat("Failed to canonicalize path: ", path.string(), " - ", ec.message()));
-    }
+    ASSIGN_OR_RETURN(auto canon, android::base::file::make_canonical(path));
     if (canon != path) {
         VLOG(1) << "binary is a symlink, replacing with real path: " << path << " -> " << canon;
     }
-    return fs::path(canon);
+    return canon;
 }
 
 std::string add_binary_suffix(std::string binary) {
@@ -89,6 +85,8 @@ std::string add_qemu_binary_suffix(std::string binary) {
     return add_binary_suffix(std::move(binary));
 }
 
+constexpr std::string_view kEmulatorBinaryName = "emulator";
+
 }  // namespace
 
 absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
@@ -99,8 +97,8 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     if (auto d = System::getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
         paths.launcher_directory = fs::path(d);
         // Sanity check launcher directory
-        if (auto launcher = paths.launcher_directory / add_binary_suffix("goldfish");
-            !fs::exists(launcher)) {
+        if (auto launcher = paths.launcher_directory / add_binary_suffix(std::string(kEmulatorBinaryName));
+            !android::base::file::exists(launcher)) {
             LOG(WARNING)
                     << "launcher does not appear to exist within overridden launcher directory: "
                     << launcher.string();

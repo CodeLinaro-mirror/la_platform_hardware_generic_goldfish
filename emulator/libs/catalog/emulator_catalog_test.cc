@@ -23,6 +23,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "android/base/file/file.h"
+
 namespace goldfish {
 
 using namespace std::chrono_literals;
@@ -33,14 +35,14 @@ class EmulatorCatalogTest : public ::testing::Test {
         // Create a unique temporary directory for each test.
         mTempDir = std::filesystem::temp_directory_path() / "emulator_catalog_test" /
                    ::testing::UnitTest::GetInstance()->current_test_info()->name();
-        std::filesystem::create_directories(mTempDir);
+        (void)android::base::file::mkdir_recursive(mTempDir, 0755);
     }
 
     void TearDown() override {
         mCatalog.reset();
         // Check if the directory exists before trying to remove it.
-        if (std::filesystem::exists(mTempDir)) {
-            std::filesystem::remove_all(mTempDir);
+        if (android::base::file::exists(mTempDir)) {
+            (void)android::base::file::rm_recursive(mTempDir);
         }
     }
 
@@ -48,17 +50,17 @@ class EmulatorCatalogTest : public ::testing::Test {
         std::ofstream ofs(mTempDir / name);
         ofs << content;
         ofs.close();
-        ASSERT_TRUE(std::filesystem::exists(mTempDir / name))
+        ASSERT_TRUE(android::base::file::exists(mTempDir / name))
                 << "Failed to write" << (mTempDir / name);
     }
 
     void deleteIniFile(const std::string& name) {
         auto toRemove = mTempDir / name;
         VLOG(1) << "Removing: " << toRemove;
-        std::filesystem::remove(toRemove);
+        (void)android::base::file::rm(toRemove);
     }
 
-    std::filesystem::path mTempDir;
+    fs::path mTempDir;
     std::unique_ptr<EmulatorCatalog> mCatalog;
 };
 

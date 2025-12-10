@@ -64,16 +64,25 @@ class TestTempDir {
         // TODO use System::getTempDir() instead of getTempPath()
         mPath = getTempPath() / generate_random_string();
         if (!debugName.empty()) {
-            mPath = fs::absolute(mPath / debugName);
+            mPath /= debugName;
         }
 
-        if (fs::exists(mPath)) {
-            base::file::rm_recursive(mPath);
+        // mPath is always absolute
+        if (auto res = base::file::make_absolute(mPath); res.ok()) {
+            mPath = *res;
+        } else {
+            LOG(FATAL) << "Failed to make absolute path for " << mPath << " due to: " << res.status();
         }
+
+        if (base::file::exists(mPath)) {
+            if (auto s = base::file::rm_recursive(mPath); !s.ok()) {
+                LOG(FATAL) << "Failed to remove old test directory: " << mPath << " due to: " << s;
+            }
+        }
+
         // Attempt to create the temporary directory
-        std::error_code ec;
-        if (!fs::create_directories(mPath, ec)) {
-            PLOG(WARNING) << "Failed to create " << mPath << " due to: " << ec;
+        if (auto s = base::file::mkdir_recursive(mPath, 0755); !s.ok()) {
+            LOG(FATAL) << "Failed to create " << mPath << " due to: " << s;
         }
     }
 
@@ -89,7 +98,7 @@ class TestTempDir {
     // inside it.
     ~TestTempDir() {
         if (!mPath.empty()) {
-            base::file::rm_recursive(mPath);
+            (void)base::file::rm_recursive(mPath);
         }
     }
 
@@ -98,13 +107,13 @@ class TestTempDir {
 
     // Create an empty directory under the temporary directory.
     bool makeSubDir(fs::path subdir) {
-        fs::path path = fs::absolute(makeSubPath(subdir));
-        if (auto s = base::file::mkdir(path, 0755); !s.ok()) {
+        fs::path path = makeSubPath(subdir);
+        if (auto s = base::file::mkdir_recursive(path, 0755); !s.ok()) {
             LOG(ERROR) << "Can't create " << path << " - " << s;
             return false;
         }
         if (!base::file::exists(path)) {
-            LOG(WARNING) << "Created path (" << path << "/" << subdir << ") does not exist";
+            LOG(WARNING) << "Created path (" << path << ") does not exist";
         }
         VLOG(1) << "Created " << path;
         return true;

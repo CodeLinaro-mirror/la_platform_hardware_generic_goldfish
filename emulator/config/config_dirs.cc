@@ -47,7 +47,7 @@ auto ConfigDirs::getUserDirectory() -> fs::path {
         // directly. Put a workaround here to make sure it works both ways,
         // preferring the one from AS.
         auto homeNewWay = fs::path(home) / kAndroidSubDir;
-        return fs::is_directory(homeNewWay) ? homeNewWay : home;
+        return base::file::is_dir(homeNewWay) ? homeNewWay : home;
     }  // Old key that is deprecated (ANDROID_SDK_HOME)
     home = System::get()->envGet("ANDROID_SDK_HOME");
     if (!home.empty()) {
@@ -275,13 +275,14 @@ auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
     std::error_code ec;
 
     auto desired_directory = root / "avd" / "running";
-    if (!fs::exists(desired_directory)) {
-        if (!fs::create_directories(desired_directory, ec)) {
-            LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to "
-                         << ec.message();
+    if (!base::file::exists(desired_directory)) {
+        if (auto s = base::file::mkdir_recursive(desired_directory, 0755); !s.ok()) {
+            LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to " << s;
         }
+    } else {
+        base::file::chmod(desired_directory, 0755);
     }
-    fs::permissions(desired_directory, fs::perms::owner_all, fs::perm_options::add);
     return desired_directory;
 }
+
 }  // namespace android::goldfish

@@ -47,7 +47,7 @@ absl::StatusOr<fs::path> getSystemImage(const Avd& avd, Avd::ImageType sys_image
     fs::path p;
     if (flag_override != nullptr) {
         p = fs::path(flag_override);
-        if (!fs::exists(p)) {
+        if (!base::file::exists(p)) {
             return absl::NotFoundError(absl::StrCat(
                     "System image specified by flag override not found: ", flag_override));
         }

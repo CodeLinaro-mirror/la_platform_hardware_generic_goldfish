@@ -39,21 +39,6 @@ using std::ios_base;
 using std::string;
 using std::to_string;
 
-static bool move(const fs::path& from, const fs::path& to) {
-    // TODO(whollins): Move this to a helper in File.h
-    std::error_code ec;
-    if (fs::rename(from, to, ec); ec) {
-        // Rename can fail if files are on different disks
-        if (base::file::cp_file(from, to).ok()) {
-            base::file::rm(from);
-            return true;
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
 IniFile::IniFile(const char* data, int size) {
     readFromMemory(std::string_view(data, size));
 }
@@ -280,14 +265,14 @@ bool IniFile::writeCommon(const bool discardEmpty) {
 
     fs::path iniFileOld = mBackingFilePath;
     iniFileOld += ".old";
-    base::file::rm(iniFileOld);  // just in case `myRemove` below failed
+    (void)base::file::rm(iniFileOld);  // just in case `myRemove` below failed
 
-    const bool deleteOldConfig = move(mBackingFilePath, iniFileOld);
+    const bool deleteOldConfig = base::file::mv_file(mBackingFilePath, iniFileOld).ok();
 
-    if (!move(iniFileNew, mBackingFilePath)) {
+    if (!base::file::mv_file(iniFileNew, mBackingFilePath).ok()) {
         if (deleteOldConfig) {
             // try to revert the first `rename`
-            if (!move(iniFileOld, mBackingFilePath)) {
+            if (!base::file::mv_file(iniFileOld, mBackingFilePath).ok()) {
                 // mBackingFilePath is missing here
                 LOG(ERROR) << "Failed to update '" << mBackingFilePath.string()
                            << "', the file no longer exists";
@@ -300,12 +285,12 @@ bool IniFile::writeCommon(const bool discardEmpty) {
             LOG(WARNING) << "Failed to save '" << mBackingFilePath.string() << "'";
         }
 
-        base::file::rm(iniFileNew);
+        (void)base::file::rm(iniFileNew);
         return false;
     }
 
     if (deleteOldConfig) {
-        base::file::rm(iniFileOld);
+        (void)base::file::rm(iniFileOld);
     }
 
     return true;

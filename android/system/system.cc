@@ -128,6 +128,8 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 extern "C" char** environ;
 #endif
 
+#include "android/base/file/file.h"
+
 namespace android {
 namespace base {
 namespace fs = std::filesystem;
@@ -879,15 +881,12 @@ class HostSystem : public System {
         }
 
         fs::path tmp(result);
-        std::error_code ec;
-        if (!fs::exists(tmp) && fs::create_directories(tmp, ec)) {
-            fs::permissions(tmp, fs::perms::owner_read | fs::perms::owner_write |
-                                         fs::perms::owner_exec | fs::perms::group_read |
-                                         fs::perms::others_read);
+        if (!file::exists(tmp)) {
+            (void)file::mkdir_recursive(tmp, 744);
         }
 
-        if (!fs::exists(tmp)) {
-            LOG(WARNING) << "Failed to create: " << tmp;
+        if (!file::exists(tmp)) {
+            LOG(FATAL) << "Failed to create: " << tmp;
         }
         return result;
 #endif  // !_WIN32
