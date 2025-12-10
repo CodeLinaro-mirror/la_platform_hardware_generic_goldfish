@@ -23,6 +23,7 @@
 
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "android/base/qemu_clock.h"
+#include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
@@ -160,7 +161,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     VLOG(1) << "Device configuration, AVD name: '" << mut_avd_props->avd_name << "'";
 
-    std::filesystem::path hw_path = mut_avd_props->avd_content_path / CORE_HARDWARE_INI;
+    fs::path hw_path = mut_avd_props->avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
     if (!hw_ini->read()) {
         error_setg(errp, "Failed to parse hardware ini: %s", hw_path.string().c_str());
@@ -272,8 +273,8 @@ void avd_info_set_avd_type(Object* obj, Visitor* v, const char* name, void* opaq
 }
 
 void avd_info_set_avd_dir(Object* obj, const char* value, Error** errp) {
-    std::filesystem::path dir(value);
-    if (!std::filesystem::is_directory(dir)) {
+    fs::path dir(value);
+    if (!android::base::file::is_dir(dir)) {
         error_setg(errp, "avd_dir specified is not a valid directory: %s", value);
         return;
     }

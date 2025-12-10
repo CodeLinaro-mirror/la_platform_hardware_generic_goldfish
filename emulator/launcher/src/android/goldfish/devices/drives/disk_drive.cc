@@ -82,7 +82,7 @@ absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_im
                                fs::path qcow2_image) {
     constexpr auto kQemuImgTimeout = std::chrono::seconds(10);
 
-    if (!fs::exists(ext4_image)) {
+    if (!base::file::exists(ext4_image)) {
         return absl::NotFoundError(
                 absl::StrFormat("The path: %s does not exist.", ext4_image.string()));
     }
@@ -104,7 +104,7 @@ absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_im
                 "qemu-img reported qcow2 creation failed with exit code ", img_proc->exitCode(),
                 ": ", ext4_image.string(), " -> ", qcow2_image.string()));
     }
-    if (!fs::exists(qcow2_image)) {
+    if (!base::file::exists(qcow2_image)) {
         return absl::NotFoundError(absl::StrCat("The requested qcow2 file has not been created: ",
                                                 qcow2_image.string()));
     }
@@ -144,17 +144,16 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
 
 absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
     if (mWipeExisting) {
-        fs::remove(mQcow2Image);
-        fs::remove(mDestinationImage);
+        base::file::rm(mQcow2Image);
+        base::file::rm(mDestinationImage);
     }
 
-    if (!fs::exists(mDestinationImage)) {
-        fs::remove(mQcow2Image);
+    if (!base::file::exists(mDestinationImage)) {
+        (void)base::file::rm(mQcow2Image);
         if (mSourcePath) {
-            fs::copy_options options = fs::copy_options::overwrite_existing;
-            fs::copy(*mSourcePath, mDestinationImage, options);
+            (void)base::file::cp_file(*mSourcePath, mDestinationImage, /*overwrite=*/true);
 
-            if (!fs::exists(mDestinationImage)) {
+            if (!base::file::exists(mDestinationImage)) {
                 return absl::NotFoundError(absl::StrCat("Failed to copy '", mSourcePath->string(),
                                                         "' to '", mDestinationImage.string(), "'"));
             }
@@ -164,7 +163,7 @@ absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
         }
     }
 
-    if (!fs::exists(mQcow2Image)) {
+    if (!base::file::exists(mQcow2Image)) {
         return convertImgToQcow2(emulator.paths().qemu_img_binary, mDestinationImage, mQcow2Image);
     }
 

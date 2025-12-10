@@ -27,6 +27,7 @@
 #include "absl/strings/str_replace.h"
 
 #include "aemu/base/utils/status_macros.h"
+#include "android/base/file/file.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "emulator/launcher/bootconfig.h"
@@ -339,7 +340,7 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
     fs::path system_ramdisk;
     if (auto* ramdisk = emulator.opts().ramdisk; ramdisk != nullptr) {
         system_ramdisk = fs::path(ramdisk);
-        if (!fs::exists(system_ramdisk)) {
+        if (!base::file::exists(system_ramdisk)) {
             return absl::NotFoundError(
                     absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
         }

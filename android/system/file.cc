@@ -23,13 +23,39 @@
 #endif
 
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/EintrWrapper.h"
+#include "aemu/base/utils/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
 
 namespace android::base::file {
+
+absl::StatusOr<fs::path> make_absolute(const fs::path& path) {
+    std::error_code ec;
+    if (fs::path abs = fs::absolute(path, ec); !ec) {
+        return abs;
+    }
+    return absl::InternalError(absl::StrCat("Failed to make path absolute: ", path.string(), " - ", ec.message()));
+}
+
+absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path) {
+    std::error_code ec;
+    if (fs::path rel = fs::relative(path, base_path, ec); !ec) {
+        return rel;
+    }
+    return absl::InternalError(absl::StrCat("Failed to make path relative: ", path.string(), " - ", ec.message()));
+}
+
+absl::StatusOr<fs::path> make_canonical(const fs::path& path) {
+    std::error_code ec;
+    if (fs::path canon = fs::canonical(path, ec); !ec) {
+        return canon;
+    }
+    return absl::InternalError(absl::StrCat("Failed to make path canonical: ", path.string(), " - ", ec.message()));
+}
 
 bool exists(const fs::path& path) {
     std::error_code ec;
@@ -126,7 +152,7 @@ std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) {
 }
 
 namespace {
-fs::perms octal_mode_to_perms(int octalMode) {
+fs::perms octal_mode_to_perms(unsigned octalMode) {
     fs::perms mode = fs::perms::none;
 
     // Owner permissions
@@ -146,9 +172,22 @@ fs::perms octal_mode_to_perms(int octalMode) {
 
     return mode;
 }
+
+unsigned perms_to_octal_mode(fs::perms perms) {
+    return static_cast<unsigned>(perms);
+}
 }  // namespace
 
-absl::Status chmod(const fs::path& path, int octalMode) {
+absl::StatusOr<unsigned> mode(const fs::path& path) {
+    std::error_code ec;
+    if (fs::file_status stat = fs::status(path, ec); !ec) {
+        return perms_to_octal_mode(stat.permissions());
+    }
+    return absl::InternalError(
+            absl::StrCat("Failed to get file mode of: ", path.string(), " - ", ec.message()));
+}
+
+absl::Status chmod(const fs::path& path, unsigned octalMode) {
     if (std::error_code ec;
         fs::permissions(path, octal_mode_to_perms(octalMode), fs::perm_options::replace, ec), ec) {
         return absl::InternalError(
@@ -157,7 +196,7 @@ absl::Status chmod(const fs::path& path, int octalMode) {
     return absl::OkStatus();
 }
 
-absl::Status mkdir(const fs::path& path, int octalMode) {
+absl::Status mkdir(const fs::path& path, unsigned octalMode) {
     if (std::error_code ec; !fs::create_directory(path, ec)) {
         return absl::InternalError(
                 absl::StrCat("Failed to mkdir: ", path.string(), " - ", ec.message()));
@@ -165,7 +204,7 @@ absl::Status mkdir(const fs::path& path, int octalMode) {
     return chmod(path, octalMode);
 }
 
-absl::Status mkdir_recursive(const fs::path& path, int octalMode) {
+absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode) {
     // We don't use fs::create_directories here as it doesn't set permissions.
     if (fs::exists(path)) {
         return absl::OkStatus();
@@ -208,6 +247,18 @@ absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) {
                                                 to.string(), " - ", ec.message()));
     }
     return absl::OkStatus();
+}
+
+absl::Status mv_file(const fs::path& from, const fs::path& to) {
+    std::error_code ec;
+    if (fs::rename(from, to, ec); !ec) {
+        return absl::OkStatus();
+    }
+    // fs::rename can fail if files are on different disks
+    VLOG(1) << "fs::rename failed for " << from.string() << " -> " << to.string()
+              << " - reverting to slower copy-then-delete: " << ec.message();
+    RETURN_IF_ERROR(cp_file(from, to));
+    return rm(from);
 }
 
 absl::Status touch(const fs::path& path) {

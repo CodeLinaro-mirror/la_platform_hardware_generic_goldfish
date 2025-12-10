@@ -42,8 +42,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
+#include "android/base/file/file.h"
 #include "android/goldfish/avd.h"
-#include "android/goldfish/hardware_config.h"
 
 #ifdef _WIN32
 void intrusive_ptr_add_ref(IUnknown* x) {
@@ -128,7 +128,7 @@ std::string AudioDevice::detectHostAudioBackend() {
         return {};
     }
 
-    if (!std::filesystem::exists(absl::StrFormat("%s/pulse/pid", runtime))) {
+    if (!base::file::exists(absl::StrFormat("%s/pulse/pid", runtime))) {
         return {};
     }
 

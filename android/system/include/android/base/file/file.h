@@ -20,38 +20,42 @@
 
 #include "android/base/storage_capacity.h"
 
+namespace fs = std::filesystem;
+
 namespace android::base::file {
 
-namespace fs = std::filesystem;
+absl::StatusOr<fs::path> make_absolute(const fs::path& path);
+absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path);
+absl::StatusOr<fs::path> make_canonical(const fs::path& path);
 
 bool exists(const fs::path& path);
 
 bool is_file(const fs::path& path);
-
 bool is_dir(const fs::path& path);
-
 bool is_link(const fs::path& path);
 
 bool can_read(const fs::path& path);
-
 bool can_write(const fs::path& path);
-
 bool can_exec(const fs::path& path);
 
 absl::StatusOr<StorageCapacity> file_size(const fs::path& path);
 
 std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath = false);
 
-// TODO(b/465404199): Change API to take mode as fs::perms instead of int.
-absl::Status chmod(const fs::path& path, int octalMode);
+absl::StatusOr<unsigned> mode(const fs::path& path);
 
-absl::Status mkdir(const fs::path& path, int octalMode);
-absl::Status mkdir_recursive(const fs::path& path, int octalMode);
+// TODO(b/465404199): Consider changing API to take mode as fs::perms instead of int.
+absl::Status chmod(const fs::path& path, unsigned octalMode);
+
+absl::Status mkdir(const fs::path& path, unsigned octalMode);
+absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode);
 
 absl::Status rm(const fs::path& path);
 absl::Status rm_recursive(const fs::path& path);
 
 absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = false);
+
+absl::Status mv_file(const fs::path& from, const fs::path& to);
 
 absl::Status touch(const fs::path& path);
 

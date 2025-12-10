@@ -23,6 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/bazel_info.h"
+#include "android/base/file/file.h"
 
 using android::base::Bazel;
 
@@ -50,7 +51,7 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
         allowlist = fs::path(
                 Bazel::runfilesPath("goldfish+/emulator/grpc/security/test/"
                                     "android/emulation/control/secure/test_allow_list.json"));
-        assert(fs::exists(allowlist));
+        assert(base::file::exists(allowlist));
         LOG(WARNING) << "** Using development allow list, do not use in production **";
     }
 

@@ -22,6 +22,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
@@ -65,9 +66,9 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     /*auto ram = StorageCapacity(mMemorySizeMiB, StorageCapacity::Unit::MiB);
 
     auto path = avd.getContentPath() / "default_boot";
-    if (!fs::exists(path)) {
+    if (!base::file::exists(path)) {
         // Lets create it
-        if (!std::filesystem::create_directories(path)) {
+        if (!base::file::mkdir_recursive(path, 0755)) {
             return absl::DataLossError("Failed to create directory: " + path.string());
         }
 
@@ -95,7 +96,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
         LOG(INFO) << "Insufficient space in existing memory mapped file '" << ram_file
                   << "'. Required size: " << ramSizeBytesWithAlign
                   << " bytes. Existing size: " << existingSize << " bytes. Deleting existing file.";
-        fs::remove(ram_file);
+        base::file::rm(ram_file);
         existingSize = 0_KiB;
     }
     System::FileSize availableSpace;

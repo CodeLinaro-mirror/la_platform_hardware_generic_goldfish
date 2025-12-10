@@ -24,10 +24,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [
+            # For unicode.
             "//android/system",
         ],
         "//conditions:default": [],
     }) + [
+        "//android/system:file",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

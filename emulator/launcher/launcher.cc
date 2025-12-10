@@ -28,6 +28,7 @@
 
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/bazel_info.h"
+#include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_consent.h"
@@ -460,7 +461,7 @@ int main(int argc, char** argv) {
     if (Bazel::inBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
         auto launcher_dir = fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
-        LOG_IF(FATAL, !fs::exists(launcher_dir))
+        LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
                 << "Unable to locate launcher directory: " << launcher_dir;
         System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
         if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
@@ -516,14 +517,14 @@ int main(int argc, char** argv) {
     if (opts.read_only) {
         writable_content_override = System::get()->getTempDir();
         VLOG(1) << "Content path overridden to: " << writable_content_override;
-        fs::create_directories(writable_content_override);
+        android::base::file::mkdir_recursive(writable_content_override, 0755);
     } else if (opts.datadir) {
         writable_content_override = fs::path(opts.datadir);
-        if (!fs::exists(writable_content_override)) {
+        if (!android::base::file::exists(writable_content_override)) {
             LOG(ERROR) << "-datadir specified does not exist: " << writable_content_override;
             return 1;
         }
-        if (!fs::is_directory(writable_content_override)) {
+        if (!android::base::file::is_dir(writable_content_override)) {
             LOG(ERROR) << "-datadir specified is not a directory: " << writable_content_override;
             return 1;
         }

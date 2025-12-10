@@ -397,8 +397,8 @@ std::vector<std::string> Avd::list(const fs::path& avd_directory) {
     std::vector<std::string> avds;
     auto pattern = std::regex(".*.ini");
 
-    for (const auto& entry : fs::directory_iterator(avd_directory)) {
-        const auto& filename = entry.path().filename().string();
+    for (const auto& entry : base::file::scan_dir(avd_directory)) {
+        const auto& filename = entry.filename().string();
 
         // Simple pattern matching
         if (std::regex_match(filename, pattern)) {

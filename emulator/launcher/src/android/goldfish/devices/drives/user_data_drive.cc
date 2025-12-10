@@ -103,7 +103,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
                          << current_data_size.string() << " to " << desired_size_bytes;
             RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
             // It will be recreated by RwDrive.
-            fs::remove(fs::path(image).concat(".qcow2"));
+            base::file::rm(image.concat(".qcow2"));
         }
     }
     return absl::OkStatus();
@@ -114,21 +114,21 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
 absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
                                       bool wipe_data, bool resize) {
     if (wipe_data) {
-        fs::remove(user_data);
+        base::file::rm(user_data);
     }
 
-    if (fs::exists(user_data)) {
+    if (base::file::exists(user_data)) {
         if (!resize) {
             return absl::OkStatus();
         }
         return minimizePartition(user_data, data_size);
     } else {
-        if (!fs::is_directory(init_data)) {
+        if (!base::file::is_dir(init_data)) {
             return absl::InvalidArgumentError(absl::StrCat(
                     "data partition initialization path is not a directory: ", init_data.string()));
         }
         fs::path empty_data_path = init_data / "empty_data_disk";
-        if (fs::exists(empty_data_path)) {
+        if (base::file::exists(empty_data_path)) {
             // Don't create anything - in this case, userdata should be created the same as cache or
             // sdcard.
             return absl::OkStatus();

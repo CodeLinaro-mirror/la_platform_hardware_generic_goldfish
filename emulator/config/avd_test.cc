@@ -34,10 +34,6 @@ using android::base::TestTempDir;
 
 namespace android::goldfish::avd {
 
-static fs::path pj(fs::path a, fs::path b) {
-    return a / b;
-}
-
 void writeToFile(fs::path path, std::string text) {
     std::ofstream iniFile(path, std::ios::trunc);
     iniFile << text;
@@ -45,19 +41,20 @@ void writeToFile(fs::path path, std::string text) {
 }
 
 ResolvedInputPaths setupPaths(TestTempDir* tmp) {
-    tmp->makeSubDir("android_home");
-    tmp->makeSubDir(pj("android_home", "avd"));
+    fs::path android_home("android_home");
+    tmp->makeSubDir(android_home);
+    tmp->makeSubDir(android_home / "avd");
 
     return {
         .user_directory = tmp->path(),
-        .avd_directory = tmp->path() / "android_home" / "avd",
-        .sdk_directory = tmp->path() / "android_home",
+        .avd_directory = tmp->path() / android_home / "avd",
+        .sdk_directory = tmp->path() / android_home,
     };
 }
 
 void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
-    fs::create_directories(avd_dir);
+    (void)base::file::mkdir_recursive(avd_dir, 0755);
 
     // Create an ini file for the test AVD
     writeToFile(paths.avd_directory / "test_avd.ini", absl::StrCat("path=", avd_dir.string()));
@@ -116,11 +113,12 @@ TEST(Avd, path_getAvdSystemPath) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.getTempRoot();
     auto paths = setupPaths(tmp);
-    tmp->makeSubDir(pj("android_home", "sysimg"));
+    fs::path android_home("android_home");
+    tmp->makeSubDir(android_home / "sysimg");
     tmp->makeSubDir("nothome");
 
     fs::path avd_dir = paths.avd_directory / "q.avd";
-    fs::create_directories(avd_dir);
+    (void)base::file::mkdir_recursive(avd_dir, 0755);
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 
@@ -133,13 +131,14 @@ TEST(Avd, path_getAvdSystemImage) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.getTempRoot();
     auto paths = setupPaths(tmp);
-    tmp->makeSubDir(pj("android_home", "sysimg"));
+    fs::path android_home("android_home");
+    tmp->makeSubDir(android_home / "sysimg");
     tmp->makeSubDir("nothome");
-    tmp->makeSubDir(pj("nothome", "blah"));
+    tmp->makeSubDir(fs::path("nothome") / "blah");
 
     // Create an in file for the @q avd.
     fs::path avd_dir = paths.avd_directory / "q.avd";
-    fs::create_directories(avd_dir);
+    (void)base::file::mkdir_recursive(avd_dir, 0755);
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 
@@ -147,7 +146,7 @@ TEST(Avd, path_getAvdSystemImage) {
     EXPECT_EQ(1, inis.size());
 
     // No override.
-    auto expectedPath = tmp->path() / "android_home" / "sysimg" / "system.img";
+    auto expectedPath = tmp->path() / android_home / "sysimg" / "system.img";
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "q"));

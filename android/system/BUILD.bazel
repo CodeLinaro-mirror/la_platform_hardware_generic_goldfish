@@ -20,11 +20,29 @@ cc_library(
 )
 
 cc_library(
+    name = "file",
+    srcs = [
+        "file.cc",
+        "storage_capacity.cc",
+    ],
+    hdrs = [
+        "include/android/base/file/file.h",
+        "include/android/base/storage_capacity.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@aemu//base:aemu-base",
+    ],
+)
+
+cc_library(
     name = "system",
     srcs = [
         "bazel_info.cc",
-        "file.cc",
-        "storage_capacity.cc",
         "system.cc",
         "version.cc",
     ] + select({
@@ -37,9 +55,7 @@ cc_library(
     hdrs = [
         "include/android/base/bazel_info.h",
         "include/android/base/c_str_wrapper.h",
-        "include/android/base/file/file.h",
         "include/android/base/no_sigalarm.h",
-        "include/android/base/storage_capacity.h",
         "include/android/base/system.h",
         "include/android/utils/compiler.h",
     ] + select({
@@ -60,6 +76,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":clock",
+        ":file",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",

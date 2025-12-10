@@ -34,6 +34,7 @@
 
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/process/Command.h"
+#include "android/base/file/file.h"
 #include "android/process/exec.h"
 
 #define DEBUG 0
@@ -375,9 +376,9 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
         }
     }
 #else
-    for (const auto& entry : std::filesystem::directory_iterator("/proc")) {
+    for (const auto& entry : android::base::file::scan_dir("/proc", /*full_path=*/true)) {
         int pid = 0;
-        if (std::sscanf(entry.path().c_str(), "/proc/%d", &pid) == 1) {
+        if (std::sscanf(entry.string().c_str(), "/proc/%d", &pid) == 1) {
             if (read_proc_linux(pid).find(name) != std::string::npos) {
                 processes.push_back(Process::fromPid(pid));
             }

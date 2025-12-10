@@ -120,7 +120,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
-    if (!fs::exists(config->discovery_path)) {
+    if (!android::base::file::exists(config->discovery_path)) {
         LOG(WARNING) << "Discovery directory: " << config->discovery_path.string()
                      << ", does not exist. creating";
         if (auto s = file::mkdir_recursive(config->discovery_path, 0700); !s.ok()) {

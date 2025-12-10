@@ -88,8 +88,8 @@ TEST(Initrd, Basic) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
 
-    std::filesystem::create_directories(launcher_path / "content");
-    std::filesystem::create_directories(launcher_path / "system");
+    (void)android::base::file::mkdir_recursive(launcher_path / "content", 0755);
+    (void)android::base::file::mkdir_recursive(launcher_path / "system", 0755);
 
     auto system_initrd = launcher_path / "system/ramdisk.img";
     std::ofstream{system_initrd};
@@ -121,8 +121,8 @@ TEST(Initrd, RamdiskFlag) {
     auto launcher_path = std::filesystem::temp_directory_path();
     base::TestSystem sys(launcher_path);
 
-    std::filesystem::create_directories(launcher_path / "content");
-    std::filesystem::create_directories(launcher_path / "system");
+    (void)android::base::file::mkdir_recursive(launcher_path / "content", 0755);
+    (void)android::base::file::mkdir_recursive(launcher_path / "system", 0755);
 
     auto system_initrd = launcher_path / "system/ramdisk.img";
     std::ofstream{system_initrd};
