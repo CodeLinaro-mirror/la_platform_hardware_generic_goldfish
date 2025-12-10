@@ -168,21 +168,26 @@ TEST_F(JwkTokenAuthTest, writes_a_discovery_file) {
 TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
     auto private_handle = writeEs512("valid.jwk");
     auto sign = private_handle->GetPrimitive<tink::JwtPublicKeySign>();
+    ASSERT_THAT(sign, absl_testing::IsOk());
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
-    auto discover_file = mTempDir->path() / "loaded.jwk";
-    JwtTokenAuth jwt(mTempDir->path().string(), discover_file.string(), &mAllYellow);
+    auto public_handle = private_handle->GetPublicKeysetHandle();
+    ASSERT_THAT(public_handle, absl_testing::IsOk());
+    auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
+    ASSERT_THAT(ours, absl_testing::IsOk());
+    auto our_json = json::parse(*ours, nullptr, /*allow_exceptions=*/false);
 
+    auto discover_file = mTempDir->path() / "loaded.jwk";
+    JwtTokenAuth jwt(mTempDir->path(), discover_file, &mAllYellow);
     EXPECT_TRUE(base::file::exists(discover_file));
     auto discoverd_json = readFile(discover_file);
     auto discovered_handle = crypto::tink::JwkSetToPublicKeysetHandle(discoverd_json);
     ASSERT_THAT(discovered_handle, absl_testing::IsOk());
-    auto public_handle = private_handle->GetPublicKeysetHandle();
-    ASSERT_THAT(public_handle, absl_testing::IsOk());
-
-    auto ours = crypto::tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
     auto loaded = crypto::tink::JwkSetFromPublicKeysetHandle(*discovered_handle->get());
-    EXPECT_EQ(json::parse(ours.value()), json::parse(loaded.value()));
+    ASSERT_THAT(loaded, absl_testing::IsOk());
+    auto loaded_json = json::parse(*loaded, nullptr, /*allow_exceptions=*/false);
+
+    EXPECT_EQ(our_json, loaded_json);
 }
 
 TEST_F(JwkTokenAuthTest, accept_yellow) {
