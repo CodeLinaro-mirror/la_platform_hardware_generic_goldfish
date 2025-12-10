@@ -43,8 +43,16 @@ ImplementationFileExtensions: ['c','cc','cpp','cxx']
 # this header filter matches this regex.
 HeaderFilterRegex: '.*goldfish\+.*'
 
-# Add exlcusions if you need them,
-ExcludeHeaderFilterRegex: '.*_virtual_includes.*'
+# Add exclusions if you need them
+ExcludeHeaderFilterRegex: ".*_virtual_includes.*|\
+  .*third_party.*|\
+  .*constants.h|\
+  .*qemu_cpu_wrapper.h|\
+  .*vsock_low_level.h|\
+  .*virtio_bridge.h|\
+  .*keyboard/dom_key.h \
+  .*c_str_wrapper.h \
+  .*image_provider_cpp_adapter.h"
 
 CheckOptions:
   # --- Function Complexity —

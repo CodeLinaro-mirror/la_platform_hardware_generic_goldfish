@@ -14,6 +14,7 @@ cc_library(
     ]),
     hdrs = ["include/sparse/sparse.h"],
     includes = ["include"],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = ["@zlib"] + select({
         "@platforms//os:windows": [
@@ -28,6 +29,7 @@ cc_library(
 cc_binary(
     name = "img2simg",
     srcs = ["src/img2simg.c"],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [":sparse"] + select({
         "@platforms//os:windows": [
