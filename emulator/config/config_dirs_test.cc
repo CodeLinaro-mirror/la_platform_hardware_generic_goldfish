@@ -191,7 +191,8 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
     auto got = ConfigDirs::getDiscoveryDirectory();
     EXPECT_THAT(got.string(), testing::EndsWith(want.string()));
     EXPECT_TRUE(android::base::file::exists(got));
-    EXPECT_THAT(android::base::file::mode(got), absl_testing::IsOkAndHolds(0755));
+    // On Windows this will return 0777 (instead of 0755) as there's only one read-only bit.
+    EXPECT_THAT(android::base::file::mode(got), absl_testing::IsOkAndHolds(::testing::Truly([] (unsigned mode) { return mode & 0700 == 0700; })));
 }
 
 INSTANTIATE_TEST_SUITE_P(DiscoveryDirectory, ConfigDirsTest, testing::Values(true, false));
