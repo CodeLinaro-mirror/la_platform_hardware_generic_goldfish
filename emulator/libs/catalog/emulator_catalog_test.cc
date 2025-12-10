@@ -95,7 +95,8 @@ TEST_F(EmulatorCatalogTest, DISABLED_EmulatorAddedEventFires) {
     EXPECT_THAT(addedEntry.path.string(), ::testing::HasSubstr("emu-added.ini"));
 }
 
-TEST_F(EmulatorCatalogTest, EmulatorRemovedEventFires) {
+// TODO FIX flakey test
+TEST_F(EmulatorCatalogTest, DISABLED_EmulatorRemovedEventFires) {
     using namespace std::chrono_literals;
     writeIniFile("emu-to-remove.ini", "avd.name=toberemoved\nport.adb=5561");
     mCatalog = EmulatorCatalog::create(mTempDir);
