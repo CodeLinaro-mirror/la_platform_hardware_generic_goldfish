@@ -3,6 +3,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 cc_library(
     name = "goldfish_vsock_hdrs",
     hdrs = [
+        "include/goldfish/vsock/clear.h",
         "include/goldfish/vsock/connect.h",
         "include/goldfish/vsock/listen.h",
         "include/goldfish/vsock/snapshot.h",

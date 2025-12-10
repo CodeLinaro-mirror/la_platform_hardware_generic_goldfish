@@ -752,6 +752,10 @@ bool listen(const uint32_t hostPort, HostPortListener listener) {
     return instance.listen(hostPort, std::move(listener));
 }
 
+void clear() {
+    return GoldfishVirtioVsockDevice::getInstance().clear();
+}
+
 void setParentStateSnapshotHandlers(void* parent, int (*save)(const void*, archive::IWriter&),
                                     int (*load)(void*, archive::IReader&)) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
