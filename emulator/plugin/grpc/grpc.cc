@@ -27,7 +27,6 @@
 #include "aemu/base/process/Process.h"
 #include "android/base/file/file.h"
 #include "android/emulation/control/emulator_service.h"
-#include "android/goldfish/emulator_advertisment.h"
 #include "android/goldfish/vm_interface.h"
 #include "emulator/plugin/grpc/grpc_display.h"
 #include "goldfish/async/android/emulation/control/grpc_services.h"
@@ -38,6 +37,7 @@
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/tools/aemu_version.h"
+#include "emulator_advertisement.h"
 
 // clang-format off
 // IWYU pragma: begin_keep

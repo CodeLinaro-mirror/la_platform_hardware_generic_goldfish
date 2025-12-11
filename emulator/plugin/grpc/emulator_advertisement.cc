@@ -30,8 +30,8 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/file/file.h"
-#include "android/goldfish/emulator_advertisment.h"
 #include "android/goldfish/ini_file.h"
+#include "emulator_advertisement.h"
 
 namespace android {
 namespace goldfish {

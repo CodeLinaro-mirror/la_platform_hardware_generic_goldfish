@@ -1,6 +1,17 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
+    name = "emulator_advertisement",
+    srcs = ["emulator_advertisement.cc"],
+    hdrs = ["emulator_advertisement.h"],
+    deps = [
+        "//android/files",
+        "//android/sockets",
+        "@aemu//base:aemu-base",
+    ],
+)
+
+cc_library(
     name = "grpc",
     srcs = [
         "grpc.cc",
@@ -11,8 +22,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":emulator_advertisement",
         "//android/async:qemu_event_loop",
-        "//emulator/config:emulator_advertisement",
         "//emulator/config:hardware_config",
         "//emulator/grpc/event-stream",
         "//emulator/grpc/services-stack",
