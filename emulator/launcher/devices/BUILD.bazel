@@ -14,7 +14,7 @@ cc_library(
     hdrs = ["mock_avd.h"],
     include_prefix = "android/goldfish/devices/",
     visibility = ["//visibility:public"],
-    deps = ["//emulator/config:avd"],
+    deps = ["//emulator/launcher:avd"],
 )
 
 cc_library(

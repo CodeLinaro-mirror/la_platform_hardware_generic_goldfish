@@ -21,13 +21,11 @@
 #include <memory>
 
 #include "aemu/base/events/EventSources.h"
-#include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
-#include "emulator/config/test/android/goldfish/config/fake-avd.h"
+#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
 
 namespace goldfish::sensors {
 
-using android::goldfish::Avd;
 using goldfish::physics::kMinStateChangeTimeSeconds;
 using goldfish::physics::nsToSeconds;
 using goldfish::physics::secondsToNs;
@@ -41,10 +39,9 @@ static constexpr vec3 kDefaultAccelerometer = {0.f, 9.81f, 0.f};
 
 class PhysicalModelTest : public ::testing::Test {
   protected:
-    void SetUp() override { model = std::make_unique<PhysicalModel>(mAvd.hw()); }
+    void SetUp() override { model = std::make_unique<PhysicalModel>(android::goldfish::FakeHardwareConfig::GetHwConfig()); }
 
     std::unique_ptr<PhysicalModel> model;
-    android::goldfish::FakeAvd mAvd;
 };
 
 TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
@@ -617,20 +614,21 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
 TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
     // Foldable is not yet supported.
-    using android::goldfish::HardwareConfig;
+    auto hw = android::goldfish::FakeHardwareConfig::GetHwConfig();
 
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_width = 1260;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_lcd_height = 2400;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge = true;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_count = 2;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_type = 0;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_sub_type = 1;
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_defaults = (char*)"180,90";
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_areas = (char*)"25-10, 50-10";
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
-    const_cast<HardwareConfig&>(mAvd.hw()).hw_sensor_hinge_angles_posture_definitions =
-            (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
+    hw.hw_lcd_width = 1260;
+    hw.hw_lcd_height = 2400;
+    hw.hw_sensor_hinge = true;
+    hw.hw_sensor_hinge_count = 2;
+    hw.hw_sensor_hinge_type = 0;
+    hw.hw_sensor_hinge_sub_type = 1;
+    hw.hw_sensor_hinge_ranges = (char*)"0- 360, 0-180";
+    hw.hw_sensor_hinge_defaults = (char*)"180,90";
+    hw.hw_sensor_hinge_areas = (char*)"25-10, 50-10";
+    hw.hw_sensor_posture_list = (char*)"1, 2,3 ,  4";
+    hw.hw_sensor_hinge_angles_posture_definitions = (char*)"0-30&0-15,  30-150 & 15-75,150-330&75-165, 330-360&165-180";
+
+    model = std::make_unique<PhysicalModel>(hw);
 
     model->setCurrentTime(1000000000L);
 

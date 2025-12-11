@@ -19,7 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 
-#include "emulator/config/test/android/goldfish/config/fake-avd.h"
+#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
 #include "emulator/grpc/services/emulator_controller/server/test/GrpcServiceTest.h"
 #include "emulator/libs/display/include/goldfish/display/test/fake_multi_display.h"
 #include "emulator/libs/display/include/goldfish/display/test/fake_pixman_display.h"
@@ -43,7 +43,8 @@ using namespace std::chrono_literals;
 class DisplayServiceTest : public GrcpServiceTest {
   protected:
     void SetUp() override {
-        mPhysicalModel = std::make_unique<PhysicalModel>(mAvd.hw());
+        mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
         mLoop = ::goldfish::async::ThreadedEventLoop::create(
                 ::goldfish::async::LibuvEventLoop::create());
         mQemuLoop = ::goldfish::async::ThreadedEventLoop::create(
@@ -72,7 +73,7 @@ class DisplayServiceTest : public GrcpServiceTest {
     EmulatorController::Service* getService() override { return mDisplayService.get(); }
 
   protected:
-    goldfish::FakeAvd mAvd;
+    android::goldfish::HardwareConfig mHw;
     std::unique_ptr<PhysicalModel> mPhysicalModel;
     std::unique_ptr<::goldfish::async::EventLoop> mLoop;
     std::unique_ptr<::goldfish::async::EventLoop> mQemuLoop;

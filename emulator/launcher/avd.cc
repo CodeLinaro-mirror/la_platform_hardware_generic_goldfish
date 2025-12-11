@@ -37,8 +37,9 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
-#include "emulator/config/keys.h"
 #include "host-common/constants.h"
+
+#include "avd_keys.h"
 
 /* technical note on how all of this is supposed to work:
  *

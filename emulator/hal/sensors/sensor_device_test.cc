@@ -20,7 +20,7 @@
 
 #include "android/system/test-headers/android/base/system/TestClock.h"
 #include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "emulator/config/test/android/goldfish/config/fake-avd.h"
+#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
 #include "emulator/hal/connector/test/goldfish/devices/test_connector_registry.h"
 #include "goldfish//async/testing/test_event_loop.h"
 #include "goldfish/devices/qemud/qemud.h"
@@ -51,13 +51,14 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
 class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mPhysicalModel = std::make_unique<PhysicalModel>(mAvd.hw());
+        mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
         ISensorDevice::registerDevice(mPhysicalModel.get(), &registry,
                                       /*avd_type=*/android::goldfish::DeviceType::kPhone,
-                                      /*avd_api=*/30, mAvd.hw(), mClientLoop.get(), mQemuLoop.get(),
+                                      /*avd_api=*/30, mHw, mClientLoop.get(), mQemuLoop.get(),
                                       &mClock);
         device = registry.constructHalDevice<ISensorDevice>();
         test_socket = registry.halSocket();
@@ -73,7 +74,7 @@ class SensorDeviceTest : public ::testing::Test {
     void clear() { test_socket->storage.clear(); }
 
   protected:
-    android::goldfish::FakeAvd mAvd;
+    android::goldfish::HardwareConfig mHw;
     std::unique_ptr<PhysicalModel> mPhysicalModel;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;

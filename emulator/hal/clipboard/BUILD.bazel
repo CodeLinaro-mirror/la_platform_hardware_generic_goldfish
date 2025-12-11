@@ -30,7 +30,6 @@ cc_test(
         ":clipboard",
         "//android/system:googletest_main",
         "//android/system:test-headers",
-        "//emulator/config:avd-test",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
     ],

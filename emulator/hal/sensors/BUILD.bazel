@@ -42,7 +42,7 @@ cc_test(
         ":sensors",
         "//android/system:googletest_main",
         "//android/system:test-headers",
-        "//emulator/config:avd-test",
+        "//emulator/config:fake_hardware_config",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
     ],

@@ -22,14 +22,49 @@ cc_library(
 )
 
 cc_library(
+    name = "avd",
+    srcs = [
+        "avd.cc",
+        "avd_keys.h",
+    ],
+    hdrs = [
+        "include/android/goldfish/avd.h",
+        "include/android/goldfish/image_list.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":input_paths",
+        "//android/files",
+        "//emulator/config:device_type",
+        "//emulator/config:hardware_config",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@aemu//base:aemu-base",
+    ],
+)
+
+cc_test(
+    name = "avd_test",
+    srcs = ["avd_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_library(
     name = "emulator_config",
     hdrs = ["include/android/goldfish/emulator_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":avd",
         ":input_paths",
         "//emulator/cmdline",
-        "//emulator/config:avd",
     ],
 )
 
@@ -116,13 +151,13 @@ cc_library(
     data = ["@qemu//:qemu-roms"],
     visibility = ["//visibility:public"],
     deps = [
+        ":avd",
         ":configure_drives",
         ":emulator_config",
         ":input_paths",
         "//android/async:launch_config",
         "//android/system",
         "//emulator/cmdline",
-        "//emulator/config:avd",
         "//emulator/crashreport:detectors",
         "//emulator/launcher/devices:adb_device",
         "//emulator/launcher/devices:audio_device",

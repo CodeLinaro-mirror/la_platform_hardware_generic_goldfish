@@ -43,6 +43,6 @@ cc_test(
     deps = [
         ":sensors",
         "//android/system:googletest_main",
-        "//emulator/config:avd-test",
+        "//emulator/config:fake_hardware_config",
     ],
 )

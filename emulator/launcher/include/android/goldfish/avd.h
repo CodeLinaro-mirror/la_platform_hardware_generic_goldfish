@@ -19,7 +19,7 @@
 
 #include "absl/status/statusor.h"
 
-#include "android/goldfish/config/image_list.h"
+#include "android/goldfish/image_list.h"
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"

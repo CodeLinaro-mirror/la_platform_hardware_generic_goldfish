@@ -3,7 +3,7 @@ load("@rules_python//python:defs.bzl", "py_binary")
 
 py_binary(
     name = "gen-hw-config",
-    srcs = ["src/android/goldfish/config/gen-hw-config.py"],
+    srcs = ["tools/gen-hw-config.py"],
 )
 
 # TODO(jansene): Port to host-common.
@@ -13,19 +13,6 @@ genrule(
     outs = ["include/avd/hw-config-defs.h"],
     cmd = "$(location :gen-hw-config) $(location data/hardware-properties.ini) $(location include/avd/hw-config-defs.h)",
     tools = [":gen-hw-config"],
-)
-
-cc_library(
-    name = "config_dirs",
-    srcs = ["config_dirs.cc"],
-    hdrs = ["include/android/goldfish/config_dirs.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//android/system",
-        "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base",
-    ],
 )
 
 cc_library(
@@ -41,6 +28,15 @@ cc_library(
         "//android/files",
         "@aemu//base:aemu-base",
     ],
+)
+
+cc_library(
+    name = "fake_hardware_config",
+    testonly = True,
+    hdrs = ["test/android/goldfish/fake_hardware_config.h"],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [":hardware_config"],
 )
 
 cc_library(
@@ -64,61 +60,29 @@ cc_library(
 )
 
 cc_library(
-    name = "avd",
-    srcs = [
-        "avd.cc",
-        "keys.h",
-    ],
-    hdrs = [
-        "include/android/goldfish/avd.h",
-        "include/android/goldfish/config/image_list.h",
-    ],
+    name = "config_dirs",
+    srcs = ["config_dirs.cc"],
+    hdrs = ["include/android/goldfish/config_dirs.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":device_type",
-        ":hardware_config",
-        "//android/files",
-        "//emulator/launcher:input_paths",
-        "@abseil-cpp//absl/container:flat_hash_map",
+        "//android/system",
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
     ],
 )
 
-cc_library(
-    name = "avd-test",
-    testonly = True,
-    hdrs = [
-        "test/android/goldfish/config/avd-test.h",
-        "test/android/goldfish/config/fake-avd.h",
-    ],
-    includes = ["test"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":avd",
-        "//android/system",
-        "//android/system:test-headers",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@googletest//:gtest",
-    ],
-)
-
 cc_test(
-    name = "config_unittests",
+    name = "config_dirs_test",
     size = "small",
-    srcs = [
-        "avd_test.cc",
-        "config_dirs_test.cc",
-    ],
+    srcs = ["config_dirs_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
     deps = [
-        ":avd",
-        ":avd-test",
+        ":config_dirs",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
