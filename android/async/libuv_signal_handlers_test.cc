@@ -42,6 +42,12 @@ TEST(UvSignalHandlers, AddBeforeLoopStarted) {
     });
 
     std::thread t([&uv_loop] { uv_loop->run(); });
+    {
+        absl::Notification loop_running;
+        ASSERT_THAT(uv_loop->postAndWait([&loop_running] { loop_running.Notify(); }),
+                    absl_testing::IsOk());
+        EXPECT_TRUE(loop_running.WaitForNotificationWithTimeout(absl::Seconds(5)));
+    }
 
     uv_pid_t pid = uv_os_getpid();
 #ifdef _WIN32
