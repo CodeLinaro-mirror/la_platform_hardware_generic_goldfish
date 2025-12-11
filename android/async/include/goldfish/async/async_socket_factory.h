@@ -19,7 +19,6 @@
 #include "goldfish/async/async_socket.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/event_loop.h"
-#include "goldfish/network/dns_resolver.h"
 #include "goldfish/network/endpoint.h"
 
 namespace goldfish::async {

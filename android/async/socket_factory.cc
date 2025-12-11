@@ -15,6 +15,7 @@
 #include "absl/strings/str_join.h"
 
 #include "goldfish/async/async_socket_factory.h"
+#include "goldfish/network/dns_resolver.h"
 
 namespace goldfish::async {
 
