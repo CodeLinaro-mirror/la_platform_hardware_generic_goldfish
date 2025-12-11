@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/goldfish/emulator.h"
+#include "emulator.h"
 
 #include <algorithm>
 #include <cctype>
@@ -34,21 +34,21 @@
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
-#include "emulator/launcher/src/android/goldfish/devices/adb_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/audio_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/avd_info_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/cpu_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/display_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/drives/configure_drives.h"
-#include "emulator/launcher/src/android/goldfish/devices/gpu_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/grpc_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/initrd_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/kernel_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/machine.h"
-#include "emulator/launcher/src/android/goldfish/devices/memory_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/network_device.h"
-#include "emulator/launcher/src/android/goldfish/devices/parameter_list.h"
-#include "emulator/launcher/src/android/goldfish/devices/wifi_device.h"
+#include "configure_drives.h"
+#include "devices/adb_device.h"
+#include "devices/audio_device.h"
+#include "devices/avd_info_device.h"
+#include "devices/cpu_device.h"
+#include "devices/display_device.h"
+#include "devices/gpu_device.h"
+#include "devices/grpc_device.h"
+#include "devices/initrd_device.h"
+#include "devices/kernel_device.h"
+#include "devices/machine.h"
+#include "devices/memory_device.h"
+#include "devices/network_device.h"
+#include "devices/parameter_list.h"
+#include "devices/wifi_device.h"
 
 namespace android::goldfish {
 

@@ -35,11 +35,8 @@
 #include "android/crashreport/crash_initializer.h"
 #include "android/crashreport/crash_system.h"
 #include "android/goldfish/avd.h"
-#include "android/goldfish/emulator.h"
 #include "android/goldfish/emulator_config.h"
 #include "android/goldfish/input_paths.h"
-#include "android/goldfish/logging.h"
-#include "android/goldfish/netsimd.h"
 #include "android/main_help.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
@@ -48,6 +45,9 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
+#include "emulator.h"
+#include "logging.h"
+#include "netsimd.h"
 
 namespace fs = std::filesystem;
 

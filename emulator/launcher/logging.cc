@@ -1,4 +1,4 @@
-#include "android/goldfish/logging.h"
+#include "logging.h"
 
 #include <functional>
 #include <string_view>

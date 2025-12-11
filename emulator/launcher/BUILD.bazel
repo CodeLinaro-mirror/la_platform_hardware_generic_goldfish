@@ -2,7 +2,7 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
-load("launcher_test.bzl", "create_launch_emulator_test")
+load("tools/launcher_test.bzl", "create_launch_emulator_test")
 
 cc_library(
     name = "input_paths",
@@ -34,24 +34,9 @@ cc_library(
 )
 
 cc_library(
-    name = "device",
-    hdrs = ["include/android/goldfish/device.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":emulator_config",
-    ],
-)
-
-cc_library(
     name = "logconfig",
-    srcs = [
-        "logging.cc",
-    ],
-    hdrs = [
-        "include/android/goldfish/logging.h",
-    ],
-    includes = ["include"],
+    srcs = ["logging.cc"],
+    hdrs = ["logging.h"],
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/cmdline",
@@ -78,7 +63,6 @@ cc_library(
     name = "bootconfig",
     srcs = ["bootconfig.cc"],
     hdrs = ["bootconfig.h"],
-    includes = ["src"],
     visibility = ["//visibility:public"],
     deps = ["//android/system"],
 )
@@ -96,15 +80,43 @@ cc_test(
 )
 
 cc_library(
-    name = "emulator",
-    srcs = [
-        "emulator.cc",
-        "include/android/goldfish/emulator.h",
+    name = "configure_drives",
+    srcs = ["configure_drives.cc"],
+    hdrs = ["configure_drives.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/launcher/devices:device",
+        "//emulator/launcher/devices:disk_drive",
+        "//emulator/launcher/devices:user_data_drive",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base",
     ],
+)
+
+cc_test(
+    name = "configure_drives_test",
+    srcs = ["configure_drives_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":configure_drives",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "//emulator/launcher/devices:mock_avd",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "emulator",
+    srcs = ["emulator.cc"],
+    hdrs = ["emulator.h"],
     # Qemu roms needed for unittests - Emulator check that it is available.
     data = ["@qemu//:qemu-roms"],
     visibility = ["//visibility:public"],
     deps = [
+        ":configure_drives",
         ":emulator_config",
         ":input_paths",
         "//android/async:launch_config",
@@ -112,21 +124,20 @@ cc_library(
         "//emulator/cmdline",
         "//emulator/config:avd",
         "//emulator/crashreport:detectors",
-        "//emulator/launcher/src/android/goldfish/devices:adb_device",
-        "//emulator/launcher/src/android/goldfish/devices:audio_device",
-        "//emulator/launcher/src/android/goldfish/devices:avd_info_device",
-        "//emulator/launcher/src/android/goldfish/devices:cpu_device",
-        "//emulator/launcher/src/android/goldfish/devices:display_device",
-        "//emulator/launcher/src/android/goldfish/devices:gpu_device",
-        "//emulator/launcher/src/android/goldfish/devices:grpc_device",
-        "//emulator/launcher/src/android/goldfish/devices:initrd_device",
-        "//emulator/launcher/src/android/goldfish/devices:kernel_device",
-        "//emulator/launcher/src/android/goldfish/devices:machine",
-        "//emulator/launcher/src/android/goldfish/devices:memory_device",
-        "//emulator/launcher/src/android/goldfish/devices:network_device",
-        "//emulator/launcher/src/android/goldfish/devices:parameter_list",
-        "//emulator/launcher/src/android/goldfish/devices:wifi_device",
-        "//emulator/launcher/src/android/goldfish/devices/drives:configure_drives",
+        "//emulator/launcher/devices:adb_device",
+        "//emulator/launcher/devices:audio_device",
+        "//emulator/launcher/devices:avd_info_device",
+        "//emulator/launcher/devices:cpu_device",
+        "//emulator/launcher/devices:display_device",
+        "//emulator/launcher/devices:gpu_device",
+        "//emulator/launcher/devices:grpc_device",
+        "//emulator/launcher/devices:initrd_device",
+        "//emulator/launcher/devices:kernel_device",
+        "//emulator/launcher/devices:machine",
+        "//emulator/launcher/devices:memory_device",
+        "//emulator/launcher/devices:network_device",
+        "//emulator/launcher/devices:parameter_list",
+        "//emulator/launcher/devices:wifi_device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -137,8 +148,7 @@ cc_library(
 cc_library(
     name = "netsimd",
     srcs = ["netsimd.cc"],
-    hdrs = ["include/android/goldfish/netsimd.h"],
-    includes = ["include"],
+    hdrs = ["netsimd.h"],
     deps = [
         "//android/async:launch_config",
         "//android/network",
@@ -376,14 +386,14 @@ test_suite(
 
 py_library(
     name = "emulator_lib",
-    srcs = ["src/emulator_lib.py"],
+    srcs = ["tools/emulator_lib.py"],
     visibility = ["//visibility:__pkg__"],
     deps = ["@rules_python//python/runfiles"],
 )
 
 py_binary(
     name = "launch_emulator",
-    srcs = ["src/launch_emulator.py"],
+    srcs = ["tools/launch_emulator.py"],
     data = [
         ":launcher",
     ] + select({

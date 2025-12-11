@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "android/goldfish/logging.h"
+#include "logging.h"
 
 #include <gtest/gtest.h>
 
