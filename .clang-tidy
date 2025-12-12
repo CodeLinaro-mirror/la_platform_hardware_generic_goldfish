@@ -27,6 +27,7 @@ Checks:
   - '-modernize-use-trailing-return-type'   # We do not use 'auto func() -> int'
   - '-google-readability-todo'              # We do not police TODO format
   - '-modernize-use-std-format'             # We are using absl::StrFormat a lot.
+  - '-bugprone-easily-swappable-parameters' # IPv6 addresses are long but we still need them
 
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'

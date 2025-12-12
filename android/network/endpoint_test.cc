@@ -13,66 +13,64 @@
 // limitations under the License.
 #include "goldfish/network/endpoint.h"
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "goldfish/network/ip_address.h"
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#endif
+#include "absl/status/status_matchers.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
 
 namespace goldfish::network {
 
-TEST(EndpointTest, CreateAndAccess) {
-    ASSERT_OK_AND_ASSIGN(auto ip, IpAddress::Create("127.0.0.1"));
-    auto endpoint = Endpoint(ip, 8080);
+using absl_testing::IsOkAndHolds;
+using absl_testing::StatusIs;
 
-    EXPECT_EQ("127.0.0.1", endpoint.Address().ToString());
-    EXPECT_EQ(IpAddress::Family::kIpv4, endpoint.Address().Family());
-    EXPECT_EQ(8080, endpoint.Port());
+using testing::HasSubstr;
+
+TEST(EndpointTest, ipv4) {
+    const Ipv4Endpoint ep4 = ToIpEndpoint(ToIpv4Address(192, 168, 1, 42), 1234);
+    const struct sockaddr_in sa4 = ToSockaddr(ep4);
+    absl::StatusOr<Endpoint> sep = ToEndpoint(reinterpret_cast<const struct sockaddr&>(sa4));
+    EXPECT_THAT(sep, IsOkAndHolds(ep4));
+    const Endpoint ep = *std::move(sep);
+
+    EXPECT_EQ(ToString(ep), "[192.168.1.42]:1234");
+
+    const struct sockaddr_storage storage = ToSockaddr(ep);
+    EXPECT_TRUE(::memcmp(&storage, &sa4, sizeof(sa4)) == 0);
 }
 
-TEST(EndpointTest, ToStringIPv4) {
-    ASSERT_OK_AND_ASSIGN(auto endpoint, Endpoint::Create("192.168.1.1", 1234));
-    EXPECT_EQ("192.168.1.1:1234", endpoint.ToString());
+TEST(EndpointTest, ipv6) {
+    const Ipv6Endpoint ep6 = ToIpEndpoint(*ToIpv6Address("2001:db8:85a3::8a2e:370:7334"), 1234);
+    const struct sockaddr_in6 sa6 = ToSockaddr(ep6);
+    absl::StatusOr<Endpoint> sep = ToEndpoint(reinterpret_cast<const struct sockaddr&>(sa6));
+    EXPECT_THAT(sep, IsOkAndHolds(ep6));
+    const Endpoint ep = *std::move(sep);
+
+    EXPECT_EQ(ToString(ep), "[2001:db8:85a3::8a2e:370:7334]:1234");
+
+    const struct sockaddr_storage storage = ToSockaddr(ep);
+    EXPECT_TRUE(::memcmp(&storage, &sa6, sizeof(sa6)) == 0);
 }
 
-TEST(EndpointTest, ToStringIPv6) {
-    ASSERT_OK_AND_ASSIGN(auto endpoint, Endpoint::Create("::2", 5678));
-    EXPECT_EQ("[::2]:5678", endpoint.ToString());
+TEST(EndpointTest, un) {
+    const UnEndpoint unep = *ToUnEndpoint("abc");
+    const struct sockaddr_un sun = ToSockaddr(unep);
+    absl::StatusOr<Endpoint> sep = ToEndpoint(reinterpret_cast<const struct sockaddr&>(sun));
+    EXPECT_THAT(sep, IsOkAndHolds(unep));
+    const Endpoint ep = *std::move(sep);
+
+    EXPECT_EQ(ToString(ep), "abc");
+
+    const struct sockaddr_storage storage = ToSockaddr(ep);
+    EXPECT_TRUE(::memcmp(&storage, &sun, sizeof(sun)) == 0);
 }
 
-TEST(EndpointTest, ToSockaddrIPv4) {
-    ASSERT_OK_AND_ASSIGN(auto endpoint, Endpoint::Create("192.168.1.2", 8080));
-    sockaddr_storage addr = endpoint.ToSockaddr();
+TEST(EndpointTest, invalid) {
+    struct sockaddr invalid;
+    invalid.sa_family = AF_UNSPEC;
 
-    ASSERT_EQ(AF_INET, addr.ss_family);
-    auto* sin = reinterpret_cast<sockaddr_in*>(&addr);
-    EXPECT_EQ(8080, ntohs(sin->sin_port));
-
-    char ip_str[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &sin->sin_addr, ip_str, sizeof(ip_str));
-    EXPECT_STREQ("192.168.1.2", ip_str);
-}
-
-TEST(EndpointTest, ToSockaddrIPv6) {
-    ASSERT_OK_AND_ASSIGN(auto endpoint, Endpoint::Create("2001:db8::1", 12345));
-    sockaddr_storage addr = endpoint.ToSockaddr();
-
-    ASSERT_EQ(AF_INET6, addr.ss_family);
-    auto* sin6 = reinterpret_cast<sockaddr_in6*>(&addr);
-    EXPECT_EQ(12345, ntohs(sin6->sin6_port));
-
-    char ip_str[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &sin6->sin6_addr, ip_str, sizeof(ip_str));
-    EXPECT_STREQ("2001:db8::1", ip_str);
+    EXPECT_THAT(ToEndpoint(invalid), StatusIs(absl::StatusCode::kInvalidArgument,
+                                              HasSubstr("Unsupported address family")));
 }
 
 }  // namespace goldfish::network

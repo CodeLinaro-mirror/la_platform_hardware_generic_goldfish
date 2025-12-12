@@ -29,6 +29,8 @@ namespace goldfish::async {
 using namespace std::chrono_literals;
 using absl_testing::IsOk;
 using network::Endpoint;
+using network::ToEndpoint;
+using network::ToIpAddress;
 
 // =================================================================
 //                      TEST FIXTURE
@@ -103,14 +105,14 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
     };
 
     ScopedAsyncServer server(postAndWait([&] {
-        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
         return mFactory->createServer(mRawEventLoop, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
         return mFactory->createSocket(mRawEventLoop, endpoint);
     }));
     ASSERT_NE(client, nullptr);
@@ -154,14 +156,14 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
     };
 
     ScopedAsyncServer server(postAndWait([&] {
-        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
         return mFactory->createServer(mRawEventLoop, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
         return mFactory->createSocket(mRawEventLoop, endpoint);
     }));
     ASSERT_NE(client, nullptr);
@@ -205,14 +207,14 @@ TEST_F(AsyncSocketTest, EchoTest) {
     };
 
     ScopedAsyncServer server(postAndWait([&] {
-        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
         return mFactory->createServer(mRawEventLoop, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
         return mFactory->createSocket(mRawEventLoop, endpoint);
     }));
     ASSERT_NE(client, nullptr);
@@ -262,14 +264,14 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
     };
 
     ScopedAsyncServer server(postAndWait([&] {
-        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
         return mFactory->createServer(mRawEventLoop, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
         return mFactory->createSocket(mRawEventLoop, endpoint);
     }));
     ASSERT_NE(client, nullptr);
@@ -314,14 +316,14 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     };
 
     ScopedAsyncServer server(postAndWait([&] {
-        auto endpoint = Endpoint::Create("127.0.0.1", 0).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
         return mFactory->createServer(mRawEventLoop, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
     int port = postAndWait([&] { return server->port(); });
 
     ScopedAsyncSocket client(postAndWait([&, port] {
-        auto endpoint = Endpoint::Create("127.0.0.1", port).value();
+        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
         return mFactory->createSocket(mRawEventLoop, endpoint);
     }));
     ASSERT_NE(client, nullptr);

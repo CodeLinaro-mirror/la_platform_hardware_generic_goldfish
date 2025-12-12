@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
+#include <string>
+#include <vector>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
 #include <netdb.h>
 #endif
-#include <string>
-#include <vector>
+
+#include "absl/status/statusor.h"
 
 #include "goldfish/network/endpoint.h"
-#include "goldfish/network/ip_address.h"
 
 namespace goldfish::network {
 

@@ -88,7 +88,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     LibuvSocket(EventLoop* loop, const Endpoint& endpoint)
             : LibuvSocket(loop, /*isIncoming=*/false) {
-        mAddr = endpoint.ToSockaddr();
+        mAddr = ToSockaddr(endpoint);
     }
 
     ~LibuvSocket() override {
@@ -393,14 +393,14 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
   private:
     bool bindAndListen(const Endpoint& endpoint) {
-        const struct sockaddr_storage addr = endpoint.ToSockaddr();
+        const struct sockaddr_storage addr = ToSockaddr(endpoint);
         if (addr.ss_family == AF_UNSPEC) {
-            LOG(ERROR) << "Failed to convert endpoint to sockaddr: " << endpoint.ToString();
+            LOG(ERROR) << "Failed to convert endpoint to sockaddr: " << ToString(endpoint);
             return false;
         }
 
         if (uv_tcp_bind(&mServerHandle, (const struct sockaddr*)&addr, 0) != 0) {
-            LOG(ERROR) << "Failed to bind to " << endpoint.ToString();
+            LOG(ERROR) << "Failed to bind to " << ToString(endpoint);
             return false;
         }
 
@@ -431,7 +431,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                 });
 
         if (listen_res != 0) {
-            LOG(ERROR) << "Failed to listen on " << endpoint.ToString() << ": "
+            LOG(ERROR) << "Failed to listen on " << ToString(endpoint) << ": "
                        << UvErrToAbslStatus(listen_res);
             return false;
         }

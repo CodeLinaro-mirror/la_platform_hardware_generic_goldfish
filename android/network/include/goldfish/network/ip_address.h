@@ -13,108 +13,63 @@
 // limitations under the License.
 #pragma once
 
-#include <array>
-#include <cstdint>
+#include <bit>
 #include <string>
 #include <string_view>
+#include <variant>
 
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-
+// clang-format off
+// IWYU pragma: begin_keep
 #ifdef _WIN32
-#include <ws2tcpip.h>
+#include <winsock2.h>
+#include <ws2def.h>
+#include <ws2ipdef.h>
 #else
 #include <netinet/in.h>
+#include <sys/socket.h>
 #endif
+// IWYU pragma: end_keep
+// clang-format on
+
+#include "absl/status/statusor.h"
 
 namespace goldfish::network {
 
-/**
- * @brief Represents a single, validated, numeric IP address.
- */
-class IpAddress {
-  public:
-    enum class Family : uint8_t {
-        kIpv4,
-        kIpv6,
-    };
-
-    /**
-     * @brief Creates a valid IpAddress from a numeric IP address string.
-     *
-     * @param addr A string_view to a valid numeric IP address string
-     * @return absl::StatusOr<IpAddress> A valid IpAddress on success.
-     */
-    static absl::StatusOr<IpAddress> Create(std::string_view ip_address);
-
-    /**
-     * @brief Creates a valid IpAddress from a binary IPv4 address.
-     *
-     * @param addr A pointer to a valid struct in_addr.
-     * @return absl::StatusOr<IpAddress> A valid IpAddress on success.
-     */
-    static absl::StatusOr<IpAddress> FromBinary(const struct in_addr* addr);
-
-    /**
-     * @brief Creates a valid IpAddress from a binary IPv6 address.
-     *
-     * @param addr A pointer to a valid struct in6_addr.
-     */
-    static absl::StatusOr<IpAddress> FromBinary(const struct in6_addr* addr);
-
-    /**
-     * @brief Returns the numeric IP address string.
-     *
-     * @return std::string The IP address (e.g., "127.0.0.1" or "::1").
-     */
-    [[nodiscard]] std::string ToString() const;
-
-    /**
-     * @brief Returns the address family.
-     */
-    [[nodiscard]] Family Family() const { return family_; }
-
-    /**
-     * @brief Checks if the address is an IPv4 address.
-     */
-    [[nodiscard]] bool IsIpv4() const { return family_ == Family::kIpv4; }
-
-    /**
-     * @brief Checks if the address is an IPv6 address.
-     */
-    [[nodiscard]] bool IsIpv6() const { return family_ == Family::kIpv6; }
-
-    /**
-     * @brief Provides a type-safe pointer to the binary IPv4 address.
-     *
-     * @return A pointer to the internal in_addr data if this is an
-     * IPv4 address, otherwise nullptr.
-     */
-    [[nodiscard]] const struct in_addr* AsV4() const;
-
-    /**
-     * @brief Provides a type-safe pointer to the binary IPv6 address.
-     *
-     * @return A pointer to the internal in6_addr data if this is an
-     * IPv6 address, otherwise nullptr.
-     */
-    [[nodiscard]] const struct in6_addr* AsV6() const;
-
-    bool operator==(const IpAddress& other) const {
-        return family_ == other.family_ && addr_ == other.addr_;
-    }
-
-  private:
-    explicit IpAddress(const in_addr* ipv4);
-    explicit IpAddress(const in6_addr* ipv6);
-
-    enum Family family_;
-    std::array<std::byte, sizeof(struct in6_addr)> addr_;
-};
-
-template <typename Sink>
-void AbslStringify(Sink& sink, const IpAddress& ip) {
-    sink.Append(ip.ToString());
+inline struct in_addr ToIpv4Address(const uint8_t a, const uint8_t b, const uint8_t c,
+                                    const uint8_t d) {
+    static_assert(sizeof(struct in_addr) == 4);
+    const uint8_t bits[4] = {a, b, c, d};
+    return std::bit_cast<struct in_addr>(bits);
 }
 
+absl::StatusOr<struct in_addr> ToIpv4Address(const char* ip_address);
+absl::StatusOr<struct in_addr> ToIpv4Address(const std::string& ip_address);
+absl::StatusOr<struct in_addr> ToIpv4Address(std::string_view ip_address);
+std::string ToString(struct in_addr);
+
+struct in6_addr ToIpv6Address(uint16_t a, uint16_t b, uint16_t c, uint16_t d, uint16_t e,
+                              uint16_t f, uint16_t g, uint16_t h);
+
+absl::StatusOr<struct in6_addr> ToIpv6Address(const char* ip_address);
+absl::StatusOr<struct in6_addr> ToIpv6Address(const std::string& ip_address);
+absl::StatusOr<struct in6_addr> ToIpv6Address(std::string_view ip_address);
+std::string ToString(const struct in6_addr&);
+
+using IpAddress = std::variant<struct in_addr, struct in6_addr>;
+
+absl::StatusOr<IpAddress> ToIpAddress(const char* ip_address);
+absl::StatusOr<IpAddress> ToIpAddress(const std::string& ip_address);
+absl::StatusOr<IpAddress> ToIpAddress(std::string_view ip_address);
+absl::StatusOr<IpAddress> ToIpAddress(const struct sockaddr&);
+
+std::string ToString(const IpAddress&);
+
 }  // namespace goldfish::network
+
+inline bool operator==(const in_addr lhs, const in_addr rhs) {
+    return lhs.s_addr == rhs.s_addr;
+}
+
+inline bool operator==(const in6_addr& lhs, const in6_addr& rhs) {
+    return !::memcmp(&lhs, &rhs, sizeof(lhs));
+}

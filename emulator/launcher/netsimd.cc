@@ -90,7 +90,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
     if (host_dns.empty()) {
         if (auto al = ::goldfish::network::GetSystemDnsServers(); al.ok()) {
             host_dns = absl::StrJoin(al.value(), ",", [](std::string* out, const auto& ip) {
-                absl::StrAppend(out, ip.ToString());
+                absl::StrAppend(out, ::goldfish::network::ToString(ip));
             });
         } else {
             LOG(WARNING) << "Failed to retrieve the system DNS servers due to: " << al.status();

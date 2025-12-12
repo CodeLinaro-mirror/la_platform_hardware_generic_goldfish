@@ -23,7 +23,6 @@
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/system/test-headers/android/base/testing/needs_winsock.h"
 #include "goldfish/network/endpoint.h"
-#include "goldfish/network/ip_address.h"
 
 namespace goldfish::network {
 
@@ -36,26 +35,23 @@ TEST(DnsResolverTest, ResolveEndpointsLocalhost) {
     ASSERT_OK_AND_ASSIGN(auto endpoints, ResolveEndpoints("localhost:8080"));
     EXPECT_GT(endpoints.size(), 0);
     for (const auto& endpoint : endpoints) {
-        EXPECT_EQ(endpoint.Port(), 8080);
-        EXPECT_TRUE(endpoint.Address().ToString() == "127.0.0.1" ||
-                    endpoint.Address().ToString() == "::1");
+        const std::string endroid_str = ToString(endpoint);
+        EXPECT_TRUE(endroid_str == "[127.0.0.1]:8080" || endroid_str == "[::1]:8080");
     }
 }
 
 TEST(DnsResolverTest, ResolveEndpointsIPv4) {
     ASSERT_OK_AND_ASSIGN(auto endpoints, ResolveEndpoints("127.0.0.1:1234"));
     ASSERT_EQ(endpoints.size(), 1);
-    EXPECT_EQ(endpoints[0].Address().ToString(), "127.0.0.1");
-    EXPECT_EQ(endpoints[0].Port(), 1234);
-    EXPECT_EQ(endpoints[0].Address().Family(), IpAddress::Family::kIpv4);
+    ASSERT_TRUE(std::holds_alternative<Ipv4Endpoint>(endpoints[0]));
+    EXPECT_EQ(ToString(endpoints[0]), "[127.0.0.1]:1234");
 }
 
 TEST(DnsResolverTest, ResolveEndpointsIPv6) {
     ASSERT_OK_AND_ASSIGN(auto endpoints, ResolveEndpoints("[::1]:5678"));
     ASSERT_EQ(endpoints.size(), 1);
-    EXPECT_EQ(endpoints[0].Address().ToString(), "::1");
-    EXPECT_EQ(endpoints[0].Port(), 5678);
-    EXPECT_EQ(endpoints[0].Address().Family(), IpAddress::Family::kIpv6);
+    ASSERT_TRUE(std::holds_alternative<Ipv6Endpoint>(endpoints[0]));
+    EXPECT_EQ(ToString(endpoints[0]), "[::1]:5678");
 }
 
 TEST(DnsResolverTest, ResolveHostnameLocalhost) {
@@ -63,7 +59,8 @@ TEST(DnsResolverTest, ResolveHostnameLocalhost) {
     EXPECT_GT(addresses.size(), 0);
 
     for (const auto& ip : addresses) {
-        EXPECT_TRUE(ip.ToString() == "127.0.0.1" || ip.ToString() == "::1");
+        const std::string ip_str = ToString(ip);
+        EXPECT_TRUE(ip_str == "127.0.0.1" || ip_str == "::1");
     }
 }
 
@@ -74,7 +71,7 @@ TEST(DnsResolverTest, ResolveHostnameLocalhostIPV4) {
     EXPECT_GT(addresses.size(), 0);
 
     for (const auto& ip : addresses) {
-        EXPECT_EQ(ip.Family(), IpAddress::Family::kIpv4);
+        EXPECT_TRUE(std::holds_alternative<struct in_addr>(ip));
     }
 }
 
@@ -104,8 +101,8 @@ TEST(DnsResolverTest, GetSystemDnsServers_SanityCheck) {
     }
 
     for (const auto& ip : servers) {
-        LOG(INFO) << "Found System DNS: " << ip;
-        EXPECT_FALSE(ip.ToString().empty());
+        LOG(INFO) << "Found System DNS: " << ToString(ip);
+        EXPECT_FALSE(ToString(ip).empty());
     }
 }
 
@@ -116,8 +113,8 @@ TEST(DnsResolverTest, GetSystemDnsServers_RepeatedCalls) {
         auto result = GetSystemDnsServers();
         if (result.ok()) {
             for (const auto& ip : *result) {
-                LOG(INFO) << "Found System DNS: " << ip;
-                EXPECT_FALSE(ip.ToString().empty());
+                LOG(INFO) << "Found System DNS: " << ToString(ip);
+                EXPECT_FALSE(ToString(ip).empty());
             }
         }
     }
