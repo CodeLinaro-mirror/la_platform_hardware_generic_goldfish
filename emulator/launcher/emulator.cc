@@ -181,14 +181,8 @@ absl::Status Emulator::addDevices() {
     // This should always be the last device, as it will finalize android emulator initialization.
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
 
-    if (Bazel::inBazel()) {
-        // We are running in the bazel environment, add the bios to the search path.
-        // This is necessary because Qemu searches relative to the current executable path which is
-        // canonicalized to resolve all symlinks but in Bazel the launcher directory tree is
-        // composed of symlinks so the link to the launcher directory is lost.
-        addDevice<ParameterList>(
-                std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
-    }
+    addDevice<ParameterList>(
+            std::initializer_list<std::string>{"-L", paths().bios_directory.string()});
 
     if (o.qemu_telnet) {
         // Debug monitor
