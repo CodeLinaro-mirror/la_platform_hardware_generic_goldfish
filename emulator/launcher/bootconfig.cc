@@ -15,6 +15,7 @@
 #include "emulator/launcher/bootconfig.h"
 
 #include <aemu/base/utils/status_macros.h>
+#include <sys/stat.h>
 
 #include <fstream>
 #include <memory>
@@ -22,6 +23,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 
 #include "android/base/file/file.h"
 
@@ -61,10 +63,13 @@ absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::stri
     ASSIGN_OR_RETURN(auto old_size, android::base::file::file_size(dst));
     std::vector<char> blob = buildBootconfigBlob(old_size.bytes(), bootconfig);
 
+    errno = 0;
     std::ofstream out;
+    android::base::file::chmod(dst.string().c_str(), S_IRUSR | S_IWUSR);
     out.open(dst, std::ios_base::app | std::ios_base::binary);
     if (!out) {
-        return absl::InternalError("failed to open initrd for writing");
+        return absl::InternalError(absl::StrCat("failed to open initrd for writing with error: ",
+                                                std::strerror(errno)));
     }
     if (out << std::string_view(blob.data(), blob.size())) {
         return absl::OkStatus();
