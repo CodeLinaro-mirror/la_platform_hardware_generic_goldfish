@@ -176,7 +176,9 @@ absl::Status Emulator::addDevices() {
 
     // Make sure we have our other devices available before we setup the gRPC device, the gRPC
     // device depends on the virtio devices for input event delivery.
-    addDevice<GrpcDevice>();
+    if (!o.no_grpc) {
+        addDevice<GrpcDevice>();
+    }
 
     // This should always be the last device, as it will finalize android emulator initialization.
     addDevice<ParameterList>(std::initializer_list<std::string>{"-device", "avdend"});
