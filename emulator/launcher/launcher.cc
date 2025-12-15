@@ -75,14 +75,14 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
              std::unique_ptr<Avd> avd, AndroidOptions opts)
-            : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.getRawLoop()))
+            : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.GetRawLoop()))
             , mEventLoop(event_loop)
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
-        (void)mEventLoop.post([this] {
+        (void)mEventLoop.Post([this] {
             if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
                 LOG(FATAL) << "Failed to set ports: " << s;
             }
@@ -113,7 +113,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         const auto k_ipv4_loopback = ToIpv4Address(127, 0, 0, 1);
 
         auto e = ToEndpoint(k_ipv4_loopback, port);
-        auto sock = factory.createServer(&event_loop, std::move(e), [](auto) {
+        auto sock = factory.CreateServer(&event_loop, std::move(e), [](auto) {
             VLOG(1) << "Ignoring connection to serial port reservation server";
             return false;
         });
@@ -198,8 +198,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     static void netsimd_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
         LOG(INFO) << "Netsimd exited with status " << exit_status << ", signal " << term_signal;
-        Launcher& l = static_cast<Launcher&>(get_launcher(*req));
-        close_handle(std::move(l.mNetsimdProcess));
+        Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
+        CloseHandle(std::move(l.mNetsimdProcess));
     }
 
     void launch_netsimd() {
@@ -212,11 +212,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
         if (auto netsim_config = netsimd_launch_config(mResolvedPaths.netsim_binary, mOpts);
             netsim_config.ok()) {
-            if (auto s = launch(*std::move(netsim_config), &netsimd_exit); s.ok()) {
+            if (auto s = Launch(*std::move(netsim_config), &netsimd_exit); s.ok()) {
                 mNetsimdProcess = *std::move(s);
-                VLOG(1) << "Running netsimd as pid: " << get_pid(mNetsimdProcess);
+                VLOG(1) << "Running netsimd as pid: " << GetPid(mNetsimdProcess);
 
-                mFindNetsimd = mEventLoop.scheduleRepeating(
+                mFindNetsimd = mEventLoop.ScheduleRepeating(
                         [this] {
                             mRetryCountDown = 10;
                             find_netsimd_endpoint();
@@ -232,7 +232,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     void find_netsimd_endpoint() {
         if (mRetryCountDown == 0) {
-            mFindNetsimd->cancel();
+            mFindNetsimd->Cancel();
             // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
             LOG(FATAL) << "Unable to determine the correct grpc endpoint for netsimd";
             return;
@@ -243,11 +243,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             // netsimd itself will check whether it's already running and exit if so.
             VLOG(1) << "netsimd died, perhaps another was already running";
             if (mExistingNetsimdPort != 0) {
-                mFindNetsimd->cancel();
+                mFindNetsimd->Cancel();
                 mFindNetsimd.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
-                (void)mEventLoop.post([this] {
+                (void)mEventLoop.Post([this] {
                     try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
                 });
                 return;
@@ -268,9 +268,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         }
 
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
-        mFindNetsimd->cancel();
+        mFindNetsimd->Cancel();
         mFindNetsimd.reset();
-        (void)mEventLoop.post(
+        (void)mEventLoop.Post(
                 [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
     }
 
@@ -283,7 +283,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            (void)mEventLoop.post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
+            (void)mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
                 launch_emulator(std::move(endpoint));
             });
         } else {
@@ -294,9 +294,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     static void emulator_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
         LOG(INFO) << "emulator exited with status " << exit_status << ", signal " << term_signal;
-        Launcher& l = static_cast<Launcher&>(get_launcher(*req));
+        Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
         l.mEmulatorExitStatus = exit_status;
-        close_handle(std::move(l.mEmulatorProcess));
+        CloseHandle(std::move(l.mEmulatorProcess));
 
         l.shutdown();
     }
@@ -306,9 +306,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                           std::move(mAvd), std::move(mOpts)};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
-            if (auto s = launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
+            if (auto s = Launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
                 mEmulatorProcess = *std::move(s);
-                LOG(INFO) << "Running emulator as pid: " << get_pid(mEmulatorProcess);
+                LOG(INFO) << "Running emulator as pid: " << GetPid(mEmulatorProcess);
             } else {
                 LOG(FATAL) << "Fatal error whilst launching the emulator: " << s.status();
             }
@@ -319,12 +319,12 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     void shutdown() {
         if (mSerialPortReservation) {
-            mSerialPortReservation->close();
+            mSerialPortReservation->Close();
             mSerialPortReservation.reset();
         }
 
         if (mFindNetsimd) {
-            mFindNetsimd->cancel();
+            mFindNetsimd->Cancel();
             mFindNetsimd.reset();
         }
 
@@ -338,7 +338,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             // Shut down the signal handlers before the loop.
             mSignalHandlers.close();
             // This can't run on the loop itself.
-            if (auto s = mEventLoop.shutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
+            if (auto s = mEventLoop.ShutdownAndWait(std::chrono::seconds(10)); !s.ok()) {
                 LOG(ERROR) << "Event loop shutdown error: " << s;
             } else {
                 VLOG(1) << "Event loop shutdown succeeded";
@@ -541,11 +541,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto event_loop = goldfish::async::LibuvEventLoop::create();
+    auto event_loop = goldfish::async::LibuvEventLoop::Create();
 
     android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
 
-    if (auto s = event_loop->run(); !s.ok()) {
+    if (auto s = event_loop->Run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;
         return 1;
     }

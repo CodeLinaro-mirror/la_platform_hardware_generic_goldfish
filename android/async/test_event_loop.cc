@@ -37,11 +37,11 @@ class TestEventLoopImpl : public TestEventLoop {
     ~TestEventLoopImpl() override;
 
     // EventLoop Interface
-    std::future<absl::Status> shutdown() override;
-    bool isOnLoopThread() const override;
-    absl::Status postImmediately(Task task) override;
-    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override;
-    std::shared_ptr<Timer> createTimer(Task task) override;
+    std::future<absl::Status> Shutdown() override;
+    bool IsOnLoopThread() const override;
+    absl::Status PostImmediately(Task task) override;
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override;
+    std::shared_ptr<Timer> CreateTimer(Task task) override;
 
     // TestEventLoop Interface
     void runAll() override;
@@ -72,11 +72,11 @@ class TestEventLoopImpl : public TestEventLoop {
       public:
         TestTimer(TestEventLoopImpl* loop, Task task)
                 : mLoop(loop), mPendingTask(std::make_shared<Task>(std::move(task))) {}
-        ~TestTimer() override { cancel(); }
-        void cancel() override { mCancelled = true; }
+        ~TestTimer() override { Cancel(); }
+        void Cancel() override { mCancelled = true; }
         bool isCancelled() const { return mCancelled; }
         std::shared_ptr<Task> task() { return mPendingTask; }
-        void schedule(std::chrono::milliseconds new_delay,
+        void Schedule(std::chrono::milliseconds new_delay,
                       std::chrono::milliseconds new_interval) override {
             mLoop->reschedule(shared_from_this(), new_delay, new_interval);
         }
@@ -123,7 +123,7 @@ TestEventLoopImpl::TestEventLoopImpl() : mNow(std::chrono::steady_clock::now()) 
     auto thread_started_future = thread_started_promise.get_future();
     mThread = std::thread([this, &thread_started_promise]() {
         mThreadId = std::this_thread::get_id();
-        setState(LooperStatusEvent::State::RUNNING);
+        SetState(LooperStatusEvent::State::kRunning);
         thread_started_promise.set_value();
         loop();
     });
@@ -131,8 +131,8 @@ TestEventLoopImpl::TestEventLoopImpl() : mNow(std::chrono::steady_clock::now()) 
 }
 
 TestEventLoopImpl::~TestEventLoopImpl() {
-    if (getState() != LooperStatusEvent::State::SHUTTING_DOWN) {
-        shutdownAndWait();
+    if (GetState() != LooperStatusEvent::State::kShuttingDown) {
+        ShutdownAndWait();
     }
     mStop = true;
     mCv.notify_one();
@@ -141,8 +141,8 @@ TestEventLoopImpl::~TestEventLoopImpl() {
     }
 }
 
-std::future<absl::Status> TestEventLoopImpl::shutdown() {
-    setState(LooperStatusEvent::State::SHUTTING_DOWN);
+std::future<absl::Status> TestEventLoopImpl::Shutdown() {
+    SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
     std::lock_guard<std::mutex> lock(mMutex);
@@ -152,12 +152,12 @@ std::future<absl::Status> TestEventLoopImpl::shutdown() {
     return promise.get_future();
 }
 
-bool TestEventLoopImpl::isOnLoopThread() const {
+bool TestEventLoopImpl::IsOnLoopThread() const {
     return std::this_thread::get_id() == mThreadId;
 }
 
-absl::Status TestEventLoopImpl::postImmediately(Task task) {
-    if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) {
+absl::Status TestEventLoopImpl::PostImmediately(Task task) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
@@ -166,13 +166,13 @@ absl::Status TestEventLoopImpl::postImmediately(Task task) {
     return absl::OkStatus();
 }
 
-absl::Status TestEventLoopImpl::postDelayed(Task task, std::chrono::milliseconds delay) {
-    if (getState() == LooperStatusEvent::State::SHUTTING_DOWN) {
+absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds delay) {
+    if (GetState() == LooperStatusEvent::State::kShuttingDown) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
-    auto timer = createTimer(std::move(task));
-    timer->schedule(delay, std::chrono::milliseconds::zero());
+    auto timer = CreateTimer(std::move(task));
+    timer->Schedule(delay, std::chrono::milliseconds::zero());
     return absl::OkStatus();
 }
 
@@ -181,7 +181,7 @@ size_t TestEventLoopImpl::taskCount() const {
     return mTasks.size();
 }
 
-std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::createTimer(Task task) {
+std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::CreateTimer(Task task) {
     return std::make_shared<TestTimer>(this, std::move(task));
 }
 
@@ -266,7 +266,7 @@ void TestEventLoopImpl::loop() {
         mCommand = Command::None;
         mCmdCv.notify_one();
     }
-    setState(LooperStatusEvent::State::FINISHED);
+    SetState(LooperStatusEvent::State::kFinished);
 }
 
 bool TestEventLoopImpl::runOneUnlocked() {

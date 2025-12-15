@@ -51,8 +51,8 @@ class TestDisplay : public IDisplay {
 class DisplayTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoop = ::goldfish::async::ThreadedEventLoop::create(
-                ::goldfish::async::LibuvEventLoop::create());
+        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+                ::goldfish::async::LibuvEventLoop::Create());
     }
 
     void TearDown() override { mLoop.reset(); }

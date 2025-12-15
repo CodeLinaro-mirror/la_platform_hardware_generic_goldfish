@@ -46,11 +46,11 @@ inline absl::Status sendSynchronously(goldfish::async::AsyncSocket* socket, cons
         return absl::OkStatus();
     }
 
-    goldfish::async::EventLoop* loop = socket->getLoop();
+    goldfish::async::EventLoop* loop = socket->GetLoop();
     if (!loop) {
         return absl::FailedPreconditionError("Socket is not associated with an event loop.");
     }
-    if (loop->isOnLoopThread()) {
+    if (loop->IsOnLoopThread()) {
         return absl::FailedPreconditionError(
                 "sendSynchronously cannot be called from the event loop thread.");
     }
@@ -58,8 +58,8 @@ inline absl::Status sendSynchronously(goldfish::async::AsyncSocket* socket, cons
     auto promise_ptr = std::make_shared<std::promise<absl::Status>>();
     auto future = promise_ptr->get_future();
 
-    loop->post([socket, data, size, p = promise_ptr]() {
-        socket->send(data, size, [p](absl::Status status) { p->set_value(status); });
+    loop->Post([socket, data, size, p = promise_ptr]() {
+        socket->Send(data, size, [p](absl::Status status) { p->set_value(status); });
     });
 
     return future.get();

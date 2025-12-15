@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <memory>
@@ -37,11 +38,11 @@ using android::base::eventing::CallbackEventSource;
  * lifecycle.
  */
 struct LooperStatusEvent {
-    enum class State {
-        NOT_STARTED,    // The loop has not yet been started.
-        RUNNING,        // The loop is actively processing events.
-        SHUTTING_DOWN,  // A graceful shutdown has been initiated.
-        FINISHED,       // The loop has finished execution.
+    enum class State : uint8_t {
+        kNotStarted,    // The loop has not yet been started.
+        kRunning,       // The loop is actively processing events.
+        kShuttingDown,  // A graceful shutdown has been initiated.
+        kFinished,      // The loop has finished execution.
     };
 
     State state;
@@ -50,16 +51,16 @@ struct LooperStatusEvent {
 template <typename Sink>
 void AbslStringify(Sink& sink, const LooperStatusEvent& event) {
     switch (event.state) {
-    case LooperStatusEvent::State::NOT_STARTED:
+    case LooperStatusEvent::State::kNotStarted:
         sink.Append("NOT_STARTED");
         break;
-    case LooperStatusEvent::State::RUNNING:
+    case LooperStatusEvent::State::kRunning:
         sink.Append("RUNNING");
         break;
-    case LooperStatusEvent::State::SHUTTING_DOWN:
+    case LooperStatusEvent::State::kShuttingDown:
         sink.Append("SHUTTING_DOWN");
         break;
-    case LooperStatusEvent::State::FINISHED:
+    case LooperStatusEvent::State::kFinished:
         sink.Append("FINISHED");
         break;
     }
@@ -94,7 +95,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          * @brief Cancels the scheduled task.
          * If the task has already run or been cancelled, this is a no-op.
          */
-        virtual void cancel() = 0;
+        virtual void Cancel() = 0;
 
         /**
          * @brief (Re)Schedules a timer with a new delay and interval.
@@ -107,7 +108,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          * @param new_interval The new interval for subsequent executions. When
          * set to 0 the timer will not repeat.
          */
-        virtual void schedule(std::chrono::milliseconds new_delay,
+        virtual void Schedule(std::chrono::milliseconds new_delay,
                               std::chrono::milliseconds new_interval) = 0;
 
         /**
@@ -119,16 +120,16 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
          *
          * @param new_delay The new delay before the next execution.
          */
-        void schedule(std::chrono::milliseconds new_delay) {
-            schedule(new_delay, std::chrono::milliseconds::zero());
+        void Schedule(std::chrono::milliseconds new_delay) {
+            Schedule(new_delay, std::chrono::milliseconds::zero());
         }
     };
 
     virtual ~EventLoop() = default;
 
-    absl::Status shutdownAndWait(
+    absl::Status ShutdownAndWait(
             std::chrono::milliseconds timeout = std::chrono::milliseconds::zero()) {
-        auto future = shutdown();
+        auto future = Shutdown();
         if (timeout != std::chrono::milliseconds::zero()) {
             if (future.wait_for(timeout) != std::future_status::ready) {
                 return absl::DeadlineExceededError(
@@ -148,13 +149,13 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * Note: that this will cancel all outstanding timers and posted callbacks
      * once this returns no new timers are callbacks can be scheduled.
      */
-    virtual std::future<absl::Status> shutdown() = 0;
+    virtual std::future<absl::Status> Shutdown() = 0;
 
     /**
      * @brief Checks if the current thread is the one running this event loop.
      * @return true if the caller is on the event loop's thread, false otherwise.
      */
-    virtual bool isOnLoopThread() const = 0;
+    virtual bool IsOnLoopThread() const = 0;
 
     /**
      * @brief Posts a callable object for execution on the event loop.
@@ -166,7 +167,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @return A std::future that will be fulfilled with the return value of the task.
      */
     template <typename F>
-    auto post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
+    auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
             -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
         using ReturnType = decltype(std::forward<F>(f)());
         auto promise = std::make_shared<std::promise<ReturnType>>();
@@ -184,9 +185,9 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
         absl::Status s;
         if (delay == std::chrono::milliseconds::zero()) {
-            s = postImmediately(std::move(task_runner));
+            s = PostImmediately(std::move(task_runner));
         } else {
-            s = postDelayed(std::move(task_runner), delay);
+            s = PostDelayed(std::move(task_runner), delay);
         }
         if (!s.ok()) {
             return s;
@@ -204,13 +205,13 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * will immediately exit with a FATAL warning.
      */
     template <typename F>
-    auto postAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status,
+    auto PostAndWait(F&& task) -> std::conditional_t<std::is_void_v<decltype(task())>, absl::Status,
                                                      absl::StatusOr<decltype(task())>> {
-        if (isOnLoopThread()) {
+        if (IsOnLoopThread()) {
             LOG(FATAL) << "postAndWait cannot be called from the event loop.";
         }
 
-        if (auto future = post<F>(std::forward<F>(task)); future.ok()) {
+        if (auto future = Post<F>(std::forward<F>(task)); future.ok()) {
             if constexpr (std::is_void_v<decltype(task())>) {
                 future->get();
                 return absl::OkStatus();
@@ -227,7 +228,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param task The task to execute.
      * @return A shared pointer to a Timer handle for scheduling and cancellation.
      */
-    virtual std::shared_ptr<Timer> createTimer(Task task) = 0;
+    virtual std::shared_ptr<Timer> CreateTimer(Task task) = 0;
 
     /**
      * @brief Schedules a cancellable task to be executed once after a delay.
@@ -235,8 +236,8 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param delay The duration to wait before executing the task.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> scheduleDelayed(Task task, std::chrono::milliseconds delay) {
-        return scheduleRepeating(std::move(task), delay, std::chrono::milliseconds::zero());
+    std::shared_ptr<Timer> ScheduleDelayed(Task task, std::chrono::milliseconds delay) {
+        return ScheduleRepeating(std::move(task), delay, std::chrono::milliseconds::zero());
     }
 
     /**
@@ -246,15 +247,15 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @param interval The time between subsequent executions.
      * @return A shared pointer to a Timer handle for cancellation.
      */
-    std::shared_ptr<Timer> scheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
+    std::shared_ptr<Timer> ScheduleRepeating(Task task, std::chrono::milliseconds initial_delay,
                                              std::chrono::milliseconds interval) {
-        auto timer = createTimer(std::move(task));
-        timer->schedule(initial_delay, interval);
+        auto timer = CreateTimer(std::move(task));
+        timer->Schedule(initial_delay, interval);
         return timer;
     };
 
     // Implementation specific loop.
-    virtual void* getRawLoop() {
+    virtual void* GetRawLoop() {
         return nullptr;  // `nullptr` is a valid value here
     }
 
@@ -262,21 +263,21 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
      * @brief Gets the current state of the event loop.
      * @return The current state.
      */
-    virtual LooperStatusEvent::State getState() const { return mState; }
+    virtual LooperStatusEvent::State GetState() const { return state_; }
 
   protected:
-    virtual absl::Status postImmediately(Task task) = 0;
-    virtual absl::Status postDelayed(Task task, std::chrono::milliseconds delay) = 0;
+    virtual absl::Status PostImmediately(Task task) = 0;
+    virtual absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) = 0;
 
-    void setState(LooperStatusEvent::State newState) {
-        LooperStatusEvent::State oldState = mState.exchange(newState);
-        if (oldState != newState) {
-            fireEvent({.state = newState});
+    void SetState(LooperStatusEvent::State new_state) {
+        const LooperStatusEvent::State old_state = state_.exchange(new_state);
+        if (old_state != new_state) {
+            fireEvent({.state = new_state});
         }
     }
 
   private:
-    std::atomic<LooperStatusEvent::State> mState{LooperStatusEvent::State::NOT_STARTED};
+    std::atomic<LooperStatusEvent::State> state_{LooperStatusEvent::State::kNotStarted};
 };
 
 }  // namespace goldfish::async

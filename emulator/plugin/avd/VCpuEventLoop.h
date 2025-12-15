@@ -32,11 +32,11 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
 
         ~VCpuTimer() = default;
 
-        void cancel() override {
+        void Cancel() override {
             // We can't actually cancel - but we shouldn't allow rescheduling.
         }
 
-        void schedule(std::chrono::milliseconds new_delay,
+        void Schedule(std::chrono::milliseconds new_delay,
                       std::chrono::milliseconds new_interval) override {
             if (new_delay != std::chrono::milliseconds::zero()) {
                 LOG(ERROR) << "VCpuTimer does not support delayed scheduling";
@@ -71,18 +71,18 @@ class VCpuEventLoop : public ::goldfish::async::EventLoop {
 
     int getCpuIndex() const { return mCpuIndex; }
 
-    std::future<absl::Status> shutdown() override {
+    std::future<absl::Status> Shutdown() override {
         std::promise<absl::Status> p;
         p.set_value(absl::OkStatus());
         return p.get_future();
     }
-    bool isOnLoopThread() const override { return false; }
-    absl::Status postImmediately(Task task) override { return absl::UnimplementedError(""); }
-    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override {
+    bool IsOnLoopThread() const override { return false; }
+    absl::Status PostImmediately(Task task) override { return absl::UnimplementedError(""); }
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override {
         return absl::UnimplementedError("");
     }
 
-    std::shared_ptr<Timer> createTimer(Task task) override {
+    std::shared_ptr<Timer> CreateTimer(Task task) override {
         return std::make_shared<VCpuTimer>(mCpuIndex, std::move(task));
     }
 

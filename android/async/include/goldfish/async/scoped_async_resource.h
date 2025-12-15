@@ -33,38 +33,38 @@ class ScopedAsyncResource {
   public:
     ScopedAsyncResource() = default;
 
-    explicit ScopedAsyncResource(std::shared_ptr<T> resource) : mResource(std::move(resource)) {
-        if (mResource) {
-            mLoop = mResource->getLoop();
+    explicit ScopedAsyncResource(std::shared_ptr<T> resource) : resource_(std::move(resource)) {
+        if (resource_) {
+            loop_ = resource_->GetLoop();
         }
     }
 
     ~ScopedAsyncResource() {
-        if (mResource && mLoop) {
-            if (mLoop->isOnLoopThread()) {
+        if (resource_ && loop_) {
+            if (loop_->IsOnLoopThread()) {
                 // We are on the loop thread, so we can't block.
-                mResource->close();
+                resource_->Close();
             } else {
                 // We are on a different thread. It's safe to block.
-                mLoop->postAndWait([res = mResource]() { res->close(); });
+                loop_->PostAndWait([res = resource_]() { res->Close(); });
             }
         }
     }
 
     // --- Move semantics ---
     ScopedAsyncResource(ScopedAsyncResource&& other) noexcept
-            : mResource(std::move(other.mResource)), mLoop(other.mLoop) {
-        other.mLoop = nullptr;
+            : resource_(std::move(other.resource_)), loop_(other.loop_) {
+        other.loop_ = nullptr;
     }
 
     ScopedAsyncResource& operator=(ScopedAsyncResource&& other) noexcept {
         if (this != &other) {
-            if (mResource && mLoop) {
-                mLoop->postAndWait([res = std::move(mResource)]() { res->close(); });
+            if (resource_ && loop_) {
+                loop_->PostAndWait([res = std::move(resource_)]() { res->Close(); });
             }
-            mResource = std::move(other.mResource);
-            mLoop = other.mLoop;
-            other.mLoop = nullptr;
+            resource_ = std::move(other.resource_);
+            loop_ = other.loop_;
+            other.loop_ = nullptr;
         }
         return *this;
     }
@@ -74,19 +74,19 @@ class ScopedAsyncResource {
     ScopedAsyncResource& operator=(const ScopedAsyncResource&) = delete;
 
     // --- Accessors ---
-    T* get() const { return mResource.get(); }
-    T* operator->() const { return mResource.get(); }
-    explicit operator bool() const { return mResource != nullptr; }
+    T* get() const { return resource_.get(); }  // NOLINT
+    T* operator->() const { return resource_.get(); }
+    explicit operator bool() const { return resource_ != nullptr; }
 
     // --- Manual Release ---
-    std::shared_ptr<T> release() {
-        mLoop = nullptr;
-        return std::move(mResource);
+    std::shared_ptr<T> release() {  // NOLINT
+        loop_ = nullptr;
+        return std::move(resource_);
     }
 
   private:
-    std::shared_ptr<T> mResource;
-    EventLoop* mLoop = nullptr;
+    std::shared_ptr<T> resource_;
+    EventLoop* loop_ = nullptr;
 };
 
 template <typename T>

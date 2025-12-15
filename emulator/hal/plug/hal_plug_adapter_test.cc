@@ -61,15 +61,15 @@ class MockHalPlug : public HalPlug {
 class HalPlugAdapterTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
-        mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
+        mClientLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
+        mQemuLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
 
         mMockHalPlug = std::make_shared<MockHalPlug>();
         // The SocketPtr owns the mock, but we keep a raw pointer for EXPECT_CALL
         mMockSocket = std::make_unique<MockSocket>();
         mMockSocketPtr = cable::SocketPtr(mMockSocket.get());
 
-        auto f = mQemuLoop->postAndWait([&] {
+        auto f = mQemuLoop->PostAndWait([&] {
             return std::make_shared<HalPlugToIPlugAdapter>(mClientLoop.get(), mMockHalPlug);
         });
         ASSERT_THAT(f, ::absl_testing::IsOk());
@@ -85,12 +85,12 @@ class HalPlugAdapterTest : public ::testing::Test {
                 closed.Notify();
                 return nullptr;
             }));
-            mClientLoop->post([this] { mMockHalPlug->getSocket()->close(); });
+            mClientLoop->Post([this] { mMockHalPlug->getSocket()->close(); });
             closed.WaitForNotificationWithTimeout(absl::Milliseconds(100));
         }
 
-        mQemuLoop->shutdownAndWait(100ms);
-        mClientLoop->shutdownAndWait(100ms);
+        mQemuLoop->ShutdownAndWait(100ms);
+        mClientLoop->ShutdownAndWait(100ms);
     }
 
     void connect() {
@@ -99,7 +99,7 @@ class HalPlugAdapterTest : public ::testing::Test {
             onConnectCalled.Notify();
         }));
 
-        mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
+        mClientLoop->Post([this, s = std::move(mMockSocketPtr)]() mutable {
             auto marshallingSocket =
                     std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
             HalPlugTesting::establishConnection(mMockHalPlug.get(), marshallingSocket);
@@ -122,12 +122,12 @@ TEST_F(HalPlugAdapterTest, OnConnectIsMarshalledToClientThread) {
     absl::Notification onConnectCalled;
 
     EXPECT_CALL(*mMockHalPlug, onConnect()).WillOnce(Invoke([&]() {
-        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         onConnectCalled.Notify();
     }));
 
     // Simulate a connection..
-    mClientLoop->post([this, s = std::move(mMockSocketPtr)]() mutable {
+    mClientLoop->Post([this, s = std::move(mMockSocketPtr)]() mutable {
         auto marshallingSocket =
                 std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
         HalPlugTesting::establishConnection(mMockHalPlug.get(), marshallingSocket);
@@ -144,11 +144,11 @@ TEST_F(HalPlugAdapterTest, OnReceiveIsMarshalledToClientThread) {
 
     // Test will fail if this call was not made.
     EXPECT_CALL(*mMockHalPlug, onReceive(StrEq("hello"))).WillOnce(Invoke([&](std::string_view) {
-        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         onReceiveCalled.Notify();
     }));
 
-    mQemuLoop->post([&] { mAdapter->onReceive("hello", 5); });
+    mQemuLoop->Post([&] { mAdapter->onReceive("hello", 5); });
 
     // We will fail if no notification within 100ms.
     onReceiveCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
@@ -158,12 +158,12 @@ TEST_F(HalPlugAdapterTest, SendIsMarshalledToQemuThread) {
     connect();
     absl::Notification sendAsyncCalled;
     EXPECT_CALL(*mMockSocket, sendAsync(_, 5)).WillOnce(Invoke([&](const void* data, size_t) {
-        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
         EXPECT_EQ(std::string_view(static_cast<const char*>(data), 5), "world");
         sendAsyncCalled.Notify();
     }));
 
-    mClientLoop->post([&] { mMockHalPlug->getSocket()->send("world"); });
+    mClientLoop->Post([&] { mMockHalPlug->getSocket()->send("world"); });
     sendAsyncCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
@@ -173,7 +173,7 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
     absl::Notification unplugImplCalled;
 
     EXPECT_CALL(*mMockHalPlug, onClose()).WillOnce(Invoke([&] {
-        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         onCloseCalled.Notify();
     }));
 
@@ -185,7 +185,7 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
         return nullptr;
     }));
 
-    mQemuLoop->post([&] { mAdapter->onUnplug(); });
+    mQemuLoop->Post([&] { mAdapter->onUnplug(); });
 
     // Wait for both notifications to ensure the full sequence has executed.
     onCloseCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
@@ -199,13 +199,13 @@ TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
     absl::Notification unplugCalled;
     absl::Notification postedClose;
     EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() -> cable::PlugPtr {
-        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
         unplugCalled.Notify();
         mSocketIsOpen = false;
         return nullptr;
     }));
 
-    mClientLoop->post([&] {
+    mClientLoop->Post([&] {
         mMockHalPlug->getSocket()->close();
         callClose = true;
         postedClose.Notify();

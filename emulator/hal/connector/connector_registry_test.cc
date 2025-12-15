@@ -130,8 +130,8 @@ class ConnectorRegistryTest : public ::testing::Test {
         gListenCalled = false;
         gTestSocket = nullptr;
 
-        mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
-        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
+        mQemuLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
+        mClientLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
     }
 
     void TearDown() override {
@@ -288,8 +288,8 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
     EXPECT_TRUE(closed_future.get());
 
     // Cleanly exit loops before we destroy sockets etc.
-    mClientLoop->shutdownAndWait(100ms);
-    mQemuLoop->shutdownAndWait(100ms);
+    mClientLoop->ShutdownAndWait(100ms);
+    mQemuLoop->ShutdownAndWait(100ms);
 }
 
 TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
@@ -326,8 +326,8 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
     EXPECT_TRUE(closed_future.get());
 
     // Cleanly exit loops before we destroy sockets etc.
-    mClientLoop->shutdownAndWait(100ms);
-    mQemuLoop->shutdownAndWait(100ms);
+    mClientLoop->ShutdownAndWait(100ms);
+    mQemuLoop->ShutdownAndWait(100ms);
 }
 
 }  // namespace devices

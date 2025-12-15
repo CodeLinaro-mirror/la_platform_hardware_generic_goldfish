@@ -52,7 +52,7 @@ IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, Eve
         : mTimeout(timeout)
         , mTerminationUnixTime(
                   absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(timeout.count()))) {
-    mTimeoutChecker = eventLoop->scheduleRepeating([this]() { checkIdleTimeout(); },
+    mTimeoutChecker = eventLoop->ScheduleRepeating([this]() { checkIdleTimeout(); },
                                                    std::chrono::milliseconds(mTimeout),
                                                    std::chrono::milliseconds(mTimeout));
 }

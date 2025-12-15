@@ -27,7 +27,7 @@ using namespace std::chrono_literals;
 TEST(TestEventLoop, PostSingleTask) {
     auto loop = TestEventLoop::create();
     bool executed = false;
-    loop->post([&]() { executed = true; });
+    loop->Post([&]() { executed = true; });
     ASSERT_FALSE(executed);
     loop->runAll();
     ASSERT_TRUE(executed);
@@ -36,9 +36,9 @@ TEST(TestEventLoop, PostSingleTask) {
 TEST(TestEventLoop, PostMultipleTasks) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    loop->post([&]() { count++; });
-    loop->post([&]() { count++; });
-    loop->post([&]() { count++; });
+    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; });
     ASSERT_EQ(0, count);
     loop->runAll();
     ASSERT_EQ(3, count);
@@ -49,8 +49,8 @@ TEST(TestEventLoop, ScheduleDelayedTask) {
     bool executed = false;
 
     // Store the returned handle in a variable to keep it alive.
-    auto timer = loop->createTimer([&]() { executed = true; });
-    timer->schedule(100ms, 0ms);
+    auto timer = loop->CreateTimer([&]() { executed = true; });
+    timer->Schedule(100ms, 0ms);
 
     // only advance clock does something with timed task
     loop->runAll();
@@ -64,8 +64,8 @@ TEST(TestEventLoop, ScheduleDelayedTask) {
 TEST(TestEventLoop, ScheduleRepeatingTask) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    auto timer = loop->createTimer([&]() { count++; });
-    timer->schedule(100ms, 50ms);
+    auto timer = loop->CreateTimer([&]() { count++; });
+    timer->Schedule(100ms, 50ms);
 
     loop->advanceClock(100ms);
     ASSERT_EQ(1, count);
@@ -77,7 +77,7 @@ TEST(TestEventLoop, ScheduleRepeatingTask) {
     ASSERT_EQ(3, count);
 
     // no new events after cancel.
-    timer->cancel();
+    timer->Cancel();
     loop->advanceClock(50ms);
     ASSERT_EQ(3, count);
 }
@@ -85,7 +85,7 @@ TEST(TestEventLoop, ScheduleRepeatingTask) {
 TEST(TestEventLoop, PostAndWait) {
     auto loop = TestEventLoop::create();
     auto future = std::async(std::launch::async,
-                             [&]() { return loop->postAndWait([]() { return 42; }); });
+                             [&]() { return loop->PostAndWait([]() { return 42; }); });
 
     while (future.wait_for(100ms) == std::future_status::timeout) {
         loop->runAll();
@@ -99,7 +99,7 @@ TEST(TestEventLoop, PostAndWaitVoid) {
     auto loop = TestEventLoop::create();
     bool executed = false;
     auto future = std::async(std::launch::async,
-                             [&]() { loop->postAndWait([&]() { executed = true; }); });
+                             [&]() { loop->PostAndWait([&]() { executed = true; }); });
 
     while (future.wait_for(100ms) == std::future_status::timeout) {
         loop->runAll();
@@ -111,10 +111,10 @@ TEST(TestEventLoop, PostAndWaitVoid) {
 TEST(TestEventLoop, TimerCancellation) {
     auto loop = TestEventLoop::create();
     bool executed = false;
-    auto timer = loop->createTimer([&]() { executed = true; });
-    timer->schedule(100ms, 0ms);
+    auto timer = loop->CreateTimer([&]() { executed = true; });
+    timer->Schedule(100ms, 0ms);
 
-    timer->cancel();
+    timer->Cancel();
     loop->advanceClock(100ms);
     ASSERT_FALSE(executed);
 }
@@ -123,8 +123,8 @@ TEST(TestEventLoop, TimerHandleDestructionCancels) {
     auto loop = TestEventLoop::create();
     bool executed = false;
     {
-        auto timer = loop->createTimer([&]() { executed = true; });
-        timer->schedule(100ms, 0ms);
+        auto timer = loop->CreateTimer([&]() { executed = true; });
+        timer->Schedule(100ms, 0ms);
     }
     // Timer is out of scope and should be cancelled.
     loop->advanceClock(100ms);
@@ -134,10 +134,10 @@ TEST(TestEventLoop, TimerHandleDestructionCancels) {
 TEST(TestEventLoop, ShutdownClearsPendingTasks) {
     auto loop = TestEventLoop::create();
     bool executed = false;
-    loop->post([&]() { executed = true; });
-    loop->post([&]() { executed = true; }, 100ms);
+    loop->Post([&]() { executed = true; });
+    loop->Post([&]() { executed = true; }, 100ms);
 
-    loop->shutdownAndWait();
+    loop->ShutdownAndWait();
     loop->runAll();
     loop->advanceClock(100ms);
 
@@ -153,8 +153,8 @@ TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
     std::atomic<int> execution_count = 0;
 
     // Schedule a task to run every 10ms, starting immediately.
-    auto timer = loop->createTimer([&execution_count]() { execution_count++; });
-    timer->schedule(0ms,  // Initial delay of 0 means it's due immediately.
+    auto timer = loop->CreateTimer([&execution_count]() { execution_count++; });
+    timer->Schedule(0ms,  // Initial delay of 0 means it's due immediately.
                     10ms  // Repeat every 10ms.
     );
 
@@ -182,8 +182,8 @@ TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
 TEST(TestEventLoop, RunOne) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    loop->post([&]() { count++; });
-    loop->post([&]() { count++; });
+    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; });
     ASSERT_TRUE(loop->runOne());
     ASSERT_EQ(1, count);
     ASSERT_TRUE(loop->runOne());
@@ -193,9 +193,9 @@ TEST(TestEventLoop, RunOne) {
 TEST(TestEventLoop, RunMany) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    loop->post([&]() { count++; });
-    loop->post([&]() { count++; });
-    loop->post([&]() { count++; });
+    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; });
     ASSERT_TRUE(loop->runMany(3));
     ASSERT_EQ(3, count);
 }
@@ -203,7 +203,7 @@ TEST(TestEventLoop, RunMany) {
 TEST(TestEventLoop, RunManyTimeout) {
     auto loop = TestEventLoop::create();
     int count = 0;
-    loop->post([&]() { count++; });
+    loop->Post([&]() { count++; });
     ASSERT_EQ(loop->runMany(2), 1);
     ASSERT_EQ(1, count);
 }
@@ -212,15 +212,15 @@ TEST(TestEventLoop, RescheduleRepeatingTimer) {
     auto loop = TestEventLoop::create();
     int counter = 0;
 
-    auto handle = loop->createTimer([&]() { counter++; });
-    handle->schedule(100ms, 100ms);
+    auto handle = loop->CreateTimer([&]() { counter++; });
+    handle->Schedule(100ms, 100ms);
 
     // Let it fire once.
     loop->advanceClock(120ms);
     ASSERT_EQ(counter, 1);
 
     // Reschedule to fire sooner and more frequently.
-    handle->schedule(20ms, 20ms);
+    handle->Schedule(20ms, 20ms);
 
     // Check that it fires again quickly.
     loop->advanceClock(30ms);

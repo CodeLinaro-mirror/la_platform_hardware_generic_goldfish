@@ -52,45 +52,41 @@ struct TestEvent {
 class TestListener : public EventListener<TestEvent> {
   public:
     TestListener(EventLoop* loop, absl::Notification* notification)
-            : mLoop(loop), mNotification(notification) {}
+            : loop_(loop), notification_(notification) {}
 
     void eventArrived(const TestEvent& event) override {
         // This check confirms the event is handled on the correct thread.
-        EXPECT_TRUE(mLoop->isOnLoopThread());
-        mLastValue = event.value;
-        mNotification->Notify();
+        EXPECT_TRUE(loop_->IsOnLoopThread());
+        last_value_ = event.value;
+        notification_->Notify();
     }
 
-    int lastValue() const { return mLastValue; }
+    int lastValue() const { return last_value_; }
 
   private:
-    EventLoop* mLoop;
-    absl::Notification* mNotification;
-    int mLastValue = 0;
+    EventLoop* loop_;
+    absl::Notification* notification_;
+    int last_value_ = 0;
 };
 
 class RunningLoopListener {
   public:
-    RunningLoopListener(EventLoop &loop) : mLoop(loop) {
-        mCallbackId = mLoop.addCallback([this] (const LooperStatusEvent& event) {
-            if (event.state == LooperStatusEvent::State::RUNNING) {
-                mNotification.Notify();
+    RunningLoopListener(EventLoop& loop) : loop_(loop) {
+        callback_id_ = loop_.addCallback([this](const LooperStatusEvent& event) {
+            if (event.state == LooperStatusEvent::State::kRunning) {
+                notification_.Notify();
             }
         });
     }
 
-    ~RunningLoopListener() {
-        mLoop.removeCallback(mCallbackId);
-    }
+    ~RunningLoopListener() { loop_.removeCallback(callback_id_); }
 
-    const absl::Notification &GetNotification() const {
-        return mNotification;
-    }
+    const absl::Notification& GetNotification() const { return notification_; }
 
   private:
-    EventLoop &mLoop;
-    size_t mCallbackId;
-    absl::Notification mNotification;
+    EventLoop& loop_;
+    size_t callback_id_;
+    absl::Notification notification_;
 };
 
 // Define a clear alias for the complex EventSource type used in the tests.
@@ -103,9 +99,9 @@ using CallbackSource = goldfish::async::LoopBoundCallbackSource<TestEvent>;
 
 TEST(EventLoopDispatcherTest, EventIsDispatchedOnEventLoopThread) {
     // 1. Create an EventLoop instance and run it in a background thread.
-    auto eventLoop = LibuvEventLoop::create();
+    auto eventLoop = LibuvEventLoop::Create();
     RunningLoopListener rll(*eventLoop);
-    std::thread loopThread([&]() { (void)eventLoop->run(); });
+    std::thread loopThread([&]() { (void)eventLoop->Run(); });
     rll.GetNotification().WaitForNotification();
 
     // 2. Create the EventSource, passing the event loop to the dispatcher's constructor.
@@ -126,15 +122,15 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedOnEventLoopThread) {
     EXPECT_EQ(listener->lastValue(), 42);
 
     // 7. Cleanly shut down the loop.
-    ASSERT_THAT(eventLoop->shutdownAndWait(), absl_testing::IsOk());
+    ASSERT_THAT(eventLoop->ShutdownAndWait(), absl_testing::IsOk());
     loopThread.join();
 }
 
 TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     // 1. Create an EventLoop instance and run it in a background thread.
-    auto eventLoop = LibuvEventLoop::create();
+    auto eventLoop = LibuvEventLoop::Create();
     RunningLoopListener rll(*eventLoop);
-    std::thread loopThread([&]() { (void)eventLoop->run(); });
+    std::thread loopThread([&]() { (void)eventLoop->Run(); });
     rll.GetNotification().WaitForNotification();
 
     // 2. Create the EventSource.
@@ -146,10 +142,11 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     loopBoundSource.addListener(listener);
 
     // 4. Post a task to the event loop to fire the event from there.
-    ASSERT_THAT(eventLoop->post([&]() {
+    ASSERT_THAT(eventLoop->Post([&]() {
         // Now we are on the loop thread, the dispatch should be immediate.
         loopBoundSource.fireEvent({99, std::this_thread::get_id()});
-    }), absl_testing::IsOk());
+    }),
+                absl_testing::IsOk());
 
     // 5. Wait for the event to be processed.
     ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
@@ -158,15 +155,15 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     EXPECT_EQ(listener->lastValue(), 99);
 
     // 7. Cleanly shut down the loop.
-    ASSERT_THAT(eventLoop->shutdownAndWait(500ms), absl_testing::IsOk());
+    ASSERT_THAT(eventLoop->ShutdownAndWait(500ms), absl_testing::IsOk());
     loopThread.join();
 }
 
 TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     // 1. Create an EventLoop and run it.
-    auto eventLoop = LibuvEventLoop::create();
+    auto eventLoop = LibuvEventLoop::Create();
     RunningLoopListener rll(*eventLoop);
-    std::thread loopThread([&]() { (void)eventLoop->run(); });
+    std::thread loopThread([&]() { (void)eventLoop->Run(); });
     rll.GetNotification().WaitForNotification();
 
     // 2. Create a source that supports the callback API.
@@ -178,7 +175,7 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     //    when `scoped_handle` goes out of scope.
     {
         auto scoped_handle = makeScopedCallback(callbackSource, [&](const TestEvent& event) {
-            EXPECT_TRUE(eventLoop->isOnLoopThread());
+            EXPECT_TRUE(eventLoop->IsOnLoopThread());
             received_value = event.value;
             event_received.Notify();
         });
@@ -200,7 +197,7 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     EXPECT_EQ(received_value, 100);  // The value should not have changed.
 
     // 7. Clean up.
-    ASSERT_THAT(eventLoop->shutdownAndWait(500ms), absl_testing::IsOk());
+    ASSERT_THAT(eventLoop->ShutdownAndWait(500ms), absl_testing::IsOk());
     loopThread.join();
 }
 

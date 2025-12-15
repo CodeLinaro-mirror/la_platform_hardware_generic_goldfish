@@ -21,7 +21,7 @@ namespace goldfish::async {
 
 using network::EndpointFormatter;
 
-std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factory, EventLoop* loop,
+std::shared_ptr<AsyncSocket> CreateSocketFromHostname(AsyncSocketFactory& factory, EventLoop* loop,
                                                       const std::string& hostname) {
     auto endpoints = goldfish::network::ResolveEndpoints(hostname);
     if (!endpoints.ok()) {
@@ -30,16 +30,16 @@ std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factor
     VLOG(1) << "Resolved: " << hostname << " to: ["
             << absl::StrJoin(endpoints.value(), ", ", EndpointFormatter()) << "]";
     for (const auto& endpoint : endpoints.value()) {
-        if (auto socket = factory.createSocket(loop, endpoint)) {
+        if (auto socket = factory.CreateSocket(loop, endpoint)) {
             return socket;
         }
     }
     return nullptr;
 }
 
-std::shared_ptr<AsyncSocketServer> createServerFromHostname(
+std::shared_ptr<AsyncSocketServer> CreateServerFromHostname(
         AsyncSocketFactory& factory, EventLoop* loop, const std::string& hostname,
-        AsyncSocketServer::ConnectCallback connectCallback) {
+        const AsyncSocketServer::ConnectCallback& connect_callback) {
     auto endpoints = goldfish::network::ResolveEndpoints(hostname);
     if (!endpoints.ok()) {
         return nullptr;
@@ -47,7 +47,7 @@ std::shared_ptr<AsyncSocketServer> createServerFromHostname(
     VLOG(1) << "Resolved: " << hostname << " to: ["
             << absl::StrJoin(endpoints.value(), ", ", EndpointFormatter()) << "]";
     for (const auto& endpoint : endpoints.value()) {
-        if (auto server = factory.createServer(loop, endpoint, connectCallback)) {
+        if (auto server = factory.CreateServer(loop, endpoint, connect_callback)) {
             return server;
         }
     }

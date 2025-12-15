@@ -66,7 +66,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
         // TODO shared_from_this() throws here as this no longer has any associated shared_ptr.
         // Presumably it's being destroyed?
-        /*(void)mQemuLoop->post([self = shared_from_this()]() {
+        /*(void)mQemuLoop->Post([self = shared_from_this()]() {
             self->mUnregisterEmulatorReset(GuestStatusDevice::QEMUResetHandler, self.get());
         });*/
     }
@@ -141,7 +141,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
             // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-            (void)mQemuLoop->post([]() {
+            (void)mQemuLoop->Post([]() {
                 android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
                         android::goldfish::QemuShutdownCause::GuestShutdown);
             });

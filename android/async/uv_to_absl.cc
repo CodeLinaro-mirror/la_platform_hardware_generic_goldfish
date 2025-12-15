@@ -150,9 +150,14 @@ absl::Status UvErrToAbslStatus(int error_code) {
     case UV_EXDEV:
         absl_code = absl::StatusCode::kFailedPrecondition;
         break;
+
+    default:
+        absl_code = absl::StatusCode::kInternal;
+        break;
     }
 
-    std::string message = absl::StrCat(uv_strerror(error_code), " (", uv_err_name(error_code), ")");
-    return absl::Status(absl_code, message);
+    const std::string message =
+            absl::StrCat(uv_strerror(error_code), " (", uv_err_name(error_code), ")");
+    return {absl_code, message};
 }
 }  // namespace goldfish::async

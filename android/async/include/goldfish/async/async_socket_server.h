@@ -34,7 +34,7 @@ class EventLoop;
  * **MUST** be called from the `EventLoop` thread it is associated with,
  * unless otherwise noted.
  *
- * @warning **Object Lifetime:** The `close()` method must be called before the
+ * @warning **Object Lifetime:** The `Close()` method must be called before the
  * object is destroyed. The `ScopedAsyncServer` RAII wrapper is the recommended
  * way to manage the server's lifetime automatically and safely.
  *
@@ -72,7 +72,7 @@ class AsyncSocketServer {
      * @return The listening port number, or -1 if not listening.
      * @warning This method must be called from the server's event loop thread.
      */
-    virtual int port() const = 0;
+    virtual int Port() const = 0;
 
     /**
      * @brief Initiates the asynchronous closing of the server.
@@ -81,7 +81,7 @@ class AsyncSocketServer {
      * listening socket.
      * @warning This method must be called from the server's event loop thread.
      */
-    virtual void close() = 0;
+    virtual void Close() = 0;
 
     /**
      * @brief Returns the EventLoop this server is bound to.
@@ -89,7 +89,7 @@ class AsyncSocketServer {
      * @note This method is thread-safe and is the primary way for an external
      * thread to get the loop pointer needed to `post()` tasks.
      */
-    virtual EventLoop* getLoop() const = 0;
+    virtual EventLoop* GetLoop() const = 0;
 };
 
 /// @brief A convenient RAII wrapper for an `AsyncSocketServer`.

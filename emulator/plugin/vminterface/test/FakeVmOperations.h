@@ -19,7 +19,7 @@ class FakeVmOperations : public VmOperations {
         return true;
     }
     void reset() override {}
-    void shutdown() override { mIsRunning = false; }
+    void Shutdown() override { mIsRunning = false; }
     bool pause() override {
         mRunState = EmuRunState::Paused;
         return true;

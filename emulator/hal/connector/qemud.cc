@@ -106,13 +106,13 @@ bool Parser::onReceive(const void* const data, size_t size) {
             }
         } else {
             const size_t requestSize = decodeRequestSize(mBuffer.data());
-            const size_t bufferSize = mBuffer.size();
-            const size_t consume = std::min(kSizeSize + requestSize - bufferSize, size);
+            const size_t buffer_size = mBuffer.size();
+            const size_t consume = std::min(kSizeSize + requestSize - buffer_size, size);
             mBuffer.insert(mBuffer.end(), data8, data8 + consume);
             data8 += consume;
             size -= consume;
 
-            if ((bufferSize + consume) == (kSizeSize + requestSize)) {
+            if ((buffer_size + consume) == (kSizeSize + requestSize)) {
                 if (!mSink(&mBuffer[kSizeSize], requestSize)) {
                     result = false;
                 }

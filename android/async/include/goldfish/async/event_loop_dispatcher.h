@@ -59,10 +59,10 @@ class EventLoopDispatcher {
         };
 
         // If we are already on the loop thread, execute directly.
-        if (mLoop->isOnLoopThread()) {
+        if (mLoop->IsOnLoopThread()) {
             dispatch_work();
         } else {
-            mLoop->post(std::move(dispatch_work));
+            mLoop->Post(std::move(dispatch_work));
         }
     }
 

@@ -28,7 +28,7 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
         mVm->reset();
         break;
     case VmRunState::SHUTDOWN:
-        mVm->shutdown();
+        mVm->Shutdown();
         break;
     case VmRunState::TERMINATE: {
         LOG(ERROR) << "Received request to terminate the emulator process immediately. No "

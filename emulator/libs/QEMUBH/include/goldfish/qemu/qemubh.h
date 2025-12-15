@@ -29,7 +29,7 @@ class QEMUBHDeleter {
   public:
     QEMUBHDeleter() = default;
 
-    explicit QEMUBHDeleter(std::unique_ptr<QemuCallbackFn> func) : mFunc(std::move(func)) {}
+    explicit QEMUBHDeleter(std::unique_ptr<QemuCallbackFn> func) : func_(std::move(func)) {}
 
     void operator()(QEMUBH* bh) const {
         if (bh) {
@@ -43,7 +43,7 @@ class QEMUBHDeleter {
     QEMUBHDeleter& operator=(const QEMUBHDeleter&) = delete;
 
   private:
-    std::unique_ptr<QemuCallbackFn> mFunc;
+    std::unique_ptr<QemuCallbackFn> func_;
 };
 
 /**
@@ -61,8 +61,8 @@ using QEMUBHPtr = std::unique_ptr<QEMUBH, QEMUBHDeleter>;
  * @param opaque A context pointer to pass to the callback.
  * @return A QEMUBHPtr that manages the created BH.
  */
-inline QEMUBHPtr make_qemu_bh(QEMUBHFunc* cb, void* opaque) {
-    return QEMUBHPtr(qemu_bh_new(cb, opaque), QEMUBHDeleter());
+inline QEMUBHPtr MakeQemuBh(QEMUBHFunc* cb, void* opaque) {
+    return {qemu_bh_new(cb, opaque), QEMUBHDeleter()};
 }
 
 /**
@@ -75,14 +75,14 @@ inline QEMUBHPtr make_qemu_bh(QEMUBHFunc* cb, void* opaque) {
  * @param cb The C++ callable to be scheduled. Ownership is moved into the BH.
  * @return A QEMUBHPtr that manages both the QEMU BH and the C++ callback.
  */
-inline QEMUBHPtr make_qemu_bh(QemuCallbackFn cb) {
+inline QEMUBHPtr MakeQemuBh(QemuCallbackFn cb) {
     auto func_ptr = std::make_unique<QemuCallbackFn>(std::move(cb));
     auto trampoline = [](void* opaque) { (*static_cast<QemuCallbackFn*>(opaque))(); };
 
     QEMUBH* bh = qemu_bh_new(trampoline, func_ptr.get());
 
     // The deleter takes ownership of the unique_ptr itself.
-    return QEMUBHPtr(bh, QEMUBHDeleter(std::move(func_ptr)));
+    return {bh, QEMUBHDeleter(std::move(func_ptr))};
 }
 
 }  // namespace goldfish::qemu

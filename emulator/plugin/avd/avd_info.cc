@@ -177,7 +177,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     auto* clientLoop = goldfish::async::globalEventLoop();
 
-    gQemuLoop = goldfish::async::QemuEventLoop::create();
+    gQemuLoop = goldfish::async::QemuEventLoop::Create();
     android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
             "QemuEventLoop", *gQemuLoop, absl::Seconds(15));
 
@@ -344,7 +344,7 @@ void avd_info_instance_init(Object* obj) {
 void avd_info_instance_finalize(Object* obj) {
     VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    auto f = gQemuLoop->shutdown();
+    auto f = gQemuLoop->Shutdown();
     // In the current Qemu implementation, we are already running on the Qemu main thread and so
     // shutdown will have run serially.
     if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {

@@ -21,20 +21,20 @@ class SocketBenchmark : public ::benchmark::Fixture {
   public:
     void SetUp(const ::benchmark::State& state) override {
         factory_ = std::make_unique<LibuvAsyncSocketFactory>();
-        loop_ = LibuvEventLoop::create();
-        loop_thread_ = std::thread([&]() { loop_->run(); });
+        loop_ = LibuvEventLoop::Create();
+        loop_thread_ = std::thread([&]() { loop_->Run(); });
     }
 
     void TearDown(const ::benchmark::State& state) override {
-        loop_->shutdownAndWait();
+        loop_->ShutdownAndWait();
         if (loop_thread_.joinable()) {
             loop_thread_.join();
         }
     }
 
     template <typename F>
-    auto postAndWait(F&& func) {
-        return loop_->postAndWait(std::forward<F>(func));
+    auto PostAndWait(F&& func) {
+        return loop_->PostAndWait(std::forward<F>(func));
     }
 
   protected:
@@ -46,44 +46,44 @@ class SocketBenchmark : public ::benchmark::Fixture {
 // Measures the round-trip latency (ping-pong) between client and server.
 BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     std::string test_message = "ping";
-    ScopedAsyncServer server(*postAndWait([&](void) {
+    ScopedAsyncServer server(*PostAndWait([&](void) {
         auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
-        return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
-            socket->setOnReadCallbackNoFlowControl(
+        return factory_->CreateServer(loop_.get(), endpoint, [&](auto socket) {
+            socket->SetOnReadCallbackNoFlowControl(
                     [s = socket](std::string_view data, auto status) {
-                        if (status.ok()) s->send(data.data(), data.size());
+                        if (status.ok()) s->Send(data.data(), data.size());
                     });
             // Let the test own the connection's lifetime.
             return true;
         });
     }));
-    int port = *postAndWait([&] { return server->port(); });
+    int port = *PostAndWait([&] { return server->Port(); });
 
-    ScopedAsyncSocket client(*postAndWait([&] {
+    ScopedAsyncSocket client(*PostAndWait([&] {
         auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->createSocket(loop_.get(), endpoint);
+        return factory_->CreateSocket(loop_.get(), endpoint);
     }));
 
     // Connect and wait for it to be established before starting the benchmark.
     absl::Notification connect_notification;
-    loop_->post([&]() {
-        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
+    loop_->Post([&]() {
+        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            socket.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
             connect_notification.Notify();
         });
-        client->connect();
+        client->Connect();
     });
     connect_notification.WaitForNotification();
 
     for (const auto& _ : state) {
         state.PauseTiming();
         absl::Notification pong_notification;
-        loop_->post([&]() {
-            client->setOnReadCallbackNoFlowControl([&](auto, auto) { pong_notification.Notify(); });
+        loop_->Post([&]() {
+            client->SetOnReadCallbackNoFlowControl([&](auto, auto) { pong_notification.Notify(); });
         });
         state.ResumeTiming();
 
-        loop_->post([&]() { client->send(test_message.c_str(), test_message.size()); });
+        loop_->Post([&]() { client->Send(test_message.c_str(), test_message.size()); });
 
         pong_notification.WaitForNotification();
     }
@@ -95,28 +95,28 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     std::vector<char> buffer(buffer_size, 'A');
     ScopedAsyncSocket server_socket;
 
-    ScopedAsyncServer server(*postAndWait([&] {
+    ScopedAsyncServer server(*PostAndWait([&] {
         auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), 0);
-        return factory_->createServer(loop_.get(), endpoint, [&](auto socket) {
+        return factory_->CreateServer(loop_.get(), endpoint, [&](auto socket) {
             server_socket = ScopedAsyncSocket(socket);
-            socket->setOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
+            socket->SetOnReadCallbackNoFlowControl([](auto, auto) {});  // Discard data.
             return true;
         });
     }));
-    int port = *postAndWait([&] { return server->port(); });
+    int port = *PostAndWait([&] { return server->Port(); });
 
-    ScopedAsyncSocket client(*postAndWait([&] {
+    ScopedAsyncSocket client(*PostAndWait([&] {
         auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->createSocket(loop_.get(), endpoint);
+        return factory_->CreateSocket(loop_.get(), endpoint);
     }));
 
     absl::Notification connected_notification;
-    loop_->post([&]() {
-        client->setOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.setOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
+    loop_->Post([&]() {
+        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+            socket.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
             connected_notification.Notify();
         });
-        client->connect();
+        client->Connect();
     });
     connected_notification.WaitForNotification();
 

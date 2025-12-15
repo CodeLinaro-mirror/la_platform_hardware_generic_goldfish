@@ -28,6 +28,7 @@ Checks:
   - '-google-readability-todo'              # We do not police TODO format
   - '-modernize-use-std-format'             # We are using absl::StrFormat a lot.
   - '-bugprone-easily-swappable-parameters' # IPv6 addresses are long but we still need them
+  - '-modernize-use-nodiscard'              # This is a bit aggressive.
 
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'
@@ -46,6 +47,8 @@ HeaderFilterRegex: '.*goldfish\+.*'
 
 # Add exclusions if you need them
 ExcludeHeaderFilterRegex: ".*_virtual_includes.*|\
+  .*absl.*|\
+  .*aemu.*|\
   .*third_party.*|\
   .*constants.h|\
   .*qemu_cpu_wrapper.h|\

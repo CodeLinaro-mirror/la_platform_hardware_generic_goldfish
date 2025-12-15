@@ -81,8 +81,8 @@ TEST_F(QemuVmOperationsTest, Reset) {
 }
 
 TEST_F(QemuVmOperationsTest, Shutdown) {
-    // Tests that the shutdown operation correctly shuts down the VM and uses the VmLock.
-    vmOps->shutdown();
+    // Tests that the Shutdown operation correctly shuts down the VM and uses the VmLock.
+    vmOps->Shutdown();
     ASSERT_EQ(mTestVmLock->mLockCount, 1);
     ASSERT_EQ(mTestVmLock->mUnlockCount, 1);
     ASSERT_EQ(runstate_get(), RUN_STATE_SHUTDOWN);

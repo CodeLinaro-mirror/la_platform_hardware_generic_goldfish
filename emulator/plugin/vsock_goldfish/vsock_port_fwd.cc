@@ -95,7 +95,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
   public:
     explicit HostToGuestConnection(std::shared_ptr<goldfish::async::AsyncSocket> hostSocket)
             : mHostSocket(std::move(hostSocket)) {
-        assert(mHostSocket->getLoop()->isOnLoopThread() &&
+        assert(mHostSocket->GetLoop()->IsOnLoopThread() &&
                "The constructor should run on the event loop of the sockets.");
     }
 
@@ -105,11 +105,11 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
         auto connection = std::make_shared<HostToGuestConnection>(std::move(hostSocket));
         connection->mSelf = connection->shared_from_this();
-        connection->mHostSocket->setOnReadCallbackNoFlowControl(
+        connection->mHostSocket->SetOnReadCallbackNoFlowControl(
                 [pThis = connection.get()](std::string_view data, absl::Status status) {
                     pThis->onSocketReadCallback(data, status);
                 });
-        connection->mHostSocket->setOnCloseCallback(
+        connection->mHostSocket->SetOnCloseCallback(
                 [pThis = connection.get()]() { pThis->onSocketCloseCallback(); });
         return connection;
     }
@@ -155,12 +155,12 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 
     void onReceive(std::string_view data) override {
         VLOG(VLOG_TRACE) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
-        (void)mHostSocket->send(data.data(), data.size());
+        (void)mHostSocket->Send(data.data(), data.size());
     }
 
     void onClose() override {
         VLOG(1) << "Guest (vsock) closed, closing: " << *mHostSocket;
-        mHostSocket->close();
+        mHostSocket->Close();
     }
 
     const std::shared_ptr<goldfish::async::AsyncSocket> getHostSocket() const {
@@ -211,9 +211,9 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void close() {
-        (void)mClientLoop->postAndWait([this] {
+        (void)mClientLoop->PostAndWait([this] {
             if (mSocketServer) {
-                mSocketServer->close();
+                mSocketServer->Close();
             }
         });
     }
@@ -224,7 +224,7 @@ class VSockProxyImpl : public VSockProxy {
         auto incoming_socket_connection =
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
-                    (void)mQemuLoop->post([this, hostToGuest = std::move(hostToGuest)] {
+                    (void)mQemuLoop->Post([this, hostToGuest = std::move(hostToGuest)] {
                         incomingConnectionOnQemuThread(std::move(hostToGuest));
                     });
                     return true;
@@ -232,7 +232,7 @@ class VSockProxyImpl : public VSockProxy {
 
         VLOG(1) << "Trying to bind to " << ToString(mHostEndpoint);
         mSocketServer =
-                mSocketFactory.createServer(mClientLoop, mHostEndpoint, incoming_socket_connection);
+                mSocketFactory.CreateServer(mClientLoop, mHostEndpoint, incoming_socket_connection);
         if (mSocketServer) {
             VLOG(1) << "Successfully bound to " << ToString(mHostEndpoint);
         }
@@ -250,7 +250,7 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void vsockAliveOnQemuThread() {
-        (void)mClientLoop->post([this] { startServer(); });
+        (void)mClientLoop->Post([this] { startServer(); });
     }
 
     bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {
@@ -258,7 +258,7 @@ class VSockProxyImpl : public VSockProxy {
                 std::weak_ptr<goldfish::async::AsyncSocket>(hostToGuest->getHostSocket());
         auto onFlowControlEvent = [weakHostSocket = std::move(weakHostSocket)](bool enableReading) {
             if (const auto hostSocket = weakHostSocket.lock()) {
-                hostSocket->onFlowControlEvent(enableReading);
+                hostSocket->OnFlowControlEvent(enableReading);
             }
         };
 

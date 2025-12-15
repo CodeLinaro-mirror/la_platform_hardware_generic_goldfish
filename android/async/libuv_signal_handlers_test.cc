@@ -26,7 +26,7 @@
 namespace goldfish::async {
 
 TEST(UvSignalHandlers, AddBeforeLoopStarted) {
-    auto uv_loop = LibuvEventLoop::create();
+    auto uv_loop = LibuvEventLoop::Create();
 
     absl::Notification signal_arrived;
     auto handlers = std::make_unique<UvSignalHandlers>(*uv_loop, [&signal_arrived](int signal) {
@@ -41,10 +41,10 @@ TEST(UvSignalHandlers, AddBeforeLoopStarted) {
         }
     });
 
-    std::thread t([&uv_loop] { uv_loop->run(); });
+    std::thread t([&uv_loop] { uv_loop->Run(); });
     {
         absl::Notification loop_running;
-        ASSERT_THAT(uv_loop->postAndWait([&loop_running] { loop_running.Notify(); }),
+        ASSERT_THAT(uv_loop->PostAndWait([&loop_running] { loop_running.Notify(); }),
                     absl_testing::IsOk());
         EXPECT_TRUE(loop_running.WaitForNotificationWithTimeout(absl::Seconds(5)));
     }
@@ -62,19 +62,19 @@ TEST(UvSignalHandlers, AddBeforeLoopStarted) {
 
     // Handlers must be closed before loop shutdown.
     handlers->close();
-    uv_loop->shutdown();
+    uv_loop->Shutdown();
     t.join();
 }
 
 TEST(UvSignalHandlers, AddAfterLoopStarted) {
-    auto temp_uv_loop = LibuvEventLoop::create();
+    auto temp_uv_loop = LibuvEventLoop::Create();
     auto* uv_loop = temp_uv_loop.get();
-    auto loop = ThreadedEventLoop::create(std::move(temp_uv_loop));
+    auto loop = ThreadedEventLoop::Create(std::move(temp_uv_loop));
 
     absl::Notification signal_arrived;
     std::unique_ptr<UvSignalHandlers> handlers;
     // In this case we have to create them on the running loop.
-    ASSERT_THAT(loop->postAndWait([&handlers, &signal_arrived, uv_loop] {
+    ASSERT_THAT(loop->PostAndWait([&handlers, &signal_arrived, uv_loop] {
         handlers = std::make_unique<UvSignalHandlers>(*uv_loop, [&signal_arrived](int signal) {
 #ifdef _WIN32
             if (signal == SIGBREAK) {
