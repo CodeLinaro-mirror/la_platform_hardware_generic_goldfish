@@ -12,20 +12,15 @@
 #include "goldfish/adb/adb_host_server.h"
 
 #include <gtest/gtest.h>
-#include <stdint.h>
 
 #include <string_view>
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
-#include "aemu/base/testing/TestInputBufferSocketServerThread.h"
-#include "aemu/base/threads/Thread.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/needs_winsock.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/needs_winsock.h"
+#include "TestInputBufferSocketServerThread.h"
 
 namespace goldfish::adb {
 
-using android::base::ScopedSocket;
 using android::base::TestSystem;
 
 TEST(AdbHostServer, notify) {

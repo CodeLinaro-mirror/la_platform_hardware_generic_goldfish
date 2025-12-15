@@ -14,13 +14,17 @@ cc_library(
             "command_posix.cc",
         ],
     }),
+    hdrs = [
+        "include/android/process/command.h",
+        "include/android/process/process.h",
+    ],
     copts = select({
         "@platforms//os:windows": [
             "-Wno-vla-cxx-extension",
         ],
         "//conditions:default": [],
     }),
-    includes = ["src"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [

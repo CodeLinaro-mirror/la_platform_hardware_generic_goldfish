@@ -2,9 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "absl-c-bridge",
-    srcs = [
-        "abseil_log_bridge.cc",
-    ],
+    srcs = ["abseil_log_bridge.cc"],
     hdrs = ["include/android/base/logging/abseil_log_bridge.h"],
     includes = ["include"],
     local_defines = ["LOGGING_API_SHARED"],
@@ -18,32 +16,19 @@ cc_library(
 )
 
 cc_library(
-    name = "backend",
-    testonly = True,
-    srcs = [
-        "abseil_log_bridge.cc",
-        "color_log_sink.cc",
-        "log.cc",
-        "log_configuration.cc",
-        "log_formatter.cc",
-    ],
-    hdrs = [
-        "include/android/base/color_log_sink.h",
-        "include/android/base/logging/abseil_log_bridge.h",
-        "include/android/base/logging/logging_api.h",
-    ],
+    name = "color_log_sink",
+    srcs = ["color_log_sink.cc"],
+    hdrs = ["include/android/base/color_log_sink.h"],
     includes = ["include"],
     local_defines = ["LOGGING_API_SHARED"],
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/log:log_sink_registry",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:aemu-base-logging",
     ] + select({
         "@platforms//os:windows": ["@aemu//base:aemu-base"],
         "//conditions:default": [],
@@ -51,14 +36,12 @@ cc_library(
 )
 
 cc_test(
-    name = "backend_unittests",
+    name = "color_log_sink_test",
     srcs = [
         "abseil_log_bridge_test.c",
         "abseil_log_bridge_test.cc",
         "abseil_log_bridge_test2.c",
         "color_log_sink_test.cc",
-        "log_formatter_test.cc",
-        "log_test.cc",
         "test/android/base/logging/abseil_log_c_test.h",
     ],
     copts = ["-Wno-deprecated-declarations"],
@@ -69,9 +52,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":absl-c-bridge",
-        ":backend",
+        ":color_log_sink",
         "//android/system:googletest_main",
-        "@aemu//base:aemu-base",
     ],
 )
 

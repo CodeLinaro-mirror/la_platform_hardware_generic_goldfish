@@ -107,5 +107,5 @@ std::string_view ColorLogSink::Color(absl::LogSeverity severity) const {
     }
 }
 
-};  // namespace base
+}  // namespace base
 }  // namespace android

@@ -17,9 +17,8 @@
 
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/log/log.h"
 #include "absl/log/log_sink_registry.h"
-
-#include "aemu/base/logging/Log.h"
 
 namespace android::base {
 

@@ -22,7 +22,6 @@
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
 
-#include "aemu/base/Tracing.h"
 #include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
@@ -127,8 +126,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
         const auto kTimeToWaitForFrame = absl::Milliseconds(125);
         bool framesArrived = frameOrSensorEvent.waitForNextEvent(kTimeToWaitForFrame, frame);
         if ((framesArrived || firstTime) && !context->IsCancelled()) {
-            AEMU_SCOPED_TRACE("streamScreenshot::frame\r\n");
-
             // TODO(jansene): It might have been possible for a frame to have been
             // delivered between framesArrived and this call, which resulted in
             // the increment of the frame counter. We would not "see" this frame.
@@ -156,7 +153,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             // <nothing> ..., F1, F2, F3, 0, ...<nothing>... ]
             bool emptyFrame = reply.format().width() == 0;
             if (!context->IsCancelled() && (!lastFrameWasEmpty || !emptyFrame)) {
-                AEMU_SCOPED_TRACE("streamScreenshot::write");
                 VLOG(2) << "Writing frame: " << reply.seq() << ", hash: " << hasher(reply.image());
                 clientAvailable = writer->Write(reply);
 
@@ -189,8 +185,6 @@ PixelFormat fromProtobuf(const ImageFormat_ImgFormat format) {
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
-    AEMU_SCOPED_TRACE_CALL();
-
     auto screen = mMultiDisplay.getDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();

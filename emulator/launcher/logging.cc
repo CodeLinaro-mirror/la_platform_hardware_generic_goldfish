@@ -1,13 +1,18 @@
 #include "logging.h"
 
+#include <unistd.h>
+
 #include <functional>
+#include <iostream>
 #include <string_view>
 #include <vector>
 
 #include "absl/log/globals.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
+#include "android/base/color_log_sink.h"
 #include "android/cmdline_option.h"
 
 void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
@@ -15,6 +20,11 @@ void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
             opts.verbose ? absl::LogSeverityAtLeast::kInfo : absl::LogSeverityAtLeast::kWarning;
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(launcherLogLevel);
+
+    // TODO switch launcher and qemu to color log sink
+    //static android::base::ColorLogSink logSink(&std::cout, isatty(fileno(stdout)));
+    //absl::AddLogSink(&logSink);
+    //absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
 
     if (int v_level; opts.V && absl::SimpleAtoi(opts.V, &v_level)) {
         absl::SetGlobalVLogLevel(v_level);

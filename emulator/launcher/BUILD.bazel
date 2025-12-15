@@ -50,6 +50,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":avd",
+        "//android/status_macros",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -69,11 +71,12 @@ cc_library(
 )
 
 cc_library(
-    name = "logconfig",
+    name = "logging",
     srcs = ["logging.cc"],
     hdrs = ["logging.h"],
     visibility = ["//visibility:public"],
     deps = [
+        "//android/logging:color_log_sink",
         "//emulator/cmdline",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
@@ -86,8 +89,7 @@ cc_test(
     srcs = ["logging_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
-        ":logconfig",
-        "//android/logging:backend",
+        ":logging",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/strings",
@@ -108,7 +110,6 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":bootconfig",
-        "//android/logging:backend",
         "//android/system:googletest_main",
         "//android/system:test-headers",
     ],
@@ -339,7 +340,7 @@ cc_binary(
     deps = [
         ":emulator",
         ":input_paths",
-        ":logconfig",
+        ":logging",
         ":netsimd",
         "//android/async:libuv_event_loop",
         "//android/async:libuv_process_launcher",

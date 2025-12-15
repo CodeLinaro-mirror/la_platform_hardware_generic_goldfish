@@ -13,8 +13,6 @@
 
 #include <gtest/gtest.h>
 
-#include "aemu/base/memory/ScopedPtr.h"
-
 TEST(CmdLineOptions, parsePort) {
     struct {
         const char* input;

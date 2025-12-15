@@ -21,7 +21,6 @@
 #include "absl/strings/str_format.h"
 
 #include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
 #include "android/base/system.h"
 
 namespace goldfish::adb {
