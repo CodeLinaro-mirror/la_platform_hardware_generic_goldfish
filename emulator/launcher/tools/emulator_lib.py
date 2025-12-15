@@ -22,6 +22,7 @@ import platform
 import random
 import re
 import shutil
+import signal
 import sys
 import tempfile
 from pathlib import Path
@@ -355,6 +356,19 @@ async def launch_and_monitor_emulator(
             logging.info("--- ANDROID_AVD_HOME: %s ---", avd.avd_dir.name)
 
             runner = EmulatorRunner(command, environment)
+
+            def signal_handler(sig, frame):
+                logging.info("Signal received: %d", sig)
+                if runner.process:
+                    runner.process.send_signal(sig)
+            # Note that Bazel forwards SIGINT to all processes so when running
+            # under Bazel this might mean the emulator gets signalled twice,
+            # which should be fine.
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGHUP, signal_handler)
+            signal.signal(signal.SIGQUIT, signal_handler)
+
             status = await runner.launch_and_wait(timeout_seconds, target_log_line)
 
             if not status:
