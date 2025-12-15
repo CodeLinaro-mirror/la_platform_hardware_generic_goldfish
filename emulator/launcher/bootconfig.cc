@@ -63,13 +63,11 @@ absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::stri
     ASSIGN_OR_RETURN(auto old_size, android::base::file::file_size(dst));
     std::vector<char> blob = buildBootconfigBlob(old_size.bytes(), bootconfig);
 
-    errno = 0;
     std::ofstream out;
-    android::base::file::chmod(dst.string().c_str(), S_IRUSR | S_IWUSR);
+    RETURN_IF_ERROR(android::base::file::chmod(dst, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
     out.open(dst, std::ios_base::app | std::ios_base::binary);
     if (!out) {
-        return absl::InternalError(absl::StrCat("failed to open initrd for writing with error: ",
-                                                std::strerror(errno)));
+        return absl::InternalError("failed to open initrd for writing");
     }
     if (out << std::string_view(blob.data(), blob.size())) {
         return absl::OkStatus();
