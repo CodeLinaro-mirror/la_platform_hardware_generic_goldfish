@@ -17,18 +17,21 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
 #include <thread>
 
 #include "absl/synchronization/notification.h"
+#include "absl/status/status_matchers.h"
 
 #include "aemu/base/events/EventSource.h"
 #include "aemu/base/events/WithCallbacks.h"
 #include "aemu/base/events/policies/HybridStoragePolicy.h"
 #include "goldfish/async/libuv_event_loop.h"
+#include "include/goldfish/async/event_loop.h"
 
 using namespace std::chrono_literals;
 
-namespace {
+namespace goldfish::async::tests {
 
 // Explicitly import the types we need to improve clarity.
 using android::base::eventing::EventListener;
@@ -66,6 +69,30 @@ class TestListener : public EventListener<TestEvent> {
     int mLastValue = 0;
 };
 
+class RunningLoopListener {
+  public:
+    RunningLoopListener(EventLoop &loop) : mLoop(loop) {
+        mCallbackId = mLoop.addCallback([this] (const LooperStatusEvent& event) {
+            if (event.state == LooperStatusEvent::State::RUNNING) {
+                mNotification.Notify();
+            }
+        });
+    }
+
+    ~RunningLoopListener() {
+        mLoop.removeCallback(mCallbackId);
+    }
+
+    const absl::Notification &GetNotification() const {
+        return mNotification;
+    }
+
+  private:
+    EventLoop &mLoop;
+    size_t mCallbackId;
+    absl::Notification mNotification;
+};
+
 // Define a clear alias for the complex EventSource type used in the tests.
 // This source is bound to an EventLoop and uses a HybridStoragePolicy
 // with std::shared_ptr for memory-safe listener management.
@@ -74,13 +101,12 @@ using LoopBoundSafeSource = goldfish::async::LoopBoundSafeSource<TestEvent>;
 // An alias for a source that includes the WithCallbacks mixin for a modern API.
 using CallbackSource = goldfish::async::LoopBoundCallbackSource<TestEvent>;
 
-}  // namespace
-
-// TODO FIX: this test timesout
-TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedOnEventLoopThread) {
+TEST(EventLoopDispatcherTest, EventIsDispatchedOnEventLoopThread) {
     // 1. Create an EventLoop instance and run it in a background thread.
     auto eventLoop = LibuvEventLoop::create();
+    RunningLoopListener rll(*eventLoop);
     std::thread loopThread([&]() { (void)eventLoop->run(); });
+    rll.GetNotification().WaitForNotification();
 
     // 2. Create the EventSource, passing the event loop to the dispatcher's constructor.
     LoopBoundSafeSource loopBoundSource(eventLoop.get());
@@ -100,14 +126,16 @@ TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedOnEventLoopThread) {
     EXPECT_EQ(listener->lastValue(), 42);
 
     // 7. Cleanly shut down the loop.
-    (void)eventLoop->shutdownAndWait();
+    ASSERT_THAT(eventLoop->shutdownAndWait(), absl_testing::IsOk());
     loopThread.join();
 }
 
-TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedImmediatelyWhenOnLoopThread) {
+TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     // 1. Create an EventLoop instance and run it in a background thread.
     auto eventLoop = LibuvEventLoop::create();
+    RunningLoopListener rll(*eventLoop);
     std::thread loopThread([&]() { (void)eventLoop->run(); });
+    rll.GetNotification().WaitForNotification();
 
     // 2. Create the EventSource.
     LoopBoundSafeSource loopBoundSource(eventLoop.get());
@@ -118,10 +146,10 @@ TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedImmediatelyWhenOnLoopThr
     loopBoundSource.addListener(listener);
 
     // 4. Post a task to the event loop to fire the event from there.
-    eventLoop->post([&]() {
+    ASSERT_THAT(eventLoop->post([&]() {
         // Now we are on the loop thread, the dispatch should be immediate.
         loopBoundSource.fireEvent({99, std::this_thread::get_id()});
-    });
+    }), absl_testing::IsOk());
 
     // 5. Wait for the event to be processed.
     ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
@@ -130,14 +158,16 @@ TEST(EventLoopDispatcherTest, DISABLED_EventIsDispatchedImmediatelyWhenOnLoopThr
     EXPECT_EQ(listener->lastValue(), 99);
 
     // 7. Cleanly shut down the loop.
-    (void)eventLoop->shutdownAndWait(500ms);
+    ASSERT_THAT(eventLoop->shutdownAndWait(500ms), absl_testing::IsOk());
     loopThread.join();
 }
 
 TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     // 1. Create an EventLoop and run it.
     auto eventLoop = LibuvEventLoop::create();
+    RunningLoopListener rll(*eventLoop);
     std::thread loopThread([&]() { (void)eventLoop->run(); });
+    rll.GetNotification().WaitForNotification();
 
     // 2. Create a source that supports the callback API.
     CallbackSource callbackSource(eventLoop.get());
@@ -170,6 +200,8 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     EXPECT_EQ(received_value, 100);  // The value should not have changed.
 
     // 7. Clean up.
-    (void)eventLoop->shutdownAndWait(500ms);
+    ASSERT_THAT(eventLoop->shutdownAndWait(500ms), absl_testing::IsOk());
     loopThread.join();
 }
+
+}  // namespace goldfish::async::tests

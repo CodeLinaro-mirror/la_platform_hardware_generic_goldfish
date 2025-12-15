@@ -30,12 +30,8 @@ cc_library(
 
 cc_library(
     name = "uv_to_absl",
-    srcs = [
-        "uv_to_absl.cc",
-    ],
-    hdrs = [
-        "include/goldfish/async/uv_to_absl.h",
-    ],
+    srcs = ["uv_to_absl.cc"],
+    hdrs = ["include/goldfish/async/uv_to_absl.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -48,12 +44,8 @@ cc_library(
 
 cc_library(
     name = "errno_to_absl",
-    srcs = [
-        "errno_to_absl.cc",
-    ],
-    hdrs = [
-        "include/goldfish/async/errno_to_absl.h",
-    ],
+    srcs = ["errno_to_absl.cc"],
+    hdrs = ["include/goldfish/async/errno_to_absl.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -112,15 +104,9 @@ cc_library(
 
 cc_library(
     name = "fake_qemu_callbacks",
-    srcs = [
-        "fake_qemu_callbacks.cc",
-    ],
-    hdrs = [
-        "test/fake_qemu_callbacks.h",
-    ],
-    includes = [
-        "test",
-    ],
+    srcs = ["fake_qemu_callbacks.cc"],
+    hdrs = ["test/fake_qemu_callbacks.h"],
+    includes = ["test"],
     visibility = [
         "//android/async:__pkg__",
         "//emulator/plugin/vsock_goldfish:__pkg__",
@@ -160,12 +146,8 @@ cc_test(
 
 cc_library(
     name = "libuv_sockets",
-    srcs = [
-        "libuv_sockets.cc",
-    ],
-    hdrs = [
-        "include/goldfish/async/libuv_socket_factory.h",
-    ],
+    srcs = ["libuv_sockets.cc"],
+    hdrs = ["include/goldfish/async/libuv_socket_factory.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -183,9 +165,7 @@ cc_library(
 cc_test(
     name = "sockets_unittests",
     size = "small",
-    srcs = [
-        "async_socket_test.cc",
-    ],
+    srcs = ["async_socket_test.cc"],
     copts = ["-Wno-unused-result"],
     includes = ["test"],
     linkopts = select({
@@ -204,13 +184,12 @@ cc_test(
 cc_test(
     name = "event_loop_dispatcher_test",
     size = "medium",
-    srcs = [
-        "event_loop_dispatcher_test.cc",
-    ],
+    srcs = ["event_loop_dispatcher_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":libuv_event_loop",
         "//android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
         "@aemu//base:event-support",
     ],
 )
