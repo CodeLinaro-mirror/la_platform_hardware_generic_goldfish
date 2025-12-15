@@ -3,18 +3,14 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "info",
-    hdrs = [
-        "include/goldfish/avd_info/avd_info.h",
-    ],
+    hdrs = ["include/goldfish/avd_info/avd_info.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         "//emulator/config:device_type",
         "//emulator/config:hardware_config",
         "//emulator/libs/avd_universe",
-        "//emulator/libs/sensors",
+        "//emulator/libs/sensors:physical_model",
     ],
 )
 

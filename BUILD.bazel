@@ -73,7 +73,7 @@ TESTS = [
     "@goldfish//emulator/libs/os:os_unittests",
     "@goldfish//emulator/libs/parsing:parsing_unittests",
     "@goldfish//emulator/libs/physics:physics_unittests",
-    "@goldfish//emulator/libs/sensors:sensors_unittests",
+    "@goldfish//emulator/libs/sensors:physical_model_test",
     "@goldfish//emulator/plugin/avd:global-event-loop-tests",
     "@goldfish//emulator/plugin/vminterface:vminterface_unittests",
 ]

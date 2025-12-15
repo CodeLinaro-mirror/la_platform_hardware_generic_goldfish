@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "sensors",
+    name = "physical_model",
     srcs = [
         "foldable_model.cc",
         "physical_model.cc",
@@ -34,14 +34,12 @@ cc_library(
 )
 
 cc_test(
-    name = "sensors_unittests",
-    srcs = [
-        "physical_model_test.cc",
-    ],
+    name = "physical_model_test",
+    srcs = ["physical_model_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
-        ":sensors",
+        ":physical_model",
         "//android/system:googletest_main",
         "//emulator/config:fake_hardware_config",
     ],

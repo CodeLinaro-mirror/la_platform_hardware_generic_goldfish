@@ -2,12 +2,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "sensors",
-    srcs = [
-        "sensor_device.cc",
-    ],
-    hdrs = [
-        "include/android/base/goldfish/devices/sensor/sensor_device.h",
-    ],
+    srcs = ["sensor_device.cc"],
+    hdrs = ["include/android/base/goldfish/devices/sensor/sensor_device.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -19,7 +15,7 @@ cc_library(
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
         "//emulator/libs/physics",
-        "//emulator/libs/sensors",
+        "//emulator/libs/sensors:physical_model",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -33,9 +29,7 @@ cc_library(
 
 cc_test(
     name = "sensors_unittests",
-    srcs = [
-        "sensor_device_test.cc",
-    ],
+    srcs = ["sensor_device_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
