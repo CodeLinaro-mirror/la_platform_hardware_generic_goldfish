@@ -33,7 +33,7 @@
 
 namespace android::base::file {
 
-absl::StatusOr<fs::path> make_absolute(const fs::path& path) {
+absl::StatusOr<fs::path> make_absolute(const fs::path& path) noexcept {
     std::error_code ec;
     if (fs::path abs = fs::absolute(path, ec); !ec) {
         return abs;
@@ -41,7 +41,7 @@ absl::StatusOr<fs::path> make_absolute(const fs::path& path) {
     return absl::InternalError(absl::StrCat("Failed to make path absolute: ", path.string(), " - ", ec.message()));
 }
 
-absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path) {
+absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path) noexcept {
     std::error_code ec;
     if (fs::path rel = fs::relative(path, base_path, ec); !ec) {
         return rel;
@@ -49,7 +49,7 @@ absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& bas
     return absl::InternalError(absl::StrCat("Failed to make path relative: ", path.string(), " - ", ec.message()));
 }
 
-absl::StatusOr<fs::path> make_canonical(const fs::path& path) {
+absl::StatusOr<fs::path> make_canonical(const fs::path& path) noexcept {
     std::error_code ec;
     if (fs::path canon = fs::canonical(path, ec); !ec) {
         return canon;
@@ -57,7 +57,7 @@ absl::StatusOr<fs::path> make_canonical(const fs::path& path) {
     return absl::InternalError(absl::StrCat("Failed to make path canonical: ", path.string(), " - ", ec.message()));
 }
 
-bool exists(const fs::path& path) {
+bool exists(const fs::path& path) noexcept {
     std::error_code ec;
     // Ignore EC - false is returned when there's an error too.
     return fs::exists(path, ec);
@@ -66,19 +66,19 @@ bool exists(const fs::path& path) {
     // return (ret == 0) || (errno != ENOENT);
 }
 
-bool is_file(const fs::path& path) {
+bool is_file(const fs::path& path) noexcept {
     std::error_code ec;
     // Ignore EC - false is returned when there's an error too.
     return fs::is_regular_file(path, ec);
 }
 
-bool is_dir(const fs::path& path) {
+bool is_dir(const fs::path& path) noexcept {
     std::error_code ec;
     // Ignore EC - false is returned when there's an error too.
     return fs::is_directory(path, ec);
 }
 
-bool is_link(const fs::path& path) {
+bool is_link(const fs::path& path) noexcept {
     std::error_code ec;
     // Ignore EC - false is returned when there's an error too.
     return fs::is_symlink(path, ec);
@@ -102,7 +102,7 @@ static int GetWin32Mode(int mode) {
 }
 #endif
 
-int path_access(const fs::path& path, int mode) {
+int path_access(const fs::path& path, int mode) noexcept {
 #ifdef _WIN32
     // Always use w version, even when UNICODE not defined.
     return _waccess(path.wstring().c_str(), GetWin32Mode(mode));
@@ -113,19 +113,19 @@ int path_access(const fs::path& path, int mode) {
 
 }  // namespace
 
-bool can_read(const fs::path& path) {
+bool can_read(const fs::path& path) noexcept {
     return path_access(path, R_OK) == 0;
 }
 
-bool can_write(const fs::path& path) {
+bool can_write(const fs::path& path) noexcept {
     return path_access(path, W_OK) == 0;
 }
 
-bool can_exec(const fs::path& path) {
+bool can_exec(const fs::path& path) noexcept {
     return path_access(path, X_OK) == 0;
 }
 
-absl::StatusOr<StorageCapacity> file_size(const fs::path& path) {
+absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept {
     std::error_code ec;
     if (std::uintmax_t size = fs::file_size(path, ec); !ec) {
         return size;
@@ -134,7 +134,7 @@ absl::StatusOr<StorageCapacity> file_size(const fs::path& path) {
             absl::StrCat("Failed to get size of: ", path.string(), " - ", ec.message()));
 }
 
-std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) {
+std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) noexcept {
     std::error_code ec;
 
     std::vector<fs::path> x;
@@ -152,7 +152,7 @@ std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) {
 }
 
 namespace {
-fs::perms octal_mode_to_perms(unsigned octalMode) {
+fs::perms octal_mode_to_perms(unsigned octalMode) noexcept {
     fs::perms mode = fs::perms::none;
 
     // Owner permissions
@@ -173,12 +173,12 @@ fs::perms octal_mode_to_perms(unsigned octalMode) {
     return mode;
 }
 
-unsigned perms_to_octal_mode(fs::perms perms) {
+unsigned perms_to_octal_mode(fs::perms perms) noexcept {
     return static_cast<unsigned>(perms);
 }
 }  // namespace
 
-absl::StatusOr<unsigned> mode(const fs::path& path) {
+absl::StatusOr<unsigned> mode(const fs::path& path) noexcept {
     std::error_code ec;
     if (fs::file_status stat = fs::status(path, ec); !ec) {
         return perms_to_octal_mode(stat.permissions());
@@ -187,7 +187,7 @@ absl::StatusOr<unsigned> mode(const fs::path& path) {
             absl::StrCat("Failed to get file mode of: ", path.string(), " - ", ec.message()));
 }
 
-absl::Status chmod(const fs::path& path, unsigned octalMode) {
+absl::Status chmod(const fs::path& path, unsigned octalMode) noexcept {
     if (std::error_code ec;
         fs::permissions(path, octal_mode_to_perms(octalMode), fs::perm_options::replace, ec), ec) {
         return absl::InternalError(
@@ -196,7 +196,7 @@ absl::Status chmod(const fs::path& path, unsigned octalMode) {
     return absl::OkStatus();
 }
 
-absl::Status mkdir(const fs::path& path, unsigned octalMode) {
+absl::Status mkdir(const fs::path& path, unsigned octalMode) noexcept {
     if (std::error_code ec; !fs::create_directory(path, ec)) {
         return absl::InternalError(
                 absl::StrCat("Failed to mkdir: ", path.string(), " - ", ec.message()));
@@ -204,7 +204,7 @@ absl::Status mkdir(const fs::path& path, unsigned octalMode) {
     return chmod(path, octalMode);
 }
 
-absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode) {
+absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode) noexcept {
     // We don't use fs::create_directories here as it doesn't set permissions.
     if (fs::exists(path)) {
         return absl::OkStatus();
@@ -223,7 +223,7 @@ absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode) {
     return mkdir(path, octalMode);
 }
 
-absl::Status rm(const fs::path& path) {
+absl::Status rm(const fs::path& path) noexcept {
     if (std::error_code ec; fs::remove(path, ec), ec) {
         return absl::InternalError(
                 absl::StrCat("Failed to rm: ", path.string(), " - ", ec.message()));
@@ -231,7 +231,7 @@ absl::Status rm(const fs::path& path) {
     return absl::OkStatus();
 }
 
-absl::Status rm_recursive(const fs::path& path) {
+absl::Status rm_recursive(const fs::path& path) noexcept {
     if (std::error_code ec; fs::remove_all(path, ec), ec) {
         return absl::InternalError(
                 absl::StrCat("Failed to rm recursively: ", path.string(), " - ", ec.message()));
@@ -239,7 +239,7 @@ absl::Status rm_recursive(const fs::path& path) {
     return absl::OkStatus();
 }
 
-absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) {
+absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) noexcept {
     fs::copy_options opt =
             overwrite ? fs::copy_options::overwrite_existing : fs::copy_options::none;
     if (std::error_code ec; fs::copy_file(from, to, opt, ec), ec) {
@@ -249,7 +249,7 @@ absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) {
     return absl::OkStatus();
 }
 
-absl::Status mv_file(const fs::path& from, const fs::path& to) {
+absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept {
     std::error_code ec;
     if (fs::rename(from, to, ec); !ec) {
         return absl::OkStatus();
@@ -261,7 +261,7 @@ absl::Status mv_file(const fs::path& from, const fs::path& to) {
     return rm(from);
 }
 
-absl::Status touch(const fs::path& path) {
+absl::Status touch(const fs::path& path) noexcept {
     std::ofstream f(path);
     if (f) {
         return absl::OkStatus();
