@@ -24,39 +24,39 @@ namespace fs = std::filesystem;
 
 namespace android::base::file {
 
-absl::StatusOr<fs::path> make_absolute(const fs::path& path);
-absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path);
-absl::StatusOr<fs::path> make_canonical(const fs::path& path);
+absl::StatusOr<fs::path> make_absolute(const fs::path& path) noexcept;
+absl::StatusOr<fs::path> make_relative(const fs::path& path, const fs::path& base_path) noexcept;
+absl::StatusOr<fs::path> make_canonical(const fs::path& path) noexcept;
 
-bool exists(const fs::path& path);
+bool exists(const fs::path& path) noexcept;
 
-bool is_file(const fs::path& path);
-bool is_dir(const fs::path& path);
-bool is_link(const fs::path& path);
+bool is_file(const fs::path& path) noexcept;
+bool is_dir(const fs::path& path) noexcept;
+bool is_link(const fs::path& path) noexcept;
 
-bool can_read(const fs::path& path);
-bool can_write(const fs::path& path);
-bool can_exec(const fs::path& path);
+bool can_read(const fs::path& path) noexcept;
+bool can_write(const fs::path& path) noexcept;
+bool can_exec(const fs::path& path) noexcept;
 
-absl::StatusOr<StorageCapacity> file_size(const fs::path& path);
+absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept;
 
-std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath = false);
+std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath = false) noexcept;
 
-absl::StatusOr<unsigned> mode(const fs::path& path);
+absl::StatusOr<unsigned> mode(const fs::path& path) noexcept;
 
 // TODO(b/465404199): Consider changing API to take mode as fs::perms instead of int.
-absl::Status chmod(const fs::path& path, unsigned octalMode);
+absl::Status chmod(const fs::path& path, unsigned octalMode) noexcept;
 
-absl::Status mkdir(const fs::path& path, unsigned octalMode);
-absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode);
+absl::Status mkdir(const fs::path& path, unsigned octalMode) noexcept;
+absl::Status mkdir_recursive(const fs::path& path, unsigned octalMode) noexcept;
 
-absl::Status rm(const fs::path& path);
-absl::Status rm_recursive(const fs::path& path);
+absl::Status rm(const fs::path& path) noexcept;
+absl::Status rm_recursive(const fs::path& path) noexcept;
 
-absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = false);
+absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = false) noexcept;
 
-absl::Status mv_file(const fs::path& from, const fs::path& to);
+absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept;
 
-absl::Status touch(const fs::path& path);
+absl::Status touch(const fs::path& path) noexcept;
 
 }  // namespace android::base::file
