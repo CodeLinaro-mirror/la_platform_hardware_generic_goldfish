@@ -25,6 +25,39 @@ def deqp_tests(name, submodules = []):
     ]
     cts_test_specs(name, test_specs)
 
+def cts_media_tests(name, modules = []):
+    """Creates a set of rules that runs CTS media modules.
+
+    Args:
+      name: The name of the rule
+      modules: A list of modules to create rules for of the form
+          <name>.<module>
+    """
+    test_specs = [
+        (
+            m,
+            [
+                "cts",
+                "-m",
+                m,
+                "--module-arg",
+                m + ":has-server-side-config:false",
+                "--module-arg",
+                m + ":local-media-path:MEDIA_EXTRACT_DIR",
+            ],
+        )
+        for m in modules
+    ]
+    additional_args = [
+        "--media_readme_path",
+        "$(location @cts-media-1.5//:cts-media-1.5-readme)",
+    ]
+    additional_data = [
+        "@cts-media-1.5//:cts-media-1.5",
+        "@cts-media-1.5//:cts-media-1.5-readme",
+    ]
+    cts_test_specs(name, test_specs, additional_args, additional_data)
+
 def cts_tests(name, modules = []):
     """Creates a set of rules that runs CTS modules.
 
@@ -44,20 +77,21 @@ def cts_plan(name, plan_glob):
       plan_glob: A glob pattern of tests to include.  e.g.
           xts_test_plans/presubmit/**
     """
-    additional_plan_files = native.glob([plan_glob])
+    additional_data = native.glob([plan_glob])
     test_specs = [
         (plan_file.split("/")[-1], ["PWD/$(location %s)" % plan_file])
-        for plan_file in additional_plan_files
+        for plan_file in additional_data
     ]
-    cts_test_specs(name, test_specs, additional_plan_files)
+    cts_test_specs(name, test_specs, additional_data = additional_data)
 
-def cts_test_specs(name, test_specs = [], additional_plan_files = []):
+def cts_test_specs(name, test_specs = [], additional_args = [], additional_data = []):
     """Creates a set of rules that runs CTS with a given test specification.
 
     Args:
       name: The name of the rule
       test_specs: The test spec proto that will be passed to the tradefed agent
-      additional_plan_files: Additional plan files to inlcude in the dependency list
+      additional_args: Additional run_cts.py arguments
+      additional_data: Additional data files
     """
     tests = []
     for target, tradefed_args in test_specs:
@@ -79,7 +113,7 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
                 "--tradefed_args='%s'" % (",".join(["%s" % arg for arg in tradefed_args]),),
                 "--test_seq_path",
                 "$(location @test_seq_linux//:test_seq)",
-            ],
+            ] + additional_args,
             size = "enormous",
             data = [
                 "@android_minigbm-x86_64//:system_image",
@@ -93,7 +127,7 @@ def cts_test_specs(name, test_specs = [], additional_plan_files = []):
                 "@linux-platform-tools//:platform-tools",
                 "@test_seq_linux//:test_seq_files",
                 "@test_seq_linux//:test_seq",
-            ] + native.glob(["local/**"]) + additional_plan_files,
+            ] + native.glob(["local/**"]) + additional_data,
             deps = ["@rules_python//python/runfiles"],
             target_compatible_with = select({
                 "@platforms//os:macos": ["@platforms//:incompatible"],

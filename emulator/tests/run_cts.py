@@ -34,7 +34,7 @@ agents = {
       agent: {
         avd: {
           avd_config_ini: "avd.ini.encoding=UTF-8"
-          avd_config_ini: "disk.dataPartition.size=4G"
+          avd_config_ini: "disk.dataPartition.size=8G"
           avd_config_ini: "hw.accelerometer=yes"
           avd_config_ini: "hw.audioInput=yes"
           avd_config_ini: "hw.battery=yes"
@@ -192,6 +192,10 @@ parser.add_argument(
     help='Points to the build tools aapt executable')
 
 parser.add_argument(
+    '--media_readme_path',
+    help='Optional: Points to the README.txt file in the media zip')
+
+parser.add_argument(
     '--platform_tools_adb_path',
     required=True,
     help='Points to the platform tools adb executable')
@@ -258,6 +262,7 @@ def create_proto_file() -> str:
   # A bit of a hack here.  Plan files use a relative location and need the pwd
   # patched in
   proto_data = proto_data.replace('PWD', os.getcwd())
+  proto_data = proto_data.replace('MEDIA_EXTRACT_DIR', media_extract_dir())
   proto_path = test_tmpdir('sequence.txtpb')
   with open(proto_path, 'w') as fout:
     fout.write(proto_data)
@@ -294,6 +299,14 @@ def image_extract_dir(runfiles) -> str:
   sysimg_path = os.path.abspath(
       os.path.join(os.getcwd(), args.system_img_path))
   return os.path.dirname(os.path.dirname(sysimg_path))
+
+
+def media_extract_dir() -> str:
+  if not args.media_readme_path:
+    return 'MEDIA_README_NOT_SET'
+  readme_path = os.path.abspath(os.path.join(
+        os.getcwd(), args.media_readme_path))
+  return os.path.dirname(readme_path)
 
 
 def platform_tools_extract_dir() -> str:
