@@ -16,9 +16,11 @@
 #include <stdexcept>
 #include <string>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
-namespace goldfish::devices {
+namespace goldfish::devices::boot {
 /**
  * @brief A string class with a fixed maximum length.
  *
@@ -32,6 +34,7 @@ template <int size>
 class LimitedString {
   public:
     LimitedString() = default;
+    virtual ~LimitedString() = default;
 
     /**
      * @brief Constructor that initializes the string with a given value.
@@ -39,7 +42,11 @@ class LimitedString {
      * @param str The initial string value. If the length of \p str exceeds the
      *            template parameter 'size', a std::length_error is thrown.
      */
-    LimitedString(const std::string& str) { set(str); }
+    static absl::StatusOr<LimitedString<size>> create(const std::string& str) {
+        LimitedString<size> ls;
+        RETURN_IF_ERROR(ls.set(str));
+        return ls;
+    }
 
     /**
      * @brief Sets the string value.
@@ -48,11 +55,12 @@ class LimitedString {
      *            template parameter 'size', a std::length_error is thrown.
      * @throws std::length_error if the input string exceeds the maximum length.
      */
-    virtual void set(const std::string& str) {
+    virtual absl::Status set(const std::string& str) {
         if (str.length() > size) {
-            throw std::length_error("String exceeds maximum length");
+            return absl::OutOfRangeError("String exceeds maximum length");
         }
         mStr = str;
+        return absl::OkStatus();
     }
 
     /**
@@ -61,22 +69,6 @@ class LimitedString {
      * @return The current string value.
      */
     const std::string& get() const { return mStr; }
-
-    /**
-     * @brief Assignment operator.
-     *
-     * Assigns a new value to the LimitedString.  If the length of the input
-     * string exceeds the template parameter 'size', a std::length_error is
-     * thrown.
-     *
-     * @param str The string to assign.
-     * @return A reference to the assigned LimitedString.
-     * @throws std::length_error if the input string exceeds the maximum length.
-     */
-    LimitedString& operator=(const std::string& str) {
-        set(str);
-        return *this;
-    }
 
     /**
      * @brief Implicit conversion operator to std::string.
@@ -93,26 +85,13 @@ class LimitedString {
     // Might as well add !=
     bool operator!=(const LimitedString& other) const { return !(*this == other); }
 
+    template <typename H>
+    friend H AbslHashValue(H h, const LimitedString<size>& ls) {
+        return H::combine(std::move(h), ls.mStr);
+    }
+
   private:
     std::string mStr;  ///< The underlying string storage.
-};
-
-/**
- * @brief Custom exception class for invalid property names.
- *
- * This exception is thrown when a property name contains an invalid character.  The
- * invalid character is specified in the exception message.
- */
-class InvalidPropertyName : public std::invalid_argument {
-  public:
-    /**
-     * @brief Constructs an InvalidPropertyName exception.
-     *
-     * @param invalidChar The invalid character found in the property name.
-     */
-    InvalidPropertyName(char invalidChar)
-            : std::invalid_argument("Property name contains invalid character: '" +
-                                    std::string(1, invalidChar) + "'") {}
 };
 
 /**
@@ -123,9 +102,9 @@ class InvalidPropertyName : public std::invalid_argument {
  *
  * @tparam size The maximum allowed length of the string.
  *
- * @throws InvalidPropertyName if the input string contains invalid characters
+ * @returns InvalidArgumentError if the input string contains invalid characters
  *         (' ', '=', '$', '*', '?', ''', '"').
- * @throws std::length_error if the input string exceeds the maximum length
+ * @returns OutOfRangeError if the input string exceeds the maximum length
  *         specified by the template parameter `size`.
  */
 template <int size>
@@ -143,7 +122,11 @@ class BootPropertyString : public LimitedString<size> {
      * @throws std::length_error if the input string exceeds the maximum length
      *         specified by the template parameter `size`.
      */
-    BootPropertyString(const std::string& str) { set(str); }
+    static absl::StatusOr<BootPropertyString<size>> create(const std::string& str) {
+        BootPropertyString<size> bp;
+        RETURN_IF_ERROR(bp.set(str));
+        return bp;
+    }
 
     /**
      * @brief Sets the string value, enforcing character restrictions.
@@ -155,32 +138,17 @@ class BootPropertyString : public LimitedString<size> {
      * @throws std::length_error if the input string exceeds the maximum length
      *         specified by the template parameter `size`.
      */
-    void set(const std::string& str) override {
+    absl::Status set(const std::string& str) override {
         const auto reject = absl::string_view(" =$*?'\"");
         for (char c : str) {
             if (absl::StrContains(reject, c)) {
-                throw InvalidPropertyName(c);
+                return absl::InvalidArgumentError(
+                        absl::StrCat("Property name contains invalid character: '",
+                                     std::string_view(&c, 1), "'"));
             }
         }
-        LimitedString<size>::set(str);
+        return LimitedString<size>::set(str);
     }
 };
 
-}  // namespace goldfish::devices
-
-// Hash functions for the types, so they can be used in std::unordered_map etc.
-namespace std {
-template <int MaxSize>
-struct hash<goldfish::devices::LimitedString<MaxSize>> {
-    size_t operator()(const goldfish::devices::LimitedString<MaxSize>& ls) const noexcept {
-        return std::hash<string>{}(ls.get());
-    }
-};
-
-template <int MaxSize>
-struct hash<goldfish::devices::BootPropertyString<MaxSize>> {
-    size_t operator()(const goldfish::devices::BootPropertyString<MaxSize>& ls) const noexcept {
-        return std::hash<string>{}(ls.get());
-    }
-};
-}  // namespace std
+}  // namespace goldfish::devices::boot

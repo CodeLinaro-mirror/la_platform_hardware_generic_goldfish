@@ -24,11 +24,6 @@
 
 namespace goldfish::devices::boot {
 
-// User-defined literal for creating PropertyName objects.
-IBootPropertiesDevice::PropertyName operator""_bps(const char* c_str, size_t len) {
-    return IBootPropertiesDevice::PropertyName(c_str);
-}
-
 class BootPropertiesDevice : public IBootPropertiesDevice {
   public:
     BootPropertiesDevice(Properties properties)

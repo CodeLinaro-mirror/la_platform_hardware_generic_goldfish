@@ -13,9 +13,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "emulator/hal/connector/test/goldfish/devices/test_connector_registry.h"
+#include "absl/status/status_matchers.h"
+
+#include "android/status/status_matcher_macros.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/devices/boot/boot_property_string.h"
 #include "goldfish/devices/qemud/qemud.h"
+#include "goldfish/devices/test_connector_registry.h"
 
 namespace goldfish::devices::boot {
 
@@ -32,36 +36,34 @@ TEST(LimitedStringTest, DefaultConstructor) {
 }
 
 TEST(LimitedStringTest, ConstructorWithString) {
-    LimitedString<10> str("hello");
-    EXPECT_EQ(str.get(), "hello"s);
+    auto str = LimitedString<10>::create("hello");
+    ASSERT_OK(str);
+    EXPECT_EQ(str->get(), "hello"s);
 }
 
 TEST(LimitedStringTest, SetString) {
     LimitedString<10> str;
-    str.set("world");
+    EXPECT_OK(str.set("world"));
     EXPECT_EQ(str.get(), "world"s);
 }
 
-TEST(LimitedStringTest, AssignmentOperator) {
-    LimitedString<10> str;
-    str = "foobar";
-    EXPECT_EQ(str.get(), "foobar"s);
-}
-
 TEST(LimitedStringTest, ConversionToString) {
-    LimitedString<10> str("test");
-    std::string str2 = str;
+    auto str = LimitedString<10>::create("test");
+    ASSERT_OK(str);
+    std::string str2 = *str;
     EXPECT_EQ(str2, "test"s);
 }
 
 TEST(LimitedStringTest, LengthLimit) {
-    EXPECT_THROW({ LimitedString<5> str("abcdef"); }, std::length_error);
+    EXPECT_THAT(LimitedString<5>::create("abcdef"),
+                absl_testing::StatusIs(absl::StatusCode::kOutOfRange,
+                                       testing::HasSubstr("String exceeds maximum length")));
 }
 
 TEST(LimitedStringTest, EqualityOperator) {
-    LimitedString<10> str1("hello");
-    LimitedString<10> str2("hello");
-    LimitedString<10> str3("world");
+    ASSERT_OK_AND_ASSIGN(auto str1, LimitedString<10>::create("hello"));
+    ASSERT_OK_AND_ASSIGN(auto str2, LimitedString<10>::create("hello"));
+    ASSERT_OK_AND_ASSIGN(auto str3, LimitedString<10>::create("world"));
 
     EXPECT_EQ(str1, str2);
     EXPECT_NE(str1, str3);
@@ -69,22 +71,46 @@ TEST(LimitedStringTest, EqualityOperator) {
 
 TEST(BootPropertyStringTest, ValidCharacters) {
     BootPropertyString<10> str;
-    str.set("valid_str");
+    EXPECT_OK(str.set("valid_str"));
     EXPECT_EQ(str.get(), "valid_str"s);
 }
 
 TEST(BootPropertyStringTest, InvalidCharacters) {
-    EXPECT_THROW({ BootPropertyString<10> str("invalid "); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid="); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid$"); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid*"); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid?"); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid'"); }, InvalidPropertyName);
-    EXPECT_THROW({ BootPropertyString<10> str("invalid\""); }, InvalidPropertyName);
+    EXPECT_THAT(BootPropertyString<10>::create("invalid "),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: ' '")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid="),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '='")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid$"),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '$'")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid*"),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '*'")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid?"),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '?'")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid'"),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '''")));
+    EXPECT_THAT(BootPropertyString<10>::create("invalid\""),
+                absl_testing::StatusIs(
+                        absl::StatusCode::kInvalidArgument,
+                        testing::HasSubstr("Property name contains invalid character: '\"'")));
 }
 
 TEST(BootPropertyStringTest, LengthLimit) {
-    EXPECT_THROW({ BootPropertyString<5> str("abcdef"); }, std::length_error);
+    EXPECT_THAT(BootPropertyString<5>::create("abcdef"),
+                absl_testing::StatusIs(absl::StatusCode::kOutOfRange,
+                                       testing::HasSubstr("String exceeds maximum length")));
+    // EXPECT_THROW({ BootPropertyString<5> str("abcdef"); }, std::length_error);
 }
 
 class BootPropertiesDeviceTest : public ::testing::Test {
@@ -118,8 +144,8 @@ class BootPropertiesDeviceTest : public ::testing::Test {
 };
 
 TEST_F(BootPropertiesDeviceTest, sendsBootProperties) {
-    props["foo"_bps] = "bar";
-    registerWithProps(props);
+    ASSERT_OK_AND_ASSIGN(auto props2, IBootPropertiesDevice::make_properties({{"foo", "bar"}}));
+    registerWithProps(props2);
     receive("list");
     EXPECT_EQ(test_socket->storage, "0007foo=bar0000");
 }

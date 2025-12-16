@@ -16,16 +16,16 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 
+#include "android/status/status_macros.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/internal/hal_plug.h"
-#include "goldfish/devices/std/boot_property_string.h"
+#include "goldfish/devices/boot/boot_property_string.h"
 
 namespace goldfish::devices::boot {
 
 using goldfish::async::EventLoop;
-using goldfish::devices::BootPropertyString;
-using goldfish::devices::LimitedString;
 
 using namespace std::string_view_literals;
 
@@ -61,6 +61,16 @@ class IBootPropertiesDevice : public HalPlug {
     using PropertyValue = LimitedString<IBootPropertiesDevice::PROPERTY_MAX_VALUE>;
     using Properties = absl::flat_hash_map<PropertyName, PropertyValue>;
 
+    static absl::StatusOr<Properties> make_properties(absl::flat_hash_map<std::string, std::string> string_map) {
+      Properties p;
+      for (const auto &[n, v]: string_map) {
+        ASSIGN_OR_RETURN(auto pn, PropertyName::create(n));
+        ASSIGN_OR_RETURN(auto pv, PropertyValue::create(v));
+        p[std::move(pn)] = std::move(pv);
+      }
+      return p;
+    }
+
     /**
      * @brief Registers the boot properties device with the connector registry.
      *
@@ -76,6 +86,4 @@ class IBootPropertiesDevice : public HalPlug {
                                EventLoop* clientLoop, EventLoop* qemuLoop);
 };
 
-// User-defined literal for creating PropertyName objects.
-IBootPropertiesDevice::PropertyName operator""_bps(const char* c_str, size_t len);
 }  // namespace goldfish::devices::boot

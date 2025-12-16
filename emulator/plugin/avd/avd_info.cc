@@ -21,9 +21,9 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
+#include "android/base/file/file.h"
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "android/base/qemu_clock.h"
-#include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
@@ -210,15 +210,18 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                                  []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
-    DEVS::boot::IBootPropertiesDevice::registerDevice(
-            registry,
-            {
-                {"qemu.sf.fake_camera"s, emulatedCameraProp},
-                {"qemu.sf.lcd_density"s, "420"s},
-                // This is the same value that is passed to the virtio-wifi module.
-                {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
-            },
-            clientLoop, gQemuLoop.get());
+    if (auto props = devices::boot::IBootPropertiesDevice::make_properties({
+            {"qemu.sf.fake_camera"s, emulatedCameraProp},
+            {"qemu.sf.lcd_density"s, "420"s},
+            // This is the same value that is passed to the virtio-wifi module.
+            {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
+        });
+        !props.ok()) {
+        LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
+    } else {
+        DEVS::boot::IBootPropertiesDevice::registerDevice(registry, *std::move(props), clientLoop,
+                                                          gQemuLoop.get());
+    }
 
     ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 }
