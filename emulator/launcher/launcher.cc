@@ -108,8 +108,12 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     absl::StatusOr<std::shared_ptr<::goldfish::async::AsyncSocketServer>> open_tcp_server_port(
             ::goldfish::async::EventLoop& event_loop,
             ::goldfish::async::LibuvAsyncSocketFactory& factory, int port) {
-        ASSIGN_OR_RETURN(auto e, ::goldfish::network::Endpoint::Create("127.0.0.1", port));
-        auto sock = factory.createServer(&event_loop, e, [](auto) {
+        using ::goldfish::network::ToEndpoint;
+        using ::goldfish::network::ToIpv4Address;
+        const auto k_ipv4_loopback = ToIpv4Address(127, 0, 0, 1);
+
+        auto e = ToEndpoint(k_ipv4_loopback, port);
+        auto sock = factory.createServer(&event_loop, std::move(e), [](auto) {
             VLOG(1) << "Ignoring connection to serial port reservation server";
             return false;
         });

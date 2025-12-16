@@ -81,10 +81,11 @@ using goldfish::devices::HalPlugFactory;
 using goldfish::devices::cable::IPlug;
 using goldfish::devices::cable::SocketPtr;
 using goldfish::network::Endpoint;
+using goldfish::network::EndpointFormatter;
 
 // Sorts endpoints to prefer IPv4 over IPv6.
 static bool isIpv4(const Endpoint& a) {
-    return a.Address().IsIpv4();
+    return std::holds_alternative<goldfish::network::Ipv4Endpoint>(a);
 }
 
 /// @note all calls are on the clientEventloop, nothing is on the qemu event
@@ -219,7 +220,7 @@ class VSockProxyImpl : public VSockProxy {
 
   private:
     void startServer() {
-        VLOG(1) << "Starting server on " << mHostEndpoint;
+        VLOG(1) << "Starting server on " << ToString(mHostEndpoint);
         auto incoming_socket_connection =
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
@@ -229,16 +230,16 @@ class VSockProxyImpl : public VSockProxy {
                     return true;
                 };
 
-        VLOG(1) << "Trying to bind to " << mHostEndpoint;
+        VLOG(1) << "Trying to bind to " << ToString(mHostEndpoint);
         mSocketServer =
                 mSocketFactory.createServer(mClientLoop, mHostEndpoint, incoming_socket_connection);
         if (mSocketServer) {
-            VLOG(1) << "Successfully bound to " << mHostEndpoint;
+            VLOG(1) << "Successfully bound to " << ToString(mHostEndpoint);
         }
 
         if (!mSocketServer) {
             LOG(FATAL) << "The VSockProxy that forwards the guest port: " << mDevice->guest_port
-                       << " to the host: " << mHostEndpoint
+                       << " to the host: " << ToString(mHostEndpoint)
                        << " could not be created, error code: " << errno;
         }
 
@@ -309,15 +310,16 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     if (preferred == endpoints.end()) {
         preferred = endpoints.begin();
         LOG(WARNING) << "The address for the vsock port forwarder: " << serverAddress
-                     << " does not resolve to an ipv4 address: " << absl::StrJoin(endpoints, ", ")
-                     << " we will use: " << *preferred;
+                     << " does not resolve to an ipv4 address: "
+                     << absl::StrJoin(endpoints, ", ", EndpointFormatter())
+                     << " we will use: " << ToString(*preferred);
     }
 
     vsock_fwd_device->forwarder =
             new VSockProxyImpl(*preferred, vsock_fwd_device,
                                goldfish::avd_info::getAvd().getGuestStatus().bootcomplete);
-    VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << *preferred << "<->"
-                   << vsock_fwd_device->guest_port;
+    VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
+                   << "<->" << vsock_fwd_device->guest_port;
 }
 
 static void vsock_fwd_unrealize(DeviceState* dev) {
@@ -379,13 +381,14 @@ static void vsock_fwd_set_address(Object* obj, const char* value, Error** errp) 
     if (preferred == endpoints.end()) {
         preferred = endpoints.begin();
         LOG(WARNING) << "The address for the vsock port forwarder: " << value
-                     << " does not resolve to an ipv4 address: " << absl::StrJoin(endpoints, ", ")
-                     << " we will use: " << *preferred;
+                     << " does not resolve to an ipv4 address: "
+                     << absl::StrJoin(endpoints, ", ", EndpointFormatter())
+                     << " we will use: " << ToString(*preferred);
     }
     VSockFwdDev* vsock_fwd_device = VSOCK_FWD_DEV(obj);
 
     g_free(vsock_fwd_device->address);
-    vsock_fwd_device->address = g_strdup(preferred->ToString().c_str());
+    vsock_fwd_device->address = g_strdup(ToString(*preferred).c_str());
 }
 
 static void vsock_fwd_class_init(ObjectClass* oc, void* data) {

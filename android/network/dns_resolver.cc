@@ -161,9 +161,11 @@ absl::StatusOr<std::vector<Endpoint>> ResolveEndpoints(const std::string& addres
     std::vector<Endpoint> endpoints;
 
     auto status = ProcessAddrInfo(hp.host, hp.port, hints, [&endpoints](const struct addrinfo& rp) {
-        absl::StatusOr<Endpoint> endpoint = Endpoint::FromSockAddr(rp.ai_addr);
-        if (endpoint.ok()) {
-            endpoints.push_back(*endpoint);
+        if (rp.ai_addr) {
+            absl::StatusOr<Endpoint> endpoint = ToEndpoint(*rp.ai_addr);
+            if (endpoint.ok()) {
+                endpoints.push_back(*endpoint);
+            }
         }
     });
 
@@ -180,9 +182,11 @@ absl::StatusOr<std::vector<IpAddress>> ResolveHostname(const std::string& hostna
 
     auto status =
             ProcessAddrInfo(hostname, /*port=*/"", hints, [&addresses](const struct addrinfo& rp) {
-                absl::StatusOr<Endpoint> endpoint = Endpoint::FromSockAddr(rp.ai_addr);
-                if (endpoint.ok()) {
-                    addresses.push_back(endpoint->Address());
+                if (rp.ai_addr) {
+                    absl::StatusOr<IpAddress> address = ToIpAddress(*rp.ai_addr);
+                    if (address.ok()) {
+                        addresses.push_back(*address);
+                    }
                 }
             });
 
@@ -221,10 +225,10 @@ absl::StatusOr<std::vector<IpAddress>> GetSystemDnsServers() {
         absl::StatusOr<IpAddress> ip;
 
         if (node->family == AF_INET) {
-            ip = IpAddress::FromBinary(&node->addr.addr4);
+            ip = node->addr.addr4;
         } else if (node->family == AF_INET6) {
             // c-ares IPv6 struct is layout-compatible with standard in6_addr
-            ip = IpAddress::FromBinary(reinterpret_cast<const struct in6_addr*>(&node->addr.addr6));
+            ip = *reinterpret_cast<const struct in6_addr*>(&node->addr.addr6);
         }
 
         // Very unlikely that the c-ares returns incorrect ip struct.

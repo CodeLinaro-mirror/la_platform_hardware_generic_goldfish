@@ -15,103 +15,121 @@
 
 #include <gtest/gtest.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#endif
-
 #include "absl/status/status_matchers.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
+
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 namespace goldfish::network {
 
 using absl_testing::IsOkAndHolds;
 using absl_testing::StatusIs;
-using ::testing::AllOf;
-// Removed using ::testing::Eq;
 using ::testing::HasSubstr;
-using ::testing::IsNull;
-using ::testing::Not;
-using ::testing::NotNull;
-using ::testing::Property;
 
-TEST(IpAddressTest, CreateValidIPv4) {
-    EXPECT_THAT(IpAddress::Create("127.0.0.1"),
-                IsOkAndHolds(AllOf(Property(&IpAddress::ToString, "127.0.0.1"),
-                                   Property(&IpAddress::Family, IpAddress::Family::kIpv4))));
-}
-
-TEST(IpAddressTest, CreateValidIPv6) {
-    ASSERT_OK_AND_ASSIGN(auto ip, IpAddress::Create("::1"));
-    EXPECT_EQ("::1", ip.ToString());
-    EXPECT_EQ(IpAddress::Family::kIpv6, ip.Family());
-}
-
-TEST(IpAddressTest, CreateInvalidHostname) {
-    EXPECT_THAT(IpAddress::Create("localhost"),
-                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid IP address")));
-}
-
-TEST(IpAddressTest, CreateInvalidMalformed) {
-    EXPECT_THAT(IpAddress::Create("127.0.0"),
-                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid IP address")));
-}
-
-TEST(IpAddressTest, FamilyConvenience) {
-    ASSERT_OK_AND_ASSIGN(auto ipv4, IpAddress::Create("192.168.0.1"));
-    EXPECT_TRUE(ipv4.IsIpv4());
-    EXPECT_FALSE(ipv4.IsIpv6());
-
-    ASSERT_OK_AND_ASSIGN(auto ipv6, IpAddress::Create("2001::1"));
-    EXPECT_FALSE(ipv6.IsIpv4());
-    EXPECT_TRUE(ipv6.IsIpv6());
-}
-TEST(IpAddressTest, AsV4ReturnsCorrectBinary) {
-    const char* k_ip_v4_str = "192.168.1.100";
-    ASSERT_OK_AND_ASSIGN(auto ip, IpAddress::Create(k_ip_v4_str));
-
-    const struct in_addr* v4_addr = ip.AsV4();
-    ASSERT_THAT(v4_addr, NotNull());
-    EXPECT_THAT(ip.AsV6(), IsNull());
+TEST(IpAddressTest, ToIpv4Address) {
+    const std::string k_ipv4_str("192.168.1.42");
 
     struct in_addr expected_addr;
-    ASSERT_EQ(1, inet_pton(AF_INET, k_ip_v4_str, &expected_addr))
-            << "Test setup failed: inet_pton could not parse " << k_ip_v4_str;
+    ASSERT_EQ(1, ::inet_pton(AF_INET, k_ipv4_str.c_str(), &expected_addr))
+            << "Test setup failed: inet_pton could not parse " << k_ipv4_str;
 
-    EXPECT_EQ(0, memcmp(v4_addr, &expected_addr, sizeof(expected_addr)));
+    EXPECT_EQ(ToString(expected_addr), k_ipv4_str);
+
+    EXPECT_EQ(ToIpv4Address(192, 168, 1, 42), expected_addr);
+    EXPECT_THAT(ToIpv4Address(k_ipv4_str.c_str()), IsOkAndHolds(expected_addr));
+    EXPECT_THAT(ToIpv4Address(k_ipv4_str), IsOkAndHolds(expected_addr));
 }
 
-TEST(IpAddressTest, AsV6ReturnsCorrectBinary) {
-    const char* k_ip_v6_str = "2001:db8:85a3::8a2e:370:7334";
-    ASSERT_OK_AND_ASSIGN(auto ip, IpAddress::Create(k_ip_v6_str));
+TEST(IpAddressTest, ToIpv4Address_str_long) {
+    std::string ipv4_str("192.168.1.42");
 
-    const struct in6_addr* v6_addr = ip.AsV6();
-    ASSERT_THAT(v6_addr, NotNull());
-    EXPECT_THAT(ip.AsV4(), IsNull());
+    ipv4_str.resize(INET_ADDRSTRLEN - 1, 0);
+    EXPECT_THAT(ToIpv4Address(std::string_view(ipv4_str)),
+                IsOkAndHolds(ToIpv4Address(192, 168, 1, 42)));
+
+    ipv4_str.resize(INET_ADDRSTRLEN, 0);
+    EXPECT_THAT(ToIpv4Address(std::string_view(ipv4_str)),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("The address is too long")));
+
+    ipv4_str.resize(INET_ADDRSTRLEN + 1, 0);
+    EXPECT_THAT(ToIpv4Address(std::string_view(ipv4_str)),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("The address is too long")));
+}
+
+TEST(IpAddressTest, ToIpv4Address_invalid) {
+    EXPECT_THAT(ToIpv4Address("not an IP address"),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid IPv4 address")));
+}
+
+TEST(IpAddressTest, ToIpv6Address) {
+    const std::string k_ipv6_str("2001:db8:85a3::8a2e:370:7334");
 
     struct in6_addr expected_addr;
-    ASSERT_EQ(1, inet_pton(AF_INET6, k_ip_v6_str, &expected_addr))
-            << "Test setup failed: inet_pton could not parse " << k_ip_v6_str;
+    ASSERT_EQ(1, ::inet_pton(AF_INET6, k_ipv6_str.c_str(), &expected_addr))
+            << "Test setup failed: inet_pton could not parse " << k_ipv6_str;
 
-    EXPECT_EQ(0, memcmp(v6_addr, &expected_addr, sizeof(expected_addr)));
+    EXPECT_EQ(ToString(expected_addr), k_ipv6_str);
+
+    EXPECT_EQ(ToIpv6Address(0x2001, 0xdb8, 0x85a3, 0, 0, 0x8a2e, 0x370, 0x7334), expected_addr);
+    EXPECT_THAT(ToIpv6Address(k_ipv6_str.c_str()), IsOkAndHolds(expected_addr));
+    EXPECT_THAT(ToIpv6Address(k_ipv6_str), IsOkAndHolds(expected_addr));
 }
 
-TEST(IpAddressTest, AsV6ReturnsCorrectBinaryLoopback) {
-    const char* k_ip_v6_str = "::1";
-    ASSERT_OK_AND_ASSIGN(auto ip, IpAddress::Create(k_ip_v6_str));
-
-    const struct in6_addr* v6_addr = ip.AsV6();
-    ASSERT_THAT(v6_addr, NotNull());
-    EXPECT_THAT(ip.AsV4(), IsNull());
-
-    struct in6_addr expected_addr;
-    ASSERT_EQ(1, inet_pton(AF_INET6, k_ip_v6_str, &expected_addr))
-            << "Test setup failed: inet_pton could not parse " << k_ip_v6_str;
-
-    EXPECT_EQ(0, memcmp(v6_addr, &expected_addr, sizeof(expected_addr)));
+TEST(IpAddressTest, ToString_Canonicalization) {
+    auto ip = ToIpv6Address("0:0:0:0:0:0:0:1");
+    ASSERT_TRUE(ip.ok());
+    EXPECT_EQ(ToString(*ip), "::1");
 }
+
+TEST(IpAddressTest, ToIpv6Address_str_long) {
+    std::string ipv6_str("::1");
+
+    ipv6_str.resize(INET6_ADDRSTRLEN - 1, 0);
+    EXPECT_THAT(ToIpv6Address(std::string_view(ipv6_str)), IsOkAndHolds(*ToIpv6Address("::1")));
+
+    ipv6_str.resize(INET6_ADDRSTRLEN, 0);
+    EXPECT_THAT(ToIpv6Address(std::string_view(ipv6_str)),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("The address is too long")));
+
+    ipv6_str.resize(INET6_ADDRSTRLEN + 1, 0);
+    EXPECT_THAT(ToIpv6Address(std::string_view(ipv6_str)),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("The address is too long")));
+}
+
+TEST(IpAddressTest, ToIpv6Address_invalid) {
+    EXPECT_THAT(ToIpv6Address("not an IP address"),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid IPv6 address")));
+}
+
+TEST(IpAddressTest, ToIpAddress_str) {
+    EXPECT_TRUE(std::holds_alternative<struct in_addr>(*ToIpAddress("127.0.0.1")));
+    EXPECT_TRUE(std::holds_alternative<struct in6_addr>(*ToIpAddress("::1")));
+    EXPECT_THAT(ToIpAddress("not an IP address"),
+                StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid IP address")));
+}
+
+TEST(IpAddressTest, ToIpAddress_sockaddr) {
+    struct sockaddr_storage storage = {};
+
+    reinterpret_cast<struct sockaddr_in&>(storage).sin_addr = ToIpv4Address(192, 168, 1, 42);
+    storage.ss_family = AF_INET;
+    EXPECT_TRUE(std::holds_alternative<struct in_addr>(
+            *ToIpAddress(reinterpret_cast<struct sockaddr&>(storage))));
+
+    reinterpret_cast<struct sockaddr_in6&>(storage).sin6_addr = *ToIpv6Address("::1");
+    storage.ss_family = AF_INET6;
+    EXPECT_TRUE(std::holds_alternative<struct in6_addr>(
+            *ToIpAddress(reinterpret_cast<struct sockaddr&>(storage))));
+
+    storage.ss_family = AF_UNSPEC;
+    EXPECT_THAT(
+            ToIpAddress(reinterpret_cast<struct sockaddr&>(storage)),
+            StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Unexpected address family")));
+}
+
 }  // namespace goldfish::network
