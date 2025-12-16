@@ -174,15 +174,11 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
 
         // This lambda will be executed on the event loop thread.
         auto task_runner = [promise, f = std::forward<F>(f)]() mutable {
-            try {
-                if constexpr (std::is_void_v<ReturnType>) {
-                    f();
-                    promise->set_value();
-                } else {
-                    promise->set_value(f());
-                }
-            } catch (...) {
-                promise->set_exception(std::current_exception());
+            if constexpr (std::is_void_v<ReturnType>) {
+                f();
+                promise->set_value();
+            } else {
+                promise->set_value(f());
             }
         };
 
