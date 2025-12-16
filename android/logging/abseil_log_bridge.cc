@@ -30,17 +30,17 @@
  * it is truncated and "..." is appended to indicate the truncation.
  *
  * @param buffer The buffer to write the formatted string to.
- * @param bufferSize The size of the buffer.
+ * @param buffer_size The size of the buffer.
  * @param format The format string.
  * @param args The arguments to the format string.
  * @return A std::string_view of the formatted string.
  */
-std::string_view formatString(char* buffer, int bufferSize, const char* format, va_list args) {
-    int strlen = bufferSize;
-    int size = vsnprintf(buffer, bufferSize, format, args);
-    if (size >= bufferSize) {
+std::string_view formatString(char* buffer, int buffer_size, const char* format, va_list args) {
+    int strlen = buffer_size;
+    int size = vsnprintf(buffer, buffer_size, format, args);
+    if (size >= buffer_size) {
         // Indicate trunctation.
-        strncpy(buffer + bufferSize - 3, "...", 3);
+        strncpy(buffer + buffer_size - 3, "...", 3);
     } else {
         strlen = size;
     }
@@ -110,9 +110,9 @@ extern "C" void* _get_vlog_site(const char* name) {
  */
 extern "C" void _vlog_to_abseil(void* vlog_site, int severity, unsigned int line,
                                 const char* format, ...) {
-    constexpr int bufferSize = 4096;
-    char buffer[bufferSize];
-    static_assert(std::size(buffer) == bufferSize);
+    constexpr int buffer_size = 4096;
+    char buffer[buffer_size];
+    static_assert(std::size(buffer) == buffer_size);
 
     va_list args;
     va_start(args, format);
@@ -141,9 +141,9 @@ extern "C" void _vlog_to_abseil(void* vlog_site, int severity, unsigned int line
  */
 extern "C" void _log_to_abseil(int severity, const char* file, unsigned int line,
                                const char* format, ...) {
-    constexpr int bufferSize = 4096;
-    char buffer[bufferSize];
-    static_assert(std::size(buffer) == bufferSize);
+    constexpr int buffer_size = 4096;
+    char buffer[buffer_size];
+    static_assert(std::size(buffer) == buffer_size);
 
     va_list args;
     va_start(args, format);

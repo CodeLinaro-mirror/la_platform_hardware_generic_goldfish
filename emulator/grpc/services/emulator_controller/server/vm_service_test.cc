@@ -47,7 +47,7 @@ class MockVmOperations : public VmOperations {
     MOCK_METHOD(bool, stop, (), (override));
     MOCK_METHOD(bool, start, (), (override));
     MOCK_METHOD(void, reset, (), (override));
-    MOCK_METHOD(void, shutdown, (), (override));
+    MOCK_METHOD(void, Shutdown, (), (override));
     MOCK_METHOD(bool, pause, (), (override));
     MOCK_METHOD(bool, resume, (), (override));
     MOCK_METHOD(bool, isRunning, (), (override));
@@ -75,7 +75,7 @@ TEST_F(VmServiceTest, SetVmStateReset) {
 }
 
 TEST_F(VmServiceTest, SetVmStateShutdown) {
-    EXPECT_CALL(vmOperations, shutdown()).Times(1);
+    EXPECT_CALL(vmOperations, Shutdown()).Times(1);
 
     VmRunState request;
     request.set_state(VmRunState::SHUTDOWN);

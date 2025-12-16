@@ -44,9 +44,9 @@ class UvSignalHandlers {
         if (mClosed) {
             return;
         }
-        LOG_IF(FATAL, mUvLoop.getState() != LooperStatusEvent::State::RUNNING)
+        LOG_IF(FATAL, mUvLoop.GetState() != LooperStatusEvent::State::kRunning)
                 << "event loop is not running but signal handlers are being closed";
-        mUvLoop.postAndWait([this] {
+        mUvLoop.PostAndWait([this] {
 #ifdef _WIN32
             mSignalHandlerBreak.close();
 #endif
@@ -75,7 +75,7 @@ class UvSignalHandlers {
     class UvSignalHandler {
       public:
         UvSignalHandler(LibuvEventLoop& uv_loop, int signal, void* data, uv_signal_cb signal_cb) {
-            if (int res = uv_signal_init(static_cast<uv_loop_t*>(uv_loop.getRawLoop()),
+            if (int res = uv_signal_init(static_cast<uv_loop_t*>(uv_loop.GetRawLoop()),
                                          &mSignalHandler);
                 res < 0) {
                 LOG(FATAL) << "couldn't create signal handler: " << UvErrToAbslStatus(res);

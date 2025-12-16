@@ -38,7 +38,7 @@ class LoopWatcher {
             , mTimeout(hang_timeout)
             , mhangCheckTimeout(hang_check_timeout)
             , mClock(clock)
-            , mTimer(event_loop.createTimer([this]() { taskComplete(); })) {}
+            , mTimer(event_loop.CreateTimer([this]() { taskComplete(); })) {}
 
     ~LoopWatcher() { cancelHangCheck(); }
 
@@ -56,7 +56,7 @@ class LoopWatcher {
         absl::MutexLock l(&mMutex);
 
         if (mTimer) {
-            mTimer->cancel();
+            mTimer->Cancel();
             mTimer.reset();
         }
         mIsTaskRunning = false;
@@ -105,7 +105,7 @@ class LoopWatcher {
         mIsTaskRunning = true;
         mLastCheckTime = mClock->now(base::ClockType::Realtime);
         // 0 means run as soon as possible.
-        mTimer->schedule(std::chrono::milliseconds(0));
+        mTimer->Schedule(std::chrono::milliseconds(0));
     }
 
     void taskComplete() {

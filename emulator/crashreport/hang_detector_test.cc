@@ -64,7 +64,7 @@ TEST_F(HangDetectorTest, PredicateTriggersHang) {
 
 TEST_F(HangDetectorTest, NormalLoopNoHang) {
     auto event_loop =
-            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
@@ -73,13 +73,13 @@ TEST_F(HangDetectorTest, NormalLoopNoHang) {
 
 TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
     auto event_loop =
-            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     // Add a hanging task
     absl::Notification hang;
-    event_loop->post([&hang] { hang.WaitForNotification(); });
+    event_loop->Post([&hang] { hang.WaitForNotification(); });
     ASSERT_TRUE(wait_for_hang());
 
     // Unblock the loop so that it actually terminates!
@@ -87,12 +87,12 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
     // destroyed before the loop.
-    event_loop->shutdownAndWait();
+    event_loop->ShutdownAndWait();
 }
 
 TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
     auto event_loop =
-            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
@@ -108,17 +108,17 @@ TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
     // Note test loop has to be used as trying to destroy the uv loop hangs waiting for all tasks to
     // complete.
     auto event_loop =
-            goldfish::async::ThreadedEventLoop::create(goldfish::async::LibuvEventLoop::create());
+            goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
     mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     // Add a hanging task
     absl::Notification hang;
-    event_loop->post([&hang] { hang.WaitForNotification(); });
+    event_loop->Post([&hang] { hang.WaitForNotification(); });
 
     ASSERT_TRUE(wait_for_hang());
 
-    auto f = event_loop->shutdown();
+    auto f = event_loop->Shutdown();
 
     // Unblock the loop so that it actually terminates!
     hang.Notify();

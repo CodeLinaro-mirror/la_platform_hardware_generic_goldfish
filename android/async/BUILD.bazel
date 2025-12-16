@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
@@ -280,4 +281,19 @@ cc_test(
         "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":async_api",
+        ":errno_to_absl",
+        ":launch_config",
+        ":libuv_event_loop",
+        ":libuv_process_launcher",
+        ":libuv_sockets",
+        ":qemu_event_loop",
+        ":uv_to_absl",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

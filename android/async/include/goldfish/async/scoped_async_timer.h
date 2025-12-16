@@ -34,27 +34,27 @@ namespace goldfish::async {
 class ScopedTimer final : public async::EventLoop::Timer {
   public:
     explicit ScopedTimer(std::shared_ptr<async::EventLoop::Timer> timer)
-            : mTimer(std::move(timer)) {}
-    ~ScopedTimer() override { cancel(); }
+            : timer_(std::move(timer)) {}
+    ~ScopedTimer() override { Cancel(); }
 
-    void cancel() override {
-        absl::MutexLock lock(&mTimerMutex);
-        if (mTimer) {
-            mTimer->cancel();
-            mTimer.reset();
+    void Cancel() override {
+        const absl::MutexLock lock(&timer_mutex_);
+        if (timer_) {
+            timer_->Cancel();
+            timer_.reset();
         }
     }
 
-    void schedule(std::chrono::milliseconds new_delay,
+    void Schedule(std::chrono::milliseconds new_delay,
                   std::chrono::milliseconds new_interval) override {
-        absl::MutexLock lock(&mTimerMutex);
-        if (mTimer) {
-            mTimer->schedule(new_delay, new_interval);
+        const absl::MutexLock lock(&timer_mutex_);
+        if (timer_) {
+            timer_->Schedule(new_delay, new_interval);
         }
     }
 
   private:
-    absl::Mutex mTimerMutex;
-    std::shared_ptr<async::EventLoop::Timer> mTimer ABSL_GUARDED_BY(mTimerMutex);
+    absl::Mutex timer_mutex_;
+    std::shared_ptr<async::EventLoop::Timer> timer_ ABSL_GUARDED_BY(timer_mutex_);
 };
 }  // namespace goldfish::async

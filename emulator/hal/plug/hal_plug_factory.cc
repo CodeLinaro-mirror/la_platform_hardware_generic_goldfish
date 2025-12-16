@@ -42,7 +42,7 @@ PlugPtr HalPlugFactory::wrapHalPlug(SocketPtr qemuSocket, HalDeviceFactory halFa
     // 4. Post the onConnect notification to the client thread.
     VLOG(1) << "Scheduling on connect for realHalPlug: " << *realHalPlug
             << ", clientLoop: " << clientLoop;
-    clientLoop->post([realHalPlug]() {
+    clientLoop->Post([realHalPlug]() {
         VLOG(1) << "Delivering onConnect to realHalPlug: " << realHalPlug;
         realHalPlug->onConnect();
     });

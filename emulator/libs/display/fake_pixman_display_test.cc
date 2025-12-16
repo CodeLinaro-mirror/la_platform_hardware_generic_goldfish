@@ -35,8 +35,8 @@ using namespace goldfish::display::test;
 class FakePixmanDisplayTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoop = ::goldfish::async::ThreadedEventLoop::create(
-                ::goldfish::async::LibuvEventLoop::create());
+        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+                ::goldfish::async::LibuvEventLoop::Create());
     }
 
     void TearDown() override { mLoop.reset(); }
@@ -245,7 +245,7 @@ TEST_F(FakePixmanDisplayTest, ResizeEventsAreOnTheEventLoop) {
     auto callbackSource = static_cast<ResizeEventCallbackSource*>(display.get());
     auto callback = android::base::eventing::makeScopedCallback(
             *callbackSource, [&](const ResizeEvent& event) {
-                ASSERT_TRUE(mLoop->isOnLoopThread())
+                ASSERT_TRUE(mLoop->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
             });
     // Start the generator
@@ -272,7 +272,7 @@ TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
     auto callback = android::base::eventing::makeScopedCallback(
             *callbackSource, [&](const FrameInfo& event) {
                 frames++;
-                ASSERT_TRUE(mLoop->isOnLoopThread())
+                ASSERT_TRUE(mLoop->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
             });
     // Start the generator

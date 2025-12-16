@@ -235,19 +235,19 @@ class SensorDevice : public ISensorDevice {
 
     void onClose() override {
         VLOG(1) << "Bye bye! Sensors shutting down";
-        mTimer->cancel();
+        mTimer->Cancel();
 
         // Make sure we don't get destroyed while a timer is active.
         // By posting with a self reference we guarantee that we remain alive
         // until the timer has completed been cleaned up (b/443556478)
-        (void)mLoop->post([this] { mSelf.reset(); });
+        (void)mLoop->Post([this] { mSelf.reset(); });
     }
 
     void onConnect() override {
         VLOG(1) << "Starting sensor ticks" << *this;
         this->mSelf = shared_from_this();
         // Note, the timer will be scheduled after the guest requests it.
-        mTimer = mLoop->createTimer([this] { tick(); });
+        mTimer = mLoop->CreateTimer([this] { tick(); });
     };
 
     void send(std::string_view msg) {
@@ -416,7 +416,7 @@ class SensorDevice : public ISensorDevice {
         // the android.hardware CTS requires sync times to be no greater than the
         // time of the sensor event arrival. Since the CTS enforces this property,
         // other code may also rely on it.
-        DCHECK(mLoop->isOnLoopThread()) << "Tick must be called from the event loop!";
+        DCHECK(mLoop->IsOnLoopThread()) << "Tick must be called from the event loop!";
         const auto now = mClock->now(::android::base::ClockType::Virtual);
         mPhysicalModel->setCurrentTime(absl::ToUnixNanos(now));
         for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
@@ -455,7 +455,7 @@ class SensorDevice : public ISensorDevice {
         DCHECK(mSelf) << "Self reference should have been set, otherwise we are scheduling a "
                          "callback where we can disappear from (i.e. tick could be called with "
                          "this == nullptr)!";
-        mTimer->schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
+        mTimer->Schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
     }
 
     PhysicalModel* const mPhysicalModel;

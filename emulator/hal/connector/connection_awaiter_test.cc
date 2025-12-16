@@ -70,7 +70,7 @@ class NullPlug : public IPlug {
 
 SocketPtr fakeConnection(async::EventLoop* eventLoop, PlugPtr plug) {
     auto ptr = SocketPtr(new TestSocket(plug));
-    (void)eventLoop->post(
+    (void)eventLoop->Post(
             [socket = ptr.get()]() { static_cast<TestSocket*>(socket)->fakeConnected(); });
     return ptr;
 }

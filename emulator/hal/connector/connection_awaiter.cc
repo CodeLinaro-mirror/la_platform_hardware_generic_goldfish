@@ -32,7 +32,7 @@ ConnectionAwaiter::~ConnectionAwaiter() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
     if (mConnectionRetryTask) {
         VLOG(1) << "Cancelling task";
-        mConnectionRetryTask->cancel();
+        mConnectionRetryTask->Cancel();
     }
 }
 
@@ -44,7 +44,7 @@ void ConnectionAwaiter::onConnect() {
     }
     mIsConnected = true;
     if (mConnectionRetryTask) {
-        mConnectionRetryTask->cancel();
+        mConnectionRetryTask->Cancel();
         mConnectionRetryTask.reset();
     }
     mOnConnected(std::move(mSocket));
@@ -73,7 +73,7 @@ ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnecti
         : mCreateConnection(std::move(createConnection)), mOnConnected(std::move(onConnected)) {
     VLOG(1) << "Scheduling retry task with interval: " << interval;
     mConnectionRetryTask =
-            eventLoop->scheduleRepeating([this]() { attemptConnection(); }, interval, interval);
+            eventLoop->ScheduleRepeating([this]() { attemptConnection(); }, interval, interval);
 }
 
 bool ConnectionAwaiter::attemptConnection() {

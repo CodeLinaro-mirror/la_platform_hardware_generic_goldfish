@@ -35,12 +35,12 @@ class LibuvEventLoop : public EventLoop {
     /**
      * @brief Runs the event loop, blocking until shutdown() is called.
      */
-    virtual absl::Status run() = 0;
+    virtual absl::Status Run() = 0;
     // These are made public for direct access by ThreadedEventLoop.
-    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override = 0;
-    absl::Status postImmediately(Task task) override = 0;
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override = 0;
+    absl::Status PostImmediately(Task task) override = 0;
 
-    static std::unique_ptr<LibuvEventLoop> create();
+    static std::unique_ptr<LibuvEventLoop> Create();
 };
 
 }  // namespace goldfish::async

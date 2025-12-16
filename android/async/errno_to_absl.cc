@@ -167,12 +167,13 @@ absl::Status ErrnoToAbslStatus(int error_code) {
 
     // Protocol error
     case EPROTO:
+    default:
         absl_code = absl::StatusCode::kInternal;
         break;
     }
 
-    std::string message = absl::StrCat(strerror(error_code), " (errno=", error_code, ")");
-    return absl::Status(absl_code, message);
+    const std::string message = absl::StrCat(strerror(error_code), " (errno=", error_code, ")");
+    return {absl_code, message};
 }
 
 }  // namespace goldfish::async

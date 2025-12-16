@@ -34,10 +34,10 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     void SetUp() override {
         mLoopType = GetParam();
         if (mLoopType == "libuv") {
-            mLibuvLoop = LibuvEventLoop::create();
+            mLibuvLoop = LibuvEventLoop::Create();
             loop = mLibuvLoop.get();
         } else if (mLoopType == "qemu") {
-            mLibuvLoop = QemuEventLoop::create();
+            mLibuvLoop = QemuEventLoop::Create();
             loop = mLibuvLoop.get();
         }
     }
@@ -51,8 +51,8 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
 
     void shutdown() {
         if (loop) {
-            if (loop->getState() == LooperStatusEvent::State::RUNNING) {
-                auto f = loop->shutdown();
+            if (loop->GetState() == LooperStatusEvent::State::kRunning) {
+                auto f = loop->Shutdown();
                 if (mLoopType == "qemu") {
                     // Need to run Qemu "thread" for shutdown to complete
                     fake_qemu_advance_ms(150);
@@ -73,10 +73,10 @@ class EventLoopTest : public ::testing::TestWithParam<std::string> {
     void runInThread() {
         if (mLoopType == "libuv") {
             loop_thread =
-                    std::thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
+                    std::thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->Run(); });
         }
         // Wait for it to actually start.
-        while (loop->getState() != LooperStatusEvent::State::RUNNING) {
+        while (loop->GetState() != LooperStatusEvent::State::kRunning) {
             std::this_thread::sleep_for(10ms);
         }
     }
@@ -127,7 +127,7 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTask) {
     std::promise<bool> task_executed_promise;
     auto future = task_executed_promise.get_future();
 
-    (void)loop->post([&]() { task_executed_promise.set_value(true); });
+    (void)loop->Post([&]() { task_executed_promise.set_value(true); });
 
     runInThread();
     runUntil(future);
@@ -139,7 +139,7 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskWithinATask) {
     std::promise<bool> task_executed_promise;
     auto future = task_executed_promise.get_future();
 
-    (void)loop->post([&]() { (void)loop->post([&]() { task_executed_promise.set_value(true); }); });
+    (void)loop->Post([&]() { (void)loop->Post([&]() { task_executed_promise.set_value(true); }); });
 
     runInThread();
     runUntil(future);
@@ -159,15 +159,15 @@ TEST_P(EventLoopTest, DISABLED_PostAndWaitFromLoopThreadFails) {
         std::promise<void> status_promise;
         auto status_future = status_promise.get_future();
         runInThread();
-        (void)loop->post([this, &status_promise]() {
-            EXPECT_DEATH(this->loop->postAndWait([]() { return false; }),
+        (void)loop->Post([this, &status_promise]() {
+            EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }),
                          "postAndWait cannot be called from the event loop.");
             status_promise.set_value();
         });
         runUntil(status_future);
     } else {  // qemu
         // For qemu, the main test thread is the loop thread.
-        EXPECT_DEATH(this->loop->postAndWait([]() { return false; }),
+        EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }),
                      "postAndWait cannot be called from the event loop.");
     }
 }
@@ -177,7 +177,7 @@ TEST_P(EventLoopTest, PostAndWaitBool) {
     std::promise<absl::StatusOr<bool>> status_promise;
     // QEMU needs a separate thread
     std::thread t([&status_promise, this] {
-        status_promise.set_value(loop->postAndWait([]() { return false; }));
+        status_promise.set_value(loop->PostAndWait([]() { return false; }));
     });
     auto status_future = status_promise.get_future();
     runUntil(status_future);
@@ -190,7 +190,7 @@ TEST_P(EventLoopTest, PostAndWaitVoid) {
     std::promise<absl::Status> status_promise;
     // QEMU needs a separate thread
     std::thread t([&status_promise, this] {
-        status_promise.set_value(loop->postAndWait([]() { return; }));
+        status_promise.set_value(loop->PostAndWait([]() { return; }));
     });
     auto status_future = status_promise.get_future();
     runUntil(status_future);
@@ -204,9 +204,9 @@ TEST_P(EventLoopTest, ScheduleAndExecuteSingleTaskOnRunningLoop) {
     }
     std::promise<bool> task_executed_promise;
     auto future = task_executed_promise.get_future();
-    auto threaded_loop = ThreadedEventLoop::create(LibuvEventLoop::create());
+    auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
 
-    (void)threaded_loop->post([&]() { task_executed_promise.set_value(true); });
+    (void)threaded_loop->Post([&]() { task_executed_promise.set_value(true); });
 
     ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
     EXPECT_TRUE(future.get());
@@ -220,9 +220,9 @@ TEST_P(EventLoopTest, TasksExecuteInScheduledOrder) {
     const int task_count = 100;
 
     for (int i = 0; i < task_count; ++i) {
-        (void)loop->post([&, i]() { results.push_back(i); });
+        (void)loop->Post([&, i]() { results.push_back(i); });
     }
-    (void)loop->post([&]() { results_promise.set_value(results); });
+    (void)loop->Post([&]() { results_promise.set_value(results); });
 
     runInThread();
     runUntil(future);
@@ -239,20 +239,20 @@ TEST_P(EventLoopTest, IsOnLoopThreadIsCorrect) {
     auto future = on_loop_thread_promise.get_future();
 
     if (mLoopType == "libuv") {
-        EXPECT_FALSE(loop->isOnLoopThread());
+        EXPECT_FALSE(loop->IsOnLoopThread());
         runInThread();
     } else {  // qemu now has a separate thread runner.
-        EXPECT_FALSE(loop->isOnLoopThread());
+        EXPECT_FALSE(loop->IsOnLoopThread());
     }
 
-    (void)loop->post([&]() { on_loop_thread_promise.set_value(loop->isOnLoopThread()); });
+    (void)loop->Post([&]() { on_loop_thread_promise.set_value(loop->IsOnLoopThread()); });
     runUntil(future);
     EXPECT_TRUE(future.get());
 
     // Check from another thread
     std::promise<bool> other_thread_promise;
     auto other_future = other_thread_promise.get_future();
-    std::thread other_thread([&]() { other_thread_promise.set_value(loop->isOnLoopThread()); });
+    std::thread other_thread([&]() { other_thread_promise.set_value(loop->IsOnLoopThread()); });
     other_thread.join();
     EXPECT_FALSE(other_future.get());
 }
@@ -264,7 +264,7 @@ TEST_P(EventLoopTest, CanScheduleTaskFromAnotherThread) {
     runInThread();
 
     std::thread worker_thread(
-            [&]() { (void)loop->post([&]() { task_ran_promise.set_value(true); }); });
+            [&]() { (void)loop->Post([&]() { task_ran_promise.set_value(true); }); });
 
     runUntil(future);
     EXPECT_TRUE(future.get());
@@ -276,7 +276,7 @@ TEST_P(EventLoopTest, CanScheduleTaskFromWithinAnotherTask) {
     std::promise<int> final_task_promise;
     auto future = final_task_promise.get_future();
 
-    (void)loop->post([&]() { (void)loop->post([&]() { final_task_promise.set_value(42); }); });
+    (void)loop->Post([&]() { (void)loop->Post([&]() { final_task_promise.set_value(42); }); });
 
     runInThread();
     runUntil(future);
@@ -296,14 +296,14 @@ TEST_P(EventLoopTest, MassConcurrencyPost) {
     std::atomic<int> completed_tasks_count = 0;
 
     // Start the event loop in its own thread.
-    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
+    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->Run(); });
 
     // Create multiple threads, each posting tasks.
     std::vector<std::thread> worker_threads;
     for (int i = 0; i < num_threads; ++i) {
         worker_threads.emplace_back([&]() {
             for (int j = 0; j < tasks_per_thread; ++j) {
-                (void)loop->post([&]() {
+                (void)loop->Post([&]() {
                     completed_tasks_count++;
                     counter.DecrementCount();
                 });
@@ -318,7 +318,7 @@ TEST_P(EventLoopTest, MassConcurrencyPost) {
     EXPECT_EQ(completed_tasks_count, total_tasks);
 
     // Clean up.
-    EXPECT_THAT(loop->shutdownAndWait(), absl_testing::IsOk());
+    EXPECT_THAT(loop->ShutdownAndWait(), absl_testing::IsOk());
     for (auto& t : worker_threads) {
         t.join();
     }
@@ -337,7 +337,7 @@ TEST_P(EventLoopTest, MassConcurrencyPostWithHeavyWorkload) {
     std::atomic<int64_t> total_sum = 0;
 
     // Start the event loop in its own thread.
-    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
+    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->Run(); });
 
     constexpr int sum_up_to = 1000;
     // Create worker threads to post tasks with a small workload.
@@ -345,7 +345,7 @@ TEST_P(EventLoopTest, MassConcurrencyPostWithHeavyWorkload) {
     for (int i = 0; i < num_threads; ++i) {
         worker_threads.emplace_back([&]() {
             for (int j = 0; j < tasks_per_thread; ++j) {
-                (void)loop->post([&]() {
+                (void)loop->Post([&]() {
                     // Perform a small amount of work to simulate a real task.
                     int64_t local_sum = 0;
                     for (int k = 0; k <= sum_up_to; ++k) {
@@ -367,7 +367,7 @@ TEST_P(EventLoopTest, MassConcurrencyPostWithHeavyWorkload) {
 
     EXPECT_EQ(total_sum.load(), expected_total_sum);
 
-    EXPECT_THAT(loop->shutdownAndWait(), absl_testing::IsOk());
+    EXPECT_THAT(loop->ShutdownAndWait(), absl_testing::IsOk());
     for (auto& t : worker_threads) {
         t.join();
     }
@@ -387,14 +387,14 @@ TEST_P(EventLoopTest, MassConcurrencyPostWithDataIntegrity) {
     std::vector<int> ordered_sequence;
 
     // Start the event loop in its own thread.
-    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->run(); });
+    std::thread loop_thread([this]() { (void)dynamic_cast<LibuvEventLoop*>(loop)->Run(); });
 
     // Create worker threads. Each thread posts a task with a unique ID.
     std::vector<std::thread> worker_threads;
     for (int i = 0; i < num_threads; ++i) {
         worker_threads.emplace_back([&, thread_id = i]() {
             for (int j = 0; j < tasks_per_thread; ++j) {
-                (void)loop->post([&, val = (thread_id * tasks_per_thread) + j]() {
+                (void)loop->Post([&, val = (thread_id * tasks_per_thread) + j]() {
                     ordered_sequence.push_back(val);
                     counter.DecrementCount();
                 });
@@ -418,7 +418,7 @@ TEST_P(EventLoopTest, MassConcurrencyPostWithDataIntegrity) {
     // Verify that all numbers are present and no duplicates or missing values exist.
     EXPECT_EQ(ordered_sequence, expected_sequence);
 
-    EXPECT_THAT(loop->shutdownAndWait(), absl_testing::IsOk());
+    EXPECT_THAT(loop->ShutdownAndWait(), absl_testing::IsOk());
     for (auto& t : worker_threads) {
         t.join();
     }
@@ -434,7 +434,7 @@ TEST_P(EventLoopTest, PostDelayedExecutesAfterDelay) {
     const auto delay = std::chrono::milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
-    (void)loop->post(
+    (void)loop->Post(
             [&]() {
                 if (mLoopType == "libuv") {
                     auto elapsed = std::chrono::steady_clock::now() - start_time;
@@ -457,7 +457,7 @@ TEST_P(EventLoopTest, ScheduleDelayedHelperExecutesSuccessfully) {
     const auto delay = std::chrono::milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
-    auto handle = loop->scheduleDelayed(
+    auto handle = loop->ScheduleDelayed(
             [&]() {
                 if (mLoopType == "libuv") {
                     auto elapsed = std::chrono::steady_clock::now() - start_time;
@@ -481,7 +481,7 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
     const auto delay = std::chrono::milliseconds(50);
     auto start_time = std::chrono::steady_clock::now();
 
-    auto handle = loop->createTimer([&]() {
+    auto handle = loop->CreateTimer([&]() {
         if (mLoopType == "libuv") {
             auto elapsed = std::chrono::steady_clock::now() - start_time;
             EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
@@ -489,7 +489,7 @@ TEST_P(EventLoopTest, ScheduleDelayedExecutesSuccessfully) {
         }
         task_completed.set_value();
     });
-    handle->schedule(delay);
+    handle->Schedule(delay);
 
     auto future = task_completed.get_future();
 
@@ -501,8 +501,8 @@ TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
     runInThread();
 
     std::atomic<bool> task_executed = false;
-    auto handle = loop->createTimer([&]() { task_executed = true; });
-    handle->schedule(100ms);
+    auto handle = loop->CreateTimer([&]() { task_executed = true; });
+    handle->Schedule(100ms);
 
     // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
@@ -514,7 +514,7 @@ TEST_P(EventLoopTest, ScheduleDelayedIsReschedulableAfterFiring) {
     ASSERT_TRUE(task_executed.load());
     task_executed = false;
 
-    handle->schedule(100ms);
+    handle->Schedule(100ms);
 
     // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
@@ -529,10 +529,10 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByHandle) {
     runInThread();
 
     std::atomic<bool> task_executed = false;
-    auto handle = loop->createTimer([&]() { task_executed = true; });
-    handle->schedule(100ms, 0ms);
+    auto handle = loop->CreateTimer([&]() { task_executed = true; });
+    handle->Schedule(100ms, 0ms);
 
-    handle->cancel();
+    handle->Cancel();
 
     // Advance time past the timer's expiration.
     if (mLoopType == "qemu") {
@@ -549,8 +549,8 @@ TEST_P(EventLoopTest, ScheduleDelayedIsCancelledByRAII) {
     std::atomic<bool> task_executed = false;
 
     {
-        auto handle = loop->createTimer([&]() { task_executed = true; });
-        handle->schedule(100ms, 0ms);
+        auto handle = loop->CreateTimer([&]() { task_executed = true; });
+        handle->Schedule(100ms, 0ms);
         VLOG(1) << "Use count: " << handle.use_count();
     }  // handle is destroyed here, cancelling the timer.
 
@@ -569,7 +569,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
     std::atomic<int> counter = 0;
     const int target_count = 3;
 
-    auto handle = loop->scheduleRepeating(
+    auto handle = loop->ScheduleRepeating(
             [&]() {
                 if (++counter == target_count) {
                     promise.set_value();
@@ -580,7 +580,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingHelperExecutesMultipleTimes) {
 
     auto future = promise.get_future();
     runUntil(future);
-    handle->cancel();
+    handle->Cancel();
     ASSERT_EQ(counter.load(), target_count);
 }
 
@@ -590,17 +590,17 @@ TEST_P(EventLoopTest, ScheduleRepeatingExecutesMultipleTimes) {
     std::atomic<int> counter = 0;
     const int target_count = 3;
 
-    auto handle = loop->createTimer([&]() {
+    auto handle = loop->CreateTimer([&]() {
         if (++counter == target_count) {
             promise.set_value();
         }
     });
-    handle->schedule(10ms,   // Initial delay
+    handle->Schedule(10ms,   // Initial delay
                      50ms);  // Interval
 
     auto future = promise.get_future();
     runUntil(future);
-    handle->cancel();
+    handle->Cancel();
     ASSERT_EQ(counter.load(), target_count);
 }
 
@@ -634,8 +634,8 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
         for (int i = 0; i < num_tasks_per_creator; ++i) {
             // Schedule a repeating timer.
             auto handle =
-                    loop_ptr->createTimer([&]() { /* Task body not critical for this test */ });
-            handle->schedule(std::chrono::milliseconds(10),  // Initial delay
+                    loop_ptr->CreateTimer([&]() { /* Task body not critical for this test */ });
+            handle->Schedule(std::chrono::milliseconds(10),  // Initial delay
                              std::chrono::seconds(10)  // Long interval to avoid accidental ticks
             );
 
@@ -679,7 +679,7 @@ TEST_P(EventLoopTest, MultiThreadedCreationAndCancellation) {
             }
 
             if (handle) {
-                handle->cancel();
+                handle->Cancel();
                 canceled_task_count++;
                 cancellations_done--;
             }
@@ -716,8 +716,8 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
     runInThread();
     std::atomic<int> counter = 0;
 
-    auto handle = loop->createTimer([&]() { counter++; });
-    handle->schedule(10ms, 40ms);
+    auto handle = loop->CreateTimer([&]() { counter++; });
+    handle->Schedule(10ms, 40ms);
 
     if (mLoopType == "qemu") {
         fake_qemu_advance_ms(100);
@@ -725,7 +725,7 @@ TEST_P(EventLoopTest, ScheduleRepeatingIsCancelledMidway) {
         std::this_thread::sleep_for(100ms);
     }
 
-    handle->cancel();
+    handle->Cancel();
     int count_after_cancel = counter.load();
 
     if (mLoopType == "qemu") {
@@ -748,13 +748,13 @@ TEST_P(EventLoopTest, ThreadedEventLoopWaitsAtMostTimeout) {
     auto start_time = std::chrono::steady_clock::now();
     std::shared_ptr<EventLoop::Timer> task;
     {
-        auto threaded_loop = ThreadedEventLoop::create(LibuvEventLoop::create());
-        (void)threaded_loop->post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
+        auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
+        (void)threaded_loop->Post([&]() { task_completed.set_value(); }, std::chrono::seconds(10));
         start_time = std::chrono::steady_clock::now();
     }
     auto elapsed = std::chrono::steady_clock::now() - start_time;
     EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-              ThreadedEventLoop::getTimeout().count() + tolerance.count());
+              ThreadedEventLoop::GetTimeout().count() + tolerance.count());
 }
 
 TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
@@ -780,8 +780,8 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
         creators.emplace_back([&]() {
             for (int j = 0; j < kTimersPerThread; ++j) {
                 // Create long-running timers so they don't fire during the test.
-                auto handle = loop->createTimer([]() { /* no-op */ });
-                handle->schedule(1h, 1h);
+                auto handle = loop->CreateTimer([]() { /* no-op */ });
+                handle->Schedule(1h, 1h);
 
                 absl::MutexLock lock(&vec_mutex);
                 all_timers.push_back(handle);
@@ -797,7 +797,7 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
 
     // 1. Post a "slow" task to the event loop. This creates a delay,
     //    giving other threads a window to act before the shutdown task runs.
-    (void)loop->post([]() { std::this_thread::sleep_for(std::chrono::milliseconds(50)); });
+    (void)loop->Post([]() { std::this_thread::sleep_for(std::chrono::milliseconds(50)); });
 
     // 2. Call shutdown IMMEDIATELY. Its logic is now queued *behind* the slow task.
     //    We will let TearDown() call the actual shutdown, but we need to start
@@ -805,7 +805,7 @@ TEST_P(EventLoopTest, ShutdownRaceConditionStressTest) {
     absl::Notification shutdown_future_available;
     absl::StatusOr<std::future<absl::Status>> shutdown_future;
     auto shutdown = std::thread([lp = loop, &shutdown_future_available, &shutdown_future] {
-        shutdown_future = lp->shutdown();
+        shutdown_future = lp->Shutdown();
         shutdown_future_available.Notify();
     });
 
@@ -859,19 +859,19 @@ TEST_P(EventLoopTest, CancelTimerFromTaskCallback) {
 
     // Post a task to the event loop.
 
-    (void)loop->post([&]() {
+    (void)loop->Post([&]() {
         // Inside the task, create a timer.
         std::weak_ptr<EventLoop::Timer> weak_handle;
 
         // Create the timer. The `shared_ptr` (`handle`) will keep it alive
         // for this scope. The EventLoop also holds a reference.
-        handle = loop->createTimer(
+        handle = loop->CreateTimer(
                 // Note we capture a pointer to handle, as we are just initializing it!
                 [h = &handle, &timer_callback_promise]() {
-                    (*h)->cancel();
+                    (*h)->Cancel();
                     timer_callback_promise.set_value(true);
                 });
-        handle->schedule(10ms, 0ms);
+        handle->Schedule(10ms, 0ms);
 
         // After the `handle` is created, point the `weak_handle` to it.
         // The lambda now holds a reference to this `weak_handle`.
@@ -924,8 +924,8 @@ TEST_P(EventLoopTest, NoTsanFailuresOnLaunch) {
     //
     // The test confirms this by creating a `ThreadedEventLoop` and immediately shutting it
     // down, verifying that no TSan failures or crashes occur.
-    auto threaded_loop = ThreadedEventLoop::create(LibuvEventLoop::create());
-    auto s = threaded_loop->shutdownAndWait(1s);
+    auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
+    auto s = threaded_loop->ShutdownAndWait(1s);
     ASSERT_THAT(s, absl_testing::IsOk())
             << "Shutdown failed, the thread host run is likely not active.";
 }
@@ -943,7 +943,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     auto reschedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
     auto last_fire_time = std::make_shared<std::chrono::steady_clock::time_point>();
 
-    auto handle = loop->createTimer([&, schedule_time, reschedule_time, last_fire_time]() {
+    auto handle = loop->CreateTimer([&, schedule_time, reschedule_time, last_fire_time]() {
         auto now = std::chrono::steady_clock::now();
         int c = ++counter;
 
@@ -968,7 +968,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
         if (c == 2) fired2_promise.set_value();
         if (c == 3) fired3_promise.set_value();
     });
-    handle->schedule(100ms, 100ms);
+    handle->Schedule(100ms, 100ms);
 
     *schedule_time = std::chrono::steady_clock::now();
 
@@ -978,7 +978,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 
     // Reschedule to fire sooner and more frequently.
     *reschedule_time = std::chrono::steady_clock::now();
-    handle->schedule(200ms, 200ms);
+    handle->Schedule(200ms, 200ms);
 
     // Check that it fires again quickly.
     runUntil(fired2_future);
@@ -992,7 +992,7 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 TEST_P(EventLoopTest, TimerDestroyedAfterLoop) {
     runInThread();
 
-    auto timer = loop->createTimer([]() {});
+    auto timer = loop->CreateTimer([]() {});
 
     shutdown();
 
@@ -1002,11 +1002,11 @@ TEST_P(EventLoopTest, TimerDestroyedAfterLoop) {
 TEST_P(EventLoopTest, TimerScheduleAfterLoopDestroyed) {
     runInThread();
 
-    auto timer = loop->createTimer([]() {});
+    auto timer = loop->CreateTimer([]() {});
 
     shutdown();
 
-    timer->schedule(100ms, 100ms);
+    timer->Schedule(100ms, 100ms);
 
     timer.reset();
 }
@@ -1014,16 +1014,16 @@ TEST_P(EventLoopTest, TimerScheduleAfterLoopDestroyed) {
 TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
     runInThread();
 
-    auto f = loop->shutdown();
+    auto f = loop->Shutdown();
     if (mLoopType == "qemu") {
         // Need to run Qemu "thread" for shutdown to complete
         fake_qemu_advance_ms(150);
     }
     f.wait();
 
-    auto timer = loop->createTimer([]() {});
+    auto timer = loop->CreateTimer([]() {});
 
-    timer->schedule(100ms, 100ms);
+    timer->Schedule(100ms, 100ms);
 
     timer.reset();
 
@@ -1033,15 +1033,15 @@ TEST_P(EventLoopTest, TimerCreatedAfterLoopShutdown) {
 TEST_P(EventLoopTest, TimerCreatedDuringLoopShutdown) {
     runInThread();
 
-    auto f = loop->shutdown();
-    auto timer = loop->createTimer([]() {});
+    auto f = loop->Shutdown();
+    auto timer = loop->CreateTimer([]() {});
     if (mLoopType == "qemu") {
         // Need to run Qemu "thread" for shutdown to complete
         fake_qemu_advance_ms(150);
     }
     f.wait();
 
-    timer->schedule(100ms, 100ms);
+    timer->Schedule(100ms, 100ms);
 
     timer.reset();
 
@@ -1060,23 +1060,23 @@ TEST_P(EventLoopTest, LibuvEventStateChanges) {
             android::base::eventing::makeScopedCallback(*loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << event;
-                if (event.state == LooperStatusEvent::State::RUNNING) {
+                if (event.state == LooperStatusEvent::State::kRunning) {
                     running.Notify();
                 }
-                if (event.state == LooperStatusEvent::State::FINISHED) {
+                if (event.state == LooperStatusEvent::State::kFinished) {
                     finished.Notify();
                 }
             });
 
     runInThread();
     running.WaitForNotification();
-    auto status = loop->shutdownAndWait();
+    auto status = loop->ShutdownAndWait();
     ASSERT_TRUE(status.ok());
     finished.WaitForNotification();
 
-    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::RUNNING,
-                                               LooperStatusEvent::State::SHUTTING_DOWN,
-                                               LooperStatusEvent::State::FINISHED));
+    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kRunning,
+                                               LooperStatusEvent::State::kShuttingDown,
+                                               LooperStatusEvent::State::kFinished));
 }
 
 TEST_P(EventLoopTest, ThreadedEventStateChanges) {
@@ -1084,7 +1084,7 @@ TEST_P(EventLoopTest, ThreadedEventStateChanges) {
         GTEST_SKIP() << "ThreadedEventLoop is not compatible with the singleton QemuEventLoop.";
     }
 
-    auto threaded_loop = ThreadedEventLoop::create(LibuvEventLoop::create());
+    auto threaded_loop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
     std::vector<LooperStatusEvent::State> states;
     absl::Notification finished;
 
@@ -1092,17 +1092,17 @@ TEST_P(EventLoopTest, ThreadedEventStateChanges) {
             *threaded_loop, [&](const LooperStatusEvent& event) {
                 states.push_back(event.state);
                 LOG(ERROR) << "state: " << event;
-                if (event.state == LooperStatusEvent::State::FINISHED) {
+                if (event.state == LooperStatusEvent::State::kFinished) {
                     finished.Notify();
                 }
             });
 
-    auto status = threaded_loop->shutdownAndWait();
+    auto status = threaded_loop->ShutdownAndWait();
     ASSERT_TRUE(status.ok());
     finished.WaitForNotification();
 
-    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::SHUTTING_DOWN,
-                                               LooperStatusEvent::State::FINISHED));
+    ASSERT_THAT(states, ::testing::ElementsAre(LooperStatusEvent::State::kShuttingDown,
+                                               LooperStatusEvent::State::kFinished));
 }
 
 }  // namespace goldfish::async

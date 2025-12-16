@@ -154,7 +154,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
     auto* clientLoop = goldfish::async::globalEventLoop();
-    LOG_IF(FATAL, !clientLoop->shutdownAndWait(std::chrono::seconds(10)).ok())
+    LOG_IF(FATAL, !clientLoop->ShutdownAndWait(std::chrono::seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

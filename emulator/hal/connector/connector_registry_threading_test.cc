@@ -106,8 +106,8 @@ class MockSocket : public cable::ISocket {
 class ConnectorRegistryThreadingTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mClientLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
-        mQemuLoop = ThreadedEventLoop::create(LibuvEventLoop::create());
+        mClientLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
+        mQemuLoop = ThreadedEventLoop::Create(LibuvEventLoop::Create());
     }
 
     std::unique_ptr<ThreadedEventLoop> mQemuLoop;
@@ -155,7 +155,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
 
     EXPECT_CALL(testSocket, unplugImpl()).Times(1);
     EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
-        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->get_id());
+        EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         closeAssertion.notify();
     }));
 
@@ -188,45 +188,45 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
 
         // Assert: Verify onConnect was called on the client thread.
         ASSERT_TRUE(connectAssertion.wait());
-        EXPECT_EQ(connectAssertion.thread_id, mClientLoop->get_id());
+        EXPECT_EQ(connectAssertion.thread_id, mClientLoop->GetId());
     }
 
     // --- Test data flow: QEMU -> Client ---
     {
         // Act: Post a message from the QEMU loop.
-        (void)mQemuLoop->post([&] { testSocket.send(kHelloFromQemu); });
+        (void)mQemuLoop->Post([&] { testSocket.send(kHelloFromQemu); });
 
         // Assert: Verify onReceive was called on the client thread.
         ASSERT_TRUE(receiveAssertion.wait());
-        EXPECT_EQ(receiveAssertion.thread_id, mClientLoop->get_id());
+        EXPECT_EQ(receiveAssertion.thread_id, mClientLoop->GetId());
     }
 
     // --- Test data flow: Client -> QEMU ---
     {
         // Act: Post a send request from the client loop.
-        (void)mClientLoop->post([&] { mockHalPlug->getSocket()->send(kWorldFromClient); });
+        (void)mClientLoop->Post([&] { mockHalPlug->getSocket()->send(kWorldFromClient); });
 
         // Assert: Verify sendAsync was called on the QEMU thread.
         ASSERT_TRUE(sendAsyncAssertion.wait());
-        EXPECT_EQ(sendAsyncAssertion.thread_id, mQemuLoop->get_id());
+        EXPECT_EQ(sendAsyncAssertion.thread_id, mQemuLoop->GetId());
     }
 
     // --- Test disconnection ---
     {
         // Act: Unplug the connection from the QEMU loop.
-        (void)mQemuLoop->post([&] {
+        (void)mQemuLoop->Post([&] {
             VLOG(1) << "Going to unplug the adapter";
             testSocket.plug->onUnplug();
         });
 
         // Assert: Verify onClose was called on the client thread.
         ASSERT_TRUE(closeAssertion.wait());
-        EXPECT_EQ(closeAssertion.thread_id, mClientLoop->get_id());
+        EXPECT_EQ(closeAssertion.thread_id, mClientLoop->GetId());
     }
 
     // Make sure we don't have live sockets on our loops.
-    (void)mQemuLoop->shutdownAndWait(100ms);
-    (void)mClientLoop->shutdownAndWait(100ms);
+    (void)mQemuLoop->ShutdownAndWait(100ms);
+    (void)mClientLoop->ShutdownAndWait(100ms);
 }
 
 }  // namespace devices

@@ -27,22 +27,22 @@ class UvProcessLauncher {
   protected:
     using ProcessHandle = std::unique_ptr<uv_process_t>;
 
-    static UvProcessLauncher& get_launcher(const uv_process_t& handle) {
+    static UvProcessLauncher& GetLauncher(const uv_process_t& handle) {
         return *static_cast<UvProcessLauncher*>(handle.data);
     }
 
-    static void close_handle(ProcessHandle handle) {
-        uv_close((uv_handle_t*)handle.get(), nullptr);
+    static void CloseHandle(ProcessHandle handle) {
+        uv_close(reinterpret_cast<uv_handle_t*>(handle.get()), nullptr);
     }
 
-    static int get_pid(const ProcessHandle& handle) { return handle->pid; }
+    static int GetPid(const ProcessHandle& handle) { return handle->pid; }
 
-    UvProcessLauncher(uv_loop_t* uv_loop) : mUvLoop(uv_loop) {}
+    explicit UvProcessLauncher(uv_loop_t* uv_loop) : uv_loop_(uv_loop) {}
 
-    absl::StatusOr<ProcessHandle> launch(const LaunchConfig& config, uv_exit_cb exit_cb);
+    absl::StatusOr<ProcessHandle> Launch(const LaunchConfig& config, uv_exit_cb exit_cb);
 
   private:
-    uv_loop_t* mUvLoop;
+    uv_loop_t* uv_loop_;
 };
 
 }  // namespace goldfish::async

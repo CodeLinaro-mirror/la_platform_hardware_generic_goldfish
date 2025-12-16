@@ -65,54 +65,54 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
     ThreadedEventLoopImpl(ThreadedEventLoopImpl&& other) noexcept = delete;
     ThreadedEventLoopImpl& operator=(ThreadedEventLoopImpl&& other) noexcept = delete;
 
-    std::future<absl::Status> shutdown() override { return mLoop->shutdown(); }
+    std::future<absl::Status> Shutdown() override { return loop_->Shutdown(); }
 
     /**
      * @brief Checks if the caller is on the background event loop thread.
      * @return Delegates the call to the underlying EventLoop.
      */
-    bool isOnLoopThread() const override { return mLoop->isOnLoopThread(); }
+    bool IsOnLoopThread() const override { return loop_->IsOnLoopThread(); }
 
-    std::shared_ptr<Timer> createTimer(Task task) override {
-        return mLoop->createTimer(std::move(task));
+    std::shared_ptr<Timer> CreateTimer(Task task) override {
+        return loop_->CreateTimer(std::move(task));
     }
 
-    void* getRawLoop() override { return mLoop->getRawLoop(); }
+    void* GetRawLoop() override { return loop_->GetRawLoop(); }
 
-    EventLoop* loop() { return mLoop.get(); }
+    EventLoop* Loop() { return loop_.get(); }
 
-    std::thread::id get_id() const override { return mRunner.get_id(); }
+    std::thread::id GetId() const override { return runner_.get_id(); }
 
-    LooperStatusEvent::State getState() const override { return mLoop->getState(); }
+    LooperStatusEvent::State GetState() const override { return loop_->GetState(); }
 
-    absl::Status start() override;
+    absl::Status Start() override;
 
   private:
-    absl::Status postImmediately(Task task) override {
-        return mLoop->postImmediately(std::move(task));
+    absl::Status PostImmediately(Task task) override {
+        return loop_->PostImmediately(std::move(task));
     }
 
-    absl::Status postDelayed(Task task, std::chrono::milliseconds delay) override {
-        return mLoop->postDelayed(std::move(task), delay);
+    absl::Status PostDelayed(Task task, std::chrono::milliseconds delay) override {
+        return loop_->PostDelayed(std::move(task), delay);
     }
 
-    std::thread mRunner;
-    std::unique_ptr<LibuvEventLoop> mLoop;
-    std::string mLooperName;
+    std::thread runner_;
+    std::unique_ptr<LibuvEventLoop> loop_;
+    std::string looper_name_;
     std::unique_ptr<android::base::eventing::ScopedEventCallback<LibuvEventLoop, LooperStatusEvent>>
-            mSubscription;
+            subscription_;
 };
 
 ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop, std::string name)
-        : mLoop(std::move(loop)), mLooperName(std::move(name)) {
-    mSubscription = android::base::eventing::makeScopedCallback(
-            *mLoop, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
+        : loop_(std::move(loop)), looper_name_(std::move(name)) {
+    subscription_ = android::base::eventing::makeScopedCallback(
+            *loop_, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
 }
 
 ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
     VLOG(1) << "~ThreadedEventLoopImpl";
-    auto future = shutdown();
-    auto wait = future.wait_for(getTimeout());
+    auto future = Shutdown();
+    auto wait = future.wait_for(GetTimeout());
     if (wait == std::future_status::ready) {
         auto status = future.get();
         if (!status.ok()) {
@@ -122,29 +122,29 @@ ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
         // There is likely a hung task blocking the loop.
         // Join will hang if the loop has not shutdown. All we can do is crash with an error.
         LOG(FATAL) << "ThreadedEventLoop did not complete shutdown within: "
-                   << absl::FromChrono(getTimeout());
+                   << absl::FromChrono(GetTimeout());
     }
 
-    if (mRunner.joinable()) {
-        mRunner.join();
+    if (runner_.joinable()) {
+        runner_.join();
     }
 }
 
-absl::Status ThreadedEventLoopImpl::start() {
-    if (getState() != LooperStatusEvent::State::NOT_STARTED) {
+absl::Status ThreadedEventLoopImpl::Start() {
+    if (GetState() != LooperStatusEvent::State::kNotStarted) {
         return absl::FailedPreconditionError(
                 "The event loop is automatically run, and has already started.");
     }
-    mRunner = std::thread([this] {
+    runner_ = std::thread([this] {
 #if defined(_WIN32)
         SetThreadDescription(GetCurrentThread(),
-                             android::base::Win32UnicodeString(mLooperName).c_str());
+                             android::base::Win32UnicodeString(looper_name_).c_str());
 #elif defined(__linux__)
-        pthread_setname_np(pthread_self(), mLooperName.c_str());
+        pthread_setname_np(pthread_self(), looper_name_.c_str());
 #else
-        pthread_setname_np(mLooperName.c_str());
+        pthread_setname_np(looper_name_.c_str());
 #endif
-        auto status = mLoop->run();
+        auto status = loop_->Run();
         if (!status.ok()) {
             LOG(WARNING) << "Event loop exited with: " << status;
         }
@@ -152,30 +152,30 @@ absl::Status ThreadedEventLoopImpl::start() {
     return absl::OkStatus();
 }
 
-std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::create(
-        std::unique_ptr<LibuvEventLoop> toRun) {
-    if (!toRun) {
+std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::Create(
+        std::unique_ptr<LibuvEventLoop> to_run) {
+    if (!to_run) {
         LOG(WARNING) << "No looper present";
         return nullptr;
     }
 
-    auto loop = std::make_unique<ThreadedEventLoopImpl>(std::move(toRun));
-    absl::Notification isRunning;
-    auto waitForRun = android::base::eventing::makeScopedCallback(
-            *(loop->loop()), [&isRunning](const LooperStatusEvent& event) {
+    auto loop = std::make_unique<ThreadedEventLoopImpl>(std::move(to_run));
+    absl::Notification is_running;
+    auto wait_for_run = android::base::eventing::makeScopedCallback(
+            *(loop->Loop()), [&is_running](const LooperStatusEvent& event) {
                 VLOG(1) << "Eventloop state transitioned to " << event;
-                if (event.state == LooperStatusEvent::State::RUNNING) {
-                    isRunning.Notify();
+                if (event.state == LooperStatusEvent::State::kRunning) {
+                    is_running.Notify();
                 }
             });
 
-    if (auto status = loop->start(); !status.ok()) {
+    if (auto status = loop->Start(); !status.ok()) {
         LOG(WARNING) << "Failed to start inner loop due to: " << status;
         return nullptr;
     }
 
     VLOG(1) << "Waiting until the thread is truly running";
-    if (!isRunning.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
+    if (!is_running.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
         LOG(WARNING) << "Eventloop state did not transition to running within " << kMaxStartTimeout;
         return nullptr;
     }

@@ -252,7 +252,7 @@ class VmOperations {
     /**
      * @brief Shuts down the virtual machine.
      */
-    virtual void shutdown() = 0;
+    virtual void Shutdown() = 0;
 
     /**
      * @brief Pauses the virtual machine.

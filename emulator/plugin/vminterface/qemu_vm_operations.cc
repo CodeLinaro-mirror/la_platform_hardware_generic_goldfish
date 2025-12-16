@@ -78,7 +78,7 @@ class QemuVmOperations : public VmOperations {
     /**
      * @brief Shuts down the QEMU virtual machine.
      */
-    void shutdown() override {
+    void Shutdown() override {
         ScopedVmLock lock;
         vm_shutdown();
     }

@@ -41,7 +41,7 @@ class AsyncSocketFactory {
      *                                      nullptr if the connection could not
      *                                      be initiated.
      */
-    virtual std::shared_ptr<AsyncSocket> createSocket(EventLoop* loop,
+    virtual std::shared_ptr<AsyncSocket> CreateSocket(EventLoop* loop,
                                                       const network::Endpoint& endpoint) = 0;
 
     /**
@@ -56,9 +56,9 @@ class AsyncSocketFactory {
      *                                            instance, or nullptr if the
      *                                            server could not be started.
      */
-    virtual std::shared_ptr<AsyncSocketServer> createServer(
+    virtual std::shared_ptr<AsyncSocketServer> CreateServer(
             EventLoop* loop, const network::Endpoint& endpoint,
-            AsyncSocketServer::ConnectCallback connectCallback) = 0;
+            AsyncSocketServer::ConnectCallback connect_callback) = 0;
 };
 
 /**
@@ -72,7 +72,7 @@ class AsyncSocketFactory {
  * @param hostname The hostname to connect to.
  * @return std::shared_ptr<AsyncSocket> A new socket, or nullptr on failure.
  */
-std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factory, EventLoop* loop,
+std::shared_ptr<AsyncSocket> CreateSocketFromHostname(AsyncSocketFactory& factory, EventLoop* loop,
                                                       const std::string& hostname);
 
 /**
@@ -88,8 +88,8 @@ std::shared_ptr<AsyncSocket> createSocketFromHostname(AsyncSocketFactory& factor
  * @return std::shared_ptr<AsyncSocketServer> A new server, or nullptr on
  * failure.
  */
-std::shared_ptr<AsyncSocketServer> createServerFromHostname(
+std::shared_ptr<AsyncSocketServer> CreateServerFromHostname(
         AsyncSocketFactory& factory, EventLoop* loop, const std::string& hostname,
-        AsyncSocketServer::ConnectCallback connectCallback);
+        const AsyncSocketServer::ConnectCallback& connect_callback);
 
 }  // namespace goldfish::async

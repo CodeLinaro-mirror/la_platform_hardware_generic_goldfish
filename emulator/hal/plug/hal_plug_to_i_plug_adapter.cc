@@ -39,7 +39,7 @@ HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
 void HalPlugToIPlugAdapter::onConnect() {
     // Let's inform the client of the new connection.
     VLOG(1) << "Scheduling onConnect for mHalPlug: " << *mHalPlug;
-    mClientLoop->post([plug = mHalPlug]() { plug->onConnect(); });
+    mClientLoop->Post([plug = mHalPlug]() { plug->onConnect(); });
 }
 
 bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
@@ -49,7 +49,7 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
     //
     // This means that vsock will never close out this socket from this call.
     VLOG(2) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
-    mClientLoop->post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
+    mClientLoop->Post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
         plug->onReceive(s);
     });
 
@@ -72,7 +72,7 @@ cable::SocketPtr HalPlugToIPlugAdapter::onUnplug() {
 
     // Now notify the client that we are no longer alive.
     VLOG(1) << "Scheduling onClose for mHalPlug:" << *mHalPlug;
-    (void)mClientLoop->post([plug = mHalPlug]() {
+    (void)mClientLoop->Post([plug = mHalPlug]() {
         VLOG(1) << "Calling onClose from client thread on " << *plug;
         plug->onClose();
     });

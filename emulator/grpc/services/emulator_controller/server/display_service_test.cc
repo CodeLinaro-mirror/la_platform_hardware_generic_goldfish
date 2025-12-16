@@ -45,10 +45,10 @@ class DisplayServiceTest : public GrcpServiceTest {
     void SetUp() override {
         mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
-        mLoop = ::goldfish::async::ThreadedEventLoop::create(
-                ::goldfish::async::LibuvEventLoop::create());
-        mQemuLoop = ::goldfish::async::ThreadedEventLoop::create(
-                ::goldfish::async::LibuvEventLoop::create());
+        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+                ::goldfish::async::LibuvEventLoop::Create());
+        mQemuLoop = ::goldfish::async::ThreadedEventLoop::Create(
+                ::goldfish::async::LibuvEventLoop::Create());
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mDisplayService =
                 std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());

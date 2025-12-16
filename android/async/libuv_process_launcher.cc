@@ -23,7 +23,7 @@
 
 namespace goldfish::async {
 
-absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::launch(
+absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         const LaunchConfig& config, uv_exit_cb exit_cb) {
     uv_stdio_container_t stdio[3]{};
     if (config.keep_stdio) {
@@ -34,7 +34,7 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::launch(
         stdio[2].data.fd = config.daemon ? 1 : 2;  // Send daemon stderr debugging to stdout too.
     }
 
-    std::string exe = config.exe_path.string();
+    const std::string exe = config.exe_path.string();
 
     VLOG(1) << "Launching " << exe << ": " << config.daemon;
     char* args[config.args.size() + 2];
@@ -44,23 +44,23 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::launch(
     }
     args[config.args.size() + 1] = nullptr;
 
-    uv_process_options_t options{
+    const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
         .exit_cb = exit_cb, .file = exe.c_str(),
-        .args = args,       .flags = config.daemon ? UV_PROCESS_DETACHED : 0u,
+        .args = args,       .flags = config.daemon ? UV_PROCESS_DETACHED : 0U,
         .stdio_count = 3,   .stdio = stdio,
     };
 
     auto handle = std::make_unique<uv_process_t>();
     handle->data = this;
-    if (int res = uv_spawn(mUvLoop, handle.get(), &options); res < 0) {
+    if (const int res = uv_spawn(uv_loop_, handle.get(), &options); res < 0) {
         return goldfish::async::UvErrToAbslStatus(res);
     }
 
     if (config.daemon) {
         // Let launcher exit and leave daemon processes running.
-        uv_unref((uv_handle_t*)handle.get());
+        uv_unref(reinterpret_cast<uv_handle_t*>(handle.get()));
     }
 
     return handle;

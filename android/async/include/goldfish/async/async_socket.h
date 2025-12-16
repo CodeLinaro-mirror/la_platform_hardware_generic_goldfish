@@ -153,9 +153,9 @@ class AsyncSocket {
      * @param cb The function to call with incoming data or a read error.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void setOnReadCallbackNoFlowControl(OnReadCallback cb) = 0;
+    virtual void SetOnReadCallbackNoFlowControl(OnReadCallback cb) = 0;
 
-    virtual void onFlowControlEvent(bool enableReading) = 0;
+    virtual void OnFlowControlEvent(bool enable_reading) = 0;
 
     /**
      * @brief Sets the callback for when the socket is fully closed.
@@ -167,7 +167,7 @@ class AsyncSocket {
      * @param cb The function to call upon closure.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void setOnCloseCallback(OnCloseCallback cb) = 0;
+    virtual void SetOnCloseCallback(OnCloseCallback cb) = 0;
 
     /**
      * @brief Sets the callback for a connection attempt.
@@ -178,7 +178,7 @@ class AsyncSocket {
      * @param cb The function to call with the connection result.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void setOnConnectedCallback(OnConnectCallback cb) = 0;
+    virtual void SetOnConnectedCallback(OnConnectCallback cb) = 0;
 
     /**
      * @brief Asynchronously sends a buffer of data over the socket.
@@ -186,22 +186,22 @@ class AsyncSocket {
      * The provided buffer must remain valid until the OnSendCallback is invoked.
      *
      * @param buffer A pointer to the data to be sent.
-     * @param bufferSize The number of bytes to send from the buffer.
+     * @param buffer_size The number of bytes to send from the buffer.
      * @param cb The callback to be invoked upon completion of the send. This
      * callback will be executed on the socket's event loop thread.
      * @return absl::OkStatus() if the send was successfully queued, or an
      * error status on immediate failure.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual absl::Status send(const char* buffer, size_t bufferSize, OnSendCallback cb) = 0;
+    virtual absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback cb) = 0;
 
     /**
      * @brief A convenience overload for send that performs a "fire-and-forget"
      * operation without a completion callback.
      * @warning This method must be called from the socket's event loop thread.
      */
-    absl::Status send(const char* buffer, size_t bufferSize) {
-        return send(buffer, bufferSize, [](auto) {});
+    absl::Status Send(const char* buffer, size_t buffer_size) {
+        return Send(buffer, buffer_size, [](const auto&) {});
     }
 
     /**
@@ -212,7 +212,7 @@ class AsyncSocket {
      * `ScopedAsyncSocket` RAII wrapper is the recommended way to ensure this.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void close() = 0;
+    virtual void Close() = 0;
 
     /**
      * @brief Asynchronously initiates a connection to the configured endpoint.
@@ -224,7 +224,7 @@ class AsyncSocket {
      * error status on immediate failure.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual absl::Status connect() = 0;
+    virtual absl::Status Connect() = 0;
 
     /**
      * @brief Checks the current connection state of the socket.
@@ -232,7 +232,7 @@ class AsyncSocket {
      * otherwise.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual bool connected() const = 0;
+    virtual bool Connected() const = 0;
 
     /**
      * @brief Returns the EventLoop this socket is bound to.
@@ -240,7 +240,7 @@ class AsyncSocket {
      * @note This method is thread-safe and is the primary way for an external
      * thread to get the loop pointer needed to `post()` tasks.
      */
-    virtual EventLoop* getLoop() const = 0;
+    virtual EventLoop* GetLoop() const = 0;
 
   protected:
     /**
@@ -253,7 +253,7 @@ class AsyncSocket {
      * @param s The `absl::FormatSink` to write the formatted string to.
      */
     virtual void AbslStringifyImpl(absl::FormatSink& s) const {
-        absl::Format(&s, "<DefaultAsyncSocket loop=%p>", getLoop());
+        absl::Format(&s, "<DefaultAsyncSocket loop=%p>", GetLoop());
     }
 
   private:

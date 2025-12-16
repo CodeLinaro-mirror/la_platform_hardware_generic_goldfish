@@ -251,13 +251,13 @@ class KeyEventSenderImpl : public IKeyEventSender {
         KeyCodeType type = static_cast<KeyCodeType>(codeType);
         QKeyCode qcode = keycode_to_qcode(code, type);
         if (eventType == KeyboardEvent::keydown || eventType == KeyboardEvent::keypress) {
-            mQemuLoop->post([qcode, kbd = mKbd] {
+            mQemuLoop->Post([qcode, kbd = mKbd] {
                 QemuKeyEvent keyEvent{qcode, true};
                 keyEvent.send(kbd);
             });
         }
         if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
-            mQemuLoop->post([qcode, kbd = mKbd] {
+            mQemuLoop->Post([qcode, kbd = mKbd] {
                 QemuKeyEvent keyEvent{qcode, false};
                 keyEvent.send(kbd);
             });
@@ -284,12 +284,12 @@ class KeyEventSenderImpl : public IKeyEventSender {
                     if (eventType == KeyboardEvent::keydown ||
                         eventType == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, true)) {
-                            mQemuLoop->post([key = keycode, kbd = mKbd] { key.send(kbd); });
+                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); });
                         }
                     }
                     if (eventType == KeyboardEvent::keyup || eventType == KeyboardEvent::keypress) {
                         for (auto keycode : ascii_to_qcode(character, false)) {
-                            mQemuLoop->post([key = keycode, kbd = mKbd] { key.send(kbd); });
+                            mQemuLoop->Post([key = keycode, kbd = mKbd] { key.send(kbd); });
                         }
                     }
                 } else {
@@ -341,10 +341,10 @@ class KeyEventSenderImpl : public IKeyEventSender {
                 auto up = ascii_to_qcode(*start, false);
 
                 for (auto qcode : down) {
-                    mQemuLoop->post([qcode, kbd = mKbd] { qcode.send(kbd); });
+                    mQemuLoop->Post([qcode, kbd = mKbd] { qcode.send(kbd); });
                 }
                 for (auto qcode : up) {
-                    mQemuLoop->post([qcode, kbd = mKbd] { qcode.send(kbd); });
+                    mQemuLoop->Post([qcode, kbd = mKbd] { qcode.send(kbd); });
                 }
                 start = end;
             }

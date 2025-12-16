@@ -37,7 +37,7 @@ class QemuEventLoop : public EventLoop {
      *
      * @return A std::unique_ptr to a new QemuEventLoop instance.
      */
-    static std::unique_ptr<QemuEventLoop> create();
+    static std::unique_ptr<QemuEventLoop> Create();
 };
 
 }  // namespace goldfish::async

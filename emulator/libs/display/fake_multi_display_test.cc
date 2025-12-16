@@ -31,8 +31,8 @@ using namespace goldfish::display::test;
 class FakeMultiDisplayTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoop = ::goldfish::async::ThreadedEventLoop::create(
-                ::goldfish::async::LibuvEventLoop::create());
+        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+                ::goldfish::async::LibuvEventLoop::Create());
 
         // Clear all displays except the default one before each test
         mFakeMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
@@ -215,7 +215,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     absl::Notification event;
     auto callback =
             android::base::eventing::makeScopedCallback(*multiDisplay, [&](const DisplayEvent& _) {
-                ASSERT_TRUE(mLoop->isOnLoopThread())
+                ASSERT_TRUE(mLoop->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
                 event.Notify();
             });
@@ -352,9 +352,9 @@ TEST_F(FakeMultiDisplayTest, DISABLED_ScalingFailureBoundaryTest) {
         auto [newWidth, newHeight] = display->resizeKeepAspectRatio(w, kInitialHeight);
 
         std::vector<uint8_t> buffer(newWidth * newHeight * 4);
-        size_t bufferSize = buffer.size();
+        size_t buffer_size = buffer.size();
         auto result = display->getPixels(PixelFormat::RGBA8888, newWidth, newHeight, 0,
-                                         buffer.data(), &bufferSize);
+                                         buffer.data(), &buffer_size);
         ASSERT_TRUE(result.ok());
 
         auto validationImage = PixmanImagePtr(pixman_image_create_bits_no_clear(
