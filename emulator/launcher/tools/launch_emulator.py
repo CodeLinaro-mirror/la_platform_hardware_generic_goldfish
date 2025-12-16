@@ -96,8 +96,8 @@ if __name__ == "__main__":
                 )
             )
 
-            # give netsim some time to die
-            time.sleep(5)
-
             if exit_code != 0:
                 sys.exit(exit_code)
+
+            # give netsim some time to die
+            time.sleep(5)

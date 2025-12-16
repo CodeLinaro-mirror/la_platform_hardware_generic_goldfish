@@ -14,8 +14,6 @@
 
 #include "absl/log/log_sink.h"
 
-#include "android/base/logging/logging_api.h"
-
 namespace android {
 namespace base {
 
@@ -24,7 +22,7 @@ namespace base {
  *
  * The sink will output to std::cout.
  */
-LOGGING_API class ColorLogSink : public absl::LogSink {
+class ColorLogSink : public absl::LogSink {
   public:
     /**
      * @brief Construct a new Color Log Sink object.

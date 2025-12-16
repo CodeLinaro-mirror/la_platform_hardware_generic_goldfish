@@ -35,8 +35,6 @@ cc_test(
         "contiguous_range_mapper_test.cc",
         "malloc_usable_size_test.cc",
         "memory_hints_test.cc",
-        # "test/android/base/memory/OnDemand_unittest.cpp",
-        "scoped_ptr_test.cc",
         "shared_memory_test.cc",
     ],
     linkopts = select({
@@ -47,7 +45,6 @@ cc_test(
     deps = [
         ":memory",
         "//android/files",
-        "//android/logging:backend",
         "//android/sockets",
         "//android/system",
         "//android/system:googletest_main",

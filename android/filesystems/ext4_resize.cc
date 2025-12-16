@@ -23,8 +23,8 @@
 
 #include "absl/log/log.h"
 
-#include "aemu//base/process/Command.h"
 #include "android/base/system.h"
+#include "android/process/command.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif

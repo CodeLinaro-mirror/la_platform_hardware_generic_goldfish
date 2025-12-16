@@ -1,2 +1,3 @@
 .cache
 .vscode
+MODULE.bazel.lock

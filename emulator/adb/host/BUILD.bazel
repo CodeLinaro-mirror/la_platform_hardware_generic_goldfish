@@ -18,7 +18,10 @@ cc_library(
 
 cc_test(
     name = "host_unitests",
-    srcs = ["adb_host_server_test.cc"],
+    srcs = [
+        "TestInputBufferSocketServerThread.h",
+        "adb_host_server_test.cc",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":host",

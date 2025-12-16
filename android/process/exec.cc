@@ -12,18 +12,17 @@
 
 #include <vector>
 
-#include "aemu/base/system/Win32UnicodeString.h"
-
 #ifdef _MSC_VER
 #include "msvc-posix.h"
 #else
 #include <unistd.h>
 #endif
 
-namespace android {
-namespace base {
 #ifdef _WIN32
+#include "android/base/win32_unicode_string.h"
 #include <windows.h>
+
+namespace android::base {
 
 // Console control handler has no way of passing data, so let's have
 // a global variable here.
@@ -98,10 +97,10 @@ int safe_execv(const char* path, char* const* argv) {
 
 #else
 
+namespace android::base {
 int safe_execv(const char* path, char* const* argv) {
     return execv(path, argv);
 }
 
 #endif
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

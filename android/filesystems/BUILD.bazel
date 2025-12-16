@@ -14,9 +14,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//android/ext4_utils",
+        "//android/process",
         "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:absl_log",
-        "@aemu//base:aemu-base",
     ],
 )
