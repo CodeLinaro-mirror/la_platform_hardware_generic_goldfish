@@ -73,4 +73,10 @@ TEST(EndpointTest, invalid) {
                                               HasSubstr("Unsupported address family")));
 }
 
+TEST(EndpointTest, GetPortFromEndpoint) {
+    EXPECT_EQ(GetPortFromEndpoint(Ipv4Endpoint{.port = 1234}), 1234);
+    EXPECT_EQ(GetPortFromEndpoint(Ipv6Endpoint{.port = 1234}), 1234);
+    EXPECT_EQ(GetPortFromEndpoint(*UnEndpoint::Create("something")), -1);
+}
+
 }  // namespace goldfish::network

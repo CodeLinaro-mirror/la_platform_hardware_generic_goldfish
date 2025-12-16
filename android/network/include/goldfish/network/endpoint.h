@@ -34,6 +34,8 @@ std::string ToString(const Endpoint&);
 
 struct sockaddr_storage ToSockaddr(const Endpoint&);
 
+int GetPortFromEndpoint(const Endpoint&);
+
 struct EndpointFormatter {
     void operator()(std::string* out, const Endpoint& e) const { out->append(ToString(e)); }
 };

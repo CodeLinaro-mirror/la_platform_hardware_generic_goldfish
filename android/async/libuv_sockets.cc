@@ -358,9 +358,24 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                 << "LibuvServer destroyed without calling close() first!";
     }
 
-    int Port() const override {
+    Endpoint GetEndpoint() const override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        return port_;
+
+        struct sockaddr_storage addr = {};
+        int len = sizeof(addr);
+        if (const int getsockname_result = ::uv_tcp_getsockname(
+                    &server_handle_, reinterpret_cast<struct sockaddr*>(&addr), &len)) {
+            LOG(WARNING) << "getsockname error: " << UvErrToAbslStatus(getsockname_result);
+            return {};
+        }
+
+        auto ep = network::ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
+        if (!ep.ok()) {
+            LOG(ERROR) << "Could not get the server endpoint";
+            return {};
+        }
+
+        return *std::move(ep);
     }
 
     void Close() override {
@@ -397,26 +412,6 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
         if (uv_tcp_bind(&server_handle_, reinterpret_cast<const struct sockaddr*>(&addr), 0) != 0) {
             LOG(ERROR) << "Failed to bind to " << ToString(endpoint);
-            return false;
-        }
-
-        // After a successful bind, update the port in case a random port
-        // was assigned (by passing port 0).
-        int len = sizeof(sockaddr_storage);
-        uv_tcp_getsockname(
-                &server_handle_,
-                reinterpret_cast<struct sockaddr*>(const_cast<struct sockaddr_storage*>(&addr)),
-                &len);
-
-        switch (addr.ss_family) {
-        case AF_INET:
-            port_ = ntohs((reinterpret_cast<const sockaddr_in*>(&addr))->sin_port);
-            break;
-        case AF_INET6:
-            port_ = ntohs((reinterpret_cast<const sockaddr_in6*>(&addr))->sin6_port);
-            break;
-        default:
-            // Should not happen.
             return false;
         }
 
@@ -474,7 +469,6 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     AsyncSocket::OnCloseCallback on_close_;
     ConnectCallback connect_callback_;
     uv_tcp_t server_handle_;
-    int port_ = -1;
     bool is_listening_ = false;
 };
 

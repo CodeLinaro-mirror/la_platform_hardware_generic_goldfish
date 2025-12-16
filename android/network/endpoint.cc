@@ -13,7 +13,11 @@
 // limitations under the License.
 #include "goldfish/network/endpoint.h"
 
+#include "goldfish/cpp/overloaded.h"
+
 namespace goldfish::network {
+
+using goldfish::cpp::Overloaded;
 
 absl::StatusOr<Endpoint> ToEndpoint(const struct sockaddr& addr) {
     switch (addr.sa_family) {
@@ -48,6 +52,15 @@ struct sockaddr_storage ToSockaddr(const Endpoint& endpoint) {
                 return storage;
             },
             endpoint);
+}
+
+int GetPortFromEndpoint(const Endpoint& ep) {
+    return std::visit(Overloaded{
+                          [](const Ipv4Endpoint& ip4) { return static_cast<int>(ip4.port); },
+                          [](const Ipv6Endpoint& ip6) { return static_cast<int>(ip6.port); },
+                          [](const UnEndpoint&) { return -1; },
+                      },
+                      ep);
 }
 
 }  // namespace goldfish::network

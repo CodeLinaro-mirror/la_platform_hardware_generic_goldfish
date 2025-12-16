@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "goldfish/async/scoped_async_resource.h"
+#include "goldfish/network/endpoint.h"
 
 namespace goldfish::async {
 
@@ -68,11 +69,11 @@ class AsyncSocketServer {
     virtual ~AsyncSocketServer() = default;
 
     /**
-     * @brief Returns the port the server is listening on.
-     * @return The listening port number, or -1 if not listening.
+     * @brief Returns the endpoint the server is listening on.
+     * @return The listening endpoint, or an empty address if not listening.
      * @warning This method must be called from the server's event loop thread.
      */
-    virtual int Port() const = 0;
+    virtual network::Endpoint GetEndpoint() const = 0;
 
     /**
      * @brief Initiates the asynchronous closing of the server.

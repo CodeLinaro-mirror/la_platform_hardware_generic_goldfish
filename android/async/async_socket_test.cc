@@ -29,6 +29,7 @@ namespace goldfish::async {
 using namespace std::chrono_literals;
 using absl_testing::IsOk;
 using network::Endpoint;
+using network::GetPortFromEndpoint;
 using network::ToEndpoint;
 using network::ToIpAddress;
 
@@ -109,12 +110,10 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
         return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(PostAndWait([&, port] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(raw_event_loop_, endpoint);
-    }));
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
     raw_event_loop_->Post([&]() {
@@ -160,12 +159,10 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
         return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(PostAndWait([&, port] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(raw_event_loop_, endpoint);
-    }));
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
     raw_event_loop_->Post([&]() {
@@ -211,12 +208,10 @@ TEST_F(AsyncSocketTest, EchoTest) {
         return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(PostAndWait([&, port] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(raw_event_loop_, endpoint);
-    }));
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
     raw_event_loop_->Post([&]() {
@@ -268,12 +263,10 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
         return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(PostAndWait([&, port] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(raw_event_loop_, endpoint);
-    }));
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
     raw_event_loop_->Post([&]() {
@@ -320,12 +313,10 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
         return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(PostAndWait([&, port] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(raw_event_loop_, endpoint);
-    }));
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
     std::vector<std::thread> threads;
@@ -389,7 +380,9 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
         return CreateServerFromHostname(*factory_, raw_event_loop_, "localhost:0", on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+    const int port = GetPortFromEndpoint(endpoint);
+    ASSERT_GT(port, 0);
 
     ScopedAsyncSocket client(PostAndWait([&, port] {
         return CreateSocketFromHostname(*factory_, raw_event_loop_,
@@ -457,7 +450,9 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
         return CreateServerFromHostname(*factory_, raw_event_loop_, "localhost:0", on_connect);
     }));
     ASSERT_NE(server, nullptr);
-    int port = PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+    const int port = GetPortFromEndpoint(endpoint);
+    ASSERT_GT(port, 0);
 
     ScopedAsyncSocket client(PostAndWait([&, port] {
         return CreateSocketFromHostname(*factory_, raw_event_loop_,

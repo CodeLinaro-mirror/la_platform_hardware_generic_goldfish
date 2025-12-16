@@ -57,12 +57,10 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
             return true;
         });
     }));
-    int port = *PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = *PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(*PostAndWait([&] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(loop_.get(), endpoint);
-    }));
+    ScopedAsyncSocket client(
+            *PostAndWait([&, endpoint] { return factory_->CreateSocket(loop_.get(), endpoint); }));
 
     // Connect and wait for it to be established before starting the benchmark.
     absl::Notification connect_notification;
@@ -103,12 +101,10 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
             return true;
         });
     }));
-    int port = *PostAndWait([&] { return server->Port(); });
+    Endpoint endpoint = *PostAndWait([&] { return server->GetEndpoint(); });
 
-    ScopedAsyncSocket client(*PostAndWait([&] {
-        auto endpoint = ToEndpoint(ToIpAddress("127.0.0.1").value(), port);
-        return factory_->CreateSocket(loop_.get(), endpoint);
-    }));
+    ScopedAsyncSocket client(
+            *PostAndWait([&, endpoint] { return factory_->CreateSocket(loop_.get(), endpoint); }));
 
     absl::Notification connected_notification;
     loop_->Post([&]() {
