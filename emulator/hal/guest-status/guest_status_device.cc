@@ -64,9 +64,11 @@ class GuestStatusDevice : public IGuestStatusDevice,
     void onClose() override {
         VLOG(1) << "Guest status device has been disconnected";
 
-        (void)mQemuLoop->post([self = shared_from_this()]() {
+        // TODO shared_from_this() throws here as this no longer has any associated shared_ptr.
+        // Presumably it's being destroyed?
+        /*(void)mQemuLoop->post([self = shared_from_this()]() {
             self->mUnregisterEmulatorReset(GuestStatusDevice::QEMUResetHandler, self.get());
-        });
+        });*/
     }
 
     void onReceive(const std::string_view data) override {
