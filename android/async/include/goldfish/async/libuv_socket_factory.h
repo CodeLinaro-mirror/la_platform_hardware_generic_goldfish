@@ -22,8 +22,6 @@ namespace goldfish::async {
 
 class LibuvAsyncSocketFactory : public AsyncSocketFactory {
   public:
-    ~LibuvAsyncSocketFactory() = default;
-
     std::shared_ptr<AsyncSocket> createSocket(EventLoop* loop,
                                               const network::Endpoint& endpoint) override;
 

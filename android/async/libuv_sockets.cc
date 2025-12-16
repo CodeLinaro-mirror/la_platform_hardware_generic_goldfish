@@ -50,6 +50,8 @@ namespace goldfish::async {
 
 using goldfish::network::Endpoint;
 
+namespace {
+
 struct write_req_t {
     uv_write_t req;
     uv_buf_t buf;
@@ -334,7 +336,17 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
   public:
     // Factory to create a LibuvServer. Returns nullptr on failure.
     static std::shared_ptr<LibuvServer> create(EventLoop* loop, const Endpoint& endpoint,
-                                               ConnectCallback cb);
+                                               ConnectCallback cb) {
+        DCHECK(loop->isOnLoopThread()) << "Factory must be used on loop thread";
+        const auto server = std::make_shared<LibuvServer>(loop, std::move(cb), Private());
+
+        if (server->bindAndListen(endpoint)) {
+            return server;
+        }
+
+        server->close();
+        return nullptr;
+    }
 
     LibuvServer(EventLoop* loop, ConnectCallback cb, Private)
             : mEventLoop(loop)
@@ -466,18 +478,7 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     bool mIsListening = false;
 };
 
-std::shared_ptr<LibuvServer> LibuvServer::create(EventLoop* loop, const Endpoint& endpoint,
-                                                 ConnectCallback cb) {
-    DCHECK(loop->isOnLoopThread()) << "Factory must be used on loop thread";
-    const auto server = std::make_shared<LibuvServer>(loop, std::move(cb), Private());
-
-    if (server->bindAndListen(endpoint)) {
-        return server;
-    }
-
-    server->close();
-    return nullptr;
-}
+}  // namespace
 
 // =================================================================
 //          LibuvSocketFactory Implementation
