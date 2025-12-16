@@ -366,8 +366,11 @@ async def launch_and_monitor_emulator(
             # which should be fine.
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
-            signal.signal(signal.SIGHUP, signal_handler)
-            signal.signal(signal.SIGQUIT, signal_handler)
+            if platform.system() == "Windows":
+                signal.signal(signal.SIGBREAK, signal_handler)
+            else:
+                signal.signal(signal.SIGHUP, signal_handler)
+                signal.signal(signal.SIGQUIT, signal_handler)
 
             status = await runner.launch_and_wait(timeout_seconds, target_log_line)
 
