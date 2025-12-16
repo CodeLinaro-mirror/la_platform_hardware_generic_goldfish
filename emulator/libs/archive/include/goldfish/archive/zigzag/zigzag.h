@@ -14,25 +14,20 @@
 #include <climits>
 #include <cstdint>
 
-namespace goldfish {
-namespace archive {
-namespace zigzag {
-namespace {
+namespace goldfish::archive::zigzag {
 
 using unsigned_t = unsigned long long;
 using signed_t = signed long long;
 static_assert(sizeof(unsigned_t) == sizeof(signed_t));
 static_assert(sizeof(unsigned_t) == 8);
 
-unsigned_t encode(const signed_t x) {
-    return (x >> (sizeof(x) * CHAR_BIT - 1)) ^ (x << 1);
+inline unsigned_t Encode(const signed_t x) {
+    return static_cast<unsigned_t>(x >> (sizeof(x) * CHAR_BIT - 1)) ^
+           (static_cast<unsigned_t>(x) << 1);
 }
 
-signed_t decode(const unsigned_t x) {
-    return (x >> 1) ^ -signed_t(x & 1);
+inline signed_t Decode(const unsigned_t x) {
+    return static_cast<signed_t>((x >> 1) ^ -static_cast<signed_t>(x & 1));
 }
 
-}  // namespace
-}  // namespace zigzag
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive::zigzag

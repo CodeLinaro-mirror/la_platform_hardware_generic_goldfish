@@ -25,36 +25,36 @@ using goldfish::archive::DequeWriter;
 TEST(UniqueIdAllocator, getput_all) {
     UniqueIdAllocator allocator;
 
-    EXPECT_EQ(allocator.get(), 1);
-    EXPECT_EQ(allocator.get(), 2);
-    EXPECT_EQ(allocator.get(), 3);
-    EXPECT_EQ(allocator.get(), 4);
-    EXPECT_EQ(allocator.get(), 5);
+    EXPECT_EQ(allocator.Get(), 1);
+    EXPECT_EQ(allocator.Get(), 2);
+    EXPECT_EQ(allocator.Get(), 3);
+    EXPECT_EQ(allocator.Get(), 4);
+    EXPECT_EQ(allocator.Get(), 5);
 
-    allocator.put(4);
-    allocator.put(1);
-    allocator.put(2);
-    allocator.put(5);
-    allocator.put(3);
+    allocator.Put(4);
+    allocator.Put(1);
+    allocator.Put(2);
+    allocator.Put(5);
+    allocator.Put(3);
 
-    EXPECT_EQ(allocator.get(), 1);
+    EXPECT_EQ(allocator.Get(), 1);
 }
 
 TEST(UniqueIdAllocator, getput_some) {
     UniqueIdAllocator allocator;
 
-    EXPECT_EQ(allocator.get(), 1);
-    EXPECT_EQ(allocator.get(), 2);
-    EXPECT_EQ(allocator.get(), 3);
-    EXPECT_EQ(allocator.get(), 4);
-    EXPECT_EQ(allocator.get(), 5);
+    EXPECT_EQ(allocator.Get(), 1);
+    EXPECT_EQ(allocator.Get(), 2);
+    EXPECT_EQ(allocator.Get(), 3);
+    EXPECT_EQ(allocator.Get(), 4);
+    EXPECT_EQ(allocator.Get(), 5);
 
-    allocator.put(2);
-    allocator.put(3);
-    EXPECT_EQ(allocator.get(), 2);
-    EXPECT_EQ(allocator.get(), 3);
+    allocator.Put(2);
+    allocator.Put(3);
+    EXPECT_EQ(allocator.Get(), 2);
+    EXPECT_EQ(allocator.Get(), 3);
 
-    EXPECT_EQ(allocator.get(), 6);
+    EXPECT_EQ(allocator.Get(), 6);
 }
 
 TEST(UniqueIdAllocator, snapshot) {
@@ -63,21 +63,21 @@ TEST(UniqueIdAllocator, snapshot) {
     {
         UniqueIdAllocator allocator;
 
-        EXPECT_EQ(allocator.get(), 1);
-        EXPECT_EQ(allocator.get(), 2);
-        EXPECT_EQ(allocator.get(), 3);
-        EXPECT_EQ(allocator.get(), 4);
-        EXPECT_EQ(allocator.get(), 5);
-        allocator.put(2);
+        EXPECT_EQ(allocator.Get(), 1);
+        EXPECT_EQ(allocator.Get(), 2);
+        EXPECT_EQ(allocator.Get(), 3);
+        EXPECT_EQ(allocator.Get(), 4);
+        EXPECT_EQ(allocator.Get(), 5);
+        allocator.Put(2);
 
-        allocator.saveToSnapshot(archive);
+        allocator.SaveToSnapshot(archive);
     }
 
     {
         UniqueIdAllocator allocator;
-        allocator.loadFromSnapshot(archive);
+        allocator.LoadFromSnapshot(archive);
 
-        EXPECT_EQ(allocator.get(), 2);
-        EXPECT_EQ(allocator.get(), 6);
+        EXPECT_EQ(allocator.Get(), 2);
+        EXPECT_EQ(allocator.Get(), 6);
     }
 }

@@ -148,7 +148,7 @@ cable::IPlug::TypeId Connector::getSnapshotTypeId() const {
 
 bool Connector::saveStateToSnapshot(archive::IWriter& writer) const {
     writer << mBuffer.size();
-    writer.write(mBuffer.data(), mBuffer.size());
+    writer.Write(mBuffer.data(), mBuffer.size());
     return true;
 }
 

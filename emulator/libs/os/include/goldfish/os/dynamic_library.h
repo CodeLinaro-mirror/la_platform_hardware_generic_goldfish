@@ -34,13 +34,13 @@ namespace goldfish::os {
 struct DynamicLibrary {
     DynamicLibrary() = default;
     explicit DynamicLibrary(const std::filesystem::path& path);
-    DynamicLibrary(DynamicLibrary&& rhs);
-    DynamicLibrary& operator=(DynamicLibrary&& rhs);
+    DynamicLibrary(DynamicLibrary&& rhs) noexcept;
+    DynamicLibrary& operator=(DynamicLibrary&& rhs) noexcept;
 
-    bool ok() const;
+    bool ok() const;  // NOLINT
     void* operator[](const char*) const;
 
-    friend void swap(DynamicLibrary& lhs, DynamicLibrary& rhs);
+    friend void swap(DynamicLibrary& lhs, DynamicLibrary& rhs) noexcept;  // NOLINT
 
     DynamicLibrary(const DynamicLibrary&) = delete;
     DynamicLibrary& operator=(const DynamicLibrary&) = delete;
@@ -58,13 +58,13 @@ struct DynamicLibrary {
     struct HandleDeleter {
         struct Empty {};
         HandleDeleter() = default;
-        HandleDeleter(Empty) {}
+        explicit HandleDeleter(Empty) {}
         void operator()(void*) const;
     };
     using LibraryHandle = goldfish::base::UniqueHandle<void*, nullptr, HandleDeleter>;
 #endif
 
-    LibraryHandle mHandle;
+    LibraryHandle handle_;
 };
 
 }  // namespace goldfish::os

@@ -24,17 +24,17 @@ template <typename Type, Type kEmpty, typename Deleter>
 struct UniqueHandle : private Deleter {
     ~UniqueHandle() {
         if (ok()) {
-            (*this)(mValue);
+            (*this)(value_);
         }
     }
 
-    UniqueHandle() : Deleter(typename Deleter::Empty()), mValue(kEmpty) {}
+    UniqueHandle() : Deleter(typename Deleter::Empty()), value_(kEmpty) {}
 
     explicit UniqueHandle(Type value, Deleter d = Deleter())
-            : Deleter(std::move(d)), mValue(value) {}
+            : Deleter(std::move(d)), value_(value) {}
 
     UniqueHandle(UniqueHandle&& rhs) noexcept(std::is_nothrow_move_constructible_v<Deleter>)
-            : Deleter(std::move(static_cast<Deleter&>(rhs))), mValue(rhs.release()) {}
+            : Deleter(std::move(static_cast<Deleter&>(rhs))), value_(rhs.release()) {}
 
     UniqueHandle& operator=(UniqueHandle&& rhs) noexcept(noexcept(swap(*this, rhs))) {
         UniqueHandle tmp(std::move(rhs));
@@ -43,14 +43,14 @@ struct UniqueHandle : private Deleter {
     }
 
     explicit operator bool() const { return ok(); }
-    bool ok() const { return mValue != kEmpty; }
+    bool ok() const { return value_ != kEmpty; }  // NOLINT
 
-    Type get() const { return mValue; }
+    Type get() const { return value_; }  // NOLINT
 
-    Type release() { return std::exchange(mValue, kEmpty); }
+    Type release() { return std::exchange(value_, kEmpty); }  // NOLINT
 
-    void reset(Type value = kEmpty) {
-        Type old_value = std::exchange(mValue, value);
+    void reset(Type value = kEmpty) {  // NOLINT
+        Type old_value = std::exchange(value_, value);
         if (old_value != kEmpty) {
             (*this)(old_value);  // Deleter::operator()
         }
@@ -59,15 +59,16 @@ struct UniqueHandle : private Deleter {
     UniqueHandle(const UniqueHandle&) = delete;
     UniqueHandle& operator=(const UniqueHandle&) = delete;
 
+    // NOLINTNEXTLINE
     friend void swap(UniqueHandle& lhs,
                      UniqueHandle& rhs) noexcept(std::is_nothrow_swappable_v<Deleter>) {
         using std::swap;
         swap(static_cast<Deleter&>(lhs), static_cast<Deleter&>(rhs));
-        swap(lhs.mValue, rhs.mValue);
+        swap(lhs.value_, rhs.value_);
     }
 
   private:
-    Type mValue = kEmpty;
+    Type value_ = kEmpty;
 };
 
 }  // namespace goldfish::base

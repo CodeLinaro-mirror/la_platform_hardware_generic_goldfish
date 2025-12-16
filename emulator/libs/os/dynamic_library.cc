@@ -20,47 +20,47 @@
 namespace goldfish::os {
 namespace {
 #if defined(_WIN32)
-HMODULE loadLibraryImpl(const std::filesystem::path& path) {
+HMODULE LoadLibraryImpl(const std::filesystem::path& path) {
     return ::LoadLibraryA(path.string().c_str());
 }
 
-void* getProcAddressImpl(HMODULE lib, const char* func) {
+void* GetProcAddressImpl(HMODULE lib, const char* func) {
     return reinterpret_cast<void*>(::GetProcAddress(lib, func));
 }
 
 #else
 
-void* loadLibraryImpl(const std::filesystem::path& path) {
+void* LoadLibraryImpl(const std::filesystem::path& path) {
     return ::dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
 }
 
-void* getProcAddressImpl(void* lib, const char* func) {
+void* GetProcAddressImpl(void* lib, const char* func) {
     return ::dlsym(lib, func);
 }
 #endif
 }  // namespace
 
 DynamicLibrary::DynamicLibrary(const std::filesystem::path& path)
-        : mHandle(loadLibraryImpl(path)) {}
+        : handle_(LoadLibraryImpl(path)) {}
 
-DynamicLibrary::DynamicLibrary(DynamicLibrary&& rhs) : mHandle(std::move(rhs.mHandle)) {}
+DynamicLibrary::DynamicLibrary(DynamicLibrary&& rhs) noexcept : handle_(std::move(rhs.handle_)) {}
 
-DynamicLibrary& DynamicLibrary::operator=(DynamicLibrary&& rhs) {
+DynamicLibrary& DynamicLibrary::operator=(DynamicLibrary&& rhs) noexcept {
     swap(*this, rhs);
     return *this;
 }
 
 bool DynamicLibrary::ok() const {
-    return mHandle.ok();
+    return handle_.ok();
 }
 
 void* DynamicLibrary::operator[](const char* func) const {
-    return getProcAddressImpl(mHandle.get(), func);
+    return GetProcAddressImpl(handle_.get(), func);
 }
 
-void swap(DynamicLibrary& lhs, DynamicLibrary& rhs) {
+void swap(DynamicLibrary& lhs, DynamicLibrary& rhs) noexcept {
     using std::swap;
-    swap(lhs.mHandle, rhs.mHandle);
+    swap(lhs.handle_, rhs.handle_);
 }
 
 #if defined(_WIN32)

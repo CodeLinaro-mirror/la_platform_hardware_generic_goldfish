@@ -29,6 +29,7 @@ Checks:
   - '-modernize-use-std-format'             # We are using absl::StrFormat a lot.
   - '-bugprone-easily-swappable-parameters' # IPv6 addresses are long but we still need them
   - '-modernize-use-nodiscard'              # This is a bit aggressive.
+  - '-google-runtime-int'                   # We are using long long, etc in various places.
 
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'
@@ -96,7 +97,7 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.StructMemberCase
     value: lower_case
-  
+
   # 3. Functions: PascalCase (CamelCase)
   - key: readability-identifier-naming.FunctionCase
     value: CamelCase

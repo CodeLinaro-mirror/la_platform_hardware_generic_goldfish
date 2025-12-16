@@ -18,29 +18,28 @@
 #include "goldfish/archive/deque_writer.h"
 #include "goldfish/debug.h"
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
-size_t DequeReader::read(void* dst, const size_t requestedSize) {
-    const size_t size = std::min(requestedSize, mStorage->size());
-    const auto begin = mStorage->begin();
-    const auto end = begin + size;
+size_t DequeReader::Read(void* dst, const size_t requested_size) {
+    const size_t size = std::min(requested_size, storage->size());
+    const auto begin = storage->begin();
+    const auto end = std::next(begin, static_cast<int64_t>(size));
 
     std::copy(begin, end, static_cast<uint8_t*>(NOT_NULL(dst)));
-    NOT_NULL(mStorage)->erase(begin, end);
+    NOT_NULL(storage)->erase(begin, end);
 
     return size;
 }
 
-void DequeWriter::write(const void* src, const size_t size) {
-    const auto src8 = static_cast<const uint8_t*>(NOT_NULL(src));
-    NOT_NULL(mStorage)->insert(mStorage->end(), src8, src8 + size);
+void DequeWriter::Write(const void* src, const size_t size) {
+    const auto* const src8 = static_cast<const uint8_t*>(NOT_NULL(src));
+    NOT_NULL(storage)->insert(storage->end(), src8, src8 + size);
 }
 
-size_t DequeArchive::read(void* dst, const size_t requestedSize) {
-    const size_t size = std::min(requestedSize, storage.size());
-    const auto begin = storage.begin();
-    const auto end = begin + size;
+size_t DequeArchive::Read(void* dst, const size_t requested_size) {
+    const size_t size = std::min(requested_size, storage.size());
+    const auto begin = storage.cbegin();
+    const auto end = std::next(begin, static_cast<int64_t>(size));
 
     std::copy(begin, end, static_cast<uint8_t*>(dst));
     storage.erase(begin, end);
@@ -48,10 +47,9 @@ size_t DequeArchive::read(void* dst, const size_t requestedSize) {
     return size;
 }
 
-void DequeArchive::write(const void* src, const size_t size) {
-    const auto src8 = static_cast<const uint8_t*>(NOT_NULL(src));
+void DequeArchive::Write(const void* src, const size_t size) {
+    const auto* const src8 = static_cast<const uint8_t*>(NOT_NULL(src));
     storage.insert(storage.end(), src8, src8 + size);
 }
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

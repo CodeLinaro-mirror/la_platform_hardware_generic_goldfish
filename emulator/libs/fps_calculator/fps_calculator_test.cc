@@ -20,45 +20,45 @@ namespace goldfish {
 
 TEST(FpsCalculatorTest, InitialState) {
     FpsCalculator calculator(10);
-    EXPECT_DOUBLE_EQ(0.0, calculator.getFps());
+    EXPECT_DOUBLE_EQ(0.0, calculator.GetFps());
 }
 
 TEST(FpsCalculatorTest, CalculatesFpsCorrectly) {
     FpsCalculator calculator(10);
-    absl::Time now = android::base::IClock::host_now();
+    absl::Time now = android::base::IClock::HostNow();
 
-    calculator.addFrame(now);
-    EXPECT_DOUBLE_EQ(0.0, calculator.getFps());
+    calculator.AddFrame(now);
+    EXPECT_DOUBLE_EQ(0.0, calculator.GetFps());
 
-    calculator.addFrame(now + absl::Seconds(1));
-    EXPECT_DOUBLE_EQ(1.0, calculator.getFps());
+    calculator.AddFrame(now + absl::Seconds(1));
+    EXPECT_DOUBLE_EQ(1.0, calculator.GetFps());
 
-    calculator.addFrame(now + absl::Seconds(2));
-    EXPECT_NEAR(1.0, calculator.getFps(), 1e-9);
+    calculator.AddFrame(now + absl::Seconds(2));
+    EXPECT_NEAR(1.0, calculator.GetFps(), 1e-9);
 }
 
 TEST(FpsCalculatorTest, WindowWrapsAround) {
     FpsCalculator calculator(3);
-    absl::Time now = android::base::IClock::host_now();
+    absl::Time now = android::base::IClock::HostNow();
 
-    calculator.addFrame(now);
-    calculator.addFrame(now + absl::Seconds(1));
-    calculator.addFrame(now + absl::Seconds(2));
-    EXPECT_NEAR(1.0, calculator.getFps(), 1e-9);
+    calculator.AddFrame(now);
+    calculator.AddFrame(now + absl::Seconds(1));
+    calculator.AddFrame(now + absl::Seconds(2));
+    EXPECT_NEAR(1.0, calculator.GetFps(), 1e-9);
 
-    calculator.addFrame(now + absl::Seconds(3));
-    EXPECT_NEAR(1.0, calculator.getFps(), 1e-9);
+    calculator.AddFrame(now + absl::Seconds(3));
+    EXPECT_NEAR(1.0, calculator.GetFps(), 1e-9);
 }
 
 TEST(FpsCalculatorTest, ZeroDuration) {
     FpsCalculator calculator(10);
-    absl::Time now = android::base::IClock::host_now();
+    absl::Time now = android::base::IClock::HostNow();
 
-    calculator.addFrame(now);
-    calculator.addFrame(now);
-    calculator.addFrame(now);
+    calculator.AddFrame(now);
+    calculator.AddFrame(now);
+    calculator.AddFrame(now);
 
-    EXPECT_DOUBLE_EQ(0.0, calculator.getFps());
+    EXPECT_DOUBLE_EQ(0.0, calculator.GetFps());
 }
 
 }  // namespace goldfish

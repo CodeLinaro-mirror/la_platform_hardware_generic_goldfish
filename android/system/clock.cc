@@ -24,45 +24,45 @@ namespace android::base {
 namespace {
 // A global mutex is used to protect write access (initialization and
 // replacement) of the clock instance.
-std::mutex gLock;
+std::mutex g_lock;
 }  // namespace
 
 // The global clock instance is stored as an atomic pointer. This allows for
 // lock-free reads in the common case (IClock::get), which is critical for
 // performance.
-std::atomic<IClock*> IClock::sInstance;
+std::atomic<IClock*> IClock::s_instance;
 
 // A unique_ptr is used to manage the lifetime of the clock instance that this
 // singleton "owns" (i.e., the one created by this class, or the one most
 // recently passed to `set`).
-std::unique_ptr<IClock> IClock::sOwnedInstance;
+std::unique_ptr<IClock> IClock::s_owned_instance;
 
-void IClock::set(std::unique_ptr<IClock> clock) {
+void IClock::Set(std::unique_ptr<IClock> clock) {
     // A lock is required to safely replace the clock instance.
-    std::lock_guard<std::mutex> lock(gLock);
-    sOwnedInstance = std::move(clock);
-    // Use memory_order_release to ensure that the write to sOwnedInstance is
+    const std::lock_guard<std::mutex> lock(g_lock);
+    s_owned_instance = std::move(clock);
+    // Use memory_order_release to ensure that the write to s_owned_instance is
     // visible to any other thread that subsequently acquires this pointer.
-    sInstance.store(sOwnedInstance.get(), std::memory_order_release);
+    s_instance.store(s_owned_instance.get(), std::memory_order_release);
 }
 
-IClock& IClock::get() {
+IClock& IClock::Get() {
     // In the common case, the instance is already set. We can load the pointer
     // atomically without incurring the cost of a mutex lock.
     // memory_order_acquire ensures that we see the fully constructed object
     // that was stored with memory_order_release.
-    IClock* instance = sInstance.load(std::memory_order_acquire);
+    IClock* instance = s_instance.load(std::memory_order_acquire);
     if (instance) {
         return *instance;
     }
 
     // If the instance is not set, we must acquire a lock to ensure that only
     // one thread creates the fallback instance.
-    std::lock_guard<std::mutex> lock(gLock);
+    const std::lock_guard<std::mutex> lock(g_lock);
     // Now that we have the lock, we must check again to see if another thread
     // has set the instance while we were waiting. This is the "double-check"
     // in the double-checked locking pattern.
-    instance = sInstance.load(std::memory_order_acquire);
+    instance = s_instance.load(std::memory_order_acquire);
     if (instance) {
         return *instance;
     }
@@ -70,10 +70,10 @@ IClock& IClock::get() {
     // If the instance is still null, this thread is responsible for creating it.
     LOG(WARNING) << "IClock not explicitly set, falling back to AbseilClock. "
                     "Virtual clock types will reflect host time.";
-    sOwnedInstance = std::make_unique<AbseilClock>();
-    instance = sOwnedInstance.get();
+    s_owned_instance = std::make_unique<AbseilClock>();
+    instance = s_owned_instance.get();
     // Release the newly created instance to other threads.
-    sInstance.store(instance, std::memory_order_release);
+    s_instance.store(instance, std::memory_order_release);
     return *instance;
 }
 }  // namespace android::base

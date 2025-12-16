@@ -147,7 +147,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     std::unique_ptr<AvdProperties> mut_avd_props(std::exchange(avd_info->mutable_props, nullptr));
 
     // Set the system clock to the QEMU implementation.
-    android::base::IClock::set(std::make_unique<android::base::QemuClock>());
+    android::base::IClock::Set(std::make_unique<android::base::QemuClock>());
 
     if (mut_avd_props->serial_number <= 0) {
         error_setg(errp, "serial_number is unspecified (it must be > 0): %d",

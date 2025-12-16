@@ -24,8 +24,8 @@ struct SocketBuffer {
     constexpr static size_t kMinCapacity = 1024;
     constexpr static size_t kLargeCapacityReleaseIfEmpty = 4U << 20;
 
-    size_t size() const { return mSize; }
-    size_t capacity() const { return mCapacity; }
+    size_t Size() const { return size_; }
+    size_t Capacity() const { return capacity_; }
 
     /**
      * Appends the data to the buffer.
@@ -33,10 +33,10 @@ struct SocketBuffer {
      * You want to check the returned size (and potentially pause the
      * producer) to prevent unbounded growth of the buffer.
      */
-    [[nodiscard]] size_t append(const void* data, size_t size);
+    [[nodiscard]] size_t Append(const void* data, size_t size);
 
     // Returns the contiguous portion of the buffer, it could be shorter than the whole buffer.
-    std::pair<const void*, size_t> peek() const;
+    std::pair<const void*, size_t> Peek() const;
 
     /**
      * Consumes the `size` bytes from the buffer.
@@ -44,12 +44,12 @@ struct SocketBuffer {
      *
      * You want to check the returned size to resume the producer.
      */
-    [[nodiscard]] size_t consume(size_t size);
+    [[nodiscard]] size_t Consume(size_t size);
 
-    void clear(bool alsoFreeMemory = false);
+    void Clear(bool also_free_memory = false);
 
-    void saveToSnapshot(archive::IWriter& writer) const;
-    int loadFromSnapshot(archive::IReader& reader);
+    void SaveToSnapshot(archive::IWriter& writer) const;
+    int LoadFromSnapshot(archive::IReader& reader);
 
     SocketBuffer() = default;
     SocketBuffer(const SocketBuffer&) = delete;
@@ -58,11 +58,11 @@ struct SocketBuffer {
     SocketBuffer& operator=(SocketBuffer&&) = delete;
 
   private:
-    std::unique_ptr<char[]> mData;
-    size_t mCapacity = 0;
-    size_t mSize = 0;
-    size_t mProduce = 0;
-    size_t mConsume = 0;
+    std::unique_ptr<char[]> data_;
+    size_t capacity_ = 0;
+    size_t size_ = 0;
+    size_t produce_ = 0;
+    size_t consume_ = 0;
 };
 
 }  // namespace goldfish

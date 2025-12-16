@@ -42,11 +42,11 @@ static void BM_MutexClock(benchmark::State& state) {
     // In a multi-threaded benchmark, this setup runs once per thread.
     // We only need to set the clock once for the entire benchmark.
     if (state.thread_index() == 0) {
-        IClock::set(std::make_unique<AbseilClock>());
+        IClock::Set(std::make_unique<AbseilClock>());
     }
 
     for (auto _ : state) {
-        benchmark::DoNotOptimize(IClock::get().now(ClockType::Host));
+        benchmark::DoNotOptimize(IClock::Get().Now(ClockType::kHost));
     }
 }
 // Run this benchmark with 1, 2, 4, and 8 threads to see how the mutex
@@ -96,7 +96,7 @@ static void BM_AtomicClock(benchmark::State& state) {
     }
 
     for (auto _ : state) {
-        benchmark::DoNotOptimize(atomic_clock::get().now(ClockType::Host));
+        benchmark::DoNotOptimize(atomic_clock::get().Now(ClockType::kHost));
     }
 }
 BENCHMARK(BM_AtomicClock)->ThreadRange(1, 8);

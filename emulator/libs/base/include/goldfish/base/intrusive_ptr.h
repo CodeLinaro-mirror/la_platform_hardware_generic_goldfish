@@ -93,25 +93,25 @@ class IntrusivePtr {
   public:
     using element_type = T;
 
-    constexpr IntrusivePtr() noexcept : mPtr(nullptr) {}
+    constexpr IntrusivePtr() noexcept : ptr_(nullptr) {}
 
-    explicit IntrusivePtr(T* p) noexcept : mPtr(p) {
-        if (mPtr) {
-            intrusive_ptr_ctor(mPtr);
+    explicit IntrusivePtr(T* p) noexcept : ptr_(p) {
+        if (ptr_) {
+            intrusive_ptr_ctor(ptr_);
         }
     }
 
-    IntrusivePtr(const IntrusivePtr& other) noexcept : mPtr(other.mPtr) {
-        if (mPtr) {
-            intrusive_ptr_add_ref(mPtr);
+    IntrusivePtr(const IntrusivePtr& other) noexcept : ptr_(other.ptr_) {
+        if (ptr_) {
+            intrusive_ptr_add_ref(ptr_);
         }
     }
 
-    IntrusivePtr(IntrusivePtr&& other) noexcept : mPtr(std::exchange(other.mPtr, nullptr)) {}
+    IntrusivePtr(IntrusivePtr&& other) noexcept : ptr_(std::exchange(other.ptr_, nullptr)) {}
 
     ~IntrusivePtr() {
-        if (mPtr) {
-            intrusive_ptr_release(mPtr);
+        if (ptr_) {
+            intrusive_ptr_release(ptr_);
         }
     }
 
@@ -125,26 +125,27 @@ class IntrusivePtr {
         return *this;
     }
 
-    void reset() noexcept {
-        if (mPtr) {
-            intrusive_ptr_release(mPtr);
-            mPtr = nullptr;
+    void reset() noexcept {  // NOLINT
+        if (ptr_) {
+            intrusive_ptr_release(ptr_);
+            ptr_ = nullptr;
         }
     }
 
-    void swap(IntrusivePtr& other) noexcept { std::swap(mPtr, other.mPtr); }
+    // NOLINTNEXTLINE
+    void swap(IntrusivePtr& other) noexcept { std::swap(ptr_, other.ptr_); }
 
-    T* get() const noexcept { return mPtr; }
-    T& operator*() const noexcept { return *mPtr; }
-    T* operator->() const noexcept { return mPtr; }
-    explicit operator bool() const noexcept { return mPtr != nullptr; }
+    T* get() const noexcept { return ptr_; }  // NOLINT
+    T& operator*() const noexcept { return *ptr_; }
+    T* operator->() const noexcept { return ptr_; }
+    explicit operator bool() const noexcept { return ptr_ != nullptr; }
 
   private:
-    T* mPtr;
+    T* ptr_;
 };
 
 template <class T>
-inline void swap(const IntrusivePtr<T>& a, const IntrusivePtr<T>& b) noexcept {
+inline void swap(const IntrusivePtr<T>& a, const IntrusivePtr<T>& b) noexcept {  // NOLINT
     a.swap(b);
 }
 

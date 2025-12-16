@@ -24,16 +24,16 @@ extern "C" {
 
 namespace android::base {
 
-absl::Time QemuClock::now(ClockType type) const {
+absl::Time QemuClock::Now(ClockType type) const {
     QEMUClockType qemu_type;
     switch (type) {
-    case ClockType::Virtual:
+    case ClockType::kVirtual:
         qemu_type = QEMU_CLOCK_VIRTUAL;
         break;
-    case ClockType::Host:
+    case ClockType::kHost:
         qemu_type = QEMU_CLOCK_HOST;
         break;
-    case ClockType::Realtime:
+    case ClockType::kRealtime:
         qemu_type = QEMU_CLOCK_REALTIME;
         break;
     }

@@ -58,7 +58,7 @@ bool savePlugToSnapshot(const IPlug& plug, IWriter& writer) {
 using archive::IReader;
 
 PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
-    const std::string id = getString(reader);
+    const std::string id = GetString(reader);
     if (id.empty()) {
         return socket;
     }

@@ -126,12 +126,12 @@ bool Parser::onReceive(const void* const data, size_t size) {
 
 void Parser::saveToSnapshot(archive::IWriter& writer) const {
     writer << mBuffer.size();
-    writer.write(mBuffer.data(), mBuffer.size());
+    writer.Write(mBuffer.data(), mBuffer.size());
 }
 
 bool Parser::loadFromSnapshot(archive::IReader& reader) {
-    mBuffer.resize(getUnsigned(reader));
-    return reader.read(mBuffer.data(), mBuffer.size());
+    mBuffer.resize(GetUnsigned(reader));
+    return reader.Read(mBuffer.data(), mBuffer.size());
 }
 
 void sendAsync(const void* data, const size_t size, cable::ISocket& dst) {

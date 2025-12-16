@@ -144,7 +144,7 @@ struct GoldfishVirtioVsockDevice {
         DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
-        const uint32_t hostPort = mSrcPortAllocator.get() + kDynamicPortsStart;
+        const uint32_t hostPort = mSrcPortAllocator.Get() + kDynamicPortsStart;
 
         const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
         assert(inserted);
@@ -189,7 +189,7 @@ struct GoldfishVirtioVsockDevice {
                 stream.dataSniffer->toSocket(data, size);
             }
 
-            if (stream.hostToGuestBuf.append(data, size) >= stream.kBufferSizeHighWatermark) {
+            if (stream.hostToGuestBuf.Append(data, size) >= stream.kBufferSizeHighWatermark) {
                 stream.setProducerEnabled(false);
             }
 
@@ -219,7 +219,7 @@ struct GoldfishVirtioVsockDevice {
 
         const uint32_t hostPort = stream.hostPort;
         if (hostPort >= kDynamicPortsStart) {
-            mSrcPortAllocator.put(hostPort - kDynamicPortsStart);
+            mSrcPortAllocator.Put(hostPort - kDynamicPortsStart);
         }
     }
 
@@ -312,7 +312,7 @@ struct GoldfishVirtioVsockDevice {
         mStreams.clear();
         mHostEvents.clear();
         mOrphanPackets.clear();
-        mSrcPortAllocator.reset();
+        mSrcPortAllocator.Reset();
     }
 
     void realize(void* const dev, const GoldfishVirtIOVSockDevAPI* const devApi) {
@@ -499,7 +499,7 @@ struct GoldfishVirtioVsockDevice {
             }
 
             while (guestAvailSize > 0) {
-                const auto [data, chunkSize] = stream.hostToGuestBuf.peek();
+                const auto [data, chunkSize] = stream.hostToGuestBuf.Peek();
                 if (chunkSize == 0) {
                     break;
                 }
@@ -509,7 +509,7 @@ struct GoldfishVirtioVsockDevice {
                 sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr, data);
 
                 const size_t sentSize = VirtIOVSockSentSize(sendResult);
-                if (stream.hostToGuestBuf.consume(sentSize) < stream.kBufferSizeLowWatermark) {
+                if (stream.hostToGuestBuf.Consume(sentSize) < stream.kBufferSizeLowWatermark) {
                     stream.setProducerEnabled(true);
                 }
 
@@ -559,7 +559,7 @@ struct GoldfishVirtioVsockDevice {
         }
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
-        mSrcPortAllocator.saveToSnapshot(writer);
+        mSrcPortAllocator.SaveToSnapshot(writer);
 
         writer << mOrphanPackets.size();
         for (const auto& packet : mOrphanPackets) {
@@ -582,7 +582,7 @@ struct GoldfishVirtioVsockDevice {
 
                 writer << stream.guestBufAlloc << stream.guestFwdCnt << stream.hostSentCnt << flags;
 
-                stream.hostToGuestBuf.saveToSnapshot(writer);
+                stream.hostToGuestBuf.SaveToSnapshot(writer);
 
                 if (!savePlugToSnapshot(plug, writer)) {
                     return 1;
@@ -604,31 +604,31 @@ struct GoldfishVirtioVsockDevice {
         }
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
-        r = mSrcPortAllocator.loadFromSnapshot(reader);
+        r = mSrcPortAllocator.LoadFromSnapshot(reader);
         if (r) {
             return r;
         }
 
         mOrphanPackets.clear();
-        for (size_t n = getUnsigned(reader); n > 0; --n) {
+        for (size_t n = GetUnsigned(reader); n > 0; --n) {
             decltype(mOrphanPackets)::value_type packet;
 
-            packet.src_port = getUnsigned(reader);
-            packet.dst_port = getUnsigned(reader);
-            packet.op = getUnsigned(reader);
-            packet.buf_alloc = getUnsigned(reader);
-            packet.fwd_cnt = getUnsigned(reader);
+            packet.src_port = GetUnsigned(reader);
+            packet.dst_port = GetUnsigned(reader);
+            packet.op = GetUnsigned(reader);
+            packet.buf_alloc = GetUnsigned(reader);
+            packet.fwd_cnt = GetUnsigned(reader);
             packet.len = 0;  // orphan packets don't carry data
             mOrphanPackets.push_back(packet);
         }
 
         bool needNotify = false;
         mStreams.clear();
-        for (size_t n = getUnsigned(reader); n > 0; --n) {
-            const uint32_t guestPort = getUnsigned(reader);
-            const uint32_t hostPort = getUnsigned(reader);
-            const uint32_t hostFwdCnt = getUnsigned(reader);
-            const bool supportsLoading = (getUnsigned(reader) != 0);
+        for (size_t n = GetUnsigned(reader); n > 0; --n) {
+            const uint32_t guestPort = GetUnsigned(reader);
+            const uint32_t hostPort = GetUnsigned(reader);
+            const uint32_t hostFwdCnt = GetUnsigned(reader);
+            const bool supportsLoading = (GetUnsigned(reader) != 0);
             if (supportsLoading) {
                 const auto [streamI, inserted] = mStreams.emplace(*this, guestPort, hostPort);
                 if (!inserted) {
@@ -638,15 +638,15 @@ struct GoldfishVirtioVsockDevice {
                 VsockStream& stream = const_cast<VsockStream&>(*streamI);
 
                 stream.hostFwdCnt = hostFwdCnt;
-                stream.guestBufAlloc = getUnsigned(reader);
-                stream.guestFwdCnt = getUnsigned(reader);
-                stream.hostSentCnt = getUnsigned(reader);
+                stream.guestBufAlloc = GetUnsigned(reader);
+                stream.guestFwdCnt = GetUnsigned(reader);
+                stream.hostSentCnt = GetUnsigned(reader);
                 {
-                    const uint8_t flags = getUnsigned(reader);
+                    const uint8_t flags = GetUnsigned(reader);
                     stream.isConnected = (flags & 1U) != 0;
                     stream.sendOpMask = flags & ~1U;
                 }
-                stream.hostToGuestBuf.loadFromSnapshot(reader);
+                stream.hostToGuestBuf.LoadFromSnapshot(reader);
                 stream.producerEnabled = true;
 
                 if (std::visit(PlugOrSocketVisitor(stream),

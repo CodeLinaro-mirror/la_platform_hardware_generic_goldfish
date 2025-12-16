@@ -31,15 +31,15 @@ namespace goldfish {
 struct UniqueIdAllocator {
     static constexpr uint32_t kEmptyId = 0;
 
-    uint32_t get();
-    void put(uint32_t id);
-    void reset();
-    void saveToSnapshot(archive::IWriter& writer) const;
-    int loadFromSnapshot(archive::IReader& reader);
+    uint32_t Get();
+    void Put(uint32_t id);
+    void Reset();
+    void SaveToSnapshot(archive::IWriter& writer) const;
+    int LoadFromSnapshot(archive::IReader& reader);
 
   private:
-    uint32_t mLastId = kEmptyId;
-    std::set<uint32_t, std::greater<uint32_t>> mReturnedIds;
+    uint32_t last_id_ = kEmptyId;
+    std::set<uint32_t, std::greater<>> returned_ids_;
 };
 
 }  // namespace goldfish

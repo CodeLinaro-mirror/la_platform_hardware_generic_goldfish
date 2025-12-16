@@ -17,7 +17,7 @@
 
 namespace android::base {
 
-absl::Time AbseilClock::now(ClockType type) const {
+absl::Time AbseilClock::Now(ClockType /*type*/) const {
     return absl::Now();
 }
 

@@ -146,7 +146,7 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
                                                    size_t* cPixels) const {
     // NOTE: We expect newWidth and newHeight to be safe, shearing *WILL* happen if the ratios
     // are not proper.
-    absl::Time now = android::base::IClock::host_now();
+    absl::Time now = android::base::IClock::HostNow();
     auto pixmanFmt = pixmanFormat(format);
     auto bpp = PIXMAN_FORMAT_BPP(pixmanFmt);
     auto stride =
@@ -204,7 +204,7 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
 
     absl::MutexLock seqlock(&mSeqAccess);
 
-    VLOG(2) << "Image scaled in: " << (android::base::IClock::host_now() - now);
+    VLOG(2) << "Image scaled in: " << (android::base::IClock::HostNow() - now);
     return mSeq;
 }
 
@@ -214,8 +214,8 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
 
     frameReceived();
     if (ABSL_VLOG_IS_ON(2)) {
-        mFpsCalculator.addFrame();
-        VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << mFpsCalculator.getFps() << " fps";
+        mFpsCalculator.AddFrame();
+        VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << mFpsCalculator.GetFps() << " fps";
     }
 }
 

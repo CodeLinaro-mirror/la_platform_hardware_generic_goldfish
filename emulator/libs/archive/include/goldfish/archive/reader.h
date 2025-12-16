@@ -16,28 +16,27 @@
 
 #include "goldfish/archive/zigzag/zigzag.h"
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
 // See archive_unittests.cpp for usage examples
 struct IReader {
-    virtual ~IReader() {}
-    virtual size_t read(void* dst, size_t size) = 0;
+    virtual ~IReader() = default;
+    virtual size_t Read(void* dst, size_t size) = 0;
 };
 
 // see Writer.h for encoding explanation
-inline zigzag::unsigned_t getUnsigned(IReader& r) {
+inline zigzag::unsigned_t GetUnsigned(IReader& r) {
     zigzag::unsigned_t result = 0;
     unsigned shift = 0;
     constexpr unsigned kResultNumBits = sizeof(result) * CHAR_BIT;
 
     while (shift < kResultNumBits) {
         uint8_t b;
-        if (r.read(&b, sizeof(b)) != sizeof(b)) {
+        if (r.Read(&b, sizeof(b)) != sizeof(b)) {
             break;
         }
 
-        result |= (zigzag::unsigned_t(b & 0x7F) << shift);
+        result |= (static_cast<zigzag::unsigned_t>(b & 0x7F) << shift);
         if (b >> 7) {
             shift += 7;
         } else {
@@ -48,31 +47,29 @@ inline zigzag::unsigned_t getUnsigned(IReader& r) {
     return result;
 }
 
-inline zigzag::signed_t getSigned(IReader& r) {
-    return zigzag::decode(getUnsigned(r));
+inline zigzag::signed_t GetSigned(IReader& r) {
+    return zigzag::Decode(GetUnsigned(r));
 }
 
-inline float getFloat(IReader& r) {
+inline float GetFloat(IReader& r) {
     float result;
-    r.read(&result, sizeof(result));
+    r.Read(&result, sizeof(result));
     return result;
 }
 
-inline double getDouble(IReader& r) {
+inline double GetDouble(IReader& r) {
     double result;
-    r.read(&result, sizeof(result));
+    r.Read(&result, sizeof(result));
     return result;
 }
 
-inline std::string getString(IReader& r) {
-    const size_t size = getUnsigned(r);
+inline std::string GetString(IReader& r) {
+    const size_t size = GetUnsigned(r);
     std::string result(size, '?');
-    if (r.read(result.data(), size) == size) {
+    if (r.Read(result.data(), size) == size) {
         return result;
-    } else {
-        return {};
     }
+    return {};
 }
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

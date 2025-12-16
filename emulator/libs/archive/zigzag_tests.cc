@@ -17,7 +17,7 @@
 
 TEST(zigzag, encdec) {
     namespace z = goldfish::archive::zigzag;
-    const auto encdec = [](z::signed_t x) { return z::decode(z::encode(x)); };
+    const auto encdec = [](z::signed_t x) { return z::Decode(z::Encode(x)); };
 
     EXPECT_EQ(encdec(0), 0);
     EXPECT_EQ(encdec(INT64_MIN), INT64_MIN);
