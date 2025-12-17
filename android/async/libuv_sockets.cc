@@ -282,6 +282,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         if (nread >= 0) {
             // Success path (nread > 0) or no-op (nread == 0).
             on_read_({buf->base, static_cast<size_t>(nread)}, absl::OkStatus());
+        } else if (nread == UV_EOF) {
+            Close();
         } else {
             // Error path (nread < 0). This is a fatal, unrecoverable stream error.
             on_read_({}, UvErrToAbslStatus(static_cast<int>(nread)));
