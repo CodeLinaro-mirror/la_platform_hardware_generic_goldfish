@@ -59,7 +59,8 @@
             }(),                                                                                   \
             X)
 #else
-#define FAILURE_STR(LITERAL, X) ([]() { LOG(ERROR) << __func__ << ": failure: " << LITERAL; }(), X)
+#define FAILURE_STR(LITERAL, X) \
+    ([]() { LOG(ERROR) << __func__ << ": failure: " << (LITERAL); }(), X)
 #endif
 
 #define FAILURE(X) FAILURE_STR(#X, X)

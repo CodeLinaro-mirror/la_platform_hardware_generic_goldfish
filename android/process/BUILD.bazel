@@ -25,6 +25,8 @@ cc_library(
         "//conditions:default": [],
     }),
     includes = ["include"],
+    # This will trigger all the AEMU imports we don't control.
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [

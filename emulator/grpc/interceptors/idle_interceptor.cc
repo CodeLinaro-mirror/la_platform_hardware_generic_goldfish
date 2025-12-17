@@ -39,7 +39,7 @@ IdleInterceptor::IdleInterceptor(std::chrono::seconds timeout,
         , mActiveRequests(activeRequests) {}
 
 IdleInterceptor::~IdleInterceptor() {
-    auto idleTime = absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(mTimeout.count()));
+    auto idleTime = absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(mTimeout.count()));
     mTerminationUnixTime->store(idleTime);
     mActiveRequests->fetch_sub(1);
 }
@@ -51,7 +51,7 @@ void IdleInterceptor::Intercept(InterceptorBatchMethods* methods) {
 IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* eventLoop)
         : mTimeout(timeout)
         , mTerminationUnixTime(
-                  absl::ToUnixSeconds(IClock::host_now() + absl::Seconds(timeout.count()))) {
+                  absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout.count()))) {
     mTimeoutChecker = eventLoop->ScheduleRepeating([this]() { checkIdleTimeout(); },
                                                    std::chrono::milliseconds(mTimeout),
                                                    std::chrono::milliseconds(mTimeout));
@@ -63,7 +63,7 @@ Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info
 }
 
 bool IdleInterceptorFactory::checkIdleTimeout() {
-    auto epoch = absl::ToUnixSeconds(IClock::host_now());
+    auto epoch = absl::ToUnixSeconds(IClock::HostNow());
     if (mActiveRequests > 0 || epoch < mTerminationUnixTime) return true;
 
     LOG(WARNING) << "Idled to long, shutting down. " << epoch << " > " << mTerminationUnixTime;

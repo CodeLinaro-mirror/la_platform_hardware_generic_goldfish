@@ -88,7 +88,7 @@ LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction re
         }
         mLoginfo.direction = Direction::INCOMING;
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::host_now());
+    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
 }
 
 LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter)
@@ -115,11 +115,11 @@ LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction re
         mLoginfo.direction = Direction::OUTGOING;
         mLoginfo.peer = info->client_context()->peer();
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::host_now());
+    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
 }
 
 LoggingInterceptor::~LoggingInterceptor() {
-    auto ts = absl::ToUnixMicros(IClock::host_now());
+    auto ts = absl::ToUnixMicros(IClock::HostNow());
     mLoginfo.duration = ts - mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx];
     mReporter(mLoginfo);
 }
@@ -155,7 +155,7 @@ Phase: [POST_SEND_MESSAGE]
 Phase: [POST_RECV_CLOSE]
  */
 void LoggingInterceptor::Intercept(InterceptorBatchMethods* methods) {
-    auto ts = absl::ToUnixMicros(IClock::host_now());
+    auto ts = absl::ToUnixMicros(IClock::HostNow());
     DD("Intercepting -- %d", ts);
 
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::POST_RECV_MESSAGE)) {

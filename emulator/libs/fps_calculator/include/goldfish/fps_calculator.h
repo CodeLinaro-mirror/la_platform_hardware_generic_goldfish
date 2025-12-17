@@ -39,7 +39,7 @@ class FpsCalculator {
      *
      * @param windowSize The number of frames to include in the sliding window.
      */
-    explicit FpsCalculator(int windowSize);
+    explicit FpsCalculator(int window_size);
 
     /**
      * @brief Informs the calculator that a new frame has arrived.
@@ -50,7 +50,7 @@ class FpsCalculator {
      * @param timestamp The time at which the frame arrived. Defaults to the
      * current time.
      */
-    void addFrame(absl::Time timestamp = android::base::IClock::host_now());
+    void AddFrame(absl::Time timestamp = android::base::IClock::HostNow());
 
     /**
      * @brief Returns the current FPS.
@@ -60,13 +60,13 @@ class FpsCalculator {
      *
      * @return The current FPS, or 0 if not enough data is available.
      */
-    double getFps() const;
+    double GetFps() const;
 
   private:
-    std::vector<absl::Time> mTimestamps;
-    int mWindowSize;
-    int mCurrentFrameCount = 0;
-    int mNextFrameIndex = 0;
+    std::vector<absl::Time> timestamps_;
+    int window_size_;
+    int current_frame_count_ = 0;
+    int next_frame_index_ = 0;
 };
 
 }  // namespace goldfish

@@ -18,146 +18,145 @@
 
 namespace goldfish {
 namespace {
-size_t getCapacity(const size_t size) {
+size_t GetCapacity(const size_t size) {
     return std::max(SocketBuffer::kMinCapacity, size * 3U / 2U);
 }
 }  // namespace
 
-size_t SocketBuffer::append(const void* const appendData, const size_t appendSize) {
-    assert(mSize <= mCapacity);
+size_t SocketBuffer::Append(const void* const append_data, const size_t append_size) {
+    assert(size_ <= capacity_);
 
-    const size_t newSize = mSize + appendSize;
-    if (newSize > mCapacity) {
-        const size_t newCapacity = getCapacity(newSize);
-        assert(newCapacity >= newSize);
-        std::unique_ptr<char[]> newData = std::make_unique<char[]>(newCapacity);
+    const size_t new_size = size_ + append_size;
+    if (new_size > capacity_) {
+        const size_t new_capacity = GetCapacity(new_size);
+        assert(new_capacity >= new_size);
+        std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 
-        if (mSize > 0) {
-            assert(mConsume < mCapacity);
-            assert(mData);
+        if (size_ > 0) {
+            assert(consume_ < capacity_);
+            assert(data_);
 
-            if ((mConsume + mSize) <= mCapacity) {
-                memcpy(&newData[0], &mData[mConsume], mSize);
+            if ((consume_ + size_) <= capacity_) {
+                memcpy(&new_data[0], &data_[consume_], size_);
             } else {
-                const size_t sz = mCapacity - mConsume;
-                memcpy(&newData[0], &mData[mConsume], sz);
-                memcpy(&newData[sz], &mData[0], mSize - sz);
+                const size_t sz = capacity_ - consume_;
+                memcpy(&new_data[0], &data_[consume_], sz);
+                memcpy(&new_data[sz], &data_[0], size_ - sz);
             }
         }
 
-        memcpy(&newData[mSize], appendData, appendSize);
+        memcpy(&new_data[size_], append_data, append_size);
 
-        mData = std::move(newData);
-        mCapacity = newCapacity;
-        mProduce = newSize;
-        mConsume = 0;
-    } else if (newSize == 0) {
+        data_ = std::move(new_data);
+        capacity_ = new_capacity;
+        produce_ = new_size;
+        consume_ = 0;
+    } else if (new_size == 0) {
         // do nothing
-    } else if ((mProduce + appendSize) <= mCapacity) {
-        assert(mCapacity > 0);
-        assert(mProduce < mCapacity);
-        assert(mData);
+    } else if ((produce_ + append_size) <= capacity_) {
+        assert(capacity_ > 0);
+        assert(produce_ < capacity_);
+        assert(data_);
 
-        memcpy(&mData[mProduce], appendData, appendSize);
-        mProduce = (mProduce + appendSize) % mCapacity;
+        memcpy(&data_[produce_], append_data, append_size);
+        produce_ = (produce_ + append_size) % capacity_;
     } else {
-        assert(mCapacity > 0);
-        assert(mProduce < mCapacity);
-        assert(mData);
+        assert(capacity_ > 0);
+        assert(produce_ < capacity_);
+        assert(data_);
 
-        const char* appendData8 = static_cast<const char*>(appendData);
-        const size_t sz1 = mCapacity - mProduce;
-        assert(appendSize > sz1);
-        const size_t sz2 = appendSize - sz1;
+        const char* append_data8 = static_cast<const char*>(append_data);
+        const size_t sz1 = capacity_ - produce_;
+        assert(append_size > sz1);
+        const size_t sz2 = append_size - sz1;
 
-        memcpy(&mData[mProduce], appendData8, sz1);
-        memcpy(&mData[0], appendData8 + sz1, sz2);
-        mProduce = sz2;
+        memcpy(&data_[produce_], append_data8, sz1);
+        memcpy(&data_[0], append_data8 + sz1, sz2);
+        produce_ = sz2;
     }
 
-    mSize = newSize;
-    return newSize;
+    size_ = new_size;
+    return new_size;
 }
 
-std::pair<const void*, size_t> SocketBuffer::peek() const {
-    assert(mSize <= mCapacity);
-    if (mSize > 0) {
-        assert(mConsume < mCapacity);
-        assert(mData);
+std::pair<const void*, size_t> SocketBuffer::Peek() const {
+    assert(size_ <= capacity_);
+    if (size_ > 0) {
+        assert(consume_ < capacity_);
+        assert(data_);
 
-        return {&mData[mConsume], std::min(mSize, mCapacity - mConsume)};
-    } else {
-        return {nullptr, 0};
+        return {&data_[consume_], std::min(size_, capacity_ - consume_)};
     }
+    return {nullptr, 0};
 }
 
-size_t SocketBuffer::consume(const size_t size) {
-    assert(mSize <= mCapacity);
-    assert(size <= mSize);
+size_t SocketBuffer::Consume(const size_t size) {
+    assert(size_ <= capacity_);
+    assert(size <= size_);
 
-    if (mCapacity) {
-        if (mSize == size) {
-            clear(mCapacity >= kLargeCapacityReleaseIfEmpty);
+    if (capacity_) {
+        if (size_ == size) {
+            Clear(capacity_ >= kLargeCapacityReleaseIfEmpty);
         } else {
-            mSize -= size;
-            mConsume = (mConsume + size) % mCapacity;
+            size_ -= size;
+            consume_ = (consume_ + size) % capacity_;
         }
     } else {
         assert(size == 0);
     }
 
-    return mSize;
+    return size_;
 }
 
-void SocketBuffer::clear(const bool alsoFreeMemory) {
-    mSize = 0;
-    mProduce = 0;
-    mConsume = 0;
+void SocketBuffer::Clear(const bool also_free_memory) {
+    size_ = 0;
+    produce_ = 0;
+    consume_ = 0;
 
-    if (alsoFreeMemory) {
-        mData.reset();
-        mCapacity = 0;
+    if (also_free_memory) {
+        data_.reset();
+        capacity_ = 0;
     }
 }
 
-void SocketBuffer::saveToSnapshot(archive::IWriter& writer) const {
-    assert(mSize <= mCapacity);
+void SocketBuffer::SaveToSnapshot(archive::IWriter& writer) const {
+    assert(size_ <= capacity_);
 
-    writer << mSize;
-    if (mSize) {
-        assert(mConsume < mCapacity);
-        assert(mData);
+    writer << size_;
+    if (size_) {
+        assert(consume_ < capacity_);
+        assert(data_);
 
-        if ((mConsume + mSize) <= mCapacity) {
-            writer.write(&mData[mConsume], mSize);
+        if ((consume_ + size_) <= capacity_) {
+            writer.Write(&data_[consume_], size_);
         } else {
-            const size_t sz = mCapacity - mConsume;
-            writer.write(&mData[mConsume], sz);
-            writer.write(&mData[0], mSize - sz);
+            const size_t sz = capacity_ - consume_;
+            writer.Write(&data_[consume_], sz);
+            writer.Write(&data_[0], size_ - sz);
         }
     }
 }
 
-int SocketBuffer::loadFromSnapshot(archive::IReader& reader) {
-    const size_t newSize = getUnsigned(reader);
-    if (newSize == 0) {
-        clear(true);
+int SocketBuffer::LoadFromSnapshot(archive::IReader& reader) {
+    const size_t new_size = GetUnsigned(reader);
+    if (new_size == 0) {
+        Clear(true);
         return 0;
     }
 
-    const size_t newCapacity = getCapacity(newSize);
-    assert(newCapacity >= newSize);
-    std::unique_ptr<char[]> newData = std::make_unique<char[]>(newCapacity);
+    const size_t new_capacity = GetCapacity(new_size);
+    assert(new_capacity >= new_size);
+    std::unique_ptr<char[]> new_data = std::make_unique<char[]>(new_capacity);
 
-    if (reader.read(newData.get(), newSize) != newSize) {
+    if (reader.Read(new_data.get(), new_size) != new_size) {
         return 1;
     }
 
-    mData = std::move(newData);
-    mCapacity = newCapacity;
-    mSize = newSize;
-    mProduce = newSize;
-    mConsume = 0;
+    data_ = std::move(new_data);
+    capacity_ = new_capacity;
+    size_ = new_size;
+    produce_ = new_size;
+    consume_ = 0;
     return 0;
 }
 

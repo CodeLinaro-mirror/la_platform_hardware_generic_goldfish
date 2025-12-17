@@ -18,13 +18,12 @@
 
 #include "goldfish/archive/zigzag/zigzag.h"
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
 // See archive_unittests.cpp for usage examples
 struct IWriter {
-    virtual ~IWriter() {}
-    virtual void write(const void* src, size_t size) = 0;
+    virtual ~IWriter() = default;
+    virtual void Write(const void* src, size_t size) = 0;
 };
 
 // 7bit per byte with MSB for more bytes to follow.
@@ -35,7 +34,7 @@ inline IWriter& operator<<(IWriter& w, zigzag::unsigned_t x) {
     while (true) {
         const decltype(x) high7 = x >> 7;
         const unsigned low7 = x & 0x7FU;
-        buf[len] = low7 | (unsigned(high7 > 0) << 7);
+        buf[len] = low7 | (static_cast<unsigned>(high7 > 0) << 7);
         ++len;
         if (high7) {
             x = high7;
@@ -44,69 +43,68 @@ inline IWriter& operator<<(IWriter& w, zigzag::unsigned_t x) {
         }
     }
 
-    w.write(buf, len);
+    w.Write(buf, len);
     return w;
 }
 
 inline IWriter& operator<<(IWriter& w, const zigzag::signed_t x) {
-    return (w << zigzag::encode(x));
+    return (w << zigzag::Encode(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const unsigned char x) {
-    return (w << zigzag::unsigned_t(x));
+    return (w << static_cast<zigzag::unsigned_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const unsigned short x) {
-    return (w << zigzag::unsigned_t(x));
+    return (w << static_cast<zigzag::unsigned_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const unsigned int x) {
-    return (w << zigzag::unsigned_t(x));
+    return (w << static_cast<zigzag::unsigned_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const unsigned long x) {
-    return (w << zigzag::unsigned_t(x));
+    return (w << static_cast<zigzag::unsigned_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const signed char x) {
-    return (w << zigzag::signed_t(x));
+    return (w << static_cast<zigzag::signed_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const signed short x) {
-    return (w << zigzag::signed_t(x));
+    return (w << static_cast<zigzag::signed_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const signed int x) {
-    return (w << zigzag::signed_t(x));
+    return (w << static_cast<zigzag::signed_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const signed long x) {
-    return (w << zigzag::signed_t(x));
+    return (w << static_cast<zigzag::signed_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const bool x) {
-    return (w << zigzag::unsigned_t(x));
+    return (w << static_cast<zigzag::unsigned_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const char x) {
-    return (w << zigzag::signed_t(x));
+    return (w << static_cast<zigzag::signed_t>(x));
 }
 
 inline IWriter& operator<<(IWriter& w, const float x) {
-    w.write(&x, sizeof(x));
+    w.Write(&x, sizeof(x));
     return w;
 }
 
 inline IWriter& operator<<(IWriter& w, const double x) {
-    w.write(&x, sizeof(x));
+    w.Write(&x, sizeof(x));
     return w;
 }
 
 inline IWriter& operator<<(IWriter& w, const std::string_view x) {
     w << x.size();
-    w.write(x.data(), x.size());
+    w.Write(x.data(), x.size());
     return w;
 }
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

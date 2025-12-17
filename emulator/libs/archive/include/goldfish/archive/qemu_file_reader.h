@@ -15,16 +15,14 @@
 
 struct QEMUFile;
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
 struct QEMUFileReader : public IReader {
-    explicit QEMUFileReader(QEMUFile* file) : mFile(file) {}
+    explicit QEMUFileReader(QEMUFile* file) : file(file) {}
 
-    virtual size_t read(void* dst, size_t size) override;
+    size_t Read(void* dst, size_t size) override;
 
-    QEMUFile* mFile;
+    QEMUFile* file;
 };
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

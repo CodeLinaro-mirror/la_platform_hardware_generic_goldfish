@@ -17,16 +17,15 @@
 #include "goldfish/qemu_file.h"
 // IWYU pragma: end_keep
 // clang-format on
-namespace goldfish {
-namespace archive {
 
-size_t QEMUFileReader::read(void* dst, const size_t size) {
-    return qemu_get_buffer(mFile, static_cast<uint8_t*>(dst), size);
+namespace goldfish::archive {
+
+size_t QEMUFileReader::Read(void* dst, const size_t size) {
+    return qemu_get_buffer(file, static_cast<uint8_t*>(dst), size);
 }
 
-void QEMUFileWriter::write(const void* src, const size_t size) {
-    qemu_put_buffer(mFile, static_cast<const uint8_t*>(src), size);
+void QEMUFileWriter::Write(const void* src, const size_t size) {
+    qemu_put_buffer(file, static_cast<const uint8_t*>(src), size);
 }
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

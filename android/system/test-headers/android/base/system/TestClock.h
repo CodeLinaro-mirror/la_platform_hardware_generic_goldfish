@@ -25,7 +25,7 @@ namespace android::base {
  */
 class TestClock : public IClock {
   public:
-    absl::Time now(ClockType type) const override {
+    absl::Time Now(ClockType type) const override {
         // In a test environment, we don't need to distinguish between
         // different clock types. We just return the time that has been set.
         return mCurrentTime;

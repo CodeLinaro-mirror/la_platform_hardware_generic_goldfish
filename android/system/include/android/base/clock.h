@@ -13,6 +13,8 @@
 // limitations under the License.
 #pragma once
 
+#include <sys/types.h>
+
 #include <atomic>
 #include <memory>
 
@@ -24,14 +26,14 @@ namespace android::base {
  * @brief Defines the different time domains available in the emulator.
  * This is a C++ native enum, completely decoupled from QEMU's C headers.
  */
-enum class ClockType {
+enum class ClockType : uint8_t {
     /**
      * @brief The virtual (guest) clock.
      * This clock only advances when the guest is running and is paused when
      * the guest is suspended. It is the appropriate source for guest-visible
      * events. Corresponds to `QEMU_CLOCK_VIRTUAL`.
      */
-    Virtual,
+    kVirtual,
 
     /**
      * @brief The host system's wall-clock time.
@@ -39,7 +41,7 @@ enum class ClockType {
      * real-world time as seen by the host machine. It is suitable for host-side
      * timeouts or logging. Corresponds to `QEMU_CLOCK_HOST`.
      */
-    Host,
+    kHost,
 
     /**
      * @brief The host's real-time clock.
@@ -48,7 +50,7 @@ enum class ClockType {
      * that must not be affected by system time changes. Corresponds to
      * `QEMU_CLOCK_REALTIME`.
      */
-    Realtime
+    kRealtime
 };
 
 /**
@@ -64,7 +66,7 @@ class IClock {
      * @param type The clock domain to query.
      * @return The current time as an absl::Time object.
      */
-    virtual absl::Time now(ClockType type) const = 0;
+    virtual absl::Time Now(ClockType type) const = 0;
 
     // --- Static Accessor Methods ---
 
@@ -73,7 +75,7 @@ class IClock {
      * during application startup.
      * @param clock A unique_ptr to the clock implementation.
      */
-    static void set(std::unique_ptr<IClock> clock);
+    static void Set(std::unique_ptr<IClock> clock);
 
     /**
      * @brief Gets a reference to the global clock instance.
@@ -85,17 +87,17 @@ class IClock {
      *
      * @return A reference to the IClock.
      */
-    static IClock& get();
+    static IClock& Get();
 
     // --- Static Convenience Methods ---
 
-    static absl::Time virtual_now() { return get().now(ClockType::Virtual); }
-    static absl::Time host_now() { return get().now(ClockType::Host); }
-    static absl::Time realtime_now() { return get().now(ClockType::Realtime); }
+    static absl::Time VirtualNow() { return Get().Now(ClockType::kVirtual); }
+    static absl::Time HostNow() { return Get().Now(ClockType::kHost); }
+    static absl::Time RealtimeNow() { return Get().Now(ClockType::kRealtime); }
 
   private:
-    static std::atomic<IClock*> sInstance;
-    static std::unique_ptr<IClock> sOwnedInstance;
+    static std::atomic<IClock*> s_instance;
+    static std::unique_ptr<IClock> s_owned_instance;
 };
 
 }  // namespace android::base

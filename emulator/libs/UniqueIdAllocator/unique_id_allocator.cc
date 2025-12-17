@@ -16,54 +16,53 @@
 
 namespace goldfish {
 
-uint32_t UniqueIdAllocator::get() {
-    auto i = mReturnedIds.end();
-    if (i != mReturnedIds.begin()) {
+uint32_t UniqueIdAllocator::Get() {
+    auto i = returned_ids_.end();
+    if (i != returned_ids_.begin()) {
         --i;
         const uint32_t id = *i;
-        mReturnedIds.erase(i);
+        returned_ids_.erase(i);
         return id;
-    } else {
-        return ++mLastId;
     }
+    return ++last_id_;
 }
 
-void UniqueIdAllocator::put(const uint32_t id) {
-    if (id == mLastId) {
-        --mLastId;
+void UniqueIdAllocator::Put(const uint32_t id) {
+    if (id == last_id_) {
+        --last_id_;
 
         while (true) {
-            const auto i = mReturnedIds.begin();
-            if (i != mReturnedIds.end() && *i == mLastId) {
-                --mLastId;
-                mReturnedIds.erase(i);
+            const auto i = returned_ids_.begin();
+            if (i != returned_ids_.end() && *i == last_id_) {
+                --last_id_;
+                returned_ids_.erase(i);
             } else {
                 break;
             }
         }
     } else {
-        assert(id < mLastId);
-        mReturnedIds.insert(id);
+        assert(id < last_id_);
+        returned_ids_.insert(id);
     }
 }
 
-void UniqueIdAllocator::reset() {
-    mLastId = kEmptyId;
-    mReturnedIds.clear();
+void UniqueIdAllocator::Reset() {
+    last_id_ = kEmptyId;
+    returned_ids_.clear();
 }
 
-void UniqueIdAllocator::saveToSnapshot(archive::IWriter& writer) const {
-    writer << mLastId << mReturnedIds.size();
-    for (const uint32_t id : mReturnedIds) {
+void UniqueIdAllocator::SaveToSnapshot(archive::IWriter& writer) const {
+    writer << last_id_ << returned_ids_.size();
+    for (const uint32_t id : returned_ids_) {
         writer << id;
     }
 }
 
-int UniqueIdAllocator::loadFromSnapshot(archive::IReader& reader) {
-    mLastId = getUnsigned(reader);
-    mReturnedIds.clear();
-    for (size_t n = getUnsigned(reader); n > 0; --n) {
-        mReturnedIds.insert(getUnsigned(reader));
+int UniqueIdAllocator::LoadFromSnapshot(archive::IReader& reader) {
+    last_id_ = GetUnsigned(reader);
+    returned_ids_.clear();
+    for (size_t n = GetUnsigned(reader); n > 0; --n) {
+        returned_ids_.insert(GetUnsigned(reader));
     }
 
     return 0;

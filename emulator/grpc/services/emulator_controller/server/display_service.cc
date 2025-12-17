@@ -158,9 +158,9 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
                 // Log the FPS when verbose logging is enabled.
                 if (ABSL_VLOG_IS_ON(1)) {
-                    fpsCalculator.addFrame();
+                    fpsCalculator.AddFrame();
                     VLOG_EVERY_N_SEC(1, 1)
-                            << "gRPC framerate: " << fpsCalculator.getFps() << " fps";
+                            << "gRPC framerate: " << fpsCalculator.GetFps() << " fps";
                 }
             }
             lastFrameWasEmpty = emptyFrame;

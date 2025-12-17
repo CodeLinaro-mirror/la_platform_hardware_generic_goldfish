@@ -375,7 +375,7 @@ class SensorDevice : public ISensorDevice {
         if (absl::ConsumePrefix(&msg, "time:")) {
             int64_t guest_time_ns;
             if (absl::SimpleAtoi(msg, &guest_time_ns)) {
-                auto now = mClock->now(::android::base::ClockType::Virtual);
+                auto now = mClock->Now(::android::base::ClockType::kVirtual);
                 mTimeOffset = absl::FromUnixNanos(guest_time_ns) - now;
                 return true;
             } else {
@@ -417,7 +417,7 @@ class SensorDevice : public ISensorDevice {
         // time of the sensor event arrival. Since the CTS enforces this property,
         // other code may also rely on it.
         DCHECK(mLoop->IsOnLoopThread()) << "Tick must be called from the event loop!";
-        const auto now = mClock->now(::android::base::ClockType::Virtual);
+        const auto now = mClock->Now(::android::base::ClockType::kVirtual);
         mPhysicalModel->setCurrentTime(absl::ToUnixNanos(now));
         for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
              ++sensor_id) {
@@ -499,7 +499,7 @@ void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* regist
                                    const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop) {
     registerDevice(pm, registry, avd_type, avd_api, hw, clientLoop, qemuLoop,
-                   &::android::base::IClock::get());
+                   &::android::base::IClock::Get());
 }
 
 }  // namespace goldfish::devices::sensor

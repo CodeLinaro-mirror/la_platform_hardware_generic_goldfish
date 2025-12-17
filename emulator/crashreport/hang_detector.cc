@@ -65,7 +65,7 @@ class LoopWatcher {
     void process(const HangDetector::HangCallback& hangCallback) {
         absl::ReleasableMutexLock l(&mMutex);
 
-        const absl::Time now = mClock->now(base::ClockType::Realtime);
+        const absl::Time now = mClock->Now(base::ClockType::kRealtime);
         if (mIsTaskRunning) {
             // Heuristic: If the looper watcher itself took much longer than
             // mTimeout to fire again, it's possible there was a system-wide
@@ -103,7 +103,7 @@ class LoopWatcher {
   private:
     void scheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mMutex) {
         mIsTaskRunning = true;
-        mLastCheckTime = mClock->now(base::ClockType::Realtime);
+        mLastCheckTime = mClock->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
         mTimer->Schedule(std::chrono::milliseconds(0));
     }

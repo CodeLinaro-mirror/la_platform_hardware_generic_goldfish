@@ -16,19 +16,17 @@
 
 #include "goldfish/archive/reader.h"
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
 /* This is mostly for tests, see archive_unittests.cpp */
 struct DequeReader : public IReader {
     using Storage = std::deque<uint8_t>;
 
-    explicit DequeReader(Storage* storage) : mStorage(storage) {}
+    explicit DequeReader(Storage* storage) : storage(storage) {}
 
-    virtual size_t read(void* dst, size_t size) override;
+    size_t Read(void* dst, size_t size) override;
 
-    Storage* mStorage;
+    Storage* storage;
 };
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive

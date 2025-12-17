@@ -23,7 +23,7 @@ namespace android::base {
  */
 class QemuClock : public IClock {
   public:
-    absl::Time now(ClockType type) const override;
+    absl::Time Now(ClockType type) const override;
 };
 
 }  // namespace android::base

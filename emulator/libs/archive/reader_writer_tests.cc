@@ -31,7 +31,7 @@ TEST(archive, example) {
 
     writer << str;
     EXPECT_FALSE(storage.empty());
-    EXPECT_EQ(getString(reader), str);
+    EXPECT_EQ(GetString(reader), str);
     EXPECT_TRUE(storage.empty());
 }
 
@@ -45,13 +45,13 @@ TEST(archive, positive) {
     constexpr int32_t kSignedNumber = 2000000000;
 
     archive << kUnsignedNumber << string1 << kSignedNumber << string2 << -kSignedNumber;
-    EXPECT_FALSE(archive.empty());
-    EXPECT_EQ(getUnsigned(archive), kUnsignedNumber);
-    EXPECT_EQ(getString(archive), string1);
-    EXPECT_EQ(getSigned(archive), kSignedNumber);
-    EXPECT_EQ(getString(archive), string2);
-    EXPECT_EQ(getSigned(archive), -kSignedNumber);
-    EXPECT_TRUE(archive.empty());
+    EXPECT_FALSE(archive.Empty());
+    EXPECT_EQ(GetUnsigned(archive), kUnsignedNumber);
+    EXPECT_EQ(GetString(archive), string1);
+    EXPECT_EQ(GetSigned(archive), kSignedNumber);
+    EXPECT_EQ(GetString(archive), string2);
+    EXPECT_EQ(GetSigned(archive), -kSignedNumber);
+    EXPECT_TRUE(archive.Empty());
 }
 
 TEST(archive, negative) {
@@ -60,10 +60,10 @@ TEST(archive, negative) {
     DequeArchive archive;
 
     archive << string1;
-    EXPECT_FALSE(archive.empty());
+    EXPECT_FALSE(archive.Empty());
     archive.storage.pop_back();
-    EXPECT_EQ(getString(archive), "");
-    EXPECT_TRUE(archive.empty());
+    EXPECT_EQ(GetString(archive), "");
+    EXPECT_TRUE(archive.Empty());
 }
 
 TEST(archive, length) {
@@ -77,13 +77,13 @@ TEST(archive, length) {
     constexpr uint64_t kUnsignedNumber10 = UINT64_MAX;
 
     archive << kUnsignedNumber1;
-    EXPECT_EQ(archive.size(), 1);
+    EXPECT_EQ(archive.Size(), 1);
     archive << kUnsignedNumber2;
-    EXPECT_EQ(archive.size(), 1 + 2);
+    EXPECT_EQ(archive.Size(), 1 + 2);
     archive << kUnsignedNumber3;
-    EXPECT_EQ(archive.size(), 1 + 2 + 3);
+    EXPECT_EQ(archive.Size(), 1 + 2 + 3);
     archive << kUnsignedNumber4;
-    EXPECT_EQ(archive.size(), 1 + 2 + 3 + 4);
+    EXPECT_EQ(archive.Size(), 1 + 2 + 3 + 4);
     archive << kUnsignedNumber10;
-    EXPECT_EQ(archive.size(), 1 + 2 + 3 + 4 + 10);
+    EXPECT_EQ(archive.Size(), 1 + 2 + 3 + 4 + 10);
 }

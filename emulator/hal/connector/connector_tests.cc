@@ -102,8 +102,8 @@ TEST(Connector, incomplete_request) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "Connector");
-    EXPECT_EQ(getString(archive), "incomplete");
+    EXPECT_EQ(GetString(archive), "Connector");
+    EXPECT_EQ(GetString(archive), "incomplete");
 }
 
 TEST(Connector, bad_request) {
@@ -120,7 +120,7 @@ TEST(Connector, bad_request) {
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
     testSocket.plug->onUnplug();
 
-    EXPECT_TRUE(archive.empty());
+    EXPECT_TRUE(archive.Empty());
 }
 
 TEST(Connector, unknown_device) {
@@ -137,7 +137,7 @@ TEST(Connector, unknown_device) {
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
     testSocket.plug->onUnplug();
 
-    EXPECT_TRUE(archive.empty());
+    EXPECT_TRUE(archive.Empty());
 }
 
 TEST(Connector, unknown_qemud_device) {
@@ -154,7 +154,7 @@ TEST(Connector, unknown_qemud_device) {
     EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
     testSocket.plug->onUnplug();
 
-    EXPECT_TRUE(archive.empty());
+    EXPECT_TRUE(archive.Empty());
 }
 
 TEST(Connector, qemud_TestDevice_args_unconsumed) {
@@ -177,10 +177,10 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");  // type
-    EXPECT_EQ(getUnsigned(archive), 1);           // isQemud
-    EXPECT_EQ(getString(archive), "args");        // args
-    EXPECT_EQ(getString(archive), "unconsumed");
+    EXPECT_EQ(GetString(archive), "TestDevice");  // type
+    EXPECT_EQ(GetUnsigned(archive), 1);           // isQemud
+    EXPECT_EQ(GetString(archive), "args");        // args
+    EXPECT_EQ(GetString(archive), "unconsumed");
 }
 
 TEST(Connector, qemud_TestDevice_unconsumed) {
@@ -203,10 +203,10 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");  // type
-    EXPECT_EQ(getUnsigned(archive), 1);           // isQemud
-    EXPECT_EQ(getString(archive), "");            // args
-    EXPECT_EQ(getString(archive), "unconsumed");
+    EXPECT_EQ(GetString(archive), "TestDevice");  // type
+    EXPECT_EQ(GetUnsigned(archive), 1);           // isQemud
+    EXPECT_EQ(GetString(archive), "");            // args
+    EXPECT_EQ(GetString(archive), "unconsumed");
 }
 
 TEST(Connector, TestDevice_args_unconsumed) {
@@ -229,10 +229,10 @@ TEST(Connector, TestDevice_args_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");  // type
-    EXPECT_EQ(getUnsigned(archive), 0);           // isQemud
-    EXPECT_EQ(getString(archive), "args");        // args
-    EXPECT_EQ(getString(archive), "unconsumed");
+    EXPECT_EQ(GetString(archive), "TestDevice");  // type
+    EXPECT_EQ(GetUnsigned(archive), 0);           // isQemud
+    EXPECT_EQ(GetString(archive), "args");        // args
+    EXPECT_EQ(GetString(archive), "unconsumed");
 }
 
 TEST(Connector, TestDevice_unconsumed) {
@@ -255,10 +255,10 @@ TEST(Connector, TestDevice_unconsumed) {
         testSocket.plug->onUnplug();
     }
 
-    EXPECT_EQ(getString(archive), "TestDevice");  // type
-    EXPECT_EQ(getUnsigned(archive), 0);           // isQemud
-    EXPECT_EQ(getString(archive), "");            // args
-    EXPECT_EQ(getString(archive), "unconsumed");
+    EXPECT_EQ(GetString(archive), "TestDevice");  // type
+    EXPECT_EQ(GetUnsigned(archive), 0);           // isQemud
+    EXPECT_EQ(GetString(archive), "");            // args
+    EXPECT_EQ(GetString(archive), "unconsumed");
 }
 
 }  // namespace devices

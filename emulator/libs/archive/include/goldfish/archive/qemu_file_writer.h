@@ -15,16 +15,14 @@
 
 struct QEMUFile;
 
-namespace goldfish {
-namespace archive {
+namespace goldfish::archive {
 
 struct QEMUFileWriter : public IWriter {
-    explicit QEMUFileWriter(QEMUFile* file) : mFile(file) {}
+    explicit QEMUFileWriter(QEMUFile* file) : file(file) {}
 
-    virtual void write(const void* src, size_t size) override;
+    void Write(const void* src, size_t size) override;
 
-    QEMUFile* mFile;
+    QEMUFile* file;
 };
 
-}  // namespace archive
-}  // namespace goldfish
+}  // namespace goldfish::archive
