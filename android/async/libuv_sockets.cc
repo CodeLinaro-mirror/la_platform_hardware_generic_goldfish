@@ -44,6 +44,7 @@
 namespace goldfish::async {
 
 using goldfish::network::Endpoint;
+using goldfish::network::ToEndpoint;
 
 namespace {
 
@@ -79,12 +80,10 @@ struct WriteReqT {
 
 class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<LibuvSocket> {
   public:
-    explicit LibuvSocket(EventLoop* loop) : LibuvSocket(loop, /*is_incoming=*/true) {}
+    explicit LibuvSocket(EventLoop* loop) : LibuvSocket(loop, {}, /*is_incoming=*/true) {}
 
-    LibuvSocket(EventLoop* loop, const Endpoint& endpoint)
-            : LibuvSocket(loop, /*is_incoming=*/false) {
-        addr_ = ToSockaddr(endpoint);
-    }
+    LibuvSocket(EventLoop* loop, Endpoint endpoint)
+            : LibuvSocket(loop, std::move(endpoint), /*is_incoming=*/false) {}
 
     ~LibuvSocket() override {
         DCHECK(uv_is_closing((const uv_handle_t*)&tcp_handle_))
@@ -164,7 +163,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         auto* connect_req = new uv_connect_t();
         connect_req->data = new std::shared_ptr<LibuvSocket>(shared_from_this());
 
-        uv_tcp_connect(connect_req, &tcp_handle_, reinterpret_cast<const struct sockaddr*>(&addr_),
+        struct sockaddr_storage addr = ToSockaddr(endpoint_);
+        uv_tcp_connect(connect_req, &tcp_handle_, reinterpret_cast<const struct sockaddr*>(&addr),
                        [](uv_connect_t* req, int s) {
                            auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(req->data);
                            (*self_ptr)->OnConnect(s);
@@ -183,24 +183,8 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
-        char ip[INET6_ADDRSTRLEN];
-        int port = 0;
-
-        if (addr_.ss_family == AF_INET) {
-            const auto* addr_in = reinterpret_cast<const sockaddr_in*>(&addr_);
-            uv_ip4_name(addr_in, ip, sizeof(ip));
-            port = ntohs(addr_in->sin_port);
-        } else if (addr_.ss_family == AF_INET6) {
-            const auto* addr_in6 = reinterpret_cast<const sockaddr_in6*>(&addr_);
-            uv_ip6_name(addr_in6, ip, sizeof(ip));
-            port = ntohs(addr_in6->sin6_port);
-        } else {
-            absl::Format(&s, "[uvs ? L:%p]", GetLoop());
-            return;
-        }
-
-        absl::Format(&s, "[uvs %s%s %s:%d L:%p]", is_incoming_ ? "<-" : "->",
-                     is_connected_ ? "+" : "-", ip, port, GetLoop());
+        absl::Format(&s, "[uvs %s%s %s L:%p]", (is_incoming_ ? "<-" : "->"),
+                     (is_connected_ ? "+" : "-"), ToString(endpoint_), GetLoop());
     }
 
   private:
@@ -236,9 +220,10 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     friend class LibuvServer;
 
-    LibuvSocket(EventLoop* loop, const bool is_incoming)
+    LibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
             : event_loop_(loop)
             , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
+            , endpoint_(std::move(endpoint))
             , read_buffer_allocator_(16384)
             , is_incoming_(is_incoming) {
         uv_tcp_init(loop_, &tcp_handle_);
@@ -269,12 +254,20 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         VLOG(1) << "accept: " << UvErrToAbslStatus(result);
         if (result == 0) {
             is_connected_ = true;
-            int namelen = sizeof(addr_);
+
+            struct sockaddr_storage addr;
+            int namelen = sizeof(addr);
             const int peer_result = uv_tcp_getpeername(
-                    &tcp_handle_, reinterpret_cast<struct sockaddr*>(&addr_), &namelen);
+                    &tcp_handle_, reinterpret_cast<struct sockaddr*>(&addr), &namelen);
             if (peer_result != 0) {
                 LOG(WARNING) << "Failed to get peer name: " << uv_strerror(peer_result);
-                memset(&addr_, 0, sizeof(addr_));
+            } else {
+                auto ep = ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
+                if (ep.ok()) {
+                    endpoint_ = *std::move(ep);
+                } else {
+                    LOG(WARNING) << "Failed to get endpoint: " << ep.status();
+                }
             }
         } else {
             LOG(WARNING) << "Failed to accept incoming connection: " << uv_strerror(result);
@@ -314,9 +307,9 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     EventLoop* const event_loop_;
     uv_loop_t* const loop_;
+    Endpoint endpoint_;
     ReadBufferAllocator<4> read_buffer_allocator_;
     uv_tcp_t tcp_handle_;
-    sockaddr_storage addr_;
 
     OnReadCallback on_read_;
     OnCloseCallback on_close_;
