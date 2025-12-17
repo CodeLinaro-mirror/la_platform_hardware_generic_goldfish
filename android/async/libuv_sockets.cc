@@ -39,14 +39,31 @@
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/uv_to_absl.h"
+#include "goldfish/cpp/overloaded.h"
 #include "goldfish/network/endpoint.h"
 
 namespace goldfish::async {
 
+using goldfish::cpp::Overloaded;
 using goldfish::network::Endpoint;
+using goldfish::network::Ipv4Endpoint;
+using goldfish::network::Ipv6Endpoint;
 using goldfish::network::ToEndpoint;
+using goldfish::network::UnEndpoint;
 
 namespace {
+
+int UvIsClosing(const uv_stream_t* stream) {
+    return ::uv_is_closing(reinterpret_cast<const uv_handle_t*>(stream));
+}
+
+void UvIsClosingChecked(const uv_stream_t* stream) {
+    DCHECK(UvIsClosing(stream)) << "LibuvSocket destroyed without calling close() first!";
+}
+
+void CrashIfUvFailed(const int uv_result, const char* const what) {
+    CHECK(!uv_result) << what << " failed with " << uv_strerror(uv_result);
+}
 
 struct WriteReqT {
     uv_write_t req;
@@ -80,16 +97,6 @@ struct WriteReqT {
 
 class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<LibuvSocket> {
   public:
-    explicit LibuvSocket(EventLoop* loop) : LibuvSocket(loop, {}, /*is_incoming=*/true) {}
-
-    LibuvSocket(EventLoop* loop, Endpoint endpoint)
-            : LibuvSocket(loop, std::move(endpoint), /*is_incoming=*/false) {}
-
-    ~LibuvSocket() override {
-        DCHECK(uv_is_closing((const uv_handle_t*)&tcp_handle_))
-                << "LibuvSocket destroyed without calling close() first!";
-    }
-
     // --- Configuration Methods ---
     void SetOnReadCallbackNoFlowControl(OnReadCallback cb) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
@@ -103,7 +110,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
                 if (enable_reading) {
                     self->StartReading();
                 } else {
-                    uv_read_stop(reinterpret_cast<uv_stream_t*>(&(self->tcp_handle_)));
+                    uv_read_stop(self->GetUvSocketStream());
                 }
             }
         });
@@ -123,28 +130,28 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback cb) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "buffer_sizelled on loop thread";
 
-        if (!is_connected_ || uv_is_closing(reinterpret_cast<const uv_handle_t*>(&tcp_handle_))) {
+        uv_stream_t* stream = GetUvSocketStream();
+        if (!is_connected_ || UvIsClosing(stream)) {
             return UvErrToAbslStatus(UV_ENOTCONN);
         }
 
         auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(cb));
-
-        uv_write(&write_req->req, reinterpret_cast<uv_stream_t*>(&tcp_handle_), &write_req->buf, 1,
-                 [](uv_write_t* req, int s) {
-                     auto* w = reinterpret_cast<WriteReqT*>(req);
-                     w->cb(UvErrToAbslStatus(s));
-                     WriteReqT::Destroy(w);
-                 });
+        uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
+            auto* w = reinterpret_cast<WriteReqT*>(req);
+            w->cb(UvErrToAbslStatus(s));
+            WriteReqT::Destroy(w);
+        });
         return absl::OkStatus();
     }
 
     void Close() override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        is_connected_ = false;
 
-        if (!uv_is_closing(reinterpret_cast<const uv_handle_t*>(&tcp_handle_))) {
-            tcp_handle_.data = new std::shared_ptr<LibuvSocket>(shared_from_this());
-            uv_close(reinterpret_cast<uv_handle_t*>(&tcp_handle_), [](uv_handle_t* h) {
+        is_connected_ = false;
+        auto* handle = GetUvSocketStreamAsHandle();
+        if (!uv_is_closing(handle)) {
+            handle->data = new std::shared_ptr<LibuvSocket>(shared_from_this());
+            uv_close(handle, [](uv_handle_t* h) {
                 auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(h->data);
                 if ((*self_ptr)->on_close_) {
                     (*self_ptr)->on_close_();
@@ -154,40 +161,20 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         }
     }
 
-    absl::Status Connect() override {
-        DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        if (is_connected_) {
-            return absl::OkStatus();
-        }
-
-        auto* connect_req = new uv_connect_t();
-        connect_req->data = new std::shared_ptr<LibuvSocket>(shared_from_this());
-
-        struct sockaddr_storage addr = ToSockaddr(endpoint_);
-        uv_tcp_connect(connect_req, &tcp_handle_, reinterpret_cast<const struct sockaddr*>(&addr),
-                       [](uv_connect_t* req, int s) {
-                           auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(req->data);
-                           (*self_ptr)->OnConnect(s);
-                           delete self_ptr;
-                           delete req;
-                       });
-        return absl::OkStatus();
-    }
-
     bool Connected() const override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        return is_connected_ && !uv_is_closing(reinterpret_cast<const uv_handle_t*>(&tcp_handle_));
+
+        return is_connected_ &&
+               !uv_is_closing(const_cast<LibuvSocket*>(this)->GetUvSocketStreamAsHandle());
     }
 
     EventLoop* GetLoop() const override { return event_loop_; }
 
-  protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
         absl::Format(&s, "[uvs %s%s %s L:%p]", (is_incoming_ ? "<-" : "->"),
                      (is_connected_ ? "+" : "-"), ToString(endpoint_), GetLoop());
     }
 
-  private:
     template <size_t kMaxAllocs>
     struct ReadBufferAllocator {
         explicit ReadBufferAllocator(uint32_t buf_size) : mbuffer_size(buf_size) {}
@@ -218,25 +205,14 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         uint32_t allocs_size = 0;
     };
 
-    friend class LibuvServer;
-
-    LibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
-            : event_loop_(loop)
-            , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
-            , endpoint_(std::move(endpoint))
-            , read_buffer_allocator_(16384)
-            , is_incoming_(is_incoming) {
-        uv_tcp_init(loop_, &tcp_handle_);
-        uv_tcp_nodelay(&tcp_handle_, 1);
-        tcp_handle_.data = this;
-    }
-
     void StartReading() {
         DCHECK(event_loop_->IsOnLoopThread());
-        if (uv_is_closing(reinterpret_cast<const uv_handle_t*>(&tcp_handle_))) return;
+
+        uv_stream_t* stream = GetUvSocketStream();
+        if (UvIsClosing(stream)) return;
 
         uv_read_start(
-                reinterpret_cast<uv_stream_t*>(&tcp_handle_),
+                stream,
                 [](uv_handle_t* h, size_t suggested_size, uv_buf_t* buf) {
                     auto* ctx = static_cast<LibuvSocket*>(h->data);
                     *buf = ctx->read_buffer_allocator_.Alloc(suggested_size);
@@ -248,21 +224,16 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
                 });
     }
 
-    void Accept(uv_stream_t* server_handle) {
+    void Accept(uv_stream_t* server_stream, uv_stream_t* socket_stream) {
         DCHECK(event_loop_->IsOnLoopThread());
-        auto result = uv_accept(server_handle, reinterpret_cast<uv_stream_t*>(&tcp_handle_));
+
+        auto result = uv_accept(server_stream, socket_stream);
         VLOG(1) << "accept: " << UvErrToAbslStatus(result);
         if (result == 0) {
             is_connected_ = true;
 
-            struct sockaddr_storage addr;
-            int namelen = sizeof(addr);
-            const int peer_result = uv_tcp_getpeername(
-                    &tcp_handle_, reinterpret_cast<struct sockaddr*>(&addr), &namelen);
-            if (peer_result != 0) {
-                LOG(WARNING) << "Failed to get peer name: " << uv_strerror(peer_result);
-            } else {
-                auto ep = ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
+            auto ep = GetMyEndpoint();
+            if (ep.ok()) {
                 if (ep.ok()) {
                     endpoint_ = *std::move(ep);
                 } else {
@@ -271,14 +242,14 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             }
         } else {
             LOG(WARNING) << "Failed to accept incoming connection: " << uv_strerror(result);
-            uv_close(reinterpret_cast<uv_handle_t*>(&tcp_handle_), nullptr);
+            uv_close(reinterpret_cast<uv_handle_t*>(socket_stream), nullptr);
         }
     }
 
     void OnRead(ssize_t nread, const uv_buf_t* buf) {
         DCHECK(on_read_) << "`mOnRead` must be set to prevent loss of data.";
 
-        VLOG(2) << "on_read: " << nread << " : " << UvErrToAbslStatus(static_cast<int>(nread));
+        VLOG(2) << "on_read: " << nread << " : " << uv_strerror(static_cast<int>(nread));
         if (nread >= 0) {
             // Success path (nread > 0) or no-op (nread == 0).
             on_read_({buf->base, static_cast<size_t>(nread)}, absl::OkStatus());
@@ -292,7 +263,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     }
 
     void OnConnect(int status) {
-        VLOG(1) << "on_connect: " << UvErrToAbslStatus(status);
+        VLOG(1) << "on_connect: " << uv_strerror(status);
         if (on_connected_) {
             if (status == 0) {
                 is_connected_ = true;
@@ -307,11 +278,25 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
         }
     }
 
+  protected:
+    uv_handle_t* GetUvSocketStreamAsHandle() {
+        return reinterpret_cast<uv_handle_t*>(GetUvSocketStream());
+    }
+
+    virtual uv_stream_t* GetUvSocketStream() = 0;
+    virtual absl::StatusOr<Endpoint> GetMyEndpoint() const = 0;
+
+    LibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
+            : event_loop_(loop)
+            , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
+            , endpoint_(std::move(endpoint))
+            , read_buffer_allocator_(16384)
+            , is_incoming_(is_incoming) {}
+
     EventLoop* const event_loop_;
     uv_loop_t* const loop_;
     Endpoint endpoint_;
     ReadBufferAllocator<4> read_buffer_allocator_;
-    uv_tcp_t tcp_handle_;
 
     OnReadCallback on_read_;
     OnCloseCallback on_close_;
@@ -321,66 +306,178 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     bool is_connected_ = false;
 };
 
-class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
-    struct Private {};
-
+class TcpLibuvSocket : public LibuvSocket {
   public:
-    // Factory to create a LibuvServer. Returns nullptr on failure.
-    static std::shared_ptr<LibuvServer> Create(EventLoop* loop, const Endpoint& endpoint,
-                                               ConnectCallback cb) {
-        DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
-        auto server = std::make_shared<LibuvServer>(loop, std::move(cb), Private());
+    explicit TcpLibuvSocket(EventLoop* loop) : TcpLibuvSocket(loop, {}, /*is_incoming=*/true) {}
 
-        if (server->BindAndListen(endpoint)) {
-            return server;
-        }
+    TcpLibuvSocket(EventLoop* loop, Endpoint endpoint)
+            : TcpLibuvSocket(loop, std::move(endpoint), /*is_incoming=*/false) {}
 
-        server->Close();
-        return nullptr;
+    ~TcpLibuvSocket() override {
+        UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&socket_stream_));
     }
 
-    LibuvServer(EventLoop* loop, ConnectCallback cb, Private)
-            : event_loop_(loop)
-            , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
-            , connect_callback_(std::move(cb)) {
-        DCHECK(event_loop_->IsOnLoopThread()) << "Must be constructed on loop thread";
-        uv_tcp_init(loop_, &server_handle_);
-        server_handle_.data = this;
-    }
+    uv_stream_t* GetUvSocketStreamImpl() { return reinterpret_cast<uv_stream_t*>(&socket_stream_); }
 
-    ~LibuvServer() override {
-        DCHECK(uv_is_closing((const uv_handle_t*)&server_handle_))
-                << "LibuvServer destroyed without calling close() first!";
-    }
+    uv_stream_t* GetUvSocketStream() override { return GetUvSocketStreamImpl(); }
 
-    Endpoint GetEndpoint() const override {
+  protected:
+    absl::Status Connect() override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
 
-        struct sockaddr_storage addr = {};
-        int len = sizeof(addr);
-        if (const int getsockname_result = ::uv_tcp_getsockname(
-                    &server_handle_, reinterpret_cast<struct sockaddr*>(&addr), &len)) {
-            LOG(WARNING) << "getsockname error: " << UvErrToAbslStatus(getsockname_result);
-            return {};
+        if (is_connected_) {
+            return absl::OkStatus();
         }
 
-        auto ep = network::ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
+        auto* self_ptr = new std::shared_ptr<LibuvSocket>(shared_from_this());
+        auto* connect_req = new uv_connect_t();
+        connect_req->data = self_ptr;
+
+        struct sockaddr_storage addr = ToSockaddr(endpoint_);
+        const int connect_res = uv_tcp_connect(
+                connect_req, &socket_stream_, reinterpret_cast<const struct sockaddr*>(&addr),
+                [](uv_connect_t* req, int s) {
+                    auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(req->data);
+                    (*self_ptr)->OnConnect(s);
+                    delete self_ptr;
+                    delete req;
+                });
+        if (connect_res) {
+            LOG(ERROR) << "uv_tcp_connect failed: " << uv_strerror(connect_res);
+            delete self_ptr;
+            delete connect_req;
+            return UvErrToAbslStatus(connect_res);
+        }
+
+        return absl::OkStatus();
+    }
+
+    absl::StatusOr<Endpoint> GetMyEndpoint() const override {
+        struct sockaddr_storage addr;
+        int namelen = sizeof(addr);
+        const int peer_result = uv_tcp_getpeername(
+                &socket_stream_, reinterpret_cast<struct sockaddr*>(&addr), &namelen);
+        if (peer_result != 0) {
+            LOG(WARNING) << "Failed to get peer name: " << uv_strerror(peer_result);
+            return UvErrToAbslStatus(peer_result);
+        }
+
+        auto ep = ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
         if (!ep.ok()) {
-            LOG(ERROR) << "Could not get the server endpoint";
-            return {};
+            return ep.status();
         }
 
         return *std::move(ep);
     }
 
+  private:
+    TcpLibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
+            : LibuvSocket(loop, std::move(endpoint), is_incoming) {
+        CrashIfUvFailed(uv_tcp_init(loop_, &socket_stream_), "uv_tcp_init");
+        CrashIfUvFailed(uv_tcp_nodelay(&socket_stream_, 1), "uv_tcp_nodelay");
+        socket_stream_.data = this;
+    }
+
+    uv_tcp_t socket_stream_;
+};
+
+class UnLibuvSocket : public LibuvSocket {
+  public:
+    explicit UnLibuvSocket(EventLoop* loop) : UnLibuvSocket(loop, {}, /*is_incoming=*/true) {}
+
+    UnLibuvSocket(EventLoop* loop, Endpoint endpoint)
+            : UnLibuvSocket(loop, std::move(endpoint), /*is_incoming=*/false) {}
+
+    ~UnLibuvSocket() override {
+        UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&socket_stream_));
+    }
+
+    uv_stream_t* GetUvSocketStreamImpl() { return reinterpret_cast<uv_stream_t*>(&socket_stream_); }
+
+    uv_stream_t* GetUvSocketStream() override { return GetUvSocketStreamImpl(); }
+
+  protected:
+    absl::Status Connect() override {
+        DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
+        DCHECK(std::holds_alternative<UnEndpoint>(endpoint_));
+
+        if (is_connected_) {
+            return absl::OkStatus();
+        }
+
+        auto* self_ptr = new std::shared_ptr<LibuvSocket>(shared_from_this());
+        auto* connect_req = new uv_connect_t();
+        connect_req->data = self_ptr;
+
+        const auto& ep = std::get<UnEndpoint>(endpoint_);
+        const int connect_res = uv_pipe_connect2(
+                connect_req, &socket_stream_, ep.Address().data(), ep.Address().size(),
+                UV_PIPE_NO_TRUNCATE, [](uv_connect_t* req, int s) {
+                    auto* self_ptr = static_cast<std::shared_ptr<LibuvSocket>*>(req->data);
+                    (*self_ptr)->OnConnect(s);
+                    delete self_ptr;
+                    delete req;
+                });
+        if (connect_res) {
+            LOG(ERROR) << "uv_tcp_connect failed: " << uv_strerror(connect_res);
+            delete self_ptr;
+            delete connect_req;
+            return UvErrToAbslStatus(connect_res);
+        }
+
+        return absl::OkStatus();
+    }
+
+    absl::StatusOr<Endpoint> GetMyEndpoint() const override {
+        size_t namelen = 0;
+        std::string name(1, '?');
+        int getpeername_res = uv_pipe_getpeername(&socket_stream_, name.data(), &namelen);
+        if (getpeername_res && (getpeername_res != UV_ENOBUFS)) {
+            return UvErrToAbslStatus(getpeername_res);
+        }
+
+        if (!namelen) {
+            return Endpoint(UnEndpoint::MakeEmpty());
+        }
+
+        name.resize(namelen);
+        getpeername_res = uv_pipe_getpeername(&socket_stream_, name.data(), &namelen);
+        if (getpeername_res) {
+            return UvErrToAbslStatus(getpeername_res);
+        }
+
+        name.resize(namelen);
+        return Endpoint(*UnEndpoint::Create(std::move(name)));
+    }
+
+  private:
+    UnLibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
+            : LibuvSocket(loop, std::move(endpoint), is_incoming) {
+        CrashIfUvFailed(uv_pipe_init(loop_, &socket_stream_, 0), "uv_pipe_init");
+        socket_stream_.data = this;
+    }
+
+    uv_pipe_t socket_stream_;
+};
+
+class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
+  public:
+    LibuvServer(EventLoop* loop, ConnectCallback cb)
+            : event_loop_(loop)
+            , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
+            , connect_callback_(std::move(cb)) {
+        DCHECK(event_loop_->IsOnLoopThread()) << "Must be constructed on loop thread";
+    }
+
     void Close() override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
 
-        if (!uv_is_closing(reinterpret_cast<const uv_handle_t*>(&server_handle_))) {
+        auto* server_handle = reinterpret_cast<uv_handle_t*>(GetServerStream());
+        if (!uv_is_closing(server_handle)) {
             is_listening_ = false;
-            server_handle_.data = new std::shared_ptr<LibuvServer>(shared_from_this());
+            server_handle->data = new std::shared_ptr<LibuvServer>(shared_from_this());
 
-            uv_close(reinterpret_cast<uv_handle_t*>(&server_handle_), [](uv_handle_t* handle) {
+            uv_close(server_handle, [](uv_handle_t* handle) {
                 auto* self_ptr = static_cast<std::shared_ptr<LibuvServer>*>(handle->data);
                 if ((*self_ptr)->on_close_) {
                     (*self_ptr)->on_close_();
@@ -397,51 +494,14 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
     EventLoop* GetLoop() const override { return event_loop_; }
 
-  private:
-    bool BindAndListen(const Endpoint& endpoint) {
-        const struct sockaddr_storage addr = ToSockaddr(endpoint);
-        if (addr.ss_family == AF_UNSPEC) {
-            LOG(ERROR) << "Failed to convert endpoint to sockaddr: " << ToString(endpoint);
-            return false;
-        }
-
-        if (uv_tcp_bind(&server_handle_, reinterpret_cast<const struct sockaddr*>(&addr), 0) != 0) {
-            LOG(ERROR) << "Failed to bind to " << ToString(endpoint);
-            return false;
-        }
-
-        const int listen_res = uv_listen(reinterpret_cast<uv_stream_t*>(&server_handle_), 128,
-                                         [](uv_stream_t* s, int status) {
-                                             if (status < 0) {
-                                                 LOG(WARNING) << "Listen error: "
-                                                              << UvErrToAbslStatus(status);
-                                                 return;
-                                             }
-                                             static_cast<LibuvServer*>(s->data)->OnNewConnection(s);
-                                         });
-
-        if (listen_res != 0) {
-            LOG(ERROR) << "Failed to listen on " << ToString(endpoint) << ": "
-                       << UvErrToAbslStatus(listen_res);
-            return false;
-        }
-
-        is_listening_ = true;
-        return true;
-    }
-
     void OnNewConnection(uv_stream_t* server) {
         if (!is_listening_) return;
 
-        auto client = std::make_shared<LibuvSocket>(event_loop_);
-        client->Accept(server);
-        uv_tcp_nodelay(&client->tcp_handle_, 1);  // Enable TCP_NODELAY for accepted socket
-
+        auto client = OnNewConnectionImpl(server, event_loop_);
         // At this point, client.use_count() is 1.
-        const bool accepted = connect_callback_(client);
 
-        // Now, check what the user did.
-        if (accepted) {
+        if (connect_callback_(client)) {
+            // Now, check what the user did in `connect_callback_`.
             // If the callback returned true but didn't take ownership,
             // tsk, tsk.
             if (client.use_count() == 1) {
@@ -450,8 +510,6 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
                              << "to prevent it from being abandoned.";
                 client->Close();
             } else {
-                DCHECK(client->on_read_)
-                        << "`mOnRead` must be set by `mConnectCallback` to prevent loss of data.";
                 client->StartReading();
             }
         } else {
@@ -459,12 +517,185 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
         }
     }
 
-    EventLoop* event_loop_;
-    uv_loop_t* loop_;
+    bool StartListening(uv_stream_t* server, const Endpoint& endpoint) {
+        const int listen_res = uv_listen(server, 128, [](uv_stream_t* s, int status) {
+            if (status < 0) {
+                LOG(WARNING) << "Listen error: " << uv_strerror(status);
+                return;
+            }
+            static_cast<LibuvServer*>(s->data)->OnNewConnection(s);
+        });
+        if (listen_res) {
+            LOG(ERROR) << "Failed to listen on " << ToString(endpoint) << ": "
+                       << uv_strerror(listen_res);
+            return false;
+        }
+
+        is_listening_ = true;
+        return true;
+    }
+
+    virtual uv_stream_t* GetServerStream() = 0;
+    virtual std::shared_ptr<LibuvSocket> OnNewConnectionImpl(uv_stream_t* server,
+                                                             EventLoop* loop) = 0;
+
+  protected:
+    EventLoop* const event_loop_;
+    uv_loop_t* const loop_;
+    const ConnectCallback connect_callback_;
     AsyncSocket::OnCloseCallback on_close_;
-    ConnectCallback connect_callback_;
-    uv_tcp_t server_handle_;
     bool is_listening_ = false;
+};
+
+class TcpLibuvServer : public LibuvServer {
+  public:
+    TcpLibuvServer(EventLoop* loop, ConnectCallback cb) : LibuvServer(loop, std::move(cb)) {
+        CrashIfUvFailed(uv_tcp_init(loop_, &server_stream_), "uv_tcp_init");
+        server_stream_.data = this;
+    }
+
+    ~TcpLibuvServer() override {
+        UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&server_stream_));
+    }
+
+    // Factory to create a LibuvServer. Returns nullptr on failure.
+    static std::shared_ptr<LibuvServer> Create(EventLoop* loop, const Endpoint& endpoint,
+                                               ConnectCallback cb) {
+        DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
+
+        auto server = std::make_shared<TcpLibuvServer>(loop, std::move(cb));
+        if (server->BindAndListen(endpoint)) {
+            return server;
+        }
+
+        server->Close();
+        return nullptr;
+    }
+
+    uv_stream_t* GetServerStream() override {
+        return reinterpret_cast<uv_stream_t*>(&server_stream_);
+    }
+
+    std::shared_ptr<LibuvSocket> OnNewConnectionImpl(uv_stream_t* server,
+                                                     EventLoop* loop) override {
+        auto client = std::make_shared<TcpLibuvSocket>(loop);
+        client->Accept(server, client->GetUvSocketStreamImpl());
+        return client;
+    }
+
+    Endpoint GetEndpoint() const override {
+        DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
+
+        struct sockaddr_storage addr = {};
+        int len = sizeof(addr);
+        if (const int getsockname_result = uv_tcp_getsockname(
+                    &server_stream_, reinterpret_cast<struct sockaddr*>(&addr), &len)) {
+            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            return {};
+        }
+
+        auto ep = network::ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
+        if (!ep.ok()) {
+            LOG(ERROR) << "Could not get the server endpoint";
+            return {};
+        }
+
+        return *std::move(ep);
+    }
+
+    bool BindAndListen(const Endpoint& endpoint) {
+        const struct sockaddr_storage addr = ToSockaddr(endpoint);
+        const int res =
+                uv_tcp_bind(&server_stream_, reinterpret_cast<const struct sockaddr*>(&addr), 0);
+        if (res) {
+            LOG(ERROR) << "Failed to bind to " << ToString(endpoint) << ": " << uv_strerror(res);
+            return false;
+        }
+
+        return StartListening(reinterpret_cast<uv_stream_t*>(&server_stream_), endpoint);
+    }
+
+  private:
+    uv_tcp_t server_stream_;
+};
+
+class UnLibuvServer : public LibuvServer {
+  public:
+    UnLibuvServer(EventLoop* loop, ConnectCallback cb) : LibuvServer(loop, std::move(cb)) {
+        CrashIfUvFailed(uv_pipe_init(loop_, &server_stream_, 0), "uv_pipe_init");
+        server_stream_.data = this;
+    }
+
+    ~UnLibuvServer() override {
+        UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&server_stream_));
+    }
+
+    // Factory to create a LibuvServer. Returns nullptr on failure.
+    static std::shared_ptr<LibuvServer> Create(EventLoop* loop, const UnEndpoint& endpoint,
+                                               ConnectCallback cb) {
+        DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
+
+        auto server = std::make_shared<UnLibuvServer>(loop, std::move(cb));
+        if (server->BindAndListen(endpoint)) {
+            return server;
+        }
+
+        server->Close();
+        return nullptr;
+    }
+
+    uv_stream_t* GetServerStream() override {
+        return reinterpret_cast<uv_stream_t*>(&server_stream_);
+    }
+
+    std::shared_ptr<LibuvSocket> OnNewConnectionImpl(uv_stream_t* server,
+                                                     EventLoop* loop) override {
+        auto client = std::make_shared<UnLibuvSocket>(loop);
+        client->Accept(server, client->GetUvSocketStreamImpl());
+        return client;
+    }
+
+    Endpoint GetEndpoint() const override {
+        DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
+
+        size_t namelen = 0;
+        std::string name(1, '?');
+        int getsockname_result = uv_pipe_getsockname(&server_stream_, name.data(), &namelen);
+        if (getsockname_result && (getsockname_result != UV_ENOBUFS)) {
+            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            return UnEndpoint::MakeEmpty();
+        }
+
+        if (!namelen) {
+            return UnEndpoint::MakeEmpty();
+        }
+
+        name.resize(namelen);
+        getsockname_result = uv_pipe_getsockname(&server_stream_, name.data(), &namelen);
+        if (getsockname_result) {
+            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            return UnEndpoint::MakeEmpty();
+        }
+
+        name.resize(namelen);
+        return *UnEndpoint::Create(std::move(name));
+    }
+
+  private:
+    bool BindAndListen(const UnEndpoint& endpoint) {
+        DCHECK(server_stream_.data == this);
+
+        const int res = uv_pipe_bind2(&server_stream_, endpoint.Address().data(),
+                                      endpoint.Address().size(), UV_PIPE_NO_TRUNCATE);
+        if (res) {
+            LOG(ERROR) << "Failed to bind to " << ToString(endpoint) << ": " << uv_strerror(res);
+            return false;
+        }
+
+        return StartListening(reinterpret_cast<uv_stream_t*>(&server_stream_), endpoint);
+    }
+
+    uv_pipe_t server_stream_;
 };
 
 }  // namespace
@@ -477,13 +708,41 @@ std::shared_ptr<AsyncSocketServer> LibuvAsyncSocketFactory::CreateServer(
         EventLoop* loop, const Endpoint& endpoint,
         AsyncSocketServer::ConnectCallback connect_callback) {
     DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
-    return LibuvServer::Create(loop, endpoint, std::move(connect_callback));
+
+    return std::visit(
+            Overloaded{
+                [loop,
+                 &connect_callback](const Ipv4Endpoint& ep) -> std::shared_ptr<AsyncSocketServer> {
+                    return TcpLibuvServer::Create(loop, Endpoint(ep), std::move(connect_callback));
+                },
+                [loop,
+                 &connect_callback](const Ipv6Endpoint& ep) -> std::shared_ptr<AsyncSocketServer> {
+                    return TcpLibuvServer::Create(loop, Endpoint(ep), std::move(connect_callback));
+                },
+                [loop,
+                 &connect_callback](const UnEndpoint& ep) -> std::shared_ptr<AsyncSocketServer> {
+                    return UnLibuvServer::Create(loop, ep, std::move(connect_callback));
+                },
+            },
+            endpoint);
 }
 
 std::shared_ptr<AsyncSocket> LibuvAsyncSocketFactory::CreateSocket(EventLoop* loop,
                                                                    const Endpoint& endpoint) {
     DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
-    return std::make_shared<LibuvSocket>(loop, endpoint);
+
+    return std::visit(Overloaded{
+                          [loop](const Ipv4Endpoint& ep) -> std::shared_ptr<AsyncSocket> {
+                              return std::make_shared<TcpLibuvSocket>(loop, Endpoint(ep));
+                          },
+                          [loop](const Ipv6Endpoint& ep) -> std::shared_ptr<AsyncSocket> {
+                              return std::make_shared<TcpLibuvSocket>(loop, Endpoint(ep));
+                          },
+                          [loop](const UnEndpoint& ep) -> std::shared_ptr<AsyncSocket> {
+                              return std::make_shared<UnLibuvSocket>(loop, Endpoint(ep));
+                          },
+                      },
+                      endpoint);
 }
 
 }  // namespace goldfish::async

@@ -156,6 +156,7 @@ cc_library(
         ":libuv_event_loop",
         ":uv_to_absl",
         "//android/network",
+        "//emulator/libs/cpp",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -178,6 +179,7 @@ cc_test(
         ":libuv_sockets",
         "//android/network",
         "//android/system:googletest_main",
+        "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

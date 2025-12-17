@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -39,6 +40,8 @@ struct UnEndpoint {
             sizeof(static_cast<const struct sockaddr_un*>(nullptr)->sun_path);
 
     [[nodiscard]] const std::string& Address() const { return addr_; }
+    static UnEndpoint MakeEmpty();
+    static absl::StatusOr<UnEndpoint> Create(const std::filesystem::path&);
     static absl::StatusOr<UnEndpoint> Create(std::string addr);
     static UnEndpoint Create(const struct sockaddr_un& sun);
 

@@ -15,6 +15,14 @@
 
 namespace goldfish::network {
 
+UnEndpoint UnEndpoint::MakeEmpty() {
+    return {};
+}
+
+absl::StatusOr<UnEndpoint> UnEndpoint::Create(const std::filesystem::path& path) {
+    return Create(path.string());
+}
+
 absl::StatusOr<UnEndpoint> UnEndpoint::Create(std::string addr) {
     // we need one extra character to store zero
     if (addr.size() > kMaxSize) {

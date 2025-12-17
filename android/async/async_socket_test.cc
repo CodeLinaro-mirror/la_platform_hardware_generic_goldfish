@@ -14,9 +14,11 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
+#include "android/base/testing/TestTempDir.h"
 #include "goldfish/async/async_socket_factory.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/event_loop.h"
@@ -32,6 +34,7 @@ using network::Endpoint;
 using network::GetPortFromEndpoint;
 using network::ToEndpoint;
 using network::ToIpAddress;
+using network::UnEndpoint;
 
 // =================================================================
 //                      TEST FIXTURE
@@ -209,6 +212,69 @@ TEST_F(AsyncSocketTest, EchoTest) {
     }));
     ASSERT_NE(server, nullptr);
     Endpoint endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+
+    ScopedAsyncSocket client(PostAndWait(
+            [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
+    ASSERT_NE(client, nullptr);
+
+    raw_event_loop_->Post([&]() {
+        client->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
+            echo_promise.set_value(std::string(data));
+        });
+        client->SetOnConnectedCallback([&original_message, &echo_promise](AsyncSocket& socket,
+                                                                          absl::Status err) {
+            socket.SetOnReadCallbackNoFlowControl(
+                    [&echo_promise](std::string_view data, absl::Status err) {
+                        echo_promise.set_value(std::string(data));
+                    });
+
+            ASSERT_THAT(socket.Send(original_message.data(), original_message.size()), IsOk());
+        });
+        ASSERT_THAT(client->Connect(), IsOk());
+    });
+
+    RunUntil(echo_future);
+    EXPECT_EQ(echo_future.get(), original_message);
+}
+
+TEST_F(AsyncSocketTest, EchoTest_un) {
+#ifdef _WIN32
+    const std::string un_path(
+            absl::StrFormat("\\\\.\\pipe\\EchoTest_un_%d", GetCurrentProcessId()));
+#else
+    android::base::TestTempDir tmpdir("EchoTest_un");
+    const std::filesystem::path un_path = tmpdir.makeSubPath("sock");
+    ASSERT_LT(un_path.string().size(), 108)
+            << "AF_UNIX has a limit (108) on the path size, the test path (" << un_path << ") is "
+            << un_path.string().size();
+#endif
+
+    const auto endpoint = Endpoint(*UnEndpoint::Create(un_path));
+
+    const std::string original_message = "Ping";
+    std::promise<std::string> echo_promise;
+    auto echo_future = echo_promise.get_future();
+    std::vector<ScopedAsyncSocket> server_sockets;
+    std::mutex server_sockets_mutex;
+
+    auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnReadCallbackNoFlowControl(
+                [sock = socket.get()](std::string_view data, absl::Status err) {
+                    ASSERT_THAT(sock->Send(data.data(), data.size()), IsOk());
+                });
+        // Keep the socket alive by moving it into the scoped vector
+        std::lock_guard<std::mutex> lock(server_sockets_mutex);
+        server_sockets.emplace_back(std::move(socket));
+        return true;
+    };
+
+    ScopedAsyncServer server(PostAndWait([&, endpoint] {
+        return factory_->CreateServer(raw_event_loop_, endpoint, on_connect);
+    }));
+    ASSERT_NE(server, nullptr) << "Failed to bind an AF_UNIX server to '" << un_path << "'";
+
+    const Endpoint returned_endpoint = PostAndWait([&] { return server->GetEndpoint(); });
+    EXPECT_EQ(endpoint, returned_endpoint);
 
     ScopedAsyncSocket client(PostAndWait(
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
