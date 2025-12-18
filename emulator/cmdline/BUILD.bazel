@@ -24,7 +24,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/files",
         "//android/logging:absl-c-bridge",
         "//android/system",
         "//emulator/config:config_dirs",

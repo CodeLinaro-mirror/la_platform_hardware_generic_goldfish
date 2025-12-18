@@ -38,7 +38,6 @@ cc_test(
     deps = [
         ":input",
         "//android/async:async_testing",
-        "//android/files",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "//emulator/grpc/event-stream",

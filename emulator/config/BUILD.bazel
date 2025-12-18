@@ -24,10 +24,7 @@ cc_library(
     hdrs = ["include/android/goldfish/hardware_config.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//android/files",
-        "@aemu//base:aemu-base",
-    ],
+    deps = ["//android/files:ini_file"],
 )
 
 cc_library(

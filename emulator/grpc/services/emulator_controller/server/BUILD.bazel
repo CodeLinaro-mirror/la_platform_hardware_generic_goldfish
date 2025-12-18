@@ -58,6 +58,7 @@ cc_test(
         ":emulator-service",
         "//android/async:libuv_event_loop",
         "//android/async:threaded_event_loop",
+        "//android/process",
         "//android/system:googletest_main",
         "//emulator/config:fake_hardware_config",
         "//emulator/libs/display:test-display",
