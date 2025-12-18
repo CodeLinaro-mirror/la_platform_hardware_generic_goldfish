@@ -279,7 +279,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     // Note, we might get multiple events.
     state = VALID_JWK_DELETED;
     auto todelete = mTempDir->path() / "valid.jwk";
-    base::file::rm(todelete);
+    base::file::rm(todelete).IgnoreError();
     mTestEv.wait();
 }
 

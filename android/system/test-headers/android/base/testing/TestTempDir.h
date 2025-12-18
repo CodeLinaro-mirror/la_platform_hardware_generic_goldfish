@@ -98,7 +98,7 @@ class TestTempDir {
     // inside it.
     ~TestTempDir() {
         if (!mPath.empty()) {
-            (void)base::file::rm_recursive(mPath);
+            base::file::rm_recursive(mPath).IgnoreError();
         }
     }
 

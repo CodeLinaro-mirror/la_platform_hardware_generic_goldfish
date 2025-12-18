@@ -181,7 +181,7 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
         ASSERT_TRUE(android::base::file::mkdir_recursive(sys.getTempRoot()->path() / want, 0755).ok())
                 << "creating: " << want;
         // Make sure that unreadable dir can be fixed.
-        (void)android::base::file::chmod(want, 0055);
+        android::base::file::chmod(want, 0055).IgnoreError();
     }
 
     sys.envSet("LOCALAPPDATA", (sys.getTempRoot()->path() / "runtime").string());

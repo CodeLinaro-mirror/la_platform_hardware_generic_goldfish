@@ -144,14 +144,14 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
 
 absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
     if (mWipeExisting) {
-        base::file::rm(mQcow2Image);
-        base::file::rm(mDestinationImage);
+        base::file::rm(mQcow2Image).IgnoreError();
+        base::file::rm(mDestinationImage).IgnoreError();
     }
 
     if (!base::file::exists(mDestinationImage)) {
-        (void)base::file::rm(mQcow2Image);
+        base::file::rm(mQcow2Image).IgnoreError();
         if (mSourcePath) {
-            (void)base::file::cp_file(*mSourcePath, mDestinationImage, /*overwrite=*/true);
+            base::file::cp_file(*mSourcePath, mDestinationImage, /*overwrite=*/true).IgnoreError();
 
             if (!base::file::exists(mDestinationImage)) {
                 return absl::NotFoundError(absl::StrCat("Failed to copy '", mSourcePath->string(),

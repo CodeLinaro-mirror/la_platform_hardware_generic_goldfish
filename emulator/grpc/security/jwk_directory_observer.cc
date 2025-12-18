@@ -79,7 +79,7 @@ void JwkDirectoryObserver::scanJwkPath() {
             LOG(WARNING) << "Failed add jwk key: " << strPath << ", due to: " << status
                          << ", access will be "
                             "denied to this provider and the file deleted.";
-            base::file::rm(strPath);
+            base::file::rm(strPath).IgnoreError();
         }
     };
 }
@@ -114,7 +114,7 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
             LOG(WARNING) << "Failed to add jwk key: " << path << ", due to: " << status.message()
                          << ", access will be "
                             "denied to this provider and the file deleted.";
-            base::file::rm(path);
+            base::file::rm(path).IgnoreError();
             return;
         }
         LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()

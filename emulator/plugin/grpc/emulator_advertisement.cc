@@ -175,10 +175,10 @@ int EmulatorAdvertisement::garbageCollect() const {
             collected++;
             // Emulator is not running, or unreachable.
             if (base::file::is_file(entry)) {
-                (void)base::file::rm(entry);
+                base::file::rm(entry).IgnoreError();
             }
             if (base::file::is_dir(entry)) {
-                (void)base::file::rm_recursive(entry);
+                base::file::rm_recursive(entry).IgnoreError();
             }
         }
     }
@@ -217,11 +217,11 @@ fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
 }
 
 void EmulatorAdvertisement::remove() const {
-    base::file::rm(location());
+    base::file::rm(location()).IgnoreError();
     fs::path pid_dir = mSharedDirectory / std::to_string(Process::me()->pid());
     if (base::file::is_dir(pid_dir)) {
         DD("Deleting my pid dir %s", pid_dir.string().c_str());
-        (void)base::file::rm_recursive(pid_dir);
+        base::file::rm_recursive(pid_dir).IgnoreError();
     }
 }
 
