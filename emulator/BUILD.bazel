@@ -303,10 +303,37 @@ pkg_filegroup(
     prefix = "emulator",
 )
 
+pkg_filegroup(
+    name = "emulator-dir-unstripped",
+    srcs = [
+        ":data_virtualscene_Toren1BD",
+        ":egl",
+        ":emulator-access",
+        ":launcher",
+        ":plugins",
+        ":qemu",
+        ":qemu-keymaps",
+        ":qemu-roms",
+        ":vulkan",
+    ] + select({
+        "@platforms//os:windows": [":win-dlls"],
+        "//conditions:default": [],
+    }),
+    prefix = "emulator",
+)
+
 pkg_zip(
     name = "release",
     srcs = ["emulator-dir"],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
+    package_variables = "//emulator/tools:aemu_version_info",
+    tags = ["manual"],
+)
+
+pkg_zip(
+    name = "release_unstripped",
+    srcs = ["emulator-dir-unstripped"],
+    package_file_name = "UNSTRIPPED-sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],
 )
