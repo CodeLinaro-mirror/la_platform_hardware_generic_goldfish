@@ -93,8 +93,6 @@ class ConnectorRegistry : public IConnectorRegistry {
     void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
                                async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
 
-    static ConnectorRegistry& defaultRegistry();
-
   private:
     bool registerDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 
