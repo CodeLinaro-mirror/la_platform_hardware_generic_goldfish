@@ -33,7 +33,7 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "aemu/base/process/Command.h"
+#include "android/process/command.h"
 #include "android/base/file/file.h"
 #include "android/process/exec.h"
 

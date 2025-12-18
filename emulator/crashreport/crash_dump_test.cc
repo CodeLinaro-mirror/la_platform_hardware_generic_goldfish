@@ -20,7 +20,7 @@
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 
-#include "aemu/base/process/Command.h"
+#include "android/process/command.h"
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/crashreport/crash_initializer.h"

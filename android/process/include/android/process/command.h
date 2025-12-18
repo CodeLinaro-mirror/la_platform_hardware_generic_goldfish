@@ -27,7 +27,7 @@
 #include <utility>
 #include <vector>
 
-#include "aemu/base/streams/RingStreambuf.h"
+#include "android/process/ring_streambuf.h"
 #include "android/process/process.h"
 
 namespace android {

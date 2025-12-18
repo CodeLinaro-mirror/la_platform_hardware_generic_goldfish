@@ -15,7 +15,7 @@
 
 #include <stdarg.h>
 
-#include "aemu/base/c_header.h"
+#include <sys/cdefs.h>
 
 #ifdef __cplusplus
 
@@ -36,7 +36,7 @@
 #endif  // !_MSC_VER
 #endif  // !__cplusplus || __clang__
 
-ANDROID_BEGIN_HEADER
+__BEGIN_DECLS
 
 // Call this to enable appending of messages.
 void crashhandler_enable_message_store();
@@ -78,4 +78,5 @@ ANDROID_NORETURN void crashhandler_die_format_v(const char* format, va_list args
 void pause_hangdetector();
 void resume_hangdetector();
 void detect_hanging_looper(void*);
-ANDROID_END_HEADER
+
+__END_DECLS

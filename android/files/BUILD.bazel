@@ -14,7 +14,10 @@ cc_library(
     deps = [
         "//android/process",
         "//android/system",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(

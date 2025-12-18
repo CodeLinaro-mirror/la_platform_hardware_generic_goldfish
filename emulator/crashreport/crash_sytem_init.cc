@@ -21,7 +21,7 @@
 #include "absl/log/absl_log.h"
 
 #include "aemu/base/Compiler.h"
-#include "aemu/base/process/Process.h"
+#include "android/process/process.h"
 #include "android/base/system.h"
 #include "android/crashreport/crash_consent.h"
 #include "android/crashreport/crash_system.h"
