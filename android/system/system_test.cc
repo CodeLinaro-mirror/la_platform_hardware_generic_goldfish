@@ -27,8 +27,8 @@
 
 #include "aemu/base/EintrWrapper.h"
 #include "aemu/base/misc/FileUtils.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/TestTempDir.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif

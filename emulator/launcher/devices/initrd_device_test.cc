@@ -23,7 +23,7 @@
 
 #include "aemu/base/utils/status_matcher_macros.h"
 #include "android/cmdline_definitions.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
+#include "android/base/testing/TestSystem.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {

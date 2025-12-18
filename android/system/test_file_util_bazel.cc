@@ -21,7 +21,7 @@
 #include "absl/strings/string_view.h"
 
 #include "android/base/system.h"
-#include "android/system/test-headers/android/base/testing/test_file_util.h"
+#include "android/base/testing/test_file_util.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 namespace android {

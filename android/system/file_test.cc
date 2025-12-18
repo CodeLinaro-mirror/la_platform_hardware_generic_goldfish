@@ -8,7 +8,7 @@
 #include "absl/status/status_matchers.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestTempDir.h"
 
 #define EXPECT_OK(x) EXPECT_THAT(x, absl_testing::IsOk())
 

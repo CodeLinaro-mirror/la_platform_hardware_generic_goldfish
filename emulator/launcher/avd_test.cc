@@ -21,8 +21,8 @@
 
 #include "android/goldfish/input_paths.h"
 #include "android/status/status_matcher_macros.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/TestTempDir.h"
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;

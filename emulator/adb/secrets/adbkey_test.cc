@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/TestTempDir.h"
 
 namespace goldfish::adb {
 // Secret token that gets verified.

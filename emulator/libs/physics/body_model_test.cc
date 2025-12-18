@@ -14,7 +14,7 @@
 #include <assert.h>
 #include <gtest/gtest.h>
 
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
+#include "android/base/testing/TestSystem.h"
 
 using android::base::System;
 using android::base::TestSystem;
