@@ -58,8 +58,12 @@ def _breakpad_symbols_impl(ctx):
                     split_symbol_lookup[symbol.executable_file] = ("dwp", symbol.original_executable_file, symbol.dwp_file)
 
     output_files = []
+    ignored_suffixes = tuple(ctx.attr.ignore_paths_with_suffix)
 
     for candidate in ctx.files.binaries:
+        if ignored_suffixes and candidate.path.endswith(ignored_suffixes):
+            continue
+
         if candidate not in split_symbol_lookup and not _maybe_executable(candidate):
             continue
 
@@ -131,6 +135,9 @@ breakpad_symbols = rule(
                 collect_fission_package_aspect,
                 collect_pdb_aspect,
             ],
+        ),
+        "ignore_paths_with_suffix": attr.string_list(
+            doc = "Suffixes of binary paths that should cause the binary to be ignored.",
         ),
         "_dump_syms": attr.label(
             default = Label("@breakpad//:dump_syms"),
