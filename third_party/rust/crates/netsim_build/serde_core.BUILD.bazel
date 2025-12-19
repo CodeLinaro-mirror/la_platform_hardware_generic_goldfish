@@ -27,10 +27,10 @@ rust_library(
         "src/lib.rs",
         "out/private.rs",
     ] + glob(["src/de/*.rs", "src/private/*.rs", "src/ser/*.rs"]),
-    data = ["out"],
+    data = ["out/private.rs"],
     crate_name = "serde_core",
     edition = "2021",
-    rustc_env = {"OUT_DIR": "$(location out)"},
+    rustc_env = {"OUT_DIR": "../out"},
     crate_root = "src/lib.rs",
     rustc_flags = [
         "--cfg=feature=\"rc\"",
