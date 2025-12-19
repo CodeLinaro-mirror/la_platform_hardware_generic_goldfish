@@ -882,7 +882,7 @@ class HostSystem : public System {
 
         fs::path tmp(result);
         if (!file::exists(tmp)) {
-            (void)file::mkdir_recursive(tmp, 744);
+            file::mkdir_recursive(tmp, 744).IgnoreError();
         }
 
         if (!file::exists(tmp)) {

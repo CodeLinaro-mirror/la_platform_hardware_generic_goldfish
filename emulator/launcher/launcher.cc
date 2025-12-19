@@ -521,7 +521,7 @@ int main(int argc, char** argv) {
     if (opts.read_only) {
         writable_content_override = System::get()->getTempDir();
         VLOG(1) << "Content path overridden to: " << writable_content_override;
-        android::base::file::mkdir_recursive(writable_content_override, 0755);
+        android::base::file::mkdir_recursive(writable_content_override, 0755).IgnoreError();
     } else if (opts.datadir) {
         writable_content_override = fs::path(opts.datadir);
         if (!android::base::file::exists(writable_content_override)) {

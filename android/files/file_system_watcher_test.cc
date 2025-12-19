@@ -87,7 +87,7 @@ class FileSystemWatcherTest : public ::testing::Test {
     void SetUp() override {
         mTempDir = std::filesystem::temp_directory_path() / "fs_watcher_test" /
                    ::testing::UnitTest::GetInstance()->current_test_info()->name();
-        (void)android::base::file::mkdir_recursive(mTempDir, 0755);
+        android::base::file::mkdir_recursive(mTempDir, 0755).IgnoreError();
     }
 
     void TearDown() override {
@@ -95,13 +95,13 @@ class FileSystemWatcherTest : public ::testing::Test {
             mWatcher->stop();
         }
         if (android::base::file::exists(mTempDir)) {
-            (void)android::base::file::rm_recursive(mTempDir);
+            android::base::file::rm_recursive(mTempDir).IgnoreError();
         }
     }
 
-    void createDir(const std::string& name) { (void)android::base::file::mkdir(name, 0755); }
+    void createDir(const std::string& name) { android::base::file::mkdir(name, 0755).IgnoreError(); }
 
-    void deleteDir(const std::string& name) { (void)android::base::file::rm(name); }
+    void deleteDir(const std::string& name) { android::base::file::rm(name).IgnoreError(); }
 
     void createFile(const std::string& name) {
         std::ofstream ofs(mTempDir / name);
@@ -122,7 +122,7 @@ class FileSystemWatcherTest : public ::testing::Test {
         std::filesystem::last_write_time(path, now);
     }
 
-    void deleteFile(const std::string& name) { android::base::file::rm(mTempDir / name); }
+    void deleteFile(const std::string& name) { android::base::file::rm(mTempDir / name).IgnoreError(); }
 
     std::unique_ptr<FileSystemWatcher> mWatcher;
     fs::path mTempDir;

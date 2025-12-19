@@ -96,7 +96,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
         LOG(INFO) << "Insufficient space in existing memory mapped file '" << ram_file
                   << "'. Required size: " << ramSizeBytesWithAlign
                   << " bytes. Existing size: " << existingSize << " bytes. Deleting existing file.";
-        base::file::rm(ram_file);
+        base::file::rm(ram_file).IgnoreError();
         existingSize = 0_KiB;
     }
     System::FileSize availableSpace;

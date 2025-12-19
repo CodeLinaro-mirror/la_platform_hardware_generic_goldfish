@@ -129,7 +129,7 @@ TEST(File, scandDirEntries) {
 
     TestTempDir myDir("scanDirEntries");
     for (size_t n = 0; n < kCount; ++n) {
-        file::touch(myDir.path() / kInput[n]);
+        file::touch(myDir.path() / kInput[n]).IgnoreError();
     }
 
     auto entries = file::scan_dir(myDir.path());
@@ -147,7 +147,7 @@ TEST(File, scanDirEntriesWithFullPaths) {
 
     TestTempDir myDir("scanDirEntriesFull");
     for (size_t n = 0; n < kCount; ++n) {
-        file::touch(myDir.path() / kInput[n]);
+        file::touch(myDir.path() / kInput[n]).IgnoreError();
     }
 
     auto entries = file::scan_dir(myDir.path(), true);

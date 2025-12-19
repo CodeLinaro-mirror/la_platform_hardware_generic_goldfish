@@ -51,7 +51,7 @@ ResolvedInputPaths setupPaths(TestTempDir* tmp) {
 
 void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
-    (void)base::file::mkdir_recursive(avd_dir, 0755);
+    base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
 
     // Create an ini file for the test AVD
     writeToFile(paths.avd_directory / "test_avd.ini", absl::StrCat("path=", avd_dir.string()));
@@ -115,7 +115,7 @@ TEST(Avd, path_getAvdSystemPath) {
     tmp->makeSubDir("nothome");
 
     fs::path avd_dir = paths.avd_directory / "q.avd";
-    (void)base::file::mkdir_recursive(avd_dir, 0755);
+    base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 
@@ -135,7 +135,7 @@ TEST(Avd, path_getAvdSystemImage) {
 
     // Create an in file for the @q avd.
     fs::path avd_dir = paths.avd_directory / "q.avd";
-    (void)base::file::mkdir_recursive(avd_dir, 0755);
+    base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 

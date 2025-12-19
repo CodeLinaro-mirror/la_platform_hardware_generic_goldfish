@@ -103,7 +103,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
                          << current_data_size.string() << " to " << desired_size_bytes;
             RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
             // It will be recreated by RwDrive.
-            base::file::rm(image.concat(".qcow2"));
+            base::file::rm(image.concat(".qcow2")).IgnoreError();
         }
     }
     return absl::OkStatus();
@@ -114,7 +114,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
 absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
                                       bool wipe_data, bool resize) {
     if (wipe_data) {
-        base::file::rm(user_data);
+        base::file::rm(user_data).IgnoreError();
     }
 
     if (base::file::exists(user_data)) {

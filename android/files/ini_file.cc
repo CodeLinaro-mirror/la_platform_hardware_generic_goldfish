@@ -265,7 +265,7 @@ bool IniFile::writeCommon(const bool discardEmpty) {
 
     fs::path iniFileOld = mBackingFilePath;
     iniFileOld += ".old";
-    (void)base::file::rm(iniFileOld);  // just in case `myRemove` below failed
+    base::file::rm(iniFileOld).IgnoreError();  // just in case `myRemove` below failed
 
     const bool deleteOldConfig = base::file::mv_file(mBackingFilePath, iniFileOld).ok();
 
@@ -285,12 +285,12 @@ bool IniFile::writeCommon(const bool discardEmpty) {
             LOG(WARNING) << "Failed to save '" << mBackingFilePath.string() << "'";
         }
 
-        (void)base::file::rm(iniFileNew);
+        base::file::rm(iniFileNew).IgnoreError();
         return false;
     }
 
     if (deleteOldConfig) {
-        (void)base::file::rm(iniFileOld);
+        base::file::rm(iniFileOld).IgnoreError();
     }
 
     return true;
