@@ -117,10 +117,5 @@ void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop
     registerFn(std::move(name), std::move(wrapperFactory));
 }
 
-ConnectorRegistry& ConnectorRegistry::defaultRegistry() {
-    static ConnectorRegistry registry;
-    return registry;
-}
-
 }  // namespace devices
 }  // namespace goldfish

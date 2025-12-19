@@ -38,6 +38,7 @@
 #include "goldfish/devices/boot/boot_properties_device.h"
 #include "goldfish/devices/camera/register_device.h"
 #include "goldfish/devices/clipboard/clipboard_device.h"
+#include "goldfish/devices/connector_registry_impl.h"
 #include "goldfish/devices/fingerprint/fingerprint_device.h"
 #include "goldfish/devices/gps/gps_device.h"
 #include "goldfish/devices/guest_status/guest_status_device.h"
@@ -55,38 +56,52 @@ extern "C" {
 #include "system/reset.h"
 #include "qemu/main-loop.h"
 }
+#undef listen
 #undef shutdown
 // IWYU pragma: end_keep
 // clang-format on
 
 #define CORE_HARDWARE_INI "hardware-qemu.ini"
 
-using goldfish::avd_info::getGrallocImpl;
+namespace goldfish::avd_info {
+
+using goldfish::devices::ConnectorRegistry;
 using goldfish::devices::PingTopic;
 using goldfish::devices::cable::SocketPtr;
 using goldfish::devices::camera::GrallocDetailsPtr;
 
-namespace goldfish::avd_info {
 namespace {
+
+struct AvdExtendedUniverse : public AvdUniverse {
+    AvdExtendedUniverse(std::unique_ptr<AvdProperties> props) : AvdUniverse(std::move(props)) {}
+
+    ConnectorRegistry connector_registry;
+};
 
 struct AvdInfoDev {
     DeviceClass parent_class;
     // `mutable_props` is valid only between `instance_init` and `realize`.
     // It moves into `universe` in `realize` and stays there as immutable.
     AvdProperties* mutable_props;
-    AvdUniverse* universe;
+    AvdExtendedUniverse* universe;
 };
 
 #define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-using devices::ConnectorRegistry;
-
-AvdUniverse* gAvdUniverse;
-
+AvdExtendedUniverse* gAvdUniverse;
 std::unique_ptr<async::EventLoop> gQemuLoop;
 std::vector<VCpuEventLoop> gQemuCpuLoops;
+
+AvdExtendedUniverse& getAvdImpl() {
+    if (!gAvdUniverse) {
+        LOG(FATAL) << "The AvdUniverse instance is not yet available. "
+                      "This is a QEMU configuration issue which must be fixed in the launcher.";
+    }
+
+    return *gAvdUniverse;
+}
 
 }  // namespace
 
@@ -98,16 +113,7 @@ AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
 }
 
 AvdUniverse& getAvd() {
-    if (!gAvdUniverse) {
-        LOG(FATAL) << "The AvdUniverse instance is not yet available. "
-                      "This is a QEMU configuration issue which must be fixed in the launcher.";
-    }
-
-    return *gAvdUniverse;
-}
-
-ConnectorRegistry& connector_registry() {
-    return ConnectorRegistry::defaultRegistry();
+    return getAvdImpl();
 }
 
 ::goldfish::async::EventLoop* getQemuEventLoop() {
@@ -117,6 +123,10 @@ ConnectorRegistry& connector_registry() {
     }
 
     return gQemuLoop.get();
+}
+
+void UniverseBuildComplete() {
+    getAvdImpl().connector_registry.listen(5000);
 }
 
 namespace {
@@ -138,40 +148,53 @@ std::vector<VCpuEventLoop> createVCpuEventLoops() {
     return loops;
 }
 
-void avd_info_realize(DeviceState* dev, Error** errp) {
-    VLOG(1) << "avd_info_realize: " << object_get_canonical_path(OBJECT(dev));
-
-    AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
-    assert(avd_info);
-
-    std::unique_ptr<AvdProperties> mut_avd_props(std::exchange(avd_info->mutable_props, nullptr));
-
-    // Set the system clock to the QEMU implementation.
-    android::base::IClock::Set(std::make_unique<android::base::QemuClock>());
-
+absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> MakeAvdExtendedUniverse(
+        std::unique_ptr<AvdProperties> mut_avd_props) {
     if (mut_avd_props->serial_number <= 0) {
-        error_setg(errp, "serial_number is unspecified (it must be > 0): %d",
-                   mut_avd_props->serial_number);
-        return;
-    }
-    if (mut_avd_props->adb_port <= 0) {
-        error_setg(errp, "adb_port is unspecified (it must be > 0): %d", mut_avd_props->adb_port);
-        return;
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "serial_number is unspecified (it must be > 0): %d", mut_avd_props->serial_number));
     }
 
-    VLOG(1) << "Device configuration, AVD name: '" << mut_avd_props->avd_name << "'";
+    if (mut_avd_props->adb_port <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+                "adb_port is unspecified (it must be > 0): %d", mut_avd_props->adb_port));
+    }
 
     fs::path hw_path = mut_avd_props->avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
     if (!hw_ini->read()) {
-        error_setg(errp, "Failed to parse hardware ini: %s", hw_path.string().c_str());
-        return;
+        return absl::NotFoundError(
+                absl::StrFormat("Failed to parse hardware ini: %s", hw_path.string()));
     }
+
     mut_avd_props->hw_config.load(*hw_ini);
 
-    avd_info->universe = new AvdUniverse(std::move(mut_avd_props));
-    gAvdUniverse = avd_info->universe;
-    const AvdProperties& avd_props = gAvdUniverse->props();
+    return std::make_unique<AvdExtendedUniverse>(std::move(mut_avd_props));
+}
+
+void avd_info_realize(DeviceState* dev, Error** errp) {
+    VLOG(1) << "avd_info_realize: " << object_get_canonical_path(OBJECT(dev));
+
+    AvdInfoDev* avd_info = AVD_INFO_DEV(dev);
+    DCHECK(avd_info);
+
+    VLOG(1) << "Device configuration, AVD name: '" << avd_info->mutable_props->avd_name << "'";
+
+    // Set the system clock to the QEMU implementation.
+    android::base::IClock::Set(std::make_unique<android::base::QemuClock>());
+
+    auto avd_universe_or = MakeAvdExtendedUniverse(
+            std::unique_ptr<AvdProperties>(std::exchange(avd_info->mutable_props, nullptr)));
+    if (!avd_universe_or.ok()) {
+        auto msg = avd_universe_or.status().message();
+        error_setg(errp, "%.*s", static_cast<int>(msg.size()), msg.data());
+        return;
+    }
+
+    auto avd_universe = *std::move(avd_universe_or);
+    const AvdProperties& avd_props = avd_universe->props();
+    avd_info->universe = avd_universe.get();
+    gAvdUniverse = avd_universe.get();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
@@ -187,7 +210,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                 absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
     }
 
-    auto* registry = &connector_registry();
+    auto* registry = &avd_universe->connector_registry;
 
     namespace DEVS = ::goldfish::devices;
 
@@ -224,6 +247,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     }
 
     ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
+
+    avd_universe.release();
 }
 
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque,

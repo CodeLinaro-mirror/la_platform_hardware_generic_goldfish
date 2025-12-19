@@ -38,7 +38,7 @@ struct AvdEndDev {
 #define AVD_FINAL_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdEndDev, obj, TYPE_AVD_FINAL)
 
 void avd_finalize_realize(DeviceState* dev, Error** errp) {
-    goldfish::avd_info::connector_registry().listen(5000);
+    goldfish::avd_info::UniverseBuildComplete();
 }
 
 void avd_finalize_class_init(ObjectClass* oc, void* data) {
