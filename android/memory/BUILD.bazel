@@ -23,7 +23,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl-c-bridge",
+        "//android/logging:absl_c_bridge",
         "//android/system",
         "@aemu//base:aemu-base",
     ] + select({

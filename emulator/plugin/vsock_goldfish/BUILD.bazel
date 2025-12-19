@@ -37,7 +37,7 @@ cc_library(
         "//android/async:libuv_sockets",
         "//android/async:qemu_event_loop",
         "//android/async:threaded_event_loop",
-        "//android/logging:absl-c-bridge",
+        "//android/logging:absl_c_bridge",
         "//android/network",
         "//emulator/hal/connector:cable",
         "//emulator/hal/connector:connection_awaiter",

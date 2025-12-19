@@ -19,7 +19,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl-c-bridge",
         "//emulator/config:hardware_config",
         "//emulator/libs/eventing",
         "//emulator/libs/physics",

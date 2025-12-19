@@ -1,21 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
-    name = "absl-c-bridge",
-    srcs = ["abseil_log_bridge.cc"],
-    hdrs = ["include/android/base/logging/abseil_log_bridge.h"],
-    includes = ["include"],
-    local_defines = ["LOGGING_API_SHARED"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:absl_log",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
-)
-
-cc_library(
     name = "color_log_sink",
     srcs = ["color_log_sink.cc"],
     hdrs = ["include/android/base/color_log_sink.h"],
@@ -37,22 +22,42 @@ cc_library(
 
 cc_test(
     name = "color_log_sink_test",
+    srcs = ["color_log_sink_test.cc"],
+    copts = ["-Wno-deprecated-declarations"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":color_log_sink",
+        "//android/system:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "absl_c_bridge",
+    srcs = ["abseil_log_bridge.cc"],
+    hdrs = ["include/android/base/logging/abseil_log_bridge.h"],
+    includes = ["include"],
+    local_defines = ["LOGGING_API_SHARED"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "absl_c_bridge_test",
     srcs = [
         "abseil_log_bridge_test.c",
         "abseil_log_bridge_test.cc",
         "abseil_log_bridge_test2.c",
-        "color_log_sink_test.cc",
         "test/android/base/logging/abseil_log_c_test.h",
     ],
     copts = ["-Wno-deprecated-declarations"],
-    linkopts = select({
-        "@platforms//os:macos": ["-undefined error"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
     deps = [
-        ":absl-c-bridge",
-        ":color_log_sink",
+        ":absl_c_bridge",
         "//android/system:googletest_main",
     ],
 )
@@ -63,7 +68,7 @@ cc_binary(
     copts = ["-Wno-deprecated-declarations"],
     visibility = ["//visibility:public"],
     deps = [
-        ":absl-c-bridge",
+        ":absl_c_bridge",
         "@google_benchmark//:benchmark",
     ],
 )
