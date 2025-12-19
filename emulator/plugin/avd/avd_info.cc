@@ -83,24 +83,23 @@ struct AvdInfoDev {
     // `mutable_props` is valid only between `instance_init` and `realize`.
     // It moves into `universe` in `realize` and stays there as immutable.
     AvdProperties* mutable_props;
-    AvdExtendedUniverse* universe;
+    AvdExtendedUniverse* universe;  // deleted in `avd_info_instance_finalize`
 };
 
 #define TYPE_AVD "avdstart"
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-AvdExtendedUniverse* gAvdUniverse;
+AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `getAvd` instead
 std::unique_ptr<async::EventLoop> gQemuLoop;
 std::vector<VCpuEventLoop> gQemuCpuLoops;
 
 AvdExtendedUniverse& getAvdImpl() {
-    if (!gAvdUniverse) {
-        LOG(FATAL) << "The AvdUniverse instance is not yet available. "
-                      "This is a QEMU configuration issue which must be fixed in the launcher.";
-    }
+    CHECK(gGlobalAvdUniverseInstance)
+            << "The AvdUniverse instance is not yet available. "
+               "This is a QEMU configuration issue which must be fixed in the launcher.";
 
-    return *gAvdUniverse;
+    return *gGlobalAvdUniverseInstance;
 }
 
 }  // namespace
@@ -194,7 +193,6 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto avd_universe = *std::move(avd_universe_or);
     const AvdProperties& avd_props = avd_universe->props();
     avd_info->universe = avd_universe.get();
-    gAvdUniverse = avd_universe.get();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
@@ -214,18 +212,18 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     namespace DEVS = ::goldfish::devices;
 
-    DEVS::sensor::ISensorDevice::registerDevice(&gAvdUniverse->getSensorsPhysicalModel(), registry,
+    DEVS::sensor::ISensorDevice::registerDevice(&avd_universe->getSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, clientLoop, gQemuLoop.get());
-    DEVS::clipboard::IClipboardDevice::registerDevice(&gAvdUniverse->getClipboardChannel(),
+    DEVS::clipboard::IClipboardDevice::registerDevice(&avd_universe->getClipboardChannel(),
                                                       registry, clientLoop, gQemuLoop.get());
     DEVS::guest_status::IGuestStatusDevice::registerDevice(
-            &gAvdUniverse->getGuestStatus(), registry,
+            &avd_universe->getGuestStatus(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop, gQemuLoop.get(),
             avd_props.quit_after_boot_timeout_seconds);
-    DEVS::fingerprint::IFingerprintDevice::registerDevice(&gAvdUniverse->getFingerprintSensor(),
+    DEVS::fingerprint::IFingerprintDevice::registerDevice(&avd_universe->getFingerprintSensor(),
                                                           registry, clientLoop, gQemuLoop.get());
-    DEVS::gps::IGpsDevice::registerDevice(&gAvdUniverse->getLocation(), registry, clientLoop,
+    DEVS::gps::IGpsDevice::registerDevice(&avd_universe->getLocation(), registry, clientLoop,
                                           gQemuLoop.get());
 
     std::string emulatedCameraProp;
@@ -248,7 +246,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 
-    avd_universe.release();
+    gGlobalAvdUniverseInstance = avd_universe.release();
 }
 
 void avd_info_set_serial_number(Object* obj, Visitor* v, const char* name, void* opaque,
@@ -334,7 +332,7 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
 
 void avd_info_unrealize(DeviceState* dev) {
     VLOG(1) << "avd_info_unrealize";
-    gAvdUniverse = nullptr;
+    gGlobalAvdUniverseInstance = nullptr;
 }
 
 void avd_info_class_init(ObjectClass* oc, void* data) {
