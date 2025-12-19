@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "unix_pipe",
+    srcs = ["unix_pipe.cc"],
+    hdrs = ["include/goldfish/devices/unix_pipe/unix_pipe.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//android/async:libuv_sockets",
+        "//android/network",
+        "//emulator/hal/connector:connector_registry",
+        "//emulator/hal/plug:hal_plug",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "unix_pipe_unittests",
+    srcs = ["unix_pipe_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":unix_pipe",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "//emulator/hal/connector:test-helpers",
+        "//emulator/hal/plug:fake_vsock",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)

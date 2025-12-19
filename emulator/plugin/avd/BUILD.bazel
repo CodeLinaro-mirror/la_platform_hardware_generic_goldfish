@@ -113,6 +113,7 @@ cc_library(
         "//emulator/hal/gps",
         "//emulator/hal/guest-status",
         "//emulator/hal/sensors",
+        "//emulator/hal/unix_pipe",
         "//emulator/libs/display",
         "//emulator/plugin/system:qemu_clock",
         "@abseil-cpp//absl/log",
