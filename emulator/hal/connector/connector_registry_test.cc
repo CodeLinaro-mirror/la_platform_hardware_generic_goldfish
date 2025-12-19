@@ -254,11 +254,14 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
     auto connected_future = device->connected();
     auto closed_future = device->closed();
     bool factoryCalled = false;
+    std::string factoryArguments;
 
-    registry.registerHalDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(), [&]() {
-        factoryCalled = true;
-        return device;
-    });
+    registry.registerHalDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
+                               [&](std::string_view args) {
+                                   factoryCalled = true;
+                                   factoryArguments = std::string(args);
+                                   return device;
+                               });
 
     // Use the ListenFn overload to directly get the created device factory.
     registry.listen([&](HostPortListener listener) {
@@ -272,10 +275,11 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
 
     // Now, simulate the guest sending the pipe connection string. This will
     // cause the Connector plug to invoke our wrapperFactory.
-    EXPECT_TRUE(gTestSocket->send("pipe:TestHalDevice:args\0"sv));
+    EXPECT_TRUE(gTestSocket->send("pipe:TestHalDevice:factoryArguments\0"sv));
 
     // Verify that our user-provided factory was called.
     EXPECT_TRUE(factoryCalled);
+    EXPECT_EQ(factoryArguments, "factoryArguments");
 
     // Verify the rest of the connection flow.
     connected_future.wait_for(100ms);
@@ -300,10 +304,11 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
     auto closed_future = device->closed();
     bool factoryCalled = false;
 
-    registry.registerHalQemuDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(), [&]() {
-        factoryCalled = true;
-        return device;
-    });
+    registry.registerHalQemuDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
+                                   [&](std::string_view /*args*/) {
+                                       factoryCalled = true;
+                                       return device;
+                                   });
 
     registry.listen([&](HostPortListener listener) {
         gTestSocket = new TestSocket();

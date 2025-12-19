@@ -87,7 +87,8 @@ void IClipboardDevice::registerDevice(avd_universe::clipboard::ClipboardChannel*
                                       IConnectorRegistry* registry, EventLoop* clientLoop,
                                       EventLoop* qemuLoop) {
     registry->registerHalDevice(
-            std::string(ClipboardDevice::serviceName), clientLoop, qemuLoop, [channel] {
+            std::string(ClipboardDevice::serviceName), clientLoop, qemuLoop,
+            [channel](std::string_view /*args*/) {
                 auto dev = std::make_shared<ClipboardDevice>(channel);
                 std::weak_ptr<ClipboardDevice> weakDev = dev;
 

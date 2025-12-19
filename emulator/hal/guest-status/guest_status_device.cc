@@ -176,7 +176,8 @@ void IGuestStatusDevice::registerDevice(GuestStatus* guestStatus, IConnectorRegi
                                         int quitAfterBootTimeoutSeconds) {
     registry->registerHalDevice(
             std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
-            [guestStatus, resetCallbacks, qemuLoop, quitAfterBootTimeoutSeconds] {
+            [guestStatus, resetCallbacks, qemuLoop,
+             quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
                 return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemuLoop,
                                                            quitAfterBootTimeoutSeconds);
             });

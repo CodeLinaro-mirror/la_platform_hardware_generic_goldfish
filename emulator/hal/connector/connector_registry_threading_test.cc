@@ -163,7 +163,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     // mockHalPlug. This is done for convenience to set expectations on the mock
     // object before it's used by other threads.
     registry.registerHalDevice(kDeviceName, mClientLoop.get(), mQemuLoop.get(),
-                               [mockHalPlug]() { return mockHalPlug; });
+                               [mockHalPlug](std::string_view /*args*/) { return mockHalPlug; });
 
     // Act: Start listening for connections. When a connection occurs, the
     // provided lambda will be called, giving us the connectorPlug. This

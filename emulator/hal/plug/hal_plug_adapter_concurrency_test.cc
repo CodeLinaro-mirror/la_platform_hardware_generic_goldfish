@@ -231,10 +231,11 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
 
     // 2. Orchestration
     //    Step A: Register a HAL device.
-    registry.registerHalDevice("TestHalDevice", clientLoop.get(), qemuLoop.get(), [&] {
-        factoryCalled = true;
-        return mockHalPlug;
-    });
+    registry.registerHalDevice("TestHalDevice", clientLoop.get(), qemuLoop.get(),
+                               [&](std::string_view /*args*/) {
+                                   factoryCalled = true;
+                                   return mockHalPlug;
+                               });
 
     //    Step B: Use a manual listen function to simulate a connection and
     //    capture the adapter created by the registry.

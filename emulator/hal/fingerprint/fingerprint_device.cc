@@ -65,7 +65,8 @@ void IFingerprintDevice::registerDevice(ObservableFingerprintSensor* sensor,
                                         IConnectorRegistry* registry, EventLoop* clientLoop,
                                         EventLoop* qemuLoop) {
     registry->registerHalQemuDevice(
-            std::string(IFingerprintDevice::serviceName), clientLoop, qemuLoop, [sensor] {
+            std::string(IFingerprintDevice::serviceName), clientLoop, qemuLoop,
+            [sensor](std::string_view /*args*/) {
                 auto dev = std::make_shared<FingerprintDevice>();
                 std::weak_ptr<FingerprintDevice> weakDev = dev;
 

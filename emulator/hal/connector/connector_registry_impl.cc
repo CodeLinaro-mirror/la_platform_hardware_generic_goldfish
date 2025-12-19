@@ -105,7 +105,7 @@ void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop
         // Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
         // as we must give our vsockstream a concrete PlugPtr. Let's hope developers are not doing
         // *crazy* things in the factory.
-        std::shared_ptr<HalPlug> realHalPlug = userFactory();
+        std::shared_ptr<HalPlug> realHalPlug = userFactory(args);
 
         // Wrap the HAL plug in a marshalling layer. This will ensure that all calls to the
         // HAL plug are marshalled to the client thread and vice versa.

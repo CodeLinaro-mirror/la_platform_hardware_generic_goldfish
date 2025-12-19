@@ -79,7 +79,8 @@ void IGpsDevice::registerDevice(ObservableLocation* observableLocation,
                                 IConnectorRegistry* registry, EventLoop* clientLoop,
                                 EventLoop* qemuLoop) {
     registry->registerHalQemuDevice(
-            std::string(GpsDevice::serviceName), clientLoop, qemuLoop, [observableLocation] {
+            std::string(GpsDevice::serviceName), clientLoop, qemuLoop,
+            [observableLocation](std::string_view /*args*/) {
                 auto dev = std::make_shared<GpsDevice>();
                 std::weak_ptr<GpsDevice> weakDev = dev;
 

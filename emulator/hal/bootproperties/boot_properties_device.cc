@@ -63,10 +63,11 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
 
 void IBootPropertiesDevice::registerDevice(IConnectorRegistry* registry, Properties properties,
                                            EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(std::string(IBootPropertiesDevice::serviceName), clientLoop,
-                                    qemuLoop, [properties = std::move(properties)] {
-                                        return std::make_shared<BootPropertiesDevice>(properties);
-                                    });
+    registry->registerHalQemuDevice(
+            std::string(IBootPropertiesDevice::serviceName), clientLoop, qemuLoop,
+            [properties = std::move(properties)](std::string_view /*args*/) {
+                return std::make_shared<BootPropertiesDevice>(properties);
+            });
 }
 
 }  // namespace goldfish::devices::boot

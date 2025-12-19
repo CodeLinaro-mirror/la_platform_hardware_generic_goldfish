@@ -45,7 +45,7 @@ using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
  *
  * @return A `std::shared_ptr` to the newly created HalPlug instance.
  */
-using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>()>;
+using HalDeviceFactory = std::function<std::shared_ptr<HalPlug>(std::string_view args)>;
 
 struct IConnectorRegistry {
     virtual ~IConnectorRegistry() = default;

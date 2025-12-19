@@ -486,11 +486,11 @@ void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* regist
                                    const android::goldfish::HardwareConfig& hw,
                                    EventLoop* clientLoop, EventLoop* qemuLoop,
                                    ::android::base::IClock* clock) {
-    registry->registerHalQemuDevice(std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
-                                    [pm, avd_type, avd_api, &hw, clientLoop, clock]() {
-                                        return std::make_shared<SensorDevice>(
-                                                pm, avd_type, avd_api, hw, clientLoop, clock);
-                                    });
+    registry->registerHalQemuDevice(
+            std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
+            [pm, avd_type, avd_api, &hw, clientLoop, clock](std::string_view /*args*/) {
+                return std::make_shared<SensorDevice>(pm, avd_type, avd_api, hw, clientLoop, clock);
+            });
 }
 
 // Registers the sensor device with the registry

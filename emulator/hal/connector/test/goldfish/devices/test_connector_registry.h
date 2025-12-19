@@ -124,9 +124,9 @@ class TestConnectorRegistry : public ConnectorRegistry {
     }
 
     template <typename T>
-    T* constructHalDevice() {
+    T* constructHalDevice(std::string_view args = {}) {
         mHalSocket = std::make_shared<TestHalSocket>();
-        mHalPlug = mHalFactory();
+        mHalPlug = mHalFactory(args);
         HalPlugTesting::establishConnection(mHalPlug.get(), mHalSocket);
         // registerInternal(std::string(T::serviceName), mHalPlug);  b/448934377
         return reinterpret_cast<T*>(mHalPlug.get());
