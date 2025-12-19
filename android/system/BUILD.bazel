@@ -45,26 +45,14 @@ cc_library(
         "bazel_info.cc",
         "system.cc",
         "version.cc",
-    ] + select({
-        "@platforms//os:windows": [
-            "win32_unicode_string.cc",
-            "win32_utils.cc",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     hdrs = [
         "include/android/base/bazel_info.h",
         "include/android/base/c_str_wrapper.h",
         "include/android/base/no_sigalarm.h",
         "include/android/base/system.h",
         "include/android/utils/compiler.h",
-    ] + select({
-        "@platforms//os:windows": [
-            "include/android/base/win32_unicode_string.h",
-            "include/android/base/win32_utils.h",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     includes = ["include"],
     linkopts = select({
         "@platforms//os:windows": [
@@ -77,6 +65,7 @@ cc_library(
     deps = [
         ":clock",
         ":file",
+        "//android/process",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
@@ -84,10 +73,8 @@ cc_library(
         "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
     ] + select({
-        "@platforms//os:linux": [
-            "//android/process",
-        ],
         "@platforms//os:windows": [
+            ":win32_utils",
             "@glib//glib/dirent",
         ],
         "//conditions:default": [],
@@ -100,7 +87,6 @@ cc_library(
     srcs = ["test_file_util_bazel.cc"],
     hdrs = [
         "test-headers/android/base/system/TestClock.h",
-        "test-headers/android/base/testing/TestMemoryOutputStream.h",
         "test-headers/android/base/testing/TestSystem.h",
         "test-headers/android/base/testing/TestTempDir.h",
         "test-headers/android/base/testing/TestThread.h",
@@ -138,18 +124,39 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "win32_utils",
+    srcs = [
+        "win32_unicode_string.cc",
+        "win32_utils.cc",
+    ],
+    hdrs = [
+        "include/android/base/win32_unicode_string.h",
+        "include/android/base/win32_utils.h",
+    ],
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Shell32.lib",
+            "-DEFAULTLIB:User32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/strings:str_format"],
+)
+
 cc_test(
-    name = "win_compat_unittests",
+    name = "win32_utils_test",
     srcs = [
         "win32_unicode_string_test.cc",
         "win32_utils_test.cc",
     ],
-    target_compatible_with = [
-        "@platforms//os:windows",
-    ],
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
-        ":system",
+        ":win32_utils",
         "//android/system:googletest_main",
         "//android/system:test-headers",
     ],

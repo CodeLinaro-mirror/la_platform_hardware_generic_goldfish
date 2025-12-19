@@ -2,47 +2,57 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 # It's an older code sir but it checks out
 cc_library(
-    name = "files",
-    srcs = [
-        "file_system_watcher.cc",
-        "ini_file.cc",
-    ] + select({
+    name = "file_system_watcher",
+    srcs = ["file_system_watcher.cc"] + select({
         "@platforms//os:windows": ["file_system_watcher_windows.cc"],
         "@platforms//os:macos": ["file_system_watcher_darwin.cc"],
         "@platforms//os:linux": ["file_system_watcher_posix.cc"],
     }),
-    hdrs = [
-        "include/android/base/file_system_watcher.h",
-        "include/android/goldfish/ini_file.h",
-    ],
-    defines = [
-        "__STDC_LIMIT_MACROS=1",
-        "__STDC_FORMAT_MACROS=1",
-    ],
+    hdrs = ["include/android/base/file_system_watcher.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl-c-bridge",
         "//android/process",
         "//android/system",
+    ] + select({
+        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_test(
+    name = "file_system_watcher_test",
+    size = "medium",
+    srcs = ["file_system_watcher_test.cc"],
+    # b/470107657: The underlying implementation on MacOS is unreliable.
+    flaky = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":file_system_watcher",
+        "//android/system",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
     ],
 )
 
+cc_library(
+    name = "ini_file",
+    srcs = ["ini_file.cc"],
+    hdrs = ["include/android/goldfish/ini_file.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["//android/system"],
+)
+
 cc_test(
-    name = "files_unittests",
+    name = "ini_file_test",
     size = "medium",
-    srcs = [
-        "file_system_watcher_test.cc",
-        "ini_file_test.cc",
-    ],
-    linkopts = select({
-        "@platforms//os:macos": ["-undefined error"],
-        "//conditions:default": [],
-    }),
+    srcs = ["ini_file_test.cc"],
     visibility = ["//visibility:public"],
     deps = [
-        ":files",
+        ":ini_file",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",

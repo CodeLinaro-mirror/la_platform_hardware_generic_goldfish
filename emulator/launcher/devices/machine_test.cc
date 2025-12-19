@@ -20,7 +20,7 @@
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
+#include "android/base/testing/TestSystem.h"
 #include "fake_emulator.h"
 
 using ::absl_testing::IsOk;

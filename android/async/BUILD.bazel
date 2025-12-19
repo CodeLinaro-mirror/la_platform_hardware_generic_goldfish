@@ -64,10 +64,12 @@ cc_library(
     deps = [
         ":async_api",
         ":libuv_event_loop",
-        "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(

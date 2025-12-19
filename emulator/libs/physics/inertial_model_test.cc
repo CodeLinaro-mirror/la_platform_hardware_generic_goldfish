@@ -15,8 +15,8 @@
 #include <glm/gtx/euler_angles.hpp>
 #include <gtest/gtest.h>
 
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/TestTempDir.h"
 #include "glm/glm_test_helpers.h"
 
 using android::base::System;

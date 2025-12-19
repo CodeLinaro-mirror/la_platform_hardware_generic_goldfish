@@ -15,8 +15,8 @@
 
 #include "gmock/gmock.h"
 
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "emulator/hal/connector/test/goldfish/devices/test_connector_registry.h"
+#include "android/base/testing/TestSystem.h"
+#include "goldfish/devices/test_connector_registry.h"
 #include "goldfish//async/testing/test_event_loop.h"
 
 namespace goldfish::devices::gps {

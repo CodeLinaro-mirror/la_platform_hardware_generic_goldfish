@@ -34,7 +34,10 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@aemu//base:aemu-base",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(

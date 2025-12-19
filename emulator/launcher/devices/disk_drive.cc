@@ -25,7 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/process/Command.h"
+#include "android/process/command.h"
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/filesystems/ext4_utils.h"

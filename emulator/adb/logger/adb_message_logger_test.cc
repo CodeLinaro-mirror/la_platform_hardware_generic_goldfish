@@ -26,8 +26,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/testing/TestUtils.h"
-
 namespace {
 
 using goldfish::adb::AdbMessageLogger;

@@ -21,7 +21,7 @@
 #include "absl/status/status_matchers.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
-#include "android/system/test-headers/android/base/testing/needs_winsock.h"
+#include "android/base/testing/needs_winsock.h"
 #include "goldfish/network/endpoint.h"
 
 namespace goldfish::network {

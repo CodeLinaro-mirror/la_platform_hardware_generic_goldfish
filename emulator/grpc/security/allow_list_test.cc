@@ -19,7 +19,7 @@
 #include <fstream>
 #include <vector>
 
-#include "android/system/test-headers/android/base/testing/test_file_util.h"
+#include "android/base/testing/test_file_util.h"
 
 namespace android {
 namespace emulation {

@@ -36,7 +36,7 @@
 #include "absl/strings/strip.h"
 
 #include "aemu/base/memory/NoDestructor.h"
-#include "aemu/base/process/Command.h"
+#include "android/process/command.h"
 #include "android/base/bazel_info.h"
 #include "android/base/c_str_wrapper.h"
 #include "android/base/storage_capacity.h"

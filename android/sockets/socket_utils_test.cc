@@ -16,7 +16,7 @@
 
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
-#include "android/system/test-headers/android/base/testing/needs_winsock.h"
+#include "android/base/testing/needs_winsock.h"
 
 namespace android {
 namespace base {

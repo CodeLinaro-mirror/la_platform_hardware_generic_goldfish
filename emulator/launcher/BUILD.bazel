@@ -35,12 +35,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
-        "//android/files",
+        "//android/files:ini_file",
         "//emulator/config:device_type",
         "//emulator/config:hardware_config",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -187,6 +186,7 @@ cc_library(
     hdrs = ["netsimd.h"],
     deps = [
         "//android/async:launch_config",
+        "//android/files:ini_file",
         "//android/network",
         "//emulator/cmdline",
         "//emulator/grpc/client:emulator_grpc_client",

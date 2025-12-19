@@ -17,6 +17,7 @@ cc_library(
     hdrs = [
         "include/android/process/command.h",
         "include/android/process/process.h",
+        "include/android/process/ring_streambuf.h",
     ],
     copts = select({
         "@platforms//os:windows": [
@@ -31,7 +32,7 @@ cc_library(
     deps = select({
         "@platforms//os:windows": [
             # For unicode.
-            "//android/system",
+            "//android/system:win32_utils",
         ],
         "//conditions:default": [],
     }) + [
@@ -63,7 +64,6 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":process",
-        "//android/files",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",

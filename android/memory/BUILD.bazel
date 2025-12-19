@@ -23,10 +23,13 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/files",
+        "//android/logging:absl-c-bridge",
         "//android/system",
         "@aemu//base:aemu-base",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(
@@ -44,7 +47,6 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":memory",
-        "//android/files",
         "//android/sockets",
         "//android/system",
         "//android/system:googletest_main",

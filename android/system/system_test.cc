@@ -26,9 +26,8 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "aemu/base/misc/FileUtils.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "android/base/testing/TestSystem.h"
+#include "android/base/testing/TestTempDir.h"
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
@@ -41,26 +40,6 @@
 
 namespace android {
 namespace base {
-
-static void make_subfile(fs::path dir, fs::path file) {
-    fs::path path = dir / file.relative_path();
-    int fd = ::open(path.string().c_str(), O_WRONLY | O_CREAT, 0755);
-    EXPECT_GE(fd, 0) << "Path: " << path.c_str();
-    LOG(INFO) << "Created: " << path;
-    ::close(fd);
-}
-
-static void make_sized_file(fs::path dir, std::string file, size_t nBytes) {
-    fs::path path = dir / file;
-    int fd = ::open(path.string().c_str(), O_WRONLY | O_CREAT, 0755);
-    EXPECT_GE(fd, 0) << "Unable to create file: " << path;
-    setFileSize(fd, nBytes);
-    ::close(fd);
-
-    EXPECT_EQ(nBytes, base::file::file_size(path)->bytes())
-            << "File size of:" << path << " is not correct.";
-    ::close(fd);
-}
 
 TEST(System, get) {
     System* sys1 = System::get();

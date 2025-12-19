@@ -23,7 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/memory/SharedMemory.h"
-#include "android/system/test-headers/android/base/testing/TestSystem.h"
+#include "android/base/testing/TestSystem.h"
 
 namespace android {
 namespace base {

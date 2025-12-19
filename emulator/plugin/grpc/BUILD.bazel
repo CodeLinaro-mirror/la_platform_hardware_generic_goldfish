@@ -5,7 +5,7 @@ cc_library(
     srcs = ["emulator_advertisement.cc"],
     hdrs = ["emulator_advertisement.h"],
     deps = [
-        "//android/files",
+        "//android/files:ini_file",
         "//android/sockets",
         "@aemu//base:aemu-base",
     ],

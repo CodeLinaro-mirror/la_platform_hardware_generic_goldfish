@@ -27,8 +27,8 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/files/ScopedFileHandle.h"
-#include "aemu/base/process/Command.h"
-#include "aemu/base/streams/RingStreambuf.h"
+#include "android/process/command.h"
+#include "android/process/ring_streambuf.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/process/exec.h"
 

@@ -22,7 +22,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 
-#include "aemu/base/misc/StringUtils.h"
 #include "android/emulation/control/auth_error_factory.h"
 #include "tink/config/tink_config.h"
 #include "tink/jwt/jwk_set_converter.h"

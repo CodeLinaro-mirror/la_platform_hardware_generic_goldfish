@@ -25,14 +25,10 @@ cc_library(
         "grpc_connection_monitor.cc",
         "grpc_connection_monitor.h",
     ],
-    hdrs = [
-        "include/android/emulation/control/emulator_grpc_client.h",
-    ],
-    includes = [
-        "include",
-    ],
+    hdrs = ["include/android/emulation/control/emulator_grpc_client.h"],
+    includes = ["include"],
     deps = [
-        "//android/files",
+        "//android/files:ini_file",
         "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//emulator/grpc/security",
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
