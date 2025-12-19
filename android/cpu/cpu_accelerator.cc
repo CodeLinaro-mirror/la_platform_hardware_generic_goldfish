@@ -10,7 +10,6 @@
 // GNU General Public License for more details.
 
 #define CPU_ACCELERATOR_PRIVATE
-#include "android/cpu_accelerator.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN 1
@@ -43,8 +42,8 @@
 #include "aemu/base/files/ScopedFd.h"
 #include "android/base/file/file.h"
 #include "android/base/system.h"
-#include "android/goldfish/cpu/cpu_accelerator.h"
-#include "android/goldfish/cpu/x86_cpuid.h"
+#include "android/cpu/cpu_accelerator.h"
+#include "x86_cpuid.h"
 
 #ifdef _WIN32
 #include "aemu/base/files/ScopedFileHandle.h"

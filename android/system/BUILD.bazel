@@ -44,7 +44,6 @@ cc_library(
     srcs = [
         "bazel_info.cc",
         "system.cc",
-        "version.cc",
     ],
     hdrs = [
         "include/android/base/bazel_info.h",
@@ -112,7 +111,6 @@ cc_test(
         "file_test.cc",
         "storage_capacity_test.cc",
         "system_test.cc",
-        "version_test.cc",
     ],
     data = ["test/android/base/bazel/info.txt"],
     visibility = ["//visibility:public"],

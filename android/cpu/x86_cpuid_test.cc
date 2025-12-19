@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "android/goldfish/cpu/x86_cpuid.h"
+#include "x86_cpuid.h"
 
 #include <gtest/gtest.h>
 #include <stdio.h>

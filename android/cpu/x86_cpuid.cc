@@ -12,7 +12,7 @@
 ** GNU General Public License for more details.
 */
 
-#include "android/goldfish/cpu/x86_cpuid.h"
+#include "x86_cpuid.h"
 
 #include <string.h>
 

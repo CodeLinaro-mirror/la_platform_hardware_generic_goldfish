@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "android/goldfish/cpu//cpu_accelerator.h"
+#include "android/cpu/cpu_accelerator.h"
 
 namespace android {
 

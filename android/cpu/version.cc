@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "aemu/base/Version.h"
+#include "android/cpu/version.h"
 
 #include <assert.h>
 

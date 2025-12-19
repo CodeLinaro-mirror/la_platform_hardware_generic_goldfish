@@ -11,9 +11,13 @@
 
 #pragma once
 
-#include "android/utils/compiler.h"
+#include <cstdlib>
+#include <string>
+#include <utility>
 
-ANDROID_BEGIN_HEADER
+#include "version.h"
+
+namespace android {
 
 // don't change these numbers
 // Android Studio depends on them
@@ -74,13 +78,6 @@ using AndroidCpuInfoFlags = enum {
 
 };
 
-/* Returns ANDROID_CPU_ACCELERATION_READY if CPU acceleration is
- *  possible on this machine.  If |status| is not NULL, on exit,
- * |*status| will be set to a heap-allocated string describing
- * the status of acceleration, to be freed by the caller.
- */
-AndroidCpuAcceleration androidCpuAcceleration_getStatus(char** status);
-
 using AndroidCpuAccelerator = enum {
     ANDROID_CPU_ACCELERATOR_NONE = 0,
     ANDROID_CPU_ACCELERATOR_KVM,
@@ -91,16 +88,81 @@ using AndroidCpuAccelerator = enum {
     ANDROID_CPU_ACCELERATOR_MAX,
 };
 
-bool androidCpuAcceleration_hasModernX86VirtualizationFeatures();
+// The list of CPU emulation acceleration technologies supported by the
+// Android emulator.
+//  CPU_ACCELERATOR_NONE means no acceleration is supported on this machine.
+//
+//  CPU_ACCELERATOR_KVM means Linux KVM, which requires a specific driver
+//  to be installed and that /dev/kvm is properly accessible by the current
+//  user.
+//
+//  CPU_ACCELERATOR_HAX means Intel's Hardware Accelerated eXecution,
+//  which can be installed on Windows and OS X machines running on an
+//  Intel processor.
+//
+//  CPU_ACCELERATOR_HVF means Apple's Hypervisor.framework, which
+//  requires an Intel Mac running OS X 10.10+.
+//
+//  CPU_ACCELERATOR_WHPX means Windows Hypervisor Platform.
+//
+enum CpuAccelerator {
+    CPU_ACCELERATOR_NONE = 0,
+    CPU_ACCELERATOR_KVM,
+    CPU_ACCELERATOR_HAX,
+    CPU_ACCELERATOR_HVF,
+    CPU_ACCELERATOR_WHPX,
+    CPU_ACCELERATOR_AEHD,
+    CPU_ACCELERATOR_MAX,
+};
 
-/* Returns the auto-selected CPU accelerator. */
-AndroidCpuAccelerator androidCpuAcceleration_getAccelerator();
+// Returns whether or not the CPU supports all modern x86
+// virtualization features, so that we don't have to
+// use SMP = 1.
+bool hasModernX86VirtualizationFeatures();
 
-/* Returns support status of the cpu accelerator |type| on the current machine.
- */
-bool androidCpuAcceleration_isAcceleratorSupported(AndroidCpuAccelerator type);
+// Return the CPU accelerator technology usable on the current machine.
+// This only returns a non-CPU_ACCELERATOR_NONE if corresponding accelerator
+// can be used properly. Otherwise it will return CPU_ACCELERATOR_NONE.
+CpuAccelerator GetCurrentCpuAccelerator();
+void ResetCurrentCpuAccelerator(CpuAccelerator accel);
 
-/* Resets the current cpu accelerator to reflect current status. */
-void androidCpuAcceleration_resetCpuAccelerator(AndroidCpuAccelerator type);
+// Returns whether or not the accelerator |type| is suppored
+// on the current system.
+bool GetCurrentAcceleratorSupport(CpuAccelerator type);
 
-ANDROID_END_HEADER
+// Return an ASCII string describing the state of the current CPU
+// acceleration on this machine. If GetCurrentCpuAccelerator() returns
+// CPU_ACCELERATOR_NONE this will contain a small explanation why
+// the accelerator cannot be used.
+std::string GetCurrentCpuAcceleratorStatus();
+
+// Return the version for the CPU accelerator technology usable
+// on the current machine.
+android::base::Version GetCurrentCpuAcceleratorVersion();
+
+// Convert CpuAccelerator to string type
+std::string CpuAcceleratorToString(CpuAccelerator type);
+
+// Return an status code describing the state of the current CPU
+// acceleration on this machine. If GetCurrentCpuAccelerator() returns
+// CPU_ACCELERATOR_NONE this will contain a small explanation why
+// the accelerator cannot be used.
+AndroidCpuAcceleration GetCurrentCpuAcceleratorStatusCode();
+
+// For unit testing/debugging purpose only, must be called before
+// GetCurrentCpuAccelerator().
+void SetCurrentCpuAcceleratorForTesting(CpuAccelerator accel, AndroidCpuAcceleration status_code,
+                                        const char* status);
+
+// Returns the Hyper-V configuration of the current system
+// and a short message describing it.
+std::pair<AndroidHyperVStatus, std::string> GetHyperVStatus();
+
+// Returns a set of AndroidCpuInfoFlags describing the CPU capabilities
+// (and a text explanation as well)
+std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo();
+
+// For testing
+base::Version parseMacOSVersionString(const std::string& str, std::string* status);
+
+}  // namespace android

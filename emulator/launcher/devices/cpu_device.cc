@@ -23,7 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/cpu_accelerator.h"
+#include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/emulator_config.h"
 #include "android/goldfish/hardware_config.h"

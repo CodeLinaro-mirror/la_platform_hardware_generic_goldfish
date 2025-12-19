@@ -5,8 +5,9 @@ cc_library(
     srcs = [
         "apple_cpu_accelerator.h",
         "cpu_accelerator.cc",
-        "src/android/goldfish/cpu/x86_cpuid.h",
+        "version.cc",
         "x86_cpuid.cc",
+        "x86_cpuid.h",
     ] + select({
         "@platforms//os:windows": [
             "windows_installer.cc",
@@ -15,18 +16,15 @@ cc_library(
         "//conditions:default": [],
     }),
     hdrs = [
-        "include/android/cpu_accelerator.h",
-        "include/android/goldfish/cpu/cpu_accelerator.h",
+        "include/android/cpu/cpu_accelerator.h",
+        "include/android/cpu/version.h",
     ],
     copts =
         select({
             "@platforms//os:windows": ["-Wno-microsoft-goto"],
             "//conditions:default": [],
         }),
-    includes = [
-        "include",
-        "src",
-    ],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//android/system",
@@ -42,7 +40,10 @@ cc_library(
 
 cc_test(
     name = "cpu_unittests",
-    srcs = ["x86_cpuid_test.cc"],
+    srcs = [
+        "version_test.cc",
+        "x86_cpuid_test.cc",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
