@@ -1,14 +1,32 @@
 """Bazel rule for extracting breakpad symbols."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
-load("@goldfish_build//toolchains/cc/mac_clang:dsym.bzl", "AppleDsymInfo", "gen_dsym_aspect")
-load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
+load(
+    "@goldfish_build//rules/native:debug.bzl",
+    "DebugSymbolsSetInfo",
+    "FissionPackageSetInfo",
+    "collect_fission_package_aspect",
+    "collect_pdb_aspect",
+    "gen_dsym_aspect",
+)
 
 visibility("//emulator/...")
 
 def windows_path(p):
     # type: (string) -> string
     return p.replace("/", "\\")
+
+def _maybe_executable(file):
+    # type: (File) -> bool
+    if not file.extension:  # Assume files with no extension are executables.
+        return True
+    if file.extension in ["so", "dylib", "exe", "dll"]:
+        return True
+    stem, extension = paths.split_extension(file.basename)
+    if extension[1:].isdigit() and stem.endswith(".so"):
+        # liba.so.1
+        return True
+    return False
 
 def _breakpad_symbols_impl(ctx):
     """Extracts symbols from binaries using dump_syms.
@@ -23,73 +41,80 @@ def _breakpad_symbols_impl(ctx):
     Returns:
         A `DefaultInfo` provider containing the generated symbol files.
     """
+    split_symbol_lookup = {}
+    for binary in ctx.attr.binaries:
+        if DebugSymbolsSetInfo in binary:
+            symbol_set = binary[DebugSymbolsSetInfo]
+            if symbol_set.dsym:
+                for symbol in symbol_set.dsym.to_list():
+                    split_symbol_lookup[symbol.executable_file] = ("dsym", symbol.original_executable_file, symbol.dsym_bundle)
+            if symbol_set.pdb:
+                for symbol in symbol_set.pdb.to_list():
+                    split_symbol_lookup[symbol.executable_file] = ("pdb", symbol.original_executable_file, symbol.pdb_file)
+        if FissionPackageSetInfo in binary:
+            symbol_set = binary[FissionPackageSetInfo]
+            if symbol_set.fission_package:
+                for symbol in symbol_set.fission_package.to_list():
+                    split_symbol_lookup[symbol.executable_file] = ("dwp", symbol.original_executable_file, symbol.dwp_file)
+
     output_files = []
 
-    # Iterate over binaries and generate `.sym` files
-    for binary_target in ctx.attr.binaries:
-        owner_label = binary_target.label
-        split_symbol_args = []  # type: list[string]
-        split_symbol_files = []  # type: list[File]
-        if AppleDsymInfo in binary_target:
-            split_symbol_args.extend(["-g", binary_target[AppleDsymInfo].dsym_bundle.path])
-            split_symbol_files.append(binary_target[AppleDsymInfo].dsym_bundle)
-            binary_files = [binary_target[AppleDsymInfo].executable_file]  # type: list[File]
-        elif OutputGroupInfo in binary_target and hasattr(binary_target[OutputGroupInfo], "pdb_file"):
-            split_symbol_files = binary_target[OutputGroupInfo].pdb_file.to_list()  # type: list[File]
-            binary_files = [binary_target.files_to_run.executable or binary_target.files.to_list()[0]]
-        elif DebugPackageInfo in binary_target and binary_target[DebugPackageInfo].dwp_file:
-            split_symbol_files.append(binary_target[DebugPackageInfo].dwp_file)
-            binary_files = [binary_target[DebugPackageInfo].unstripped_file]
-        elif ctx.target_platform_has_constraint(
+    for candidate in ctx.files.binaries:
+        if candidate not in split_symbol_lookup and not _maybe_executable(candidate):
+            continue
+
+        input_file = candidate
+        input_files = [input_file]
+        prepend_args = []
+        append_args = []
+        if input_file in split_symbol_lookup:
+            symbol_type, original_executable, split_symbol = split_symbol_lookup[input_file]
+            input_file = original_executable or input_file
+            input_files = [input_file, split_symbol]
+            if symbol_type == "dsym":
+                prepend_args.extend(["-g", split_symbol.path])
+            elif symbol_type == "dwp":
+                append_args.append(split_symbol.dirname)
+            elif symbol_type == "pdb":
+                input_file = split_symbol
+                prepend_args.append("--i")  # Generate INLINE/INLINE_ORIGIN records, only valid when reading PDBs
+        elif input_file.extension in ["exe", "dll"]:
+            prepend_args.append("--pe")  # No PDB available - read from PE instead.
+
+        output_name = str(
+            hash(candidate.dirname),
+        ) + "/" + paths.replace_extension(candidate.basename, ".sym")
+        output_file = ctx.actions.declare_file(output_name)
+        output_files.append(output_file)
+
+        if ctx.target_platform_has_constraint(
             ctx.attr._target_windows[platform_common.ConstraintValueInfo],
         ):
-            # On Windows with --config=release, for Rutabaga, this produces .../rutabaga_ffi.dll and
-            # .../rutabaga_ffi.dll.lib. We can't get symbols from .lib so we just take the first element.
-            #binary_files = [binary_target.files.to_list()[0]]  # type: list[File]
-            # Skipping Rust binaries for now as there seem to be other issues on buildbots.
-            # TODO(b/421925658): Re-enable this.
-            binary_files = []
+            ctx.actions.run(
+                mnemonic = "ExtractBreakpadSymbols",
+                outputs = [output_file],
+                inputs = input_files,
+                executable = ctx.executable._dump_syms,
+                arguments = prepend_args + [
+                    "--f",  # Output to:
+                    windows_path(output_file.path),
+                    windows_path(input_file.path),
+                ] + append_args,
+            )
         else:
-            binary_files = binary_target.files.to_list()  # type: list[File]
-        for binary in binary_files:
-            output_name = "/".join([
-                owner_label.package,
-                paths.replace_extension(binary.basename, ".sym"),
-            ])
-            if owner_label.repo_name:
-                output_name = "_" + owner_label.repo_name + "/" + output_name
-            output_file = ctx.actions.declare_file(output_name)
-            output_files.append(output_file)
-
-            if ctx.target_platform_has_constraint(
-                ctx.attr._target_windows[platform_common.ConstraintValueInfo],
-            ):
-                ctx.actions.run(
-                    mnemonic = "ExtractBreakpadSymbols",
-                    outputs = [output_file],
-                    inputs = [binary] + split_symbol_files,
-                    executable = ctx.executable._dump_syms,
-                    arguments = [
-                        "--i",  # Generate INLINE/INLINE_ORIGIN records
-                        "--f",  # Output to:
-                        windows_path(output_file.path),
-                        windows_path(binary.path),
-                    ],
-                )
-            else:
-                ctx.actions.run(
-                    mnemonic = "ExtractBreakpadSymbols",
-                    outputs = [output_file],
-                    inputs = [binary] + split_symbol_files,  # Simplified: directly use binary
-                    executable = ctx.executable._dump_syms,
-                    arguments = split_symbol_args + [
-                        "-d",  # Generate INLINE/INLINE_ORIGIN records
-                        "-m",  # Handle multiple symbols at same address, if any.
-                        "-f",  # Output to:
-                        output_file.path,
-                        binary.path,
-                    ],
-                )
+            ctx.actions.run(
+                mnemonic = "ExtractBreakpadSymbols",
+                outputs = [output_file],
+                inputs = input_files,
+                executable = ctx.executable._dump_syms,
+                arguments = prepend_args + [
+                    "-d",  # Generate INLINE/INLINE_ORIGIN records
+                    "-m",  # Handle multiple symbols at same address, if any.
+                    "-f",  # Output to:
+                    output_file.path,
+                    input_file.path,
+                ] + append_args,
+            )
 
     return DefaultInfo(files = depset(output_files))
 
@@ -101,7 +126,11 @@ breakpad_symbols = rule(
             allow_files = True,
             mandatory = True,
             doc = "The list of binaries to extract symbols from.",
-            aspects = [gen_dsym_aspect],
+            aspects = [
+                gen_dsym_aspect,
+                collect_fission_package_aspect,
+                collect_pdb_aspect,
+            ],
         ),
         "_dump_syms": attr.label(
             default = Label("@breakpad//:dump_syms"),
