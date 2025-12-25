@@ -18,6 +18,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_replace.h"
 #include "gmock/gmock.h"
 
 #include "aemu/base/utils/status_matcher_macros.h"
@@ -60,7 +61,7 @@ TEST(Grpc, DefaultAllowlist) {
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
             testing::ElementsAre(testing::Eq("-device"),
-                                 testing::MatchesRegex(".*allowlist=.*goldfish\\+/emulator/grpc.*"),
+                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/test_allow_list.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*")),
                                  testing::Eq("-trace"), testing::Eq("module_*")));
 }
 

@@ -167,7 +167,6 @@ cc_library(
     name = "grpc_device",
     srcs = ["grpc_device.cc"],
     hdrs = ["grpc_device.h"],
-    data = ["//emulator/grpc/security:unsecure-emulator-access"],
     visibility = ["//visibility:public"],
     deps = [
         ":device",
@@ -180,6 +179,7 @@ cc_library(
 cc_test(
     name = "grpc_device_test",
     srcs = ["grpc_device_test.cc"],
+    data = ["//emulator/launcher:unsecure-emulator-access"],
     visibility = ["//visibility:public"],
     deps = [
         ":device",
