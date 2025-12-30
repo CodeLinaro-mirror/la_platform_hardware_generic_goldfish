@@ -39,20 +39,31 @@ absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
                          << "'. Using default port: " << mPort;
         }
     }
+    if (char* allowlist_str = emulator.opts().grpc_allowlist) {
+        if (base::file::exists(allowlist_str)) {
+            mAllowlist.assign(allowlist_str);
+        } else {
+            LOG(WARNING) << "grpc_allowlist file does not exist: '" << mAllowlist
+                         << "'. Using default";
+        }
+    }
 
     return absl::OkStatus();
 }
 
 std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    fs::path allowlist = emulator.paths().launcher_directory / "lib" / "emulator_access.json";
+    fs::path allowlist = mAllowlist;
+    if (mAllowlist.size() == 0) {
+        allowlist = emulator.paths().launcher_directory / "lib" / "emulator_access.json";
 
-    if (Bazel::inBazel()) {
-        // Development environment, allow access to the emulator.
-        allowlist = fs::path(
-                Bazel::runfilesPath("goldfish+/emulator/grpc/security/test/"
-                                    "android/emulation/control/secure/test_allow_list.json"));
-        assert(base::file::exists(allowlist));
-        LOG(WARNING) << "** Using development allow list, do not use in production **";
+        if (Bazel::inBazel()) {
+            // Development environment, allow access to the emulator.
+            allowlist = fs::path(
+                    Bazel::runfilesPath("goldfish+/emulator/grpc/security/test/"
+                                        "android/emulation/control/secure/test_allow_list.json"));
+            assert(base::file::exists(allowlist));
+            LOG(WARNING) << "** Using development allow list, do not use in production **";
+        }
     }
 
     std::string grpc_device =

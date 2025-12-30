@@ -29,6 +29,7 @@ class GrpcDevice : public Device {
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
+    std::string mAllowlist;
     uint16_t mPort;
 };
 
