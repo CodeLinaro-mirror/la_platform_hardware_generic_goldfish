@@ -43,6 +43,8 @@ rust_library(
         "--cfg=feature=\"Win32_Storage\"",
         "--cfg=feature=\"Win32_Storage_FileSystem\"",
         "--cfg=feature=\"Win32_System\"",
+        "--cfg=feature=\"Win32_System_Diagnostics\"",
+        "--cfg=feature=\"Win32_System_Diagnostics_Debug\"",
         "--cfg=feature=\"Win32_System_Console\"",
         "--cfg=feature=\"Win32_System_IO\"",
         "--cfg=feature=\"Win32_System_Pipes\"",

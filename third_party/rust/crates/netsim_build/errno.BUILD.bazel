@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""signal_hook_registry bazel build rule"""
+"""errno bazel build rule"""
 
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
 
 rust_library(
-    name = "signal-hook-registry",
-    srcs = glob(["**/*.rs"]),
-    crate_name = "signal_hook_registry",
-    edition = "2015",
+    name = "errno",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "errno",
+    edition = "2018",
+    crate_features = ["std"],
     crate_root = "src/lib.rs",
     deps = [
-        "@errno",
         "@libc",
-    ],
+    ] + select({
+        "@bazel_tools//src/conditions:windows": ["@windows-sys"],
+        "//conditions:default": [],
+    }),
 )

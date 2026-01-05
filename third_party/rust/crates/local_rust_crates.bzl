@@ -101,6 +101,7 @@ def _lrc_impl(module_ctx):
         "data-encoding",
         "env_logger",
         "equivalent",
+        "errno",
         "etherparse",
         "flate2",
         "fnv",
