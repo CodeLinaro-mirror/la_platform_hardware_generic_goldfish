@@ -39,7 +39,7 @@ std::unique_ptr<IClock> IClock::s_owned_instance;
 
 void IClock::Set(std::unique_ptr<IClock> clock) {
     // A lock is required to safely replace the clock instance.
-    const std::lock_guard<std::mutex> lock(g_lock);
+    const std::scoped_lock<std::mutex> lock(g_lock);
     s_owned_instance = std::move(clock);
     // Use memory_order_release to ensure that the write to s_owned_instance is
     // visible to any other thread that subsequently acquires this pointer.
@@ -58,7 +58,7 @@ IClock& IClock::Get() {
 
     // If the instance is not set, we must acquire a lock to ensure that only
     // one thread creates the fallback instance.
-    const std::lock_guard<std::mutex> lock(g_lock);
+    const std::scoped_lock<std::mutex> lock(g_lock);
     // Now that we have the lock, we must check again to see if another thread
     // has set the instance while we were waiting. This is the "double-check"
     // in the double-checked locking pattern.

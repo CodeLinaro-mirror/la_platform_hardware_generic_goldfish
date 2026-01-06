@@ -73,7 +73,7 @@ struct WriteReqT {
     static WriteReqT* Create(const char* buffer_data, size_t buffer_size,
                              AsyncSocket::OnSendCallback cb) {
         const size_t total_size = sizeof(WriteReqT) + buffer_size;
-        void* raw_memory = malloc(total_size);
+        void* raw_memory = malloc(total_size);  // NOLINT
         DCHECK(raw_memory) << "Ran out of memory while creating packet";
         auto* write_req = new (raw_memory) WriteReqT();
         char* write_buffer = reinterpret_cast<char*>(write_req) + sizeof(WriteReqT);

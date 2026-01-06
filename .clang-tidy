@@ -30,7 +30,7 @@ Checks:
   - '-bugprone-easily-swappable-parameters' # IPv6 addresses are long but we still need them
   - '-modernize-use-nodiscard'              # This is a bit aggressive.
   - '-google-runtime-int'                   # We are using long long, etc in various places.
-
+  - '-readability-use-concise-preprocessor-directives' # We are using #if defined (...) #elif
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'
 HeaderFileExtensions:         ['h','hh','hpp','hxx']
