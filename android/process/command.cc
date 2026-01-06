@@ -13,10 +13,9 @@
 // limitations under the License.
 #include "android/process/command.h"
 
-#include <stdio.h>
-
 #include <cassert>
 #include <climits>
+#include <cstdio>
 #include <future>
 #include <iterator>
 #include <streambuf>
@@ -43,7 +42,7 @@ class ProcessOutputImpl : public ProcessOutput {
   public:
     explicit ProcessOutputImpl(std::basic_streambuf<char>* buffer)
             : mBuffer(buffer), mStream(buffer) {
-        VLOG(1) << "Created process output with: " << (buffer == nullptr ? "nothing" : "buffer");
+        DVLOG(1) << "Created process output with: " << (buffer == nullptr ? "nothing" : "buffer");
     }
 
     std::string asString() override { return {std::istreambuf_iterator<char>{asStream()}, {}}; }
@@ -61,35 +60,34 @@ class ProcessOutputImpl : public ProcessOutput {
 };
 
 void ObservableProcess::runOverseer() {
-    {
-        std::unique_lock<std::mutex> lk(mOverseerMutex);
-        VLOG(1) << "Starting overseer to retrieve stderr/stdout of " << exe();
-        auto* out = reinterpret_cast<ProcessOutputImpl*>(mStdOut.get())->getBuf();
-        auto* err = reinterpret_cast<ProcessOutputImpl*>(mStdErr.get())->getBuf();
-        VLOG(1) << "Using out:" << out << ", err:" << err;
-        mOverseer->start(out, err);
+    const absl::MutexLock lk(&mOverseerMutex);
+    DVLOG(1) << "Starting overseer to retrieve stderr/stdout of " << exe();
+    auto* out = reinterpret_cast<ProcessOutputImpl*>(mStdOut.get())->getBuf();
+    auto* err = reinterpret_cast<ProcessOutputImpl*>(mStdErr.get())->getBuf();
+    DVLOG(1) << "Using out:" << out << ", err:" << err;
+    mOverseer->start(out, err);
 
-        // Make sure we are really closed, and trigger any listeners.
-        // (in case an overseer forgot)
-        // Stop the overseer (likely a nop)
-        mOverseer->stop();
-        VLOG(1) << "Stopped overseer";
-        mOverseerActive = false;
-    }
-    mOverseerCv.notify_all();
+    // Make sure we are really closed, and trigger any listeners.
+    // (in case an overseer forgot)
+    // Stop the overseer (likely a nop)
+    mOverseer->stop();
+    VLOG(1) << "Stopped overseer";
+    mOverseerActive = false;
 }
 
 std::future_status ObservableProcess::wait_for(
         const std::chrono::milliseconds timeout_duration) const {
-    std::unique_lock<std::mutex> lk(mOverseerMutex);
+    const absl::MutexLock lk(&mOverseerMutex);
     if (!mOverseerActive) {
         return wait_for_kernel(timeout_duration);
     }
 
-    if (!mOverseerCv.wait_for(lk, timeout_duration, [&] { return !mOverseerActive; })) {
+    // We have the lock when this lambda is called.
+    auto inactive = [this]() ABSL_NO_THREAD_SAFETY_ANALYSIS { return !mOverseerActive; };
+    if (!mOverseerMutex.AwaitWithTimeout(absl::Condition(&inactive),
+                                         absl::FromChrono(timeout_duration))) {
         return std::future_status::timeout;
     }
-
     return std::future_status::ready;
 }
 
@@ -174,6 +172,7 @@ std::unique_ptr<ObservableProcess> Command::execute() {
         auto* raw = proc.get();
         // TODO(jansene): Use condition_variable to assure that
         // overseer is really running after this call.
+        const absl::MutexLock lk(&proc->mOverseerMutex);
         proc->mOverseerActive = true;
         proc->mOverseer = proc->createOverseer();
         proc->mOverseerThread = std::make_unique<std::thread>([raw]() { raw->runOverseer(); });
