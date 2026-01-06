@@ -33,7 +33,7 @@ Status VmServiceImpl::setVmState(const VmRunState& request) {
     case VmRunState::TERMINATE: {
         LOG(ERROR) << "Received request to terminate the emulator process immediately. No "
                       "cleanup will be performed.";
-        android::base::Process::me()->terminate();
+        android::base::Process::Me()->Terminate();
     }; break;
     case VmRunState::PAUSED:
         mVm->pause();

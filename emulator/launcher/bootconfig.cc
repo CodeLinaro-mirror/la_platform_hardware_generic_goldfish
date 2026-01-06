@@ -61,7 +61,7 @@ std::vector<char> flattenBootconfig(
 absl::Status appendBootconfig(const std::vector<std::pair<std::string, std::string>>& bootconfig,
                               fs::path dst) {
     ASSIGN_OR_RETURN(auto old_size, android::base::file::file_size(dst));
-    std::vector<char> blob = buildBootconfigBlob(old_size.bytes(), bootconfig);
+    std::vector<char> blob = buildBootconfigBlob(old_size.Bytes(), bootconfig);
 
     std::ofstream out;
     RETURN_IF_ERROR(android::base::file::chmod(dst, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));

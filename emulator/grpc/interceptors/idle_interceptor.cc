@@ -71,9 +71,9 @@ bool IdleInterceptorFactory::checkIdleTimeout() {
         LOG(WARNING) << "Trying nicely is not yet implemented..";
     } else {
         LOG(INFO) << "Terminating the emulator.";
-        auto me = android::base::Process::me();
+        auto me = android::base::Process::Me();
         if (me) {
-            me->terminate();
+            me->Terminate();
         }
     }
 

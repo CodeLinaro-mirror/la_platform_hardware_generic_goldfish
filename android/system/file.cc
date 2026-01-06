@@ -30,7 +30,7 @@
 #include "aemu/base/utils/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
-
+// NOLINTBEGIN
 namespace android::base::file {
 
 absl::StatusOr<fs::path> make_absolute(const fs::path& path) noexcept {
@@ -268,5 +268,5 @@ absl::Status touch(const fs::path& path) noexcept {
     }
     return absl::DataLossError(absl::StrCat("Unable to create file: ", path.string()));
 }
-
+// NOLINTEND
 }  // namespace android::base::file

@@ -128,18 +128,18 @@ bool PidChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
        Process::me()->pid());
 
     // Maybe it is me, i'm alive!
-    if (Process::me()->pid() == pid) {
+    if (Process::Me()->pid() == pid) {
         return true;
     }
 
-    auto proc = Process::fromPid(pid);
+    auto proc = Process::FromPid(pid);
     if (!proc) {
         // tsk tsk process is not alive.
         DD("pid: %d is not alive", pid);
         return false;
     }
 
-    auto name = proc->exe();
+    auto name = proc->Exe();
     if (name.find("emulator") != std::string::npos ||
         name.find("qemu-system-") != std::string::npos) {
         // It's a qemu or emulator process.. Let's keep it alive.
@@ -218,7 +218,7 @@ fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
 
 void EmulatorAdvertisement::remove() const {
     base::file::rm(location()).IgnoreError();
-    fs::path pid_dir = mSharedDirectory / std::to_string(Process::me()->pid());
+    fs::path pid_dir = mSharedDirectory / std::to_string(Process::Me()->pid());
     if (base::file::is_dir(pid_dir)) {
         DD("Deleting my pid dir %s", pid_dir.string().c_str());
         base::file::rm_recursive(pid_dir).IgnoreError();
@@ -226,7 +226,7 @@ void EmulatorAdvertisement::remove() const {
 }
 
 fs::path EmulatorAdvertisement::location() const {
-    auto pid = Process::me()->pid();
+    auto pid = Process::Me()->pid();
     std::string pidfile = android::base::StringFormat(location_format, pid);
     return mSharedDirectory / pidfile;
 }

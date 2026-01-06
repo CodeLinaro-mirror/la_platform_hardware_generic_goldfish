@@ -46,19 +46,19 @@ absl::Status resizePartition(fs::path partition, StorageCapacity size) {
     if (size < minSize) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("Partition '%s' cannot be smaller than %s. Requested size: %s",
-                                partition.string(), minSize.string(), size.string()));
+                                partition.string(), minSize.String(), size.String()));
     }
 
     if (size > maxSize) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("Partition '%s' cannot be larger than %s. Requested size: %s",
-                                partition.string(), maxSize.string(), size.string()));
+                                partition.string(), maxSize.String(), size.String()));
     }
 
     // TODO the extprogs are not currently bundled with emu-next. For this to work they should be
     // included in the release zip.
     int resizeResult = resizeExt4Partition(fs::path("some-dir-TODO"), partition.string().c_str(),
-                                           size.bytes());
+                                           size.Bytes());
 
     // Interpret the error codes can propagate.
     if (resizeResult != 0) {
@@ -100,7 +100,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
         if (desired_size_bytes > 0 && current_data_size < desired_size_bytes) {
             // Log resize intent
             LOG(WARNING) << "Resizing userdata partition " << image << " from "
-                         << current_data_size.string() << " to " << desired_size_bytes;
+                         << current_data_size.String() << " to " << desired_size_bytes;
             RETURN_IF_ERROR(resizePartition(image, desired_size_bytes));
             // It will be recreated by RwDrive.
             base::file::rm(image.concat(".qcow2")).IgnoreError();

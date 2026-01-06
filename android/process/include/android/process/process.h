@@ -44,14 +44,14 @@ class Process {
      * @return The process ID (PID) of the process, or -1 if invalid.
      */
     // NOLINTNEXTLINE
-    Pid pid() const { return mPid; };
+    Pid pid() const { return pid_; };
 
     /**
      * @return The name of the process executable. Note that this information
      *         might not be immediately available, especially shortly after
      *         the process has been started.
      */
-    virtual std::string exe() const = 0;
+    virtual std::string Exe() const = 0;
 
     /**
      * Retrieves the exit code of the process. This method will block until
@@ -60,14 +60,14 @@ class Process {
      * @return The process exit code. This can return INT_MIN in case of
      *         failures retrieving the exit code.
      */
-    ProcessExitCode exitCode() const;
+    ProcessExitCode ExitCode() const;
 
     /**
      * Forcibly terminates the process (similar to sending SIGKILL).
      *
      * @return True if the process was successfully terminated, false otherwise.
      */
-    virtual bool terminate() = 0;
+    virtual bool Terminate() = 0;
 
     /**
      * Checks if the process is currently alive according to the operating
@@ -75,7 +75,7 @@ class Process {
      *
      * @return True if the process is alive, false otherwise.
      */
-    virtual bool isAlive() const = 0;
+    virtual bool IsAlive() const = 0;
 
     /**
      * Waits for the process to complete, or until the specified timeout
@@ -87,8 +87,8 @@ class Process {
      *         completed due to process termination or timeout.
      */
     // NOLINTNEXTLINE
-    virtual std::future_status wait_for(const std::chrono::milliseconds timeout_duration) const {
-        return wait_for_kernel(timeout_duration);
+    virtual std::future_status WaitFor(const std::chrono::milliseconds timeout_duration) const {
+        return WaitForKernel(timeout_duration);
     }
 
     /**
@@ -103,12 +103,12 @@ class Process {
      */
     // NOLINTNEXTLINE
     template <class Clock, class Duration>
-    std::future_status wait_until(
+    std::future_status WaitUntil(
             const std::chrono::time_point<Clock, Duration>& timeout_time) const {
-        return wait_for(timeout_time - std::chrono::steady_clock::now());
+        return WaitFor(timeout_time - std::chrono::steady_clock::now());
     };
 
-    bool operator==(const Process& rhs) const { return (mPid == rhs.mPid); }
+    bool operator==(const Process& rhs) const { return (pid_ == rhs.pid_); }
     bool operator!=(const Process& rhs) const { return !operator==(rhs); }
 
     /**
@@ -118,7 +118,7 @@ class Process {
      * @return A unique pointer to a Process object representing the process,
      *         or nullptr if no such process exists.
      */
-    static std::unique_ptr<Process> fromPid(Pid pid);
+    static std::unique_ptr<Process> FromPid(Pid pid);
 
     /**
      * Retrieves a list of Process objects representing processes whose
@@ -133,13 +133,13 @@ class Process {
      *         matching processes. If no matching processes are found, the
      *         vector will be empty.
      */
-    static std::vector<std::unique_ptr<Process>> fromName(std::string name);
+    static std::vector<std::unique_ptr<Process>> FromName(const std::string& name);
 
     /**
      * @return A unique pointer to a Process object representing the current
      *         process.
      */
-    static std::unique_ptr<Process> me();
+    static std::unique_ptr<Process> Me();
 
   protected:
     /**
@@ -149,7 +149,7 @@ class Process {
      *         or std::nullopt if the process is still running or the exit
      *         code cannot be retrieved.
      */
-    virtual std::optional<ProcessExitCode> getExitCode() const = 0;
+    virtual std::optional<ProcessExitCode> GetExitCode() const = 0;
 
     /**
      * Waits for the process to complete using an operating system-level call,
@@ -160,10 +160,9 @@ class Process {
      * @return A std::future_status value indicating whether the wait
      *         completed due to process termination or timeout.
      */
-    virtual std::future_status wait_for_kernel(
-            std::chrono::milliseconds timeout_duration) const = 0;
+    virtual std::future_status WaitForKernel(std::chrono::milliseconds timeout_duration) const = 0;
 
-    Pid mPid;
+    Pid pid_;
 };
 
 /**
@@ -178,7 +177,7 @@ class ProcessOutput {
      *
      * @return The entire process output as a string.
      */
-    virtual std::string asString() = 0;
+    virtual std::string AsString() = 0;
 
     /**
      * Provides access to the output stream, which can be used to read the
@@ -187,7 +186,7 @@ class ProcessOutput {
      *
      * @return A reference to the output stream.
      */
-    virtual std::istream& asStream() = 0;
+    virtual std::istream& AsStream() = 0;
 };
 
 /**
@@ -212,7 +211,7 @@ class ProcessOverseer {
      * @param out The std::basic_streambuf object to write captured stdout output to.
      * @param err The std::basic_streambuf object to write captured stderr output to.
      */
-    virtual void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) = 0;
+    virtual void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) = 0;
 
     /**
      * Stops monitoring the child process and releases any resources held by
@@ -225,7 +224,7 @@ class ProcessOverseer {
      * - Calling the `start` method again should result in an error or return
      *   immediately.
      */
-    virtual void stop() = 0;
+    virtual void Stop() = 0;
 };
 
 /**
@@ -235,8 +234,8 @@ class ProcessOverseer {
  */
 class NullOverseer : public ProcessOverseer {
   public:
-    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {}
-    void stop() override {}
+    void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {}
+    void Stop() override {}
 };
 
 /**
@@ -263,14 +262,14 @@ class ObservableProcess : public Process {
      *         process's standard output (stdout), or nullptr if the process
      *         was started in detached mode.
      */
-    ProcessOutput* out() { return mStdOut.get(); };
+    ProcessOutput* Out() { return std_out_.get(); };
 
     /**
      * @return A pointer to the ProcessOutput object representing the child
      *         process's standard error (stderr), or nullptr if the process
      *         was started in detached mode.
      */
-    ProcessOutput* err() { return mStdErr.get(); };
+    ProcessOutput* Err() { return std_err_.get(); };
 
     /**
      * Detaches the process overseer, stopping the monitoring of the child
@@ -283,10 +282,19 @@ class ObservableProcess : public Process {
      * - The child process will continue running even after the
      *   ObservableProcess object is destroyed.
      */
-    void detach();
+    void Detach();
 
-    // NOLINTNEXTLINE
-    std::future_status wait_for(const std::chrono::milliseconds timeout_duration) const override;
+    /**
+     * Waits for the process to complete.
+     *
+     * If an overseer is active (capturing output), this method will also wait
+     * for the overseer to finish capturing all output before returning.
+     *
+     * @param timeout_duration The maximum duration to wait.
+     * @return std::future_status::ready if the process and overseer have completed,
+     *         std::future_status::timeout otherwise.
+     */
+    std::future_status WaitFor(const std::chrono::milliseconds timeout_duration) const override;
 
   protected:
     /**
@@ -299,7 +307,7 @@ class ObservableProcess : public Process {
      * @return An optional containing the PID of the newly created process if
      *         successful, or std::nullopt if process creation failed.
      */
-    virtual std::optional<Pid> createProcess(const CommandArguments& args, bool capture_output,
+    virtual std::optional<Pid> CreateProcess(const CommandArguments& args, bool capture_output,
                                              bool replace) = 0;
 
     /**
@@ -308,24 +316,24 @@ class ObservableProcess : public Process {
      *
      * @return A unique pointer to the created ProcessOverseer object.
      */
-    virtual std::unique_ptr<ProcessOverseer> createOverseer() = 0;
+    virtual std::unique_ptr<ProcessOverseer> CreateOverseer() = 0;
 
     // True if no overseer is needed
-    bool mDeamon{false};
+    bool daemon_{false};
 
     // True if we want to inherit all the fds/handles.
-    bool mInherit{false};
+    bool inherit_{false};
 
   private:
-    void runOverseer();
+    void RunOverseer();
 
-    std::unique_ptr<ProcessOverseer> mOverseer;
-    std::unique_ptr<std::thread> mOverseerThread;
-    bool mOverseerActive ABSL_GUARDED_BY(mOverseerMutex){false};
-    mutable absl::Mutex mOverseerMutex;
+    std::unique_ptr<ProcessOverseer> overseer_;
+    std::unique_ptr<std::thread> overseer_thread_;
+    bool overseer_active_ ABSL_GUARDED_BY(overseer_mutex_){false};
+    mutable absl::Mutex overseer_mutex_;
 
-    std::unique_ptr<ProcessOutput> mStdOut;
-    std::unique_ptr<ProcessOutput> mStdErr;
+    std::unique_ptr<ProcessOutput> std_out_;
+    std::unique_ptr<ProcessOutput> std_err_;
 
     friend Command;
 };

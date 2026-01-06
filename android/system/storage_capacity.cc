@@ -28,48 +28,48 @@ namespace android::base {
 
 StorageCapacity& StorageCapacity::operator-=(const StorageCapacity& rhs) {
     // Handle potential underflow
-    if (mBytes < rhs.bytes()) {
+    if (bytes_ < rhs.Bytes()) {
         LOG(WARNING) << "StorageCapacity cannot be negative";
     }
-    mBytes -= rhs.bytes();
+    bytes_ -= rhs.Bytes();
     return *this;
 }
 
 StorageCapacity StorageCapacity::operator-(const StorageCapacity& rhs) const {
     // Handle potential underflow
-    if (mBytes < rhs.bytes()) {
+    if (bytes_ < rhs.Bytes()) {
         LOG(WARNING) << "StorageCapacity cannot be negative";
     }
-    unsigned long long differenceBytes = mBytes - rhs.bytes();
+    unsigned long long differenceBytes = bytes_ - rhs.Bytes();
     return StorageCapacity(differenceBytes);
 }
 
 StorageCapacity::operator int() const {
-    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
         LOG(WARNING) << "StorageCapacity is too large to fit into an int";
     }
-    return static_cast<int>(mBytes);
+    return static_cast<int>(bytes_);
 }
 
 StorageCapacity::operator long() const {
-    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
+    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<long>::max())) {
         LOG(WARNING) << "StorageCapacity is too large to fit into a long";
     }
-    return static_cast<long>(mBytes);
+    return static_cast<long>(bytes_);
 }
 
 StorageCapacity::operator unsigned long() const {
-    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
+    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<unsigned long>::max())) {
         LOG(WARNING) << "StorageCapacity is too large to fit into an unsigned long";
     }
-    return static_cast<unsigned long>(mBytes);
+    return static_cast<unsigned long>(bytes_);
 }
 
 StorageCapacity::operator long long() const {
-    if (mBytes > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+    if (bytes_ > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
         LOG(WARNING) << "StorageCapacity is too large to fit into a long long";
     }
-    return static_cast<long long>(mBytes);
+    return static_cast<long long>(bytes_);
 }
 
 absl::StatusOr<uint64_t> parseFromString(const std::string_view& str) {
@@ -115,7 +115,7 @@ absl::StatusOr<uint64_t> parseFromString(const std::string_view& str) {
     return result;
 }
 
-absl::StatusOr<StorageCapacity> StorageCapacity::parse(std::string_view str) {
+absl::StatusOr<StorageCapacity> StorageCapacity::Parse(std::string_view str) {
     auto parsed_bytes = parseFromString(str);
     if (parsed_bytes.ok()) return StorageCapacity(*parsed_bytes);
 

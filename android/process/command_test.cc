@@ -49,7 +49,7 @@ const std::string HELLO = "hello";
 
 class FakeOverseer : public NullOverseer {
   public:
-    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
+    void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
         out->sputn(HELLO.c_str(), HELLO.size());
     }
 };
@@ -67,35 +67,35 @@ std::string sleep_exe() {
 // You can always make your own fake commands..
 class FakeProcess : public ObservableProcess {
   public:
-    std::string exe() const override { return "Fake!"; }
-    bool isAlive() const override { return false; }
-    bool terminate() override { return true; }
+    std::string Exe() const override { return "Fake!"; }
+    bool IsAlive() const override { return false; }
+    bool Terminate() override { return true; }
 
-    std::future_status wait_for_kernel(
+    std::future_status WaitForKernel(
             const std::chrono::milliseconds timeout_duration) const override {
         std::this_thread::sleep_for(std::min(10ms, timeout_duration));
         return std::future_status::ready;
     }
 
-    std::optional<ProcessExitCode> getExitCode() const override { return 0; }
-    std::optional<Pid> createProcess(const CommandArguments& args, bool capture_output,
+    std::optional<ProcessExitCode> GetExitCode() const override { return 0; }
+    std::optional<Pid> CreateProcess(const CommandArguments& args, bool capture_output,
                                      bool replace) override {
         return 123;
     }
-    std::unique_ptr<ProcessOverseer> createOverseer() override {
+    std::unique_ptr<ProcessOverseer> CreateOverseer() override {
         return std::make_unique<FakeOverseer>();
     };
 };
 
 TEST(Process, find_me) {
-    auto me = Process::me();
+    auto me = Process::Me();
     EXPECT_NE(me, nullptr);
     EXPECT_GT(me->pid(), 0);
 }
 
 TEST(Process, discovered_proc_same_as_launched) {
-    auto proc = Command::create({sleep_exe(), "--sleep", "1s"}).execute();
-    auto sleep = Process::fromPid(proc->pid());
+    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
+    auto sleep = Process::FromPid(proc->pid());
     ASSERT_NE(sleep, nullptr);
     EXPECT_EQ(proc->pid(), sleep->pid());
     EXPECT_EQ(*proc, *sleep);
@@ -103,14 +103,14 @@ TEST(Process, discovered_proc_same_as_launched) {
 
 TEST(Process, can_discover_launched_proc) {
     using namespace std::chrono_literals;
-    auto proc = Command::create({sleep_exe(), "--sleep", "1s"}).execute();
-    auto pids = Process::fromName("sleep_emu");
+    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
+    auto pids = Process::FromName("sleep_emu");
 
     auto now = std::chrono::system_clock::now();
     // On linux we scan /proc/... which is not instantenous on our gce machines.
     // Note that the scan itself can take +/- 20ms.
     while (pids.size() == 0 && std::chrono::system_clock::now() < now + 200ms) {
-        pids = Process::fromName("sleep_emu");
+        pids = Process::FromName("sleep_emu");
     }
     LOG(INFO) << "It took "
               << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -129,10 +129,10 @@ TEST(Process, can_discover_launched_proc) {
 }
 
 TEST(Process, can_read_process_name) {
-    auto proc = Command::create({sleep_exe(), "--sleep", "1s"}).execute();
+    auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
     std::this_thread::sleep_for(10ms);
-    auto sleep = Process::fromPid(proc->pid());
-    auto name = sleep->exe();
+    auto sleep = Process::FromPid(proc->pid());
+    auto name = sleep->Exe();
     EXPECT_TRUE(absl::StrContains(name, "sleep_emu"))
             << "Expected sleep_emu in the process name: " << name
             << ", are your running the test in the directory where sleep_emu "
@@ -141,16 +141,16 @@ TEST(Process, can_read_process_name) {
 
 TEST(Process, can_get_exitcode_from_discovered_process) {
     auto proc =
-            Command::create({sleep_exe(), "--sleep", "200ms", "--exit", "2"}).asDeamon().execute();
-    auto sleep = Process::fromPid(proc->pid());
-    EXPECT_EQ(sleep->exitCode(), 2);
+            Command::Create({sleep_exe(), "--sleep", "200ms", "--exit", "2"}).Asdaemon().Execute();
+    auto sleep = Process::FromPid(proc->pid());
+    EXPECT_EQ(sleep->ExitCode(), 2);
 }
 
 TEST(Process, terminate_someone_else) {
-    auto proc = Command::create({sleep_exe(), "--sleep", "200ms"}).asDeamon().execute();
-    auto sleep = Process::fromPid(proc->pid());
-    sleep->terminate();
-    EXPECT_FALSE(sleep->isAlive());
+    auto proc = Command::Create({sleep_exe(), "--sleep", "200ms"}).Asdaemon().Execute();
+    auto sleep = Process::FromPid(proc->pid());
+    sleep->Terminate();
+    EXPECT_FALSE(sleep->IsAlive());
 }
 
 TEST(Command, can_use_test_factory) {
@@ -162,22 +162,22 @@ TEST(Command, can_use_test_factory) {
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     int create_called = 0;
-    Command::setTestProcessFactory([&](CommandArguments args, bool deamon, bool inherit) {
+    Command::SetTestProcessFactory([&](CommandArguments args, bool daemon, bool inherit) {
         create_called++;
         return std::make_unique<FakeProcess>();
     });
 
-    auto proc = Command::create({"foo"}).withStdoutBuffer(&std_out).execute();
+    auto proc = Command::Create({"foo"}).WithStdoutBuffer(&std_out).Execute();
     EXPECT_EQ(create_called, 1);
-    EXPECT_EQ(proc->exitCode(), 0);
-    EXPECT_FALSE(proc->isAlive());
-    EXPECT_EQ(proc->out()->asString(), HELLO);
-    Command::setTestProcessFactory(nullptr);
+    EXPECT_EQ(proc->ExitCode(), 0);
+    EXPECT_FALSE(proc->IsAlive());
+    EXPECT_EQ(proc->Out()->AsString(), HELLO);
+    Command::SetTestProcessFactory(nullptr);
 }
 
 TEST(Command, can_read_the_exit_code) {
-    auto proc = Command::create({sleep_exe(), "--sleep", "10ms", "--exit", "2"}).execute();
-    EXPECT_EQ(proc->exitCode(), 2U);
+    auto proc = Command::Create({sleep_exe(), "--sleep", "10ms", "--exit", "2"}).Execute();
+    EXPECT_EQ(proc->ExitCode(), 2U);
 }
 
 TEST(Command, properly_escape_params) {
@@ -186,41 +186,41 @@ TEST(Command, properly_escape_params) {
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
-    auto proc = Command::create({sleep_exe()})
-                        .arg("--msg_std_out")
-                        .arg("Hello there")
-                        .withStdoutBuffer(&std_out)
-                        .execute();
-    proc->wait_for(100ms);
-    EXPECT_EQ(proc->out()->asString(), "Hello there");
+    auto proc = Command::Create({sleep_exe()})
+                        .Arg("--msg_std_out")
+                        .Arg("Hello there")
+                        .WithStdoutBuffer(&std_out)
+                        .Execute();
+    proc->WaitFor(100ms);
+    EXPECT_EQ(proc->Out()->AsString(), "Hello there");
 }
 
 TEST(Command, a_terminated_process_is_dead) {
     using namespace std::chrono_literals;
-    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).execute();
-    EXPECT_TRUE(proc->isAlive());
-    EXPECT_TRUE(proc->terminate());
-    EXPECT_FALSE(proc->isAlive());
+    auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
+    EXPECT_TRUE(proc->IsAlive());
+    EXPECT_TRUE(proc->Terminate());
+    EXPECT_FALSE(proc->IsAlive());
 }
 
 TEST(Command, out_of_scope_process_gets_terminated) {
     int pid = 0;
     {
-        auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).execute();
-        EXPECT_TRUE(proc->isAlive());
+        auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
+        EXPECT_TRUE(proc->IsAlive());
         pid = proc->pid();
     }
 
     EXPECT_GT(pid, 0);
-    EXPECT_FALSE(Process::fromPid(pid)->isAlive());
+    EXPECT_FALSE(Process::FromPid(pid)->IsAlive());
 }
 
-TEST(Command, wait_for_completion_times_out) {
-    auto proc = Command::create({sleep_exe(), "--sleep", "5s"}).execute();
+TEST(Command, WaitFor_completion_times_out) {
+    auto proc = Command::Create({sleep_exe(), "--sleep", "5s"}).Execute();
 
     // Well, we sleep for a few seconds.. so we should timeout.
-    EXPECT_EQ(proc->wait_for(10ms), std::future_status::timeout);
-    EXPECT_TRUE(proc->isAlive());
+    EXPECT_EQ(proc->WaitFor(10ms), std::future_status::timeout);
+    EXPECT_TRUE(proc->IsAlive());
 }
 
 TEST(Command, we_can_capture_std_out) {
@@ -230,15 +230,15 @@ TEST(Command, we_can_capture_std_out) {
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std out
-    auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout"})
-                        .withStdoutBuffer(&std_out)
-                        .execute();
-    proc->wait_for(1s);
+    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout"})
+                        .WithStdoutBuffer(&std_out)
+                        .Execute();
+    proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
 
     // We should print out the message.
-    EXPECT_EQ(proc->out()->asString(), "stdout");
-    EXPECT_EQ(proc->err()->asString(), "");
+    EXPECT_EQ(proc->Out()->AsString(), "stdout");
+    EXPECT_EQ(proc->Err()->AsString(), "");
 }
 
 TEST(Command, we_can_capture_std_err) {
@@ -248,14 +248,14 @@ TEST(Command, we_can_capture_std_err) {
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
-    auto proc = Command::create({sleep_exe(), "--msg_std_err", "error"})
-                        .withStderrBuffer(&std_err)
-                        .execute();
-    proc->wait_for(1s);
+    auto proc = Command::Create({sleep_exe(), "--msg_std_err", "error"})
+                        .WithStderrBuffer(&std_err)
+                        .Execute();
+    proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
 
     // We should print out the message.
-    EXPECT_EQ(proc->err()->asString(), "error");
+    EXPECT_EQ(proc->Err()->AsString(), "error");
 }
 
 void clearCloseOnExec(FILE* sharedFile) {
@@ -334,16 +334,16 @@ TEST(Command, we_can_capture_both) {
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
-    auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .withStdoutBuffer(&std_out)
-                        .withStderrBuffer(&std_err)
-                        .execute();
-    proc->wait_for(200ms);
+    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
+                        .WithStdoutBuffer(&std_out)
+                        .WithStderrBuffer(&std_err)
+                        .Execute();
+    proc->WaitFor(200ms);
     std::this_thread::sleep_for(10ms);
 
     // We should print out the message.
-    EXPECT_EQ(proc->out()->asString(), "stdout");
-    EXPECT_EQ(proc->err()->asString(), "error");
+    EXPECT_EQ(proc->Out()->AsString(), "stdout");
+    EXPECT_EQ(proc->Err()->AsString(), "error");
 }
 
 TEST(Command, double_capture_should_not_lock) {
@@ -353,45 +353,45 @@ TEST(Command, double_capture_should_not_lock) {
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
-    auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .withStderrBuffer(&std_err)
-                        .execute();
-    proc->wait_for(1s);
+    auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
+                        .WithStderrBuffer(&std_err)
+                        .Execute();
+    proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
 
     // We should print out the message.
-    EXPECT_EQ(proc->err()->asString(), "error");
+    EXPECT_EQ(proc->Err()->AsString(), "error");
 }
 
 TEST(Command, can_terminate_daemon) {
-    auto proc = Command::create({sleep_exe()}).asDeamon().execute();
+    auto proc = Command::Create({sleep_exe()}).Asdaemon().Execute();
 
     // Well, we sleep for a few seconds.. so we should timeout.
-    EXPECT_TRUE(proc->isAlive());
-    EXPECT_TRUE(proc->terminate());
-    EXPECT_FALSE(proc->isAlive());
+    EXPECT_TRUE(proc->IsAlive());
+    EXPECT_TRUE(proc->Terminate());
+    EXPECT_FALSE(proc->IsAlive());
 }
 
 // Note this a bit slow
 TEST(Command, DISABLED_we_can_stream_data) {
     std::basic_stringbuf<char> std_out;
 #ifndef _WIN32
-    auto cmd = Command::create({"sh", "-c"});
+    auto cmd = Command::Create({"sh", "-c"});
 #else
-    auto cmd = Command::create({"cmd.exe", "/C"});
+    auto cmd = Command::Create({"cmd.exe", "/C"});
 #endif
 
     // An example of streaming data, note if we do not receive
     // data every second we will consider the stream closed!
-    auto proc = cmd.arg(R"##(for i in {1..2}; do echo "Hello $i"; sleep 0.2; done)##")
-                        .withStdoutBuffer(&std_out)
-                        .execute();
+    auto proc = cmd.Arg(R"##(for i in {1..2}; do echo "Hello $i"; sleep 0.2; done)##")
+                        .WithStdoutBuffer(&std_out)
+                        .Execute();
 
     int i = 1;
 
     // You can read from the stream, if the process goes awat
     // the stream will close (and no longer be good)
-    std::istream& stream = proc->out()->asStream();
+    std::istream& stream = proc->Out()->AsStream();
     while (stream.good()) {
         // Pull a line from the stream..
         char buffer[80];
@@ -403,7 +403,7 @@ TEST(Command, DISABLED_we_can_stream_data) {
     }
 
     // Let's not have a dangling shell.
-    proc->terminate();
+    proc->Terminate();
 }
 
 }  // namespace base

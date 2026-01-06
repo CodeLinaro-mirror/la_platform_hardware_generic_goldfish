@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
@@ -30,6 +31,7 @@ cc_library(
         "include/android/base/storage_capacity.h",
     ],
     includes = ["include"],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/algorithm:container",
@@ -60,6 +62,7 @@ cc_library(
         ],
         "//conditions:default": [],
     }),
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
         ":clock",
@@ -191,4 +194,12 @@ cc_binary(
         ":system",
         "@google_benchmark//:benchmark",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":file",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

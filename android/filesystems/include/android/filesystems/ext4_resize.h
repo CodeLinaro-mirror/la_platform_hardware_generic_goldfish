@@ -45,7 +45,7 @@ int resizeExt4Partition(std::filesystem::path binary_directory, const char* part
 // ext4 partitions have a theoretical limit of 1 EiB, although on 32-bit
 // systems the partition limit is reduced to 16 TiB due to the data range
 // of 32-bits, so enforce 16 TiB to minimize differences between systems of
-// different bitness.  The minimum size of an ext4 partition is 128 MiB.
+// different bitness.  The minimum size of an ext4 partition is 128 kMiB.
 bool checkExt4PartitionSize(int64_t byteSize);
 
 ANDROID_END_HEADER

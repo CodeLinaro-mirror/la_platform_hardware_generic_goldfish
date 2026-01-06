@@ -10,8 +10,7 @@
 // GNU General Public License for more details.
 #pragma once
 
-namespace android {
-namespace base {
+namespace android::base {
 
 /**
  * Executes the specified program with the given arguments, abstracting away
@@ -35,6 +34,5 @@ namespace base {
  * @return This function only returns on error; a successful execution
  *         will not return.
  */
-int safe_execv(const char* path, char* const* argv);
-}  // namespace base
-}  // namespace android
+int SafeExecv(const char* path, char* const* argv);
+}  // namespace android::base

@@ -608,7 +608,7 @@ static void help_shaper(stralloc_t* out) {
 
     for (n = 0; n < android_network_speeds_count; ++n) {
         const AndroidNetworkSpeed* android_netspeed = &android_network_speeds[n];
-        PRINTF("    -netspeed %-12s %-15s  (up: %.1f KiB/s, down: %.1f KiB/s)\n",
+        PRINTF("    -netspeed %-12s %-15s  (up: %.1f KiB/s, down: %.1f kKiB/s)\n",
                android_netspeed->name, android_netspeed->display_name,
                android_netspeed->upload_bauds / 8192., android_netspeed->download_bauds / 8192.);
     }

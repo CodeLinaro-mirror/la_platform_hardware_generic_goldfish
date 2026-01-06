@@ -23,8 +23,7 @@
 
 #include "android/process/process.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 /**
  * @brief A Command that you can execute and observe.
@@ -35,7 +34,7 @@ class Command {
      * @brief Alias for a function that creates ObservableProcess instances.
      */
     using ProcessFactory =
-            std::function<std::unique_ptr<ObservableProcess>(CommandArguments, bool, bool)>;
+            std::function<std::unique_ptr<ObservableProcess>(const CommandArguments&, bool, bool)>;
 
     /**
      * @brief Sets the standard output buffer.
@@ -43,7 +42,7 @@ class Command {
      * @param stdout_buffer The buffer to use for standard output.
      * @return A reference to this Command object for chaining.
      */
-    Command& withStdoutBuffer(std::basic_streambuf<char>* stdout_buffer);
+    Command& WithStdoutBuffer(std::basic_streambuf<char>* stdout_buffer);
 
     /**
      * @brief Sets the standard error buffer.
@@ -51,7 +50,7 @@ class Command {
      * @param stderr_buffer The buffer to use for standard error.
      * @return A reference to this Command object for chaining.
      */
-    Command& withStderrBuffer(std::basic_streambuf<char>* stderr_buffer);
+    Command& WithStderrBuffer(std::basic_streambuf<char>* stderr_buffer);
 
     /**
      * @brief Adds a single argument to the list of arguments.
@@ -59,7 +58,7 @@ class Command {
      * @param arg The argument to add.
      * @return A reference to this Command object for chaining.
      */
-    Command& arg(const std::string& arg);
+    Command& Arg(const std::string& arg);
 
     /**
      * @brief Adds a list of arguments to the existing arguments.
@@ -67,7 +66,7 @@ class Command {
      * @param args The arguments to add.
      * @return A reference to this Command object for chaining.
      */
-    Command& args(const CommandArguments& args);
+    Command& Args(const CommandArguments& args);
 
     /**
      * @brief Launches the command as a daemon.
@@ -77,14 +76,14 @@ class Command {
      *
      * @return A reference to this Command object for chaining.
      */
-    Command& asDeamon();
+    Command& Asdaemon();
 
     /**
      * @brief Sets the command to inherit all file handles.
      *
      * @return A reference to this Command object for chaining.
      */
-    Command& inherit();
+    Command& Inherit();
 
     /**
      * @brief Sets the command to replace the current process.
@@ -93,7 +92,7 @@ class Command {
      *
      * @return A reference to this Command object for chaining.
      */
-    Command& replace();
+    Command& Replace();
 
     /**
      * @brief Launches the process.
@@ -101,7 +100,7 @@ class Command {
      * @return A unique pointer to the ObservableProcess representing the
      *         launched process.
      */
-    std::unique_ptr<ObservableProcess> execute();
+    std::unique_ptr<ObservableProcess> Execute();
 
     /**
      * @brief Creates a new Command object.
@@ -109,7 +108,7 @@ class Command {
      * @param programWithArgs The program to execute, along with its arguments.
      * @return A Command object representing the command to execute.
      */
-    static Command create(CommandArguments programWithArgs);
+    static Command Create(CommandArguments program_with_args);
 
     /**
      * @brief Sets a custom ProcessFactory for testing.
@@ -120,29 +119,28 @@ class Command {
      *
      * @param factory The custom ProcessFactory to use.
      */
-    static void setTestProcessFactory(ProcessFactory factory);
+    static void SetTestProcessFactory(ProcessFactory factory);
 
   protected:
-    Command() = default;
+    Command() = delete;
 
     /**
      * @brief Constructor with initial command arguments.
      *
      * @param args The initial command arguments.
      */
-    Command(CommandArguments args) : mArgs(std::move(args)) {};
+    explicit Command(CommandArguments args) : args_(std::move(args)) {};
 
   private:
-    static ProcessFactory sProcessFactory;
-    static ProcessFactory sTestFactory;
+    static ProcessFactory s_process_factory;
+    static ProcessFactory s_test_factory;
 
-    CommandArguments mArgs;
-    bool mDeamon{false};
-    bool mCaptureOutput{false};
-    bool mInherit{false};
-    bool mReplace{false};
-    std::basic_streambuf<char>* mStdout{nullptr};
-    std::basic_streambuf<char>* mStderr{nullptr};
+    CommandArguments args_;
+    bool daemon_{false};
+    bool capture_output_{false};
+    bool inherit_{false};
+    bool replace_{false};
+    std::basic_streambuf<char>* std_out_{nullptr};
+    std::basic_streambuf<char>* std_err_{nullptr};
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
