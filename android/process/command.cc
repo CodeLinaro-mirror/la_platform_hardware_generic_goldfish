@@ -19,6 +19,7 @@
 #include <climits>
 #include <future>
 #include <iterator>
+#include <streambuf>
 
 #include "absl/log/log.h"
 
@@ -40,22 +41,22 @@ ProcessExitCode Process::exitCode() const {
 
 class ProcessOutputImpl : public ProcessOutput {
   public:
-    explicit ProcessOutputImpl(std::unique_ptr<RingStreambuf> buffer)
-            : mBuffer(std::move(buffer)), mStream(mBuffer.get()) {}
-
-    std::string asString() override {
-        return std::string(std::istreambuf_iterator<char>{asStream()}, {});
+    explicit ProcessOutputImpl(std::basic_streambuf<char>* buffer)
+            : mBuffer(buffer), mStream(buffer) {
+        VLOG(1) << "Created process output with: " << (buffer == nullptr ? "nothing" : "buffer");
     }
+
+    std::string asString() override { return {std::istreambuf_iterator<char>{asStream()}, {}}; }
 
     std::istream& asStream() override {
         mStream.clear();
         return mStream;
     }
 
-    RingStreambuf* getBuf() { return mBuffer.get(); }
+    std::basic_streambuf<char>* getBuf() { return mBuffer; }
 
   private:
-    std::unique_ptr<RingStreambuf> mBuffer;
+    std::basic_streambuf<char>* mBuffer;
     std::istream mStream;
 };
 
@@ -63,16 +64,13 @@ void ObservableProcess::runOverseer() {
     {
         std::unique_lock<std::mutex> lk(mOverseerMutex);
         VLOG(1) << "Starting overseer to retrieve stderr/stdout of " << exe();
-        auto out = reinterpret_cast<ProcessOutputImpl*>(mStdOut.get())->getBuf();
-        auto err = reinterpret_cast<ProcessOutputImpl*>(mStdErr.get())->getBuf();
+        auto* out = reinterpret_cast<ProcessOutputImpl*>(mStdOut.get())->getBuf();
+        auto* err = reinterpret_cast<ProcessOutputImpl*>(mStdErr.get())->getBuf();
+        VLOG(1) << "Using out:" << out << ", err:" << err;
         mOverseer->start(out, err);
 
         // Make sure we are really closed, and trigger any listeners.
         // (in case an overseer forgot)
-
-        out->close();
-        err->close();
-
         // Stop the overseer (likely a nop)
         mOverseer->stop();
         VLOG(1) << "Stopped overseer";
@@ -104,16 +102,16 @@ ObservableProcess::~ObservableProcess() {
     if (mOverseerThread) mOverseerThread->join();
 };
 
-Command& Command::withStdoutBuffer(size_t n, std::chrono::milliseconds w) {
+Command& Command::withStdoutBuffer(std::basic_streambuf<char>* stdout_buffer) {
     assert(mDeamon == false);
-    mStdout = {n, w};
+    mStdout = stdout_buffer;
     mCaptureOutput = true;
     return *this;
 }
 
-Command& Command::withStderrBuffer(size_t n, std::chrono::milliseconds w) {
+Command& Command::withStderrBuffer(std::basic_streambuf<char>* stderr_buffer) {
     assert(mDeamon == false);
-    mStderr = {n, w};
+    mStderr = stderr_buffer;
     mCaptureOutput = true;
     return *this;
 }
@@ -159,11 +157,8 @@ std::unique_ptr<ObservableProcess> Command::execute() {
     }
 
     // Connect I/O
-    auto outbuf = std::make_unique<RingStreambuf>(mStdout.first, mStdout.second);
-    proc->mStdOut = std::make_unique<ProcessOutputImpl>(std::move(outbuf));
-
-    auto errbuf = std::make_unique<RingStreambuf>(mStderr.first, mStderr.second);
-    proc->mStdErr = std::make_unique<ProcessOutputImpl>(std::move(errbuf));
+    proc->mStdOut = std::make_unique<ProcessOutputImpl>(mStdout);
+    proc->mStdErr = std::make_unique<ProcessOutputImpl>(mStderr);
 
     // Completion handlers.
     auto running = proc->createProcess(mArgs, mCaptureOutput, mReplace);
@@ -176,7 +171,7 @@ std::unique_ptr<ObservableProcess> Command::execute() {
     if (!mCaptureOutput) {
         proc->mOverseer = std::unique_ptr<NullOverseer>();
     } else {
-        auto raw = proc.get();
+        auto* raw = proc.get();
         // TODO(jansene): Use condition_variable to assure that
         // overseer is really running after this call.
         proc->mOverseerActive = true;

@@ -23,13 +23,14 @@
 // clang-format on
 
 #include <cassert>
+#include <ios>
+#include <streambuf>
 
 #include "absl/log/log.h"
 
 #include "aemu/base/files/ScopedFileHandle.h"
-#include "android/process/command.h"
-#include "android/process/ring_streambuf.h"
 #include "android/base/win32_unicode_string.h"
+#include "android/process/command.h"
 #include "android/process/exec.h"
 
 #define DEBUG 0
@@ -46,27 +47,27 @@ namespace base {
 
 using namespace std::chrono_literals;
 
+namespace {
 // Converts a std::string (utf-8) -> utf-16
-static std::wstring toWide(std::string str) {
+std::wstring toWide(const std::string& str) {
     std::mbstate_t state = std::mbstate_t();
     std::wstring ws(str.size(), L' ');  // Overestimate number of code points.
-    const char* src = str.c_str();      // 0
-    int x = std::mbsrtowcs(&ws[0], &src, str.size(), &state);
+    const char* src = str.c_str();
+    size_t x = std::mbsrtowcs(ws.data(), &src, str.size(), &state);
     if (x < 0) {
-        return std::wstring();
+        return {};
     }
     ws.resize(x);
     return ws;
     // Utf8 -> Utf16, so width will always be smaller.
-    wchar_t rspBuffer[str.size() + 1];
+    wchar_t rsp_buffer[str.size() + 1];
     size_t size = 0;
-    if (mbstowcs_s(&size, rspBuffer, sizeof(rspBuffer), str.c_str(), str.size()) != 0) {
+    if (mbstowcs_s(&size, rsp_buffer, sizeof(rsp_buffer), str.c_str(), str.size()) != 0) {
         return L"";
     }
-    return std::wstring(rspBuffer, size - 1);
+    return {rsp_buffer, size - 1};
 }
 
-// static
 std::string quoteParameter(const std::string& commandLine) {
     // Therefore, the function will return the length of str1 if none of the characters of str2 are
     // found in str1.
@@ -106,11 +107,13 @@ std::string quoteParameter(const std::string& commandLine) {
 
 // Creates a named pipe under /Pipe/android.%ProcessId%.%Counter%
 // For doing overlapped I/O
-BOOL createNamedPipe(OUT LPHANDLE lpReadPipe, OUT LPHANDLE lpWritePipe,
-                     IN LPSECURITY_ATTRIBUTES lpPipeAttributes, IN DWORD nSize, DWORD dwReadMode,
+BOOL createNamedPipe(LPHANDLE lpReadPipe, LPHANDLE lpWritePipe,
+                     LPSECURITY_ATTRIBUTES lpPipeAttributes, DWORD nSize, DWORD dwReadMode,
                      DWORD dwWriteMode) {
-    HANDLE ReadPipeHandle, WritePipeHandle;
+    HANDLE ReadPipeHandle;
+    HANDLE WritePipeHandle;
     DWORD dwError;
+
     char PipeNameBuffer[MAX_PATH];
     static std::atomic_int counter(0);
 
@@ -123,7 +126,7 @@ BOOL createNamedPipe(OUT LPHANDLE lpReadPipe, OUT LPHANDLE lpWritePipe,
         nSize = 4096;
     }
 
-    sprintf(PipeNameBuffer, "\\\\.\\Pipe\\android.%08x.%08x", GetCurrentProcessId(), counter++);
+    sprintf(PipeNameBuffer, R"(\\.\Pipe\android.%08x.%08x)", GetCurrentProcessId(), counter++);
 
     ReadPipeHandle = CreateNamedPipeA(PipeNameBuffer, PIPE_ACCESS_INBOUND | dwReadMode,
                                       PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_READMODE_BYTE,
@@ -239,14 +242,9 @@ struct WindwsPipe {
         CloseHandle(oOverlap.hEvent);
         CloseHandle(hRead);
         CloseHandle(hWrite);
-
-        if (buffer) {
-            buffer->close();
-            DD("Buffer closed.");
-        }
     }
 
-    HANDLE event() { return oOverlap.hEvent; }
+    HANDLE event() const { return oOverlap.hEvent; }
 
     void close() {
         DD("Closing pipe.");
@@ -254,16 +252,8 @@ struct WindwsPipe {
         fClosed = true;
     }
 
-    void flushToRingStreambuf() {
-        int left = cbRead;
-        auto write = chRead;
-        while (left > 0 && buffer->capacity() > 0) {
-            auto toWrite = std::min<int>(buffer->capacity(), left);
-            buffer->waitForAvailableSpace(toWrite);
-            buffer->sputn(write, toWrite);
-            write += toWrite;
-            left -= toWrite;
-        }
+    void flushToStreambuf() {
+        buffer->sputn(chRead, cbRead);
         buffer->pubsync();
         fPendingIO = false;
     }
@@ -275,15 +265,16 @@ struct WindwsPipe {
     DWORD cbRead = 0;
     BOOL fPendingIO = FALSE;
     BOOL fClosed = FALSE;
-    RingStreambuf* buffer = nullptr;
+    std::basic_streambuf<char>* buffer = nullptr;
 };
+}  // namespace
 
 class WindowsOverseer : public ProcessOverseer {
   public:
     WindowsOverseer(HANDLE process, std::vector<std::unique_ptr<WindwsPipe>> mPipes)
             : mProcess(process), mPipes(std::move(mPipes)) {}
 
-    ~WindowsOverseer() { DD("~WindowsOverseer"); }
+    ~WindowsOverseer() override { DD("~WindowsOverseer"); }
 
     bool childIsAlive() { return WaitForSingleObject(mProcess, 0) == WAIT_TIMEOUT; }
 
@@ -312,7 +303,7 @@ class WindowsOverseer : public ProcessOverseer {
             return nullptr;
         }
         // dwWait shows which pipe completed the operation.
-        int i = dwWait - WAIT_OBJECT_0;  // determines which pipe
+        auto i = dwWait - WAIT_OBJECT_0;  // determines which pipe
         assert(i >= 0 && i < mPipes.size());
         ResetEvent(events[i]);
 
@@ -320,9 +311,10 @@ class WindowsOverseer : public ProcessOverseer {
             if (pipe->event() == events[i]) return pipe.get();
         }
         assert(false);
+        return nullptr;
     }
 
-    void start(RingStreambuf* out, RingStreambuf* err) override {
+    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
         mPipes[0]->buffer = out;
         mPipes[1]->buffer = err;
 
@@ -360,7 +352,7 @@ class WindowsOverseer : public ProcessOverseer {
             // Eventually all pipes move to the closed state
             // which will result in them not being scheduled for
             // events.
-            auto pipe = waitForPipeEvents();
+            auto* pipe = waitForPipeEvents();
 
             if (pipe == nullptr) {
                 DD("No events!");
@@ -386,7 +378,7 @@ class WindowsOverseer : public ProcessOverseer {
                 if (fSuccess) {
                     pipe->cbRead = cbRet;
 
-                    pipe->flushToRingStreambuf();
+                    pipe->flushToStreambuf();
                 }
             }
         }
@@ -408,23 +400,23 @@ class WindowsOverseer : public ProcessOverseer {
 
 class WinProcess : public ObservableProcess {
   public:
-    ~WinProcess() {
+    ~WinProcess() override {
         if (!mDeamon && mOwner) WinProcess::terminate();
 
-        if (mProcess != 0 && mProcess != INVALID_HANDLE_VALUE) {
+        if (mProcess != nullptr && mProcess != INVALID_HANDLE_VALUE) {
             CloseHandle(mProcInfo.hProcess);
         }
     }
 
-    WinProcess() {}
     WinProcess(bool deamon, bool inherit) {
         mDeamon = deamon;
         mInherit = inherit;
     }
-    WinProcess(HANDLE hProcess) { setHandle(hProcess); }
+
+    explicit WinProcess(HANDLE process_handle) { setHandle(process_handle); }
 
     void setHandle(HANDLE hProcess) {
-        mPid = GetProcessId(hProcess);
+        mPid = static_cast<Pid>(GetProcessId(hProcess));
         mProcess = hProcess;
     }
 
@@ -452,10 +444,10 @@ class WinProcess : public ObservableProcess {
     std::string exe() const override {
         std::string name(MAX_PATH, '\000');
         if (mProcess != INVALID_HANDLE_VALUE) {
-            int size = GetModuleFileNameExA(mProcess, NULL, name.data(), name.size());
+            int size = GetModuleFileNameExA(mProcess, nullptr, name.data(), name.size());
             name.reserve(size + 1);
             if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-                size = GetModuleFileNameExA(mProcess, NULL, name.data(), size + 1);
+                size = GetModuleFileNameExA(mProcess, nullptr, name.data(), size + 1);
                 name.resize(size + 1, '\000');
             }
         }
@@ -478,15 +470,15 @@ class WinProcess : public ObservableProcess {
     virtual std::optional<Pid> createProcess(const CommandArguments& args, bool captureOutput,
                                              bool replace) override {
         if (replace) {
-            std::vector<std::string> quotedArgs;
-            quotedArgs.reserve(args.size());
+            std::vector<std::string> quoted_arguments;
+            quoted_arguments.reserve(args.size());
             for (const std::string& arg : args) {
-                quotedArgs.push_back(quoteParameter(arg));
+                quoted_arguments.push_back(quoteParameter(arg));
             }
 
             std::vector<char*> cmdline;
             cmdline.reserve(args.size() + 1);
-            for (std::string& arg : quotedArgs) {
+            for (std::string& arg : quoted_arguments) {
                 cmdline.push_back(const_cast<char*>(arg.c_str()));
             }
             cmdline.push_back(nullptr);
@@ -504,11 +496,10 @@ class WinProcess : public ObservableProcess {
             SECURITY_ATTRIBUTES saAttr;
             saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
             saAttr.bInheritHandle = TRUE;
-            saAttr.lpSecurityDescriptor = NULL;
+            saAttr.lpSecurityDescriptor = nullptr;
 
             for (int i = 0; i < 2; i++) {
                 auto pipe = std::make_unique<WindwsPipe>();
-                HANDLE hRead, hWrite;
                 if (!createNamedPipe(&pipe->hRead, &pipe->hWrite, &saAttr, 0, FILE_FLAG_OVERLAPPED,
                                      FILE_FLAG_OVERLAPPED)) {
                     // ("Unable to create pipe: " + std::to_string(i));
@@ -518,15 +509,13 @@ class WinProcess : public ObservableProcess {
                 // "SetHandleInformation failed for pipe: " +
                 //         std::to_string(i));
 
-                pipe->oOverlap.hEvent = CreateEvent(NULL,   // default security attribute
-                                                    TRUE,   // manual-reset event
-                                                    TRUE,   // initial state = signaled
-                                                    NULL);  // unnamed event object
+                pipe->oOverlap.hEvent = CreateEvent(nullptr,   // default security attribute
+                                                    TRUE,      // manual-reset event
+                                                    TRUE,      // initial state = signaled
+                                                    nullptr);  // unnamed event object
 
-                if (pipe->oOverlap.hEvent == NULL) {
+                if (pipe->oOverlap.hEvent == nullptr) {
                     return std::nullopt;
-                    //          "Event creation failed: " +
-                    //          formatLastErr());
                 }
 
                 pipe->fPendingIO = FALSE;
@@ -544,35 +533,35 @@ class WinProcess : public ObservableProcess {
             cmdline += quoteParameter(param) + " ";
         }
         cmdline.pop_back();
-        auto wCmdline = toWide(cmdline);
-        LPWSTR szCmdline = (LPWSTR)wCmdline.c_str();
+        std::wstring wCmdline = toWide(cmdline);
+        auto* szCmdline = const_cast<LPWSTR>(wCmdline.c_str());
 
         BOOL bSuccess;
         if (mInherit || mPipes.empty()) {
             DD("CreateProcessW(%s)", mInherit ? "Inherit handles" : "Do not inherit");
-            bSuccess = CreateProcessW(NULL,
-                                      szCmdline,     // command line
-                                      NULL,          // process security attributes
-                                      NULL,          // primary thread security attributes
-                                      mInherit,      // handles could be inherited
-                                      0,             // creation flags
-                                      NULL,          // use parent's environment
-                                      NULL,          // use parent's current directory
-                                      &siStartInfo,  // STARTUPINFO pointer
-                                      &mProcInfo);   // receives PROCESS_INFORMATION
+            bSuccess = ::CreateProcessW(nullptr,
+                                        szCmdline,     // command line
+                                        nullptr,       // process security attributes
+                                        nullptr,       // primary thread security attributes
+                                        mInherit,      // handles could be inherited
+                                        0,             // creation flags
+                                        nullptr,       // use parent's environment
+                                        nullptr,       // use parent's current directory
+                                        &siStartInfo,  // STARTUPINFO pointer
+                                        &mProcInfo);   // receives PROCESS_INFORMATION
         } else {
             assert(!mInherit);
             // We explicitly inherit our pipes.
             std::vector<HANDLE> handles{mPipes[0]->hWrite, mPipes[1]->hWrite};
             bSuccess =
-                    CreateProcessWithExplicitHandles(NULL,
+                    CreateProcessWithExplicitHandles(nullptr,
                                                      szCmdline,  // command line
-                                                     NULL,       // process security attributes
-                                                     NULL,  // primary thread security attributes
+                                                     nullptr,    // process security attributes
+                                                     nullptr,  // primary thread security attributes
                                                      TRUE,  // handles will be explicitly inherited
                                                      0,     // creation flags
-                                                     NULL,  // use parent's environment
-                                                     NULL,  // use parent's current directory
+                                                     nullptr,  // use parent's environment
+                                                     nullptr,  // use parent's current directory
                                                      &siStartInfo,  // STARTUPINFO pointer
                                                      &mProcInfo, handles.size(), handles.data());
         }
@@ -601,7 +590,7 @@ class WinProcess : public ObservableProcess {
         return mPid;
     }
 
-    virtual std::unique_ptr<ProcessOverseer> createOverseer() override {
+    std::unique_ptr<ProcessOverseer> createOverseer() override {
         return std::make_unique<WindowsOverseer>(mProcInfo.hProcess, std::move(mPipes));
     }
 
@@ -610,7 +599,8 @@ class WinProcess : public ObservableProcess {
         if (mProcess == INVALID_HANDLE_VALUE || isAlive()) {
             return std::nullopt;
         }
-        DWORD exit = STILL_ACTIVE, n;
+        DWORD exit = STILL_ACTIVE;
+        DWORD n;
 
         // When we are poking another process than our own that just
         // terminated (i.e. not alive), it might not have yet updated
@@ -627,21 +617,22 @@ class WinProcess : public ObservableProcess {
 
   private:
     HANDLE mProcess;
-    PROCESS_INFORMATION mProcInfo = {0};
+    PROCESS_INFORMATION mProcInfo = {.hProcess = INVALID_HANDLE_VALUE,
+                                     .hThread = INVALID_HANDLE_VALUE};
     bool mOwner{false};
     std::vector<std::unique_ptr<WindwsPipe>> mPipes;
 };
 
-Command::ProcessFactory Command::sProcessFactory = [](CommandArguments args, bool deamon,
-                                                      bool inherit) {
+Command::ProcessFactory Command::sProcessFactory = [](const CommandArguments& /* args */,
+                                                      bool deamon, bool inherit) {
     return std::make_unique<WinProcess>(deamon, inherit);
 };
 
 std::unique_ptr<Process> Process::fromPid(Pid pid) {
-    ScopedFileHandle hProc(OpenProcess(
+    ScopedFileHandle process_handle(OpenProcess(
             PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
-    if (hProc.valid()) {
-        return std::make_unique<WinProcess>(hProc.release());
+    if (process_handle.valid()) {
+        return std::make_unique<WinProcess>(process_handle.release());
     }
     return nullptr;
 }
@@ -657,8 +648,9 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
         return processes;
     }
     do {
-        if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) != std::string::npos) {
-            processes.push_back(fromPid(process.th32ProcessID));
+        if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) !=
+            std::string::npos) {  // NOLINT(bugprone-signed-char-arg)
+            processes.push_back(fromPid(static_cast<Pid>(process.th32ProcessID)));
         }
     } while (Process32NextW(snapshot, &process));
 
@@ -667,7 +659,7 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
 }
 
 std::unique_ptr<Process> Process::me() {
-    return fromPid(GetCurrentProcessId());
+    return fromPid(static_cast<Pid>(GetCurrentProcessId()));
 }
 
 }  // namespace base

@@ -20,6 +20,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
+#include <streambuf>
 #include <string>
 
 #include "absl/log/log.h"
@@ -32,6 +34,7 @@
 #include <unistd.h>
 #else
 #include <Windows.h>
+#undef CreateProcess
 #endif  // !_WIN32
 
 #include "android/base/bazel_info.h"
@@ -46,9 +49,8 @@ const std::string HELLO = "hello";
 
 class FakeOverseer : public NullOverseer {
   public:
-    void start(RingStreambuf* out, RingStreambuf* err) override {
+    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
         out->sputn(HELLO.c_str(), HELLO.size());
-        out->close();
     }
 };
 
@@ -76,7 +78,7 @@ class FakeProcess : public ObservableProcess {
     }
 
     std::optional<ProcessExitCode> getExitCode() const override { return 0; }
-    std::optional<Pid> createProcess(const CommandArguments& args, bool deamon,
+    std::optional<Pid> createProcess(const CommandArguments& args, bool capture_output,
                                      bool replace) override {
         return 123;
     }
@@ -152,6 +154,9 @@ TEST(Process, terminate_someone_else) {
 }
 
 TEST(Command, can_use_test_factory) {
+    std::basic_stringbuf<char> std_out;
+    std::basic_stringbuf<char> std_err;
+
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
@@ -162,7 +167,7 @@ TEST(Command, can_use_test_factory) {
         return std::make_unique<FakeProcess>();
     });
 
-    auto proc = Command::create({"foo"}).withStdoutBuffer(4096).execute();
+    auto proc = Command::create({"foo"}).withStdoutBuffer(&std_out).execute();
     EXPECT_EQ(create_called, 1);
     EXPECT_EQ(proc->exitCode(), 0);
     EXPECT_FALSE(proc->isAlive());
@@ -176,6 +181,7 @@ TEST(Command, can_read_the_exit_code) {
 }
 
 TEST(Command, properly_escape_params) {
+    std::basic_stringbuf<char> std_out;
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
@@ -183,7 +189,7 @@ TEST(Command, properly_escape_params) {
     auto proc = Command::create({sleep_exe()})
                         .arg("--msg_std_out")
                         .arg("Hello there")
-                        .withStdoutBuffer(4096, 10ms)
+                        .withStdoutBuffer(&std_out)
                         .execute();
     proc->wait_for(100ms);
     EXPECT_EQ(proc->out()->asString(), "Hello there");
@@ -218,13 +224,14 @@ TEST(Command, wait_for_completion_times_out) {
 }
 
 TEST(Command, we_can_capture_std_out) {
+    std::basic_stringbuf<char> std_out;
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std out
     auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout"})
-                        .withStdoutBuffer(4096)
+                        .withStdoutBuffer(&std_out)
                         .execute();
     proc->wait_for(1s);
     std::this_thread::sleep_for(10ms);
@@ -235,13 +242,14 @@ TEST(Command, we_can_capture_std_out) {
 }
 
 TEST(Command, we_can_capture_std_err) {
+    std::basic_stringbuf<char> std_err;
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
     auto proc = Command::create({sleep_exe(), "--msg_std_err", "error"})
-                        .withStderrBuffer(4096)
+                        .withStderrBuffer(&std_err)
                         .execute();
     proc->wait_for(1s);
     std::this_thread::sleep_for(10ms);
@@ -319,14 +327,16 @@ TEST(Command, DISABLED_we_do_inherit_handles_if_we_explicitly_say_so) {
 }
 
 TEST(Command, we_can_capture_both) {
+    std::basic_stringbuf<char> std_out;
+    std::basic_stringbuf<char> std_err;
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
     auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .withStdoutBuffer(4096)
-                        .withStderrBuffer(4096)
+                        .withStdoutBuffer(&std_out)
+                        .withStderrBuffer(&std_err)
                         .execute();
     proc->wait_for(200ms);
     std::this_thread::sleep_for(10ms);
@@ -337,13 +347,14 @@ TEST(Command, we_can_capture_both) {
 }
 
 TEST(Command, double_capture_should_not_lock) {
+    std::basic_stringbuf<char> std_err;
 #ifdef _WIN32
     // TODO Fix this.
     GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
 #endif
     // Let's capture std err
     auto proc = Command::create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .withStderrBuffer(4096)
+                        .withStderrBuffer(&std_err)
                         .execute();
     proc->wait_for(1s);
     std::this_thread::sleep_for(10ms);
@@ -363,6 +374,7 @@ TEST(Command, can_terminate_daemon) {
 
 // Note this a bit slow
 TEST(Command, DISABLED_we_can_stream_data) {
+    std::basic_stringbuf<char> std_out;
 #ifndef _WIN32
     auto cmd = Command::create({"sh", "-c"});
 #else
@@ -372,7 +384,7 @@ TEST(Command, DISABLED_we_can_stream_data) {
     // An example of streaming data, note if we do not receive
     // data every second we will consider the stream closed!
     auto proc = cmd.arg(R"##(for i in {1..2}; do echo "Hello $i"; sleep 0.2; done)##")
-                        .withStdoutBuffer(4096, std::chrono::seconds(1))
+                        .withStdoutBuffer(&std_out)
                         .execute();
 
     int i = 1;

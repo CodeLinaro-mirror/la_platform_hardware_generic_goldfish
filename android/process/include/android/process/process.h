@@ -23,19 +23,17 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <streambuf>
 #include <string>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
-
-#include "android/process/ring_streambuf.h"
 
 namespace android {
 namespace base {
 
 class Command;
 
-using android::base::streams::RingStreambuf;
 using CommandArguments = std::vector<std::string>;
 using Pid = int;
 using ProcessExitCode = int;
@@ -44,12 +42,13 @@ using ProcessExitCode = int;
  * Represents a process running within the operating system.
  */
 class Process {
-public:
+  public:
     virtual ~Process() = default;
 
     /**
      * @return The process ID (PID) of the process, or -1 if invalid.
      */
+    // NOLINTNEXTLINE
     Pid pid() const { return mPid; };
 
     /**
@@ -92,8 +91,8 @@ public:
      * @return A std::future_status value indicating whether the wait
      *         completed due to process termination or timeout.
      */
-    virtual std::future_status wait_for(
-            const std::chrono::milliseconds timeout_duration) const {
+    // NOLINTNEXTLINE
+    virtual std::future_status wait_for(const std::chrono::milliseconds timeout_duration) const {
         return wait_for_kernel(timeout_duration);
     }
 
@@ -107,10 +106,10 @@ public:
      * @return A std::future_status value indicating whether the wait
      *         completed due to process termination or timeout.
      */
+    // NOLINTNEXTLINE
     template <class Clock, class Duration>
     std::future_status wait_until(
-            const std::chrono::time_point<Clock, Duration>& timeout_time)
-            const {
+            const std::chrono::time_point<Clock, Duration>& timeout_time) const {
         return wait_for(timeout_time - std::chrono::steady_clock::now());
     };
 
@@ -147,7 +146,7 @@ public:
      */
     static std::unique_ptr<Process> me();
 
-protected:
+  protected:
     /**
      * Retrieves the exit code of the process without blocking.
      *
@@ -167,7 +166,7 @@ protected:
      *         completed due to process termination or timeout.
      */
     virtual std::future_status wait_for_kernel(
-            const std::chrono::milliseconds timeout_duration) const = 0;
+            std::chrono::milliseconds timeout_duration) const = 0;
 
     Pid mPid;
 };
@@ -176,7 +175,7 @@ protected:
  * Represents the output (stdout and stderr) of a process.
  */
 class ProcessOutput {
-public:
+  public:
     virtual ~ProcessOutput() = default;
 
     /**
@@ -201,7 +200,7 @@ public:
  * and capturing its output (stdout and stderr).
  */
 class ProcessOverseer {
-public:
+  public:
     virtual ~ProcessOverseer() = default;
 
     /**
@@ -209,16 +208,16 @@ public:
      *
      * The overseer should:
      * - Write captured output to the provided `out` and `err`
-     *   RingStreambuf objects.
-     * - Close the RingStreambuf objects when the corresponding output streams
+     *   std::basic_streambuf objects.
+     * - Sync the std::basic_streambuf objects when the corresponding output streams
      *   are closed by the child process.
      * - Return from this method when it can no longer read or write from the
      *   child process's stdout and stderr.
      *
-     * @param out The RingStreambuf object to write captured stdout output to.
-     * @param err The RingStreambuf object to write captured stderr output to.
+     * @param out The std::basic_streambuf object to write captured stdout output to.
+     * @param err The std::basic_streambuf object to write captured stderr output to.
      */
-    virtual void start(RingStreambuf* out, RingStreambuf* err) = 0;
+    virtual void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) = 0;
 
     /**
      * Stops monitoring the child process and releases any resources held by
@@ -226,7 +225,7 @@ public:
      *
      * After this method returns:
      * - No further writes should be made to the `out` and `err`
-     *   RingStreambuf objects.
+     *   std::basic_streambuf objects.
      * - All resources associated with the overseer should be released.
      * - Calling the `start` method again should result in an error or return
      *   immediately.
@@ -240,9 +239,9 @@ public:
  * is not required.
  */
 class NullOverseer : public ProcessOverseer {
-public:
-    virtual void start(RingStreambuf* out, RingStreambuf* err) override {}
-    virtual void stop() override {}
+  public:
+    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {}
+    void stop() override {}
 };
 
 /**
@@ -260,9 +259,9 @@ public:
  * ```
  */
 class ObservableProcess : public Process {
-public:
+  public:
     // Kills the process..
-    virtual ~ObservableProcess();
+    ~ObservableProcess() override;
 
     /**
      * @return A pointer to the ProcessOutput object representing the child
@@ -291,10 +290,10 @@ public:
      */
     void detach();
 
-    std::future_status wait_for(
-            const std::chrono::milliseconds timeout_duration) const override;
+    // NOLINTNEXTLINE
+    std::future_status wait_for(const std::chrono::milliseconds timeout_duration) const override;
 
-protected:
+  protected:
     /**
      * Subclasses should implement this method to handle the actual process
      * creation and launch.
@@ -305,8 +304,7 @@ protected:
      * @return An optional containing the PID of the newly created process if
      *         successful, or std::nullopt if process creation failed.
      */
-    virtual std::optional<Pid> createProcess(const CommandArguments& args,
-                                             bool captureOutput,
+    virtual std::optional<Pid> createProcess(const CommandArguments& args, bool capture_output,
                                              bool replace) = 0;
 
     /**
@@ -323,12 +321,12 @@ protected:
     // True if we want to inherit all the fds/handles.
     bool mInherit{false};
 
-private:
+  private:
     void runOverseer();
 
     std::unique_ptr<ProcessOverseer> mOverseer;
     std::unique_ptr<std::thread> mOverseerThread;
-    bool mOverseerActive ABSL_GUARDED_BY(mOverseerMutex) {false};
+    bool mOverseerActive ABSL_GUARDED_BY(mOverseerMutex){false};
     mutable std::mutex mOverseerMutex;
     mutable std::condition_variable mOverseerCv;
 

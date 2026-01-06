@@ -17,7 +17,6 @@ cc_library(
     hdrs = [
         "include/android/process/command.h",
         "include/android/process/process.h",
-        "include/android/process/ring_streambuf.h",
     ],
     copts = select({
         "@platforms//os:windows": [
@@ -26,7 +25,6 @@ cc_library(
         "//conditions:default": [],
     }),
     includes = ["include"],
-    # This will trigger all the AEMU imports we don't control.
     tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = select({

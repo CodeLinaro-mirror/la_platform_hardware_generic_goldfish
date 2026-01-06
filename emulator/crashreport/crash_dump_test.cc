@@ -15,15 +15,16 @@
 
 #include <chrono>
 #include <filesystem>
+#include <sstream>
 #include <thread>
 
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
 
-#include "android/process/command.h"
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/crashreport/crash_initializer.h"
+#include "android/process/command.h"
 #include "client/crash_report_database.h"
 #include "client/settings.h"
 #include "crashpad/android/crashreport/crash_reporter.h"
@@ -86,9 +87,10 @@ class CrashTest : public ::testing::Test {
         if (!Bazel::inBazel()) {
             GTEST_SKIP() << "This test can only be run under Bazel";
         }
+        std::basic_stringbuf<char> std_err;
         auto proc = Command::create({executable.string(), "--delay_ms", "1000"})
                             .inherit()
-                            .withStderrBuffer(4096, 10ms)
+                            .withStderrBuffer(&std_err)
                             .execute();
         while (proc->isAlive()) {
             auto res = proc->err()->asString();

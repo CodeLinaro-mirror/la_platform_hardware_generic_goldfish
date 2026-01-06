@@ -25,6 +25,7 @@
 #include <fstream>
 #include <future>
 #include <iosfwd>
+#include <streambuf>
 #include <string>
 #include <thread>
 #include <utility>
@@ -33,8 +34,8 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "android/process/command.h"
 #include "android/base/file/file.h"
+#include "android/process/command.h"
 #include "android/process/exec.h"
 
 #define DEBUG 0
@@ -65,6 +66,8 @@
 
 namespace android {
 namespace base {
+
+namespace {
 
 std::vector<char*> toCharArray(const std::vector<std::string>& params) {
     std::vector<char*> args;
@@ -105,6 +108,7 @@ static std::string read_proc_linux(int pid) {
     return name;
 }
 #endif
+}  // namespace
 
 class PosixOverseer : public ProcessOverseer {
   public:
@@ -117,25 +121,18 @@ class PosixOverseer : public ProcessOverseer {
 
     ~PosixOverseer() override { DD("~PosixOverseer"); }
 
-    void readAndFlush(int fd, RingStreambuf* buffer) {
+    static void readAndFlush(int fd, std::basic_streambuf<char>* buffer) {
+        if (buffer == nullptr) {
+            return;
+        }
         char bytes[1024];
         auto bytes_read = read(fd, bytes, sizeof(bytes));
-        int left = bytes_read;
-        auto write = bytes;
-        DD("read (%d): %ld: %s", fd, bytes_read, std::string(bytes, bytes_read).c_str());
-        while (left > 0 && buffer->capacity() > 0) {
-            auto toWrite = std::min<int>(buffer->capacity(), left);
-            buffer->waitForAvailableSpace(toWrite);
-            buffer->sputn(write, toWrite);
-            write += toWrite;
-            left -= toWrite;
-        }
+        buffer->sputn(bytes, bytes_read);
+        buffer->pubsync();
     }
 
-    void start(RingStreambuf* out, RingStreambuf* err) override {
-        int exit;
+    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
         std::vector<pollfd> plist = {{mStdOutPipe[0], POLLIN}, {mStdErrPipe[0], POLLIN}};
-        int bytes_read = -1;
         int rval;
         while ((rval = poll(&plist[0], plist.size(),
                             /*timeout*/ -1)) > 0) {
@@ -180,8 +177,15 @@ class PosixOverseer : public ProcessOverseer {
 
 class PosixProcess : public ObservableProcess {
   public:
-    explicit PosixProcess(Pid pid) : mDeamon(true) { mPid = pid; }
-    PosixProcess(bool deamon, bool inherit) : mDeamon(deamon) { mInherit = inherit; }
+    explicit PosixProcess(Pid pid) {
+        mPid = pid;
+        mDeamon = true;
+    }
+
+    PosixProcess(bool deamon, bool inherit) {
+        mInherit = inherit;
+        mDeamon = deamon;
+    }
 
     ~PosixProcess() override {
         if (mActions) {
@@ -273,10 +277,10 @@ class PosixProcess : public ObservableProcess {
             }
 #else
             // We need to mark all file handles as close on exec.
-            int fdlimit = (int)sysconf(_SC_OPEN_MAX);
+            const int fdlimit = (int)sysconf(_SC_OPEN_MAX);
             DD("Marking %d as close on exec", fdlimit);
             for (int i = STDERR_FILENO + 1; i < fdlimit; i++) {
-                int f = ::fcntl(i, F_GETFD);
+                const int f = ::fcntl(i, F_GETFD);
                 ::fcntl(i, F_SETFD, f | FD_CLOEXEC);
             }
             DD("Marked %d as close on exec -- done", fdlimit);
@@ -284,7 +288,7 @@ class PosixProcess : public ObservableProcess {
         }
 
         mActions = new posix_spawn_file_actions_t;
-        auto action = mActions;
+        auto* action = mActions;
         posix_spawn_file_actions_init(action);
 
         if (captureOutput) {
@@ -326,17 +330,17 @@ class PosixProcess : public ObservableProcess {
         return std::make_unique<PosixOverseer>(mStdOutPipe, mStdErrPipe);
     }
 
+  private:
     mutable std::optional<ProcessExitCode> mProcessExit;
 
     int mStdOutPipe[2];
     int mStdErrPipe[2];
-    bool mDeamon{false};
     posix_spawn_file_actions_t* mActions{nullptr};
     posix_spawnattr_t* mAttr{nullptr};
 };
 
-Command::ProcessFactory Command::sProcessFactory = [](CommandArguments args, bool deamon,
-                                                      bool inherit) {
+Command::ProcessFactory Command::sProcessFactory = [](const CommandArguments& /* args */,
+                                                      bool deamon, bool inherit) {
     return std::make_unique<PosixProcess>(deamon, inherit);
 };
 
@@ -359,7 +363,8 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
     }
 
     std::vector<pid_t> pid_array(pid_array_size_needed * 4);
-    int pid_count = proc_listallpids(pid_array.data(), pid_array.size() * sizeof(pid_array[0]));
+    int pid_count = proc_listallpids(pid_array.data(),
+                                     static_cast<int>(pid_array.size() * sizeof(pid_array[0])));
     if (pid_count <= 0) {
         return processes;
     }

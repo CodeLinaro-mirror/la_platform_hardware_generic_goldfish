@@ -447,8 +447,8 @@ class HostSystem : public System {
         if (!lastSuccessfulValue.empty()) {
             return lastSuccessfulValue;
         }
-
-        auto proc = Command::create({"lsb_release", "-d"}).withStdoutBuffer(4096).execute();
+        std::basic_stringbuf<char> std_out;
+        auto proc = Command::create({"lsb_release", "-d"}).withStdoutBuffer(&std_out).execute();
 
         if (proc->wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
             return "Unknown OS";

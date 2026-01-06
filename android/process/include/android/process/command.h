@@ -13,35 +13,24 @@
 // limitations under the License.
 #pragma once
 
-#include <atomic>
-#include <chrono>
 #include <cstdio>
 #include <functional>
-#include <future>
-#include <istream>
 #include <memory>
-#include <optional>
+#include <streambuf>
 #include <string>
-#include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "android/process/ring_streambuf.h"
 #include "android/process/process.h"
 
 namespace android {
 namespace base {
 
-using android::base::streams::RingStreambuf;
-using BufferDefinition = std::pair<size_t, std::chrono::milliseconds>;
-using CommandArguments = std::vector<std::string>;
-
 /**
  * @brief A Command that you can execute and observe.
  */
 class Command {
-public:
+  public:
     /**
      * @brief Alias for a function that creates ObservableProcess instances.
      */
@@ -49,34 +38,20 @@ public:
             std::function<std::unique_ptr<ObservableProcess>(CommandArguments, bool, bool)>;
 
     /**
-     * @brief Sets the standard output buffer size and timeout.
+     * @brief Sets the standard output buffer.
      *
-     * If the buffer is filled, the process will block for at most |w|
-     * milliseconds before timing out. Timeouts can result in data loss or
-     * stream closure.
-     *
-     * @param n The maximum number of bytes to buffer for standard output.
-     * @param w The maximum time to wait for buffer space, defaults to one year.
+     * @param stdout_buffer The buffer to use for standard output.
      * @return A reference to this Command object for chaining.
      */
-    Command& withStdoutBuffer(
-            size_t n,
-            std::chrono::milliseconds w = std::chrono::hours(24 * 365));
+    Command& withStdoutBuffer(std::basic_streambuf<char>* stdout_buffer);
 
     /**
-     * @brief Sets the standard error buffer size and timeout.
+     * @brief Sets the standard error buffer.
      *
-     * If the buffer is filled, the process will block for at most |w|
-     * milliseconds before timing out. Timeouts can result in data loss or
-     * stream closure.
-     *
-     * @param n The maximum number of bytes to buffer for standard error.
-     * @param w The maximum time to wait for buffer space, defaults to one year.
+     * @param stderr_buffer The buffer to use for standard error.
      * @return A reference to this Command object for chaining.
      */
-    Command& withStderrBuffer(
-            size_t n,
-            std::chrono::milliseconds w = std::chrono::hours(24 * 365));
+    Command& withStderrBuffer(std::basic_streambuf<char>* stderr_buffer);
 
     /**
      * @brief Adds a single argument to the list of arguments.
@@ -147,7 +122,7 @@ public:
      */
     static void setTestProcessFactory(ProcessFactory factory);
 
-protected:
+  protected:
     Command() = default;
 
     /**
@@ -155,9 +130,9 @@ protected:
      *
      * @param args The initial command arguments.
      */
-    Command(CommandArguments args) : mArgs(args){};
+    Command(CommandArguments args) : mArgs(std::move(args)) {};
 
-private:
+  private:
     static ProcessFactory sProcessFactory;
     static ProcessFactory sTestFactory;
 
@@ -166,8 +141,8 @@ private:
     bool mCaptureOutput{false};
     bool mInherit{false};
     bool mReplace{false};
-    BufferDefinition mStdout{0, 0};
-    BufferDefinition mStderr{0, 0};
+    std::basic_streambuf<char>* mStdout{nullptr};
+    std::basic_streambuf<char>* mStderr{nullptr};
 };
 }  // namespace base
 }  // namespace android
