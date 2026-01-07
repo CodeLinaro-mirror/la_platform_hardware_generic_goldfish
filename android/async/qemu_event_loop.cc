@@ -215,7 +215,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
         qemu_thread_id_ = std::this_thread::get_id();
         std::queue<Task> local_queue;
         {
-            const std::lock_guard<std::mutex> lock(queue_mutex_);
+            const std::scoped_lock<std::mutex> lock(queue_mutex_);
             task_queue_.swap(local_queue);
             drainer_scheduled_ = false;
         }
@@ -296,7 +296,7 @@ bool QemuEventLoopImpl::IsOnLoopThread() const {
 }
 
 void QemuEventLoopImpl::PostImmediatelyInternal(Task task) {
-    const std::lock_guard<std::mutex> lock(queue_mutex_);
+    const std::scoped_lock<std::mutex> lock(queue_mutex_);
     task_queue_.push(std::move(task));
 
     if (!drainer_scheduled_) {
