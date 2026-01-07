@@ -42,6 +42,7 @@
 #include "goldfish/devices/fingerprint/fingerprint_device.h"
 #include "goldfish/devices/gps/gps_device.h"
 #include "goldfish/devices/guest_status/guest_status_device.h"
+#include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/vsock/clear.h"
 
@@ -76,6 +77,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     AvdExtendedUniverse(std::unique_ptr<AvdProperties> props) : AvdUniverse(std::move(props)) {}
 
     ConnectorRegistry connector_registry;
+    ConnectorRegistry test_tools_connector_registry;
 };
 
 struct AvdInfoDev {
@@ -125,7 +127,9 @@ AvdUniverse& getAvd() {
 }
 
 void UniverseBuildComplete() {
-    getAvdImpl().connector_registry.listen(5000);
+    AvdExtendedUniverse& u = getAvdImpl();
+    u.connector_registry.listen(5000);
+    u.test_tools_connector_registry.listen(5002);
 }
 
 namespace {
@@ -243,6 +247,9 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         DEVS::boot::IBootPropertiesDevice::registerDevice(registry, *std::move(props), clientLoop,
                                                           gQemuLoop.get());
     }
+
+    DEVS::unix_pipe::IUnixPipe::registerDevice(&avd_universe->test_tools_connector_registry,
+                                               clientLoop, gQemuLoop.get());
 
     ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
 
