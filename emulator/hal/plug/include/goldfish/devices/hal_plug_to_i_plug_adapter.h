@@ -52,7 +52,7 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
      * This method is part of the IPlug interface. It marshals the call to the
      * HalPlug's onConnect method on the client event loop.
      */
-    void onConnect() override;
+    void OnConnect() override;
 
     /**
      * @brief Called on the QEMU thread when data is received from the guest.
@@ -63,7 +63,7 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
      * @param size The size of the received data.
      * @return Always returns true, as the actual processing is asynchronous.
      */
-    bool onReceive(const void* data, size_t size) override;
+    bool OnReceive(const void* data, size_t size) override;
 
     /**
      * @brief Called on the QEMU thread when the connection is unplugged.
@@ -72,7 +72,7 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
      * HalPlug's onClose method on the client event loop.
      * @return A null SocketPtr, as the connection is terminated.
      */
-    cable::SocketPtr onUnplug() override;
+    cable::SocketPtr OnUnplug() override;
 
     const std::shared_ptr<HalPlug>& getHalPlug() const { return mHalPlug; }
 

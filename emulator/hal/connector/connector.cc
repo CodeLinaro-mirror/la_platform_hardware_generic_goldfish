@@ -37,11 +37,11 @@ Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
         , mDevicesEntries(devicesEntries)
         , mDevicesEntriesSize(devicesEntriesSize) {}
 
-SocketPtr Connector::onUnplug() {
+SocketPtr Connector::OnUnplug() {
     return std::move(mSocket);
 }
 
-bool Connector::onReceive(const void* data, const size_t size) {
+bool Connector::OnReceive(const void* data, const size_t size) {
     PlugPtr self;  // to keep `this` alive until exit from this function
 
     const char* const data8 = static_cast<const char*>(data);
@@ -66,7 +66,7 @@ bool Connector::onReceive(const void* data, const size_t size) {
 
         if (!result) {
             auto& socket = *mSocket;
-            self = socket.switchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
+            self = socket.SwitchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
             // ~Connector is called here
         }
         return result;
@@ -128,8 +128,8 @@ std::pair<bool, PlugPtr> Connector::switchTo(const bool isQemud, const std::stri
             auto& socket = *mSocket;
             PlugPtr newPlug = de->factory(std::move(mSocket), mPingTopic, args);
             auto& newPlugRef = *newPlug;
-            PlugPtr self = socket.switchPlug(std::move(newPlug));
-            newPlugRef.onReceive(unconsumed, unconsumedSize);
+            PlugPtr self = socket.SwitchPlug(std::move(newPlug));
+            newPlugRef.OnReceive(unconsumed, unconsumedSize);
             return {true, std::move(self)};
         }
     }
@@ -137,16 +137,16 @@ std::pair<bool, PlugPtr> Connector::switchTo(const bool isQemud, const std::stri
     return {false, {}};
 }
 
-bool Connector::supportsLoadingFromSnapshot() const {
+bool Connector::SupportsLoadingFromSnapshot() const {
     return true;
 }
 
-cable::IPlug::TypeId Connector::getSnapshotTypeId() const {
+cable::IPlug::TypeId Connector::GetSnapshotTypeId() const {
     using namespace std::string_literals;
     return "Connector"s;
 }
 
-bool Connector::saveStateToSnapshot(archive::IWriter& writer) const {
+bool Connector::SaveStateToSnapshot(archive::IWriter& writer) const {
     writer << mBuffer.size();
     writer.Write(mBuffer.data(), mBuffer.size());
     return true;

@@ -24,21 +24,21 @@ using namespace std::literals;
 
 namespace {
 struct TestSocket : public ISocket {
-    void sendAsync(const void* data, size_t size) override { dataSniffer->toSocket(data, size); }
+    void SendAsync(const void* data, size_t size) override { dataSniffer->ToSocket(data, size); }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
     bool send(const std::string_view data) {
-        dataSniffer->toPlug(data.data(), data.size());
-        return plug->onReceive(data.data(), data.size());
+        dataSniffer->ToPlug(data.data(), data.size());
+        return plug->OnReceive(data.data(), data.size());
     }
 
-    void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
+    void SetDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
         dataSniffer = std::move(sniffer);
     }
 
@@ -49,11 +49,11 @@ struct TestSocket : public ISocket {
 struct TestPlug : public IPlug {
     TestPlug(SocketPtr s) : socket(std::move(s)) {}
 
-    cable::SocketPtr onUnplug() override { return std::move(socket); }
+    cable::SocketPtr OnUnplug() override { return std::move(socket); }
 
-    bool onReceive(const void* data, size_t size) override {
+    bool OnReceive(const void* data, size_t size) override {
         const std::string_view msg = "E-I-E-I-O"sv;
-        socket->sendAsync(msg.data(), msg.size());
+        socket->SendAsync(msg.data(), msg.size());
         return true;
     }
 
@@ -61,11 +61,11 @@ struct TestPlug : public IPlug {
 };
 
 struct TestSniffer : public IDataSniffer {
-    void toSocket(const void* data, size_t dataSize) override {
+    void ToSocket(const void* data, size_t dataSize) override {
         toSocketMsg.assign(static_cast<const char*>(data), dataSize);
     }
 
-    void toPlug(const void* data, size_t dataSize) override {
+    void ToPlug(const void* data, size_t dataSize) override {
         toPlugMsg.assign(static_cast<const char*>(data), dataSize);
     }
 
@@ -80,7 +80,7 @@ TEST(DataSniffer, basic) {
     TestSniffer* snifferWeakPtr = sniffer.get();
 
     TestSocket socket;
-    socket.setDataSniffer(std::move(sniffer));
+    socket.SetDataSniffer(std::move(sniffer));
     socket.plug = std::make_shared<TestPlug>(SocketPtr(&socket));
 
     socket.send("Old MacDonald had a farm"sv);
@@ -88,7 +88,7 @@ TEST(DataSniffer, basic) {
     EXPECT_EQ(snifferWeakPtr->toPlugMsg, "Old MacDonald had a farm");
     EXPECT_EQ(snifferWeakPtr->toSocketMsg, "E-I-E-I-O");
 
-    socket.plug->onUnplug();
+    socket.plug->OnUnplug();
 }
 
 }  // namespace devices

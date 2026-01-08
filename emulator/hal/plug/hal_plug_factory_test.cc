@@ -35,9 +35,9 @@ using ::goldfish::async::testing::TestEventLoop;
 class MockSocket : public cable::ISocket {
   public:
     ~MockSocket() { VLOG(1) << "Destroying our mock socket"; }
-    MOCK_METHOD(void, sendAsync, (const void* data, size_t size), (override));
-    MOCK_METHOD(cable::PlugPtr, switchPlug, (cable::PlugPtr newPlug), (override));
-    MOCK_METHOD(cable::PlugPtr, unplugImpl, (), (override));
+    MOCK_METHOD(void, SendAsync, (const void* data, size_t size), (override));
+    MOCK_METHOD(cable::PlugPtr, SwitchPlug, (cable::PlugPtr newPlug), (override));
+    MOCK_METHOD(cable::PlugPtr, UnplugImpl, (), (override));
 };
 
 class TestHalPlug : public HalPlug {
@@ -96,7 +96,7 @@ TEST_F(HalPlugFactoryTest, WrapHalPlug) {
     EXPECT_TRUE(testPlug->onConnectCalled());
 
     // Let's simulate the cleanup cycle
-    EXPECT_CALL(*mockSocketRaw, unplugImpl()).Times(1);
+    EXPECT_CALL(*mockSocketRaw, UnplugImpl()).Times(1);
     EXPECT_EQ(plug.use_count(), 1);
     plug.reset();
     EXPECT_EQ(plug.use_count(), 0);
@@ -129,7 +129,7 @@ TEST_F(HalPlugFactoryTest, ConnectSuccess) {
     EXPECT_NE(nullptr, plug);
 
     // Let's simulate the cleanup cycle
-    EXPECT_CALL(*mockSocketRaw, unplugImpl()).Times(1);
+    EXPECT_CALL(*mockSocketRaw, UnplugImpl()).Times(1);
     EXPECT_EQ(plug.use_count(), 1);
     plug.reset();
     EXPECT_EQ(plug.use_count(), 0);

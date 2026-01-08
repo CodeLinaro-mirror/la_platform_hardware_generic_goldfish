@@ -43,9 +43,9 @@ class HalPlugFactoryListenTest : public ::testing::Test {
 class MockSocket : public cable::ISocket {
   public:
     ~MockSocket() { VLOG(1) << "Destroying our mock socket"; }
-    MOCK_METHOD(void, sendAsync, (const void* data, size_t size), (override));
-    MOCK_METHOD(cable::PlugPtr, switchPlug, (cable::PlugPtr newPlug), (override));
-    MOCK_METHOD(cable::PlugPtr, unplugImpl, (), (override));
+    MOCK_METHOD(void, SendAsync, (const void* data, size_t size), (override));
+    MOCK_METHOD(cable::PlugPtr, SwitchPlug, (cable::PlugPtr newPlug), (override));
+    MOCK_METHOD(cable::PlugPtr, UnplugImpl, (), (override));
 };
 
 // A simple HalPlug implementation for testing.
@@ -94,7 +94,7 @@ TEST_F(HalPlugFactoryListenTest, ListenSuccess) {
     EXPECT_TRUE(createdPlug->onConnectCalled());
 
     // Cleanup..
-    EXPECT_CALL(*mockSocket, unplugImpl()).Times(1);
+    EXPECT_CALL(*mockSocket, UnplugImpl()).Times(1);
     createdPlug.reset();
     delete mockSocket;
 }

@@ -137,8 +137,8 @@ bool Parser::loadFromSnapshot(archive::IReader& reader) {
 void sendAsync(const void* data, const size_t size, cable::ISocket& dst) {
     uint8_t sizeBytes[kSizeSize];
     encodeRequestSize(size, sizeBytes);
-    dst.sendAsync(sizeBytes, sizeof(sizeBytes));
-    dst.sendAsync(data, size);
+    dst.SendAsync(sizeBytes, sizeof(sizeBytes));
+    dst.SendAsync(data, size);
 }
 
 std::string encodeQemudPacket(const std::string_view data) {

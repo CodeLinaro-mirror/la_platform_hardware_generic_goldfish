@@ -31,18 +31,18 @@ using goldfish::devices::cable::SocketPtr;
 
 namespace {
 struct TestSocket : public ISocket {
-    void sendAsync(const void* str, size_t size) override {
+    void SendAsync(const void* str, size_t size) override {
         data.append(static_cast<const char*>(str), size);
     }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
+    bool send(const std::string_view data) { return plug->OnReceive(data.data(), data.size()); }
 
     PlugPtr plug;
     std::string data;
@@ -135,14 +135,14 @@ TEST(CameraDeviceEnumerator, list) {
     testSocket.plug = plug;
 
     static const char listQuery[] = "list";
-    EXPECT_TRUE(testSocket.plug->onReceive(listQuery, sizeof(listQuery)));
+    EXPECT_TRUE(testSocket.plug->OnReceive(listQuery, sizeof(listQuery)));
 
     EXPECT_EQ(testSocket.data,
               "0000004aok:"
               "name=0 dir=back framedims=11x22,33x44\n"
               "name=1 dir=front framedims=55x66\n"s);
 
-    testSocket.plug->onUnplug();
+    testSocket.plug->OnUnplug();
 }
 
 TEST(CameraDeviceEnumerator, empty_list) {
@@ -153,9 +153,9 @@ TEST(CameraDeviceEnumerator, empty_list) {
     testSocket.plug = plug;
 
     static const char listQuery[] = "list";
-    EXPECT_TRUE(testSocket.plug->onReceive(listQuery, sizeof(listQuery)));
+    EXPECT_TRUE(testSocket.plug->OnReceive(listQuery, sizeof(listQuery)));
 
     EXPECT_EQ(testSocket.data, "00000004ok:\n"s);
 
-    testSocket.plug->onUnplug();
+    testSocket.plug->OnUnplug();
 }

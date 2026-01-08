@@ -75,19 +75,19 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      *
      * This method is called when the connection is successfully established.
      */
-    void onConnect() override;
+    void OnConnect() override;
 
     /**
      * This method is not expected to be called in the normal operation of this class,
      * as the socket is typically handed off to another component upon successful connection.
      */
-    bool onReceive(const void* data, size_t size) override;
+    bool OnReceive(const void* data, size_t size) override;
 
     /**
      * This method is not expected to be called under normal circumstances, as the socket is
      * typically handed off after a successful connection.
      */
-    SocketPtr onUnplug() override;
+    SocketPtr OnUnplug() override;
 
     /**
      * @brief Continuously attempts to establish a connection until successful.

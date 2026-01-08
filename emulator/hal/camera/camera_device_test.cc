@@ -88,18 +88,18 @@ struct TestGralloc : public IGrallocDetails {
 };
 
 struct TestSocket : public ISocket {
-    void sendAsync(const void* str, size_t size) override {
+    void SendAsync(const void* str, size_t size) override {
         data.append(static_cast<const char*>(str), size);
     }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
+    bool send(const std::string_view data) { return plug->OnReceive(data.data(), data.size()); }
 
     PlugPtr plug;
     std::string data;
@@ -153,7 +153,7 @@ struct CameraDeviceTest : public ::testing::Test {
         mTestSocket.plug = mCameraDevice;
     }
 
-    void TearDown() override { mTestSocket.plug->onUnplug(); }
+    void TearDown() override { mTestSocket.plug->OnUnplug(); }
 
     std::shared_ptr<TestGralloc> mTestGrallocPtr;
     TestSocket mTestSocket;
@@ -189,11 +189,11 @@ TEST_F(CameraDeviceTest, configure) {
         },
     };
 
-    EXPECT_TRUE(mTestSocket.plug->onReceive(configureQuery, sizeof(configureQuery)));
+    EXPECT_TRUE(mTestSocket.plug->OnReceive(configureQuery, sizeof(configureQuery)));
     EXPECT_FALSE(mStopCalled);
     EXPECT_THAT(mStreamConfigs, ElementsAreArray(kExpectedConfigs));
 
-    EXPECT_TRUE(mTestSocket.plug->onReceive(configureQuery, sizeof(configureQuery)));
+    EXPECT_TRUE(mTestSocket.plug->OnReceive(configureQuery, sizeof(configureQuery)));
     EXPECT_TRUE(mStopCalled);
     EXPECT_THAT(mStreamConfigs, ElementsAreArray(kExpectedConfigs));
 }
@@ -205,8 +205,8 @@ TEST_F(CameraDeviceTest, capture) {
     static const char configureQuery[] = "configure streams=0:640x480@1,1:320x240@23";
     static const char captureQuery[] = "capture bufs=0:abc,1:xyz";
 
-    EXPECT_TRUE(mTestSocket.plug->onReceive(configureQuery, sizeof(configureQuery)));
-    EXPECT_TRUE(mTestSocket.plug->onReceive(captureQuery, sizeof(captureQuery)));
+    EXPECT_TRUE(mTestSocket.plug->OnReceive(configureQuery, sizeof(configureQuery)));
+    EXPECT_TRUE(mTestSocket.plug->OnReceive(captureQuery, sizeof(captureQuery)));
 
     static const TestGralloc::ImageTransfer kTransfers[] = {
         {

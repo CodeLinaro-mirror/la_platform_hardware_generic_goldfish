@@ -32,14 +32,14 @@ constexpr size_t kMaxHexEncodedSize = 0xffff;
 
 namespace {
 struct TestSocket : public ISocket {
-    void sendAsync(const void* const data, const size_t size) override {
+    void SendAsync(const void* const data, const size_t size) override {
         const uint8_t* const data8 = static_cast<const uint8_t*>(data);
         storage.insert(storage.end(), data8, data8 + size);
     }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override { return newPlug; }
+    PlugPtr SwitchPlug(PlugPtr newPlug) override { return newPlug; }
 
-    PlugPtr unplugImpl() override { return {}; }
+    PlugPtr UnplugImpl() override { return {}; }
 
     std::vector<uint8_t> storage;
 };

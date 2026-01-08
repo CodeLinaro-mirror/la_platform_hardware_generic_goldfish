@@ -62,12 +62,12 @@ struct Connector : public cable::IPlug {
     Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
               const DeviceEntry* devicesEntries, size_t devicesEntriesSize);
 
-    cable::SocketPtr onUnplug() override;
-    bool onReceive(const void* data, size_t size) override;
+    cable::SocketPtr OnUnplug() override;
+    bool OnReceive(const void* data, size_t size) override;
 
-    bool supportsLoadingFromSnapshot() const override;
-    TypeId getSnapshotTypeId() const override;
-    bool saveStateToSnapshot(archive::IWriter&) const override;
+    bool SupportsLoadingFromSnapshot() const override;
+    TypeId GetSnapshotTypeId() const override;
+    bool SaveStateToSnapshot(archive::IWriter&) const override;
 
   private:
     using Buffer = std::vector<char>;

@@ -43,9 +43,9 @@ using ::testing::StrEq;
 class MockSocket : public cable::ISocket {
   public:
     ~MockSocket() {}
-    MOCK_METHOD(void, sendAsync, (const void* data, size_t size), (override));
-    MOCK_METHOD(cable::PlugPtr, switchPlug, (cable::PlugPtr newPlug), (override));
-    MOCK_METHOD(cable::PlugPtr, unplugImpl, (), (override));
+    MOCK_METHOD(void, SendAsync, (const void* data, size_t size), (override));
+    MOCK_METHOD(cable::PlugPtr, SwitchPlug, (cable::PlugPtr newPlug), (override));
+    MOCK_METHOD(cable::PlugPtr, UnplugImpl, (), (override));
 };
 
 // Mock for the real HalPlug that lives on the client thread.
@@ -81,7 +81,7 @@ class HalPlugAdapterTest : public ::testing::Test {
         // This prevents leaks if a test fails before calling close().
         if (mMockHalPlug->getSocket() && mSocketIsOpen) {
             absl::Notification closed;
-            EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() {
+            EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() {
                 closed.Notify();
                 return nullptr;
             }));
@@ -148,7 +148,7 @@ TEST_F(HalPlugAdapterTest, OnReceiveIsMarshalledToClientThread) {
         onReceiveCalled.Notify();
     }));
 
-    mQemuLoop->Post([&] { mAdapter->onReceive("hello", 5); });
+    mQemuLoop->Post([&] { mAdapter->OnReceive("hello", 5); });
 
     // We will fail if no notification within 100ms.
     onReceiveCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
@@ -157,7 +157,7 @@ TEST_F(HalPlugAdapterTest, OnReceiveIsMarshalledToClientThread) {
 TEST_F(HalPlugAdapterTest, SendIsMarshalledToQemuThread) {
     connect();
     absl::Notification sendAsyncCalled;
-    EXPECT_CALL(*mMockSocket, sendAsync(_, 5)).WillOnce(Invoke([&](const void* data, size_t) {
+    EXPECT_CALL(*mMockSocket, SendAsync(_, 5)).WillOnce(Invoke([&](const void* data, size_t) {
         EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
         EXPECT_EQ(std::string_view(static_cast<const char*>(data), 5), "world");
         sendAsyncCalled.Notify();
@@ -179,13 +179,13 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
 
     // onUnplug will trigger close(), which will post a task to call unplugImpl.
     // We need to expect that call and wait for it to ensure the async chain completes.
-    EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() {
+    EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() {
         mSocketIsOpen = false;  // Signal to TearDown that we handled the close.
         unplugImplCalled.Notify();
         return nullptr;
     }));
 
-    mQemuLoop->Post([&] { mAdapter->onUnplug(); });
+    mQemuLoop->Post([&] { mAdapter->OnUnplug(); });
 
     // Wait for both notifications to ensure the full sequence has executed.
     onCloseCalled.WaitForNotificationWithTimeout(absl::Milliseconds(100));
@@ -198,7 +198,7 @@ TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
     bool callClose = false;
     absl::Notification unplugCalled;
     absl::Notification postedClose;
-    EXPECT_CALL(*mMockSocket, unplugImpl()).WillOnce(Invoke([&]() -> cable::PlugPtr {
+    EXPECT_CALL(*mMockSocket, UnplugImpl()).WillOnce(Invoke([&]() -> cable::PlugPtr {
         EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
         unplugCalled.Notify();
         mSocketIsOpen = false;

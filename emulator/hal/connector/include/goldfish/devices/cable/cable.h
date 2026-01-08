@@ -22,14 +22,12 @@
 #include "goldfish/archive/reader.h"
 #include "goldfish/archive/writer.h"
 
-namespace goldfish {
-namespace devices {
-namespace cable {
+namespace goldfish::devices::cable {
 
 struct IDataSniffer {
     virtual ~IDataSniffer() = default;
-    virtual void toSocket(const void* data, size_t dataSize) = 0;
-    virtual void toPlug(const void* data, size_t dataSize) = 0;
+    virtual void ToSocket(const void* data, size_t data_size) = 0;
+    virtual void ToPlug(const void* data, size_t data_size) = 0;
 };
 
 struct IPlug;  // see the definition below
@@ -48,9 +46,9 @@ using PlugPtr = std::shared_ptr<IPlug>;
 struct ISocket {
     virtual ~ISocket() = default;
 
-    using OnFlowControlEvent = std::function<void(bool enableReading)>;
+    using OnFlowControlEvent = std::function<void(bool enable_reading)>;
 
-    virtual void setOnFlowControlEvent(OnFlowControlEvent);
+    virtual void SetOnFlowControlEvent(OnFlowControlEvent);
 
     /* `sendAsync` appends data to the outgoing queue and
      * asks the socket manager to send data (if connected,
@@ -58,15 +56,15 @@ struct ISocket {
      * not fully connected yet, the data will sit and wait
      * the `IPlug::onConnect` notification.
      */
-    virtual void sendAsync(const void* data, size_t size) = 0;
+    virtual void SendAsync(const void* data, size_t size) = 0;
 
     /* `switchPlug` is used to switch plugs connected to a
      * socket, e.g. if you need to switch the wire protocol.
      */
-    virtual PlugPtr switchPlug(PlugPtr newPlug) = 0;
+    virtual PlugPtr SwitchPlug(PlugPtr new_plug) = 0;
 
     struct Unplugger {
-        void operator()(ISocket* s) const { s->unplugImpl(); }
+        void operator()(ISocket* s) const { s->UnplugImpl(); }
     };
 
     using Ptr = std::unique_ptr<ISocket, ISocket::Unplugger>;
@@ -76,20 +74,20 @@ struct ISocket {
      * destroyed, there is no place to keep `PlugPtr`, so
      * it is returned to avoid `~IPlug` called unexpectedly.
      */
-    static PlugPtr unplug(Ptr socket) {
-        PlugPtr plug = socket->unplugImpl();
-        socket.release();  // `~ISocket` was called in `unplugImpl`
+    static PlugPtr Unplug(Ptr socket) {
+        PlugPtr plug = socket->UnplugImpl();
+        socket.release();  // `~ISocket` was called in `unplugImpl` NOLINT
         return plug;
     }
 
-    virtual void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) {}
+    virtual void SetDataSniffer(std::unique_ptr<IDataSniffer> sniffer) {}
 
   protected:
     /* `unplugImpl` destroys the `ISocket` instance in the
      * internal socket manager data structures (`~ISocket`
      * will be called).
      */
-    virtual PlugPtr unplugImpl() = 0;
+    virtual PlugPtr UnplugImpl() = 0;
     virtual void AbslStringifyImpl(absl::FormatSink& s) const { absl::Format(&s, "[ISocket]"); }
     friend void AbslStringify(absl::FormatSink& s, const ISocket& socket);
 };
@@ -108,14 +106,14 @@ using SocketPtr = ISocket::Ptr;
 struct IPlug {
     using TypeId = std::string;
 
-    virtual ~IPlug() {}
+    virtual ~IPlug() = default;
 
     /* `onConnect` is called when the connection is ready to use,
      * see `ISocket::sendAsync` above. It is called only once, so
      * if you replace plugs (with `ISocket::switchPlug`),
      * `onConnect` will not be called for the new plug.
      */
-    virtual void onConnect() {}
+    virtual void OnConnect() {}
 
     /* `onReceive` is called when there is data to process.
      * There is no way to process data partially (you will
@@ -123,13 +121,13 @@ struct IPlug {
      * If `onReceive` returns `false`, `onUnplug` will be
      * called after.
      */
-    virtual bool onReceive(const void* data, size_t size) = 0;
+    virtual bool OnReceive(const void* data, size_t size) = 0;
 
     /* `onUnplug` is called when the remote party hangs up.
      * Please note this method is not called if `IPlug`
      * itself hangs up.
      */
-    virtual SocketPtr onUnplug() = 0;
+    virtual SocketPtr OnUnplug() = 0;
 
     /* `supportsLoadingFromSnapshot`, `getSnapshotTypeId` and
      * `saveStateToSnapshot` are used to handle snapshot saving.
@@ -140,11 +138,11 @@ struct IPlug {
      * (returned by `getSnapshotTypeId`) and to implement
      * `saveStateToSnapshot`. To load your `IPlug` you will have
      * to implement `PlugLoader` (see below) and to register it
-     * using `registerPlugLoader` (see below).
+     * using `RegisterPlugLoader` (see below).
      */
-    virtual bool supportsLoadingFromSnapshot() const { return false; }
-    virtual TypeId getSnapshotTypeId() const { return {}; }
-    virtual bool saveStateToSnapshot(archive::IWriter&) const { return false; };
+    virtual bool SupportsLoadingFromSnapshot() const { return false; }
+    virtual TypeId GetSnapshotTypeId() const { return {}; }
+    virtual bool SaveStateToSnapshot(archive::IWriter&) const { return false; };
 
   protected:
     virtual void AbslStringifyImpl(absl::FormatSink& s) const { absl::Format(&s, "[IPlug]"); }
@@ -164,8 +162,6 @@ using PlugOrSocket = std::variant<PlugPtr, SocketPtr>;
  */
 using PlugLoader = std::function<PlugOrSocket(SocketPtr, archive::IReader&)>;
 
-bool registerPlugLoader(IPlug::TypeId, PlugLoader);
+bool RegisterPlugLoader(IPlug::TypeId, PlugLoader);
 
-}  // namespace cable
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::cable

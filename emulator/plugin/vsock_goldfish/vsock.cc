@@ -78,18 +78,18 @@ struct VsockStream : public goldfish::devices::cable::ISocket {
     bool isConnected = false;
     bool producerEnabled = true;
 
-    void setOnFlowControlEvent(OnFlowControlEvent fce) override;
+    void SetOnFlowControlEvent(OnFlowControlEvent fce) override;
 
-    void sendAsync(const void* data, size_t size) override;
+    void SendAsync(const void* data, size_t size) override;
 
-    PlugPtr unplugImpl() override;
+    PlugPtr UnplugImpl() override;
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    void setDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
+    void SetDataSniffer(std::unique_ptr<IDataSniffer> sniffer) override {
         dataSniffer = std::move(sniffer);
     }
 
@@ -186,7 +186,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         if (stream.isConnected) {
             if (stream.dataSniffer) {
-                stream.dataSniffer->toSocket(data, size);
+                stream.dataSniffer->ToSocket(data, size);
             }
 
             if (stream.hostToGuestBuf.Append(data, size) >= stream.kBufferSizeHighWatermark) {
@@ -210,7 +210,7 @@ struct GoldfishVirtioVsockDevice {
                   sendOp);
 
         if (callOnUnplug) {
-            NOT_NULL(stream.plug)->onUnplug().release();
+            NOT_NULL(stream.plug)->OnUnplug().release();
         }
 
         if (sendOp != VIRTIO_VSOCK_OP_INVALID) {
@@ -237,7 +237,7 @@ struct GoldfishVirtioVsockDevice {
                     stream.guestFwdCnt = hdr.fwd_cnt;
                     stream.isConnected = true;
                     stream.sendOp(VIRTIO_VSOCK_OP_RESPONSE);
-                    NOT_NULL(stream.plug)->onConnect();
+                    NOT_NULL(stream.plug)->OnConnect();
                     return true;
                 } else {
                     mStreams.erase(streamI);
@@ -305,7 +305,7 @@ struct GoldfishVirtioVsockDevice {
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
         for (const VsockStream& stream : mStreams) {
             if (stream.plug) {
-                stream.plug->onUnplug().release();
+                stream.plug->OnUnplug().release();
             }
         }
 
@@ -361,7 +361,7 @@ struct GoldfishVirtioVsockDevice {
                 switch (hdr.op) {
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     stream.isConnected = true;
-                    NOT_NULL(stream.plug)->onConnect();
+                    NOT_NULL(stream.plug)->OnConnect();
                     break;
 
                 case VIRTIO_VSOCK_OP_RST:
@@ -419,10 +419,10 @@ struct GoldfishVirtioVsockDevice {
 
         if (stream.isConnected) {
             if (stream.dataSniffer) {
-                stream.dataSniffer->toPlug(data, size);
+                stream.dataSniffer->ToPlug(data, size);
             }
 
-            if (NOT_NULL(stream.plug)->onReceive(data, size)) {
+            if (NOT_NULL(stream.plug)->OnReceive(data, size)) {
                 stream.hostFwdCnt += size;
                 stream.sendOp(VIRTIO_VSOCK_OP_CREDIT_UPDATE);
                 return 0;
@@ -573,7 +573,7 @@ struct GoldfishVirtioVsockDevice {
 
             assert(stream.plug);
             const IPlug& plug = *NOT_NULL(stream.plug);
-            const bool supportsLoading = plug.supportsLoadingFromSnapshot();
+            const bool supportsLoading = plug.SupportsLoadingFromSnapshot();
             writer << supportsLoading;
             if (supportsLoading) {
                 assert(!stream.dataSniffer && "dataSniffer is not snapshottable yet");
@@ -584,7 +584,7 @@ struct GoldfishVirtioVsockDevice {
 
                 stream.hostToGuestBuf.SaveToSnapshot(writer);
 
-                if (!savePlugToSnapshot(plug, writer)) {
+                if (!SavePlugToSnapshot(plug, writer)) {
                     return 1;
                 }
             }
@@ -650,7 +650,7 @@ struct GoldfishVirtioVsockDevice {
                 stream.producerEnabled = true;
 
                 if (std::visit(PlugOrSocketVisitor(stream),
-                               loadPlugFromSnapshot(SocketPtr(&stream), reader))) {
+                               LoadPlugFromSnapshot(SocketPtr(&stream), reader))) {
                     return true;
                 } else {
                     mStreams.erase(streamI);
@@ -717,19 +717,19 @@ struct GoldfishVirtioVsockDevice {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-void VsockStream::setOnFlowControlEvent(OnFlowControlEvent fce) {
+void VsockStream::SetOnFlowControlEvent(OnFlowControlEvent fce) {
     assert(fce);
 
     const std::lock_guard<std::recursive_mutex> lock(vsockDev.mStateMutex);
     onFlowControlEvent = std::move(fce);
 }
 
-void VsockStream::sendAsync(const void* data, size_t size) {
+void VsockStream::SendAsync(const void* data, size_t size) {
     DEBUG_MSG("this=%p vsockDev=%p size=%zu", this, &vsockDev, size);
     return vsockDev.sendAsyncImpl(*this, data, size);
 }
 
-PlugPtr VsockStream::unplugImpl() {
+PlugPtr VsockStream::UnplugImpl() {
     DEBUG_MSG("this=%p vsockDev=%p", this, &vsockDev);
     PlugPtr p = std::move(NOT_NULL(plug));
     vsockDev.unplugFromDevice(*this);  // calls ~VsockStream

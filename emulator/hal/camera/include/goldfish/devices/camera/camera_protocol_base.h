@@ -36,8 +36,8 @@ struct CameraProtocolBase : public IPlug {
     void sendResponse(const bool okko, const std::string_view response = {}) const;
 
   private:
-    SocketPtr onUnplug() override;
-    bool onReceive(const void* data, size_t size) override;
+    SocketPtr OnUnplug() override;
+    bool OnReceive(const void* data, size_t size) override;
 
     SocketPtr mSocket;
     QueryParser mQueryParser;

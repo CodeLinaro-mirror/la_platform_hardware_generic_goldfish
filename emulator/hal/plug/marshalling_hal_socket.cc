@@ -26,11 +26,11 @@ namespace {
 // A socket that sends things nowhere..
 struct NullSocket : public cable::ISocket {
     ~NullSocket() override {}
-    void sendAsync(const void* data, size_t size) override {
+    void SendAsync(const void* data, size_t size) override {
         VLOG(2) << "Sending " << size << " bytes to /dev/null";
     };
-    cable::PlugPtr switchPlug(cable::PlugPtr newPlug) override { return {}; }
-    cable::PlugPtr unplugImpl() override {
+    cable::PlugPtr SwitchPlug(cable::PlugPtr newPlug) override { return {}; }
+    cable::PlugPtr UnplugImpl() override {
         VLOG(1) << "Unplugging the NullSocket";
         return {};
     }
@@ -64,7 +64,7 @@ void MarshallingHalSocket::send(std::string data) {
         absl::MutexLock lock(&mSocketMutex);
         VLOG(2) << "Sending " << data.size() << " bytes";
         // Bytes go either to the *real* or NullSocket..
-        mSocket->sendAsync(data.data(), data.size());
+        mSocket->SendAsync(data.data(), data.size());
     });
 }
 
@@ -106,7 +106,7 @@ void MarshallingHalSocket::close() {
             // release() was called first).
             if (socketToUnplug && socketToUnplug.get() != &gNullSocket) {
                 VLOG(1) << "Unplugging the real socket.";
-                cable::ISocket::unplug(std::move(socketToUnplug));
+                cable::ISocket::Unplug(std::move(socketToUnplug));
             }
         });
     } else {
