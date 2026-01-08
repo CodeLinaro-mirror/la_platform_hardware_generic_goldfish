@@ -13,24 +13,19 @@
 // limitations under the License.
 #pragma once
 
-#include <atomic>
 #include <chrono>
-#include <condition_variable>
-#include <cstdio>
-#include <functional>
 #include <future>
 #include <istream>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <streambuf>
 #include <string>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 
-namespace android {
-namespace base {
+namespace android ::base {
 
 class Command;
 
@@ -327,13 +322,11 @@ class ObservableProcess : public Process {
     std::unique_ptr<ProcessOverseer> mOverseer;
     std::unique_ptr<std::thread> mOverseerThread;
     bool mOverseerActive ABSL_GUARDED_BY(mOverseerMutex){false};
-    mutable std::mutex mOverseerMutex;
-    mutable std::condition_variable mOverseerCv;
+    mutable absl::Mutex mOverseerMutex;
 
     std::unique_ptr<ProcessOutput> mStdOut;
     std::unique_ptr<ProcessOutput> mStdErr;
 
     friend Command;
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
