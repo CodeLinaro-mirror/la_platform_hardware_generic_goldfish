@@ -27,24 +27,32 @@ namespace goldfish::devices::unix_pipe {
 
 using goldfish::network::UnEndpoint;
 
-class UnixPipe : public IUnixPipe {
+class UnixPipe : public IUnixPipe, std::enable_shared_from_this<UnixPipe> {
   public:
-    UnixPipe(EventLoop* clientLoop, const std::string_view path) {
+    bool Init(EventLoop* clientLoop, const std::string_view path) {
         auto un_addr = UnEndpoint::Create(std::string(path));
         if (!un_addr.ok()) {
             LOG(WARNING) << "Cannot create an AF_UNIX endpoint at '" << path << ": "
                          << un_addr.status();
-            return;
+            return false;
         }
 
-        un_socket_ = socket_factory_.CreateSocket(clientLoop, *std::move(un_addr));
-        un_socket_->SetOnReadCallbackNoFlowControl([this](std::string_view data, absl::Status err) {
-            if (err.ok()) {
-                socket()->send(std::string(data));
-            }
-        });
+        clientLoop
+                ->Post([pin = shared_from_this(), this, clientLoop,
+                        un_addr = *std::move(un_addr)]() {
+                    un_socket_ = socket_factory_.CreateSocket(clientLoop, std::move(un_addr));
+                    un_socket_->SetOnReadCallbackNoFlowControl(
+                            [this](std::string_view data, absl::Status err) {
+                                if (err.ok()) {
+                                    socket()->send(std::string(data));
+                                }
+                            });
 
-        un_socket_->SetOnCloseCallback([this]() { Close(); });
+                    un_socket_->SetOnCloseCallback([this]() { Close(); });
+                })
+                .IgnoreError();
+
+        return true;
     }
 
     void onConnect() override {}
@@ -83,7 +91,8 @@ void IUnixPipe::registerDevice(IConnectorRegistry* registry, EventLoop* clientLo
                                EventLoop* qemuLoop) {
     registry->registerHalDevice(std::string(UnixPipe::serviceName), clientLoop, qemuLoop,
                                 [clientLoop](const std::string_view path) {
-                                    return std::make_shared<UnixPipe>(clientLoop, path);
+                                    auto pipe = std::make_shared<UnixPipe>();
+                                    return pipe->Init(clientLoop, path) ? pipe : nullptr;
                                 });
 }
 
