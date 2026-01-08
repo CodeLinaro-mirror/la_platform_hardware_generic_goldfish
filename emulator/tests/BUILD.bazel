@@ -1,5 +1,38 @@
 load("@rules_java//java:java_test.bzl", "java_test")
+load("@rules_python//python:defs.bzl", "py_test")
 load("//emulator/tests:cts.bzl", "cts_media_tests", "cts_plan", "cts_tests", "deqp_tests")  # @unused
+
+py_test(
+    name = "release_zip_test",
+    size = "small",
+    srcs = ["release_zip_test.py"],
+    args = [
+        "--release_zip_path",
+        "$(rlocationpath //emulator:release)",
+        "--expected_path",
+        "$(rlocationpath :expected_contents)",
+    ],
+    data = [
+        ":expected_contents",
+        "//emulator:release",
+    ],
+    deps = ["@rules_python//python/runfiles"],
+)
+
+filegroup(
+    name = "expected_contents",
+    srcs = select({
+        "@platforms//os:linux": [
+            "testdata/release_zip_emulator_linux_x64.txt",
+        ],
+        "@platforms//os:macos": [
+            "testdata/release_zip_emulator_mac_aarch64.txt",
+        ],
+        "@platforms//os:windows": [
+            "testdata/release_zip_emulator_windows_x64.txt",
+        ],
+    }),
+)
 
 java_test(
     name = "boot_test",
@@ -55,6 +88,7 @@ test_suite(
     tags = ["manual"],
     tests = [
         ":boot_test",
+        ":release_zip_test",
     ],
 )
 
