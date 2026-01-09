@@ -26,15 +26,15 @@ namespace goldfish::devices::boot {
 
 class BootPropertiesDevice : public IBootPropertiesDevice {
   public:
-    BootPropertiesDevice(Properties properties)
-            : mProperties(std::move(properties))
-            , mQemudParser([this](const void* data, size_t size) {
-                return handleMessage(std::string_view(static_cast<const char*>(data), size));
+    explicit BootPropertiesDevice(Properties properties)
+            : properties_(std::move(properties))
+            , qemud_parser_([this](const void* data, size_t size) {
+                return HandleMessage(std::string_view(static_cast<const char*>(data), size));
             }) {
         VLOG(1) << "BootProperties device has been created";
     }
 
-    void send(std::string_view msg) {
+    void Send(std::string_view msg) {
         auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
@@ -43,28 +43,28 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     void OnConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
     void OnClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
     void OnReceive(std::string_view data) override {
-        mQemudParser.OnReceive(data.data(), data.size());
+        qemud_parser_.OnReceive(data.data(), data.size());
     }
 
-    bool handleMessage(std::string_view cmd) {
+    bool HandleMessage(std::string_view cmd) {
         if (cmd == "list") {
-            for (const auto& [name, value] : mProperties) {
-                send(absl::StrFormat("%s=%s", name, value));
+            for (const auto& [name, value] : properties_) {
+                Send(absl::StrFormat("%s=%s", name, value));
             }
-            send("\0");
+            Send("\0");
         }
         return true;
     }
 
   private:
-    const Properties mProperties;
-    qemud::Parser mQemudParser;
+    const Properties properties_;
+    qemud::Parser qemud_parser_;
 };
 
 void IBootPropertiesDevice::RegisterDevice(IConnectorRegistry* registry, Properties properties,
                                            EventLoop* client_loop, EventLoop* qemu_loop) {
     registry->RegisterHalQemuDevice(
-            std::string(IBootPropertiesDevice::serviceName), client_loop, qemu_loop,
+            std::string(IBootPropertiesDevice::kServiceName), client_loop, qemu_loop,
             [properties = std::move(properties)](std::string_view /*args*/) {
                 return std::make_shared<BootPropertiesDevice>(properties);
             });

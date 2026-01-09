@@ -42,9 +42,9 @@ class LimitedString {
      * @param str The initial string value. If the length of \p str exceeds the
      *            template parameter 'size', a std::length_error is thrown.
      */
-    static absl::StatusOr<LimitedString<size>> create(const std::string& str) {
+    static absl::StatusOr<LimitedString<size>> Create(const std::string& str) {
         LimitedString<size> ls;
-        RETURN_IF_ERROR(ls.set(str));
+        RETURN_IF_ERROR(ls.Set(str));
         return ls;
     }
 
@@ -55,11 +55,11 @@ class LimitedString {
      *            template parameter 'size', a std::length_error is thrown.
      * @throws std::length_error if the input string exceeds the maximum length.
      */
-    virtual absl::Status set(const std::string& str) {
+    virtual absl::Status Set(const std::string& str) {
         if (str.length() > size) {
             return absl::OutOfRangeError("String exceeds maximum length");
         }
-        mStr = str;
+        str_ = str;
         return absl::OkStatus();
     }
 
@@ -68,7 +68,7 @@ class LimitedString {
      *
      * @return The current string value.
      */
-    const std::string& get() const { return mStr; }
+    const std::string& Get() const { return str_; }
 
     /**
      * @brief Implicit conversion operator to std::string.
@@ -77,21 +77,21 @@ class LimitedString {
      *
      * @return The underlying std::string value.
      */
-    operator std::string() const { return mStr; }
+    operator std::string() const { return str_; }  // NOLINT
 
     // Add equality operator
-    bool operator==(const LimitedString& other) const { return mStr == other.mStr; }
+    bool operator==(const LimitedString& other) const { return str_ == other.str_; }
 
     // Might as well add !=
     bool operator!=(const LimitedString& other) const { return !(*this == other); }
 
     template <typename H>
     friend H AbslHashValue(H h, const LimitedString<size>& ls) {
-        return H::combine(std::move(h), ls.mStr);
+        return H::combine(std::move(h), ls.str_);
     }
 
   private:
-    std::string mStr;  ///< The underlying string storage.
+    std::string str_;  ///< The underlying string storage.
 };
 
 /**
@@ -122,9 +122,9 @@ class BootPropertyString : public LimitedString<size> {
      * @throws std::length_error if the input string exceeds the maximum length
      *         specified by the template parameter `size`.
      */
-    static absl::StatusOr<BootPropertyString<size>> create(const std::string& str) {
+    static absl::StatusOr<BootPropertyString<size>> Create(const std::string& str) {
         BootPropertyString<size> bp;
-        RETURN_IF_ERROR(bp.set(str));
+        RETURN_IF_ERROR(bp.Set(str));
         return bp;
     }
 
@@ -138,16 +138,16 @@ class BootPropertyString : public LimitedString<size> {
      * @throws std::length_error if the input string exceeds the maximum length
      *         specified by the template parameter `size`.
      */
-    absl::Status set(const std::string& str) override {
+    absl::Status Set(const std::string& str) override {
         const auto reject = absl::string_view(" =$*?'\"");
-        for (char c : str) {
+        for (const char c : str) {
             if (absl::StrContains(reject, c)) {
                 return absl::InvalidArgumentError(
                         absl::StrCat("Property name contains invalid character: '",
                                      std::string_view(&c, 1), "'"));
             }
         }
-        return LimitedString<size>::set(str);
+        return LimitedString<size>::Set(str);
     }
 };
 

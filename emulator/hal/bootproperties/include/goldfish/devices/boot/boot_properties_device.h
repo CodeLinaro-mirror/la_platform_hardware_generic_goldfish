@@ -40,35 +40,36 @@ class IBootPropertiesDevice : public HalPlug {
     /**
      * @brief QEMU service name for the bootproperties device.
      */
-    static constexpr std::string_view serviceName = "boot-properties"sv;
+    static constexpr std::string_view kServiceName = "boot-properties"sv;
 
     /**
      * @brief Maximum allowed length for a property name.
      * This value must match the corresponding definition in the Android source tree
      * (system/core/include/cutils/properties.h).
      */
-    static constexpr int PROPERTY_MAX_NAME = 32;
+    static constexpr int kPropertyMaxName = 32;
 
     /**
      * @brief Maximum allowed length for a property value.
      * This value must match the corresponding definition in the Android source tree
      * (system/core/include/cutils/properties.h).
      */
-    static constexpr int PROPERTY_MAX_VALUE = 92;
+    static constexpr int kPropertyMaxValue = 92;
 
     // A string of max 32 chars that does not contain
-    using PropertyName = BootPropertyString<IBootPropertiesDevice::PROPERTY_MAX_NAME>;
-    using PropertyValue = LimitedString<IBootPropertiesDevice::PROPERTY_MAX_VALUE>;
+    using PropertyName = BootPropertyString<IBootPropertiesDevice::kPropertyMaxName>;
+    using PropertyValue = LimitedString<IBootPropertiesDevice::kPropertyMaxValue>;
     using Properties = absl::flat_hash_map<PropertyName, PropertyValue>;
 
-    static absl::StatusOr<Properties> make_properties(absl::flat_hash_map<std::string, std::string> string_map) {
-      Properties p;
-      for (const auto &[n, v]: string_map) {
-        ASSIGN_OR_RETURN(auto pn, PropertyName::create(n));
-        ASSIGN_OR_RETURN(auto pv, PropertyValue::create(v));
-        p[std::move(pn)] = std::move(pv);
-      }
-      return p;
+    static absl::StatusOr<Properties> MakeProperties(
+            const absl::flat_hash_map<std::string, std::string>& string_map) {
+        Properties p;
+        for (const auto& [n, v] : string_map) {
+            ASSIGN_OR_RETURN(auto pn, PropertyName::Create(n));
+            ASSIGN_OR_RETURN(auto pv, PropertyValue::Create(v));
+            p[std::move(pn)] = pv;
+        }
+        return p;
     }
 
     /**

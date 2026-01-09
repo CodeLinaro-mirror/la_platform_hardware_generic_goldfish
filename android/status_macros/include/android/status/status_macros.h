@@ -21,13 +21,13 @@
 
 #include "absl/status/status.h"
 
+// NOLINTBEGIN
 // Evaluates |expr|, which should return a base::Status. If the status is an
 // error status, returns the status from the current function.
-#define RETURN_IF_ERROR(expr)                           \
-  do {                                                  \
-    absl::Status status_macro_internal_status = (expr); \
-    if (!status_macro_internal_status.ok())             \
-      return status_macro_internal_status;              \
+#define RETURN_IF_ERROR(expr)                                                    \
+  do {                                                                           \
+    absl::Status status_macro_internal_status = (expr);                          \
+    if (!status_macro_internal_status.ok()) return status_macro_internal_status; \
   } while (0)
 
 #define AEMU_INTERNAL_CONCAT_IMPL(x, y) x##y
@@ -36,10 +36,11 @@
 // Evalues |rhs| which should return a base::StatusOr<T> and assigns this
 // to |lhs|. If the status is an error status, returns the status from the
 // current function.
-#define ASSIGN_OR_RETURN(lhs, rhs)                                   \
-  AEMU_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;    \
-  RETURN_IF_ERROR(                                                   \
-      AEMU_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
+// NOLINTNEXTLINE
+#define ASSIGN_OR_RETURN(lhs, rhs)                                           \
+  AEMU_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;                \
+  RETURN_IF_ERROR(AEMU_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
   lhs = std::move(AEMU_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
 
+// NOLINTEND
 #endif  // AEMU_UTIL_STATUS_MACROS_H_

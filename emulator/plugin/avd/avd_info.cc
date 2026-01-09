@@ -235,7 +235,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                                  []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
-    if (auto props = devices::boot::IBootPropertiesDevice::make_properties({
+    if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
             {"qemu.sf.fake_camera"s, emulatedCameraProp},
             {"qemu.sf.lcd_density"s, "420"s},
             // This is the same value that is passed to the virtio-wifi module.
