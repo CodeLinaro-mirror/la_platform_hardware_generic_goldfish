@@ -48,6 +48,7 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, apiDescription, (), (const override));
     MOCK_METHOD(fs::path, getConfigIniPath, (), (const override));
     MOCK_METHOD(std::string, display_name, (), (const override));
+    MOCK_METHOD(std::string, skin_name, (), (const override));
     MOCK_METHOD(std::string, id, (), (const override));
     MOCK_METHOD(std::string, abi, (), (const override));
     MOCK_METHOD(std::string, build_sdk, (), (const override));

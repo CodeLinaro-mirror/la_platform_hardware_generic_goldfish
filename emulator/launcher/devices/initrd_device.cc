@@ -53,12 +53,13 @@ std::string getDeviceStateString(const HardwareConfig& hw) {
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int apiLevel, std::string kernelSerialPrefix,
-        const std::vector<std::string>& verifiedBootParameters, const HardwareConfig& hw,
+        const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
         const AndroidOptions& opts) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
     std::string androidbootHardwareGralloc = "androidboot.hardware.gralloc";
+    std::string androidbootQemuSkin = "androidboot.qemu.skin";
     std::string checkjniProp = "androidboot.dalvik.vm.checkjni";
     std::string bootanimProp = "androidboot.debug.sf.nobootanimation";
     std::string bootanimPropValue = "1";
@@ -122,6 +123,14 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     // only work with minigbm gralloc
     params.push_back({androidbootHardwareGralloc, "minigbm"});
 
+    // setup skin
+
+    auto skinName = avd.skin_name();
+    if (!skinName.empty() && isalpha((unsigned char)(skinName[0]))) {
+        params.push_back({androidbootQemuSkin, skinName});
+    }
+
+    auto hw = avd.hw();
     // Set vsync rate
     params.push_back({qemuVsyncProp, absl::StrFormat("%u", hw.hw_lcd_vsync)});
 
@@ -328,7 +337,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     int apiLevel = 202504;
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     return getUserspaceBootProperties(hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel,
-                                      real_console_tty_prefix, verifiedBootParameters, hw,
+                                      real_console_tty_prefix, verifiedBootParameters, avd,
                                       emulator.opts());
 }
 
