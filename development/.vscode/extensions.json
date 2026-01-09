@@ -16,7 +16,7 @@
 		"ms-vscode-remote.vscode-remote-extensionpack",
 		"ms-vscode.cpptools-themes",
 		"ms-vscode.cpptools",
-		"zxh404.vscode-proto3",
+		"DrBlury.protobuf-vsc",
 		"hverlin.mise-vscode",
 	],
 	// List of extensions recommended by VS Code that should not be recommended for users of this workspace.
