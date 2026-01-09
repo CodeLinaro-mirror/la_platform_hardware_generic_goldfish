@@ -14,6 +14,7 @@
 // limitations under the License.
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 #include <string_view>
 
@@ -29,27 +30,27 @@ class StorageCapacity {
   public:
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const StorageCapacity& sc) {
-        absl::Format(&sink, "%s", sc.string());
+        absl::Format(&sink, "%s", sc.String());
     }
 
     /**
      * @brief Enum for representing storage capacity units.
      */
-    enum class Unit {
-        B,    ///< Bytes
-        KiB,  ///< Kilobytes
-        MiB,  ///< Megabytes
-        GiB,  ///< Gigabytes
-        TiB   ///< Terabytes
+    enum class Unit : uint8_t {
+        kB,    ///< Bytes
+        kKiB,  ///< Kilobytes
+        kMiB,  ///< Megabytes
+        kGiB,  ///< Gigabytes
+        kTiB   ///< Terabytes
     };
 
-    constexpr StorageCapacity() : mBytes(0) {}
+    constexpr StorageCapacity() : bytes_(0) {}
 
     /**
      * @brief Constructor taking bytes as input.
      * @param bytes The storage capacity in bytes.
      */
-    constexpr StorageCapacity(unsigned long long bytes) : mBytes(bytes) {}
+    constexpr StorageCapacity(unsigned long long bytes) : bytes_(bytes) {}  // NOLINT
 
     /**
      * @brief Constructor taking a raw value and unit for storage capacity.
@@ -63,20 +64,20 @@ class StorageCapacity {
      */
     constexpr StorageCapacity(unsigned long long bytes, Unit unit) {
         switch (unit) {
-        case Unit::B:
-            mBytes = bytes;
+        case Unit::kB:
+            bytes_ = bytes;
             break;
-        case Unit::KiB:
-            mBytes = bytes * 1024ULL;
+        case Unit::kKiB:
+            bytes_ = bytes * 1024ULL;
             break;
-        case Unit::MiB:
-            mBytes = bytes * 1024ULL * 1024ULL;
+        case Unit::kMiB:
+            bytes_ = bytes * 1024ULL * 1024ULL;
             break;
-        case Unit::GiB:
-            mBytes = bytes * 1024ULL * 1024ULL * 1024ULL;
+        case Unit::kGiB:
+            bytes_ = bytes * 1024ULL * 1024ULL * 1024ULL;
             break;
-        case Unit::TiB:
-            mBytes = bytes * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
+        case Unit::kTiB:
+            bytes_ = bytes * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
             break;
         }
     }
@@ -86,7 +87,7 @@ class StorageCapacity {
      * @brief Get the storage capacity in bytes.
      * @return The storage capacity in bytes.
      */
-    unsigned long long bytes() const { return mBytes; }
+    unsigned long long Bytes() const { return bytes_; }
 
     /**
      * @brief Aligns the current storage capacity to a multiple of the provided
@@ -98,9 +99,9 @@ class StorageCapacity {
      * @param align The desired alignment (a StorageCapacity object).
      * @return A new StorageCapacity object with its capacity aligned.
      */
-    StorageCapacity align(StorageCapacity align) {
-        auto bytes = ((mBytes + align.bytes() - 1) / align.bytes()) * align.bytes();
-        return StorageCapacity(bytes);
+    StorageCapacity Align(StorageCapacity align) const {
+        auto bytes = ((bytes_ + align.Bytes() - 1) / align.Bytes()) * align.Bytes();
+        return StorageCapacity(bytes);  // NOLINT
     }
 
     /**
@@ -112,7 +113,7 @@ class StorageCapacity {
      * @return A reference to the output stream.
      */
     friend std::ostream& operator<<(std::ostream& os, const StorageCapacity& capacity) {
-        os << capacity.string();  // Utilize the string() method
+        os << capacity.String();  // Utilize the string() method
         return os;
     }
 
@@ -125,31 +126,33 @@ class StorageCapacity {
      *
      * @return A string representing the capacity.
      */
-    std::string string() const {
-        const unsigned long long KB = 1024;
-        const unsigned long long MB = 1024 * KB;
-        const unsigned long long GB = 1024 * MB;
-        const unsigned long long TB = 1024 * GB;
+    std::string String() const {
+        const unsigned long long kilo_byte = 1024;
+        const unsigned long long mega_byte = 1024 * kilo_byte;
+        const unsigned long long giga_byte = 1024 * mega_byte;
+        const unsigned long long tera_byte = 1024 * giga_byte;
 
-        double value = mBytes;
+        auto value = static_cast<double>(bytes_);
 
         // Determine the largest appropriate unit
 
-        if (value >= TB) {
-            value /= TB;
+        if (value >= tera_byte) {
+            value /= tera_byte;
             return absl::StrFormat("%.2f TiB", value);
-        } else if (value >= GB) {
-            value /= GB;
-            return absl::StrFormat("%.2f GiB", value);
-        } else if (value >= MB) {
-            value /= MB;
-            return absl::StrFormat("%.2f MiB", value);
-        } else if (value >= KB) {
-            value /= KB;
-            return absl::StrFormat("%.2f KiB", value);
-        } else {
-            return absl::StrFormat("%d B", static_cast<int>(value));
         }
+        if (value >= giga_byte) {
+            value /= giga_byte;
+            return absl::StrFormat("%.2f GiB", value);
+        }
+        if (value >= mega_byte) {
+            value /= mega_byte;
+            return absl::StrFormat("%.2f MiB", value);
+        }
+        if (value >= kilo_byte) {
+            value /= kilo_byte;
+            return absl::StrFormat("%.2f KiB", value);
+        }
+        return absl::StrFormat("%d B", static_cast<int>(value));
     }
 
     /**
@@ -158,16 +161,16 @@ class StorageCapacity {
      * @return An absl::StatusOr containing the parsed storage capacity on
      * success, or an error status on failure.
      */
-    static absl::StatusOr<StorageCapacity> parse(std::string_view str);
+    static absl::StatusOr<StorageCapacity> Parse(std::string_view str);
 
     // Equality operators
-    bool operator==(const StorageCapacity& rhs) const { return bytes() == rhs.bytes(); }
+    bool operator==(const StorageCapacity& rhs) const { return Bytes() == rhs.Bytes(); }
 
-    bool operator!=(const StorageCapacity& rhs) const { return bytes() != rhs.bytes(); }
-    bool operator<(const StorageCapacity& rhs) const { return bytes() < rhs.bytes(); }
-    bool operator<=(const StorageCapacity& rhs) const { return bytes() <= rhs.bytes(); }
-    bool operator>(const StorageCapacity& rhs) const { return bytes() > rhs.bytes(); }
-    bool operator>=(const StorageCapacity& rhs) const { return bytes() >= rhs.bytes(); }
+    bool operator!=(const StorageCapacity& rhs) const { return Bytes() != rhs.Bytes(); }
+    bool operator<(const StorageCapacity& rhs) const { return Bytes() < rhs.Bytes(); }
+    bool operator<=(const StorageCapacity& rhs) const { return Bytes() <= rhs.Bytes(); }
+    bool operator>(const StorageCapacity& rhs) const { return Bytes() > rhs.Bytes(); }
+    bool operator>=(const StorageCapacity& rhs) const { return Bytes() >= rhs.Bytes(); }
 
     /**
      * @brief Multiplies a StorageCapacity object by a scalar value.
@@ -176,8 +179,8 @@ class StorageCapacity {
      * @return A new StorageCapacity object with the capacity multiplied.
      */
     StorageCapacity operator*(unsigned long long scalar) const {
-        unsigned long long multipliedBytes = mBytes * scalar;
-        return StorageCapacity(multipliedBytes);
+        const unsigned long long multiplied_bytes = bytes_ * scalar;
+        return StorageCapacity(multiplied_bytes);  // NOLINT
     }
 
     /**
@@ -188,8 +191,8 @@ class StorageCapacity {
      * capacities.
      */
     StorageCapacity operator+(const StorageCapacity& rhs) const {
-        unsigned long long totalBytes = mBytes + rhs.bytes();
-        return StorageCapacity(totalBytes);
+        const unsigned long long total_bytes = bytes_ + rhs.Bytes();
+        return StorageCapacity(total_bytes);  // NOLINT
     }
 
     /**
@@ -199,7 +202,7 @@ class StorageCapacity {
      * @return A reference to the modified StorageCapacity object (`*this`).
      */
     StorageCapacity& operator+=(const StorageCapacity& rhs) {
-        mBytes += rhs.bytes();
+        bytes_ += rhs.Bytes();
         return *this;
     }
 
@@ -233,10 +236,10 @@ class StorageCapacity {
     explicit operator long long() const;
 
     // Conversion to unsigned long long
-    explicit operator unsigned long long() const { return mBytes; }
+    explicit operator unsigned long long() const { return bytes_; }
 
   private:
-    unsigned long long mBytes;  ///< The storage capacity in bytes.
+    uint64_t bytes_;  ///< The storage capacity in bytes.
 };
 
 // User-defined literals
@@ -246,7 +249,7 @@ class StorageCapacity {
  * @return StorageCapacity object representing the capacity in bytes.
  */
 constexpr StorageCapacity operator""_B(unsigned long long value) {
-    return StorageCapacity(value);
+    return StorageCapacity(value);  // NOLINT
 }
 
 /**
@@ -255,16 +258,16 @@ constexpr StorageCapacity operator""_B(unsigned long long value) {
  * @return StorageCapacity object representing the capacity in kilobytes.
  */
 constexpr StorageCapacity operator""_KiB(unsigned long long value) {
-    return StorageCapacity(value, StorageCapacity::Unit::KiB);
+    return StorageCapacity(value, StorageCapacity::Unit::kKiB);  // NOLINT
 }
 
 /**
- * @brief User-defined literal for megabytes (MiB) following IEEE 1541.
+ * @brief User-defined literal for megabytes (kMiB) following IEEE 1541.
  * @param value The value to convert to megabytes.
  * @return StorageCapacity object representing the capacity in megabytes.
  */
 constexpr StorageCapacity operator""_MiB(unsigned long long value) {
-    return StorageCapacity(value, StorageCapacity::Unit::MiB);
+    return StorageCapacity(value, StorageCapacity::Unit::kMiB);  // NOLINT
 }
 
 /**
@@ -273,7 +276,7 @@ constexpr StorageCapacity operator""_MiB(unsigned long long value) {
  * @return StorageCapacity object representing the capacity in gigabytes.
  */
 constexpr StorageCapacity operator""_GiB(unsigned long long value) {
-    return StorageCapacity(value, StorageCapacity::Unit::GiB);
+    return StorageCapacity(value, StorageCapacity::Unit::kGiB);  // NOLINT
 }
 
 /**
@@ -282,7 +285,7 @@ constexpr StorageCapacity operator""_GiB(unsigned long long value) {
  * @return StorageCapacity object representing the capacity in gigabytes.
  */
 constexpr StorageCapacity operator""_TiB(unsigned long long value) {
-    return StorageCapacity(value, StorageCapacity::Unit::TiB);
+    return StorageCapacity(value, StorageCapacity::Unit::kTiB);  // NOLINT
 }
 
 }  // namespace android::base

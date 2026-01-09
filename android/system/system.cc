@@ -36,10 +36,10 @@
 #include "absl/strings/strip.h"
 
 #include "aemu/base/memory/NoDestructor.h"
-#include "android/process/command.h"
 #include "android/base/bazel_info.h"
 #include "android/base/c_str_wrapper.h"
 #include "android/base/storage_capacity.h"
+#include "android/process/command.h"
 
 #ifdef _WIN32
 
@@ -448,12 +448,12 @@ class HostSystem : public System {
             return lastSuccessfulValue;
         }
         std::basic_stringbuf<char> std_out;
-        auto proc = Command::create({"lsb_release", "-d"}).withStdoutBuffer(&std_out).execute();
+        auto proc = Command::Create({"lsb_release", "-d"}).WithStdoutBuffer(&std_out).Execute();
 
-        if (proc->wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
+        if (proc->WaitFor(std::chrono::seconds(1)) != std::future_status::ready) {
             return "Unknown OS";
         }
-        auto contents = proc->out()->asString();
+        auto contents = proc->Out()->AsString();
         lastSuccessfulValue = absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
         return lastSuccessfulValue;
 #else
@@ -973,7 +973,7 @@ void System::addLibrarySearchDir(fs::path path) {
 // static
 StorageCapacity System::freeRamMb() {
     auto usage = get()->getMemUsage();
-    return StorageCapacity(usage.avail_phys_memory, StorageCapacity::Unit::B);
+    return StorageCapacity(usage.avail_phys_memory, StorageCapacity::Unit::kB);
 }
 
 // static

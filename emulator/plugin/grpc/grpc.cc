@@ -170,7 +170,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     }
 
     fs::path jwkDir = config->discovery_path /
-                      std::to_string(::android::base::Process::me()->pid()) / "jwks" /
+                      std::to_string(::android::base::Process::Me()->pid()) / "jwks" /
                       generateToken(16);
     if (auto s = file::mkdir_recursive(jwkDir, 0700); !s.ok()) {
         LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << s;

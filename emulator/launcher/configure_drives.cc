@@ -68,7 +68,7 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
     // studio avd manager does not allow user to change partition size, set a
     // lower limit to 6GB.
     constexpr uint64_t kMinPlaystoreImageSize = 6ULL * 1024 * 1024 * 1024;
-    uint64_t data_size = avd.hw().disk_dataPartition_size.bytes();
+    uint64_t data_size = avd.hw().disk_dataPartition_size.Bytes();
     if (opts.partition_size != nullptr) {
         uint64_t size_mib;
         if (absl::SimpleAtoi(opts.partition_size, &size_mib)) {
@@ -82,7 +82,7 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
     constexpr uint64_t kMinCacheSize = 66ULL * 1024 * 1024;
-    uint64_t cache_size = avd.hw().disk_cachePartition_size.bytes();
+    uint64_t cache_size = avd.hw().disk_cachePartition_size.Bytes();
     if (opts.cache_size != nullptr) {
         uint64_t size_mib;
         if (absl::SimpleAtoi(opts.cache_size, &size_mib)) {
@@ -96,7 +96,7 @@ uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
     // TODO minimum size?
-    return avd.hw().hw_sdCard_size.bytes();
+    return avd.hw().hw_sdCard_size.Bytes();
 }
 }  // namespace
 

@@ -88,12 +88,12 @@ class CrashTest : public ::testing::Test {
             GTEST_SKIP() << "This test can only be run under Bazel";
         }
         std::basic_stringbuf<char> std_err;
-        auto proc = Command::create({executable.string(), "--delay_ms", "1000"})
-                            .inherit()
-                            .withStderrBuffer(&std_err)
-                            .execute();
-        while (proc->isAlive()) {
-            auto res = proc->err()->asString();
+        auto proc = Command::Create({executable.string(), "--delay_ms", "1000"})
+                            .Inherit()
+                            .WithStderrBuffer(&std_err)
+                            .Execute();
+        while (proc->IsAlive()) {
+            auto res = proc->Err()->AsString();
             if (!res.empty()) LOG(INFO) << "Crash results: " << res;
         }
     }

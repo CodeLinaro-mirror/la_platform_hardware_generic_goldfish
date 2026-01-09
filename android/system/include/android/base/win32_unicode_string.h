@@ -22,8 +22,7 @@
 
 #include <string>
 
-namespace android {
-namespace base {
+namespace android::base {
 
 // Helper class used to model a Windows Unicode string, which stores
 // text and file paths as a zero-terminated array of UTF-16 code points
@@ -34,6 +33,7 @@ namespace base {
 // be used to simplify conversions between the Win32 Unicode API and the
 // rest of android::base which uses UTF-8 for all Unicode text.
 class Win32UnicodeString {
+    // NOLINTBEGIN
   public:
     // Default constructor.
     Win32UnicodeString();
@@ -66,7 +66,7 @@ class Win32UnicodeString {
     Win32UnicodeString& operator=(const wchar_t* str);
 
     // Return pointer to first wchar_t in the string.
-    const wchar_t* c_str() const { return mStr ? mStr : L""; }
+    const wchar_t* c_str() const { return str_ ? str_ : L""; }
 
     // Return pointer to writable wchar_t array. This can never be NULL
     // but no more than size() items should be accessed.
@@ -75,13 +75,13 @@ class Win32UnicodeString {
     // Return size of the string, this is the number of UTF-16 code points
     // stored by the string, which may be larger than the number of actual
     // Unicode characters in it.
-    size_t size() const { return mSize; }
+    size_t size() const { return size_; }
 
     // Convert to a string instance holding the corresponding UTF-8 text.
     std::string toString() const;
 
     // Return n-th character from string.
-    wchar_t operator[](size_t index) const { return mStr[index]; }
+    wchar_t operator[](size_t index) const { return str_[index]; }
 
     // Reset content from UTF-8 text at |str| or |len| bytes.
     void reset(const char* str, size_t len);
@@ -142,11 +142,11 @@ class Win32UnicodeString {
     static int convertFromUtf8(wchar_t* outStr, int outLen, const char* str, int len = -1);
 
   private:
-    wchar_t* mStr{nullptr};
-    size_t mSize{0};
+    wchar_t* str_{nullptr};
+    size_t size_{0};
+    // NOLINTEND
 };
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
 
 #endif  // _WIN32

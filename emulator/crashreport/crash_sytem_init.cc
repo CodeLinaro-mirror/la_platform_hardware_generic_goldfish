@@ -104,7 +104,7 @@ class CrashSystem {
         std::string message = mDatabasePath.string();
         LOG(INFO) << "Storing crashdata in: " << message << ", detection is "
                   << (mInitialized ? "enabled" : "disabled")
-                  << " for process: " << base::Process::me()->pid();
+                  << " for process: " << base::Process::Me()->pid();
 
         auto collect = mConsentProvider->consentRequired();
         bool areUploadsEnabled = (collect == CrashConsent::Consent::ALWAYS);

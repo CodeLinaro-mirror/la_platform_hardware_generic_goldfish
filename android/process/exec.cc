@@ -66,7 +66,7 @@ static BOOL WINAPI ctrlHandler(DWORD type) {
 
 using android::base::Win32UnicodeString;
 
-int safe_execv(const char* path, char* const* argv) {
+int SafeExecv(const char* path, char* const* argv) {
     std::vector<Win32UnicodeString> arguments;
     for (size_t i = 0; argv[i] != nullptr; ++i) {
         arguments.push_back(Win32UnicodeString(argv[i]));
@@ -98,7 +98,7 @@ int safe_execv(const char* path, char* const* argv) {
 #else
 
 namespace android::base {
-int safe_execv(const char* path, char* const* argv) {
+int SafeExecv(const char* path, char* const* argv) {
     return execv(path, argv);
 }
 

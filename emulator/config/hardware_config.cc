@@ -42,7 +42,7 @@ void HardwareConfig::load(const IniFile& ini) {
 #include "avd/hw-config-defs.h"
 
     hw_sdCard = ini.getDiskSize("sdcard.size", 0) > 0;
-    hw_sdCard_size = ini.getDiskSize("sdcard.size", hw_sdCard_size.bytes());
+    hw_sdCard_size = ini.getDiskSize("sdcard.size", hw_sdCard_size.Bytes());
 }
 
 void HardwareConfig::applyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path) {
@@ -78,7 +78,7 @@ void HardwareConfig::write(IniFile* ini) {
 
 #include "avd/hw-config-defs.h"
 
-    ini->setDiskSize("sdcard.size", hw_sdCard_size.bytes());
+    ini->setDiskSize("sdcard.size", hw_sdCard_size.Bytes());
 }
 
 }  // namespace android::goldfish

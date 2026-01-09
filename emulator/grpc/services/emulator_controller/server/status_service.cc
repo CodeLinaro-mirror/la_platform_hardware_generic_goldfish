@@ -33,7 +33,7 @@ std::unordered_map<std::string, std::string> getQemuConfig(
 #define HWCFG_INT(n, s, d, a, t) cfg[s] = std::to_string(hw.n);
 #define HWCFG_STRING(n, s, d, a, t) cfg[s] = hw.n;
 #define HWCFG_DOUBLE(n, s, d, a, t) cfg[s] std::to_string(hw.n);
-#define HWCFG_DISKSIZE(n, s, d, a, t) cfg[s] = hw.n.string();
+#define HWCFG_DISKSIZE(n, s, d, a, t) cfg[s] = hw.n.String();
 
 #include "avd/hw-config-defs.h"
 

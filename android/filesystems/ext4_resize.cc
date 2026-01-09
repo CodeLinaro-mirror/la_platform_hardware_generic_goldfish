@@ -74,8 +74,8 @@ static auto runExt4Program(std::filesystem::path executable,
     std::vector<std::string> commandLine{executable.string()};
     commandLine.insert(commandLine.end(), params);
 
-    auto proc = android::base::Command::create(commandLine).execute();
-    auto exitCode = proc->exitCode();
+    auto proc = android::base::Command::Create(commandLine).Execute();
+    auto exitCode = proc->ExitCode();
 
     if (exitCode != 0) {
         LOG(ERROR) << "Resizing partition " << executable << " failed with exit code " << exitCode;

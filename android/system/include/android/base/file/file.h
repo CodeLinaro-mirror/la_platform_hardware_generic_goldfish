@@ -14,6 +14,7 @@
 
 #pragma once
 
+// NOLINTBEGIN
 #include <filesystem>
 
 #include "absl/status/status.h"
@@ -59,4 +60,5 @@ absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept;
 
 absl::Status touch(const fs::path& path) noexcept;
 
+// NOLINTEND
 }  // namespace android::base::file

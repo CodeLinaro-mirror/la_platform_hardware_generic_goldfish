@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <poll.h>
-#include <signal.h>
 #include <spawn.h>
-#include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <array>
 #include <chrono>
-#include <climits>
+#include <csignal>
 #include <cstring>
-#include <fstream>
 #include <future>
-#include <iosfwd>
 #include <streambuf>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -61,15 +55,13 @@
 
 #ifndef _WIN32
 #include <fcntl.h>
-#include <unistd.h>
 #endif  // !_WIN32
 
-namespace android {
-namespace base {
+namespace android::base {
 
 namespace {
 
-std::vector<char*> toCharArray(const std::vector<std::string>& params) {
+std::vector<char*> ToCharArray(const std::vector<std::string>& params) {
     std::vector<char*> args;
     args.reserve(params.size());
     for (const auto& param : params) {
@@ -80,14 +72,14 @@ std::vector<char*> toCharArray(const std::vector<std::string>& params) {
 }
 
 #ifndef __APPLE__
-static std::string read_proc_linux(int pid) {
+std::string ReadProcLinux(int pid) {
     // parse out /proc/xx/cmdline
-    std::string proc = "/proc/" + std::to_string(pid) + "/cmdline";
+    const std::string proc = "/proc/" + std::to_string(pid) + "/cmdline";
     DD("Looking for commandline in %s", proc.c_str());
 
     std::string name;
     FILE* proc_file;
-    char ch;
+    int ch;
 
     // Opening file in reading mode
     proc_file = fopen(proc.c_str(), "r");
@@ -102,7 +94,7 @@ static std::string read_proc_linux(int pid) {
             fclose(proc_file);
             return name;
         }
-        name += ch;
+        name += static_cast<char>(ch);
     }
     fclose(proc_file);
     return name;
@@ -112,16 +104,16 @@ static std::string read_proc_linux(int pid) {
 
 class PosixOverseer : public ProcessOverseer {
   public:
-    PosixOverseer(int stdOut[2], int stdErr[2]) {
-        mStdOutPipe[0] = stdOut[0];
-        mStdOutPipe[1] = stdOut[1];
-        mStdErrPipe[0] = stdErr[0];
-        mStdErrPipe[1] = stdErr[1];
+    PosixOverseer(const int std_out[2], const int std_err[2]) {
+        std_out_pipe_[0] = std_out[0];
+        std_out_pipe_[1] = std_out[1];
+        std_err_pipe_[0] = std_err[0];
+        std_err_pipe_[1] = std_err[1];
     }
 
     ~PosixOverseer() override { DD("~PosixOverseer"); }
 
-    static void readAndFlush(int fd, std::basic_streambuf<char>* buffer) {
+    static void ReadAndFlush(int fd, std::basic_streambuf<char>* buffer) {
         if (buffer == nullptr) {
             return;
         }
@@ -131,17 +123,18 @@ class PosixOverseer : public ProcessOverseer {
         buffer->pubsync();
     }
 
-    void start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
-        std::vector<pollfd> plist = {{mStdOutPipe[0], POLLIN}, {mStdErrPipe[0], POLLIN}};
+    void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
+        std::vector<pollfd> plist = {{.fd = std_out_pipe_[0], .events = POLLIN},
+                                     {.fd = std_err_pipe_[0], .events = POLLIN}};
         int rval;
-        while ((rval = poll(&plist[0], plist.size(),
+        while ((rval = poll(plist.data(), plist.size(),
                             /*timeout*/ -1)) > 0) {
             DD("Event!");
             if (plist[0].revents & POLLIN) {
                 // out..
-                readAndFlush(mStdOutPipe[0], out);
+                ReadAndFlush(std_out_pipe_[0], out);
             } else if (plist[1].revents & POLLIN) {
-                readAndFlush(mStdErrPipe[0], err);
+                ReadAndFlush(std_err_pipe_[0], err);
             }
 
             // Detect if we have closed the pipes.
@@ -157,71 +150,71 @@ class PosixOverseer : public ProcessOverseer {
         }
 
         // Push out any left overs.
-        readAndFlush(mStdOutPipe[0], out);
-        readAndFlush(mStdErrPipe[0], err);
+        ReadAndFlush(std_out_pipe_[0], out);
+        ReadAndFlush(std_err_pipe_[0], err);
         DD("Observer finished.");
     }
 
     // Cancel the observation of the process, no callbacks
     // should be invoked.
     // no writes to std_out, std_err should happen.
-    void stop() override {
-        close(mStdOutPipe[0]);
-        close(mStdErrPipe[0]);
+    void Stop() override {
+        close(std_out_pipe_[0]);
+        close(std_err_pipe_[0]);
     };
 
   private:
-    int mStdOutPipe[2];
-    int mStdErrPipe[2];
+    int std_out_pipe_[2];
+    int std_err_pipe_[2];
 };
 
 class PosixProcess : public ObservableProcess {
   public:
     explicit PosixProcess(Pid pid) {
-        mPid = pid;
-        mDeamon = true;
+        pid_ = pid;
+        daemon_ = true;
     }
 
-    PosixProcess(bool deamon, bool inherit) {
-        mInherit = inherit;
-        mDeamon = deamon;
+    PosixProcess(bool daemon, bool inherit) {
+        inherit_ = inherit;
+        daemon_ = daemon;
     }
 
     ~PosixProcess() override {
-        if (mActions) {
-            posix_spawn_file_actions_destroy(mActions);
+        if (actions_) {
+            posix_spawn_file_actions_destroy(actions_);
         }
-        if (mAttr) {
-            posix_spawnattr_destroy(mAttr);
+        if (attr_) {
+            posix_spawnattr_destroy(attr_);
         }
-        if (!mDeamon) PosixProcess::terminate();
+        if (!daemon_) PosixProcess::Terminate();
     }
 
-    bool terminate() override {
+    bool Terminate() override {
         using namespace std::chrono_literals;
 
-        if (isAlive()) {
-            kill(mPid, SIGKILL);
-            HANDLE_EINTR(waitpid(mPid, nullptr, WNOHANG));
-            wait_for_kernel(10s);
+        if (IsAlive()) {
+            kill(pid_, SIGKILL);
+            HANDLE_EINTR(waitpid(pid_, nullptr, WNOHANG));
+            WaitForKernel(10s);
         }
 
-        return !isAlive();
+        return !IsAlive();
     }
 
-    bool isAlive() const override {
+    bool IsAlive() const override {
         // Acknowledge process in case it is a zombie..
-        getExitCode();
-        return kill(mPid, 0) == 0;
+        GetExitCode();
+        return kill(pid_, 0) == 0;
     }
 
-    std::future_status wait_for_kernel(
+    std::future_status WaitForKernel(
             const std::chrono::milliseconds timeout_duration) const override {
         using namespace std::chrono_literals;
-        if (mPid == -1) return std::future_status::ready;
+        if (pid_ == -1) return std::future_status::ready;
 
         auto wait_until = std::chrono::system_clock::now() + timeout_duration;
-        while (std::chrono::system_clock::now() < wait_until && isAlive()) {
+        while (std::chrono::system_clock::now() < wait_until && IsAlive()) {
             std::this_thread::sleep_for(10ms);
             DD("Awakened, ready to check again.");
         }
@@ -230,54 +223,54 @@ class PosixProcess : public ObservableProcess {
                                                              : std::future_status::timeout;
     }
 
-    std::string exe() const override {
+    std::string Exe() const override {
 #ifdef __APPLE__
         char name[PROC_PIDPATHINFO_MAXSIZE] = {0};
-        proc_pidpath(mPid, name, sizeof(name));
+        proc_pidpath(pid_, name, sizeof(name));
 #else
-        std::string name = read_proc_linux(mPid);
+        std::string name = ReadProcLinux(pid_);
 #endif
         return name;
     }
 
-    std::optional<ProcessExitCode> getExitCode() const override {
-        if (mProcessExit.has_value()) {
-            return mProcessExit;
+    std::optional<ProcessExitCode> GetExitCode() const override {
+        if (process_exit_.has_value()) {
+            return process_exit_;
         }
 
-        ProcessExitCode exitCode;
-        auto waitPid = HANDLE_EINTR(waitpid(mPid, &exitCode, WNOHANG));
-        if (waitPid > 0) mProcessExit = WEXITSTATUS(exitCode);
+        ProcessExitCode exit_code;
+        auto wait_pid = HANDLE_EINTR(waitpid(pid_, &exit_code, WNOHANG));
+        if (wait_pid > 0) process_exit_ = WEXITSTATUS(exit_code);
 
-        return mProcessExit;
+        return process_exit_;
     };
 
-    std::optional<Pid> createProcess(const CommandArguments& cmdline, bool captureOutput,
+    std::optional<Pid> CreateProcess(const CommandArguments& cmdline, bool capture_output,
                                      bool replace) override {
         // Setup the arguments..
-        std::vector<char*> args = toCharArray(cmdline);
+        std::vector<char*> args = ToCharArray(cmdline);
 
         if (replace) {
             // The exec() functions only return if an error has occurred.
-            safe_execv(args[0], args.data());
+            SafeExecv(args[0], args.data());
             return std::nullopt;
         }
 
         DD("%s to inheriting handles..", mInherit ? "yes" : "no");
-        if (!mInherit) {
-            mAttr = new posix_spawnattr_t;
-            if (posix_spawnattr_init(mAttr)) {
+        if (!inherit_) {
+            attr_ = new posix_spawnattr_t;
+            if (posix_spawnattr_init(attr_)) {
                 DD("Unable to initialize spawnattr..");
                 return std::nullopt;
             }
 #ifdef __APPLE__
-            if (posix_spawnattr_setflags(mAttr, POSIX_SPAWN_CLOEXEC_DEFAULT)) {
+            if (posix_spawnattr_setflags(attr_, POSIX_SPAWN_CLOEXEC_DEFAULT)) {
                 DD("Failed to request CLOEXEC.");
                 return std::nullopt;
             }
 #else
             // We need to mark all file handles as close on exec.
-            const int fdlimit = (int)sysconf(_SC_OPEN_MAX);
+            const int fdlimit = static_cast<int>(sysconf(_SC_OPEN_MAX));
             DD("Marking %d as close on exec", fdlimit);
             for (int i = STDERR_FILENO + 1; i < fdlimit; i++) {
                 const int f = ::fcntl(i, F_GETFD);
@@ -287,23 +280,23 @@ class PosixProcess : public ObservableProcess {
 #endif
         }
 
-        mActions = new posix_spawn_file_actions_t;
-        auto* action = mActions;
+        actions_ = new posix_spawn_file_actions_t;
+        auto* action = actions_;
         posix_spawn_file_actions_init(action);
 
-        if (captureOutput) {
-            if (pipe(mStdOutPipe) || pipe(mStdErrPipe)) {
+        if (capture_output) {
+            if (pipe(std_out_pipe_) || pipe(std_err_pipe_)) {
                 PLOG(WARNING) << "Unable to create pipes to connect to process:";
                 return std::nullopt;
             }
 
-            posix_spawn_file_actions_addclose(action, mStdOutPipe[0]);
-            posix_spawn_file_actions_addclose(action, mStdErrPipe[0]);
-            posix_spawn_file_actions_adddup2(action, mStdOutPipe[1], STDOUT_FILENO);
-            posix_spawn_file_actions_adddup2(action, mStdErrPipe[1], STDERR_FILENO);
+            posix_spawn_file_actions_addclose(action, std_out_pipe_[0]);
+            posix_spawn_file_actions_addclose(action, std_err_pipe_[0]);
+            posix_spawn_file_actions_adddup2(action, std_out_pipe_[1], STDOUT_FILENO);
+            posix_spawn_file_actions_adddup2(action, std_err_pipe_[1], STDERR_FILENO);
 
-            posix_spawn_file_actions_addclose(action, mStdOutPipe[1]);
-            posix_spawn_file_actions_addclose(action, mStdErrPipe[1]);
+            posix_spawn_file_actions_addclose(action, std_out_pipe_[1]);
+            posix_spawn_file_actions_addclose(action, std_err_pipe_[1]);
         } else {
             posix_spawn_file_actions_addopen(action, STDOUT_FILENO, "/dev/null", O_WRONLY, 0644);
             posix_spawn_file_actions_addopen(action, STDERR_FILENO, "/dev/null", O_WRONLY, 0644);
@@ -311,60 +304,60 @@ class PosixProcess : public ObservableProcess {
 
         pid_t pid;
         auto error_code =
-                posix_spawnp(&pid, cmdline[0].c_str(), action, mAttr, args.data(), environ);
+                posix_spawnp(&pid, cmdline[0].c_str(), action, attr_, args.data(), environ);
         if (error_code) {
             PLOG(ERROR) << "Unable to spawn process " << cmdline[0]
                         << " due to: " << strerror(error_code);
             return std::nullopt;
         }
 
-        if (captureOutput) {
-            close(mStdOutPipe[1]);
-            close(mStdErrPipe[1]);
+        if (capture_output) {
+            close(std_out_pipe_[1]);
+            close(std_err_pipe_[1]);
         }
 
         return pid;
     }
 
-    std::unique_ptr<ProcessOverseer> createOverseer() override {
-        return std::make_unique<PosixOverseer>(mStdOutPipe, mStdErrPipe);
+    std::unique_ptr<ProcessOverseer> CreateOverseer() override {
+        return std::make_unique<PosixOverseer>(std_out_pipe_, std_err_pipe_);
     }
 
   private:
-    mutable std::optional<ProcessExitCode> mProcessExit;
+    mutable std::optional<ProcessExitCode> process_exit_;
 
-    int mStdOutPipe[2];
-    int mStdErrPipe[2];
-    posix_spawn_file_actions_t* mActions{nullptr};
-    posix_spawnattr_t* mAttr{nullptr};
+    int std_out_pipe_[2];
+    int std_err_pipe_[2];
+    posix_spawn_file_actions_t* actions_{nullptr};
+    posix_spawnattr_t* attr_{nullptr};
 };
 
-Command::ProcessFactory Command::sProcessFactory = [](const CommandArguments& /* args */,
-                                                      bool deamon, bool inherit) {
-    return std::make_unique<PosixProcess>(deamon, inherit);
+Command::ProcessFactory Command::s_process_factory = [](const CommandArguments& /* args */,
+                                                        bool daemon, bool inherit) {
+    return std::make_unique<PosixProcess>(daemon, inherit);
 };
 
-std::unique_ptr<Process> Process::fromPid(Pid pid) {
+std::unique_ptr<Process> Process::FromPid(Pid pid) {
     return std::make_unique<PosixProcess>(pid);
 }
 
-std::unique_ptr<Process> Process::me() {
-    return fromPid(getpid());
+std::unique_ptr<Process> Process::Me() {
+    return FromPid(getpid());
 }
 
-std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
+std::vector<std::unique_ptr<Process>> Process::FromName(const std::string& name) {
     std::vector<std::unique_ptr<Process>> processes;
 
 #ifdef __APPLE__
     // Get list of all processes.
-    int pid_array_size_needed = proc_listallpids(nullptr, 0);
+    const size_t pid_array_size_needed = proc_listallpids(nullptr, 0);
     if (pid_array_size_needed <= 0) {
         return processes;
     }
 
     std::vector<pid_t> pid_array(pid_array_size_needed * 4);
-    int pid_count = proc_listallpids(pid_array.data(),
-                                     static_cast<int>(pid_array.size() * sizeof(pid_array[0])));
+    const int pid_count = proc_listallpids(
+            pid_array.data(), static_cast<int>(pid_array.size() * sizeof(pid_array[0])));
     if (pid_count <= 0) {
         return processes;
     }
@@ -377,15 +370,15 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
         char pname[PROC_PIDPATHINFO_MAXSIZE] = {0};
         proc_pidpath(pid, pname, sizeof(pname));
         if (strstr(pname, name.c_str())) {
-            processes.push_back(Process::fromPid(pid));
+            processes.push_back(Process::FromPid(pid));
         }
     }
 #else
-    for (const auto& entry : android::base::file::scan_dir("/proc", /*full_path=*/true)) {
+    for (const auto& entry : android::base::file::scan_dir("/proc", /*fullPath=*/true)) {
         int pid = 0;
         if (std::sscanf(entry.string().c_str(), "/proc/%d", &pid) == 1) {
-            if (read_proc_linux(pid).find(name) != std::string::npos) {
-                processes.push_back(Process::fromPid(pid));
+            if (ReadProcLinux(pid).find(name) != std::string::npos) {
+                processes.push_back(Process::FromPid(pid));
             }
         }
     }
@@ -394,5 +387,4 @@ std::vector<std::unique_ptr<Process>> Process::fromName(std::string name) {
     return processes;
 }
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

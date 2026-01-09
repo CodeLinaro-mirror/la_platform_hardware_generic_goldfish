@@ -50,14 +50,14 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
 }
 
 absl::Status createExt4Image(fs::path destination, StorageCapacity size, std::string mount_point) {
-    if (android::filesystems::android_createEmptyExt4Image(destination, size.bytes(),
+    if (android::filesystems::android_createEmptyExt4Image(destination, size.Bytes(),
                                                            mount_point.c_str()) == 0) {
         return absl::OkStatus();
     }
 
     return absl::InternalError(
             absl::StrFormat("Failed to create an empty Ext4 image in '%s' of size %d bytes",
-                            destination.string(), size.bytes()));
+                            destination.string(), size.Bytes()));
 }
 
 bool pathIsQcow2(fs::path path) {
@@ -91,17 +91,17 @@ absl::Status convertImgToQcow2(const fs::path& qemu_img_binary, fs::path ext4_im
 
     VLOG(1) << "Running: " << qemu_img_binary.string() << " convert -O qcow2 "
             << ext4_image.string() << " " << qcow2_image.string();
-    auto img_proc = base::Command::create({qemu_img_binary.string(), "convert", "-O", "qcow2",
+    auto img_proc = base::Command::Create({qemu_img_binary.string(), "convert", "-O", "qcow2",
                                            ext4_image.string(), qcow2_image.string()})
-                            .execute();
-    if (img_proc->wait_for(kQemuImgTimeout) == std::future_status::timeout) {
+                            .Execute();
+    if (img_proc->WaitFor(kQemuImgTimeout) == std::future_status::timeout) {
         return absl::DeadlineExceededError(
                 absl::StrFormat("Failed to convert %s to %s in %d seconds.", ext4_image.string(),
                                 qcow2_image.string(), kQemuImgTimeout.count()));
     }
-    if (img_proc->exitCode() != 0) {
+    if (img_proc->ExitCode() != 0) {
         return absl::InternalError(absl::StrCat(
-                "qemu-img reported qcow2 creation failed with exit code ", img_proc->exitCode(),
+                "qemu-img reported qcow2 creation failed with exit code ", img_proc->ExitCode(),
                 ": ", ext4_image.string(), " -> ", qcow2_image.string()));
     }
     if (!base::file::exists(qcow2_image)) {

@@ -18,78 +18,78 @@
 
 #include <algorithm>
 
-namespace android {
-namespace base {
+namespace android::base {
 
-Win32UnicodeString::Win32UnicodeString() : mStr(nullptr), mSize(0u) {}
+// NOLINTBEGIN
+Win32UnicodeString::Win32UnicodeString() : str_(nullptr), size_(0u) {}
 
-Win32UnicodeString::Win32UnicodeString(const char* str, size_t len) : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const char* str, size_t len) : str_(nullptr), size_(0u) {
     reset(str, strlen(str));
 }
 
-Win32UnicodeString::Win32UnicodeString(const char* str) : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const char* str) : str_(nullptr), size_(0u) {
     reset(str);
 }
 
-Win32UnicodeString::Win32UnicodeString(const std::string& str) : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const std::string& str) : str_(nullptr), size_(0u) {
     reset(str.c_str());
 }
 
-Win32UnicodeString::Win32UnicodeString(size_t size) : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(size_t size) : str_(nullptr), size_(0u) {
     resize(size);
 }
 
-Win32UnicodeString::Win32UnicodeString(const wchar_t* str) : mStr(nullptr), mSize(0u) {
+Win32UnicodeString::Win32UnicodeString(const wchar_t* str) : str_(nullptr), size_(0u) {
     size_t len = str ? wcslen(str) : 0u;
     resize(len);
-    ::memcpy(mStr, str ? str : L"", len * sizeof(wchar_t));
+    ::memcpy(str_, str ? str : L"", len * sizeof(wchar_t));
 }
 
-Win32UnicodeString::Win32UnicodeString(const Win32UnicodeString& other) : mStr(nullptr), mSize(0u) {
-    resize(other.mSize);
-    ::memcpy(mStr, other.c_str(), other.mSize * sizeof(wchar_t));
+Win32UnicodeString::Win32UnicodeString(const Win32UnicodeString& other) : str_(nullptr), size_(0u) {
+    resize(other.size_);
+    ::memcpy(str_, other.c_str(), other.size_ * sizeof(wchar_t));
 }
 
 Win32UnicodeString::~Win32UnicodeString() {
-    delete[] mStr;
+    delete[] str_;
 }
 
 Win32UnicodeString& Win32UnicodeString::operator=(const Win32UnicodeString& other) {
-    resize(other.mSize);
-    ::memcpy(mStr, other.c_str(), other.mSize * sizeof(wchar_t));
+    resize(other.size_);
+    ::memcpy(str_, other.c_str(), other.size_ * sizeof(wchar_t));
     return *this;
 }
 
 Win32UnicodeString& Win32UnicodeString::operator=(const wchar_t* str) {
     size_t len = str ? wcslen(str) : 0u;
     resize(len);
-    ::memcpy(mStr, str ? str : L"", len * sizeof(wchar_t));
+    ::memcpy(str_, str ? str : L"", len * sizeof(wchar_t));
     return *this;
 }
 
 wchar_t* Win32UnicodeString::data() {
-    if (!mStr) {
+    if (!str_) {
         // Ensure the function never returns NULL.
         // it is safe to const_cast the pointer here - user isn't allowed to
         // write into it anyway
         return const_cast<wchar_t*>(L"");
     }
-    return mStr;
+    return str_;
 }
 
 std::string Win32UnicodeString::toString() const {
-    return convertToUtf8(mStr, mSize);
+    return convertToUtf8(str_, size_);
 }
 
 void Win32UnicodeString::reset(const char* str, size_t len) {
-    if (mStr) {
-        delete[] mStr;
+    if (str_) {
+        delete[] str_;
     }
     const int utf16Len = calcUtf16BufferLength(str, len);
-    mStr = new wchar_t[utf16Len + 1];
-    mSize = static_cast<size_t>(utf16Len);
-    convertFromUtf8(mStr, utf16Len, str, len);
-    mStr[mSize] = L'\0';
+    str_ = new wchar_t[utf16Len + 1];
+    size_ = static_cast<size_t>(utf16Len);
+    convertFromUtf8(str_, utf16Len, str, len);
+    str_[size_] = L'\0';
 }
 
 void Win32UnicodeString::reset(const char* str) {
@@ -98,20 +98,20 @@ void Win32UnicodeString::reset(const char* str) {
 
 void Win32UnicodeString::resize(size_t newSize) {
     if (newSize == 0) {
-        delete[] mStr;
-        mStr = nullptr;
-        mSize = 0;
-    } else if (newSize <= mSize) {
-        mStr[newSize] = 0;
-        mSize = newSize;
+        delete[] str_;
+        str_ = nullptr;
+        size_ = 0;
+    } else if (newSize <= size_) {
+        str_[newSize] = 0;
+        size_ = newSize;
     } else {
-        wchar_t* oldStr = mStr;
-        mStr = new wchar_t[newSize + 1u];
-        size_t copySize = std::min<size_t>(newSize, mSize);
-        ::memcpy(mStr, oldStr ? oldStr : L"", copySize * sizeof(wchar_t));
-        mStr[copySize] = L'\0';
-        mStr[newSize] = L'\0';
-        mSize = newSize;
+        wchar_t* oldStr = str_;
+        str_ = new wchar_t[newSize + 1u];
+        size_t copySize = std::min<size_t>(newSize, size_);
+        ::memcpy(str_, oldStr ? oldStr : L"", copySize * sizeof(wchar_t));
+        str_[copySize] = L'\0';
+        str_[newSize] = L'\0';
+        size_ = newSize;
         delete[] oldStr;
     }
 }
@@ -128,7 +128,7 @@ void Win32UnicodeString::append(const wchar_t* str, size_t len) {
     }
     size_t oldSize = size();
     resize(oldSize + len);
-    memmove(mStr + oldSize, str, len * sizeof(wchar_t));
+    memmove(str_ + oldSize, str, len * sizeof(wchar_t));
 }
 
 void Win32UnicodeString::append(const Win32UnicodeString& other) {
@@ -136,9 +136,9 @@ void Win32UnicodeString::append(const Win32UnicodeString& other) {
 }
 
 wchar_t* Win32UnicodeString::release() {
-    wchar_t* result = mStr;
-    mStr = nullptr;
-    mSize = 0u;
+    wchar_t* result = str_;
+    str_ = nullptr;
+    size_ = 0u;
     return result;
 }
 
@@ -238,5 +238,6 @@ int Win32UnicodeString::convertFromUtf8(wchar_t* outStr, int outLen, const char*
     return convertRetVal(utf16Len);
 }
 
-}  // namespace base
-}  // namespace android
+// NOLINTEND
+
+}  // namespace android::base

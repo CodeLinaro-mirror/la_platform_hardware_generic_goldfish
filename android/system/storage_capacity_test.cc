@@ -24,11 +24,11 @@ using namespace android::base;
 
 TEST(StorageCapacityTest, ParseValidStrings) {
     // Test parsing valid storage capacity strings
-    absl::StatusOr<StorageCapacity> result = StorageCapacity::parse("1024");
-    absl::StatusOr<StorageCapacity> result_kb = StorageCapacity::parse("1024kb");
-    absl::StatusOr<StorageCapacity> result_mb = StorageCapacity::parse("2mb");
-    absl::StatusOr<StorageCapacity> result_gb = StorageCapacity::parse("4Gb");
-    absl::StatusOr<StorageCapacity> result_tb = StorageCapacity::parse("4Tb");
+    absl::StatusOr<StorageCapacity> result = StorageCapacity::Parse("1024");
+    absl::StatusOr<StorageCapacity> result_kb = StorageCapacity::Parse("1024kb");
+    absl::StatusOr<StorageCapacity> result_mb = StorageCapacity::Parse("2mb");
+    absl::StatusOr<StorageCapacity> result_gb = StorageCapacity::Parse("4Gb");
+    absl::StatusOr<StorageCapacity> result_tb = StorageCapacity::Parse("4Tb");
 
     ASSERT_TRUE(result.ok());
     ASSERT_TRUE(result_kb.ok());
@@ -36,11 +36,11 @@ TEST(StorageCapacityTest, ParseValidStrings) {
     ASSERT_TRUE(result_gb.ok());
     ASSERT_TRUE(result_tb.ok());
 
-    EXPECT_EQ(result.value().bytes(), 1024ULL);
-    EXPECT_EQ(result_kb.value().bytes(), 1024ULL * 1024ULL);
-    EXPECT_EQ(result_mb.value().bytes(), 2 * 1024ULL * 1024ULL);
-    EXPECT_EQ(result_gb.value().bytes(), 4 * 1024ULL * 1024ULL * 1024ULL);
-    EXPECT_EQ(result_tb.value().bytes(), 4 * 1024ULL * 1024ULL * 1024ULL * 1024ULL);
+    EXPECT_EQ(result.value().Bytes(), 1024ULL);
+    EXPECT_EQ(result_kb.value().Bytes(), 1024ULL * 1024ULL);
+    EXPECT_EQ(result_mb.value().Bytes(), 2 * 1024ULL * 1024ULL);
+    EXPECT_EQ(result_gb.value().Bytes(), 4 * 1024ULL * 1024ULL * 1024ULL);
+    EXPECT_EQ(result_tb.value().Bytes(), 4 * 1024ULL * 1024ULL * 1024ULL * 1024ULL);
 }
 
 TEST(StorageCapacityTest, ParseValidStringViewWithoutNullTerminate) {
@@ -48,15 +48,15 @@ TEST(StorageCapacityTest, ParseValidStringViewWithoutNullTerminate) {
     char str[] = {'8', 'k', 'b'};
 
     absl::StatusOr<StorageCapacity> result =
-            StorageCapacity::parse(std::string_view(str, sizeof(str)));
+            StorageCapacity::Parse(std::string_view(str, sizeof(str)));
 
     ASSERT_TRUE(result.ok());
-    EXPECT_EQ(result.value().bytes(), 8ULL * 1024ULL);
+    EXPECT_EQ(result.value().Bytes(), 8ULL * 1024ULL);
 }
 
 TEST(StorageCapacityTest, ParseInvalidStrings) {
     // Test parsing invalid storage capacity strings
-    absl::StatusOr<StorageCapacity> result_invalid = StorageCapacity::parse("invalid");
+    absl::StatusOr<StorageCapacity> result_invalid = StorageCapacity::Parse("invalid");
 
     ASSERT_FALSE(result_invalid.ok());
     EXPECT_EQ(result_invalid.status().code(), absl::StatusCode::kInvalidArgument);
@@ -65,28 +65,28 @@ TEST(StorageCapacityTest, ParseInvalidStrings) {
 // Test cases for the string() method
 TEST(StorageCapacityTest, StringRepresentation) {
     // Test cases with different storage capacities
-    EXPECT_EQ(StorageCapacity(1024).string(), "1.00 KiB");
-    EXPECT_EQ(StorageCapacity(1024 * 1024).string(), "1.00 MiB");
-    EXPECT_EQ(StorageCapacity(1024 * 1024 * 1024).string(), "1.00 GiB");
-    EXPECT_EQ(StorageCapacity(2048).string(), "2.00 KiB");
-    EXPECT_EQ(StorageCapacity(1, StorageCapacity::Unit::TiB).string(), "1.00 TiB");
+    EXPECT_EQ(StorageCapacity(1024).String(), "1.00 KiB");
+    EXPECT_EQ(StorageCapacity(1024 * 1024).String(), "1.00 MiB");
+    EXPECT_EQ(StorageCapacity(1024 * 1024 * 1024).String(), "1.00 GiB");
+    EXPECT_EQ(StorageCapacity(2048).String(), "2.00 KiB");
+    EXPECT_EQ(StorageCapacity(1, StorageCapacity::Unit::kTiB).String(), "1.00 TiB");
 }
 
 TEST(StorageCapacityTest, AlignMethod) {
     // Test cases with different alignments
     StorageCapacity capacity1(1500);
     StorageCapacity alignment1(1024);
-    EXPECT_EQ(capacity1.align(alignment1).bytes(),
+    EXPECT_EQ(capacity1.Align(alignment1).Bytes(),
               2048ULL);  // 1500 rounded up to the nearest 1024
 
     StorageCapacity capacity2(3000);
     StorageCapacity alignment2(2048);
-    EXPECT_EQ(capacity2.align(alignment2).bytes(),
+    EXPECT_EQ(capacity2.Align(alignment2).Bytes(),
               4096ULL);  // 3000 rounded up to the nearest 2048
 
     StorageCapacity capacity3(5000);
     StorageCapacity alignment3(4096);
-    EXPECT_EQ(capacity3.align(alignment3).bytes(),
+    EXPECT_EQ(capacity3.Align(alignment3).Bytes(),
               8192ULL);  // 5000 rounded up to the nearest 4096
 }
 
@@ -97,10 +97,10 @@ TEST(StorageCapacityTest, UserDefinedLiterals) {
     StorageCapacity y = 2_MiB;
     StorageCapacity z = 4_GiB;
 
-    EXPECT_EQ(a.bytes(), 8);
-    EXPECT_EQ(x.bytes(), 1024ULL * 1024ULL);
-    EXPECT_EQ(y.bytes(), 2ULL * 1024ULL * 1024ULL);
-    EXPECT_EQ(z.bytes(), 4ULL * 1024ULL * 1024ULL * 1024ULL);
+    EXPECT_EQ(a.Bytes(), 8);
+    EXPECT_EQ(x.Bytes(), 1024ULL * 1024ULL);
+    EXPECT_EQ(y.Bytes(), 2ULL * 1024ULL * 1024ULL);
+    EXPECT_EQ(z.Bytes(), 4ULL * 1024ULL * 1024ULL * 1024ULL);
 }
 
 TEST(StorageCapacityTest, ComparisonOperators) {
@@ -143,7 +143,7 @@ TEST(StorageCapacityTest, ComparisonOperators) {
 
 TEST(StorageCapacityTest, InvalidNumberErrorMessage) {
     // Test parsing invalid number error message
-    absl::StatusOr<StorageCapacity> result = StorageCapacity::parse("abc");
+    absl::StatusOr<StorageCapacity> result = StorageCapacity::Parse("abc");
 
     ASSERT_FALSE(result.ok());
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
@@ -152,7 +152,7 @@ TEST(StorageCapacityTest, InvalidNumberErrorMessage) {
 
 TEST(StorageCapacityTest, NegativeNumberErrorMessage) {
     // Test parsing invalid number error message
-    absl::StatusOr<StorageCapacity> result = StorageCapacity::parse("-20");
+    absl::StatusOr<StorageCapacity> result = StorageCapacity::Parse("-20");
 
     ASSERT_FALSE(result.ok());
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
@@ -162,7 +162,7 @@ TEST(StorageCapacityTest, NegativeNumberErrorMessage) {
 TEST(StorageCapacityTest, NumberOutOfRangeErrorMessage) {
     // Test parsing number out of range error message
     absl::StatusOr<StorageCapacity> result =
-            StorageCapacity::parse("99999999999999999999999999999999999999");
+            StorageCapacity::Parse("99999999999999999999999999999999999999");
 
     ASSERT_FALSE(result.ok());
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
@@ -172,7 +172,7 @@ TEST(StorageCapacityTest, NumberOutOfRangeErrorMessage) {
 
 TEST(StorageCapacityTest, UnknownLabelErrorMessage) {
     // Test parsing unknown label error message
-    absl::StatusOr<StorageCapacity> result = StorageCapacity::parse("123X");
+    absl::StatusOr<StorageCapacity> result = StorageCapacity::Parse("123X");
 
     ASSERT_FALSE(result.ok());
     EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
