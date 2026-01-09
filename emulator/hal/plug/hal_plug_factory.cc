@@ -37,14 +37,14 @@ PlugPtr HalPlugFactory::wrapHalPlug(SocketPtr qemuSocket, HalDeviceFactory halFa
             std::make_shared<MarshallingHalSocket>(std::move(qemuSocket), qemuLoop);
 
     // 3. Set the socket on the HalPlug using the friend class.
-    realHalPlug->establishConnection(std::move(marshallingSocket));
+    realHalPlug->EstablishConnection(std::move(marshallingSocket));
 
     // 4. Post the onConnect notification to the client thread.
     VLOG(1) << "Scheduling on connect for realHalPlug: " << *realHalPlug
             << ", clientLoop: " << clientLoop;
     clientLoop->Post([realHalPlug]() {
-        VLOG(1) << "Delivering onConnect to realHalPlug: " << realHalPlug;
-        realHalPlug->onConnect();
+        VLOG(1) << "Delivering OnConnect to realHalPlug: " << realHalPlug;
+        realHalPlug->OnConnect();
     });
 
     return std::make_shared<HalPlugToIPlugAdapter>(clientLoop, std::move(realHalPlug));
@@ -66,7 +66,7 @@ PlugPtr HalPlugFactory::connect(int port, HalDeviceFactory halFactory, EventLoop
     }
 
     auto marshallingSocket = std::make_shared<MarshallingHalSocket>(std::move(socket), qemuLoop);
-    realHalPlug->establishConnection(std::move(marshallingSocket));
+    realHalPlug->EstablishConnection(std::move(marshallingSocket));
     return plug;
 }
 

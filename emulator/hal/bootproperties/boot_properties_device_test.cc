@@ -128,9 +128,9 @@ class BootPropertiesDeviceTest : public ::testing::Test {
         device = registry.constructHalDevice<IBootPropertiesDevice>();
         test_socket = registry.halSocket();
         clear();
-        device->onConnect();
+        device->OnConnect();
     }
-    void receive(std::string_view msg) { device->onReceive(qemud::encodeQemudPacket(msg)); }
+    void receive(std::string_view msg) { device->OnReceive(qemud::encodeQemudPacket(msg)); }
     void clear() { test_socket->storage.clear(); }
 
   protected:

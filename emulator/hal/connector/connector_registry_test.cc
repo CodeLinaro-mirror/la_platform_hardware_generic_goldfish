@@ -88,14 +88,14 @@ struct TestSocket : public ISocket {
 struct TestHalDevice : public devices::HalPlug {
     using HalSocket = devices::HalSocket;
 
-    void onConnect() override { mConnectedPromise.set_value(true); }
-    void onClose() override { mClosedPromise.set_value(true); }
-    void onReceive(std::string_view data) override {}
+    void OnConnect() override { mConnectedPromise.set_value(true); }
+    void OnClose() override { mClosedPromise.set_value(true); }
+    void OnReceive(std::string_view data) override {}
 
     std::future<bool> connected() { return mConnectedPromise.get_future(); }
     std::future<bool> closed() { return mClosedPromise.get_future(); }
 
-    void close() { socket()->close(); }
+    void close() { Socket()->Close(); }
     static constexpr std::string_view serviceName = "TestHalDevice"sv;
 
   private:

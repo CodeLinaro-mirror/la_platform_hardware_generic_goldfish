@@ -38,7 +38,7 @@ class FingerprintDeviceTest : public ::testing::Test {
         device = registry.constructHalDevice<IFingerprintDevice>();
         test_socket = registry.halSocket();
         clear();
-        device->onConnect();
+        device->OnConnect();
     }
 
   public:

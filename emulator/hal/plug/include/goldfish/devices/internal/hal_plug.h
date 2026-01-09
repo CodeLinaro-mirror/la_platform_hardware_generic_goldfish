@@ -46,7 +46,7 @@ class HalSocket {
    * @note There are no guarantees that the data arrives in the guest.
    * @param data The message to send.
    */
-  virtual void send(std::string data) = 0;
+  virtual void Send(std::string data) = 0;
 
   /**
    * @brief Asynchronously closes the connection.
@@ -54,9 +54,9 @@ class HalSocket {
    * The implementation is responsible for marshalling this call to the
    * correct (QEMU) thread.
    */
-  virtual void close() = 0;
+  virtual void Close() = 0;
 
- protected:
+protected:
   /**
    * @brief Provides a string representation for logging and debugging.
    *
@@ -107,8 +107,8 @@ std::ostream& operator<<(std::ostream& os, const HalSocket& socket);
 namespace internal {
 // A non-functional socket implementation used as a safe null object.
 class NullHalSocket : public HalSocket {
-  void send(std::string data) override {}
-  void close() override {}
+    void Send(std::string data) override {}
+    void Close() override {}
 };
 }  // namespace internal
 
@@ -118,7 +118,7 @@ class NullHalSocket : public HalSocket {
  *
  * This class provides a robust, thread-safe abstraction for HALs that need to
  * communicate over a vsock connection. It guarantees that all its methods
- * (`onConnect`, `onReceive`, `onClose`) are invoked on the client-provided
+ * (`onConnect`, `onReceive`, `OnClose`) are invoked on the client-provided
  * event loop, freeing the developer from worrying about QEMU's threading model
  * or potential deadlocks.
  *
@@ -128,7 +128,7 @@ class NullHalSocket : public HalSocket {
  * `HalSocket`.
  *
  * **The pointer returned by `socket()` is only valid for use between the start
- * of the `onConnect()` callback and the start of the `onClose()` callback.**
+ * of the `onConnect()` callback and the start of the `OnClose()` callback.**
  *
  * ### Event Sequence
  *
@@ -143,13 +143,13 @@ class NullHalSocket : public HalSocket {
  * 2. **`onConnect()`**: Signals that the connection is fully established and
  *    two-way communication is possible. The `socket()` is **now valid**.
  * 3. **`onReceive()`**: Any number of subsequent data packets.
- * 4. **`onClose()`**: Signals that the connection has been terminated. The
+ * 4. **`OnClose()`**: Signals that the connection has been terminated. The
  *    `socket()` is **no longer valid** after this call begins.
  *
  * The framework enforces this:
  * - Before `onConnect()` is called, `socket()` will return a safe, non-functional
  *   "null" socket.
- * - After `onClose()` has been called, `socket()` will also return a "null"
+ * - After `OnClose()` has been called, `socket()` will also return a "null"
  *   socket.
  *
  * This design prevents crashes from use-after-free or null-pointer-dereference
@@ -160,8 +160,8 @@ class HalPlug {
   HalPlug() {
     // Start with a safe, non-functional socket. This prevents crashes if
     // the user incorrectly calls socket() before onConnect().
-    static auto nullSocket = std::make_shared<internal::NullHalSocket>();
-    mSocket = nullSocket;
+    static auto null_socket = std::make_shared<internal::NullHalSocket>();
+    socket_ = null_socket;
   }
 
   virtual ~HalPlug() = default;
@@ -177,7 +177,7 @@ class HalPlug {
    * have been called *before* this method. Any such data should be buffered
    * and processed here.
    */
-  virtual void onConnect() = 0;
+  virtual void OnConnect() = 0;
 
   /**
    * @brief Callback invoked when data is received from the guest.
@@ -190,7 +190,7 @@ class HalPlug {
    * for the duration of this function call. If the data needs to be
    * stored or used later, it must be copied.
    */
-  virtual void onReceive(std::string_view data) = 0;
+  virtual void OnReceive(std::string_view data) = 0;
 
   /**
    * @brief Callback invoked when the connection has been terminated by the guest.
@@ -206,19 +206,19 @@ class HalPlug {
    * @note Due to nature of concurrency it is possible that you wrote some bytes to a NullSocket
    * before you received the onClose callback.
    */
-  virtual void onClose() = 0;
+  virtual void OnClose() = 0;
 
- protected:
+protected:
   /**
    * @brief Provides access to the underlying `HalSocket`.
    *
    * @return A pointer to the `HalSocket` instance for this connection.
    * @warning This method adheres to the class invariant: the returned
-   * pointer is only functional between the `onConnect()` and `onClose()`
+   * pointer is only functional between the `onConnect()` and `OnClose()`
    * calls. At all other times, it will return a safe, non-functional
    * "null" socket.
    */
-  std::shared_ptr<HalSocket> socket() const { return mSocket; }
+  std::shared_ptr<HalSocket> Socket() const { return socket_; }
 
   /**
    * @brief Provides a string representation for logging and debugging.
@@ -230,7 +230,7 @@ class HalPlug {
    * @param s The `absl::FormatSink` to write the formatted string to.
    */
   virtual void AbslStringifyImpl(absl::FormatSink& s) const {
-    absl::Format(&s, "[HalPlug socket=%v]", *socket());
+      absl::Format(&s, "[HalPlug socket=%v]", *Socket());
   }
 
  private:
@@ -239,8 +239,8 @@ class HalPlug {
   friend class HalPlugTesting;
   friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
 
-  void establishConnection(std::shared_ptr<HalSocket> socket) { mSocket = std::move(socket); }
-  std::shared_ptr<HalSocket> mSocket;
+  void EstablishConnection(std::shared_ptr<HalSocket> socket) { socket_ = std::move(socket); }
+  std::shared_ptr<HalSocket> socket_;
 };
 
 /**
@@ -269,7 +269,7 @@ inline void AbslStringify(absl::FormatSink& s, const HalPlug& plug) { plug.AbslS
  * @param socket The `HalPlug` to format.
  * @return A reference to the output stream.
  */
-std::ostream& operator<<(std::ostream& os, const HalPlug& socket);
+std::ostream& operator<<(std::ostream& os, const HalPlug& plug);
 
 }  // namespace devices
 }  // namespace goldfish

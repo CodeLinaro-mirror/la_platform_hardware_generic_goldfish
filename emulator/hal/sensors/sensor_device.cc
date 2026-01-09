@@ -233,7 +233,7 @@ class SensorDevice : public ISensorDevice {
 
     ~SensorDevice() override {}
 
-    void onClose() override {
+    void OnClose() override {
         VLOG(1) << "Bye bye! Sensors shutting down";
         mTimer->Cancel();
 
@@ -243,7 +243,7 @@ class SensorDevice : public ISensorDevice {
         (void)mLoop->Post([this] { mSelf.reset(); });
     }
 
-    void onConnect() override {
+    void OnConnect() override {
         VLOG(1) << "Starting sensor ticks" << *this;
         this->mSelf = shared_from_this();
         // Note, the timer will be scheduled after the guest requests it.
@@ -253,7 +253,7 @@ class SensorDevice : public ISensorDevice {
     void send(std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
-        socket()->send(encoded);
+        Socket()->Send(encoded);
     }
 
     /*
@@ -303,7 +303,7 @@ class SensorDevice : public ISensorDevice {
      *   emulated system time (using the first sync: to compute an adjustment
      *   offset).
      */
-    void onReceive(std::string_view data) override {
+    void OnReceive(std::string_view data) override {
         mQemudParser.onReceive(data.data(), data.size());
     }
 
@@ -390,7 +390,7 @@ class SensorDevice : public ISensorDevice {
 
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
-        absl::Format(&s, "[SensorDevice socket=%v]", *socket());
+        absl::Format(&s, "[SensorDevice socket=%v]", *Socket());
     }
 
   private:

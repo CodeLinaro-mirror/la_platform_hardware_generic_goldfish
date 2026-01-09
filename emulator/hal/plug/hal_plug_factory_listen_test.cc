@@ -54,10 +54,10 @@ class TestHalPlug : public HalPlug {
     TestHalPlug() = default;
     ~TestHalPlug() override = default;
 
-    void onConnect() override { mOnConnectCalled = true; }
+    void OnConnect() override { mOnConnectCalled = true; }
     bool onConnectCalled() const { return mOnConnectCalled; }
-    void onReceive(std::string_view data) override {}
-    void onClose() override {}
+    void OnReceive(std::string_view data) override {}
+    void OnClose() override {}
 
   private:
     bool mOnConnectCalled = false;

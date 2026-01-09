@@ -27,10 +27,10 @@ namespace devices {
  */
 class HalPlugTesting {
   public:
-    static void establishConnection(HalPlug* plug, std::shared_ptr<HalSocket> socket) {
+    static void EstablishConnection(HalPlug* plug, std::shared_ptr<HalSocket> socket) {
         // Because this class is a friend of HalPlug, it is allowed to call
         // the private establishConnection method.
-        plug->establishConnection(std::move(socket));
+        plug->EstablishConnection(std::move(socket));
     }
 };
 

@@ -117,14 +117,14 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     void onSocketReadCallback(std::string_view data, absl::Status status) {
         if (!status.ok()) {
             LOG(WARNING) << "Host (" << *mHostSocket << ") read failure, due to: " << status;
-            socket()->close();
+            Socket()->Close();
             return;
         }
 
         if (mGuestConnected) {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") forwarding: (" << data.size() << ") "
                              << data;
-            socket()->send(std::string(data));
+            Socket()->Send(std::string(data));
         } else {
             VLOG(VLOG_TRACE) << "Host (" << *mHostSocket << ") storing: (" << data.size() << ") "
                              << data;
@@ -135,30 +135,30 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
     void onSocketCloseCallback() {
         VLOG(1) << "Host (" << *mHostSocket
                 << ") closed, closing vsock, ref: " << mSelf.use_count();
-        socket()->close();
+        Socket()->Close();
 
         // Okay, we are ready to be deleted.
         mSelf.reset();
     }
 
-    void onConnect() override {
+    void OnConnect() override {
         VLOG(1) << "Guest (vsock) connected";
         mGuestConnected = true;
         if (!mHostBuffer.empty()) {
             /// @note we are on the client loop, so no-one is touching mHostBuffer.
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
-            (void)socket()->send(std::move(mHostBuffer));
+            (void)Socket()->Send(std::move(mHostBuffer));
             assert(mHostBuffer.empty());
         }
     }
 
-    void onReceive(std::string_view data) override {
+    void OnReceive(std::string_view data) override {
         VLOG(VLOG_TRACE) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
         (void)mHostSocket->Send(data.data(), data.size());
     }
 
-    void onClose() override {
+    void OnClose() override {
         VLOG(1) << "Guest (vsock) closed, closing: " << *mHostSocket;
         mHostSocket->Close();
     }
@@ -169,7 +169,7 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
-        absl::Format(&s, "[HostToGuestConnection guest:%v, host:%v]", *socket(), *mHostSocket);
+        absl::Format(&s, "[HostToGuestConnection guest:%v, host:%v]", *Socket(), *mHostSocket);
     }
 
   private:

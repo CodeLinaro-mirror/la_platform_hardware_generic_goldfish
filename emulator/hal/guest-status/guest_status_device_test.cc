@@ -64,8 +64,8 @@ class GuestStatusDeviceTest : public ::testing::Test {
     void receive(const std::string_view msg) {
         char sizeBuf[sizeof(uint32_t)];
         absl::little_endian::Store32(sizeBuf, msg.size());
-        device->onReceive(std::string_view(sizeBuf, sizeof(sizeBuf)));
-        device->onReceive(msg);
+        device->OnReceive(std::string_view(sizeBuf, sizeof(sizeBuf)));
+        device->OnReceive(msg);
     }
     void clear() { test_socket->storage.clear(); }
 
