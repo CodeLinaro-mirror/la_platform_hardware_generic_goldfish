@@ -108,7 +108,7 @@ AvdExtendedUniverse& getAvdImpl() {
 
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
         : mProps(std::move(props)), mSensorsPhysicalModel(mProps->hw_config) {
-    mGuestStatus.reset.setValue(
+    mGuestStatus.reset.SetValue(
             absl::UnixEpoch() +
             absl::Milliseconds(android::base::System::get()->getProcessTimes().wallClockMs));
 }

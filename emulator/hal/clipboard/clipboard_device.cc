@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/strings/numbers.h"
 
 namespace goldfish::devices::clipboard {
 
@@ -32,7 +31,8 @@ using ClipboardDataUpdateSubscription = std::unique_ptr<
 
 class ClipboardDevice : public IClipboardDevice {
   public:
-    ClipboardDevice(ClipboardChannel* clipboardChannel) : mClipboardChannel(*clipboardChannel) {
+    explicit ClipboardDevice(ClipboardChannel* clipboard_channel)
+            : clipboard_channel_(*clipboard_channel) {
         VLOG(1) << "Clipboard device has been created";
     }
 
@@ -40,29 +40,29 @@ class ClipboardDevice : public IClipboardDevice {
     void OnClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
 
     void OnReceive(const std::string_view data) override {
-        mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
+        receive_data_.insert(receive_data_.end(), data.begin(), data.end());
 
         while (true) {
-            if (mReceiveData.size() < sizeof(uint32_t)) {
+            if (receive_data_.size() < sizeof(uint32_t)) {
                 return;
             }
 
-            const uint32_t dataSize = absl::little_endian::Load32(mReceiveData.data());
-            if (mReceiveData.size() < (sizeof(uint32_t) + dataSize)) {
+            const uint32_t data_size = absl::little_endian::Load32(receive_data_.data());
+            if (receive_data_.size() < (sizeof(uint32_t) + data_size)) {
                 return;
             }
 
-            ClipboardData clipboardData;
-            clipboardData.contents = std::string(&mReceiveData[sizeof(uint32_t)], dataSize);
-            mReceiveData.erase(mReceiveData.begin(),
-                               mReceiveData.begin() + sizeof(uint32_t) + dataSize);
+            ClipboardData clipboard_data;
+            clipboard_data.contents = std::string(&receive_data_[sizeof(uint32_t)], data_size);
+            receive_data_.erase(receive_data_.begin(),
+                                receive_data_.begin() + sizeof(uint32_t) + data_size);
 
-            VLOG(1) << "Clipboard update from guest to (" << dataSize << "):" << clipboardData;
-            mClipboardChannel.guestToHost.setValue(std::move(clipboardData));
+            VLOG(1) << "Clipboard update from guest to (" << data_size << "):" << clipboard_data;
+            clipboard_channel_.guest_to_host.SetValue(std::move(clipboard_data));
         }
     }
 
-    void setContents(const ClipboardData& clip) {
+    void SetContents(const ClipboardData& clip) {
         const uint32_t size = clip.contents.size();
         VLOG(1) << "Clipboard update from host to (" << size << "):" << clip.contents;
 
@@ -73,34 +73,34 @@ class ClipboardDevice : public IClipboardDevice {
         Socket()->Send(clip.contents);
     }
 
-    void setClipboardChangeSubscription(ClipboardDataUpdateSubscription subscription) {
-        mClipboardDataUpdateSubscription = std::move(subscription);
+    void SetClipboardChangeSubscription(ClipboardDataUpdateSubscription subscription) {
+        clipboard_data_update_subscription_ = std::move(subscription);
     }
 
   private:
-    std::vector<char> mReceiveData;
-    ClipboardChannel& mClipboardChannel;
-    ClipboardDataUpdateSubscription mClipboardDataUpdateSubscription;
+    std::vector<char> receive_data_;
+    ClipboardChannel& clipboard_channel_;
+    ClipboardDataUpdateSubscription clipboard_data_update_subscription_;
 };
 
 void IClipboardDevice::RegisterDevice(avd_universe::clipboard::ClipboardChannel* channel,
                                       IConnectorRegistry* registry, EventLoop* client_loop,
                                       EventLoop* qemu_loop) {
     registry->RegisterHalDevice(
-            std::string(ClipboardDevice::serviceName), client_loop, qemu_loop,
+            std::string(ClipboardDevice::kServiceName), client_loop, qemu_loop,
             [channel](std::string_view /*args*/) {
                 auto dev = std::make_shared<ClipboardDevice>(channel);
-                std::weak_ptr<ClipboardDevice> weakDev = dev;
+                std::weak_ptr<ClipboardDevice> weak_dev = dev;
 
-                auto clipboardChangeSubscription = makeScopedCallback(
-                        channel->hostToGuest,
-                        [weakDev = std::move(weakDev)](const ClipboardData& clip) {
-                            if (const auto dev = weakDev.lock()) {
-                                dev->setContents(clip);
+                auto change_subscription = makeScopedCallback(
+                        channel->host_to_guest,
+                        [weak_dev = std::move(weak_dev)](const ClipboardData& clip) {
+                            if (const auto dev = weak_dev.lock()) {
+                                dev->SetContents(clip);
                             }
                         });
 
-                dev->setClipboardChangeSubscription(std::move(clipboardChangeSubscription));
+                dev->SetClipboardChangeSubscription(std::move(change_subscription));
 
                 return dev;
             });

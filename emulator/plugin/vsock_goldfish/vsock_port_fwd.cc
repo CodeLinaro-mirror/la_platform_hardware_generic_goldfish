@@ -271,7 +271,7 @@ class VSockProxyImpl : public VSockProxy {
         return true;
     }
 
-    bool isBootCompleted() const { return mBootcompleteTime.getValue() != absl::UnixEpoch(); }
+    bool isBootCompleted() const { return mBootcompleteTime.GetValue() != absl::UnixEpoch(); }
 
     /// The vsock device definition
     const Endpoint mHostEndpoint;

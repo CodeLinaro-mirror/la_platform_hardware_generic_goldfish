@@ -63,11 +63,11 @@ TEST_F(ClipboardDeviceTest, canCreateDevice) {
 
 TEST_F(ClipboardDeviceTest, receiveClipboardDataFiresAnEvent) {
     sendGuestToHost("guestToHost");
-    EXPECT_THAT(mClipboardChannel.guestToHost.getValue().contents, "guestToHost");
+    EXPECT_THAT(mClipboardChannel.guest_to_host.GetValue().contents, "guestToHost");
 }
 
 TEST_F(ClipboardDeviceTest, canSendClipboardData) {
-    mClipboardChannel.hostToGuest.setValue({.contents = "hostToGuest"});
+    mClipboardChannel.host_to_guest.SetValue({.contents = "hostToGuest"});
     EXPECT_THAT(test_socket->storage, HasSubstr("hostToGuest"));
 }
 

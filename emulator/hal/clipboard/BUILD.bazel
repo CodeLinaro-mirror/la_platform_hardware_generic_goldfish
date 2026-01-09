@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
@@ -33,4 +34,12 @@ cc_test(
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":clipboard",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

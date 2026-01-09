@@ -59,12 +59,12 @@ TEST_F(FingerprintDeviceTest, canCreateDevice) {
 }
 
 TEST_F(FingerprintDeviceTest, canTouch) {
-    mTouchSensor.setValue(42);
+    mTouchSensor.SetValue(42);
     EXPECT_THAT(test_socket->storage, Eq("0005on:42"));
 }
 
 TEST_F(FingerprintDeviceTest, canRelease) {
-    mTouchSensor.setValue(avd_universe::fingerprint::kReleaseEvent);
+    mTouchSensor.SetValue(avd_universe::fingerprint::kReleaseEvent);
     EXPECT_THAT(test_socket->storage, Eq("0003off"));
 }
 

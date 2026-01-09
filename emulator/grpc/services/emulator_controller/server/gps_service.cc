@@ -48,12 +48,12 @@ GpsState locationToProto(const Location& location) {
 }  // namespace
 
 Status GpsServiceImpl::setGps(const GpsState& request) {
-    mObservableLocation.setValue(protoToLocation(request));
+    mObservableLocation.SetValue(protoToLocation(request));
     return Status::OK;
 }
 
 Status GpsServiceImpl::getGps(GpsState* reply) {
-    *reply = locationToProto(mObservableLocation.getValue());
+    *reply = locationToProto(mObservableLocation.GetValue());
     return Status::OK;
 }
 
