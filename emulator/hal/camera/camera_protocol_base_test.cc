@@ -29,16 +29,16 @@ using goldfish::devices::cable::SocketPtr;
 
 namespace {
 struct TestSocket : public ISocket {
-    void sendAsync(const void* data, size_t size) override {}
+    void SendAsync(const void* data, size_t size) override {}
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
+    bool send(const std::string_view data) { return plug->OnReceive(data.data(), data.size()); }
 
     PlugPtr plug;
 };
@@ -63,9 +63,9 @@ TEST(CameraProtocolBase, processQuery) {
     testSocket.plug = plug;
 
     static const char catVideos[] = "cat videos";
-    EXPECT_TRUE(testSocket.plug->onReceive(catVideos, sizeof(catVideos)));
+    EXPECT_TRUE(testSocket.plug->OnReceive(catVideos, sizeof(catVideos)));
     EXPECT_EQ(plug->mQuery, "cat"s);
     EXPECT_EQ(plug->mParams, "videos"s);
 
-    testSocket.plug->onUnplug();
+    testSocket.plug->OnUnplug();
 }

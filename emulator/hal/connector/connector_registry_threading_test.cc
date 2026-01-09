@@ -69,13 +69,13 @@ class MockHalPlug : public HalPlug {
 // A mock socket to simulate the QEMU side of the connection.
 class MockSocket : public cable::ISocket {
   public:
-    MOCK_METHOD(cable::PlugPtr, unplugImpl, (), (override));
-    MOCK_METHOD(void, sendAsync, (const void* data, size_t size), (override));
+    MOCK_METHOD(cable::PlugPtr, UnplugImpl, (), (override));
+    MOCK_METHOD(void, SendAsync, (const void* data, size_t size), (override));
 
     // Simulates sending data from the QEMU side to the client.
-    void send(std::string_view data) { plug->onReceive(data.data(), data.size()); }
+    void send(std::string_view data) { plug->OnReceive(data.data(), data.size()); }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return plug;
     }
@@ -147,13 +147,13 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         receiveAssertion.notify();
     }));
 
-    EXPECT_CALL(testSocket, sendAsync(_, kWorldFromClient.size()))
+    EXPECT_CALL(testSocket, SendAsync(_, kWorldFromClient.size()))
             .WillOnce(Invoke([&](const void* data, size_t size) {
                 EXPECT_EQ(std::string_view(static_cast<const char*>(data), size), kWorldFromClient);
                 sendAsyncAssertion.notify();
             }));
 
-    EXPECT_CALL(testSocket, unplugImpl()).Times(1);
+    EXPECT_CALL(testSocket, UnplugImpl()).Times(1);
     EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
         EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         closeAssertion.notify();
@@ -184,7 +184,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         // In our case we have no arguments. So the first call our DevicePlug will
         // get is the empty string.
         auto connectionString = absl::StrFormat("pipe:%s:args\0", kDeviceName);
-        connectorPlug->onReceive(connectionString.data(), connectionString.size() + 1);
+        connectorPlug->OnReceive(connectionString.data(), connectionString.size() + 1);
 
         // Assert: Verify onConnect was called on the client thread.
         ASSERT_TRUE(connectAssertion.wait());
@@ -216,7 +216,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         // Act: Unplug the connection from the QEMU loop.
         (void)mQemuLoop->Post([&] {
             VLOG(1) << "Going to unplug the adapter";
-            testSocket.plug->onUnplug();
+            testSocket.plug->OnUnplug();
         });
 
         // Assert: Verify onClose was called on the client thread.

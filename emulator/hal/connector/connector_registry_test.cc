@@ -45,21 +45,21 @@ struct TestDevice : public IPlug {
 
     static constexpr std::string_view serviceName = "TestDevice"sv;
 
-    SocketPtr onUnplug() override { return std::move(mSocket); }
+    SocketPtr OnUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void* data, size_t size) override {
+    bool OnReceive(const void* data, size_t size) override {
         mData.append(static_cast<const char*>(data), size);
         return true;
     }
 
-    bool supportsLoadingFromSnapshot() const override { return true; }
+    bool SupportsLoadingFromSnapshot() const override { return true; }
 
-    TypeId getSnapshotTypeId() const override {
+    TypeId GetSnapshotTypeId() const override {
         using namespace std::string_literals;
         return "TestDevice"s;
     }
 
-    bool saveStateToSnapshot(archive::IWriter& writer) const override {
+    bool SaveStateToSnapshot(archive::IWriter& writer) const override {
         writer << mIsQemud << mArgs << mData;
         return true;
     }
@@ -71,16 +71,16 @@ struct TestDevice : public IPlug {
 };
 
 struct TestSocket : public ISocket {
-    void sendAsync(const void* data, size_t size) override {}
+    void SendAsync(const void* data, size_t size) override {}
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
+    bool send(const std::string_view data) { return plug->OnReceive(data.data(), data.size()); }
 
     PlugPtr plug;
 };
@@ -287,7 +287,7 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
 
     // Now we unplug, lest we get into weird states where
     // cleanup happens at the wrong time
-    gTestSocket->plug->onUnplug();
+    gTestSocket->plug->OnUnplug();
     closed_future.wait_for(100ms);
     EXPECT_TRUE(closed_future.get());
 
@@ -326,7 +326,7 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
 
     // Now we unplug, lest we get into weird states where
     // cleanup happens at the wrong time
-    gTestSocket->plug->onUnplug();
+    gTestSocket->plug->OnUnplug();
     closed_future.wait_for(100ms);
     EXPECT_TRUE(closed_future.get());
 

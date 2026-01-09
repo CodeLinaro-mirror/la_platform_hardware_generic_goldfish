@@ -16,54 +16,53 @@
 
 #include "goldfish/devices/cable/saveload.h"
 
-namespace goldfish {
-namespace devices {
-namespace cable {
+namespace goldfish::devices::cable {
 namespace {
 using PlugLoadersMap = std::unordered_map<IPlug::TypeId, PlugLoader>;
 
 /* We can't rely on the initialization order of global variables.
  * See Meyers' Singleton.
  */
-PlugLoadersMap& getLoaders() {
+PlugLoadersMap& GetLoaders() {
     static PlugLoadersMap instance;
     return instance;
 }
 }  // namespace
 
-void ISocket::setOnFlowControlEvent(ISocket::OnFlowControlEvent) {
+void ISocket::SetOnFlowControlEvent(ISocket::OnFlowControlEvent) {  // NOLINT
     // Do nothing. Or maybe log that flow control is not supported here.
 }
 
-bool registerPlugLoader(IPlug::TypeId typeId, PlugLoader loader) {
-    return getLoaders().insert({std::move(typeId), std::move(loader)}).second;
+bool RegisterPlugLoader(IPlug::TypeId type_id, PlugLoader loader) {
+    return GetLoaders().insert({std::move(type_id), std::move(loader)}).second;
 }
 
 using archive::IWriter;
 
-bool savePlugToSnapshot(const IPlug& plug, IWriter& writer) {
-    if (!plug.supportsLoadingFromSnapshot()) {
+bool SavePlugToSnapshot(const IPlug& plug, IWriter& writer) {
+    if (!plug.SupportsLoadingFromSnapshot()) {
         return false;
     }
 
-    const std::string id = plug.getSnapshotTypeId();
+    const std::string id = plug.GetSnapshotTypeId();
     if (id.empty()) {
         return false;
     }
 
     writer << id;
-    return plug.saveStateToSnapshot(writer);
+    return plug.SaveStateToSnapshot(writer);
 }
 
 using archive::IReader;
 
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
+// NOLINTNEXTLINE
+PlugOrSocket LoadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
     const std::string id = GetString(reader);
     if (id.empty()) {
         return socket;
     }
 
-    const auto& loaders = getLoaders();
+    const auto& loaders = GetLoaders();
     const auto i = loaders.find(id);
     if (i == loaders.end()) {
         return socket;
@@ -71,7 +70,4 @@ PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, IReader& reader) {
 
     return (i->second)(std::move(socket), reader);
 }
-
-}  // namespace cable
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::cable

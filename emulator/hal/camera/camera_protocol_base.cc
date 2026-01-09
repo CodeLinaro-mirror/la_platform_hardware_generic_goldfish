@@ -37,9 +37,9 @@ void CameraProtocolBase::sendResponse(const bool okko, const void* response,
         ::snprintf(prefix, sizeof(prefix), "%08zx%s", responseSize + 3, (okko ? "ok" : "ko"));
         prefix[sizeof(prefix) - 1] = responseSize ? ':' : 0;
 
-        mSocket->sendAsync(prefix, sizeof(prefix));
+        mSocket->SendAsync(prefix, sizeof(prefix));
         if (responseSize) {
-            mSocket->sendAsync(response, responseSize);
+            mSocket->SendAsync(response, responseSize);
         }
     }
 }
@@ -51,12 +51,12 @@ void CameraProtocolBase::sendResponse(const bool okko, const std::string_view re
     sendResponse(okko, response.data(), response.size());
 }
 
-SocketPtr CameraProtocolBase::onUnplug() {
+SocketPtr CameraProtocolBase::OnUnplug() {
     std::lock_guard<std::mutex> lock(mSocketMtx);
     return std::move(mSocket);
 }
 
-bool CameraProtocolBase::onReceive(const void* data, size_t size) {
+bool CameraProtocolBase::OnReceive(const void* data, size_t size) {
     mQueryParser.recv(data, size,
                       [this](const std::string_view query, const std::string_view params) {
                           if (!processQuery(std::move(query), std::move(params))) {

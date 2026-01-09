@@ -41,19 +41,19 @@ using namespace std::chrono_literals;
 class TestSocket : public ISocket {
   public:
     TestSocket(PlugPtr p) : plug(std::move(p)) {}
-    void sendAsync(const void* const data, const size_t size) override {
+    void SendAsync(const void* const data, const size_t size) override {
         const uint8_t* const data8 = static_cast<const uint8_t*>(data);
         storage.insert(storage.end(), data8, data8 + size);
     }
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return {}; }
+    PlugPtr UnplugImpl() override { return {}; }
 
-    void fakeConnected() { plug->onConnect(); }
+    void fakeConnected() { plug->OnConnect(); }
 
   private:
     std::vector<uint8_t> storage;
@@ -61,11 +61,11 @@ class TestSocket : public ISocket {
 };
 
 class NullPlug : public IPlug {
-    void onConnect() override {}
+    void OnConnect() override {}
 
-    bool onReceive(const void* data, size_t size) override { return true; };
+    bool OnReceive(const void* data, size_t size) override { return true; };
 
-    SocketPtr onUnplug() override { return nullptr; };
+    SocketPtr OnUnplug() override { return nullptr; };
 };
 
 SocketPtr fakeConnection(async::EventLoop* eventLoop, PlugPtr plug) {

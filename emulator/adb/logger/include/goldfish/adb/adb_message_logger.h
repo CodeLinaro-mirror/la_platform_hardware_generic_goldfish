@@ -54,8 +54,8 @@ class AdbLogger : public goldfish::devices::cable::IDataSniffer {
     AdbLogger(int hostPort, int guestPort);
     ~AdbLogger() = default;
 
-    void toSocket(const void* data, size_t dataSize) override;
-    void toPlug(const void* data, size_t dataSize) override;
+    void ToSocket(const void* data, size_t dataSize) override;
+    void ToPlug(const void* data, size_t dataSize) override;
 
   private:
     AdbMessageLogger mToGuest;

@@ -20,9 +20,9 @@ namespace cable {
 struct ErrorPlug : public IPlug {
     ErrorPlug(cable::SocketPtr socket) : mSocket(std::move(socket)) {}
 
-    cable::SocketPtr onUnplug() override { return std::move(mSocket); }
+    cable::SocketPtr OnUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void*, size_t) override { return false; }
+    bool OnReceive(const void*, size_t) override { return false; }
 
     cable::SocketPtr mSocket;
 };

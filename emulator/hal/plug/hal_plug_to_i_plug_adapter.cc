@@ -36,13 +36,13 @@ HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
             << ", use_count: " << mHalPlug.use_count();
 }
 
-void HalPlugToIPlugAdapter::onConnect() {
+void HalPlugToIPlugAdapter::OnConnect() {
     // Let's inform the client of the new connection.
     VLOG(1) << "Scheduling onConnect for mHalPlug: " << *mHalPlug;
     mClientLoop->Post([plug = mHalPlug]() { plug->onConnect(); });
 }
 
-bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
+bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     // This is called on the QEMU thread.
     // We post the data to the client loop for the real HalPlug to handle.
     // We return true immediately, preventing the QEMU thread from blocking.
@@ -56,7 +56,7 @@ bool HalPlugToIPlugAdapter::onReceive(const void* data, size_t size) {
     return true;
 }
 
-cable::SocketPtr HalPlugToIPlugAdapter::onUnplug() {
+cable::SocketPtr HalPlugToIPlugAdapter::OnUnplug() {
     // This is called on the QEMU thread when the guest disconnects.
     // We must fulfill the IPlug contract by returning the SocketPtr.
     //

@@ -60,9 +60,9 @@ PlugPtr HalPlugFactory::connect(int port, HalDeviceFactory halFactory, EventLoop
     if (!socket) {
         return nullptr;
     }
-    socket->setOnFlowControlEvent(std::move(onFlowControlEvent));
+    socket->SetOnFlowControlEvent(std::move(onFlowControlEvent));
     if (dataSnifferFactory) {
-        socket->setDataSniffer(dataSnifferFactory());
+        socket->SetDataSniffer(dataSnifferFactory());
     }
 
     auto marshallingSocket = std::make_shared<MarshallingHalSocket>(std::move(socket), qemuLoop);

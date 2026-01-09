@@ -134,10 +134,10 @@ AdbLogger::AdbLogger(int hostPort, int guestPort)
         : mToGuest(AdbMessageLogger(absl::StrFormat(">> (%d) ", guestPort)))
         , mToHost(AdbMessageLogger(absl::StrFormat("<< (%d) ", hostPort))) {}
 
-void AdbLogger::toSocket(const void* data, size_t dataSize) {
+void AdbLogger::ToSocket(const void* data, size_t dataSize) {
     mToGuest.observe(data, dataSize);
 }
-void AdbLogger::toPlug(const void* data, size_t dataSize) {
+void AdbLogger::ToPlug(const void* data, size_t dataSize) {
     mToHost.observe(data, dataSize);
 }
 

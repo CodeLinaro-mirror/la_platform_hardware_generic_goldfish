@@ -25,16 +25,16 @@ using cable::SocketPtr;
 
 namespace {
 struct TestSocket : public cable::ISocket {
-    void sendAsync(const void* data, size_t size) override {}
+    void SendAsync(const void* data, size_t size) override {}
 
-    PlugPtr switchPlug(PlugPtr newPlug) override {
+    PlugPtr SwitchPlug(PlugPtr newPlug) override {
         plug.swap(newPlug);
         return newPlug;
     }
 
-    PlugPtr unplugImpl() override { return std::move(plug); }
+    PlugPtr UnplugImpl() override { return std::move(plug); }
 
-    bool send(const std::string_view data) { return plug->onReceive(data.data(), data.size()); }
+    bool send(const std::string_view data) { return plug->OnReceive(data.data(), data.size()); }
 
     PlugPtr plug;
 };
@@ -45,21 +45,21 @@ struct TestDevice : public cable::IPlug {
             , mIsQemud(isQemud)
             , mArgs(std::string(args.begin(), args.end())) {}
 
-    cable::SocketPtr onUnplug() override { return std::move(mSocket); }
+    cable::SocketPtr OnUnplug() override { return std::move(mSocket); }
 
-    bool onReceive(const void* data, size_t size) override {
+    bool OnReceive(const void* data, size_t size) override {
         mData.append(static_cast<const char*>(data), size);
         return true;
     }
 
-    bool supportsLoadingFromSnapshot() const override { return true; }
+    bool SupportsLoadingFromSnapshot() const override { return true; }
 
-    TypeId getSnapshotTypeId() const override {
+    TypeId GetSnapshotTypeId() const override {
         using namespace std::string_literals;
         return "TestDevice"s;
     }
 
-    bool saveStateToSnapshot(archive::IWriter& writer) const override {
+    bool SaveStateToSnapshot(archive::IWriter& writer) const override {
         writer << mIsQemud << mArgs << mData;
         return true;
     }
@@ -98,8 +98,8 @@ TEST(Connector, incomplete_request) {
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("incom"sv));
         EXPECT_TRUE(testSocket.send("plete"sv));
-        EXPECT_TRUE(savePlugToSnapshot(*testSocket.plug, archive));
-        testSocket.plug->onUnplug();
+        EXPECT_TRUE(SavePlugToSnapshot(*testSocket.plug, archive));
+        testSocket.plug->OnUnplug();
     }
 
     EXPECT_EQ(GetString(archive), "Connector");
@@ -117,8 +117,8 @@ TEST(Connector, bad_request) {
                                                   kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("bad\0"sv));
     EXPECT_FALSE(testSocket.send("pipe:TestDevice:correct but ignored\0"sv));
-    EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
-    testSocket.plug->onUnplug();
+    EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
+    testSocket.plug->OnUnplug();
 
     EXPECT_TRUE(archive.Empty());
 }
@@ -134,8 +134,8 @@ TEST(Connector, unknown_device) {
                                                   kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
-    EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
-    testSocket.plug->onUnplug();
+    EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
+    testSocket.plug->OnUnplug();
 
     EXPECT_TRUE(archive.Empty());
 }
@@ -151,8 +151,8 @@ TEST(Connector, unknown_qemud_device) {
                                                   kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:qemud:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
-    EXPECT_FALSE(savePlugToSnapshot(*testSocket.plug, archive));
-    testSocket.plug->onUnplug();
+    EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
+    testSocket.plug->OnUnplug();
 
     EXPECT_TRUE(archive.Empty());
 }
@@ -173,8 +173,8 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
-        EXPECT_TRUE(savePlugToSnapshot(*testSocket.plug, archive));
-        testSocket.plug->onUnplug();
+        EXPECT_TRUE(SavePlugToSnapshot(*testSocket.plug, archive));
+        testSocket.plug->OnUnplug();
     }
 
     EXPECT_EQ(GetString(archive), "TestDevice");  // type
@@ -199,8 +199,8 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));
-        EXPECT_TRUE(savePlugToSnapshot(*testSocket.plug, archive));
-        testSocket.plug->onUnplug();
+        EXPECT_TRUE(SavePlugToSnapshot(*testSocket.plug, archive));
+        testSocket.plug->OnUnplug();
     }
 
     EXPECT_EQ(GetString(archive), "TestDevice");  // type
@@ -225,8 +225,8 @@ TEST(Connector, TestDevice_args_unconsumed) {
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
-        EXPECT_TRUE(savePlugToSnapshot(*testSocket.plug, archive));
-        testSocket.plug->onUnplug();
+        EXPECT_TRUE(SavePlugToSnapshot(*testSocket.plug, archive));
+        testSocket.plug->OnUnplug();
     }
 
     EXPECT_EQ(GetString(archive), "TestDevice");  // type
@@ -251,8 +251,8 @@ TEST(Connector, TestDevice_unconsumed) {
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));
-        EXPECT_TRUE(savePlugToSnapshot(*testSocket.plug, archive));
-        testSocket.plug->onUnplug();
+        EXPECT_TRUE(SavePlugToSnapshot(*testSocket.plug, archive));
+        testSocket.plug->OnUnplug();
     }
 
     EXPECT_EQ(GetString(archive), "TestDevice");  // type

@@ -36,7 +36,7 @@ ConnectionAwaiter::~ConnectionAwaiter() {
     }
 }
 
-void ConnectionAwaiter::onConnect() {
+void ConnectionAwaiter::OnConnect() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
     VLOG(1) << "Received onConnect: " << (mIsConnected ? "already connected" : "not connected yet");
     if (mIsConnected) {
@@ -51,11 +51,11 @@ void ConnectionAwaiter::onConnect() {
     mSocket = nullptr;
 }
 
-bool ConnectionAwaiter::onReceive(const void* data, size_t size) {
+bool ConnectionAwaiter::OnReceive(const void* data, size_t size) {
     return false;
 };
 
-SocketPtr ConnectionAwaiter::onUnplug() {
+SocketPtr ConnectionAwaiter::OnUnplug() {
     std::lock_guard<std::mutex> lock(mConnectionMutex);
     return std::move(mSocket);
 }

@@ -19,21 +19,17 @@
  * to save-load their internal implementations of `ISocket`.
  */
 
-namespace goldfish {
-namespace devices {
-namespace cable {
+namespace goldfish::devices::cable {
 
 /* fully (both `IPlug::TypeId` and its state) saves
  *`IPlug` to a snapshot.
  */
-bool savePlugToSnapshot(const IPlug& plug, archive::IWriter&);
+bool SavePlugToSnapshot(const IPlug& plug, archive::IWriter&);
 
-/* reads `IPlug::TypeId`, finds its loader (see `registerPlugLoader`
+/* reads `IPlug::TypeId`, finds its loader (see `RegisterPlugLoader`
  * in cable.h) and loads an `IPlug` from a snapshot. If any of these
  * operation fails, it returns the given `socket` back.
  */
-PlugOrSocket loadPlugFromSnapshot(SocketPtr socket, archive::IReader&);
+PlugOrSocket LoadPlugFromSnapshot(SocketPtr socket, archive::IReader&);
 
-}  // namespace cable
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::cable
