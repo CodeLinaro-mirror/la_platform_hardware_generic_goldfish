@@ -33,7 +33,7 @@ class IGpsDevice : public HalPlug {
     /**
      * @brief QEMU service name for the GPS device.
      */
-    static constexpr std::string_view serviceName = "gps"sv;
+    static constexpr std::string_view kServiceName = "gps"sv;
 
     /**
      * @brief Registers the GPS device with the connector registry.
