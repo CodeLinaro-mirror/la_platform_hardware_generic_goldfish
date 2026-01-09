@@ -58,12 +58,12 @@ struct AsyncAssertion {
 // A mock HalPlug to verify that its methods are called on the correct threads.
 class MockHalPlug : public HalPlug {
   public:
-    MOCK_METHOD(void, onConnect, (), (override));
-    MOCK_METHOD(void, onReceive, (std::string_view data), (override));
-    MOCK_METHOD(void, onClose, (), (override));
+    MOCK_METHOD(void, OnConnect, (), (override));
+    MOCK_METHOD(void, OnReceive, (std::string_view data), (override));
+    MOCK_METHOD(void, OnClose, (), (override));
 
     // Returns the socket associated with this plug.
-    std::shared_ptr<HalSocket> getSocket() { return socket(); }
+    std::shared_ptr<HalSocket> getSocket() { return Socket(); }
 };
 
 // A mock socket to simulate the QEMU side of the connection.
@@ -116,7 +116,7 @@ class ConnectorRegistryThreadingTest : public ::testing::Test {
 
 // This test verifies the threading model of the ConnectorRegistry.
 // It ensures that:
-// 1. The HalPlug's onConnect, onReceive, and onClose methods are called on the
+// 1. The HalPlug's OnConnect, onReceive, and onClose methods are called on the
 //    client thread.
 // 2. Data can be sent from the QEMU thread to the client thread.
 // 3. Data can be sent from the client thread to the QEMU thread.
@@ -140,10 +140,10 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
 
     // The HAL device receives an empty message upon connection, a leftover
     // from the vsock protocol.
-    EXPECT_CALL(*mockHalPlug, onReceive(""));
-    EXPECT_CALL(*mockHalPlug, onConnect()).WillOnce(Invoke([&]() { connectAssertion.notify(); }));
+    EXPECT_CALL(*mockHalPlug, OnReceive(""));
+    EXPECT_CALL(*mockHalPlug, OnConnect()).WillOnce(Invoke([&]() { connectAssertion.notify(); }));
 
-    EXPECT_CALL(*mockHalPlug, onReceive(kHelloFromQemu)).WillOnce(Invoke([&](std::string_view) {
+    EXPECT_CALL(*mockHalPlug, OnReceive(kHelloFromQemu)).WillOnce(Invoke([&](std::string_view) {
         receiveAssertion.notify();
     }));
 
@@ -154,7 +154,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
             }));
 
     EXPECT_CALL(testSocket, UnplugImpl()).Times(1);
-    EXPECT_CALL(*mockHalPlug, onClose()).WillOnce(Invoke([&]() {
+    EXPECT_CALL(*mockHalPlug, OnClose()).WillOnce(Invoke([&]() {
         EXPECT_EQ(std::this_thread::get_id(), mClientLoop->GetId());
         closeAssertion.notify();
     }));
@@ -204,7 +204,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     // --- Test data flow: Client -> QEMU ---
     {
         // Act: Post a send request from the client loop.
-        (void)mClientLoop->Post([&] { mockHalPlug->getSocket()->send(kWorldFromClient); });
+        (void)mClientLoop->Post([&] { mockHalPlug->getSocket()->Send(kWorldFromClient); });
 
         // Assert: Verify sendAsync was called on the QEMU thread.
         ASSERT_TRUE(sendAsyncAssertion.wait());
@@ -219,7 +219,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
             testSocket.plug->OnUnplug();
         });
 
-        // Assert: Verify onClose was called on the client thread.
+        // Assert: Verify OnClose was called on the client thread.
         ASSERT_TRUE(closeAssertion.wait());
         EXPECT_EQ(closeAssertion.thread_id, mClientLoop->GetId());
     }

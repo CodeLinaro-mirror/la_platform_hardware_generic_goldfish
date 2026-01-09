@@ -43,8 +43,8 @@ class ClipboardDeviceTest : public ::testing::Test {
   public:
     void sendGuestToHost(std::string_view msg) {
         uint32_t size = msg.size();
-        device->onReceive(std::string(reinterpret_cast<const char*>(&size), sizeof(size)));
-        device->onReceive(std::string(msg));
+        device->OnReceive(std::string(reinterpret_cast<const char*>(&size), sizeof(size)));
+        device->OnReceive(std::string(msg));
     }
     void clear() { test_socket->storage.clear(); }
 

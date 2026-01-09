@@ -36,10 +36,10 @@ class ClipboardDevice : public IClipboardDevice {
         VLOG(1) << "Clipboard device has been created";
     }
 
-    void onConnect() override { VLOG(1) << "Clipboard device has been connected"; }
-    void onClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
+    void OnConnect() override { VLOG(1) << "Clipboard device has been connected"; }
+    void OnClose() override { VLOG(1) << "Clipboard device has been disconnected"; }
 
-    void onReceive(const std::string_view data) override {
+    void OnReceive(const std::string_view data) override {
         mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
 
         while (true) {
@@ -69,8 +69,8 @@ class ClipboardDevice : public IClipboardDevice {
         // Ensure little-endian representation
         char size_buf[sizeof(uint32_t)];
         absl::little_endian::Store32(size_buf, size);
-        socket()->send(std::string(size_buf, sizeof(size_buf)));
-        socket()->send(clip.contents);
+        Socket()->Send(std::string(size_buf, sizeof(size_buf)));
+        Socket()->Send(clip.contents);
     }
 
     void setClipboardChangeSubscription(ClipboardDataUpdateSubscription subscription) {

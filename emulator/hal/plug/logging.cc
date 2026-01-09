@@ -13,7 +13,6 @@
 // limitations under the License.
 #include <iostream>
 
-#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
 #include "goldfish/devices/internal/hal_plug.h"

@@ -45,15 +45,15 @@ class TestHalPlug : public HalPlug {
     TestHalPlug() = default;
     ~TestHalPlug() override = default;
 
-    void onConnect() override { mOnConnectCalled = true; }
-    void onReceive(std::string_view data) override { mReceivedData.emplace_back(data); }
-    void onClose() override { mOnCloseCalled = true; }
+    void OnConnect() override { mOnConnectCalled = true; }
+    void OnReceive(std::string_view data) override { mReceivedData.emplace_back(data); }
+    void OnClose() override { mOnCloseCalled = true; }
 
     bool onConnectCalled() const { return mOnConnectCalled; }
     bool onCloseCalled() const { return mOnCloseCalled; }
     const std::vector<std::string>& receivedData() const { return mReceivedData; }
 
-    void close() { socket()->close(); }
+    void close() { Socket()->Close(); }
 
   private:
     bool mOnConnectCalled = false;

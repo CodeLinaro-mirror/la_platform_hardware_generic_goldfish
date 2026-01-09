@@ -52,7 +52,7 @@ MarshallingHalSocket::~MarshallingHalSocket() {
     }
 }
 
-void MarshallingHalSocket::send(std::string data) {
+void MarshallingHalSocket::Send(std::string data) {
     if (mIsClosed) {
         VLOG(2) << "Dropping packet, socket is closed.";
         return;
@@ -80,7 +80,7 @@ cable::SocketPtr MarshallingHalSocket::release() {
     return s;
 }
 
-void MarshallingHalSocket::close() {
+void MarshallingHalSocket::Close() {
     if (!mIsClosed.exchange(true)) {
         VLOG(1) << "Closing the socket.";
         // Post the unplug operation to the QEMU loop asynchronously.

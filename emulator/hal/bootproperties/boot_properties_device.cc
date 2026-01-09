@@ -37,12 +37,12 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     void send(std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
-        socket()->send(encoded);
+        Socket()->Send(encoded);
     }
 
-    void onConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
-    void onClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
-    void onReceive(std::string_view data) override {
+    void OnConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
+    void OnClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
+    void OnReceive(std::string_view data) override {
         mQemudParser.onReceive(data.data(), data.size());
     }
 

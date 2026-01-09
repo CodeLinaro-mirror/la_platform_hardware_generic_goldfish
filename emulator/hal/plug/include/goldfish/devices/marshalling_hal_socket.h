@@ -63,7 +63,7 @@ class MarshallingHalSocket : public HalSocket,
      * the real ISocket's sendAsync method on the QEMU event loop.
      * @param data The data to send.
      */
-    void send(std::string data) override;
+    void Send(std::string data) override;
 
     /**
      * @brief Asynchronously closes the connection.
@@ -71,7 +71,7 @@ class MarshallingHalSocket : public HalSocket,
      * This method is part of the HalSocket interface. It marshals the call to
      * the real ISocket's unplug method on the QEMU event loop.
      */
-    void close() override;
+    void Close() override;
 
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override;

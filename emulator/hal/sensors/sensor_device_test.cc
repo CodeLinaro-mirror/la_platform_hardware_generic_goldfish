@@ -63,12 +63,12 @@ class SensorDeviceTest : public ::testing::Test {
         device = registry.constructHalDevice<ISensorDevice>();
         test_socket = registry.halSocket();
         clear();
-        device->onConnect();
+        device->OnConnect();
     }
 
   public:
     void receive(std::string_view msg) {
-        (void)mClientLoop->Post([&, this] { device->onReceive(qemud::encodeQemudPacket(msg)); });
+        (void)mClientLoop->Post([&, this] { device->OnReceive(qemud::encodeQemudPacket(msg)); });
         mClientLoop->runAll();
     }
     void clear() { test_socket->storage.clear(); }

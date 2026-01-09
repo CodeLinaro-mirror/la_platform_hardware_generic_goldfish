@@ -28,11 +28,11 @@ using cable::PlugPtr;
 using cable::SocketPtr;
 
 struct TestHalSocket : public HalSocket {
-    void send(std::string data) override {
+    void Send(std::string data) override {
         LOG(ERROR) << "Send " << data;
         storage.append(data);
     }
-    void close() override { closed = true; };
+    void Close() override { closed = true; };
 
     bool closed{false};
     std::string storage;
@@ -127,7 +127,7 @@ class TestConnectorRegistry : public ConnectorRegistry {
     T* constructHalDevice(std::string_view args = {}) {
         mHalSocket = std::make_shared<TestHalSocket>();
         mHalPlug = mHalFactory(args);
-        HalPlugTesting::establishConnection(mHalPlug.get(), mHalSocket);
+        HalPlugTesting::EstablishConnection(mHalPlug.get(), mHalSocket);
         // registerInternal(std::string(T::serviceName), mHalPlug);  b/448934377
         return reinterpret_cast<T*>(mHalPlug.get());
     }

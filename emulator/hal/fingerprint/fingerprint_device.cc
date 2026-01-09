@@ -33,9 +33,9 @@ class FingerprintDevice : public IFingerprintDevice {
   public:
     FingerprintDevice() { VLOG(1) << "Fingerprint device has been created"; }
 
-    void onConnect() override { VLOG(1) << "Fingerprint device has been connected"; }
-    void onClose() override { VLOG(1) << "Fingerprint device has been disconnected"; }
-    void onReceive(std::string_view data) override {
+    void OnConnect() override { VLOG(1) << "Fingerprint device has been connected"; }
+    void OnClose() override { VLOG(1) << "Fingerprint device has been disconnected"; }
+    void OnReceive(std::string_view data) override {
         VLOG(1) << "The guest is (unexpectedly) sending data to the fingerprint device: " << data;
     }
 
@@ -55,7 +55,7 @@ class FingerprintDevice : public IFingerprintDevice {
     void send(const std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
-        socket()->send(encoded);
+        Socket()->Send(encoded);
     }
 
     TouchEventSubscription mTouchEventSubscription;

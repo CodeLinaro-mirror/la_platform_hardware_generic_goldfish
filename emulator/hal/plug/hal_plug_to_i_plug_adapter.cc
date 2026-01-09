@@ -38,8 +38,8 @@ HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
 
 void HalPlugToIPlugAdapter::OnConnect() {
     // Let's inform the client of the new connection.
-    VLOG(1) << "Scheduling onConnect for mHalPlug: " << *mHalPlug;
-    mClientLoop->Post([plug = mHalPlug]() { plug->onConnect(); });
+    VLOG(1) << "Scheduling OnConnect for mHalPlug: " << *mHalPlug;
+    mClientLoop->Post([plug = mHalPlug]() { plug->OnConnect(); });
 }
 
 bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
@@ -50,7 +50,7 @@ bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     // This means that vsock will never close out this socket from this call.
     VLOG(2) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
     mClientLoop->Post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
-        plug->onReceive(s);
+        plug->OnReceive(s);
     });
 
     return true;
@@ -65,16 +65,16 @@ cable::SocketPtr HalPlugToIPlugAdapter::OnUnplug() {
     //
     // Note: the marshalling socket can be a NullSocket if someone else was just
     // ahead of us when closing.
-    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->socket());
+    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->Socket());
     VLOG(1) << "Closing and releasing " << *marshallingSocket;
-    marshallingSocket->close();
+    marshallingSocket->Close();
     auto releasedSocket = marshallingSocket->release();
 
     // Now notify the client that we are no longer alive.
     VLOG(1) << "Scheduling onClose for mHalPlug:" << *mHalPlug;
     (void)mClientLoop->Post([plug = mHalPlug]() {
-        VLOG(1) << "Calling onClose from client thread on " << *plug;
-        plug->onClose();
+        VLOG(1) << "Calling OnClose from client thread on " << *plug;
+        plug->OnClose();
     });
 
     return releasedSocket;

@@ -59,9 +59,9 @@ class GuestStatusDevice : public IGuestStatusDevice,
         }
     }
 
-    void onConnect() override { VLOG(1) << "Guest status device has been connected"; }
+    void OnConnect() override { VLOG(1) << "Guest status device has been connected"; }
 
-    void onClose() override {
+    void OnClose() override {
         VLOG(1) << "Guest status device has been disconnected";
 
         // TODO shared_from_this() throws here as this no longer has any associated shared_ptr.
@@ -71,7 +71,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
         });*/
     }
 
-    void onReceive(const std::string_view data) override {
+    void OnReceive(const std::string_view data) override {
         mReceiveData.insert(mReceiveData.end(), data.begin(), data.end());
 
         while (true) {
@@ -106,8 +106,8 @@ class GuestStatusDevice : public IGuestStatusDevice,
     void send(std::string msg) {
         char sizeBuf[sizeof(uint32_t)];
         absl::little_endian::Store32(sizeBuf, msg.size());
-        socket()->send(std::string(sizeBuf, sizeof(sizeBuf)));
-        socket()->send(std::move(msg));
+        Socket()->Send(std::string(sizeBuf, sizeof(sizeBuf)));
+        Socket()->Send(std::move(msg));
     }
 
     void onReceiveMsg(const std::string_view message) {

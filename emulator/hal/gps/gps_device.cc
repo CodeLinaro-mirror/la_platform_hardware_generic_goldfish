@@ -36,9 +36,9 @@ class GpsDevice : public IGpsDevice {
   public:
     GpsDevice() { VLOG(1) << "Gps device has been created"; }
 
-    void onConnect() override { VLOG(1) << "Gps device has been connected"; }
-    void onClose() override { VLOG(1) << "Gps device has been disconnected"; }
-    void onReceive(std::string_view data) override {
+    void OnConnect() override { VLOG(1) << "Gps device has been connected"; }
+    void OnClose() override { VLOG(1) << "Gps device has been disconnected"; }
+    void OnReceive(std::string_view data) override {
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
@@ -69,7 +69,7 @@ class GpsDevice : public IGpsDevice {
     void sendImpl(std::string_view msg) {
         auto encoded = qemud::encodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
-        socket()->send(std::move(encoded));
+        Socket()->Send(std::move(encoded));
     }
 
     LocationUpdateSubscription mLocationUpdateSubscription;
