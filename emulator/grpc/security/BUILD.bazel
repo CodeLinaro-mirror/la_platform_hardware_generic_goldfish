@@ -14,7 +14,7 @@ pkg_files(
 
 filegroup(
     name = "unsecure-emulator-access",
-    data = [
+    srcs = [
         "test/android/emulation/control/secure/test_allow_list.json",
     ],
     output_group = "",
