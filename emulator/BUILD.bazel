@@ -115,8 +115,15 @@ plugin_binaries = [
     "@platforms//os:linux": [
         # For netsimd prebuilt
         "@goldfish_prebuilts_common//vulkan:linux_libc++",
+        "@goldfish_prebuilts_common//netsim:libs_linux_x86_64",
         # TODO(b/434942959,whollins): Re-add this.
         #"@gcc_lib//:libpulse",
+    ],
+    "@platforms//os:macos": [
+        "@goldfish_prebuilts_common//netsim:libs_darwin_aarch64",
+    ],
+    "@platforms//os:windows": [
+        "@goldfish_prebuilts_common//netsim:libs_windows_x86_64",
     ],
     "//conditions:default": [
     ],
