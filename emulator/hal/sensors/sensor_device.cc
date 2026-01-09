@@ -251,7 +251,7 @@ class SensorDevice : public ISensorDevice {
     };
 
     void send(std::string_view msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
+        auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
     }
@@ -304,7 +304,7 @@ class SensorDevice : public ISensorDevice {
      *   offset).
      */
     void OnReceive(std::string_view data) override {
-        mQemudParser.onReceive(data.data(), data.size());
+        mQemudParser.OnReceive(data.data(), data.size());
     }
 
     bool handleMessage(std::string_view msg) {
@@ -481,24 +481,25 @@ class SensorDevice : public ISensorDevice {
     };
 };
 
-void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
+void ISensorDevice::RegisterDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                    android::goldfish::DeviceType avd_type, int avd_api,
                                    const android::goldfish::HardwareConfig& hw,
-                                   EventLoop* clientLoop, EventLoop* qemuLoop,
+                                   EventLoop* client_loop, EventLoop* qemu_loop,
                                    ::android::base::IClock* clock) {
-    registry->registerHalQemuDevice(
-            std::string(ISensorDevice::serviceName), clientLoop, qemuLoop,
-            [pm, avd_type, avd_api, &hw, clientLoop, clock](std::string_view /*args*/) {
-                return std::make_shared<SensorDevice>(pm, avd_type, avd_api, hw, clientLoop, clock);
+    registry->RegisterHalQemuDevice(
+            std::string(ISensorDevice::serviceName), client_loop, qemu_loop,
+            [pm, avd_type, avd_api, &hw, client_loop, clock](std::string_view /*args*/) {
+                return std::make_shared<SensorDevice>(pm, avd_type, avd_api, hw, client_loop,
+                                                      clock);
             });
 }
 
 // Registers the sensor device with the registry
-void ISensorDevice::registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
+void ISensorDevice::RegisterDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                    android::goldfish::DeviceType avd_type, int avd_api,
                                    const android::goldfish::HardwareConfig& hw,
-                                   EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registerDevice(pm, registry, avd_type, avd_api, hw, clientLoop, qemuLoop,
+                                   EventLoop* client_loop, EventLoop* qemu_loop) {
+    RegisterDevice(pm, registry, avd_type, avd_api, hw, client_loop, qemu_loop,
                    &::android::base::IClock::Get());
 }
 

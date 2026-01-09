@@ -107,7 +107,7 @@ struct TestHalDevice : public devices::HalPlug {
 static bool gListenCalled = false;
 static TestSocket* gTestSocket;
 
-// Custom vsock::listen implementation for unit tests.
+// Custom vsock::Listen implementation for unit tests.
 bool fake_vsock_listen(const uint32_t hostPort, devices::HostPortListener listener) {
     if (gListenCalled) {
         return false;
@@ -158,37 +158,37 @@ class ConnectorRegistryTest : public ::testing::Test {
 };
 
 TEST_F(ConnectorRegistryTest, ListenSuccess) {
-    ASSERT_TRUE(registry.listen(1234));
+    ASSERT_TRUE(registry.Listen(1234));
     ASSERT_TRUE(gListenCalled);
 }
 
 TEST_F(ConnectorRegistryTest, ListenOnlyOnce) {
-    ASSERT_TRUE(registry.listen(1234));
-    ASSERT_FALSE(registry.listen(1234));
+    ASSERT_TRUE(registry.Listen(1234));
+    ASSERT_FALSE(registry.Listen(1234));
 }
 
 TEST_F(ConnectorRegistryTest, ListenFnSuccess) {
     ASSERT_TRUE(
-            registry.listen([this](HostPortListener listener) { return mockListenFn(listener); }));
+            registry.Listen([this](HostPortListener listener) { return mockListenFn(listener); }));
     ASSERT_TRUE(listenCalled);
 }
 
 TEST_F(ConnectorRegistryTest, RegisterQemuDeviceBeforeListen) {
-    ASSERT_TRUE(registry.registerQemuDevice("device1", [](auto, auto, auto) { return nullptr; }));
+    ASSERT_TRUE(registry.RegisterQemuDevice("device1", [](auto, auto, auto) { return nullptr; }));
 }
 
 TEST_F(ConnectorRegistryTest, RegisterDeviceBeforeListen) {
-    ASSERT_TRUE(registry.registerDevice("device2", [](auto, auto, auto) { return nullptr; }));
+    ASSERT_TRUE(registry.RegisterDevice("device2", [](auto, auto, auto) { return nullptr; }));
 }
 
 TEST_F(ConnectorRegistryTest, RegisterQemuDeviceAfterListen) {
-    registry.listen(1234);  // Call listen first
-    ASSERT_FALSE(registry.registerQemuDevice("device3", [](auto, auto, auto) { return nullptr; }));
+    registry.Listen(1234);  // Call listen first
+    ASSERT_FALSE(registry.RegisterQemuDevice("device3", [](auto, auto, auto) { return nullptr; }));
 }
 
 TEST_F(ConnectorRegistryTest, RegisterDeviceAfterListen) {
-    registry.listen(1234);  // Call listen first
-    ASSERT_FALSE(registry.registerDevice("device4", [](auto, auto, auto) { return nullptr; }));
+    registry.Listen(1234);  // Call listen first
+    ASSERT_FALSE(registry.RegisterDevice("device4", [](auto, auto, auto) { return nullptr; }));
 }
 
 TEST_F(ConnectorRegistryTest, RegisteredDeviceIsAvailable) {
@@ -200,19 +200,19 @@ TEST_F(ConnectorRegistryTest, RegisteredDeviceIsAvailable) {
 
     bool standardDeviceCreated = false;
     bool qemuDeviceCreated = false;
-    registry.registerDevice(
-            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+    registry.RegisterDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
                               std::string_view args) {
                 standardDeviceCreated = true;
                 return std::make_shared<TestDevice>(std::move(socket), false, args);
             });
-    registry.registerQemuDevice(
-            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+    registry.RegisterQemuDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
                               std::string_view args) {
                 qemuDeviceCreated = true;
                 return std::make_shared<TestDevice>(std::move(socket), false, args);
             });
-    registry.listen(1234);  // Call listen first
+    registry.Listen(1234);  // Call listen first
     EXPECT_TRUE(gTestSocket->send("pipe:TestDe"sv));
     EXPECT_TRUE(gTestSocket->send("vice:args\0"sv));
     EXPECT_TRUE(standardDeviceCreated);
@@ -228,19 +228,19 @@ TEST_F(ConnectorRegistryTest, RegisteredQemuDeviceIsAvailable) {
 
     bool standardDeviceCreated = false;
     bool qemuDeviceCreated = false;
-    registry.registerDevice(
-            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+    registry.RegisterDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
                               std::string_view args) {
                 standardDeviceCreated = true;
                 return std::make_shared<TestDevice>(std::move(socket), false, args);
             });
-    registry.registerQemuDevice(
-            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+    registry.RegisterQemuDevice(
+            "TestDevice", [&](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
                               std::string_view args) {
                 qemuDeviceCreated = true;
                 return std::make_shared<TestDevice>(std::move(socket), false, args);
             });
-    registry.listen(1234);  // Call listen first
+    registry.Listen(1234);  // Call listen first
     EXPECT_TRUE(gTestSocket->send("pipe:qemud:TestDe"sv));
     EXPECT_TRUE(gTestSocket->send("vice:args\0"sv));
     EXPECT_TRUE(qemuDeviceCreated);
@@ -256,7 +256,7 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
     bool factoryCalled = false;
     std::string factoryArguments;
 
-    registry.registerHalDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
+    registry.RegisterHalDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
                                [&](std::string_view args) {
                                    factoryCalled = true;
                                    factoryArguments = std::string(args);
@@ -264,7 +264,7 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
                                });
 
     // Use the ListenFn overload to directly get the created device factory.
-    registry.listen([&](HostPortListener listener) {
+    registry.Listen([&](HostPortListener listener) {
         // This simulates the guest connecting and the vsock layer creating a
         // generic Connector plug.
         gTestSocket = new TestSocket();
@@ -304,13 +304,13 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
     auto closed_future = device->closed();
     bool factoryCalled = false;
 
-    registry.registerHalQemuDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
+    registry.RegisterHalQemuDevice("TestHalDevice", mClientLoop.get(), mQemuLoop.get(),
                                    [&](std::string_view /*args*/) {
                                        factoryCalled = true;
                                        return device;
                                    });
 
-    registry.listen([&](HostPortListener listener) {
+    registry.Listen([&](HostPortListener listener) {
         gTestSocket = new TestSocket();
         auto connectorPlug = std::get<PlugPtr>(listener(SocketPtr(gTestSocket)));
         gTestSocket->plug = std::move(connectorPlug);

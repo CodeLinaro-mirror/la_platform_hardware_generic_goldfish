@@ -79,9 +79,9 @@ class UnixPipe : public IUnixPipe {
     std::shared_ptr<async::AsyncSocket> un_socket_;
 };
 
-void IUnixPipe::registerDevice(IConnectorRegistry* registry, EventLoop* client_loop,
+void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
                                EventLoop* qemu_loop) {
-    registry->registerHalDevice(std::string(UnixPipe::serviceName), client_loop, qemu_loop,
+    registry->RegisterHalDevice(std::string(UnixPipe::serviceName), client_loop, qemu_loop,
                                 [client_loop](const std::string_view path) {
                                     return std::make_shared<UnixPipe>(client_loop, path);
                                 });

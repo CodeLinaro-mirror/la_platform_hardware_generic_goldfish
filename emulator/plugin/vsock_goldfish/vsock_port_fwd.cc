@@ -201,7 +201,7 @@ class VSockProxyImpl : public VSockProxy {
                 mQemuLoop,
                 [&](auto plug) {
                     if (isBootCompleted()) {
-                        return goldfish::vsock::connect(mDevice->guest_port, plug);
+                        return goldfish::vsock::Connect(mDevice->guest_port, plug);
                     } else {
                         return SocketPtr{};
                     }
@@ -263,7 +263,7 @@ class VSockProxyImpl : public VSockProxy {
         };
 
         VLOG(1) << "Received an incoming connection socket connection!";
-        auto adapter = HalPlugFactory::connect(
+        auto adapter = HalPlugFactory::Connect(
                 mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
                 mClientLoop, mQemuLoop, std::move(onFlowControlEvent),
                 mDevice->data_sniffer_factory);

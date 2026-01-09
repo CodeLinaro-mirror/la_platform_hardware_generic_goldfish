@@ -56,9 +56,9 @@ static ::InputMultiTouchType translate_touch_type(MultiTouchType type) {
     }
 }
 
-QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemuLoop, QemuConsole* con, DisplaySurface* ds,
-                         int index)
-        : PixmanDisplay(loop, index, ds->image), mConsole(con), mQemuLoop(qemuLoop) {
+QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con,
+                         DisplaySurface* ds, int index)
+        : PixmanDisplay(loop, index, ds->image), mConsole(con), mQemuLoop(qemu_loop) {
     if (!mConsole) {
         LOG(FATAL) << "Display: " << index << " has nullptr console";
     }

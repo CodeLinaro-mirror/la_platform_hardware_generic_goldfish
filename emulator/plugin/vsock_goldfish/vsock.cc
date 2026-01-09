@@ -140,7 +140,7 @@ struct PlugOrSocketVisitor {
 };
 
 struct GoldfishVirtioVsockDevice {
-    SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
+    SocketPtr Connect(const uint32_t guestPort, PlugPtr plug) {
         DEBUG_MSG("this=%p, guestPort=%u plug=%p", this, guestPort, plug.get());
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
@@ -157,7 +157,7 @@ struct GoldfishVirtioVsockDevice {
         return SocketPtr(&stream);
     }
 
-    bool listen(const uint32_t hostPort, HostPortListener hostPortListener) {
+    bool Listen(const uint32_t hostPort, HostPortListener hostPortListener) {
         DEBUG_MSG("this=%p, hostPort=%u", this, hostPort);
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
@@ -742,14 +742,14 @@ namespace vsock {
 using devices::cable::IPlug;
 using devices::cable::SocketPtr;
 
-SocketPtr connect(const uint32_t guestPort, PlugPtr plug) {
+SocketPtr Connect(const uint32_t guestPort, PlugPtr plug) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
-    return instance.connect(guestPort, std::move(NOT_NULL(plug)));
+    return instance.Connect(guestPort, std::move(NOT_NULL(plug)));
 }
 
-bool listen(const uint32_t hostPort, HostPortListener listener) {
+bool Listen(const uint32_t hostPort, HostPortListener listener) {
     auto& instance = GoldfishVirtioVsockDevice::getInstance();
-    return instance.listen(hostPort, std::move(listener));
+    return instance.Listen(hostPort, std::move(listener));
 }
 
 void clear() {

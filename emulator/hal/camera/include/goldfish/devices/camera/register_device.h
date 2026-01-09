@@ -26,7 +26,7 @@ namespace goldfish::devices::camera {
 
 using GrallocProvider = std::function<GrallocDetailsPtr()>;
 
-void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
+void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
                     const android::goldfish::HardwareConfig& hw, GrallocProvider);
 
 }  // namespace goldfish::devices::camera

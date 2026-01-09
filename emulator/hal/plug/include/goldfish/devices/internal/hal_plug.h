@@ -21,8 +21,7 @@
 
 #include "absl/strings/str_format.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 class HalPlugFactory;
 class HalPlugTesting;
@@ -271,5 +270,4 @@ inline void AbslStringify(absl::FormatSink& s, const HalPlug& plug) { plug.AbslS
  */
 std::ostream& operator<<(std::ostream& os, const HalPlug& plug);
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

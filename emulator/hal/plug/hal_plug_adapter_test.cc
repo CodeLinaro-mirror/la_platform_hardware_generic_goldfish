@@ -100,9 +100,9 @@ class HalPlugAdapterTest : public ::testing::Test {
         }));
 
         mClientLoop->Post([this, s = std::move(mMockSocketPtr)]() mutable {
-            auto marshallingSocket =
+            auto marshalling_socket =
                     std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-            HalPlugTesting::EstablishConnection(mMockHalPlug.get(), marshallingSocket);
+            HalPlugTesting::EstablishConnection(mMockHalPlug.get(), marshalling_socket);
             mMockHalPlug->OnConnect();
         });
 
@@ -128,9 +128,9 @@ TEST_F(HalPlugAdapterTest, OnConnectIsMarshalledToClientThread) {
 
     // Simulate a connection..
     mClientLoop->Post([this, s = std::move(mMockSocketPtr)]() mutable {
-        auto marshallingSocket =
+        auto marshalling_socket =
                 std::make_shared<MarshallingHalSocket>(std::move(s), mQemuLoop.get());
-        HalPlugTesting::EstablishConnection(mMockHalPlug.get(), marshallingSocket);
+        HalPlugTesting::EstablishConnection(mMockHalPlug.get(), marshalling_socket);
         mMockHalPlug->OnConnect();
     });
 

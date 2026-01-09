@@ -34,7 +34,7 @@ namespace control {
 std::shared_ptr<grpc::Service> getEmulatorController(
         android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
         ::goldfish::avd_info::AvdUniverse* avdUniverse,
-        ::goldfish::display::IMultiDisplay* multiDisplay, ::goldfish::async::EventLoop* qemuLoop);
+        ::goldfish::display::IMultiDisplay* multiDisplay, ::goldfish::async::EventLoop* qemu_loop);
 
 }  // namespace control
 }  // namespace emulation

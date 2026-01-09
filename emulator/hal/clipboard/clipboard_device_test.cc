@@ -32,7 +32,7 @@ class ClipboardDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IClipboardDevice::registerDevice(&mClipboardChannel, &registry, mClientLoop.get(),
+        IClipboardDevice::RegisterDevice(&mClipboardChannel, &registry, mClientLoop.get(),
                                          mQemuLoop.get());
         device = registry.constructHalDevice<IClipboardDevice>();
 

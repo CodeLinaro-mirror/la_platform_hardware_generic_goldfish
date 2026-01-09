@@ -103,23 +103,23 @@ class TestConnectorRegistry : public ConnectorRegistry {
     TestConnectorRegistry() {}
     ~TestConnectorRegistry() = default;
 
-    bool registerQemuDevice(std::string_view name, DeviceFactory factory) override {
+    bool RegisterQemuDevice(std::string_view name, DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
 
-    bool registerDevice(std::string_view name, DeviceFactory factory) override {
+    bool RegisterDevice(std::string_view name, DeviceFactory factory) override {
         mFactory = std::move(factory);
         return true;
     }
 
-    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
-                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override {
+    void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
+                           async::EventLoop* qemu_loop, HalDeviceFactory factory) override {
         mHalFactory = factory;
     }
 
-    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
-                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override {
+    void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
+                               async::EventLoop* qemu_loop, HalDeviceFactory factory) override {
         mHalFactory = factory;
     }
 

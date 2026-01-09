@@ -238,7 +238,7 @@ const size_t kNonPrintableCodeEntries = std::size(kNonPrintableCodeMap);
 
 class KeyEventSenderImpl : public IKeyEventSender {
   public:
-    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemuLoop) : mQemuLoop(qemuLoop) {
+    KeyEventSenderImpl(QemuConsole* con, EventLoop* qemu_loop) : mQemuLoop(qemu_loop) {
         mKbd = qkbd_state_init(con);
     }
     ~KeyEventSenderImpl() { qkbd_state_free(mKbd); }
@@ -394,8 +394,8 @@ class KeyEventSenderImpl : public IKeyEventSender {
     ::QKbdState* mKbd;
 };
 
-std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemuLoop) {
-    return std::make_unique<KeyEventSenderImpl>(console, qemuLoop);
+std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemu_loop) {
+    return std::make_unique<KeyEventSenderImpl>(console, qemu_loop);
 }
 
 }  // namespace keyboard

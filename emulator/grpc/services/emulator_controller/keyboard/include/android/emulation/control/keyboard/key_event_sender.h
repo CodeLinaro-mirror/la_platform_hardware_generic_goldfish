@@ -63,7 +63,7 @@ class IKeyEventSender {
      * sending the appropriate low-level commands to the emulator.
      *
      * @param request The KeyboardEvent protobuf message describing the event.
-     * @note This is thread safe, the actual events will be posted on a qemuLoop
+     * @note This is thread safe, the actual events will be posted on a qemu_loop
 
      * @see KeyboardEvent
      * @see KeyEventSenderImpl::doSend
@@ -86,7 +86,7 @@ class IKeyEventSender {
  * @see KeyEventSenderImpl
  * @see QemuConsole
  */
-std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemuLoop);
+std::unique_ptr<IKeyEventSender> createKeyEventSender(QemuConsole* console, EventLoop* qemu_loop);
 
 }  // namespace keyboard
 }  // namespace control

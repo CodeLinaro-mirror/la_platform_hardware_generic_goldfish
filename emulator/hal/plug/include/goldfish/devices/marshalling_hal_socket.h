@@ -21,17 +21,14 @@
 #pragma once
 
 #include <atomic>
-#include <functional>
 
-#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/internal/hal_plug.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 class HalPlugToIPlugAdapter;
 /**
@@ -53,7 +50,7 @@ class MarshallingHalSocket : public HalSocket,
      * @param socket The real ISocket instance that lives on the QEMU thread.
      * @param qemuLoop The QEMU event loop to which calls should be marshalled.
      */
-    MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemuLoop);
+    MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemu_loop);
     ~MarshallingHalSocket() override;
 
     /**
@@ -78,13 +75,12 @@ class MarshallingHalSocket : public HalSocket,
 
   private:
     friend class HalPlugToIPlugAdapter;
-    cable::SocketPtr release();
+    cable::SocketPtr Release();
 
-    cable::SocketPtr mSocket;
-    absl::Mutex mSocketMutex;
-    async::EventLoop* mQemuLoop;
-    std::atomic<bool> mIsClosed{false};
+    cable::SocketPtr socket_;
+    absl::Mutex socket_mutex_;
+    async::EventLoop* qemu_loop_;
+    std::atomic<bool> is_closed_{false};
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

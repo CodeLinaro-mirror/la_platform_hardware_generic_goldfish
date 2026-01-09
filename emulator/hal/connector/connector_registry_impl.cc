@@ -18,8 +18,8 @@
 #include <cassert>
 #include <cstring>
 #include <mutex>
+#include <utility>
 
-#include "absl/base/no_destructor.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
@@ -27,95 +27,94 @@
 #include "goldfish/devices/hal_plug_factory.h"
 #include "goldfish/vsock/listen.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 using cable::PlugPtr;
 using cable::SocketPtr;
 
 ConnectorRegistry::ConnectorRegistry() : ConnectorRegistry(std::make_shared<PingTopic>()) {}
 
-ConnectorRegistry::ConnectorRegistry(std::shared_ptr<PingTopic> pingTopic)
-        : mPingTopic(std::move(pingTopic)) {}
+ConnectorRegistry::ConnectorRegistry(std::shared_ptr<PingTopic> ping_topic)
+        : ping_topic_(std::move(ping_topic)) {}
 
-bool ConnectorRegistry::listen(int port) {
-    return listen([port](HostPortListener listener) { return vsock::listen(port, listener); });
+bool ConnectorRegistry::Listen(int port) {
+    return Listen(
+            [port](HostPortListener listener) { return vsock::Listen(port, std::move(listener)); });
 }
 
-bool ConnectorRegistry::listen(ListenFn startListening) {
+bool ConnectorRegistry::Listen(const ListenFn& start_listening) {
     // Only start listening once, the registry is now closed.
-    std::lock_guard<std::mutex> lock(mEntriesMutex);
-    mAcceptingRegistries = false;
+    const std::lock_guard<std::mutex> lock(entries_mutex_);
+    accepting_registries_ = false;
 
-    for (auto& [key, factory_fn] : mEntries) {
-        mDevices.push_back({std::move(key), std::move(factory_fn)});
+    for (auto& [key, factory_fn] : entries_) {
+        devices_.push_back({.qname = key, .factory = std::move(factory_fn)});
     }
 
-    mEntries.clear();
+    entries_.clear();
 
-    return startListening([this](auto socket) {
-        return std::make_shared<Connector>(std::move(socket), mPingTopic, mDevices.data(),
-                                           mDevices.size());
+    return start_listening([this](auto socket) {
+        return std::make_shared<Connector>(std::move(socket), ping_topic_, devices_.data(),
+                                           devices_.size());
     });
 }
 
-bool ConnectorRegistry::registerQemuDevice(const std::string_view name, DeviceFactory factory) {
+bool ConnectorRegistry::RegisterQemuDevice(const std::string_view name, DeviceFactory factory) {
     using namespace std::string_view_literals;
-    return registerDeviceImpl("q"sv, name, std::move(factory));
+    return RegisterDeviceImpl("q"sv, name, std::move(factory));
 }
 
-bool ConnectorRegistry::registerDevice(const std::string_view name, DeviceFactory factory) {
+bool ConnectorRegistry::RegisterDevice(const std::string_view name, DeviceFactory factory) {
     using namespace std::string_view_literals;
-    return registerDeviceImpl("-"sv, name, std::move(factory));
+    return RegisterDeviceImpl("-"sv, name, std::move(factory));
 }
 
-bool ConnectorRegistry::registerDeviceImpl(const std::string_view prefix,
+bool ConnectorRegistry::RegisterDeviceImpl(const std::string_view prefix,
                                            const std::string_view name, DeviceFactory factory) {
-    std::lock_guard<std::mutex> lock(mEntriesMutex);
-    if (!mAcceptingRegistries) {
+    const std::lock_guard<std::mutex> lock(entries_mutex_);
+    if (!accepting_registries_) {
         LOG(WARNING) << "The registry is closed, device: " << name << " is not registered.";
         return false;
     }
 
-    return mEntries.insert({absl::StrCat(prefix, name), std::move(factory)}).second;
+    return entries_.insert({absl::StrCat(prefix, name), std::move(factory)}).second;
 }
 
-void ConnectorRegistry::registerHalDevice(std::string name, async::EventLoop* clientLoop,
-                                          async::EventLoop* qemuLoop, HalDeviceFactory factory) {
-    registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
-                          [this](std::string name, DeviceFactory factory) {
-                              return registerDevice(name, std::move(factory));
+void ConnectorRegistry::RegisterHalDevice(std::string name, async::EventLoop* client_loop,
+                                          async::EventLoop* qemu_loop, HalDeviceFactory factory) {
+    RegisterHalDeviceImpl(std::move(name), client_loop, qemu_loop, std::move(factory),
+                          [this](const std::string& name, DeviceFactory factory) {
+                              return RegisterDevice(name, std::move(factory));
                           });
 }
 
-void ConnectorRegistry::registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
-                                              async::EventLoop* qemuLoop,
+void ConnectorRegistry::RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
+                                              async::EventLoop* qemu_loop,
                                               HalDeviceFactory factory) {
-    registerHalDeviceImpl(std::move(name), clientLoop, qemuLoop, std::move(factory),
-                          [this](std::string name, DeviceFactory factory) {
-                              return registerQemuDevice(name, std::move(factory));
+    RegisterHalDeviceImpl(std::move(name), client_loop, qemu_loop, std::move(factory),
+                          [this](const std::string& name, DeviceFactory factory) {
+                              return RegisterQemuDevice(name, std::move(factory));
                           });
 }
-
-void ConnectorRegistry::registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
-                                              async::EventLoop* qemuLoop, HalDeviceFactory factory,
-                                              DeviceRegistration registerFn) {
-    auto wrapperFactory = [name, qemuLoop, clientLoop, userFactory = std::move(factory)](
-                                  SocketPtr qemuSocket, std::shared_ptr<PingTopic> pingTopic,
-                                  std::string_view args) -> PlugPtr {
+void ConnectorRegistry::RegisterHalDeviceImpl(std::string name, async::EventLoop* client_loop,
+                                              async::EventLoop* qemu_loop, HalDeviceFactory factory,
+                                              const DeviceRegistration& register_fn) {
+    auto wrapper_factory = [name, qemu_loop, client_loop, user_factory = std::move(factory)](
+                                   SocketPtr qemu_socket,
+                                   const std::shared_ptr<PingTopic>& /*ping_topic*/,
+                                   std::string_view args) -> PlugPtr {
         // Create the user's HAL plug on the QEMU thread. This has to be a synchronous call
         // as we must give our vsockstream a concrete PlugPtr. Let's hope developers are not doing
         // *crazy* things in the factory.
-        std::shared_ptr<HalPlug> realHalPlug = userFactory(args);
+        const std::shared_ptr<HalPlug> real_hal_plug = user_factory(args);
 
         // Wrap the HAL plug in a marshalling layer. This will ensure that all calls to the
         // HAL plug are marshalled to the client thread and vice versa.
-        return HalPlugFactory::wrapHalPlug(
-                std::move(qemuSocket), [realHalPlug = realHalPlug] { return realHalPlug; },
-                clientLoop, qemuLoop);
+        return HalPlugFactory::WrapHalPlug(
+                std::move(qemu_socket), [real_hal_plug = real_hal_plug] { return real_hal_plug; },
+                client_loop, qemu_loop);
     };
 
-    registerFn(std::move(name), std::move(wrapperFactory));
+    register_fn(std::move(name), std::move(wrapper_factory));
 }
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

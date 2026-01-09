@@ -18,9 +18,7 @@
 
 #include "goldfish/devices/cable/cable.h"
 
-namespace goldfish {
-namespace devices {
-namespace qemud {
+namespace goldfish::devices::qemud {
 
 /* The QEMUD packet: [size][payload]
  *
@@ -37,28 +35,25 @@ namespace qemud {
  * `encodeQemudPacket` constructs a full packet by prepending the encoded
  * size to the raw payload data.
  */
-
 constexpr size_t kSizeSize = 4;
 
-void encodeRequestSize(uint32_t size, uint8_t* data);
-size_t decodeRequestSize(const uint8_t* const data8);
-std::string encodeQemudPacket(const std::string_view);
+void EncodeRequestSize(uint32_t size, uint8_t* data);
+size_t DecodeRequestSize(const uint8_t* data8);
+std::string EncodeQemudPacket(std::string_view);
 
 struct Parser {
     using Sink = std::function<bool(const void* data, size_t size)>;
 
-    Parser(Sink sink);
-    bool onReceive(const void* const data, size_t size);
-    void saveToSnapshot(archive::IWriter&) const;
-    bool loadFromSnapshot(archive::IReader&);
+    explicit Parser(Sink sink);
+    bool OnReceive(const void* data, size_t size);
+    void SaveToSnapshot(archive::IWriter&) const;
+    bool LoadFromSnapshot(archive::IReader&);
 
   private:
-    Sink mSink;
-    std::vector<uint8_t> mBuffer;
+    Sink sink_;
+    std::vector<uint8_t> buffer_;
 };
 
-void sendAsync(const void* data, size_t size, cable::ISocket& dst);
+void SendAsync(const void* data, size_t size, cable::ISocket& dst);
 
-}  // namespace qemud
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::qemud

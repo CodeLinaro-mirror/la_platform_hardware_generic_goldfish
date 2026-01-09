@@ -19,8 +19,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace goldfish {
-namespace broadcasting {
+namespace goldfish::broadcasting {
 
 /* See broadcasting_unittests.cpp for examples.
  *
@@ -59,26 +58,26 @@ template <class... Args>
 struct Topic;
 
 struct Ticket {
-    ~Ticket() { assert(!isSubscribed()); }
+    ~Ticket() { assert(!IsSubscribed()); }
 
     Ticket() = default;
 
-    Ticket(Ticket&& rhs) : Ticket(std::move(rhs.mTopic), rhs.mValue) {}
+    Ticket(Ticket&& rhs) : Ticket(std::move(rhs.topic_), rhs.value_) {}
 
     Ticket& operator=(Ticket&& rhs) {
         if (this != &rhs) {
-            swap(*this, rhs);
+            Swap(*this, rhs);
         }
         return *this;
     }
 
-    bool isSubscribed() const { return mTopic.use_count() > 0; }
-    void unsubscribe();
+    bool IsSubscribed() const { return topic_.use_count() > 0; }
+    void Unsubscribe();
 
-    static void swap(Ticket& lhs, Ticket& rhs) {
+    static void Swap(Ticket& lhs, Ticket& rhs) {
         using std::swap;
-        swap(lhs.mTopic, rhs.mTopic);
-        swap(lhs.mValue, rhs.mValue);
+        swap(lhs.topic_, rhs.topic_);
+        swap(lhs.value_, rhs.value_);
     }
 
     Ticket(const Ticket&) = delete;
@@ -94,37 +93,37 @@ struct Ticket {
     using value_t = unsigned;
 
     Ticket(std::weak_ptr<TopicBase> topic, const value_t value)
-            : mTopic(std::move(topic)), mValue(value) {}
+            : topic_(std::move(topic)), value_(value) {}
 
-    void release() { mTopic.reset(); }
+    void Release() { topic_.reset(); }
 
-    std::weak_ptr<TopicBase> mTopic;
-    value_t mValue = 0;
+    std::weak_ptr<TopicBase> topic_;
+    value_t value_ = 0;
 };
 
 struct TopicBase : std::enable_shared_from_this<TopicBase> {
-    virtual ~TopicBase() {}
+    virtual ~TopicBase() = default;
 
   private:
     friend Ticket;
-    virtual void unsubscribeImpl(Ticket::value_t) = 0;
+    virtual void UnsubscribeImpl(Ticket::value_t) = 0;
 };
 
-inline void Ticket::unsubscribe() {
-    const auto pinned = mTopic.lock();
+inline void Ticket::Unsubscribe() {
+    const auto pinned = topic_.lock();
     if (pinned) {
-        pinned->unsubscribeImpl(mValue);
-        release();
+        pinned->UnsubscribeImpl(value_);
+        Release();
     }
 }
 
 template <class Callback>
 struct TopicBaseTpl : public TopicBase {
-    Ticket subscribe(Callback callback) {
-        std::lock_guard<std::mutex> guard(mMutex);
+    Ticket Subscribe(Callback callback) {
+        const std::lock_guard<std::mutex> guard(mutex_);
         while (true) {
-            const Ticket::value_t ticket = ++mLastTicket;
-            const auto result = mSubscriptions.insert({ticket, {}});
+            const Ticket::value_t ticket = ++last_ticket_;
+            const auto result = subscriptions_.insert({ticket, {}});
             if (result.second) {
                 result.first->second = std::move(callback);
                 return Ticket(shared_from_this(), ticket);
@@ -140,14 +139,14 @@ struct TopicBaseTpl : public TopicBase {
   protected:
     TopicBaseTpl() = default;
 
-    std::unordered_map<Ticket::value_t, Callback> mSubscriptions;
-    Ticket::value_t mLastTicket = {};
-    std::mutex mMutex;
+    std::unordered_map<Ticket::value_t, Callback> subscriptions_;
+    Ticket::value_t last_ticket_ = {};
+    std::mutex mutex_;
 
   private:
-    void unsubscribeImpl(const Ticket::value_t ticket) override {
-        std::lock_guard<std::mutex> guard(mMutex);
-        mSubscriptions.erase(ticket);
+    void UnsubscribeImpl(const Ticket::value_t ticket) override {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        subscriptions_.erase(ticket);
     }
 };
 
@@ -155,35 +154,35 @@ template <class... Args>
 struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
     using Callback = std::function<std::optional<Ticket>(Args...)>;
     using TopicT = TopicBaseTpl<Callback>;
-    using TopicT::mMutex;
-    using TopicT::mSubscriptions;
-    using TopicT::subscribe;
+    using TopicT::mutex_;
+    using TopicT::Subscribe;
+    using TopicT::subscriptions_;
 
     template <class T>
-    Ticket subscribe(T& object, std::optional<Ticket> (T::* const method)(Args...)) {
-        return subscribe([&object, method](Args... args) {
+    Ticket Subscribe(T& object, std::optional<Ticket> (T::* const method)(Args...)) {
+        return Subscribe([&object, method](Args... args) {
             return (object.*method)(std::forward<Args>(args)...);
         });
     }
 
     template <class T>
-    Ticket subscribe(T& object, void (T::* const method)(Args...)) {
-        return subscribe([&object, method](Args... args) {
+    Ticket Subscribe(T& object, void (T::* const method)(Args...)) {
+        return Subscribe([&object, method](Args... args) {
             (object.*method)(std::forward<Args>(args)...);
             return std::nullopt;
         });
     }
 
-    void broadcast(Args... args) {
-        std::lock_guard<std::mutex> guard(mMutex);
-        auto i = mSubscriptions.begin();
-        while (i != mSubscriptions.end()) {
+    void Broadcast(Args... args) {
+        std::lock_guard<std::mutex> guard(mutex_);
+        auto i = subscriptions_.begin();
+        while (i != subscriptions_.end()) {
             std::optional<Ticket> result = (i->second)(std::forward<Args>(args)...);
             if (result.has_value()) {
-                assert(result->mTopic.lock().get() == this);
-                assert(result->mValue == i->first);
-                result->release();
-                i = mSubscriptions.erase(i);
+                assert(result->topic_.lock().get() == this);
+                assert(result->value_ == i->first);
+                result->Release();
+                i = subscriptions_.erase(i);
             } else {
                 ++i;
             }
@@ -195,33 +194,33 @@ template <>
 struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>> {
     using Callback = std::function<std::optional<Ticket>(void)>;
     using TopicT = TopicBaseTpl<Callback>;
-    using TopicT::mMutex;
-    using TopicT::mSubscriptions;
-    using TopicT::subscribe;
+    using TopicT::mutex_;
+    using TopicT::Subscribe;
+    using TopicT::subscriptions_;
 
     template <class T>
-    Ticket subscribe(T& object, std::optional<Ticket> (T::* const method)()) {
-        return subscribe([&object, method]() { return (object.*method)(); });
+    Ticket Subscribe(T& object, std::optional<Ticket> (T::* const method)()) {
+        return Subscribe([&object, method]() { return (object.*method)(); });
     }
 
     template <class T>
-    Ticket subscribe(T& object, void (T::* const method)()) {
-        return subscribe([&object, method]() {
+    Ticket Subscribe(T& object, void (T::* const method)()) {
+        return Subscribe([&object, method]() {
             (object.*method)();
             return std::nullopt;
         });
     }
 
-    void broadcast() {
-        std::lock_guard<std::mutex> guard(mMutex);
-        auto i = mSubscriptions.begin();
-        while (i != mSubscriptions.end()) {
+    void Broadcast() {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        auto i = subscriptions_.begin();
+        while (i != subscriptions_.end()) {
             std::optional<Ticket> result = (i->second)();
             if (result.has_value()) {
-                assert(result->mTopic.lock().get() == this);
-                assert(result->mValue == i->first);
-                result->release();
-                i = mSubscriptions.erase(i);
+                assert(result->topic_.lock().get() == this);
+                assert(result->value_ == i->first);
+                result->Release();
+                i = subscriptions_.erase(i);
             } else {
                 ++i;
             }
@@ -229,5 +228,4 @@ struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>>
     }
 };
 
-}  // namespace broadcasting
-}  // namespace goldfish
+}  // namespace goldfish::broadcasting

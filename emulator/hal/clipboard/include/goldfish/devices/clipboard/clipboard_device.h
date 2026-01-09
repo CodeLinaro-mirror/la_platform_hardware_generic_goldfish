@@ -66,8 +66,8 @@ class IClipboardDevice : public HalPlug {
      *
      * @note A clipboard device is not a qemud device.
      */
-    static void registerDevice(avd_universe::clipboard::ClipboardChannel* channel,
-                               IConnectorRegistry* registry, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+    static void RegisterDevice(avd_universe::clipboard::ClipboardChannel* channel,
+                               IConnectorRegistry* registry, EventLoop* client_loop,
+                               EventLoop* qemu_loop);
 };
 }  // namespace goldfish::devices::clipboard

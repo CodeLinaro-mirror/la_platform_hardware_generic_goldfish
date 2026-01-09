@@ -43,10 +43,10 @@ class IGpsDevice : public HalPlug {
      *
      * @param registry The connector registry instance.
      * @param clientLoop The event loop for client-side operations.
-     * @param qemuLoop The event loop for QEMU-side operations.
+     * @param qemu_loop The event loop for QEMU-side operations.
      */
-    static void registerDevice(ObservableLocation*, IConnectorRegistry* registry,
-                               EventLoop* clientLoop, EventLoop* qemuLoop);
+    static void RegisterDevice(ObservableLocation*, IConnectorRegistry* registry,
+                               EventLoop* client_loop, EventLoop* qemu_loop);
 };
 
 }  // namespace goldfish::devices::gps

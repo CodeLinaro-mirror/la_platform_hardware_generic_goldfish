@@ -31,8 +31,8 @@ class IGuestStatusDevice : public HalPlug {
   public:
     static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 
-    static void registerDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
-                               EmulatorResetCallbacks resetCallbacks, EventLoop* clientLoop,
-                               EventLoop* qemuLoop, int quitAfterBootTimeoutSeconds);
+    static void RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
+                               EmulatorResetCallbacks resetCallbacks, EventLoop* client_loop,
+                               EventLoop* qemu_loop, int quitAfterBootTimeoutSeconds);
 };
 }  // namespace goldfish::devices::guest_status

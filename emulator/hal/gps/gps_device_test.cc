@@ -34,7 +34,7 @@ class GpsDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IGpsDevice::registerDevice(&location, &registry, mClientLoop.get(), mQemuLoop.get());
+        IGpsDevice::RegisterDevice(&location, &registry, mClientLoop.get(), mQemuLoop.get());
         device = registry.constructHalDevice<IGpsDevice>();
         test_socket = registry.halSocket();
     }

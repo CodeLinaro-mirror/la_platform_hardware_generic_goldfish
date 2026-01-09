@@ -162,7 +162,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
     // Act: Register the HAL device. The factory lambda captures the pre-created
     // mockHalPlug. This is done for convenience to set expectations on the mock
     // object before it's used by other threads.
-    registry.registerHalDevice(kDeviceName, mClientLoop.get(), mQemuLoop.get(),
+    registry.RegisterHalDevice(kDeviceName, mClientLoop.get(), mQemuLoop.get(),
                                [mockHalPlug](std::string_view /*args*/) { return mockHalPlug; });
 
     // Act: Start listening for connections. When a connection occurs, the
@@ -175,7 +175,7 @@ TEST_F(ConnectorRegistryThreadingTest, HalDeviceCallbacksAreOnClientThread) {
         connectorPlug = std::get<PlugPtr>(listenFn(SocketPtr(&testSocket)));
         return true;
     };
-    registry.listen(listenCallback);
+    registry.Listen(listenCallback);
 
     // --- Test connection ---
     {

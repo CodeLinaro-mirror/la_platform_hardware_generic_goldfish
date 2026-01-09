@@ -56,15 +56,15 @@ class ISensorDevice : public HalPlug, public std::enable_shared_from_this<ISenso
      * the lifetime of the registry.  Their lifecycles should be managed
      * externally to ensure they outlive the registry.
      */
-    static void registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
+    static void RegisterDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                android::goldfish::DeviceType avd_type, int avd_api,
-                               const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+                               const android::goldfish::HardwareConfig& hw, EventLoop* client_loop,
+                               EventLoop* qemu_loop);
     // Test seam
-    static void registerDevice(PhysicalModel* pm, IConnectorRegistry* registry,
+    static void RegisterDevice(PhysicalModel* pm, IConnectorRegistry* registry,
                                android::goldfish::DeviceType avd_type, int avd_api,
-                               const android::goldfish::HardwareConfig& hw, EventLoop* clientLoop,
-                               EventLoop* qemuLoop, ::android::base::IClock* clock);
+                               const android::goldfish::HardwareConfig& hw, EventLoop* client_loop,
+                               EventLoop* qemu_loop, ::android::base::IClock* clock);
 };
 
 }  // namespace goldfish::devices::sensor

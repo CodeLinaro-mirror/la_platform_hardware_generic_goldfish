@@ -41,25 +41,25 @@ TEST(broadcasting, example) {
     auto integerTopic = std::make_shared<IntegerTopic>();
     std::vector<MySubscriber> subscribers(5);
 
-    integerTopic->broadcast(42);
+    integerTopic->Broadcast(42);
     for (MySubscriber& s : subscribers) {
         EXPECT_EQ(s.value, 0);  // not subscribed yet
-        s.ticket = std::move(integerTopic->subscribe(s, &MySubscriber::notify));
-        EXPECT_TRUE(s.ticket.isSubscribed());  // now subscribed
+        s.ticket = std::move(integerTopic->Subscribe(s, &MySubscriber::notify));
+        EXPECT_TRUE(s.ticket.IsSubscribed());  // now subscribed
     }
 
-    integerTopic->broadcast(42);
+    integerTopic->Broadcast(42);
     for (const MySubscriber& s : subscribers) {
         EXPECT_EQ(s.value, 42);
     }
 
     // unsubscribe two
-    subscribers[0].ticket.unsubscribe();
-    EXPECT_FALSE(subscribers[0].ticket.isSubscribed());
-    subscribers[2].ticket.unsubscribe();
-    EXPECT_FALSE(subscribers[2].ticket.isSubscribed());
+    subscribers[0].ticket.Unsubscribe();
+    EXPECT_FALSE(subscribers[0].ticket.IsSubscribed());
+    subscribers[2].ticket.Unsubscribe();
+    EXPECT_FALSE(subscribers[2].ticket.IsSubscribed());
 
-    integerTopic->broadcast(77);
+    integerTopic->Broadcast(77);
     EXPECT_EQ(subscribers[0].value, 42);  // unsubscribed above
     EXPECT_EQ(subscribers[1].value, 77);
     EXPECT_EQ(subscribers[2].value, 42);  // unsubscribed above
@@ -69,14 +69,14 @@ TEST(broadcasting, example) {
     subscribers[3].wantMoreBroadcasts = false;
     subscribers[4].wantMoreBroadcasts = false;
 
-    integerTopic->broadcast(15);
+    integerTopic->Broadcast(15);
     EXPECT_EQ(subscribers[0].value, 42);
     EXPECT_EQ(subscribers[1].value, 15);
     EXPECT_EQ(subscribers[2].value, 42);
     EXPECT_EQ(subscribers[3].value, 15);  // this broadcast is still received
     EXPECT_EQ(subscribers[4].value, 15);  // this broadcast is still received
 
-    integerTopic->broadcast(99);
+    integerTopic->Broadcast(99);
     EXPECT_EQ(subscribers[0].value, 42);
     EXPECT_EQ(subscribers[1].value, 99);
     EXPECT_EQ(subscribers[2].value, 42);
@@ -85,10 +85,10 @@ TEST(broadcasting, example) {
     EXPECT_EQ(subscribers[4].value,
               15);  // unsubscribed, see `wantMoreBroadcasts` above
 
-    subscribers[1].ticket.unsubscribe();  // all MUST explicitly unsubscribe
+    subscribers[1].ticket.Unsubscribe();  // all MUST explicitly unsubscribe
 
     for (const MySubscriber& s : subscribers) {
-        EXPECT_FALSE(s.ticket.isSubscribed());
+        EXPECT_FALSE(s.ticket.IsSubscribed());
     }
 }
 
@@ -99,8 +99,8 @@ TEST(broadcasting, build_test_TakesArgsReturnsVoid) {
 
     auto integerTopic = std::make_shared<IntegerTopic>();
     TakesArgsReturnsVoid subscriber;
-    Ticket ticket = integerTopic->subscribe(subscriber, &TakesArgsReturnsVoid::notify);
-    ticket.unsubscribe();
+    Ticket ticket = integerTopic->Subscribe(subscriber, &TakesArgsReturnsVoid::notify);
+    ticket.Unsubscribe();
 }
 
 TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
@@ -110,8 +110,8 @@ TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
 
     auto voidTopic = std::make_shared<VoidTopic>();
     NoArgsReturnsMaybeTicket subscriber;
-    Ticket ticket = voidTopic->subscribe(subscriber, &NoArgsReturnsMaybeTicket::notify);
-    ticket.unsubscribe();
+    Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsMaybeTicket::notify);
+    ticket.Unsubscribe();
 }
 
 TEST(broadcasting, build_test_NoArgsReturnsVoid) {
@@ -121,6 +121,6 @@ TEST(broadcasting, build_test_NoArgsReturnsVoid) {
 
     auto voidTopic = std::make_shared<VoidTopic>();
     NoArgsReturnsVoid subscriber;
-    Ticket ticket = voidTopic->subscribe(subscriber, &NoArgsReturnsVoid::notify);
-    ticket.unsubscribe();
+    Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsVoid::notify);
+    ticket.Unsubscribe();
 }

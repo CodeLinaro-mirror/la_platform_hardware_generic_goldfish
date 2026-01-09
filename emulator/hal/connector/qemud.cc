@@ -14,30 +14,29 @@
 
 #include <cstdint>
 
-namespace goldfish {
-namespace devices {
-namespace qemud {
+namespace goldfish::devices::qemud {
 namespace {
-static unsigned parseHex1(uint8_t c) {
+unsigned ParseHex1(uint8_t c) {
     if ((c >= '0') && (c <= '9')) {
         return c - '0';
-    } else if ((c >= 'A') && (c <= 'F')) {
-        return c - 'A' + 10;
-    } else if ((c >= 'a') && (c <= 'f')) {
-        return c - 'a' + 10;
-    } else {
-        return 0;
     }
+    if ((c >= 'A') && (c <= 'F')) {
+        return c - 'A' + 10;
+    }
+    if ((c >= 'a') && (c <= 'f')) {
+        return c - 'a' + 10;
+    }
+    return 0;
 }
 }  // namespace
 
-void encodeRequestSize(const uint32_t size, uint8_t* const data) {
+void EncodeRequestSize(const uint32_t size, uint8_t* const data) {
     if (size <= UINT16_MAX) {
-        static const char dict[] = "0123456789ABCDEF";
-        data[0] = dict[size >> 12];
-        data[1] = dict[(size >> 8) & 0xF];
-        data[2] = dict[(size >> 4) & 0xF];
-        data[3] = dict[size & 0xF];
+        static const char kDict[] = "0123456789ABCDEF";
+        data[0] = kDict[size >> 12];
+        data[1] = kDict[(size >> 8) & 0xF];
+        data[2] = kDict[(size >> 4) & 0xF];
+        data[3] = kDict[size & 0xF];
     } else {
         data[0] = 0x80 | (size >> 24);
         data[1] = size >> 16;
@@ -46,77 +45,78 @@ void encodeRequestSize(const uint32_t size, uint8_t* const data) {
     }
 }
 
-size_t decodeRequestSize(const uint8_t* const data8) {
+size_t DecodeRequestSize(const uint8_t* const data8) {
     if (data8[0] & 0x80) {
         // 31bit big-endian encoding
-        return (size_t(data8[0] & 0x7F) << 24) | (size_t(data8[1]) << 16) |
-               (size_t(data8[2]) << 8) | data8[3];
-    } else {
-        // 16bit hex encoding
-        return (parseHex1(data8[0]) << 12) | (parseHex1(data8[1]) << 8) |
-               (parseHex1(data8[2]) << 4) | parseHex1(data8[3]);
-    }
+        return (static_cast<size_t>(data8[0] & 0x7F) << 24) |
+               (static_cast<size_t>(data8[1]) << 16) | (static_cast<size_t>(data8[2]) << 8) |
+               data8[3];
+    }  // 16bit hex encoding
+    return (ParseHex1(data8[0]) << 12) | (ParseHex1(data8[1]) << 8) | (ParseHex1(data8[2]) << 4) |
+           ParseHex1(data8[3]);
 }
 
-Parser::Parser(Sink sink) : mSink(std::move(sink)) {}
+Parser::Parser(Sink sink) : sink_(std::move(sink)) {}
 
-bool Parser::onReceive(const void* const data, size_t size) {
+// TODO: This triggers clang-tidy complexity
+bool Parser::OnReceive(const void* const data, size_t size) {  // NOLINT
     bool result = true;
-    const uint8_t* data8 = static_cast<const uint8_t*>(data);
+    const auto* data8 = static_cast<const uint8_t*>(data);
 
     while (size > 0) {
-        const size_t bufSize = mBuffer.size();
-        if (bufSize == 0) {
+        const size_t buf_size = buffer_.size();
+        if (buf_size == 0) {
             while (size >= kSizeSize) {
-                const size_t requestSize = decodeRequestSize(data8);
-                if (size >= (kSizeSize + requestSize)) {
+                const size_t request_size = DecodeRequestSize(data8);
+                if (size >= (kSizeSize + request_size)) {
                     data8 += kSizeSize;
-                    if (!mSink(data8, requestSize)) {
+                    if (!sink_(data8, request_size)) {
                         result = false;
                     }
-                    data8 += requestSize;
-                    size -= (kSizeSize + requestSize);
+                    data8 += request_size;
+                    size -= (kSizeSize + request_size);
                 } else {
                     break;
                 }
             }
 
-            mBuffer.assign(data8, data8 + size);  // unconsumed
+            buffer_.assign(data8, data8 + size);  // unconsumed
             break;
-        } else if (bufSize < kSizeSize) {
-            const size_t consume = std::min(kSizeSize - bufSize, size);
-            mBuffer.insert(mBuffer.end(), data8, data8 + consume);
+        }
+        if (buf_size < kSizeSize) {
+            const size_t consume = std::min(kSizeSize - buf_size, size);
+            buffer_.insert(buffer_.end(), data8, data8 + consume);
             data8 += consume;
             size -= consume;
-        } else if (bufSize == kSizeSize) {
-            const size_t requestSize = decodeRequestSize(mBuffer.data());
-            if (size >= requestSize) {
-                if (!mSink(data8, requestSize)) {
+        } else if (buf_size == kSizeSize) {
+            const size_t request_size = DecodeRequestSize(buffer_.data());
+            if (size >= request_size) {
+                if (!sink_(data8, request_size)) {
                     result = false;
                 }
 
-                mBuffer.clear();
-                data8 += requestSize;
-                size -= requestSize;
+                buffer_.clear();
+                data8 += request_size;
+                size -= request_size;
             } else {
-                const size_t consume = std::min(requestSize, size);
-                mBuffer.insert(mBuffer.end(), data8, data8 + consume);
+                const size_t consume = std::min(request_size, size);
+                buffer_.insert(buffer_.end(), data8, data8 + consume);
                 data8 += consume;
                 size -= consume;
             }
         } else {
-            const size_t requestSize = decodeRequestSize(mBuffer.data());
-            const size_t buffer_size = mBuffer.size();
-            const size_t consume = std::min(kSizeSize + requestSize - buffer_size, size);
-            mBuffer.insert(mBuffer.end(), data8, data8 + consume);
+            const size_t request_size = DecodeRequestSize(buffer_.data());
+            const size_t buffer_size = buffer_.size();
+            const size_t consume = std::min(kSizeSize + request_size - buffer_size, size);
+            buffer_.insert(buffer_.end(), data8, data8 + consume);
             data8 += consume;
             size -= consume;
 
-            if ((buffer_size + consume) == (kSizeSize + requestSize)) {
-                if (!mSink(&mBuffer[kSizeSize], requestSize)) {
+            if ((buffer_size + consume) == (kSizeSize + request_size)) {
+                if (!sink_(&buffer_[kSizeSize], request_size)) {
                     result = false;
                 }
-                mBuffer.clear();
+                buffer_.clear();
             }
         }
     }
@@ -124,30 +124,28 @@ bool Parser::onReceive(const void* const data, size_t size) {
     return result;
 }
 
-void Parser::saveToSnapshot(archive::IWriter& writer) const {
-    writer << mBuffer.size();
-    writer.Write(mBuffer.data(), mBuffer.size());
+void Parser::SaveToSnapshot(archive::IWriter& writer) const {
+    writer << buffer_.size();
+    writer.Write(buffer_.data(), buffer_.size());
 }
 
-bool Parser::loadFromSnapshot(archive::IReader& reader) {
-    mBuffer.resize(GetUnsigned(reader));
-    return reader.Read(mBuffer.data(), mBuffer.size());
+bool Parser::LoadFromSnapshot(archive::IReader& reader) {
+    buffer_.resize(GetUnsigned(reader));
+    return reader.Read(buffer_.data(), buffer_.size());
 }
 
-void sendAsync(const void* data, const size_t size, cable::ISocket& dst) {
-    uint8_t sizeBytes[kSizeSize];
-    encodeRequestSize(size, sizeBytes);
-    dst.SendAsync(sizeBytes, sizeof(sizeBytes));
+void SendAsync(const void* data, const size_t size, cable::ISocket& dst) {
+    uint8_t size_bytes[kSizeSize];
+    EncodeRequestSize(size, size_bytes);
+    dst.SendAsync(size_bytes, sizeof(size_bytes));
     dst.SendAsync(data, size);
 }
 
-std::string encodeQemudPacket(const std::string_view data) {
+std::string EncodeQemudPacket(const std::string_view data) {
     std::string result;
     result.resize(kSizeSize + data.size());
-    encodeRequestSize(data.size(), (uint8_t*)result.data());
+    EncodeRequestSize(data.size(), reinterpret_cast<uint8_t*>(result.data()));
     std::memcpy(result.data() + kSizeSize, data.data(), data.size());
     return result;
 }
-}  // namespace qemud
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::qemud

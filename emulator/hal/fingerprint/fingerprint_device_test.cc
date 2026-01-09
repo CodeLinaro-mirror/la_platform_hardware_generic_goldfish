@@ -32,7 +32,7 @@ class FingerprintDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IFingerprintDevice::registerDevice(&mTouchSensor, &registry, mClientLoop.get(),
+        IFingerprintDevice::RegisterDevice(&mTouchSensor, &registry, mClientLoop.get(),
                                            mQemuLoop.get());
 
         device = registry.constructHalDevice<IFingerprintDevice>();

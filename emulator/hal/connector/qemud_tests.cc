@@ -47,30 +47,30 @@ struct TestSocket : public ISocket {
 
 TEST(qemud, encodeRequestSize) {
     uint8_t sizeBytes[kSizeSize];
-    encodeRequestSize(0x1234, sizeBytes);
+    EncodeRequestSize(0x1234, sizeBytes);
     EXPECT_EQ(::strncmp("1234", (const char*)sizeBytes, kSizeSize), 0);
 
-    encodeRequestSize(0xABCD, sizeBytes);
+    EncodeRequestSize(0xABCD, sizeBytes);
     EXPECT_EQ(::strncmp("ABCD", (const char*)sizeBytes, kSizeSize), 0);
 
     constexpr uint32_t kLongerThat16 = 123456;
-    encodeRequestSize(kLongerThat16, sizeBytes);
+    EncodeRequestSize(kLongerThat16, sizeBytes);
     EXPECT_EQ(sizeBytes[0], (0x80 | (kLongerThat16 >> 24)));
     EXPECT_EQ(sizeBytes[1], (kLongerThat16 >> 16) & UCHAR_MAX);
     EXPECT_EQ(sizeBytes[2], (kLongerThat16 >> 8) & UCHAR_MAX);
     EXPECT_EQ(sizeBytes[3], kLongerThat16 & UCHAR_MAX);
 }
 
-TEST(qemud, decodeRequestSize) {
-    EXPECT_EQ(decodeRequestSize((const uint8_t*)"1234"), 0x1234);
-    EXPECT_EQ(decodeRequestSize((const uint8_t*)"ABCD"), 0xABCD);
+TEST(qemud, DecodeRequestSize) {
+    EXPECT_EQ(DecodeRequestSize((const uint8_t*)"1234"), 0x1234);
+    EXPECT_EQ(DecodeRequestSize((const uint8_t*)"ABCD"), 0xABCD);
 
     uint8_t sizeBytes[kSizeSize];
     sizeBytes[0] = 0x80 | 0x05;
     sizeBytes[1] = 0x06;
     sizeBytes[2] = 0x07;
     sizeBytes[3] = 0x08;
-    EXPECT_EQ(decodeRequestSize(sizeBytes), 0x5060708);
+    EXPECT_EQ(DecodeRequestSize(sizeBytes), 0x5060708);
 }
 
 TEST(qemud, loopback) {
@@ -79,9 +79,9 @@ TEST(qemud, loopback) {
     TestSocket socket;
     constexpr auto kStr = "Hello, world!"sv;
 
-    sendAsync(kStr.data(), kStr.size(), socket);
+    SendAsync(kStr.data(), kStr.size(), socket);
     EXPECT_EQ(socket.storage.size(), kSizeSize + kStr.size());
-    EXPECT_EQ(decodeRequestSize(socket.storage.data()), kStr.size());
+    EXPECT_EQ(DecodeRequestSize(socket.storage.data()), kStr.size());
     EXPECT_EQ(::memcmp(&socket.storage[kSizeSize], kStr.data(), kStr.size()), 0);
 
     bool continueReceiving = true;
@@ -95,27 +95,27 @@ TEST(qemud, loopback) {
     });
 
     for (const uint8_t b : socket.storage) {
-        EXPECT_TRUE(parser.onReceive(&b, sizeof(b)));
+        EXPECT_TRUE(parser.OnReceive(&b, sizeof(b)));
     }
 
     EXPECT_EQ(payloadsReceived, 1);
     EXPECT_EQ(payload.size(), kStr.size());
     EXPECT_EQ(::memcmp(payload.data(), kStr.data(), kStr.size()), 0);
 
-    EXPECT_TRUE(parser.onReceive(socket.storage.data(), socket.storage.size()));
+    EXPECT_TRUE(parser.OnReceive(socket.storage.data(), socket.storage.size()));
     EXPECT_EQ(payloadsReceived, 2);
     EXPECT_EQ(payload.size(), kStr.size());
     EXPECT_EQ(::memcmp(payload.data(), kStr.data(), kStr.size()), 0);
 
     continueReceiving = false;
-    EXPECT_FALSE(parser.onReceive(socket.storage.data(), socket.storage.size()));
+    EXPECT_FALSE(parser.OnReceive(socket.storage.data(), socket.storage.size()));
     EXPECT_EQ(payloadsReceived, 3);
 }
 
 TEST(QemudPacketTest, EncodeEmptyPacket) {
     std::string_view data = "";
     std::string expected_packet = "0000";
-    std::string actual_packet = encodeQemudPacket(data);
+    std::string actual_packet = EncodeQemudPacket(data);
     EXPECT_EQ(expected_packet, actual_packet);
 }
 
@@ -123,7 +123,7 @@ TEST(QemudPacketTest, EncodeSimplePacket) {
     std::string_view data = "test-data";
     std::string expected_header = "0009";
     std::string expected_packet = expected_header + "test-data";
-    std::string actual_packet = encodeQemudPacket(data);
+    std::string actual_packet = EncodeQemudPacket(data);
 
     EXPECT_EQ(expected_packet, actual_packet);
     EXPECT_EQ(expected_header, actual_packet.substr(0, kSizeSize));
@@ -141,7 +141,7 @@ TEST(QemudPacketTest, EncodePacketWithNulls) {
     expected_packet.append(data);
 
     std::string_view data_view(data);
-    std::string actual_packet = encodeQemudPacket(data_view);
+    std::string actual_packet = EncodeQemudPacket(data_view);
 
     EXPECT_EQ(expected_packet.size(), actual_packet.size());
     EXPECT_EQ(expected_packet, actual_packet);
@@ -152,7 +152,7 @@ TEST(QemudPacketTest, EncodeMaxSizedPacket) {
     std::string expected_header = "FFFF";
     std::string_view data_view(data);
 
-    std::string actual_packet = encodeQemudPacket(data_view);
+    std::string actual_packet = EncodeQemudPacket(data_view);
 
     EXPECT_EQ(kSizeSize + kMaxHexEncodedSize, actual_packet.size());
     EXPECT_EQ(expected_header, actual_packet.substr(0, kSizeSize));

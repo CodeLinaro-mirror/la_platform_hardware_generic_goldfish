@@ -202,6 +202,7 @@ clang_tidy_test(
     targets = [
         ":cable",
         ":connector_registry",
+        ":connector_registry_impl",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

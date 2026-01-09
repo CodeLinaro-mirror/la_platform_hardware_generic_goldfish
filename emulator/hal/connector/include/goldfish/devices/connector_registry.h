@@ -22,11 +22,10 @@
 #include "goldfish/devices/internal/hal_plug.h"
 #include "goldfish/devices/ping_topic.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using DeviceFactory = std::function<cable::PlugPtr(cable::SocketPtr socket,
-                                                   const std::shared_ptr<PingTopic>& pingTopic,
+                                                   const std::shared_ptr<PingTopic>& ping_topic,
                                                    std::string_view args)>;
 
 /**
@@ -69,7 +68,7 @@ struct IConnectorRegistry {
      * @param factory The factory function for creating the device.
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
-    [[deprecated("Use registerHalQemuDevice instead.")]] virtual bool registerQemuDevice(
+    [[deprecated("Use registerHalQemuDevice instead.")]] virtual bool RegisterQemuDevice(
             std::string_view name, DeviceFactory factory) = 0;
 
     /**
@@ -83,7 +82,7 @@ struct IConnectorRegistry {
      * @param factory The factory function for creating the device.
      * @return `true` if the device was registered successfully, `false` otherwise.
      */
-    [[deprecated("Use registerHalDevice instead.")]] virtual bool registerDevice(
+    [[deprecated("Use RegisterHalDevice instead.")]] virtual bool RegisterDevice(
             std::string_view name, DeviceFactory factory) = 0;
 
     /**
@@ -96,15 +95,15 @@ struct IConnectorRegistry {
      * communication between the QEMU main loop and the device's event loop.
      *
      * @param name The name of the device.
-     * @param clientLoop The event loop on which the device will run.
-     * @param qemuLoop The event loop which is tied to qemu.
+     * @param client_loop The event loop on which the device will run.
+     * @param qemu_loop The event loop which is tied to qemu.
      * @param factory The factory function for creating the device.
      */
-    virtual void registerHalDevice(std::string name, async::EventLoop* clientLoop,
-                                   async::EventLoop* qemuLoop, HalDeviceFactory factory) = 0;
+    virtual void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
+                                   async::EventLoop* qemu_loop, HalDeviceFactory factory) = 0;
 
-    virtual void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
-                                       async::EventLoop* qemuLoop, HalDeviceFactory factory) = 0;
+    virtual void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
+                                       async::EventLoop* qemu_loop, HalDeviceFactory factory) = 0;
 
     IConnectorRegistry() = default;
     IConnectorRegistry(const IConnectorRegistry&) = delete;
@@ -113,5 +112,4 @@ struct IConnectorRegistry {
     IConnectorRegistry& operator=(IConnectorRegistry&&) = delete;
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices
