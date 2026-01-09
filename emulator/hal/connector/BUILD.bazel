@@ -190,6 +190,7 @@ cc_library(
     ],
     deps = [
         ":cable",
+        ":connection_awaiter",
         ":connector_registry_impl",
         ":devices",
         "//android/async:async_testing",
@@ -203,6 +204,7 @@ clang_tidy_test(
         ":cable",
         ":connector_registry",
         ":connector_registry_impl",
+        ":devices",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
