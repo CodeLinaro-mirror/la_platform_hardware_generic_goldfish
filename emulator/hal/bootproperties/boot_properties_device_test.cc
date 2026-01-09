@@ -124,13 +124,13 @@ class BootPropertiesDeviceTest : public ::testing::Test {
 
   public:
     void registerWithProps(IBootPropertiesDevice::Properties props) {
-        IBootPropertiesDevice::registerDevice(&registry, props, mClientLoop.get(), mQemuLoop.get());
+        IBootPropertiesDevice::RegisterDevice(&registry, props, mClientLoop.get(), mQemuLoop.get());
         device = registry.constructHalDevice<IBootPropertiesDevice>();
         test_socket = registry.halSocket();
         clear();
         device->OnConnect();
     }
-    void receive(std::string_view msg) { device->OnReceive(qemud::encodeQemudPacket(msg)); }
+    void receive(std::string_view msg) { device->OnReceive(qemud::EncodeQemudPacket(msg)); }
     void clear() { test_socket->storage.clear(); }
 
   protected:

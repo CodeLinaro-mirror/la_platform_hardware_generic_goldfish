@@ -32,11 +32,11 @@ void set_fake_connect_fn(FakeConnectFn fn) {
     gFakeConnectFn = fn;
 }
 
-bool listen(uint32_t port, HostPortListener listener) {
+bool Listen(uint32_t port, HostPortListener listener) {
     return gFakeListenFn(port, listener);
 }
 
-devices::cable::SocketPtr connect(uint32_t guestPort, devices::cable::PlugPtr plug) {
+devices::cable::SocketPtr Connect(uint32_t guestPort, devices::cable::PlugPtr plug) {
     return gFakeConnectFn(guestPort, plug);
 }
 

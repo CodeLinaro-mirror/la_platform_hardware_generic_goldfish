@@ -21,25 +21,24 @@
 
 #include "goldfish/devices/marshalling_hal_socket.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 HalPlugToIPlugAdapter::~HalPlugToIPlugAdapter() {
-    VLOG(1) << "Tearing down " << *this << " with mHalPlug: " << *mHalPlug
-            << ", use_count: " << mHalPlug.use_count();
+    VLOG(1) << "Tearing down " << *this << " with mHalPlug: " << *hal_plug_
+            << ", use_count: " << hal_plug_.use_count();
 }
 
-HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* clientLoop,
-                                             std::shared_ptr<HalPlug> halPlug)
-        : mClientLoop(clientLoop), mHalPlug(std::move(halPlug)) {
-    VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << *mHalPlug
-            << ", use_count: " << mHalPlug.use_count();
+HalPlugToIPlugAdapter::HalPlugToIPlugAdapter(async::EventLoop* client_loop,
+                                             std::shared_ptr<HalPlug> hal_plug)
+        : client_loop_(client_loop), hal_plug_(std::move(hal_plug)) {
+    VLOG(1) << "HalPlugToIPlugAdapter created with mHalPlug: " << *hal_plug_
+            << ", use_count: " << hal_plug_.use_count();
 }
 
 void HalPlugToIPlugAdapter::OnConnect() {
     // Let's inform the client of the new connection.
-    VLOG(1) << "Scheduling OnConnect for mHalPlug: " << *mHalPlug;
-    mClientLoop->Post([plug = mHalPlug]() { plug->OnConnect(); });
+    VLOG(1) << "Scheduling OnConnect for mHalPlug: " << *hal_plug_;
+    client_loop_->Post([plug = hal_plug_]() { plug->OnConnect(); });
 }
 
 bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
@@ -48,8 +47,8 @@ bool HalPlugToIPlugAdapter::OnReceive(const void* data, size_t size) {
     // We return true immediately, preventing the QEMU thread from blocking.
     //
     // This means that vsock will never close out this socket from this call.
-    VLOG(2) << "Scheduling onReceive for mHalPlug " << *mHalPlug << " with: " << size << " bytes.";
-    mClientLoop->Post([plug = mHalPlug, s = std::string(static_cast<const char*>(data), size)]() {
+    VLOG(2) << "Scheduling onReceive for mHalPlug " << *hal_plug_ << " with: " << size << " bytes.";
+    client_loop_->Post([plug = hal_plug_, s = std::string(static_cast<const char*>(data), size)]() {
         plug->OnReceive(s);
     });
 
@@ -65,20 +64,19 @@ cable::SocketPtr HalPlugToIPlugAdapter::OnUnplug() {
     //
     // Note: the marshalling socket can be a NullSocket if someone else was just
     // ahead of us when closing.
-    auto marshallingSocket = std::static_pointer_cast<MarshallingHalSocket>(mHalPlug->Socket());
-    VLOG(1) << "Closing and releasing " << *marshallingSocket;
-    marshallingSocket->Close();
-    auto releasedSocket = marshallingSocket->release();
+    auto marshalling_socket = std::static_pointer_cast<MarshallingHalSocket>(hal_plug_->Socket());
+    VLOG(1) << "Closing and releasing " << *marshalling_socket;
+    marshalling_socket->Close();
+    auto released_socket = marshalling_socket->Release();
 
     // Now notify the client that we are no longer alive.
-    VLOG(1) << "Scheduling onClose for mHalPlug:" << *mHalPlug;
-    (void)mClientLoop->Post([plug = mHalPlug]() {
+    VLOG(1) << "Scheduling onClose for mHalPlug:" << *hal_plug_;
+    (void)client_loop_->Post([plug = hal_plug_]() {
         VLOG(1) << "Calling OnClose from client thread on " << *plug;
         plug->OnClose();
     });
 
-    return releasedSocket;
+    return released_socket;
 }
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

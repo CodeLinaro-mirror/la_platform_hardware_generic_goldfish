@@ -51,7 +51,7 @@ class UnixPipeTest : public ::testing::Test {
         client_loop_ = LibuvEventLoop::Create();
         client_loop_thread_ = std::thread([this] { (void)client_loop_->Run(); });
         qemu_loop_ = TestEventLoop::create();
-        IUnixPipe::registerDevice(&registry_, client_loop_.get(), qemu_loop_.get());
+        IUnixPipe::RegisterDevice(&registry_, client_loop_.get(), qemu_loop_.get());
     }
 
     void TearDown() override {

@@ -56,8 +56,8 @@ using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
-    MultiDisplayImpl(EventLoop* loop, EventLoop* qemuLoop)
-            : IMultiDisplay(loop), mQemuLoop(qemuLoop) {}
+    MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop)
+            : IMultiDisplay(loop), mQemuLoop(qemu_loop) {}
     virtual ~MultiDisplayImpl() = default;
 
     absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
@@ -144,8 +144,8 @@ void IMultiDisplay::injectSingleton(IMultiDisplay* display) {
 }
 
 namespace QemuMultidisplay {
-void configureMultiDisplay(EventLoop* loop, EventLoop* qemuLoop) {
-    static MultiDisplayImpl instance(loop, qemuLoop);
+void configureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop) {
+    static MultiDisplayImpl instance(loop, qemu_loop);
     IMultiDisplay::injectSingleton(&instance);
 }
 }  // namespace QemuMultidisplay

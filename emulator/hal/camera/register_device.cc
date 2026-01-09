@@ -143,7 +143,7 @@ err:
 
 }  // namespace
 
-void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
+void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
                     const android::goldfish::HardwareConfig& hw, GrallocProvider grallocProvider) {
     const auto [frontCameraId, frontCameraParams] = split2(hw.hw_camera_front, ':');
     CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
@@ -174,7 +174,7 @@ void registerDevice(IConnectorRegistry* registry, std::string* emulatedCameraPro
         backCameraSource = CameraImageSource::EMULATED;
     }
 
-    registry->registerQemuDevice(std::string(CameraDeviceBase::serviceName),
+    registry->RegisterQemuDevice(std::string(CameraDeviceBase::serviceName),
                                  [imageProvidersRegistry = std::move(imageProvidersRegistry),
                                   grallocProvider = std::move(grallocProvider)](
                                          SocketPtr socket, const std::shared_ptr<PingTopic>&,

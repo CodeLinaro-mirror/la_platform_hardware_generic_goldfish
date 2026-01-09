@@ -24,8 +24,7 @@
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/internal/hal_plug.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 /**
  * @class HalPlugToIPlugAdapter
@@ -39,12 +38,12 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
   public:
     /**
      * @brief Constructs a new HalPlugToIPlugAdapter.
-     * @param clientLoop The event loop on which the HalPlug's methods should be
+     * @param client_loop The event loop on which the HalPlug's methods should be
      * invoked.
      * @param halPlug The real HalPlug instance to which calls will be
      * forwarded.
      */
-    HalPlugToIPlugAdapter(async::EventLoop* clientLoop, std::shared_ptr<HalPlug> halPlug);
+    HalPlugToIPlugAdapter(async::EventLoop* client_loop, std::shared_ptr<HalPlug> hal_plug);
     ~HalPlugToIPlugAdapter() override;
     /**
      * @brief Called on the QEMU thread when the connection is established.
@@ -74,17 +73,16 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
      */
     cable::SocketPtr OnUnplug() override;
 
-    const std::shared_ptr<HalPlug>& getHalPlug() const { return mHalPlug; }
+    const std::shared_ptr<HalPlug>& GetHalPlug() const { return hal_plug_; }
 
   protected:
     void AbslStringifyImpl(absl::FormatSink& s) const override {
-        absl::Format(&s, "[IPlugAdapter: client: %p, halPlug: %v]", mClientLoop, *mHalPlug);
+        absl::Format(&s, "[IPlugAdapter: client: %p, halPlug: %v]", client_loop_, *hal_plug_);
     }
 
   private:
-    async::EventLoop* mClientLoop;
-    std::shared_ptr<HalPlug> mHalPlug;
+    async::EventLoop* client_loop_;
+    std::shared_ptr<HalPlug> hal_plug_;
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

@@ -72,12 +72,12 @@ struct TestDevice : public cable::IPlug {
 
 const DeviceEntry kDeviceEntries[] = {
     {"-TestDevice",
-     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
         std::string_view args) {
          return std::make_shared<TestDevice>(std::move(socket), false, args);
      }},
     {"qTestDevice",
-     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& pingTopic,
+     [](cable::SocketPtr socket, const std::shared_ptr<PingTopic>& ping_topic,
         std::string_view args) {
          return std::make_shared<TestDevice>(std::move(socket), true, args);
      }},
@@ -92,9 +92,9 @@ TEST(Connector, incomplete_request) {
     DequeArchive archive;
 
     {
-        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+        std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("incom"sv));
         EXPECT_TRUE(testSocket.send("plete"sv));
@@ -111,10 +111,10 @@ TEST(Connector, bad_request) {
 
     DequeArchive archive;
 
-    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+    std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
     TestSocket testSocket;
-    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
-                                                  kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
+                                                  kDeviceEntries, kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("bad\0"sv));
     EXPECT_FALSE(testSocket.send("pipe:TestDevice:correct but ignored\0"sv));
     EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
@@ -128,10 +128,10 @@ TEST(Connector, unknown_device) {
 
     DequeArchive archive;
 
-    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+    std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
     TestSocket testSocket;
-    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
-                                                  kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
+                                                  kDeviceEntries, kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
     EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
@@ -145,10 +145,10 @@ TEST(Connector, unknown_qemud_device) {
 
     DequeArchive archive;
 
-    std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+    std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
     TestSocket testSocket;
-    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic, kDeviceEntries,
-                                                  kDeviceEntriesSize);
+    testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
+                                                  kDeviceEntries, kDeviceEntriesSize);
     EXPECT_FALSE(testSocket.send("pipe:qemud:unknown:args\0"sv));
     EXPECT_FALSE(testSocket.send("more data"sv));
     EXPECT_FALSE(SavePlugToSnapshot(*testSocket.plug, archive));
@@ -167,9 +167,9 @@ TEST(Connector, qemud_TestDevice_args_unconsumed) {
     DequeArchive archive;
 
     {
-        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+        std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
@@ -193,9 +193,9 @@ TEST(Connector, qemud_TestDevice_unconsumed) {
     DequeArchive archive;
 
     {
-        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+        std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:qemud:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));
@@ -219,9 +219,9 @@ TEST(Connector, TestDevice_args_unconsumed) {
     DequeArchive archive;
 
     {
-        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+        std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice:args\0unconsumed"sv));
@@ -245,9 +245,9 @@ TEST(Connector, TestDevice_unconsumed) {
     DequeArchive archive;
 
     {
-        std::shared_ptr<PingTopic> pingTopic = std::make_shared<PingTopic>();
+        std::shared_ptr<PingTopic> ping_topic = std::make_shared<PingTopic>();
         TestSocket testSocket;
-        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), pingTopic,
+        testSocket.plug = std::make_shared<Connector>(SocketPtr(&testSocket), ping_topic,
                                                       kDeviceEntries, kDeviceEntriesSize);
         EXPECT_TRUE(testSocket.send("pipe:TestDe"sv));
         EXPECT_TRUE(testSocket.send("vice\0unconsumed"sv));

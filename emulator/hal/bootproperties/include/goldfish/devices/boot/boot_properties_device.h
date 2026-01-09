@@ -82,8 +82,8 @@ class IBootPropertiesDevice : public HalPlug {
      * @param properties The set of properties to register.
      * @param resetCallbacks The struct containing register/unregister functions.
      */
-    static void registerDevice(IConnectorRegistry* registry, Properties properties,
-                               EventLoop* clientLoop, EventLoop* qemuLoop);
+    static void RegisterDevice(IConnectorRegistry* registry, Properties properties,
+                               EventLoop* client_loop, EventLoop* qemu_loop);
 };
 
 }  // namespace goldfish::devices::boot

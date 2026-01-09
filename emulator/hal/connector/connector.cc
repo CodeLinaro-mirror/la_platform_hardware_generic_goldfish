@@ -18,27 +18,26 @@
 
 #include "goldfish/devices/cable/error_plug.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 using cable::ErrorPlug;
 using cable::PlugPtr;
 using cable::SocketPtr;
 
 namespace {
-bool qnameEquals(const char q, const std::string_view name, const std::string_view qname) {
+bool QnameEquals(const char q, const std::string_view name, const std::string_view qname) {
     return (qname.size() > 1) && (q == qname[0]) && (name == qname.substr(1));
 }
 }  // namespace
 
-Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
-                     const DeviceEntry* devicesEntries, const size_t devicesEntriesSize)
-        : mSocket(std::move(socket))
-        , mPingTopic(std::move(pingTopic))
-        , mDevicesEntries(devicesEntries)
-        , mDevicesEntriesSize(devicesEntriesSize) {}
+Connector::Connector(SocketPtr socket, std::shared_ptr<PingTopic> ping_topic,
+                     const DeviceEntry* devices_entries, const size_t devices_entries_size)
+        : socket_(std::move(socket))
+        , ping_topic_(std::move(ping_topic))
+        , devices_entries_(devices_entries)
+        , devices_entries_size_(devices_entries_size) {}
 
 SocketPtr Connector::OnUnplug() {
-    return std::move(mSocket);
+    return std::move(socket_);
 }
 
 bool Connector::OnReceive(const void* data, const size_t size) {
@@ -48,39 +47,37 @@ bool Connector::OnReceive(const void* data, const size_t size) {
     const char* const end8 = data8 + size;
 
     // Find null terminator (end of request) in the incoming data
-    const auto zero8 = std::find(data8, end8, 0);
+    const auto* const zero8 = std::find(data8, end8, 0);
     if (zero8 != end8) {
         bool result;
-        if (mBuffer.empty()) {
-            std::string_view request(data8, zero8 - data8);
-            std::tie(result, self) = processRequest(request, zero8 + 1, end8 - (zero8 + 1), {});
+        if (buffer_.empty()) {
+            const std::string_view request(data8, zero8 - data8);
+            std::tie(result, self) = ProcessRequest(request, zero8 + 1, end8 - (zero8 + 1), {});
         } else {
-            mBuffer.insert(mBuffer.end(), data8, end8);
-            const size_t requestSize = mBuffer.size() - (end8 - zero8);
+            buffer_.insert(buffer_.end(), data8, end8);
+            const size_t request_size = buffer_.size() - (end8 - zero8);
 
-            std::string_view request(mBuffer.data(), requestSize);
-            std::tie(result, self) =
-                    processRequest(request, &mBuffer[requestSize + 1],
-                                   mBuffer.size() - (requestSize + 1), std::move(mBuffer));
+            const std::string_view request(buffer_.data(), request_size);
+            std::tie(result, self) = ProcessRequest(request, &buffer_[request_size + 1],
+                                                    buffer_.size() - (request_size + 1), buffer_);
         }
 
         if (!result) {
-            auto& socket = *mSocket;
-            self = socket.SwitchPlug(std::make_shared<ErrorPlug>(std::move(mSocket)));
+            auto& socket = *socket_;
+            self = socket.SwitchPlug(std::make_shared<ErrorPlug>(std::move(socket_)));
             // ~Connector is called here
         }
         return result;
-    } else {
-        // Append data to the internal buffer (up to null terminator or full data).
-        // Please note that requests are allowed to arrive in parts.
-        mBuffer.insert(mBuffer.end(), data8, end8);
-        return true;
-    }
+    }  // Append data to the internal buffer (up to null terminator or full data).
+    // Please note that requests are allowed to arrive in parts.
+    buffer_.insert(buffer_.end(), data8, end8);
+    return true;
 }
 
-std::pair<bool, PlugPtr> Connector::processRequest(
-        std::string_view request, const void* const unconsumed, const size_t unconsumedSize,
-        const Buffer bufferPassedHereForLifetimePurposes) {
+std::pair<bool, PlugPtr> Connector::ProcessRequest(std::string_view request,
+                                                   const void* const unconsumed,
+                                                   const size_t unconsumed_size,
+                                                   const Buffer& /*lifetime_assurance*/) {
     using namespace std::literals;
 
     constexpr auto kPipePrefix = "pipe:"sv;
@@ -91,12 +88,12 @@ std::pair<bool, PlugPtr> Connector::processRequest(
     }
 
     constexpr auto kQemudPrefix = "qemud:"sv;
-    bool isQemud;
+    bool is_qemud;
     if (request.starts_with(kQemudPrefix)) {
         request.remove_prefix(kQemudPrefix.size());
-        isQemud = true;
+        is_qemud = true;
     } else {
-        isQemud = false;
+        is_qemud = false;
     }
 
     std::string_view device;
@@ -112,24 +109,23 @@ std::pair<bool, PlugPtr> Connector::processRequest(
 
     if (device.empty()) {
         return {false, {}};
-    } else {
-        return switchTo(isQemud, device, args, unconsumed, unconsumedSize);
     }
+    return SwitchTo(is_qemud, device, args, unconsumed, unconsumed_size);
 }
 
-std::pair<bool, PlugPtr> Connector::switchTo(const bool isQemud, const std::string_view device,
+std::pair<bool, PlugPtr> Connector::SwitchTo(const bool is_qemud, const std::string_view device,
                                              const std::string_view args,
                                              const void* const unconsumed,
-                                             const size_t unconsumedSize) {
-    const char q = isQemud ? 'q' : '-';
-    size_t n = mDevicesEntriesSize;
-    for (const DeviceEntry* de = mDevicesEntries; n > 0; ++de, --n) {
-        if (qnameEquals(q, device, de->qname)) {
-            auto& socket = *mSocket;
-            PlugPtr newPlug = de->factory(std::move(mSocket), mPingTopic, args);
-            auto& newPlugRef = *newPlug;
-            PlugPtr self = socket.SwitchPlug(std::move(newPlug));
-            newPlugRef.OnReceive(unconsumed, unconsumedSize);
+                                             const size_t unconsumed_size) {
+    const char q = is_qemud ? 'q' : '-';
+    size_t n = devices_entries_size_;
+    for (const DeviceEntry* de = devices_entries_; n > 0; ++de, --n) {
+        if (QnameEquals(q, device, de->qname)) {
+            auto& socket = *socket_;
+            PlugPtr new_plug = de->factory(std::move(socket_), ping_topic_, args);
+            auto& new_plug_ref = *new_plug;
+            PlugPtr self = socket.SwitchPlug(std::move(new_plug));
+            new_plug_ref.OnReceive(unconsumed, unconsumed_size);
             return {true, std::move(self)};
         }
     }
@@ -147,10 +143,9 @@ cable::IPlug::TypeId Connector::GetSnapshotTypeId() const {
 }
 
 bool Connector::SaveStateToSnapshot(archive::IWriter& writer) const {
-    writer << mBuffer.size();
-    writer.Write(mBuffer.data(), mBuffer.size());
+    writer << buffer_.size();
+    writer.Write(buffer_.data(), buffer_.size());
     return true;
 }
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

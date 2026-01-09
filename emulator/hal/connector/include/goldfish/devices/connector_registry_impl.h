@@ -26,8 +26,7 @@
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/device_entry.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using HostPortListener = std::function<devices::cable::PlugOrSocket(devices::cable::SocketPtr)>;
 
@@ -60,7 +59,7 @@ class ConnectorRegistry : public IConnectorRegistry {
     using ListenFn = std::function<bool(HostPortListener)>;
 
     ConnectorRegistry();
-    explicit ConnectorRegistry(std::shared_ptr<PingTopic> pingTopic);
+    explicit ConnectorRegistry(std::shared_ptr<PingTopic> ping_topic);
 
     /**
      * @brief Starts listening for connections on the specified vsock port.
@@ -71,7 +70,7 @@ class ConnectorRegistry : public IConnectorRegistry {
      * @param port The vsock port number to listen on.
      * @return `true` if the listener was started successfully, `false` otherwise.
      */
-    bool listen(int port);
+    bool Listen(int port);
 
     /**
      * @brief Starts listening for connections using a custom listen function.
@@ -81,32 +80,31 @@ class ConnectorRegistry : public IConnectorRegistry {
      * @param startListening The function to be used for starting the listener.
      * @return `true` if the listener was started successfully, `false` otherwise.
      */
-    bool listen(ListenFn startListening);
+    bool Listen(const ListenFn& start_listening);
 
-    bool registerQemuDevice(std::string_view name, DeviceFactory factory) override;
+    bool RegisterQemuDevice(std::string_view name, DeviceFactory factory) override;
 
-    bool registerDevice(std::string_view name, DeviceFactory factory) override;
+    bool RegisterDevice(std::string_view name, DeviceFactory factory) override;
 
-    void registerHalDevice(std::string name, async::EventLoop* clientLoop,
-                           async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
+    void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
+                           async::EventLoop* qemu_loop, HalDeviceFactory factory) override;
 
-    void registerHalQemuDevice(std::string name, async::EventLoop* clientLoop,
-                               async::EventLoop* qemuLoop, HalDeviceFactory factory) override;
+    void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
+                               async::EventLoop* qemu_loop, HalDeviceFactory factory) override;
 
   private:
-    bool registerDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
+    bool RegisterDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 
     using DeviceRegistration = std::function<bool(std::string, DeviceFactory)>;
-    void registerHalDeviceImpl(std::string name, async::EventLoop* clientLoop,
-                               async::EventLoop* qemuLoop, HalDeviceFactory factory,
-                               DeviceRegistration registerFn);
+    static void RegisterHalDeviceImpl(std::string name, async::EventLoop* client_loop,
+                                      async::EventLoop* qemu_loop, HalDeviceFactory factory,
+                                      const DeviceRegistration& register_fn);
 
-    const std::shared_ptr<PingTopic> mPingTopic;
-    bool mAcceptingRegistries = true;
-    std::mutex mEntriesMutex;
-    absl::flat_hash_map<std::string, DeviceFactory> mEntries;
-    std::vector<DeviceEntry> mDevices;
+    const std::shared_ptr<PingTopic> ping_topic_;
+    bool accepting_registries_ = true;
+    std::mutex entries_mutex_;
+    absl::flat_hash_map<std::string, DeviceFactory> entries_;
+    std::vector<DeviceEntry> devices_;
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

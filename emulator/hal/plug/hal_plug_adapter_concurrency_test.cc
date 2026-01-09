@@ -74,32 +74,32 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     // NOTE: This test is expected to pass only *after* the deadlock is fixed
     // by making the `close()` call asynchronous. It serves as a regression test.
     // 1. Setup: Create manual loops and all the mock/adapter components.
-    auto qemuLoop = TestEventLoop::create();
-    auto clientLoop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::create();
+    auto client_loop = TestEventLoop::create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
     cable::SocketPtr mockSocketPtr(mockSocketRaw);
 
-    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(clientLoop.get(), mockHalPlug);
-    auto marshallingSocket =
-            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
+    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(client_loop.get(), mockHalPlug);
+    auto marshalling_socket =
+            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemu_loop.get());
 
-    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshallingSocket);
+    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshalling_socket);
 
     // 2. Orchestration: Simulate the exact sequence leading to deadlock.
 
     //    Step A: An `onReceive` event arrives from the guest. This is a task
     //    posted to the QEMU loop.
-    (void)qemuLoop->Post([&] { adapter->OnReceive("some data", 9); });
+    (void)qemu_loop->Post([&] { adapter->OnReceive("some data", 9); });
 
     //    Step B: The QEMU loop runs. The adapter receives the event and posts
     //    a corresponding task to the client loop.
-    EXPECT_GT(qemuLoop->taskCount(), 0);
-    ASSERT_EQ(clientLoop->taskCount(), 0);
-    qemuLoop->runOne();
-    ASSERT_EQ(qemuLoop->taskCount(), 0);
-    ASSERT_GT(clientLoop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->taskCount(), 0);
+    ASSERT_EQ(client_loop->taskCount(), 0);
+    qemu_loop->runOne();
+    ASSERT_EQ(qemu_loop->taskCount(), 0);
+    ASSERT_GT(client_loop->taskCount(), 0);
 
     //    Step C: The client HAL decides to close the connection from within its
     //    `OnReceive` handler. We set up the mock to trigger this behavior.
@@ -115,7 +115,7 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
 
     //    Step E: Run the client task. This will execute the mock `onReceive`,
     //    which calls `close()`, which calls `postAndWait()` on the qemuLoop->
-    clientLoop->runOne();
+    client_loop->runOne();
 
     // 3. Verification: Check for the deadlock state.
     //    The `postAndWait` has posted a task to the qemuLoop->
@@ -123,15 +123,15 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     //    the qemuLoop to finish, but it can't, because we control it.
     //    This demonstrates the deadlock: the client is waiting for QEMU, and
     //    QEMU is waiting for the client.
-    EXPECT_GT(qemuLoop->taskCount(), 0)
+    EXPECT_GT(qemu_loop->taskCount(), 0)
             << "The close() call failed to post a task to the QEMU loop.";
-    ASSERT_EQ(clientLoop->taskCount(), 0) << "The client loop should be empty and 'blocked'.";
+    ASSERT_EQ(client_loop->taskCount(), 0) << "The client loop should be empty and 'blocked'.";
 
     // In a real-world scenario, the test would hang here. Our manual control
     // allows us to inspect the state and prove the deadlock condition exists.
     // To clean up, we manually run the final QEMU task.
-    qemuLoop->runOne();
-    ASSERT_EQ(qemuLoop->taskCount(), 0);
+    qemu_loop->runOne();
+    ASSERT_EQ(qemu_loop->taskCount(), 0);
 
     delete mockSocketRaw;
 }
@@ -147,21 +147,21 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     //  3. The test verifies that the teardown logic is executed exactly once,
     //     preventing a double-unplug or use-after-free.
     // 1. Setup
-    auto qemuLoop = TestEventLoop::create();
-    auto clientLoop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::create();
+    auto client_loop = TestEventLoop::create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
     cable::SocketPtr mockSocketPtr(mockSocketRaw);
-    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(clientLoop.get(), mockHalPlug);
-    auto marshallingSocket =
-            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
-    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshallingSocket);
+    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(client_loop.get(), mockHalPlug);
+    auto marshalling_socket =
+            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemu_loop.get());
+    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshalling_socket);
 
     // 2. Orchestration
     //    Step A: Host initiates a close(). This posts a task to the QEMU loop.
     mockHalPlug->getSocket()->Close();
-    EXPECT_GT(qemuLoop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->taskCount(), 0);
     ;
 
     //    Step B: Before the QEMU loop runs the close() task, a guest-initiated
@@ -173,13 +173,13 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     }));
 
     adapter->OnUnplug();
-    ASSERT_GT(clientLoop->taskCount(), 0);
-    clientLoop->runOne();  // Run the OnClose() task.
+    ASSERT_GT(client_loop->taskCount(), 0);
+    client_loop->runOne();  // Run the OnClose() task.
 
     //    Step C: Now, the original close() task from the host runs.
     //    Because the connection is already closing, it should be a no-op.
     //    gMock will fail the test if unplugImpl() is called a second time.
-    qemuLoop->runOne();
+    qemu_loop->runOne();
 
     // 3. Verification
     //    The key verification is that unplugImpl was only called once.
@@ -217,8 +217,8 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     //     cleanly torn down exactly once.
 
     // 1. Setup
-    auto qemuLoop = TestEventLoop::create();
-    auto clientLoop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::create();
+    auto client_loop = TestEventLoop::create();
     ConnectorRegistry registry;
 
     bool factoryCalled = false;
@@ -231,7 +231,7 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
 
     // 2. Orchestration
     //    Step A: Register a HAL device.
-    registry.registerHalDevice("TestHalDevice", clientLoop.get(), qemuLoop.get(),
+    registry.RegisterHalDevice("TestHalDevice", client_loop.get(), qemu_loop.get(),
                                [&](std::string_view /*args*/) {
                                    factoryCalled = true;
                                    return mockHalPlug;
@@ -240,7 +240,7 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     //    Step B: Use a manual listen function to simulate a connection and
     //    capture the adapter created by the registry.
     bool listenFnCalled = false;
-    registry.listen([&](HostPortListener listener) {
+    registry.Listen([&](HostPortListener listener) {
         listenFnCalled = true;
         connector = std::get<cable::PlugPtr>(listener(cable::SocketPtr(mockSocketRaw)));
         return true;
@@ -259,10 +259,10 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
 
     //.   Creation takes place on QEMU loop, so no tasks are created, if we would
     //.   this would simply deadlock.
-    ASSERT_EQ(qemuLoop->taskCount(), 0);
+    ASSERT_EQ(qemu_loop->taskCount(), 0);
 
     //.   We did post the pending onConnect.
-    ASSERT_GT(clientLoop->taskCount(), 0);  // onConnect is now pending.
+    ASSERT_GT(client_loop->taskCount(), 0);  // onConnect is now pending.
 
     //    Step D: THE RACE. Before the client runs onConnect, the guest
     //    disconnects. We manually trigger onUnplug.
@@ -276,22 +276,22 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     // 1. The extra parameters from our connector ("")
     // 2. The onConnect call, actually became alive
     // 3. The onClose call
-    ASSERT_EQ(clientLoop->taskCount(), 3);
-    ASSERT_EQ(qemuLoop->taskCount(), 1);
+    ASSERT_EQ(client_loop->taskCount(), 3);
+    ASSERT_EQ(qemu_loop->taskCount(), 1);
 
     //    Step E: Now, let the client loop run. It should process onConnect
     //    first, then onClose.
     EXPECT_CALL(*mockHalPlug, OnConnect()).Times(1);
-    clientLoop->runOne();  // parameter delivery
-    clientLoop->runOne();  // onConnect runs
-    clientLoop->runOne();  // onClose runs
+    client_loop->runOne();  // parameter delivery
+    client_loop->runOne();  // onConnect runs
+    client_loop->runOne();  // onClose runs
 
     //    Step F: Let the qemu loop run to clean up the socket.
-    qemuLoop->runOne();  // unplugImpl runs
+    qemu_loop->runOne();  // unplugImpl runs
 
     // 3. Verification
-    ASSERT_EQ(clientLoop->taskCount(), 0);
-    ASSERT_EQ(qemuLoop->taskCount(), 0);
+    ASSERT_EQ(client_loop->taskCount(), 0);
+    ASSERT_EQ(qemu_loop->taskCount(), 0);
     // gMock will verify that all expected calls happened exactly once.
     mockSocketPtr.release();
     delete mockSocketRaw;
@@ -306,40 +306,40 @@ TEST(HalPlugAdapterConcurrencyTest, InFlightDataIsDeliveredAfterHostClose) {
     //  3. We verify that onReceive is still called, followed by onClose.
 
     // 1. Setup
-    auto qemuLoop = TestEventLoop::create();
-    auto clientLoop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::create();
+    auto client_loop = TestEventLoop::create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
     cable::SocketPtr mockSocketPtr(mockSocketRaw);
-    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(clientLoop.get(), mockHalPlug);
-    auto marshallingSocket =
-            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemuLoop.get());
-    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshallingSocket);
+    auto adapter = std::make_shared<HalPlugToIPlugAdapter>(client_loop.get(), mockHalPlug);
+    auto marshalling_socket =
+            std::make_shared<MarshallingHalSocket>(std::move(mockSocketPtr), qemu_loop.get());
+    HalPlugTesting::EstablishConnection(mockHalPlug.get(), marshalling_socket);
 
     // 2. Orchestration
     //    Step A: QEMU thread sends data, posting an OnReceive task to the client.
     adapter->OnReceive("in-flight data", 14);
-    ASSERT_GT(clientLoop->taskCount(), 0);
+    ASSERT_GT(client_loop->taskCount(), 0);
 
     //    Step B: Client thread initiates a close before processing the data.
     //    This posts the unplugImpl task to the QEMU loop.
     mockHalPlug->getSocket()->Close();
-    EXPECT_GT(qemuLoop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->taskCount(), 0);
     ;
 
     //    Step C: Client loop runs. It must process the in-flight OnReceive
     //    task first.
     EXPECT_CALL(*mockHalPlug, OnReceive(StrEq("in-flight data"))).Times(1);
-    clientLoop->runOne();
+    client_loop->runOne();
 
     //    Step D: QEMU loop runs the unplug task. This is the end of the line
     //    for a host-initiated close. No onClose event is expected.
     EXPECT_CALL(*mockSocketRaw, UnplugImpl()).WillOnce(Invoke([] { return nullptr; }));
-    qemuLoop->runOne();
+    qemu_loop->runOne();
 
     // 3. Verification
-    ASSERT_EQ(clientLoop->taskCount(), 0);
-    ASSERT_EQ(qemuLoop->taskCount(), 0);
+    ASSERT_EQ(client_loop->taskCount(), 0);
+    ASSERT_EQ(qemu_loop->taskCount(), 0);
     delete mockSocketRaw;
 }

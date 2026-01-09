@@ -145,16 +145,16 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
-    auto* clientLoop = goldfish::async::globalEventLoop();
+    auto* client_loop = goldfish::async::globalEventLoop();
     android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
-            "GlobalEventLoop", *clientLoop, absl::Seconds(15));
+            "GlobalEventLoop", *client_loop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {
-    auto* clientLoop = goldfish::async::globalEventLoop();
-    LOG_IF(FATAL, !clientLoop->ShutdownAndWait(std::chrono::seconds(10)).ok())
+    auto* client_loop = goldfish::async::globalEventLoop();
+    LOG_IF(FATAL, !client_loop->ShutdownAndWait(std::chrono::seconds(10)).ok())
             << "global event loop shutdown failed within 10s";
     LOG(INFO) << "goldfish plugin shutdown completed";
 }

@@ -84,7 +84,7 @@ TEST_F(HalPlugFactoryTest, WrapHalPlug) {
     auto mockSocketRaw = new MockSocket();
     cable::SocketPtr fakeSocket(mockSocketRaw);
 
-    auto plug = HalPlugFactory::wrapHalPlug(std::move(fakeSocket), factory, mClientLoop.get(),
+    auto plug = HalPlugFactory::WrapHalPlug(std::move(fakeSocket), factory, mClientLoop.get(),
                                             mQemuLoop.get());
 
     EXPECT_TRUE(factoryCalled);
@@ -121,7 +121,7 @@ TEST_F(HalPlugFactoryTest, ConnectSuccess) {
         return cable::SocketPtr(mockSocketRaw);
     });
 
-    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
+    auto plug = HalPlugFactory::Connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
                                         onFlowControlEvent);
 
     EXPECT_TRUE(factoryCalled);
@@ -152,7 +152,7 @@ TEST_F(HalPlugFactoryTest, ConnectFailure) {
         return nullptr;
     });
 
-    auto plug = HalPlugFactory::connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
+    auto plug = HalPlugFactory::Connect(5678, factory, mClientLoop.get(), mQemuLoop.get(),
                                         onFlowControlEvent);
 
     EXPECT_TRUE(factoryCalled);

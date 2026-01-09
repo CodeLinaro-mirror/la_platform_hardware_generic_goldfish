@@ -13,10 +13,8 @@
 #pragma once
 #include "goldfish/broadcasting/broadcasting.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using PingTopic = broadcasting::Topic<void>;
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

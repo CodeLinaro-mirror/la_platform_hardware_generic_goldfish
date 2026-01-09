@@ -53,7 +53,7 @@ class IFingerprintDevice : public HalPlug {
      * @param clientLoop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      */
-    static void registerDevice(ObservableFingerprintSensor* sensor, IConnectorRegistry* registry,
-                               EventLoop* clientLoop, EventLoop* qemuLoop);
+    static void RegisterDevice(ObservableFingerprintSensor* sensor, IConnectorRegistry* registry,
+                               EventLoop* client_loop, EventLoop* qemu_loop);
 };
 }  // namespace goldfish::devices::fingerprint

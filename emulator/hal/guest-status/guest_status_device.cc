@@ -45,9 +45,9 @@ class GuestStatusDevice : public IGuestStatusDevice,
                           std::enable_shared_from_this<GuestStatusDevice> {
   public:
     GuestStatusDevice(GuestStatus& guestStatus, const EmulatorResetCallbacks resetCallbacks,
-                      async::EventLoop* qemuLoop, const int quitAfterBootTimeoutSeconds)
+                      async::EventLoop* qemu_loop, const int quitAfterBootTimeoutSeconds)
             : mGuestStatus(guestStatus)
-            , mQemuLoop(qemuLoop)
+            , mQemuLoop(qemu_loop)
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds) {
         VLOG(1) << "GuestStatus device has been created";
         if (resetCallbacks.do_register) {
@@ -170,15 +170,15 @@ class GuestStatusDevice : public IGuestStatusDevice,
     const int mQuitAfterBootTimeoutSeconds;
 };
 
-void IGuestStatusDevice::registerDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
+void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
                                         EmulatorResetCallbacks resetCallbacks,
-                                        EventLoop* clientLoop, EventLoop* qemuLoop,
+                                        EventLoop* client_loop, EventLoop* qemu_loop,
                                         int quitAfterBootTimeoutSeconds) {
-    registry->registerHalDevice(
-            std::string(IGuestStatusDevice::serviceName), clientLoop, qemuLoop,
-            [guestStatus, resetCallbacks, qemuLoop,
+    registry->RegisterHalDevice(
+            std::string(IGuestStatusDevice::serviceName), client_loop, qemu_loop,
+            [guestStatus, resetCallbacks, qemu_loop,
              quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
-                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemuLoop,
+                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemu_loop,
                                                            quitAfterBootTimeoutSeconds);
             });
 }

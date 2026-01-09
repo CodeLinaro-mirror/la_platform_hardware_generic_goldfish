@@ -21,8 +21,7 @@
 #include "goldfish/devices/device_entry.h"
 #include "goldfish/devices/ping_topic.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 /*
  * Connector is a cable::IPlug that allows to switch to a different devices
@@ -59,8 +58,8 @@ namespace devices {
  */
 
 struct Connector : public cable::IPlug {
-    Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> pingTopic,
-              const DeviceEntry* devicesEntries, size_t devicesEntriesSize);
+    Connector(cable::SocketPtr socket, std::shared_ptr<PingTopic> ping_topic,
+              const DeviceEntry* devices_entries, size_t devices_entries_size);
 
     cable::SocketPtr OnUnplug() override;
     bool OnReceive(const void* data, size_t size) override;
@@ -72,18 +71,17 @@ struct Connector : public cable::IPlug {
   private:
     using Buffer = std::vector<char>;
 
-    std::pair<bool, cable::PlugPtr> processRequest(std::string_view request, const void* unconsumed,
-                                                   size_t unconsumedSize, Buffer buffer);
-    std::pair<bool, cable::PlugPtr> switchTo(bool isQemud, std::string_view device,
+    std::pair<bool, cable::PlugPtr> ProcessRequest(std::string_view request, const void* unconsumed,
+                                                   size_t unconsumed_size, const Buffer& buffer);
+    std::pair<bool, cable::PlugPtr> SwitchTo(bool is_qemud, std::string_view device,
                                              std::string_view args, const void* unconsumed,
-                                             size_t unconsumedSize);
+                                             size_t unconsumed_size);
 
-    cable::SocketPtr mSocket;
-    const std::shared_ptr<PingTopic> mPingTopic;
-    const DeviceEntry* const mDevicesEntries;
-    const size_t mDevicesEntriesSize;
-    Buffer mBuffer;
+    cable::SocketPtr socket_;
+    const std::shared_ptr<PingTopic> ping_topic_;
+    const DeviceEntry* const devices_entries_;
+    const size_t devices_entries_size_;
+    Buffer buffer_;
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

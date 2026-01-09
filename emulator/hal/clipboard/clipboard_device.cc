@@ -83,11 +83,11 @@ class ClipboardDevice : public IClipboardDevice {
     ClipboardDataUpdateSubscription mClipboardDataUpdateSubscription;
 };
 
-void IClipboardDevice::registerDevice(avd_universe::clipboard::ClipboardChannel* channel,
-                                      IConnectorRegistry* registry, EventLoop* clientLoop,
-                                      EventLoop* qemuLoop) {
-    registry->registerHalDevice(
-            std::string(ClipboardDevice::serviceName), clientLoop, qemuLoop,
+void IClipboardDevice::RegisterDevice(avd_universe::clipboard::ClipboardChannel* channel,
+                                      IConnectorRegistry* registry, EventLoop* client_loop,
+                                      EventLoop* qemu_loop) {
+    registry->RegisterHalDevice(
+            std::string(ClipboardDevice::serviceName), client_loop, qemu_loop,
             [channel](std::string_view /*args*/) {
                 auto dev = std::make_shared<ClipboardDevice>(channel);
                 std::weak_ptr<ClipboardDevice> weakDev = dev;

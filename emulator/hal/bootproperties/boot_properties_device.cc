@@ -35,7 +35,7 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     }
 
     void send(std::string_view msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
+        auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
     }
@@ -43,7 +43,7 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     void OnConnect() override { VLOG(1) << "Bootproperties device has been connected"; }
     void OnClose() override { VLOG(1) << "Bootproperties device has been disconnected"; }
     void OnReceive(std::string_view data) override {
-        mQemudParser.onReceive(data.data(), data.size());
+        mQemudParser.OnReceive(data.data(), data.size());
     }
 
     bool handleMessage(std::string_view cmd) {
@@ -61,10 +61,10 @@ class BootPropertiesDevice : public IBootPropertiesDevice {
     qemud::Parser mQemudParser;
 };
 
-void IBootPropertiesDevice::registerDevice(IConnectorRegistry* registry, Properties properties,
-                                           EventLoop* clientLoop, EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(
-            std::string(IBootPropertiesDevice::serviceName), clientLoop, qemuLoop,
+void IBootPropertiesDevice::RegisterDevice(IConnectorRegistry* registry, Properties properties,
+                                           EventLoop* client_loop, EventLoop* qemu_loop) {
+    registry->RegisterHalQemuDevice(
+            std::string(IBootPropertiesDevice::serviceName), client_loop, qemu_loop,
             [properties = std::move(properties)](std::string_view /*args*/) {
                 return std::make_shared<BootPropertiesDevice>(properties);
             });

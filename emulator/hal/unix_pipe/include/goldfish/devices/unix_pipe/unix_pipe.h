@@ -33,8 +33,8 @@ class IUnixPipe : public HalPlug {
   public:
     static constexpr std::string_view serviceName = "unix"sv;
 
-    static void registerDevice(IConnectorRegistry* registry, EventLoop* clientLoop,
-                               EventLoop* qemuLoop);
+    static void RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
+                               EventLoop* qemu_loop);
 };
 
 }  // namespace goldfish::devices::unix_pipe

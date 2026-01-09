@@ -61,29 +61,29 @@ class HalPlugFactory {
      * with the client's event loop.
      *
      * @param qemuSocket The low-level socket from the QEMU environment.
-     * @param halFactory A function to create the user's HalPlug instance.
-     * @param clientLoop The event loop for the HalPlug's callbacks.
+     * @param hal_factory A function to create the user's HalPlug instance.
+     * @param client_loop The event loop for the HalPlug's callbacks.
      * @param qemuLoop The event loop for QEMU-side I/O operations.
      * @return A `PlugPtr` to be managed by the QEMU connection framework.
      */
-    static PlugPtr wrapHalPlug(SocketPtr qemuSocket, HalDeviceFactory halFactory,
-                               EventLoop* clientLoop, EventLoop* qemuLoop);
+    static PlugPtr WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactory& hal_factory,
+                               EventLoop* client_loop, EventLoop* qemu_loop);
 
     /**
      * @brief Establishes an outbound connection to a vsock service.
      *
      * @param port The vsock port to connect to.
-     * @param halFactory A function to create the user's HalPlug instance.
-     * @param clientLoop The event loop for the HalPlug's callbacks.
+     * @param hal_factory A function to create the user's HalPlug instance.
+     * @param client_loop The event loop for the HalPlug's callbacks.
      * @param qemuLoop The event loop for QEMU-side I/O operations.
      * @param dataSnifferFactory A factory that can produce a data sniffer that will be placed on
      * the ISocket.
      * @return A `PlugPtr` representing the connection, or `nullptr` on failure.
      */
-    static PlugPtr connect(int port, HalDeviceFactory halFactory, EventLoop* clientLoop,
-                           EventLoop* qemuLoop,
-                           cable::ISocket::OnFlowControlEvent onFlowControlEvent,
-                           SnifferFactory dataSnifferFactory = nullptr);
+    static PlugPtr Connect(int port, const HalDeviceFactory& hal_factory, EventLoop* client_loop,
+                           EventLoop* qemu_loop,
+                           cable::ISocket::OnFlowControlEvent on_flow_control_event,
+                           const SnifferFactory& data_sniffer_factory = nullptr);
 
     /**
      * @brief Listens for incoming vsock connections on a specified port.
@@ -96,13 +96,13 @@ class HalPlugFactory {
      *
      * @note You will likely want to use the ConnectorRegistry vs this method.
      * @param port The vsock port to listen on.
-     * @param halFactory A factory function to create a `HalPlug` for each new
+     * @param hal_factory A factory function to create a `HalPlug` for each new
      * connection.
-     * @param clientLoop The event loop where the created `HalPlug` will run.
+     * @param client_loop The event loop where the created `HalPlug` will run.
      * @param qemuLoop The QEMU event loop for handling I/O.
      * @return `true` if the listener was successfully started, `false` otherwise.
      */
-    static bool listen(int port, HalDeviceFactory halFactory, EventLoop* clientLoop,
-                       EventLoop* qemuLoop);
+    static bool Listen(int port, HalDeviceFactory hal_factory, EventLoop* client_loop,
+                       EventLoop* qemu_loop);
 };
 }  // namespace goldfish::devices

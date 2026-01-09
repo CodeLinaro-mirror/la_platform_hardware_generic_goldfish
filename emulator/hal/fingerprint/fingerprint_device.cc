@@ -53,7 +53,7 @@ class FingerprintDevice : public IFingerprintDevice {
 
   private:
     void send(const std::string_view msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
+        auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
     }
@@ -61,11 +61,11 @@ class FingerprintDevice : public IFingerprintDevice {
     TouchEventSubscription mTouchEventSubscription;
 };
 
-void IFingerprintDevice::registerDevice(ObservableFingerprintSensor* sensor,
-                                        IConnectorRegistry* registry, EventLoop* clientLoop,
-                                        EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(
-            std::string(IFingerprintDevice::serviceName), clientLoop, qemuLoop,
+void IFingerprintDevice::RegisterDevice(ObservableFingerprintSensor* sensor,
+                                        IConnectorRegistry* registry, EventLoop* client_loop,
+                                        EventLoop* qemu_loop) {
+    registry->RegisterHalQemuDevice(
+            std::string(IFingerprintDevice::serviceName), client_loop, qemu_loop,
             [sensor](std::string_view /*args*/) {
                 auto dev = std::make_shared<FingerprintDevice>();
                 std::weak_ptr<FingerprintDevice> weakDev = dev;

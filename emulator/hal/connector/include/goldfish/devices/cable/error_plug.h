@@ -13,20 +13,16 @@
 #pragma once
 #include "goldfish/devices/cable/cable.h"
 
-namespace goldfish {
-namespace devices {
-namespace cable {
+namespace goldfish::devices::cable {
 
 struct ErrorPlug : public IPlug {
-    ErrorPlug(cable::SocketPtr socket) : mSocket(std::move(socket)) {}
+    explicit ErrorPlug(cable::SocketPtr socket) : socket(std::move(socket)) {}
 
-    cable::SocketPtr OnUnplug() override { return std::move(mSocket); }
+    cable::SocketPtr OnUnplug() override { return std::move(socket); }
 
     bool OnReceive(const void*, size_t) override { return false; }
 
-    cable::SocketPtr mSocket;
+    cable::SocketPtr socket;
 };
 
-}  // namespace cable
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices::cable

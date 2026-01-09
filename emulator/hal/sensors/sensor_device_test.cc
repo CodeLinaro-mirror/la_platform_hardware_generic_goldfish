@@ -56,7 +56,7 @@ class SensorDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        ISensorDevice::registerDevice(mPhysicalModel.get(), &registry,
+        ISensorDevice::RegisterDevice(mPhysicalModel.get(), &registry,
                                       /*avd_type=*/android::goldfish::DeviceType::kPhone,
                                       /*avd_api=*/30, mHw, mClientLoop.get(), mQemuLoop.get(),
                                       &mClock);
@@ -68,7 +68,7 @@ class SensorDeviceTest : public ::testing::Test {
 
   public:
     void receive(std::string_view msg) {
-        (void)mClientLoop->Post([&, this] { device->OnReceive(qemud::encodeQemudPacket(msg)); });
+        (void)mClientLoop->Post([&, this] { device->OnReceive(qemud::EncodeQemudPacket(msg)); });
         mClientLoop->runAll();
     }
     void clear() { test_socket->storage.clear(); }

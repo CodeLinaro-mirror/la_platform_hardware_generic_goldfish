@@ -67,7 +67,7 @@ class GpsDevice : public IGpsDevice {
 
   private:
     void sendImpl(std::string_view msg) {
-        auto encoded = qemud::encodeQemudPacket(msg);
+        auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(std::move(encoded));
     }
@@ -75,11 +75,11 @@ class GpsDevice : public IGpsDevice {
     LocationUpdateSubscription mLocationUpdateSubscription;
 };
 
-void IGpsDevice::registerDevice(ObservableLocation* observableLocation,
-                                IConnectorRegistry* registry, EventLoop* clientLoop,
-                                EventLoop* qemuLoop) {
-    registry->registerHalQemuDevice(
-            std::string(GpsDevice::serviceName), clientLoop, qemuLoop,
+void IGpsDevice::RegisterDevice(ObservableLocation* observableLocation,
+                                IConnectorRegistry* registry, EventLoop* client_loop,
+                                EventLoop* qemu_loop) {
+    registry->RegisterHalQemuDevice(
+            std::string(GpsDevice::serviceName), client_loop, qemu_loop,
             [observableLocation](std::string_view /*args*/) {
                 auto dev = std::make_shared<GpsDevice>();
                 std::weak_ptr<GpsDevice> weakDev = dev;

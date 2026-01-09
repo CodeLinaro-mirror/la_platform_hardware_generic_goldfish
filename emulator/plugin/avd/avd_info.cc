@@ -128,8 +128,8 @@ AvdUniverse& getAvd() {
 
 void UniverseBuildComplete() {
     AvdExtendedUniverse& u = getAvdImpl();
-    u.connector_registry.listen(5000);
-    u.test_tools_connector_registry.listen(5002);
+    u.connector_registry.Listen(5000);
+    u.test_tools_connector_registry.Listen(5002);
 }
 
 namespace {
@@ -200,7 +200,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
-    auto* clientLoop = goldfish::async::globalEventLoop();
+    auto* client_loop = goldfish::async::globalEventLoop();
 
     gQemuLoop = goldfish::async::QemuEventLoop::Create();
     android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
@@ -216,22 +216,22 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     namespace DEVS = ::goldfish::devices;
 
-    DEVS::sensor::ISensorDevice::registerDevice(&avd_universe->getSensorsPhysicalModel(), registry,
+    DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe->getSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
-                                                avd_props.hw_config, clientLoop, gQemuLoop.get());
-    DEVS::clipboard::IClipboardDevice::registerDevice(&avd_universe->getClipboardChannel(),
-                                                      registry, clientLoop, gQemuLoop.get());
-    DEVS::guest_status::IGuestStatusDevice::registerDevice(
+                                                avd_props.hw_config, client_loop, gQemuLoop.get());
+    DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe->getClipboardChannel(),
+                                                      registry, client_loop, gQemuLoop.get());
+    DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
             &avd_universe->getGuestStatus(), registry,
-            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, clientLoop, gQemuLoop.get(),
+            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, gQemuLoop.get(),
             avd_props.quit_after_boot_timeout_seconds);
-    DEVS::fingerprint::IFingerprintDevice::registerDevice(&avd_universe->getFingerprintSensor(),
-                                                          registry, clientLoop, gQemuLoop.get());
-    DEVS::gps::IGpsDevice::registerDevice(&avd_universe->getLocation(), registry, clientLoop,
+    DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe->getFingerprintSensor(),
+                                                          registry, client_loop, gQemuLoop.get());
+    DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe->getLocation(), registry, client_loop,
                                           gQemuLoop.get());
 
     std::string emulatedCameraProp;
-    DEVS::camera::registerDevice(registry, &emulatedCameraProp, avd_props.hw_config,
+    DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
                                  []() { return getGrallocImpl(); });
 
     using namespace std::string_literals;
@@ -244,14 +244,14 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         !props.ok()) {
         LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
     } else {
-        DEVS::boot::IBootPropertiesDevice::registerDevice(registry, *std::move(props), clientLoop,
+        DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
                                                           gQemuLoop.get());
     }
 
-    DEVS::unix_pipe::IUnixPipe::registerDevice(&avd_universe->test_tools_connector_registry,
-                                               clientLoop, gQemuLoop.get());
+    DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe->test_tools_connector_registry,
+                                               client_loop, gQemuLoop.get());
 
-    ::goldfish::display::QemuMultidisplay::configureMultiDisplay(clientLoop, gQemuLoop.get());
+    ::goldfish::display::QemuMultidisplay::configureMultiDisplay(client_loop, gQemuLoop.get());
 
     gGlobalAvdUniverseInstance = avd_universe.release();
 }

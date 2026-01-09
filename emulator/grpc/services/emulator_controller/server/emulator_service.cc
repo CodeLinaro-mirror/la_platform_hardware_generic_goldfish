@@ -56,10 +56,10 @@ class EmulatorControllerImpl final
                                                   EmulatorController::Service>>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
-                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemuLoop)
+                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemu_loop)
             : mVmService(vm)
             , mGrpcNotificationChannel(avdUniverse->getGrpcNotificationChannel())
-            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemuLoop))
+            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemu_loop))
             , mStatusService(avdUniverse->getGuestStatus(), avdUniverse->props().avd_api,
                              avdUniverse->props().hw_config)
             , mSensorService(avdUniverse->getSensorsPhysicalModel())
@@ -203,9 +203,9 @@ class EmulatorControllerImpl final
 std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, QemuConsole* keyboardConsole,
                                                      AvdUniverse* avdUniverse,
                                                      IMultiDisplay* multidisplay,
-                                                     ::goldfish::async::EventLoop* qemuLoop) {
+                                                     ::goldfish::async::EventLoop* qemu_loop) {
     return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, avdUniverse, multidisplay,
-                                                    qemuLoop);
+                                                    qemu_loop);
 }
 
 }  // namespace control

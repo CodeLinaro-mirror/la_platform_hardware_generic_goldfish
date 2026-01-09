@@ -81,7 +81,7 @@ TEST_F(HalPlugFactoryListenTest, ListenSuccess) {
     });
 
     // Start listening.
-    bool result = HalPlugFactory::listen(port, factory, mClientLoop.get(), mQemuLoop.get());
+    bool result = HalPlugFactory::Listen(port, factory, mClientLoop.get(), mQemuLoop.get());
     EXPECT_TRUE(result);
 
     // The factory should have been called on the QEMU loop.

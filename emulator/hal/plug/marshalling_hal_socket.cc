@@ -18,18 +18,17 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 namespace {
 
 // A socket that sends things nowhere..
 struct NullSocket : public cable::ISocket {
-    ~NullSocket() override {}
-    void SendAsync(const void* data, size_t size) override {
+    ~NullSocket() override = default;
+    void SendAsync(const void* /*data*/, size_t size) override {
         VLOG(2) << "Sending " << size << " bytes to /dev/null";
     };
-    cable::PlugPtr SwitchPlug(cable::PlugPtr newPlug) override { return {}; }
+    cable::PlugPtr SwitchPlug(cable::PlugPtr /*new_plug*/) override { return {}; }
     cable::PlugPtr UnplugImpl() override {
         VLOG(1) << "Unplugging the NullSocket";
         return {};
@@ -37,81 +36,80 @@ struct NullSocket : public cable::ISocket {
     void AbslStringifyImpl(absl::FormatSink& s) const override { absl::Format(&s, "[NullSocket]"); }
 };
 
-NullSocket gNullSocket;
+NullSocket g_null_socket;
 }  // namespace
 
-MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemuLoop)
-        : mSocket(std::move(socket)), mQemuLoop(qemuLoop) {
-    VLOG(1) << "MarshallingHalSocket: " << mSocket << " created";
+MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemu_loop)
+        : socket_(std::move(socket)), qemu_loop_(qemu_loop) {
+    VLOG(1) << "MarshallingHalSocket: " << socket_ << " created";
 }
 
 MarshallingHalSocket::~MarshallingHalSocket() {
-    VLOG(1) << "~MarshallingHalSocket: " << mSocket << " destroyed";
-    if (!mIsClosed) {
+    VLOG(1) << "~MarshallingHalSocket: " << socket_ << " destroyed";
+    if (!is_closed_) {
         LOG(WARNING) << "Inner socket was not closed!";
     }
 }
 
 void MarshallingHalSocket::Send(std::string data) {
-    if (mIsClosed) {
+    if (is_closed_) {
         VLOG(2) << "Dropping packet, socket is closed.";
         return;
     }
 
     VLOG(2) << "Sheduling send for " << data.size() << " bytes";
     // Post the send operation to the QEMU loop asynchronously.
-    mQemuLoop->Post([this, data = std::move(data), self = shared_from_this()]() {
-        absl::MutexLock lock(&mSocketMutex);
+    qemu_loop_->Post([this, data = std::move(data), self = shared_from_this()]() {
+        const absl::MutexLock lock(&socket_mutex_);
         VLOG(2) << "Sending " << data.size() << " bytes";
         // Bytes go either to the *real* or NullSocket..
-        mSocket->SendAsync(data.data(), data.size());
+        socket_->SendAsync(data.data(), data.size());
     });
 }
 
 void MarshallingHalSocket::AbslStringifyImpl(absl::FormatSink& s) const {
-    absl::Format(&s, "[MarshallingHalSocket %s, %v]", mIsClosed ? "closed" : "open", *mSocket);
+    absl::Format(&s, "[MarshallingHalSocket %s, %v]", is_closed_ ? "closed" : "open", *socket_);
 }
 
-cable::SocketPtr MarshallingHalSocket::release() {
-    absl::MutexLock lock(&mSocketMutex);
+cable::SocketPtr MarshallingHalSocket::Release() {
+    const absl::MutexLock lock(&socket_mutex_);
     VLOG(1) << "Releasing the socket.";
-    auto s = std::move(mSocket);
-    mSocket = cable::SocketPtr(&gNullSocket);
+    auto s = std::move(socket_);
+    socket_ = cable::SocketPtr(&g_null_socket);
     return s;
 }
 
 void MarshallingHalSocket::Close() {
-    if (!mIsClosed.exchange(true)) {
+    if (!is_closed_.exchange(true)) {
         VLOG(1) << "Closing the socket.";
         // Post the unplug operation to the QEMU loop asynchronously.
         // This avoids deadlocking if close() is called from a client
         // callback that was initiated by the QEMU loop.
-        mQemuLoop->Post([this, self = shared_from_this()]() {
+        qemu_loop_->Post([this, self = shared_from_this()]() {
             VLOG(1) << "Calling onplug on socket";
-            cable::SocketPtr socketToUnplug;
+            cable::SocketPtr socket_to_unplug;
             {
                 // Safely take ownership of the real socket pointer
                 // under the lock. This coordinates with the release()
                 // method, which may be called by onUnplug on this same
                 // QEMU thread.
-                absl::MutexLock lock(&mSocketMutex);
-                socketToUnplug = std::move(mSocket);
+                const absl::MutexLock lock(&socket_mutex_);
+                socket_to_unplug = std::move(socket_);
 
                 VLOG(1) << "Installing null socket, welcome to the void.";
-                mSocket = cable::SocketPtr(&gNullSocket);
+                socket_ = cable::SocketPtr(&g_null_socket);
             }
 
             // Unplug the real socket outside the lock.
             // Don't unplug if it was already the null socket (e.g., if
             // release() was called first).
-            if (socketToUnplug && socketToUnplug.get() != &gNullSocket) {
+            if (socket_to_unplug && socket_to_unplug.get() != &g_null_socket) {
                 VLOG(1) << "Unplugging the real socket.";
-                cable::ISocket::Unplug(std::move(socketToUnplug));
+                cable::ISocket::Unplug(std::move(socket_to_unplug));
             }
         });
     } else {
         VLOG(1) << "Socket already closed";
     }
 }
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices
