@@ -258,9 +258,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         // The protobuf message takes ownership of the pointer.
         reply->set_allocated_image(buffer);
         unsafe = reply->mutable_image()->data();
-        uint8_t* pixels = reinterpret_cast<uint8_t*>(unsafe);
-        size_t cPixels = reply->mutable_image()->size();
+        pixels = reinterpret_cast<uint8_t*>(unsafe);
+        cPixels = reply->mutable_image()->size();
         seq = display->getPixels(format, newWidth, newHeight, rotationDeg, pixels, &cPixels);
+        if (format == PixelFormat::PNG && cPixels < reply->mutable_image()->size()) {
+            reply->mutable_image()->resize(cPixels);
+        }
     }
 
     if (!seq.status().ok()) {
