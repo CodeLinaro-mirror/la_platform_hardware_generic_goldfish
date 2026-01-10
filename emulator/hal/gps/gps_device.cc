@@ -42,7 +42,7 @@ class GpsDevice : public IGpsDevice {
         VLOG(1) << "The guest is (unexpectedly) sending data to the Gps device: " << data;
     }
 
-    void send(const Location& location) {
+    void Send(const Location& location) {
         VLOG(1) << "Setting the location to:" << location;
 
         constexpr double kAccuracyMeters = 1;
@@ -51,48 +51,48 @@ class GpsDevice : public IGpsDevice {
         constexpr int kUnused = 0;
 
         // Get timestamp in milliseconds
-        uint64_t tMs = absl::ToUnixMicros(absl::Now()) / 1000;
+        const uint64_t timestamp_ms = absl::ToUnixMicros(absl::Now()) / 1000;
 
         // Format must match:
         // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/master/gnss/common/utils/default/FixLocationParser.cpp
-        sendImpl(absl::StrFormat("$GnssRpcV1,%d,%g,%g,%g,%g,%g,%g,%lld,%g,%g,%d", kUnused,
+        SendImpl(absl::StrFormat("$GnssRpcV1,%d,%g,%g,%g,%g,%g,%g,%lld,%g,%g,%d", kUnused,
                                  location.latitude, location.longitude, location.altitude,
-                                 location.speed, kAccuracyMeters, location.bearing, tMs,
+                                 location.speed, kAccuracyMeters, location.bearing, timestamp_ms,
                                  kAccuracySpeed, kAccuracyHeading, kUnused));
     }
 
-    void setLocationUpdateSubscription(LocationUpdateSubscription s) {
-        mLocationUpdateSubscription = std::move(s);
+    void SetLocationUpdateSubscription(LocationUpdateSubscription s) {
+        location_update_subscription_ = std::move(s);
     }
 
   private:
-    void sendImpl(std::string_view msg) {
+    void SendImpl(std::string_view msg) {
         auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(std::move(encoded));
     }
 
-    LocationUpdateSubscription mLocationUpdateSubscription;
+    LocationUpdateSubscription location_update_subscription_;
 };
 
-void IGpsDevice::RegisterDevice(ObservableLocation* observableLocation,
+void IGpsDevice::RegisterDevice(ObservableLocation* observable_location,
                                 IConnectorRegistry* registry, EventLoop* client_loop,
                                 EventLoop* qemu_loop) {
     registry->RegisterHalQemuDevice(
-            std::string(GpsDevice::serviceName), client_loop, qemu_loop,
-            [observableLocation](std::string_view /*args*/) {
+            std::string(GpsDevice::kServiceName), client_loop, qemu_loop,
+            [observable_location](std::string_view /*args*/) {
                 auto dev = std::make_shared<GpsDevice>();
-                std::weak_ptr<GpsDevice> weakDev = dev;
+                std::weak_ptr<GpsDevice> weak_dev = dev;
 
-                auto locationUpdateSubscription = makeScopedCallback(
-                        *observableLocation,
-                        [weakDev = std::move(weakDev)](const Location& location) {
-                            if (const auto dev = weakDev.lock()) {
-                                dev->send(location);
+                auto location_update_subscription = makeScopedCallback(
+                        *observable_location,
+                        [weak_dev = std::move(weak_dev)](const Location& location) {
+                            if (const auto dev = weak_dev.lock()) {
+                                dev->Send(location);
                             }
                         });
 
-                dev->setLocationUpdateSubscription(std::move(locationUpdateSubscription));
+                dev->SetLocationUpdateSubscription(std::move(location_update_subscription));
 
                 return dev;
             });

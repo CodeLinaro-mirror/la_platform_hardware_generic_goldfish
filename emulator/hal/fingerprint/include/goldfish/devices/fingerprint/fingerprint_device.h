@@ -40,7 +40,7 @@ class IFingerprintDevice : public HalPlug {
     /**
      * @brief QEMU service name for the fingerprint device.
      */
-    static constexpr std::string_view serviceName = "fingerprintlisten"sv;
+    static constexpr std::string_view kServiceName = "fingerprintlisten"sv;
 
     /**
      * @brief Registers the fingerprint device with the connector registry.

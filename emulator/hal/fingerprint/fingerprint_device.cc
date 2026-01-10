@@ -36,48 +36,48 @@ class FingerprintDevice : public IFingerprintDevice {
     void OnConnect() override { VLOG(1) << "Fingerprint device has been connected"; }
     void OnClose() override { VLOG(1) << "Fingerprint device has been disconnected"; }
     void OnReceive(std::string_view data) override {
-        VLOG(1) << "The guest is (unexpectedly) sending data to the fingerprint device: " << data;
+        VLOG(1) << "The guest is (unexpectedly) Sending data to the fingerprint device: " << data;
     }
 
-    void onEvent(const TouchEventType x) {
+    void OnEvent(const TouchEventType x) {
         if (x == goldfish::avd_universe::fingerprint::kReleaseEvent) {
-            send("off");
+            Send("off");
         } else {
-            send(absl::StrFormat("on:%d", int(x)));
+            Send(absl::StrFormat("on:%d", static_cast<int>(x)));
         }
     }
 
-    void setTouchEventSubscription(TouchEventSubscription subscription) {
-        mTouchEventSubscription = std::move(subscription);
+    void SetTouchEventSubscription(TouchEventSubscription subscription) {
+        touch_event_subscription_ = std::move(subscription);
     }
 
   private:
-    void send(const std::string_view msg) {
+    void Send(const std::string_view msg) {
         auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
     }
 
-    TouchEventSubscription mTouchEventSubscription;
+    TouchEventSubscription touch_event_subscription_;
 };
 
 void IFingerprintDevice::RegisterDevice(ObservableFingerprintSensor* sensor,
                                         IConnectorRegistry* registry, EventLoop* client_loop,
                                         EventLoop* qemu_loop) {
     registry->RegisterHalQemuDevice(
-            std::string(IFingerprintDevice::serviceName), client_loop, qemu_loop,
+            std::string(IFingerprintDevice::kServiceName), client_loop, qemu_loop,
             [sensor](std::string_view /*args*/) {
                 auto dev = std::make_shared<FingerprintDevice>();
-                std::weak_ptr<FingerprintDevice> weakDev = dev;
+                std::weak_ptr<FingerprintDevice> weak_dev = dev;
 
-                auto touchEventSubscription = makeScopedCallback(
-                        *sensor, [weakDev = std::move(weakDev)](TouchEventType event) {
-                            if (const auto dev = weakDev.lock()) {
-                                dev->onEvent(event);
+                auto touch_event_subscription = makeScopedCallback(
+                        *sensor, [weak_dev = std::move(weak_dev)](TouchEventType event) {
+                            if (const auto dev = weak_dev.lock()) {
+                                dev->OnEvent(event);
                             }
                         });
 
-                dev->setTouchEventSubscription(std::move(touchEventSubscription));
+                dev->SetTouchEventSubscription(std::move(touch_event_subscription));
                 return dev;
             });
 }
