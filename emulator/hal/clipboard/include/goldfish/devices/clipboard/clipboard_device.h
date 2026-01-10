@@ -45,7 +45,7 @@ using namespace std::string_view_literals;
 class IClipboardDevice : public HalPlug {
   public:
     // Name under which you should register this in qemu
-    static constexpr std::string_view serviceName = "clipboard"sv;
+    static constexpr std::string_view kServiceName = "clipboard"sv;
 
     /**
      * @brief Registers the clipboard device with the connector registry.

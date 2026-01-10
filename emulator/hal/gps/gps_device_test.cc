@@ -65,7 +65,7 @@ TEST_F(GpsDeviceTest, canSendLocation) {
         .satellites = 0,  // Default satellites
     };
 
-    location.setValue(kAmsterdam);
+    location.SetValue(kAmsterdam);
     EXPECT_THAT(test_socket->storage,
 #ifdef _WIN32
                 MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,\d+,0\.5,2,0)"));

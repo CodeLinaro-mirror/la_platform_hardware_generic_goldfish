@@ -130,13 +130,13 @@ class GuestStatusDevice : public IGuestStatusDevice,
         send(ok ? "OK"s : "KO"s);
     }
 
-    void onReceiveHeartbeat() { mGuestStatus.heartbeat.setValue(++mHeartbeatCounter); }
+    void onReceiveHeartbeat() { mGuestStatus.heartbeat.SetValue(++mHeartbeatCounter); }
 
     void onReceiveBootcomplete() {
         absl::Time now = wallClock();
-        mGuestStatus.bootcomplete.setValue(now);
+        mGuestStatus.bootcomplete.SetValue(now);
         notifyToolsBootcomplete(
-                size_t(absl::ToInt64Milliseconds(now - mGuestStatus.reset.getValue())));
+                size_t(absl::ToInt64Milliseconds(now - mGuestStatus.reset.GetValue())));
 
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
@@ -149,8 +149,8 @@ class GuestStatusDevice : public IGuestStatusDevice,
     }
 
     void handleResetEvent() {
-        mGuestStatus.bootcomplete.setValue(absl::UnixEpoch());
-        mGuestStatus.reset.setValue(wallClock());
+        mGuestStatus.bootcomplete.SetValue(absl::UnixEpoch());
+        mGuestStatus.reset.SetValue(wallClock());
     }
 
     static absl::Time wallClock() {

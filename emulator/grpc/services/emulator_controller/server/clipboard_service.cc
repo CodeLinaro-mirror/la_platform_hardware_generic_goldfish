@@ -83,12 +83,12 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
 }  // namespace
 
 ClipboardServiceImpl::ClipboardServiceImpl(ClipboardChannel& channel) : mClipboardChannel(channel) {
-    mGuestUpdatesCallbackId = mClipboardChannel.guestToHost.addCallback(
+    mGuestUpdatesCallbackId = mClipboardChannel.guest_to_host.addCallback(
             [this](const ClipboardData& clip) { mGuestUpdates.fireEvent(toClipboardEvent(clip)); });
 }
 
 ClipboardServiceImpl::~ClipboardServiceImpl() {
-    mClipboardChannel.guestToHost.removeCallback(mGuestUpdatesCallbackId);
+    mClipboardChannel.guest_to_host.removeCallback(mGuestUpdatesCallbackId);
 }
 
 /**
@@ -107,17 +107,17 @@ ClipboardServiceImpl::~ClipboardServiceImpl() {
  */
 ::grpc::ServerWriteReactor<ClipData>* ClipboardServiceImpl::streamClipboard(std::string peerId) {
     auto stream = std::make_unique<ClipDataEventStreamWriter>(&mGuestUpdates, std::move(peerId));
-    stream->eventArrived(toClipboardEvent(mClipboardChannel.guestToHost.getValue()));
+    stream->eventArrived(toClipboardEvent(mClipboardChannel.guest_to_host.GetValue()));
     return stream.release();
 }
 
 Status ClipboardServiceImpl::getClipboard(ClipData* reply) {
-    reply->set_text(mClipboardChannel.guestToHost.getValue().contents);
+    reply->set_text(mClipboardChannel.guest_to_host.GetValue().contents);
     return Status::OK;
 }
 
 Status ClipboardServiceImpl::setClipboard(std::string /*source*/, const ClipData& clipData) {
-    mClipboardChannel.hostToGuest.setValue({.contents = clipData.text()});
+    mClipboardChannel.host_to_guest.SetValue({.contents = clipData.text()});
     return Status::OK;
 }
 

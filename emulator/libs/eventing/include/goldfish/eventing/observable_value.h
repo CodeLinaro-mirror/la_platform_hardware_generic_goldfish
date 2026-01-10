@@ -22,15 +22,15 @@ namespace goldfish::eventing {
 
 struct ObservableValueTriggerAlways {
     template <class T>
-    static constexpr bool updated(const T& oldVal, const T& newVal) {
+    static constexpr bool Updated(const T& /* old_val */, const T&  /* new_val */) {
         return true;
     }
 };
 
 struct ObservableValueTriggerOnUpdate {
     template <class T>
-    static constexpr bool updated(const T& oldVal, const T& newVal) {
-        return oldVal != newVal;
+    static constexpr bool Updated(const T& old_val, const T& new_val) {
+        return old_val != new_val;
     }
 };
 
@@ -39,7 +39,7 @@ struct ObservableValue : public android::base::eventing::CallbackEventSource<T> 
     using EventType = T;
     using CallbackId = android::base::eventing::CallbackEventSource<EventType>::CallbackId;
 
-    ObservableValue(T val) : mValue(std::move(val)) {}
+    explicit ObservableValue(T val) : value_(std::move(val)) {}
 
     ObservableValue() = default;
     ObservableValue(const ObservableValue&) = default;
@@ -47,22 +47,22 @@ struct ObservableValue : public android::base::eventing::CallbackEventSource<T> 
     ObservableValue& operator=(const ObservableValue&) = default;
     ObservableValue& operator=(ObservableValue&&) = default;
 
-    void setValue(T newVal, const bool forceTrigger = false) {
-        std::lock_guard<std::mutex> lock(mMtx);
-        if (forceTrigger || TRIGGER::updated(mValue, newVal)) {
-            mValue = std::move(newVal);
-            this->fireEvent(mValue);
+    void SetValue(T new_val, const bool force_trigger = false) {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        if (force_trigger || TRIGGER::Updated(value_, new_val)) {
+            value_ = std::move(new_val);
+            this->fireEvent(value_);
         }
     }
 
-    T getValue() const {
-        std::lock_guard<std::mutex> lock(mMtx);
-        return mValue;
+    T GetValue() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return value_;
     }
 
   private:
-    T mValue;
-    mutable std::mutex mMtx;
+    T value_;
+    mutable std::mutex mutex_;
 };
 
 }  // namespace goldfish::eventing

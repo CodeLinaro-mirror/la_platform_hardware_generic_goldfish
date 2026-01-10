@@ -85,7 +85,7 @@ TEST_F(GuestStatusDeviceTest, canCreateDevice) {
 TEST_F(GuestStatusDeviceTest, heartbeatIncrements) {
     for (unsigned i = 1; i <= 10; i++) {
         receive("heartbeat\0"sv);
-        EXPECT_THAT(mGuestStatus.heartbeat.getValue(), i);
+        EXPECT_THAT(mGuestStatus.heartbeat.GetValue(), i);
     }
 }
 
@@ -105,7 +105,7 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
 
     receive("bootcomplete\0"sv);
 
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.getValue() - absl::UnixEpoch()),
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.GetValue() - absl::UnixEpoch()),
                 Eq(100));
 }
 
@@ -120,7 +120,7 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
     receive("bootcomplete\0"sv);
 
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.getValue() - absl::UnixEpoch()),
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.GetValue() - absl::UnixEpoch()),
                 Eq(100));
 
     test.setProcessTimes({
@@ -131,9 +131,9 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 
     sResetHandler(sOpaque);
 
-    EXPECT_THAT(mGuestStatus.bootcomplete.getValue(), Eq(absl::UnixEpoch()));
+    EXPECT_THAT(mGuestStatus.bootcomplete.GetValue(), Eq(absl::UnixEpoch()));
 
-    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.reset.getValue() - absl::UnixEpoch()), Eq(200));
+    EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.reset.GetValue() - absl::UnixEpoch()), Eq(200));
 }
 
 }  // namespace goldfish::devices::guest_status

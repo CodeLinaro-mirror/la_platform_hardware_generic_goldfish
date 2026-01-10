@@ -35,8 +35,8 @@ using ObservableClipboardData =
         eventing::ObservableValue<ClipboardData, eventing::ObservableValueTriggerAlways>;
 
 struct ClipboardChannel {
-    ObservableClipboardData hostToGuest;
-    ObservableClipboardData guestToHost;
+    ObservableClipboardData host_to_guest;
+    ObservableClipboardData guest_to_host;
 };
 
 }  // namespace goldfish::avd_universe::clipboard
