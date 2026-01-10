@@ -54,7 +54,7 @@ namespace {
 using android::base::System;
 
 void setup_debug_logging() {
-    std::string v_str = System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL");
+    std::string v_str = System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL");
     if (!v_str.empty()) {
         if (int v_level; !absl::SimpleAtoi(v_str, &v_level)) {
             LOG(ERROR) << "AEMU_VLOG_LEVEL was set to an invalid value: " << v_str;
@@ -63,7 +63,7 @@ void setup_debug_logging() {
         }
     }
 
-    if (std::string vmodule = System::get()->getEnvironmentVariable("AEMU_VMODULE");
+    if (std::string vmodule = System::Get()->GetEnvironmentVariable("AEMU_VMODULE");
         !vmodule.empty()) {
         // TODO share this with launcher.cpp / logging.cpp
         for (const absl::string_view glob_level : absl::StrSplit(vmodule, ',')) {
@@ -82,7 +82,7 @@ void setup_debug_logging() {
 int get_log_level() {
     // Default to logging only error and fatal.
     static const int default_log_level = 2;
-    std::string log_level_str = System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL");
+    std::string log_level_str = System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL");
     if (log_level_str.empty()) {
         return default_log_level;
     }

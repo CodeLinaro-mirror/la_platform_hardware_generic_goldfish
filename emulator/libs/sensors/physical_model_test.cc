@@ -45,7 +45,7 @@ class PhysicalModelTest : public ::testing::Test {
 };
 
 TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
     size_t measurement_id;
     vec3 accelerometer = model->getAccelerometer(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 9.81f, 0.f}), accelerometer, 0.001f);
@@ -55,11 +55,11 @@ TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
 }
 
 TEST_F(PhysicalModelTest, ConstantMeasurementId) {
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
     size_t measurement_id0;
     model->getAccelerometer(&measurement_id0);
 
-    model->setCurrentTime(2000000000L);
+    model->SetCurrentTime(2000000000L);
 
     size_t measurement_id1;
     model->getAccelerometer(&measurement_id1);
@@ -68,11 +68,11 @@ TEST_F(PhysicalModelTest, ConstantMeasurementId) {
 }
 
 TEST_F(PhysicalModelTest, NewMeasurementId) {
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
     size_t measurement_id0;
     model->getAccelerometer(&measurement_id0);
 
-    model->setCurrentTime(2000000000L);
+    model->SetCurrentTime(2000000000L);
 
     vec3 targetPosition;
     targetPosition.x = 2.0f;
@@ -87,14 +87,14 @@ TEST_F(PhysicalModelTest, NewMeasurementId) {
 }
 
 TEST_F(PhysicalModelTest, SetTargetPosition) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
     vec3 targetPosition;
     targetPosition.x = 2.0f;
     targetPosition.y = 3.0f;
     targetPosition.z = 4.0f;
     model->setTargetPosition(targetPosition, PhysicalInterpolation::kStep);
 
-    model->setCurrentTime(500000000L);
+    model->SetCurrentTime(500000000L);
 
     vec3 currentPosition = model->getParameterPosition(ParameterValueType::kCurrent);
 
@@ -102,14 +102,14 @@ TEST_F(PhysicalModelTest, SetTargetPosition) {
 }
 
 TEST_F(PhysicalModelTest, SetTargetRotation) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
     vec3 targetRotation;
     targetRotation.x = 45.0f;
     targetRotation.y = 10.0f;
     targetRotation.z = 4.0f;
     model->setTargetRotation(targetRotation, PhysicalInterpolation::kStep);
 
-    model->setCurrentTime(500000000L);
+    model->SetCurrentTime(500000000L);
     vec3 currentRotation = model->getParameterRotation(ParameterValueType::kCurrent);
 
     EXPECT_VEC3_NEAR(targetRotation, currentRotation, 0.0001f);
@@ -129,7 +129,7 @@ const GravityTestCase gravityTestCases[] = {
 
 TEST_F(PhysicalModelTest, GravityAcceleration) {
     for (const auto& testCase : gravityTestCases) {
-        model->setCurrentTime(1000000000L);
+        model->SetCurrentTime(1000000000L);
 
         vec3 targetRotation;
         targetRotation.x = testCase.target_rotation.x;
@@ -138,7 +138,7 @@ TEST_F(PhysicalModelTest, GravityAcceleration) {
 
         model->setTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
 
-        model->setCurrentTime(2000000000L);
+        model->SetCurrentTime(2000000000L);
         ;
 
         size_t measurement_id;
@@ -149,7 +149,7 @@ TEST_F(PhysicalModelTest, GravityAcceleration) {
 }
 
 TEST_F(PhysicalModelTest, GravityOnlyAcceleration) {
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
 
     vec3 targetPosition;
     targetPosition.x = 2.0f;
@@ -158,7 +158,7 @@ TEST_F(PhysicalModelTest, GravityOnlyAcceleration) {
     // at 1 second we move the target to (2, 3, 4)
     model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
 
-    model->setCurrentTime(2000000000L);
+    model->SetCurrentTime(2000000000L);
     // at 2 seconds the target is still at (2, 3, 4);
     model->setTargetPosition(targetPosition, PhysicalInterpolation::kStep);
 
@@ -169,7 +169,7 @@ TEST_F(PhysicalModelTest, GravityOnlyAcceleration) {
 }
 
 TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
-    model->setCurrentTime(0L);
+    model->SetCurrentTime(0L);
 
     vec3 startRotation;
     startRotation.x = 0.f;
@@ -177,14 +177,14 @@ TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
     startRotation.z = 0.f;
     model->setTargetRotation(startRotation, PhysicalInterpolation::kStep);
 
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
     vec3 newRotation;
     newRotation.x = -0.5f;
     newRotation.y = 0.0f;
     newRotation.z = 0.0f;
     model->setTargetRotation(newRotation, PhysicalInterpolation::kSmooth);
 
-    model->setCurrentTime(1000000000L + SecondsToNs(kMinStateChangeTimeSeconds / 2.f));
+    model->SetCurrentTime(1000000000L + SecondsToNs(kMinStateChangeTimeSeconds / 2.f));
 
     size_t measurement_id;
     vec3 currentGyro = model->getGyroscope(&measurement_id);
@@ -194,7 +194,7 @@ TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
 }
 
 TEST_F(PhysicalModelTest, InstantaneousRotation) {
-    model->setCurrentTime(0L);
+    model->SetCurrentTime(0L);
 
     vec3 startRotation;
     startRotation.x = 0.f;
@@ -202,7 +202,7 @@ TEST_F(PhysicalModelTest, InstantaneousRotation) {
     startRotation.z = 0.f;
     model->setTargetRotation(startRotation, PhysicalInterpolation::kStep);
 
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
     vec3 newRotation;
     newRotation.x = 180.0f;
     newRotation.y = 0.0f;
@@ -215,7 +215,7 @@ TEST_F(PhysicalModelTest, InstantaneousRotation) {
 }
 
 TEST_F(PhysicalModelTest, OverrideAccelerometer) {
-    model->setCurrentTime(0L);
+    model->SetCurrentTime(0L);
 
     size_t initial_measurement_id;
     model->getAccelerometer(&initial_measurement_id);
@@ -247,7 +247,7 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
 }
 
 TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
@@ -272,13 +272,13 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
     auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
                     physicalStateChanging = true;
                     break;
-                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateStabilized:
                     physicalStateChanging = false;
                     break;
-                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                case PhysicalModelChangeEvent::Type::kTargetStateChanged:
                     targetStateChanged = true;
                     break;
                 default:
@@ -286,7 +286,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
                 }
             });
 
-    model->setCurrentTime(time);
+    model->SetCurrentTime(time);
     EXPECT_FALSE(physicalStateChanging);
     model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
     EXPECT_TRUE(targetStateChanged);
@@ -307,7 +307,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
         ++iteration;
 
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
-        model->setCurrentTime(time);
+        model->SetCurrentTime(time);
         size_t measurementId;
         const vec3 measuredAcceleration = model->getAccelerometer(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
@@ -327,7 +327,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 }
 
 TEST_F(PhysicalModelTest, SetRotationIMUResults) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
 
     vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
@@ -344,13 +344,13 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
     auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
                     physicalStateChanging = true;
                     break;
-                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateStabilized:
                     physicalStateChanging = false;
                     break;
-                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                case PhysicalModelChangeEvent::Type::kTargetStateChanged:
                     targetStateChanged = true;
                     break;
                 default:
@@ -371,7 +371,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
     time += stepNs / 2;
     while (physicalStateChanging) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
-        model->setCurrentTime(time);
+        model->SetCurrentTime(time);
         size_t measurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
@@ -400,7 +400,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 }
 
 TEST_F(PhysicalModelTest, MoveWhileRotating) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
@@ -421,13 +421,13 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
     auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
                     physicalStateChanging = true;
                     break;
-                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateStabilized:
                     physicalStateChanging = false;
                     break;
-                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                case PhysicalModelChangeEvent::Type::kTargetStateChanged:
                     targetStateChanged = true;
                     break;
                 default:
@@ -454,7 +454,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
     time += stepNs / 2;
     while (physicalStateChanging) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
-        model->setCurrentTime(time);
+        model->SetCurrentTime(time);
         size_t gyroMeasurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
         ASSERT_NE(prevGyroMeasurementId, gyroMeasurementId);
@@ -497,7 +497,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 }
 
 TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
-    model->setCurrentTime(0UL);
+    model->SetCurrentTime(0UL);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
@@ -522,13 +522,13 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
     auto scoped = android::base::eventing::makeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
-                case PhysicalModelChangeEvent::Type::PhysicalStateChanging:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
                     physicalStateChanging = true;
                     break;
-                case PhysicalModelChangeEvent::Type::PhysicalStateStabilized:
+                case PhysicalModelChangeEvent::Type::kPhysicalStateStabilized:
                     physicalStateChanging = false;
                     break;
-                case PhysicalModelChangeEvent::Type::TargetStateChanged:
+                case PhysicalModelChangeEvent::Type::kTargetStateChanged:
                     targetStateChanged = true;
                     break;
                 default:
@@ -566,7 +566,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
             EXPECT_TRUE(targetStateChanged);
             targetStateChanged = false;
         }
-        model->setCurrentTime(time);
+        model->SetCurrentTime(time);
         size_t gyroMeasurementId;
         const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
         if (physicalStateChanging) {
@@ -630,30 +630,30 @@ TEST_F(PhysicalModelTest, DISABLED_FoldableInitialize) {
 
     model = std::make_unique<PhysicalModel>(hw);
 
-    model->setCurrentTime(1000000000L);
+    model->SetCurrentTime(1000000000L);
 
-    FoldableState ret = model->getFoldableState();
-    EXPECT_EQ(180, ret.currentHingeDegrees[0]);
-    EXPECT_EQ(90, ret.currentHingeDegrees[1]);
-    EXPECT_EQ(2, ret.config.numHinges);
-    EXPECT_EQ(FoldableDisplayType::HORIZONTAL_SPLIT, ret.config.type);
-    EXPECT_EQ(0, ret.config.hingeParams[0].displayId);
-    EXPECT_EQ(0, ret.config.hingeParams[0].x);
-    EXPECT_EQ(600, ret.config.hingeParams[0].y);
-    EXPECT_EQ(1260, ret.config.hingeParams[0].width);
-    EXPECT_EQ(10, ret.config.hingeParams[0].height);
-    EXPECT_EQ(0, ret.config.hingeParams[0].minDegrees);
-    EXPECT_EQ(360, ret.config.hingeParams[0].maxDegrees);
-    EXPECT_EQ(0, ret.config.hingeParams[1].displayId);
-    EXPECT_EQ(0, ret.config.hingeParams[1].x);
-    EXPECT_EQ(1200, ret.config.hingeParams[1].y);
-    EXPECT_EQ(1260, ret.config.hingeParams[1].width);
-    EXPECT_EQ(10, ret.config.hingeParams[1].height);
-    EXPECT_EQ(0, ret.config.hingeParams[1].minDegrees);
-    EXPECT_EQ(180, ret.config.hingeParams[1].maxDegrees);
-    EXPECT_EQ(180, ret.config.hingeParams[0].defaultDegrees);
-    EXPECT_EQ(90, ret.config.hingeParams[1].defaultDegrees);
-    EXPECT_EQ(FoldablePostures::OPENED, ret.currentPosture);
+    FoldableState ret = model->GetFoldableState();
+    EXPECT_EQ(180, ret.current_hinge_degrees[0]);
+    EXPECT_EQ(90, ret.current_hinge_degrees[1]);
+    EXPECT_EQ(2, ret.config.num_hinges);
+    EXPECT_EQ(FoldableDisplayType::kHorizontalSplit, ret.config.type);
+    EXPECT_EQ(0, ret.config.hinge_params[0].display_id);
+    EXPECT_EQ(0, ret.config.hinge_params[0].x);
+    EXPECT_EQ(600, ret.config.hinge_params[0].y);
+    EXPECT_EQ(1260, ret.config.hinge_params[0].width);
+    EXPECT_EQ(10, ret.config.hinge_params[0].height);
+    EXPECT_EQ(0, ret.config.hinge_params[0].min_degrees);
+    EXPECT_EQ(360, ret.config.hinge_params[0].max_degrees);
+    EXPECT_EQ(0, ret.config.hinge_params[1].display_id);
+    EXPECT_EQ(0, ret.config.hinge_params[1].x);
+    EXPECT_EQ(1200, ret.config.hinge_params[1].y);
+    EXPECT_EQ(1260, ret.config.hinge_params[1].width);
+    EXPECT_EQ(10, ret.config.hinge_params[1].height);
+    EXPECT_EQ(0, ret.config.hinge_params[1].min_degrees);
+    EXPECT_EQ(180, ret.config.hinge_params[1].max_degrees);
+    EXPECT_EQ(180, ret.config.hinge_params[0].default_degrees);
+    EXPECT_EQ(90, ret.config.hinge_params[1].default_degrees);
+    EXPECT_EQ(FoldablePostures::kOpened, ret.current_posture);
 }
 
 }  // namespace goldfish::sensors

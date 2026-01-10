@@ -63,7 +63,7 @@ static_assert(ANDROID_PUBKEY_MODULUS_SIZE % 4 == 0,
 constexpr const int ANDROID_PUBKEY_MODULUS_SIZE_WORDS = ANDROID_PUBKEY_MODULUS_SIZE / 4;
 
 std::string get_user_info() {
-    std::string hostname = System::get()->getEnvironmentVariable("HOSTNAME");
+    std::string hostname = System::Get()->GetEnvironmentVariable("HOSTNAME");
     if (hostname.empty()) {
         hostname = "unknown";
     }
@@ -196,9 +196,9 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     D("cannot read adb key file: %s", adbKeyPath);
     D("trying again by copying from home dir");
 
-    auto home = System::get()->getHomeDirectory();
+    auto home = System::Get()->GetHomeDirectory();
     if (home.empty()) {
-        home = System::get()->getTempDir();
+        home = System::Get()->GetTempDir();
         if (home.empty()) {
             home = "/tmp";
         }

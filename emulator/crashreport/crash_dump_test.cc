@@ -70,7 +70,7 @@ class CrashTest : public ::testing::Test {
         if (Bazel::inBazel()) {
             auto crashpad_handler = Bazel::runfilesPath("crashpad+/handler/crashpad_handler");
             LOG(INFO) << "Using AEMU_CRASHPAD_HANDLER:" << crashpad_handler;
-            System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
+            System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
         auto handler_path = CrashReporter::handlerExe();

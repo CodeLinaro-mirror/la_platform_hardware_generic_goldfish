@@ -98,9 +98,9 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
     TestSystem test("/");
 
     test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 100,
+        .user_ms = 1,
+        .system_ms = 10,
+        .wall_clock_ms = 100,
     });
 
     receive("bootcomplete\0"sv);
@@ -113,9 +113,9 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
     TestSystem test("/");
 
     test.setProcessTimes({
-        .userMs = 1,
-        .systemMs = 10,
-        .wallClockMs = 100,
+        .user_ms = 1,
+        .system_ms = 10,
+        .wall_clock_ms = 100,
     });
 
     receive("bootcomplete\0"sv);
@@ -124,9 +124,9 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
                 Eq(100));
 
     test.setProcessTimes({
-        .userMs = 2,
-        .systemMs = 20,
-        .wallClockMs = 200,
+        .user_ms = 2,
+        .system_ms = 20,
+        .wall_clock_ms = 200,
     });
 
     sResetHandler(sOpaque);

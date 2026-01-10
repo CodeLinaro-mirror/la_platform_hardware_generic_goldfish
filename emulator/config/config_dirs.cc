@@ -34,13 +34,13 @@ static const std::string_view kAvdSubDir = "avd";
 
 // static
 auto ConfigDirs::getUserDirectory() -> fs::path {
-    fs::path home = System::get()->envGet("ANDROID_EMULATOR_HOME");
+    fs::path home = System::Get()->EnvGet("ANDROID_EMULATOR_HOME");
     if (!home.empty()) {
         return home;
     }
 
     // New key: ANDROID_PREFS_ROOT
-    home = System::get()->envGet("ANDROID_PREFS_ROOT");
+    home = System::Get()->EnvGet("ANDROID_PREFS_ROOT");
     if (!home.empty()) {
         // In v1.9 emulator was changed to use $ANDROID_SDK_HOME/.android
         // directory, but Android Studio has always been using $ANDROID_SDK_HOME
@@ -49,13 +49,13 @@ auto ConfigDirs::getUserDirectory() -> fs::path {
         auto homeNewWay = fs::path(home) / kAndroidSubDir;
         return base::file::is_dir(homeNewWay) ? homeNewWay : home;
     }  // Old key that is deprecated (ANDROID_SDK_HOME)
-    home = System::get()->envGet("ANDROID_SDK_HOME");
+    home = System::Get()->EnvGet("ANDROID_SDK_HOME");
     if (!home.empty()) {
         auto homeOldWay = fs::path(home) / kAndroidSubDir;
         return base::file::exists(homeOldWay) ? homeOldWay : home;
     }
 
-    home = android::base::System::get()->getHomeDirectory();
+    home = android::base::System::Get()->GetHomeDirectory();
     if (home.empty()) {
         return fs::temp_directory_path();
     }
@@ -67,37 +67,37 @@ auto ConfigDirs::getAvdRootDirectory() -> fs::path {
     // The search order here should match that in AndroidLocation.java
     // in Android Studio. Otherwise, Studio and the Emulator may find
     // different AVDs. Or one may find an AVD when the other doesn't.
-    fs::path avdRoot = System::get()->envGet("ANDROID_AVD_HOME");
+    fs::path avdRoot = System::Get()->EnvGet("ANDROID_AVD_HOME");
     if (!avdRoot.empty() && base::file::is_dir(avdRoot)) {
         return avdRoot;
     }
 
     // No luck with ANDROID_AVD_HOME, try ANDROID_PREFS_ROOT/ANDROID_SDK_HOME
-    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::get()->envGet("ANDROID_PREFS_ROOT"));
+    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::Get()->EnvGet("ANDROID_PREFS_ROOT"));
     if (!avdRoot.empty()) {
         return avdRoot;
     }
-    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::get()->envGet("ANDROID_SDK_HOME"));
+    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::Get()->EnvGet("ANDROID_SDK_HOME"));
     if (!avdRoot.empty()) {
         return avdRoot;
     }  // ANDROID_PREFS_ROOT/ANDROID_SDK_HOME is defined but bad. In this case,
     // Android Studio tries $TEST_TMPDIR, $USER_HOME, and
     // $HOME. We'll do the same.
-    avdRoot = System::get()->envGet("TEST_TMPDIR");
+    avdRoot = System::Get()->EnvGet("TEST_TMPDIR");
     if (!avdRoot.empty()) {
         avdRoot = fs::path(avdRoot) / kAndroidSubDir;
         if (isValidAvdRoot(avdRoot)) {
             return fs::path(avdRoot) / kAvdSubDir;
         }
     }
-    avdRoot = System::get()->envGet("USER_HOME");
+    avdRoot = System::Get()->EnvGet("USER_HOME");
     if (!avdRoot.empty()) {
         avdRoot = fs::path(avdRoot) / kAndroidSubDir;
         if (isValidAvdRoot(avdRoot)) {
             return fs::path(avdRoot) / kAvdSubDir;
         }
     }
-    avdRoot = System::get()->envGet("HOME");
+    avdRoot = System::Get()->EnvGet("HOME");
     if (!avdRoot.empty()) {
         avdRoot = fs::path(avdRoot) / kAndroidSubDir;
         if (isValidAvdRoot(avdRoot)) {
@@ -113,7 +113,7 @@ auto ConfigDirs::getAvdRootDirectory() -> fs::path {
 // static
 auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     LOG_IF(INFO, verbose) << "checking ANDROID_HOME for valid sdk root.";
-    std::string sdkRoot = System::get()->envGet("ANDROID_HOME");
+    std::string sdkRoot = System::Get()->EnvGet("ANDROID_HOME");
     LOG_IF(INFO, verbose) << "ANDROID_HOME: " << sdkRoot;
 
     if (!sdkRoot.empty() && isValidSdkRoot(sdkRoot, verbose)) {
@@ -123,7 +123,7 @@ auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     LOG_IF(INFO, verbose) << "checking ANDROID_SDK_ROOT for valid sdk root.";
 
     // ANDROID_HOME is not good. Try ANDROID_SDK_ROOT.
-    sdkRoot = System::get()->envGet("ANDROID_SDK_ROOT");
+    sdkRoot = System::Get()->EnvGet("ANDROID_SDK_ROOT");
     if (static_cast<unsigned int>(!sdkRoot.empty()) != 0U) {
         // Unquote a possibly "quoted" path.
         if (sdkRoot[0] == '"') {
@@ -263,7 +263,7 @@ static auto getAlternativeRoot() -> fs::path {
 }
 
 auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
-    fs::path root = System::get()->envGet(discovery.root_env);
+    fs::path root = System::Get()->EnvGet(discovery.root_env);
     if (root.empty()) {
         // Reverting to the alternative root if these environment variables do
         // not exist.

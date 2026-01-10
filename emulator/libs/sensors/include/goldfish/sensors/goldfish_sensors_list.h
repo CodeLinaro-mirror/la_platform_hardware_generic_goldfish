@@ -16,6 +16,7 @@
 
 #pragma once
 
+// NOLINTBEGIN
 /* NOTE: this list must be the same that the one defined in
  *       the sensors_qemu.c source of the libsensors.goldfish.so
  *       library.
@@ -45,3 +46,4 @@
     GOLDFISH_SENSOR_DEF(WRIST_TILT, "wrist-tilt", WristTilt, float, "wrist-tilt")                \
     GOLDFISH_SENSOR_DEF(ACCELERATION_UNCALIBRATED, "acceleration-uncalibrated",                  \
                         AccelerometerUncalibrated, vec3, "acceleration-uncalibrated")
+// NOLINTEND

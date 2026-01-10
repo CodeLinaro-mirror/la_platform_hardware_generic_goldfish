@@ -16,6 +16,7 @@
 
 #pragma once
 
+// NOLINTBEGIN
 /*
  * Note: DO NOT CHANGE THE ORDER IN THIS LIST, UNLESS YOU INTEND
  *       TO BREAK SNAPSHOTS!
@@ -43,3 +44,4 @@
     GOLDFISH_PHYSICAL_PARAMETER_DEF(WRIST_TILT, "wrist-tilt", WristTilt, float)            \
     GOLDFISH_PHYSICAL_PARAMETER_DEF(ROTATION_UNCALIBRATED, "rotation-uncalibrated",        \
                                     AccelerometerUncalibrated, vec3)
+// NOLINTEND

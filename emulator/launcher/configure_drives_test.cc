@@ -57,7 +57,7 @@ TEST(ConfigureDrivesTest, AddDrives) {
     base::file::mkdir(system_dir / "data", 0755).IgnoreError();
     base::file::touch(system_dir / "data" / "empty_data_disk").IgnoreError();
 
-    android::base::System::get()->envSet("ANDROID_EMULATOR_HOME", launcher_path.string());
+    android::base::System::Get()->EnvSet("ANDROID_EMULATOR_HOME", launcher_path.string());
 
     MockDeviceContainer mock_container;
     MockAvd mock_avd;

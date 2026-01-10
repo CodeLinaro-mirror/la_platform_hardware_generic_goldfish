@@ -379,7 +379,7 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     // the emulator activated a new keyset.
     auto json = readFile(discover_file);
     for (int i = 0; json != "" && i < 10; i++) {
-        base::System::get()->sleepMs(100);
+        base::System::Get()->SleepMs(100);
         json = readFile(discover_file);
     }
 

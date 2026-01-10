@@ -48,7 +48,7 @@ StatusServiceImpl::StatusServiceImpl(GuestStatus& guestStatus, const int api_lev
 
 grpc::Status StatusServiceImpl::getStatus(EmulatorStatus* reply) {
     // TODO(jansene): Get cpu count, hypervisor type.`
-    reply->set_uptime(System::get()->getProcessTimes().wallClockMs);
+    reply->set_uptime(System::Get()->GetProcessTimes().wall_clock_ms);
 
     reply->set_booted(mGuestStatus.bootcomplete.GetValue() != absl::UnixEpoch());
     reply->set_heartbeat(mGuestStatus.heartbeat.GetValue());

@@ -96,7 +96,7 @@ uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
     // TODO minimum size?
-    return avd.hw().hw_sdCard_size.Bytes();
+    return avd.hw().hw_sd_card_size.Bytes();
 }
 }  // namespace
 

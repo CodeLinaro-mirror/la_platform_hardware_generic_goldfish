@@ -65,14 +65,14 @@ absl::Status Emulator::addDevices() {
                                                     : absl::LogSeverityAtLeast::kWarning);
 
     std::string vmodules = o.vmodule ? o.vmodule : "";
-    if (System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
+    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
     }
-    if (System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
+    if (System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
     }
-    if (System::get()->getEnvironmentVariable("AEMU_VMODULE").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_VMODULE", vmodules);
+    if (System::Get()->GetEnvironmentVariable("AEMU_VMODULE").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
     }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
@@ -262,28 +262,28 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
     // Graphics default to software rendering (with swangle) for now.
     // Always indirect EGL.
-    System::get()->setEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
+    System::Get()->SetEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
 
 #if defined(__linux__)
     // on linux, default to use swiftshader_indirect for gl,
     // later gl will be removed once vulkan composition is on
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
 #else
     // ANGLE works fine on mac/windows on top of lavapipe, no need to change it
     // in addition, swiftshader does not work on mac anyway
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
-    System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
+    System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #endif
 
     // now all default to lavapipe
-    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 
     if (bool gpu_host = o.gpu && std::string(o.gpu) == "host"; gpu_host) {
-        System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+        System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
-        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
+        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
 #else
-        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
+        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
 #endif
     }
 

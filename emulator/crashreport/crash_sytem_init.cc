@@ -224,7 +224,7 @@ extern "C" {
 using android::crashreport::CrashSystem;
 
 bool crashhandler_init(int argc, char** argv) {
-    if (!System::get()->getEnableCrashReporting()) {
+    if (!System::Get()->GetEnableCrashReporting()) {
         LOG(INFO) << "Crashreporting disabled, not reporting crashes.";
         return false;
     }

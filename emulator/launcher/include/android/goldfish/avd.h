@@ -248,11 +248,11 @@ class FileBackedAvd : public Avd {
     int apiLevel() const override;
     std::string dessert() const override;
     std::string apiDescription() const override;
-    fs::path getConfigIniPath() const override { return mConfig->getBackingFile(); }
+    fs::path getConfigIniPath() const override { return mConfig->GetBackingFile(); }
     std::string display_name() const override {
-        return mConfig->getString("avd.ini.displayname", name());
+        return mConfig->GetString("avd.ini.displayname", name());
     }
-    std::string skin_name() const override { return mConfig->getString("skin.name", ""); }
+    std::string skin_name() const override { return mConfig->GetString("skin.name", ""); }
     std::string id() const override {
         // TODO allow override with opts.id
         return name();
@@ -260,17 +260,17 @@ class FileBackedAvd : public Avd {
 
     std::string abi() const override {
         // TODO check against detected arch.
-        return mBuildIni.getString("ro.product.cpu.abi", "unknown");
+        return mBuildIni.GetString("ro.product.cpu.abi", "unknown");
     }
 
     std::string build_sdk() const override {
-        return mBuildIni.getString("ro.build.version.sdk", "unknown");
+        return mBuildIni.GetString("ro.build.version.sdk", "unknown");
     }
 
-    std::string build_id() const override { return mBuildIni.getString("ro.build.id", "unknown"); }
+    std::string build_id() const override { return mBuildIni.GetString("ro.build.id", "unknown"); }
 
     std::string build_flavour() const override {
-        return mBuildIni.getString("ro.build.flavor", "unknown");
+        return mBuildIni.GetString("ro.build.flavor", "unknown");
     }
 
     static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(

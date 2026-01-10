@@ -215,7 +215,7 @@ std::string getIconForDeviceType(DeviceType flavor) {
 }  // namespace
 
 Avd::CpuArchitecture FileBackedAvd::detectArchitecture() const {
-    auto abi = mConfig->getString("abi.type", "unknown");
+    auto abi = mConfig->GetString("abi.type", "unknown");
     if (absl::StrContains(abi, "x86")) {
         return CpuArchitecture::kX86;
     }
@@ -228,7 +228,7 @@ Avd::CpuArchitecture FileBackedAvd::detectArchitecture() const {
 }
 
 int FileBackedAvd::apiLevel() const {
-    return getApiLevel(mConfig->getString("target", ""));
+    return getApiLevel(mConfig->GetString("target", ""));
 }
 
 std::string FileBackedAvd::dessert() const {
@@ -252,8 +252,8 @@ bool FileBackedAvd::loadBuildProps() {
                      << ", using unknown device type.";
         return false;
     }
-    mBuildIni.setBackingFile(*buildprop);
-    return mBuildIni.read();
+    mBuildIni.SetBackingFile(*buildprop);
+    return mBuildIni.Read();
 }
 
 DeviceType FileBackedAvd::getDeviceType() const {
@@ -267,11 +267,11 @@ DeviceType FileBackedAvd::getDeviceType() const {
     const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
 
     for (const auto& prop : props) {
-        if (!mBuildIni.hasKey(prop)) {
+        if (!mBuildIni.HasKey(prop)) {
             continue;
         }
 
-        auto build = mBuildIni.getString(prop, "_unused");
+        auto build = mBuildIni.GetString(prop, "_unused");
         for (const auto& [key, val] : labelMap) {
             if (build.find(key) != std::string::npos) {
                 return val;
@@ -327,7 +327,7 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
     }
     // check abi
 
-    mHwCfg.load(*mConfig);
+    mHwCfg.Load(*mConfig);
 
     // TODO also load skin hardware.ini if present?
 
@@ -335,19 +335,19 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
     auto hw_path = getContentPath() / CORE_HARDWARE_INI;
     if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
         auto hw_config = std::make_unique<IniFile>(hw_path);
-        if (hw_config->read()) {
+        if (hw_config->Read()) {
             // TODO load without defaults.
-            mHwCfg.load(*hw_config);
+            mHwCfg.Load(*hw_config);
         }
     }
 
-    mHwCfg.applyDefaults(getSdkPath(), getAvdPath());
+    mHwCfg.ApplyDefaults(getSdkPath(), getAvdPath());
 
     // save to CORE_HARDWARE_INI as well, embedded ui needs it
     {
         auto hw_config = std::make_unique<IniFile>(hw_path);
-        mHwCfg.write(hw_config.get());
-        hw_config->writeDiscardingEmpty();
+        mHwCfg.Write(hw_config.get());
+        hw_config->WriteDiscardingEmpty();
     }
 }
 
@@ -361,7 +361,7 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
     }
 
     auto config = std::make_unique<IniFile>(config_ini_path);
-    if (!config->read()) {
+    if (!config->Read()) {
         return absl::InternalError(
                 absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
     }
@@ -371,7 +371,7 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
         sys_image_paths.push_back(sysdir_override);
     } else {
         for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
-            if (std::string s = config->getString(absl::StrCat(SEARCH_PREFIX, n), ""); !s.empty()) {
+            if (std::string s = config->GetString(absl::StrCat(SEARCH_PREFIX, n), ""); !s.empty()) {
                 sys_image_paths.push_back(sdk_path / s);
             }
         }
@@ -424,13 +424,13 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(
     }
 
     auto ini = std::make_unique<IniFile>(ini_path);
-    if (!ini->read()) {
+    if (!ini->Read()) {
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
     }
 
-    fs::path content_path = fs::path(ini->get<std::string>("path", ""));
+    fs::path content_path = fs::path(ini->Get<std::string>("path", ""));
     if (!base::file::exists(content_path) || !base::file::can_read(content_path)) {
-        auto rel_path = ini->get<std::string>("path.rel", "");
+        auto rel_path = ini->Get<std::string>("path.rel", "");
         content_path = paths.user_directory / rel_path;
     }
     fs::path config_ini_path = content_path / "config.ini";

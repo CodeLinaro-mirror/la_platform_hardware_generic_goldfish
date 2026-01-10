@@ -42,21 +42,21 @@ namespace android {
 namespace base {
 
 TEST(System, get) {
-    System* sys1 = System::get();
+    System* sys1 = System::Get();
     EXPECT_TRUE(sys1);
 
-    System* sys2 = System::get();
+    System* sys2 = System::Get();
     EXPECT_EQ(sys1, sys2);
 }
 
 TEST(System, getHomeDirectory) {
-    std::string dir = System::get()->getHomeDirectory().string();
+    std::string dir = System::Get()->GetHomeDirectory().string();
     EXPECT_FALSE(dir.empty());
     LOG(INFO) << "Home directory: [" << dir.c_str() << "]";
 }
 
 TEST(System, getAppDataDirectory) {
-    std::string dir = System::get()->getAppDataDirectory().string();
+    std::string dir = System::Get()->GetAppDataDirectory().string();
 #if defined(__linux__)
     EXPECT_TRUE(dir.empty());
 #else
@@ -67,14 +67,14 @@ TEST(System, getAppDataDirectory) {
 }
 
 TEST(System, granularity) {
-    auto start = System::get()->getUnixTimeUs();
+    auto start = System::Get()->GetUnixTimeUs();
     auto now = start;
     auto until = now + 1000 * 1000;
     int diff = 0, cnt = 0;
 
     while (now < until) {
         // Time should increase..
-        auto nxt = System::get()->getUnixTimeUs();
+        auto nxt = System::Get()->GetUnixTimeUs();
         if (nxt != now) {
             diff++;
         }
@@ -88,33 +88,33 @@ TEST(System, granularity) {
 
 TEST(System, getProgramBitness) {
     const int kExpected = (sizeof(void*) == 8) ? 64 : 32;
-    EXPECT_EQ(kExpected, System::get()->getProgramBitness());
+    EXPECT_EQ(kExpected, System::Get()->GetProgramBitness());
 }
 
 TEST(System, getOsName) {
-    std::string osName = System::get()->getOsName();
+    std::string osName = System::Get()->GetOsName();
     LOG(INFO) << "Host OS: " << osName;
     EXPECT_STRNE("Error: ", osName.substr(0, 7).c_str());
 }
 
 TEST(System, envGetAndSet) {
-    System* sys = System::get();
+    System* sys = System::Get();
     const char kVarName[] = "FOO_BAR_TESTING_STUFF";
     const char kVarValue[] = "SomethingCompletelyRandomForYou!";
 
-    EXPECT_FALSE(sys->envTest(kVarName));
-    EXPECT_STREQ("", sys->envGet(kVarName).c_str());
-    sys->envSet(kVarName, kVarValue);
-    EXPECT_TRUE(sys->envTest(kVarName));
-    EXPECT_STREQ(kVarValue, sys->envGet(kVarName).c_str());
-    sys->envSet(kVarName, nullptr);
-    EXPECT_FALSE(sys->envTest(kVarName));
-    EXPECT_STREQ("", sys->envGet(kVarName).c_str());
+    EXPECT_FALSE(sys->EnvTest(kVarName));
+    EXPECT_STREQ("", sys->EnvGet(kVarName).c_str());
+    sys->EnvSet(kVarName, kVarValue);
+    EXPECT_TRUE(sys->EnvTest(kVarName));
+    EXPECT_STREQ(kVarValue, sys->EnvGet(kVarName).c_str());
+    sys->EnvSet(kVarName, nullptr);
+    EXPECT_FALSE(sys->EnvTest(kVarName));
+    EXPECT_STREQ("", sys->EnvGet(kVarName).c_str());
 }
 
 TEST(System, isRemoteSession) {
     std::string sessionType;
-    bool isRemote = System::get()->isRemoteSession(&sessionType);
+    bool isRemote = System::Get()->IsRemoteSession(&sessionType);
     if (isRemote) {
         LOG(INFO) << "Remote session type [" << sessionType.c_str() << "]";
     } else {
@@ -126,20 +126,20 @@ TEST(System, addLibrarySearchDir) {
     TestSystem testSys("/foo/bar");
     TestTempDir* testDir = testSys.getTempRoot();
     ASSERT_TRUE(testDir->makeSubDir("lib"));
-    testSys.addLibrarySearchDir("lib");
+    testSys.AddLibrarySearchDir("lib");
 }
 
 TEST(System, getProcessTimes) {
-    const System::Times times1 = System::get()->getProcessTimes();
-    const System::Times times2 = System::get()->getProcessTimes();
-    ASSERT_GE(times2.userMs, times1.userMs);
-    ASSERT_GE(times2.systemMs, times1.systemMs);
+    const System::Times times1 = System::Get()->GetProcessTimes();
+    const System::Times times2 = System::Get()->GetProcessTimes();
+    ASSERT_GE(times2.user_ms, times1.user_ms);
+    ASSERT_GE(times2.system_ms, times1.system_ms);
 }
 
 TEST(System, getUnixTime) {
     const time_t curTime = time(nullptr);
-    const time_t time1 = System::get()->getUnixTime();
-    const time_t time2 = System::get()->getUnixTime();
+    const time_t time1 = System::Get()->GetUnixTime();
+    const time_t time2 = System::Get()->GetUnixTime();
     ASSERT_GE(time1, curTime);
     ASSERT_GE(time2, time1);
 }

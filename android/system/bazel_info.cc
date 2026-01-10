@@ -74,7 +74,7 @@ bool Bazel::inBazel() {
         "RUNFILES_DIR",
     };
     for (const auto& marker : markers) {
-        if (!System::get()->getEnvironmentVariable(marker).empty()) {
+        if (!System::Get()->GetEnvironmentVariable(marker).empty()) {
             return true;
         }
     }

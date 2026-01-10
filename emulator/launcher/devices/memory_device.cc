@@ -78,7 +78,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     }
 
     auto ram_file = path / "ram.bin";
-    StorageCapacity filePageSize = System::getFilePageSizeForPath(ram_file.c_str());
+    StorageCapacity filePageSize = System::GetFilePageSizeForPath(ram_file.c_str());
 
 #ifdef _WIN32
     auto ramSizeBytesWithAlign = ram.align(filePageSize) + filePageSize;

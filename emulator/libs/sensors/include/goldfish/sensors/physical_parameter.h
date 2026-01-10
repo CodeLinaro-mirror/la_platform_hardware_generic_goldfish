@@ -20,11 +20,13 @@
 
 namespace goldfish::sensors {
 
+// NOLINTBEGIN
 enum class PhysicalParameter {
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) x,
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
             MAX_PHYSICAL_PARAMETERS
 };
+// NOLINTEND
 
 }  // namespace goldfish::sensors

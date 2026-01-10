@@ -59,15 +59,15 @@ CrashReporter::CrashReporter()
                   HangDetector::defaultTiming(), std::make_unique<android::base::AbseilClock>())) {}
 
 fs::path CrashReporter::databaseDirectory() {
-    if (auto database_directory = System::get()->envGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
+    if (auto database_directory = System::Get()->EnvGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
         !database_directory.empty()) {
         return fs::path(database_directory);
     }
-    return System::get()->getTempDir() / kCrashpadDatabase;
+    return System::Get()->GetTempDir() / kCrashpadDatabase;
 }
 
 fs::path CrashReporter::handlerExe() {
-    auto from_env = System::get()->getEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
+    auto from_env = System::Get()->GetEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
     if (from_env.empty()) {
         LOG(ERROR) << "AEMU_CRASHPAD_HANDLER envvar is empty - unable to locate crashpad_handler";
     }

@@ -247,7 +247,7 @@ TEST_F(DisplayServiceTest, DISABLED_GetScreenshotHasCorrectRotation) {
 
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
-        mPhysicalModel->setGravity(x, y, z);
+        mPhysicalModel->SetGravity(x, y, z);
 
         auto context = getContextWithTimeout();
         ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
@@ -496,7 +496,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotRotationProducesAFrame) {
     float x = 1;
     float y = 0;
     float z = 0;
-    mPhysicalModel->setGravity(x, y, z);
+    mPhysicalModel->SetGravity(x, y, z);
 
     status = reader->Read(&image);
     if (!status) {
@@ -541,7 +541,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotHasCorrectRotation) {
 
     for (const auto& [rotation, _] : mRotationMap) {
         auto [x, y, z] = mRotationMap[rotation];
-        mPhysicalModel->setGravity(x, y, z);
+        mPhysicalModel->SetGravity(x, y, z);
 
         status = reader->Read(&image);
         if (!status) {

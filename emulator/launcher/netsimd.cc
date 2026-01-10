@@ -63,11 +63,11 @@ int read_netsim_port() {
     // IniFile netsim_ini(mResolvedPaths.discovery_directory.parent_path().parent_path() /
     // "netsim.ini");
     IniFile netsim_ini(GetNetsimDiscoveryDir() / "netsim.ini");
-    if (!netsim_ini.read()) {
+    if (!netsim_ini.Read()) {
         VLOG(1) << "Failed to read netsim.ini";
         return 0;
     }
-    return netsim_ini.getInt("grpc.port", 0);
+    return netsim_ini.GetInt("grpc.port", 0);
 }
 
 absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string& endpoint,

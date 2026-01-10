@@ -416,7 +416,7 @@ int main(int argc, char** argv) {
 
 #ifdef __linux__
     // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
-    System::setEnvironmentVariable("LD_PRELOAD", "/lib/x86_64-linux-gnu/libgcc_s.so.1");
+    System::SetEnvironmentVariable("LD_PRELOAD", "/lib/x86_64-linux-gnu/libgcc_s.so.1");
 #endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
@@ -451,13 +451,13 @@ int main(int argc, char** argv) {
             }
         }
 #endif
-        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
+        System::Get()->SetEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
     } else {
 #if defined(__linux__)
         // Bug: 454403989
         // when systme has XDG_RUNTIME_DIR set, we need to pass it
         // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
-        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
+        System::Get()->EnvSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
 #endif
     }
 #endif
@@ -467,9 +467,9 @@ int main(int argc, char** argv) {
         auto launcher_dir = fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
         LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
                 << "Unable to locate launcher directory: " << launcher_dir;
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
-        if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
-            System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+        if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+            System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
                                            fs::path("/tmp/crash-report.db").string());
         }
     }
@@ -501,8 +501,8 @@ int main(int argc, char** argv) {
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.
-    System::get()->addLibrarySearchDir(resolved_paths->library_directory.string());
-    System::get()->addLibrarySearchDir(resolved_paths->lib64_directory.string());
+    System::Get()->AddLibrarySearchDir(resolved_paths->library_directory.string());
+    System::Get()->AddLibrarySearchDir(resolved_paths->lib64_directory.string());
 
     if (!opts.avd) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
@@ -519,7 +519,7 @@ int main(int argc, char** argv) {
 
     fs::path writable_content_override;
     if (opts.read_only) {
-        writable_content_override = System::get()->getTempDir();
+        writable_content_override = System::Get()->GetTempDir();
         VLOG(1) << "Content path overridden to: " << writable_content_override;
         android::base::file::mkdir_recursive(writable_content_override, 0755).IgnoreError();
     } else if (opts.datadir) {

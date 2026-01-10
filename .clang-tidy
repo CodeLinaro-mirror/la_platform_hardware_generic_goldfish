@@ -48,6 +48,7 @@ HeaderFilterRegex: '.*goldfish\+.*'
 
 # Add exclusions if you need them
 ExcludeHeaderFilterRegex: ".*_virtual_includes.*|\
+  .*hw-config-defs.h|\
   .*absl.*|\
   .*aemu.*|\
   .*third_party.*|\

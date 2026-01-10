@@ -237,18 +237,18 @@ EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::withDiscoveryFile(
     if (!mStatus.ok()) return *this;
     mDestination.Clear();
     android::goldfish::IniFile iniFile(discovery_file.string());
-    iniFile.read();
-    if (!iniFile.hasKey("grpc.port")) {
+    iniFile.Read();
+    if (!iniFile.HasKey("grpc.port")) {
         mStatus = absl::InvalidArgumentError("No grpc port defined in " + discovery_file.string());
         return *this;
     }
-    if (iniFile.hasKey("grpc.token")) {
-        auto token = iniFile.getString("grpc.token", "");
+    if (iniFile.HasKey("grpc.token")) {
+        auto token = iniFile.GetString("grpc.token", "");
         auto* header = mDestination.add_required_headers();
         header->set_key(android::emulation::control::BasicTokenAuth::DEFAULT_HEADER);
         header->set_value("Bearer " + token);
     }
-    mDestination.set_target("localhost:" + iniFile.getString("grpc.port", "8554"));
+    mDestination.set_target("localhost:" + iniFile.GetString("grpc.port", "8554"));
     return *this;
 }
 

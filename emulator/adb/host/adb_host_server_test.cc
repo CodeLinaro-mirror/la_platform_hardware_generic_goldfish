@@ -53,16 +53,16 @@ TEST(AdbHostServer, getClientPortDefault) {
 
 TEST(AdbHostServer, getClientPortWithEnvironmentOverride) {
     TestSystem testSystem("/bin");
-    testSystem.envSet("ANDROID_ADB_SERVER_PORT", "1234");
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", "1234");
     EXPECT_EQ(1234, AdbHostServer::getClientPort());
 }
 
 TEST(AdbHostServer, getClientPortWithInvalidEnvironmentOverride) {
     TestSystem testSystem("/bin");
-    testSystem.envSet("ANDROID_ADB_SERVER_PORT", "-1000");
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", "-1000");
     EXPECT_EQ(-1, AdbHostServer::getClientPort());
 
-    testSystem.envSet("ANDROID_ADB_SERVER_PORT", "65536");
+    testSystem.EnvSet("ANDROID_ADB_SERVER_PORT", "65536");
     EXPECT_EQ(-1, AdbHostServer::getClientPort());
 }
 

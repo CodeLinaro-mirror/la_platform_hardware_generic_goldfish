@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #pragma once
+#include <cstdint>
 
 namespace goldfish::sensors {
 
@@ -25,14 +26,14 @@ namespace goldfish::sensors {
 #endif
 #define ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS 3
 
-enum class FoldablePostures {
-    UNKNOWN = 0,
-    CLOSED = 1,
-    HALF_OPENED = 2,
-    OPENED = 3,
-    FLIPPED = 4,
-    TENT = 5,
-    POSTURE_MAX
+enum class FoldablePostures : uint8_t {
+    kUnknown = 0,
+    kClosed = 1,
+    kHalfOpened = 2,
+    kOpened = 3,
+    kFlipped = 4,
+    kTent = 5,
+    kPostureMax = 6,
 };
 
 struct AnglesToPosture {
@@ -46,7 +47,7 @@ struct AnglesToPosture {
     FoldablePostures posture;
 };
 
-enum class FoldableDisplayType {
+enum class FoldableDisplayType : uint8_t {
     // Horizontal split means something like a laptop, i.e.
     // |-----| Camera is here
     // | top |
@@ -55,7 +56,7 @@ enum class FoldableDisplayType {
     // |-----| hinge 1
     // |     |
     // |-----|
-    HORIZONTAL_SPLIT = 0,
+    kHorizontalSplit = 0,
 
     // Vertical split is left to right, rotated version of horizontal split:
     // |-camera|-------|------|-------|
@@ -70,30 +71,31 @@ enum class FoldableDisplayType {
     // |-----| hinge 1
     // |     |
     // |-----|
-    VERTICAL_SPLIT = 1,
+    kVerticalSplit = 1,
 
     // Roll configurations (essentially the # hinges are infinite,
     // representable via separate parameters)
-    HORIZONTAL_ROLL = 2,
-    VERTICAL_ROLL = 3,
-    TYPE_MAX
+    kHorizontalRoll = 2,
+    kVerticalRoll = 3,
+    kTypeMax = 4
 };
 
 struct FoldableHingeParameters {
     int x, y, width, height;
-    int displayId;
-    float minDegrees;
-    float maxDegrees;
-    float defaultDegrees;
+    int display_id;
+    float min_degrees;
+    float max_degrees;
+    float default_degrees;
 };
 
 struct RollableParameters {
-    float rollRadiusAsDisplayPercent;  // % of display height (horiz. roll) or display width
-                                       // (vertical roll) that determines the radius of the rollable
-    int displayId;
-    float minRolledPercent;
-    float maxRolledPercent;
-    float defaultRolledPercent;
+    float roll_radius_as_display_percent;  // % of display height (horiz. roll) or display width
+                                           // (vertical roll) that determines the radius of the
+                                           // rollable
+    int display_id;
+    float min_rolled_percent;
+    float max_rolled_percent;
+    float default_rolled_percent;
     int direction;
 };
 
@@ -101,21 +103,21 @@ struct FoldableConfig {
     FoldableDisplayType type;
 
     // For hinges only
-    int numHinges;
-    FoldablePostures foldAtPosture;
-    FoldableHingeParameters hingeParams[ANDROID_FOLDABLE_MAX_HINGES];
+    int num_hinges;
+    FoldablePostures fold_at_posture;
+    FoldableHingeParameters hinge_params[ANDROID_FOLDABLE_MAX_HINGES];
 
     // For rollables only
-    int numRolls;
-    FoldablePostures resizeAtPosture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
-    RollableParameters rollableParams[ANDROID_FOLDABLE_MAX_ROLLS];
+    int num_rolls;
+    FoldablePostures resize_at_posture[ANDROID_FOLDABLE_MAX_DISPLAY_REGIONS];
+    RollableParameters rollable_params[ANDROID_FOLDABLE_MAX_ROLLS];
 };
 
 struct FoldableState {
     FoldableConfig config;
-    float currentHingeDegrees[ANDROID_FOLDABLE_MAX_HINGES];
-    float currentRolledPercent[ANDROID_FOLDABLE_MAX_ROLLS];
-    FoldablePostures currentPosture;
+    float current_hinge_degrees[ANDROID_FOLDABLE_MAX_HINGES];
+    float current_rolled_percent[ANDROID_FOLDABLE_MAX_ROLLS];
+    FoldablePostures current_posture;
 };
 
 }  // namespace goldfish::sensors

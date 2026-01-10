@@ -406,7 +406,7 @@ class SensorDevice : public ISensorDevice {
 
     void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
                                    const size_t count, PhysicalInterpolation interpolation_mode) {
-        mPhysicalModel->setPhysicalParameterValue(parameter, val, count, interpolation_mode);
+        mPhysicalModel->SetPhysicalParameterValue(parameter, val, count, interpolation_mode);
     }
 
     bool enabled(int sensorId) { return (mEnabledMask & (1 << sensorId)) != 0; }
@@ -418,7 +418,7 @@ class SensorDevice : public ISensorDevice {
         // other code may also rely on it.
         DCHECK(mLoop->IsOnLoopThread()) << "Tick must be called from the event loop!";
         const auto now = mClock->Now(::android::base::ClockType::kVirtual);
-        mPhysicalModel->setCurrentTime(absl::ToUnixNanos(now));
+        mPhysicalModel->SetCurrentTime(absl::ToUnixNanos(now));
         for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
              ++sensor_id) {
             if (!enabled(sensor_id)) {
@@ -426,7 +426,7 @@ class SensorDevice : public ISensorDevice {
             }
 
             const SensorData d =
-                    mPhysicalModel->getSensorData(static_cast<AndroidSensor>(sensor_id));
+                    mPhysicalModel->GetSensorData(static_cast<AndroidSensor>(sensor_id));
             Sensor& s = mSensors[sensor_id];
 
             s.serialized = serializeSensorData(static_cast<AndroidSensor>(sensor_id), d);

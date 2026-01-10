@@ -155,7 +155,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
     static absl::Time wallClock() {
         return absl::UnixEpoch() +
-               absl::Milliseconds(android::base::System::get()->getProcessTimes().wallClockMs);
+               absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms);
     }
 
     static void QEMUResetHandler(void* opaque) {

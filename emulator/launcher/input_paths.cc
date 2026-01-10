@@ -94,7 +94,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     ASSIGN_OR_RETURN(fs::path program_path, get_program_path());
     ASSIGN_OR_RETURN(paths.launcher_binary, check_exists(program_path, "launcher binary"));
 
-    if (auto d = System::getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
+    if (auto d = System::GetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
         paths.launcher_directory = fs::path(d);
         // Sanity check launcher directory
         if (auto launcher = paths.launcher_directory / add_binary_suffix(std::string(kEmulatorBinaryName));
@@ -114,7 +114,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     } else {
         paths.launcher_directory = paths.launcher_binary.parent_path();
         // Only set this if it wasn't already set as some integrators set it externally.
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
                                        paths.launcher_directory.string());
     }
     RETURN_IF_ERROR(check_exists(paths.launcher_directory, "launcher directory").status());
@@ -129,7 +129,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
                      check_exists(paths.launcher_directory / "lib64", "lib64 directory"));
     // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
     // It is also used by gfxstream to locate the GL and Vulkan libraries.
-    System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR",
+    System::SetEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR",
                                    paths.library_directory.string());
     ASSIGN_OR_RETURN(paths.bios_directory,
                      check_exists(paths.launcher_directory / "share" / "qemu", "bios directory"));
@@ -184,7 +184,7 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
 
     // Make sure the child process is using the same crashpad handler as we are using.
     // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
-    System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
+    System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
 
     return paths;
 }
