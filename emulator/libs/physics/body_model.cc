@@ -16,20 +16,18 @@
 
 #include "goldfish/physics/body_model.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
-BodyState BodyModel::setCurrentTime(uint64_t time_ns) {
-    return BodyState::STABLE;
+BodyState BodyModel::SetCurrentTime(uint64_t /*time_ns*/) {
+    return BodyState::kStable;
 }
 
-void BodyModel::setHeartRate(float bpm, PhysicalInterpolation mode) {
-    mHeartRate = bpm;
+void BodyModel::SetHeartRate(float bpm, PhysicalInterpolation /*mode*/) {
+    heart_rate_ = bpm;
 }
 
-float BodyModel::getHeartRate(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultHeartRate : mHeartRate;
+float BodyModel::GetHeartRate(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultHeartRate : heart_rate_;
 }
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

@@ -217,11 +217,11 @@ class SensorDevice : public ISensorDevice {
 
         const float kPressure = 1013.25F;  // One "standard atmosphere"
         setPhysicalParameterValue(PhysicalParameter::PRESSURE, &kPressure, 1u,
-                                  PhysicalInterpolation::SMOOTH);
+                                  PhysicalInterpolation::kSmooth);
 
         const float kProximity = 1.F;
         setPhysicalParameterValue(PhysicalParameter::PROXIMITY, &kProximity, 1u,
-                                  PhysicalInterpolation::STEP);
+                                  PhysicalInterpolation::kStep);
 
         mEnabledMask = 0;
         for (size_t nn = 0; nn < static_cast<size_t>(AndroidSensor::MAX_SENSORS); nn++) {

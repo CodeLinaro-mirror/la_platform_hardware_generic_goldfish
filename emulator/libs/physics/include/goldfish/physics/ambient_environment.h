@@ -20,15 +20,15 @@
 #include <glm/vec3.hpp>
 
 #include <array>
+#include <cstdint>
 
 #include "goldfish/physics/physics.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
-enum class AmbientState {
-    CHANGING = 0,
-    STABLE = 1,
+enum class AmbientState : std::uint8_t {
+    kChanging = 0,
+    kStable = 1,
 };
 
 /*
@@ -51,88 +51,90 @@ class AmbientEnvironment {
      * with the time when target state change requests are recorded as taking
      * place.  Time values must be non-decreasing.
      */
-    AmbientState setCurrentTime(uint64_t time_ns);
+    static AmbientState SetCurrentTime(uint64_t time_ns);
 
     /*
      * Sets the strength of the ambient magnetic field.
      */
-    void setMagneticField(float north, float east, float vertical, PhysicalInterpolation mode);
+    void SetMagneticField(float north, float east, float vertical, PhysicalInterpolation mode);
 
     /*
      * Sets the ambient gravity vector.
      */
-    void setGravity(glm::vec3 gravity, PhysicalInterpolation mode);
+    void SetGravity(glm::vec3 gravity, PhysicalInterpolation mode);
 
     /*
      * Sets the ambient temperature.
      */
-    void setTemperature(float celsius, PhysicalInterpolation mode);
+    void SetTemperature(float celsius, PhysicalInterpolation mode);
 
     /*
      * Sets the target proximity value.
      */
-    void setProximity(float centimeters, PhysicalInterpolation mode);
+    void SetProximity(float centimeters, PhysicalInterpolation mode);
 
     /*
      * Sets the target ambient light value.
      */
-    void setLight(float lux, PhysicalInterpolation mode);
+    void SetLight(float lux, PhysicalInterpolation mode);
 
     /*
      * Sets the target barometric pressure value.
      */
-    void setPressure(float hPa, PhysicalInterpolation mode);
+    void SetPressure(float pascal, PhysicalInterpolation mode);
 
     /*
      * Sets the target humidity value.
      */
-    void setHumidity(float percent, PhysicalInterpolation mode);
+    void SetHumidity(float percent, PhysicalInterpolation mode);
 
     /*
      * Sets the target ambient light value.
      */
-    void setRgbcLight(glm::vec4 light, PhysicalInterpolation mode);
+    void SetRgbcLight(glm::vec4 light, PhysicalInterpolation mode);
 
     /*
      * Gets current simulated state of the ambient environment.
      */
-    glm::vec3 getMagneticField(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::vec3 getGravity(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    float getTemperature(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    float getProximity(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    float getLight(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    float getPressure(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    float getHumidity(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::vec4 getRgbcLight(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    glm::vec3 GetMagneticField(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::vec3 GetGravity(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    float GetTemperature(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    float GetProximity(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    float GetLight(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    float GetPressure(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    float GetHumidity(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::vec4 GetRgbcLight(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
   private:
-    static constexpr glm::vec3 kDefaultMagneticField = glm::vec3(0.0f, 5.9f, -48.4f);
-    static constexpr glm::vec3 kDefaultGravity = glm::vec3(0.f, -9.81f, 0.f);
+    static constexpr glm::vec3 kDefaultMagneticField = glm::vec3(0.0F, 5.9F, -48.4F);
+    static constexpr glm::vec3 kDefaultGravity = glm::vec3(0.F, -9.81F, 0.F);
 
     /* celsius */
-    static constexpr float kDefaultTemperature = 0.f;
+    static constexpr float kDefaultTemperature = 0.F;
     /* cm */
-    static constexpr float kDefaultProximity = 1.f;
+    static constexpr float kDefaultProximity = 1.F;
     /* lux */
-    static constexpr float kDefaultLight = 0.f;
+    static constexpr float kDefaultLight = 0.F;
     /* hPa */
-    static constexpr float kDefaultPressure = 0.f;
+    static constexpr float kDefaultPressure = 0.F;
     /* percent */
-    static constexpr float kDefaultHumidity = 0.f;
+    static constexpr float kDefaultHumidity = 0.F;
     /* raw RGBC value */
     static constexpr glm::vec4 kDefaultRgbcLight = glm::vec4(glm::vec3(0, 0, 0), 0);
 
-    glm::vec3 mMagneticField = kDefaultMagneticField;
-    glm::vec3 mGravity = kDefaultGravity;
-    float mTemperature = kDefaultTemperature;
-    float mProximity = kDefaultProximity;
-    float mLight = kDefaultLight;
-    float mPressure = kDefaultPressure;
-    float mHumidity = kDefaultHumidity;
-    glm::vec4 mRgbcLight = kDefaultRgbcLight;
+    glm::vec3 magnetic_field_ = kDefaultMagneticField;
+    glm::vec3 gravity_ = kDefaultGravity;
+    float temperature_ = kDefaultTemperature;
+    float proximity_ = kDefaultProximity;
+    float light_ = kDefaultLight;
+    float pressure_ = kDefaultPressure;
+    float humidity_ = kDefaultHumidity;
+    glm::vec4 rgbc_light_ = kDefaultRgbcLight;
 };
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

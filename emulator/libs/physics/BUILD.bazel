@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
@@ -55,4 +56,12 @@ cc_test(
         "//android/system:googletest_main",
         "//android/system:test-headers",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":physics",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

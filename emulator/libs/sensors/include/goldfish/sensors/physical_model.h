@@ -126,7 +126,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Gets current target state of the modeled object.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    w getParameter##z(ParameterValueType parameterValueType) const;
+    w getParameter##z(ParameterValueType parameter_value_type) const;
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
