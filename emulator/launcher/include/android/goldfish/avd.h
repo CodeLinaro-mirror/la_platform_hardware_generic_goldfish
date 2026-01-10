@@ -190,6 +190,7 @@ class Avd {
      */
     virtual std::string display_name() const = 0;
 
+    virtual std::string skin_name() const = 0;
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
@@ -251,6 +252,7 @@ class FileBackedAvd : public Avd {
     std::string display_name() const override {
         return mConfig->getString("avd.ini.displayname", name());
     }
+    std::string skin_name() const override { return mConfig->getString("skin.name", ""); }
     std::string id() const override {
         // TODO allow override with opts.id
         return name();
