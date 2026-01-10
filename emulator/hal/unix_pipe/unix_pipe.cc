@@ -38,11 +38,12 @@ class UnixPipe : public IUnixPipe {
         }
 
         un_socket_ = socket_factory_.CreateSocket(client_loop, *std::move(un_addr));
-        un_socket_->SetOnReadCallbackNoFlowControl([this](std::string_view data, absl::Status err) {
-            if (err.ok()) {
-                Socket()->Send(std::string(data));
-            }
-        });
+        un_socket_->SetOnReadCallbackNoFlowControl(
+                [this](std::string_view data, const absl::Status& err) {
+                    if (err.ok()) {
+                        Socket()->Send(std::string(data));
+                    }
+                });
 
         un_socket_->SetOnCloseCallback([this]() { Close(); });
     }
@@ -81,7 +82,7 @@ class UnixPipe : public IUnixPipe {
 
 void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
                                EventLoop* qemu_loop) {
-    registry->RegisterHalDevice(std::string(UnixPipe::serviceName), client_loop, qemu_loop,
+    registry->RegisterHalDevice(std::string(UnixPipe::kServiceName), client_loop, qemu_loop,
                                 [client_loop](const std::string_view path) {
                                     return std::make_shared<UnixPipe>(client_loop, path);
                                 });

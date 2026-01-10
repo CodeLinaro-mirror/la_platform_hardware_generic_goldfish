@@ -31,7 +31,7 @@ using namespace std::string_view_literals;
  */
 class IUnixPipe : public HalPlug {
   public:
-    static constexpr std::string_view serviceName = "unix"sv;
+    static constexpr std::string_view kServiceName = "unix"sv;
 
     static void RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
                                EventLoop* qemu_loop);
