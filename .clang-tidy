@@ -55,8 +55,9 @@ ExcludeHeaderFilterRegex: ".*_virtual_includes.*|\
   .*qemu_cpu_wrapper.h|\
   .*vsock_low_level.h|\
   .*virtio_bridge.h|\
-  .*keyboard/dom_key.h \
-  .*c_str_wrapper.h \
+  .*keyboard/dom_key.h|\
+  .*c_str_wrapper.h|\
+  .*system.h|\
   .*image_provider_cpp_adapter.h"
 
 CheckOptions:
