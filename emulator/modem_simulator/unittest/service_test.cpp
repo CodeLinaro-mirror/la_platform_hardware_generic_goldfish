@@ -13,7 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <android-base/logging.h>
+#include "absl/log/log.h"
+#include "absl/strings/str_replace.h"
+
+#include "android/base/bazel_info.h"
+
 #include <gtest/gtest.h>
 #include <stdlib.h>
 
@@ -22,55 +26,24 @@
 
 #include "common/libs/fs/shared_select.h"
 #include "common/libs/utils/files.h"
-#include "host/commands/assemble_cvd/flags_defaults.h"
 #include "host/commands/modem_simulator/channel_monitor.h"
 #include "host/commands/modem_simulator/device_config.h"
 #include "host/commands/modem_simulator/modem_simulator.h"
-#include "host/libs/config/cuttlefish_config.h"
+
 namespace fs = std::filesystem;
 
-static const char *myiccfile =
-#include "iccfile.txt"
-    ;
-
-static const std::string tmp_test_dir = std::string(fs::temp_directory_path()) +
-                                        std::string("/cuttlefish_modem_test");
 using namespace cuttlefish;
 
 class ModemServiceTest : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
     {
-      cuttlefish::CuttlefishConfig tmp_config_obj;
-      std::string config_file = tmp_test_dir + "/.cuttlefish_config.json";
-      tmp_config_obj.set_root_dir(tmp_test_dir + "/cuttlefish");
-      std::vector<int> instance_nums;
-      for (int i = 0; i < 1; i++) {
-        instance_nums.push_back(cuttlefish::GetInstance() + i);
-      }
-      for (const auto &num : instance_nums) {
-        auto instance = tmp_config_obj.ForInstance(num);  // Trigger creation in map
-        instance.set_ril_dns(CF_DEFAULTS_RIL_DNS);
-      }
-
-      for (auto instance : tmp_config_obj.Instances()) {
-        fs::create_directories(instance.instance_dir());
-        if (!tmp_config_obj.SaveToFile(
-                instance.PerInstancePath("cuttlefish_config.json"))) {
-          LOG(ERROR) << "Unable to save copy config object";
-          return;
-        }
-        std::string icfilename =
-            instance.PerInstancePath("/iccprofile_for_sim0.xml");
-        std::ofstream offile = modem::DeviceConfig::open_ofstream_crossplat(icfilename.c_str(), std::ofstream::out);
-        offile << std::string(myiccfile);
-        offile.close();
-        fs::copy_file(instance.PerInstancePath("/cuttlefish_config.json"),
-                      config_file, fs::copy_options::overwrite_existing);
-      }
-
-      ::setenv("CUTTLEFISH_CONFIG_FILE", config_file.c_str(), 1);
+      const char* kBazelPath = "goldfish+/emulator/modem_simulator/files/iccprofile_for_sim0.xml";
+      const std::filesystem::path data_path =
+          std::filesystem::path(android::base::Bazel::RunfilesPath(kBazelPath)).parent_path();
+      cuttlefish::modem::DeviceConfig::SetBasePath(data_path);
     }
+
     cuttlefish::SharedFD ril_shared_fd, modem_shared_fd;
     if (!SharedFD::SocketPair(AF_LOCAL, SOCK_STREAM, 0, &ril_shared_fd,
                               &modem_shared_fd)) {
@@ -95,7 +68,6 @@ class ModemServiceTest : public ::testing::Test {
     delete ril_side_;
     delete modem_side_;
     delete modem_simulator_;
-    fs::remove_all(tmp_test_dir);
   };
 
   void SendCommand(std::string command, std::string prefix = "") {
@@ -127,7 +99,7 @@ class ModemServiceTest : public ::testing::Test {
       incomplete_command.resize(0);
 
       // replacing '\n' with '\r'
-      commands = android::base::StringReplace(commands, "\n", "\r", true);
+      commands = absl::StrReplaceAll(commands, {{"\n", "\r"}});
 
       // split into commands and dispatch
       size_t pos = 0, r_pos = 0;  // '\r' or '\n'
@@ -136,7 +108,7 @@ class ModemServiceTest : public ::testing::Test {
         if (r_pos != std::string::npos) {
           auto command = commands.substr(pos, r_pos - pos);
           if (command.size() > 0) {  // "\r\r" ?
-            LOG(DEBUG) << "AT< " << command;
+            VLOG(1) << "AT< " << command;
             if (IsFinalResponseSuccess(command) || IsFinalResponseError(command)) {
               response.push_back(command);
               return;
@@ -149,7 +121,7 @@ class ModemServiceTest : public ::testing::Test {
           pos = r_pos + 1;  // skip '\r'
         } else if (pos < commands.length()) {  // incomplete command
           incomplete_command = commands.substr(pos);
-          LOG(VERBOSE) << "incomplete command: " << incomplete_command;
+          VLOG(1) << "incomplete command: " << incomplete_command;
         }
       }
     } while (true);
@@ -284,7 +256,7 @@ TEST_F(ModemServiceTest, GetIMSI) {
   SendCommand(command);
   ReadCommandResponse(response);
   ASSERT_EQ(response.size(), 2);
-  const char *expect = "460110031689666";
+  const char *expect = "311740123456789";
   ASSERT_STREQ(response[0].c_str(),expect);
 }
 

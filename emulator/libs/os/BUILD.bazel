@@ -7,6 +7,7 @@ cc_library(
     ],
     hdrs = [
         "include/goldfish/os/dynamic_library.h",
+        "include/goldfish/os/temp_failure_retry.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],

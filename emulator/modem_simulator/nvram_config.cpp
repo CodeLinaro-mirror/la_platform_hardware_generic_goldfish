@@ -15,11 +15,11 @@
 
 #include "host/commands/modem_simulator/nvram_config.h"
 
-#include <android-base/logging.h>
-#include <json/json.h>
-
 #include <fstream>
 #include <mutex>
+
+#include "absl/log/log.h"
+#include "json/json.h"
 
 #include "common/libs/utils/files.h"
 #include "host/commands/modem_simulator/device_config.h"
@@ -104,7 +104,7 @@ NvramConfig::InstanceSpecific NvramConfig::ForInstance(int num) const {
 
 /* static */ std::string NvramConfig::ConfigFileLocation() {
   return cuttlefish::AbsolutePath(
-      cuttlefish::modem::DeviceConfig::PerInstancePath("modem_nvram.json"));
+      cuttlefish::modem::DeviceConfig::GetFilePath("modem_nvram.json"));
 }
 
 bool NvramConfig::LoadFromFile(const char* file) {
