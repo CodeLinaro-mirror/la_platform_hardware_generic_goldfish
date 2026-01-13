@@ -41,7 +41,7 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
     }
 
     // Use the one provided by hardware config if available
-    if (const auto& hw = avd.hw(); !hw.kernel_path.empty()) {
+    if (const auto& hw = avd.Hw(); !hw.kernel_path.empty()) {
         return hw.kernel_path;
     }
 
@@ -49,7 +49,7 @@ absl::StatusOr<fs::path> kernel_image(const Avd& avd, const AndroidOptions& opts
     auto options = {Avd::ImageType::KERNELRANCHU, Avd::ImageType::KERNELRANCHU64,
                     Avd::ImageType::KERNEL};
     for (const auto& option : options) {
-        auto kernel_image = avd.getSystemImageFilePath(option);
+        auto kernel_image = avd.GetSystemImageFilePath(option);
         if (kernel_image.ok()) {
             // TODO Also update hw.kernel_path with the found image?
             return *kernel_image;
@@ -65,7 +65,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     absl::btree_set<std::string> cl = {"bootconfig", "no_timer_check", "8250.nr_uarts=1",
                                        "loop.max_part=7", "mac80211_hwsim.radios=0"};
     // TODO add ramoops args?
-    switch (auto a = avd.detectArchitecture(); a) {
+    switch (auto a = avd.DetectArchitecture(); a) {
     case Avd::CpuArchitecture::kArm:
         cl.merge(absl::btree_set<std::string>{"console=ttyAMA0,38400", "earlyprintk=ttyAMA0",
                                               "keep_bootcon", "ndns=3"});
@@ -86,7 +86,7 @@ absl::StatusOr<std::string> command_line(const Avd& avd, const AndroidOptions& o
     // Note that this is currently duplicating: 8250.nr_uarts=1 (arm and x86) clocksource=pit (x86
     // only) but the set takes care of that. for 16k image, there is extra kernel_cmdline.txt
     {
-        auto kernel_cmdline_txt = avd.getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
+        auto kernel_cmdline_txt = avd.GetSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE);
         if (kernel_cmdline_txt.ok() && base::file::exists(*kernel_cmdline_txt) &&
             base::file::can_read(*kernel_cmdline_txt)) {
             std::ifstream cmdline_file(*kernel_cmdline_txt);

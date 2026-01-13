@@ -19,9 +19,9 @@
 
 #include "absl/status/statusor.h"
 
-#include "android/goldfish/image_list.h"
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/goldfish/image_list.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
 
@@ -51,6 +51,7 @@ namespace fs = std::filesystem;
  */
 class Avd {
   public:
+    // NOLINTBEGIN
 /* define the enumared values corresponding to each AVD image type
  * examples are: KERNEL, SYSTEM, etc..
  */
@@ -59,6 +60,7 @@ class Avd {
         AVD_IMAGE_LIST AVD_IMAGE_MAX /* do not remove */
     };
 #undef _AVD_IMG
+    // NOLINTEND
 
     enum class CpuArchitecture : uint8_t {
         kX86 = 0,
@@ -70,33 +72,33 @@ class Avd {
     virtual ~Avd() = default;
 
     // A detailed string describing this avd
-    virtual std::string details(bool verbose) const = 0;
+    virtual std::string Details(bool verbose) const = 0;
 
     /**
      * @brief Returns the human-readable name of the AVD. This name corresponds to
      * the filename of the AVD's configuration file (without the ".ini"
      * extension).
      */
-    virtual std::string name() const = 0;
+    virtual std::string Name() const = 0;
 
-    virtual std::string id() const = 0;
-    virtual std::string abi() const = 0;
-    virtual std::string build_sdk() const = 0;
-    virtual std::string build_id() const = 0;
-    virtual std::string build_flavour() const = 0;
+    virtual std::string Id() const = 0;
+    virtual std::string Abi() const = 0;
+    virtual std::string BuildSdk() const = 0;
+    virtual std::string BuildId() const = 0;
+    virtual std::string BuildFlavour() const = 0;
 
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
-    virtual DeviceType getDeviceType() const = 0;
+    virtual DeviceType GetDeviceType() const = 0;
 
-    virtual fs::path getSdkPath() const = 0;
-    virtual fs::path getAvdPath() const = 0;
+    virtual fs::path GetSdkPath() const = 0;
+    virtual fs::path GetAvdPath() const = 0;
 
     /**
      * @brief Returns the path to the AVD's content directory. This is typically
      * ~/.android/avd/<name()>.
      */
-    virtual fs::path getContentPath() const = 0;
+    virtual fs::path GetContentPath() const = 0;
 
     /**
      * @brief Retrieves the file path of a system image associated with an Android
@@ -107,14 +109,14 @@ class Avd {
      * under the $ANDROID_SDK_ROOT/ directory as specified
      * by the image.sysdir.1 or image.sysdir.2 property in the config.ini file
      *
-     * @param imgType The type of system image to retrieve.
+     * @param img_type The type of system image to retrieve.
      * @return A StatusOr object containing the file path of the system image on
      * success, or an error status on failure.
      *
      * @see Avd::ImageType
      * @see ConfigDirs::getSdkRootDirectory
      */
-    virtual absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const = 0;
+    virtual absl::StatusOr<fs::path> GetSystemImageFilePath(Avd::ImageType img_type) const = 0;
 
     /**
      * @brief Detects the CPU architecture of the AVD based on the 'abi.type'
@@ -128,11 +130,11 @@ class Avd {
      *
      * @return The detected CpuArchitecture or kUnknown if it cannot be detected.
      */
-    virtual CpuArchitecture detectArchitecture() const = 0;
+    virtual CpuArchitecture DetectArchitecture() const = 0;
 
-    virtual const HardwareConfig& hw() const = 0;
+    virtual const HardwareConfig& Hw() const = 0;
 
-    virtual bool playstore() const = 0;
+    virtual bool Playstore() const = 0;
 
     /**
      * @brief Retrieves the API level of the AVD.
@@ -148,7 +150,7 @@ class Avd {
      * @return The API level as an integer. Returns `kUnknownApiLevel` if the
      *         API level cannot be determined.
      */
-    virtual int apiLevel() const = 0;
+    virtual int ApiLevel() const = 0;
 
     /**
      * @brief Retrieves the dessert name associated with the AVD's API level.
@@ -159,7 +161,7 @@ class Avd {
      * @return The dessert name as a string, or an empty string if the API level
      *         does not have a corresponding dessert name.
      */
-    virtual std::string dessert() const = 0;
+    virtual std::string Dessert() const = 0;
 
     /**
      * @brief Retrieves a descriptive string for the AVD's API level.
@@ -170,7 +172,7 @@ class Avd {
      *
      * @return The API description string.
      */
-    virtual std::string apiDescription() const = 0;
+    virtual std::string ApiDescription() const = 0;
 
     /**
      * @brief Returns the path to the AVD's configuration file.
@@ -180,7 +182,7 @@ class Avd {
      *
      * @return Path to the avd configuration file
      */
-    virtual fs::path getConfigIniPath() const = 0;
+    virtual fs::path GetConfigIniPath() const = 0;
 
     /**
      * @brief Returns the AVD's display name if set, otherwise the name.
@@ -188,16 +190,16 @@ class Avd {
      * @return The displayname if set, otherwise the name.
      *         is not found.
      */
-    virtual std::string display_name() const = 0;
+    virtual std::string DisplayName() const = 0;
 
-    virtual std::string skin_name() const = 0;
+    virtual std::string SkinName() const = 0;
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
-     * @param imgType The AVD image type for which to retrieve the filename.
+     * @param img_type The AVD image type for which to retrieve the filename.
      * @return fs::path The corresponding image filename.
      */
-    static fs::path getImageFilename(Avd::ImageType imgType);
+    static fs::path GetImageFilename(Avd::ImageType img_type);
 
     /**
      * @brief Lists the names of available Android Virtual Devices (AVDs).
@@ -208,7 +210,7 @@ class Avd {
      *
      * @return A std::vector containing the names of discovered AVDs.
      */
-    static std::vector<std::string> list(const fs::path& avd_directory);
+    static std::vector<std::string> List(const fs::path& avd_directory);
 
     /**
      * @brief Constructs an AVD object from its name.
@@ -221,9 +223,9 @@ class Avd {
      * @return An absl::StatusOr<Avd> object. On success, contains the
      *         constructed AVD. On failure, contains an error status.
      */
-    static absl::StatusOr<std::unique_ptr<Avd>> fromName(
-            const android::goldfish::ResolvedInputPaths& paths, std::string name,
-            fs::path sysdir_override = {}, fs::path writable_content_override = {});
+    static absl::StatusOr<std::unique_ptr<Avd>> FromName(
+            const android::goldfish::ResolvedInputPaths& paths, const std::string& name,
+            const fs::path& sysdir_override = {}, fs::path writable_content_override = {});
 
     static constexpr int kUnknownApiLevel = 1000;
 
@@ -233,64 +235,64 @@ class Avd {
 
 class FileBackedAvd : public Avd {
   public:
-    std::string details(bool verbose) const override;
+    std::string Details(bool verbose) const override;
 
-    fs::path getSdkPath() const override { return mSdkPath; }
-    fs::path getAvdPath() const override { return mAvdPath; }
+    fs::path GetSdkPath() const override { return sdk_path_; }
+    fs::path GetAvdPath() const override { return avd_path_; }
 
-    std::string name() const override { return mName; }
-    DeviceType getDeviceType() const override;
-    fs::path getContentPath() const override { return mContentPath; };
-    absl::StatusOr<fs::path> getSystemImageFilePath(Avd::ImageType imgType) const override;
-    CpuArchitecture detectArchitecture() const override;
-    const HardwareConfig& hw() const override { return mHwCfg; }
-    bool playstore() const override { return false; }
-    int apiLevel() const override;
-    std::string dessert() const override;
-    std::string apiDescription() const override;
-    fs::path getConfigIniPath() const override { return mConfig->GetBackingFile(); }
-    std::string display_name() const override {
-        return mConfig->GetString("avd.ini.displayname", name());
+    std::string Name() const override { return name_; }
+    DeviceType GetDeviceType() const override;
+    fs::path GetContentPath() const override { return content_path_; };
+    absl::StatusOr<fs::path> GetSystemImageFilePath(Avd::ImageType img_type) const override;
+    CpuArchitecture DetectArchitecture() const override;
+    const HardwareConfig& Hw() const override { return hw_cfg_; }
+    bool Playstore() const override { return false; }
+    int ApiLevel() const override;
+    std::string Dessert() const override;
+    std::string ApiDescription() const override;
+    fs::path GetConfigIniPath() const override { return config_->GetBackingFile(); }
+    std::string DisplayName() const override {
+        return config_->GetString("avd.ini.displayname", Name());
     }
-    std::string skin_name() const override { return mConfig->GetString("skin.name", ""); }
-    std::string id() const override {
+    std::string SkinName() const override { return config_->GetString("skin.name", ""); }
+    std::string Id() const override {
         // TODO allow override with opts.id
-        return name();
+        return Name();
     }
 
-    std::string abi() const override {
+    std::string Abi() const override {
         // TODO check against detected arch.
-        return mBuildIni.GetString("ro.product.cpu.abi", "unknown");
+        return build_ini_.GetString("ro.product.cpu.abi", "unknown");
     }
 
-    std::string build_sdk() const override {
-        return mBuildIni.GetString("ro.build.version.sdk", "unknown");
+    std::string BuildSdk() const override {
+        return build_ini_.GetString("ro.build.version.sdk", "unknown");
     }
 
-    std::string build_id() const override { return mBuildIni.GetString("ro.build.id", "unknown"); }
+    std::string BuildId() const override { return build_ini_.GetString("ro.build.id", "unknown"); }
 
-    std::string build_flavour() const override {
-        return mBuildIni.GetString("ro.build.flavor", "unknown");
+    std::string BuildFlavour() const override {
+        return build_ini_.GetString("ro.build.flavor", "unknown");
     }
 
-    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> parse(
-            std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path,
-            fs::path content_path, fs::path sysdir_override = {});
+    static absl::StatusOr<std::unique_ptr<FileBackedAvd>> Parse(
+            std::string name, const fs::path& config_ini_path, fs::path sdk_path, fs::path avd_path,
+            fs::path content_path, const fs::path& sysdir_override = {});
 
   private:
     FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
                   fs::path avd_path, fs::path content_path, std::vector<fs::path> sys_image_paths);
 
-    bool loadBuildProps();
+    bool LoadBuildProps();
 
-    std::string mName;
-    std::unique_ptr<IniFile> mConfig;
-    fs::path mSdkPath;
-    fs::path mAvdPath;
-    fs::path mContentPath;  // Usually ~/.android/avd/<name>.avd/
-    std::vector<fs::path> mSysImagePaths;
-    HardwareConfig mHwCfg;
-    IniFile mBuildIni;
+    std::string name_;
+    std::unique_ptr<IniFile> config_;
+    fs::path sdk_path_;
+    fs::path avd_path_;
+    fs::path content_path_;  // Usually ~/.android/avd/<name>.avd/
+    std::vector<fs::path> sys_image_paths_;
+    HardwareConfig hw_cfg_;
+    IniFile build_ini_;
 };
 
 }  // namespace android::goldfish

@@ -22,79 +22,79 @@
 
 /* Absolute path of the AVD content directory.
  */
-constexpr char ROOT_ABS_PATH_KEY[] = "path";
+constexpr char kRootAbsPathKey[] = "path";
 
 /* Relative path of the AVD content directory.
  * Path is relative to the bufprint_config_path().
  */
-constexpr char ROOT_REL_PATH_KEY[] = "path.rel";
+constexpr char kRootRelPathKey[] = "path.rel";
 
 /* -- Keys used in config.ini -- */
 
 /* AVD/config.ini key name representing the abi type of the specific avd
  */
-constexpr char ABI_TYPE[] = "abi.type";
+constexpr char kAbiType[] = "abi.type";
 
 /* AVD/config.ini key name representing the CPU architecture of the specific avd
  */
-constexpr char CPU_ARCH[] = "hw.cpu.arch";
+constexpr char kCpuArch[] = "hw.cpu.arch";
 /* the prefix of config.ini keys that will be used for search directories
  * of system images.
  */
-constexpr char SEARCH_PREFIX[] = "image.sysdir.";
+constexpr char kSearchPrefix[] = "image.sysdir.";
 
 /* the maximum number of search path keys we're going to read from the
  * config.ini file
  */
-constexpr int MAX_SEARCH_PATHS = 2;
+constexpr int kMaxSearchPaths = 2;
 
 /* the config.ini key that will be used to indicate the full relative
  * path to the skin directory (including the skin name).
  */
-constexpr char SKIN_PATH[] = "skin.path";
+constexpr char kSkinPath[] = "skin.path";
 
 /* the config.ini key that will be used to indicate the default skin's name.
  * this is ignored if there is a valid SKIN_PATH entry in the file.
  */
-constexpr char SKIN_NAME[] = "skin.name";
+constexpr char kSkinName[] = "skin.name";
 
 /*
  * The pixel_fold default skin and closed skin name, they are inside
  * skins/pixel_fold/
  */
-constexpr char PIXEL_FOLD_DEFAULT_SKIN_NAME[] = "default";
-constexpr char PIXEL_FOLD_CLOSED_SKIN_NAME[] = "closed";
+constexpr char kPixelFoldDefaultSkinName[] = "default";
+constexpr char kPixelFoldClosedSkinName[] = "closed";
 
 /* default skin name */
-constexpr char SKIN_DEFAULT[] = "HVGA";
+constexpr char kSkinDefault[] = "HVGA";
 
 /* the config.ini key that is used to indicate the absolute path
  * to the SD Card image file, if you don't want to place it in
  * the content directory.
  */
-constexpr char SDCARD_PATH[] = "sdcard.path";
+constexpr char kSdcardPath[] = "sdcard.path";
 
 /* The config.ini key name representing the second path where the emulator looks
  * for system images. Typically this is the path to the platform system image.
  */
-constexpr char IMAGES_2[] = "image.sysdir.2";
+constexpr char kImages2[] = "image.sysdir.2";
 
 /* AVD/config.ini key name representing the presence of the snapshots file.
  */
-constexpr char SNAPSHOT_PRESENT[] = "snapshot.present";
+constexpr char kSnapshotPresent[] = "snapshot.present";
 
 /* AVD/config.ini key name representing the size of the SD card.
  */
-constexpr char SDCARD_SIZE[] = "sdcard.size";
+constexpr char kSdcardSize[] = "sdcard.size";
 
 /* AVD/config.ini key name representing the tag id of the specific avd
  */
-constexpr char TAG_ID[] = "tag.id";
+constexpr char kTagId[] = "tag.id";
 
 /* AVD/config.ini value for tag id of Chrome OS.
  */
-constexpr char TAG_ID_CHROMEOS[] = "chromeos";
+constexpr char kTagIdChromeos[] = "chromeos";
 
 /* AVD/config.ini key name representing the tag display of the specific avd
  */
-constexpr char TAG_DISPLAY[] = "tag.display";
+constexpr char kTagDisplay[] = "tag.display";

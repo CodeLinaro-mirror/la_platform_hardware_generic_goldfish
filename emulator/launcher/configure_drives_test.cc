@@ -62,22 +62,22 @@ TEST(ConfigureDrivesTest, AddDrives) {
     MockDeviceContainer mock_container;
     MockAvd mock_avd;
     AndroidOptions opts{};
-    HardwareConfig hw;
+    HardwareConfig Hw;
 
     EXPECT_CALL(mock_container, avd()).WillRepeatedly(ReturnRef(mock_avd));
     EXPECT_CALL(mock_container, opts()).WillRepeatedly(ReturnRef(opts));
-    EXPECT_CALL(mock_avd, hw()).WillRepeatedly(ReturnRef(hw));
-    EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::INITSYSTEM))
+    EXPECT_CALL(mock_avd, Hw()).WillRepeatedly(ReturnRef(Hw));
+    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITSYSTEM))
             .WillRepeatedly(Return(system_dir / "system.img"));
-    EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::INITVENDOR))
+    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITVENDOR))
             .WillRepeatedly(Return(system_dir / "vendor.img"));
-    EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::ENCRYPTIONKEY))
+    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::ENCRYPTIONKEY))
             .WillRepeatedly(Return(system_dir / "encryption_key.img"));
-    EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::INITZIP))
+    EXPECT_CALL(mock_avd, GetSystemImageFilePath(Avd::ImageType::INITZIP))
             .WillRepeatedly(Return(system_dir / "data"));
     //     EXPECT_CALL(mock_avd, getSystemImageFilePath(Avd::ImageType::INITZIP))
     //             .WillRepeatedly(Return(absl::NotFoundError("")));
-    EXPECT_CALL(mock_avd, getContentPath()).WillRepeatedly(Return(user_dir));
+    EXPECT_CALL(mock_avd, GetContentPath()).WillRepeatedly(Return(user_dir));
 
     EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir / "system.img")).Times(1);
     EXPECT_CALL(mock_container, addRwDrive("encrypt", "06.0", _, _, _, _, _)).Times(1);

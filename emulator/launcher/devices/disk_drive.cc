@@ -36,7 +36,7 @@ namespace android::goldfish {
 
 namespace {
 std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_view addr) {
-    switch (avd.detectArchitecture()) {
+    switch (avd.DetectArchitecture()) {
     case Avd::CpuArchitecture::kArm:
         // Note that this isn't actually a pci device, oh well.
         return absl::StrCat("virtio-blk-device,drive=", diskId);

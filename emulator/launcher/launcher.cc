@@ -375,13 +375,13 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 };
 
 void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sysdir_override) {
-    auto avds = Avd::list(resolved_paths.avd_directory);
+    auto avds = Avd::List(resolved_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = Avd::fromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
+        auto a = Avd::FromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
         if (!a.status().ok()) {
             std::cout << name << "is not valid: " << a.status().message();
         } else {
-            std::cout << (*a)->details(verbose) << '\n';
+            std::cout << (*a)->Details(verbose) << '\n';
         }
     }
 }
@@ -535,7 +535,7 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = Avd::fromName(*resolved_paths, name, sysdir_override, writable_content_override);
+    auto avd = Avd::FromName(*resolved_paths, name, sysdir_override, writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;

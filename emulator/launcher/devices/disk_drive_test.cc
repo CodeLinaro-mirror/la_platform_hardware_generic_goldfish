@@ -39,7 +39,7 @@ TEST(RoDrive, Basic_x86) {
     std::ofstream{image_file};
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -64,7 +64,7 @@ TEST(RoDrive, Basic_arm64) {
     std::ofstream{image_file};
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -99,7 +99,7 @@ TEST(RwDrive, Basic_x86) {
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
@@ -124,7 +124,7 @@ TEST(RwDrive, Basic_arm) {
     std::ofstream(qcow2Image).close();
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
     RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
