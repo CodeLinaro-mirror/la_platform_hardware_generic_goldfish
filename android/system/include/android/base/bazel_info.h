@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <string>
-namespace android {
-namespace base {
+namespace android::base {
 
 class Bazel {
   public:
     // Returns the path of the specified file in the runfiles directory.
-    static std::string runfilesPath(const std::string& path);
+    static std::string RunfilesPath(const std::string& path);
 
     // Store the command line arguments, this is needed to get the runfiles path.
-    static void storeCommandLineArgs(int argc, char** argv);
+    static void StoreCommandLineArgs(int argc, char** argv);
 
     // Returns true if this executable is running in a bazel environment
-    static bool inBazel();
+    static bool InBazel();
 
-    static void setNotInBazel();
+    static void SetNotInBazel();
 
-    static bool s_notInBazel;
+    static bool s_not_in_bazel;
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

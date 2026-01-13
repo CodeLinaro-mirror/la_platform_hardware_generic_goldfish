@@ -425,14 +425,14 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
 
-    Bazel::storeCommandLineArgs(argc, argv);
+    Bazel::StoreCommandLineArgs(argc, argv);
     android::goldfish::show_banner();
 
     // we will use bazel to run emulator in normal mode,
     // this -not-in-bazel option is used to force inBazel
     // to return false;
     if (opts.not_in_bazel) {
-        Bazel::setNotInBazel();
+        Bazel::SetNotInBazel();
     }
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -462,9 +462,9 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    if (Bazel::inBazel()) {
+    if (Bazel::InBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
-        auto launcher_dir = fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
+        auto launcher_dir = fs::path(Bazel::RunfilesPath("goldfish+/emulator/launcher"));
         LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
                 << "Unable to locate launcher directory: " << launcher_dir;
         System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::resolve_paths(opts.verbose);
+    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose);
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;

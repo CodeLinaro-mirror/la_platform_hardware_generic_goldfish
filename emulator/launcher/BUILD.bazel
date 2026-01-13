@@ -1,4 +1,5 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
@@ -448,4 +449,12 @@ py_binary(
         ":emulator_lib",
         "@rules_python//python/runfiles",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":input_paths",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )
