@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//emulator/grpc:__subpackages__"])
+package(default_visibility = ["//visibility:public"])
 
 pkg_files(
     name = "emulator-access",
