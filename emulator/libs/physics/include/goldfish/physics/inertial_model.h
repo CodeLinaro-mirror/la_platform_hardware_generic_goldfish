@@ -20,32 +20,33 @@
 #include <glm/vec3.hpp>
 
 #include <array>
+#include <numbers>
 
 #include "goldfish/physics/physics.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
-constexpr uint64_t secondsToNs(float seconds) {
+constexpr uint64_t SecondsToNs(float seconds) {
     return static_cast<uint64_t>(seconds * 1000000000.0);
 }
 
-constexpr float nsToSeconds(uint64_t nanoSeconds) {
-    return static_cast<float>(nanoSeconds / 1000000000.0);
+constexpr float NsToSeconds(uint64_t nano_seconds) {
+    return static_cast<float>(static_cast<float>(nano_seconds) / 1000000000.0);
 }
 
-constexpr float kMaxStateChangeTimeSeconds = 0.5f;
-constexpr float kMinStateChangeTimeSeconds = 0.05f;
+constexpr float kMaxStateChangeTimeSeconds = 0.5F;
+constexpr float kMinStateChangeTimeSeconds = 0.05F;
 
 // Ambient motion frequency of 0.5Hz.  This is applied directly in the x axis
 // and scaled by 1 / sqrt(2) and 1 / sqrt(3) in y and z axis respectively.
-const float kAmbientFrequency = 0.5f;
+const float kAmbientFrequency = 0.5F;
 const glm::vec3 kAmbientFrequencyVec =
-        glm::vec3(1.f, 1.f / sqrt(2.f), 1.f / sqrt(3.f)) * kAmbientFrequency * 2.f * 3.14159265f;
+        glm::vec3(1.F, 1.F / std::numbers::sqrt2_v<float>, std::numbers::inv_sqrt3_v<float>) *
+        kAmbientFrequency * 2.F * std::numbers::pi_v<float>;
 
-enum class InertialState {
-    CHANGING = 0,
-    STABLE = 1,
+enum class InertialState : std::uint8_t {
+    kChanging = 0,
+    kStable = 1,
 };
 
 /*
@@ -68,91 +69,92 @@ class InertialModel {
      * requests are recorded as taking place.  Time values must be
      * non-decreasing.
      */
-    InertialState setCurrentTime(uint64_t time_ns);
+    InertialState SetCurrentTime(uint64_t time_ns);
 
     /*
      * Sets the position that the modeled object should move toward.
      */
-    void setTargetPosition(glm::vec3 position, PhysicalInterpolation mode);
+    void SetTargetPosition(glm::vec3 position, PhysicalInterpolation mode);
 
     /*
      * Sets the velocity at which the modeled object should start moving.
      */
-    void setTargetVelocity(glm::vec3 velocity, PhysicalInterpolation mode);
+    void SetTargetVelocity(glm::vec3 velocity, PhysicalInterpolation mode);
 
     /*
      * Sets the rotation that the modeled object should move toward.
      */
-    void setTargetRotation(glm::quat rotation, PhysicalInterpolation mode);
+    void SetTargetRotation(glm::quat rotation, PhysicalInterpolation mode);
 
     /*
      * Set the half-width of the bounding box for ambient motion.  Setting this
      * to zero disables ambient motion.
      */
-    void setTargetAmbientMotion(float bounds, PhysicalInterpolation mode);
+    void SetTarGetAmbientMotion(float bounds, PhysicalInterpolation mode);
 
     /*
      * Set the value reported by WRIST_TILT_GESTURE sensor. 1 means GAZE and
      * 0 means UNGAZE.
      */
-    void setWristTilt(float value, PhysicalInterpolation mode);
+    void SetWristTilt(float value, PhysicalInterpolation mode);
 
     /*
      * Gets current simulated state and sensor values of the modeled object at
      * the most recently set current time (from setCurrentTime).
      */
-    glm::vec3 getPosition(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::vec3 getVelocity(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::vec3 getAcceleration(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::vec3 getJerk(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
-    glm::quat getRotation(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    glm::vec3 GetPosition(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::vec3 GetVelocity(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::vec3 GetAcceleration(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::vec3 GetJerk(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
+    glm::quat GetRotation(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
     // rotational velocity as rotation around (x, y, z) axis in rad/s
-    glm::vec3 getRotationalVelocity(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    glm::vec3 GetRotationalVelocity(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
     /*
      * Gets half the width of the ambient motion bounding box.
      */
-    float getAmbientMotion(
-            ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float GetAmbientMotion(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
-    float getWristTilt(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float GetWristTilt(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
   private:
-    void updateRotations();
+    void UpdateRotations();
 
     // Helper for setting the transforms for position, velocity and acceleration
     // based on the coefficients for heptic motion.
-    void setInertialTransforms(
-            const glm::vec3& hepticCoefficient, const glm::vec3& hexicCoefficient,
-            const glm::vec3& quinticCoefficient, const glm::vec3& quarticCoefficient,
-            const glm::vec3& cubicCoefficient, const glm::vec3& quadraticCoefficient,
-            const glm::vec3& linearCoefficient, const glm::vec3& constantCoefficient,
-            const glm::vec4& hepticTimeVec, const glm::vec4& cubicTimeVec);
+    void SetInertialTransforms(
+            const glm::vec3& heptic_coefficient, const glm::vec3& hexic_coefficient,
+            const glm::vec3& quintic_coefficient, const glm::vec3& quartic_coefficient,
+            const glm::vec3& cubic_coefficient, const glm::vec3& quadratic_coefficient,
+            const glm::vec3& linear_coefficient, const glm::vec3& constant_coefficient,
+            const glm::vec4& heptic_time_vector, const glm::vec4& cubic_time_vector);
 
     // Helper for calculating the current or target state given a transform
     // specifying either the acceleration, velocity, or position.
-    glm::vec3 calculateInertialState(const glm::mat4x3& hepticTransform,
-                                     const glm::mat4x3& cubicTransform,
-                                     const glm::mat4x3& afterEndCubicTransform,
-                                     ParameterValueType parameterValueType) const;
+    glm::vec3 CalculateInertialState(const glm::mat4x3& heptic_transform,
+                                     const glm::mat4x3& cubic_transform,
+                                     const glm::mat4x3& after_end_cubic_transform,
+                                     ParameterValueType parameter_value_type) const;
 
     // Helper for calculating the current or target rotational state given a
     // transform specifying either the rotational velocity, or rotation in
     // 4d vector space.
-    glm::vec4 calculateRotationalState(const glm::mat2x4& quinticTransform,
-                                       const glm::mat4x4& cubicTransform,
-                                       const glm::mat4x4& afterEndCubicTransform,
-                                       ParameterValueType parameterValueType) const;
+    glm::vec4 CalculateRotationalState(const glm::mat2x4& quintic_transform,
+                                       const glm::mat4x4& cubic_transform,
+                                       const glm::mat4x4& after_end_cubic_transform,
+                                       ParameterValueType parameter_value_type) const;
 
     // Get the value and derivatives of the ambient motion bounding box size.
-    float getAmbientMotionBoundsValue(ParameterValueType parameterValueType) const;
-    float getAmbientMotionBoundsDeriv(ParameterValueType parameterValueType) const;
-    float getAmbientMotionBoundsSecondDeriv(ParameterValueType parameterValueType) const;
+    float GetAmbientMotionBoundsValue(ParameterValueType parameter_value_type) const;
+    float GetAmbientMotionBoundsDeriv(ParameterValueType parameter_value_type) const;
+    float GetAmbientMotionBoundsSecondDeriv(ParameterValueType parameter_value_type) const;
 
     // Note: Each target interpolation begins at a set time, accelerates at a
     //       for half of the target time, then decelerates for the second half
@@ -170,48 +172,47 @@ class InertialModel {
     //       second half.  At the end of the decel phase, the velocity and
     //       acceleration will be zero and the position will be as set in the
     //       target.
-    uint64_t mPositionChangeStartTime = 0UL;
-    glm::mat4x3 mPositionHeptic = glm::mat4x3(0.f);
-    glm::mat4x3 mPositionCubic = glm::mat4x3(0.f);
-    glm::mat4x3 mVelocityHeptic = glm::mat4x3(0.f);
-    glm::mat4x3 mVelocityCubic = glm::mat4x3(0.f);
-    glm::mat4x3 mAccelerationHeptic = glm::mat4x3(0.f);
-    glm::mat4x3 mAccelerationCubic = glm::mat4x3(0.f);
-    glm::mat4x3 mJerkHeptic = glm::mat4x3(0.f);
-    glm::mat4x3 mJerkCubic = glm::mat4x3(0.f);
-    uint64_t mPositionChangeEndTime = 0UL;
-    bool mZeroVelocityAfterEndTime = true;
+    uint64_t position_change_start_time_ = 0UL;
+    glm::mat4x3 position_heptic_ = glm::mat4x3(0.F);
+    glm::mat4x3 position_cubic_ = glm::mat4x3(0.F);
+    glm::mat4x3 velocity_heptic_ = glm::mat4x3(0.F);
+    glm::mat4x3 velocity_cubic_ = glm::mat4x3(0.F);
+    glm::mat4x3 acceleration_heptic_ = glm::mat4x3(0.F);
+    glm::mat4x3 acceleration_cubic_ = glm::mat4x3(0.F);
+    glm::mat4x3 jerk_heptic_ = glm::mat4x3(0.F);
+    glm::mat4x3 jerk_cubic_ = glm::mat4x3(0.F);
+    uint64_t position_change_end_time_ = 0UL;
+    bool zero_velocity_after_end_time_ = true;
 
-    glm::mat4x3 mPositionAfterEndCubic = glm::mat4x3(0.f);
-    glm::mat4x3 mVelocityAfterEndCubic = glm::mat4x3(0.f);
+    glm::mat4x3 position_after_end_cubic_ = glm::mat4x3(0.F);
+    glm::mat4x3 velocity_after_end_cubic_ = glm::mat4x3(0.F);
 
-    uint64_t mRotationChangeStartTime = 0UL;
-    glm::mat2x4 mRotationQuintic = glm::mat2x4(0.f);
-    glm::mat4x4 mRotationCubic =
-            glm::mat4x4(glm::vec4(), glm::vec4(), glm::vec4(), glm::vec4(0.f, 0.f, 0.f, 1.f));
-    glm::mat4x4 mRotationAfterEndCubic =
-            glm::mat4x4(glm::vec4(), glm::vec4(), glm::vec4(), glm::vec4(0.f, 0.f, 0.f, 1.f));
-    glm::mat2x4 mRotationalVelocityQuintic = glm::mat2x4(0.f);
-    glm::mat4x4 mRotationalVelocityCubic = glm::mat4x4(0.f);
-    glm::mat2x4 mRotationalAccelerationQuintic = glm::mat2x4(0.f);
-    glm::mat4x4 mRotationalAccelerationCubic = glm::mat4x4(0.f);
-    uint64_t mRotationChangeEndTime = 0UL;
+    uint64_t rotation_change_start_time_ = 0UL;
+    glm::mat2x4 rotation_quintic_ = glm::mat2x4(0.F);
+    glm::mat4x4 rotation_cubic_ =
+            glm::mat4x4(glm::vec4(), glm::vec4(), glm::vec4(), glm::vec4(0.F, 0.F, 0.F, 1.F));
+    glm::mat4x4 rotation_after_end_cubic_ =
+            glm::mat4x4(glm::vec4(), glm::vec4(), glm::vec4(), glm::vec4(0.F, 0.F, 0.F, 1.F));
+    glm::mat2x4 rotational_velocity_quintic_ = glm::mat2x4(0.F);
+    glm::mat4x4 rotational_velocity_cubic_ = glm::mat4x4(0.F);
+    glm::mat2x4 rotational_acceleration_quintic_ = glm::mat2x4(0.F);
+    glm::mat4x4 rotational_acceleration_cubic_ = glm::mat4x4(0.F);
+    uint64_t rotation_change_end_time_ = 0UL;
 
-    uint64_t mAmbientMotionChangeStartTime = 0UL;
-    float mAmbientMotionEndValue = 0.f;
-    glm::vec2 mAmbientMotionValueQuintic = glm::vec2(0.f);
-    glm::vec4 mAmbientMotionValueCubic = glm::vec4(0.f);
-    glm::vec2 mAmbientMotionFirstDerivQuintic = glm::vec2(0.f);
-    glm::vec4 mAmbientMotionFirstDerivCubic = glm::vec4(0.f);
-    glm::vec2 mAmbientMotionSecondDerivQuintic = glm::vec2(0.f);
-    glm::vec4 mAmbientMotionSecondDerivCubic = glm::vec4(0.f);
-    uint64_t mAmbientMotionChangeEndTime = 0UL;
+    uint64_t ambient_motion_change_start_time_ = 0UL;
+    float ambient_motion_end_value_ = 0.F;
+    glm::vec2 ambient_motion_value_quintic_ = glm::vec2(0.F);
+    glm::vec4 ambient_motion_value_cubic_ = glm::vec4(0.F);
+    glm::vec2 ambient_motion_first_deriv_quintic_ = glm::vec2(0.F);
+    glm::vec4 ambient_motion_first_deriv_cubic_ = glm::vec4(0.F);
+    glm::vec2 ambient_motion_second_deriv_quintic_ = glm::vec2(0.F);
+    glm::vec4 ambient_motion_second_deriv_cubic_ = glm::vec4(0.F);
+    uint64_t ambient_motion_change_end_time_ = 0UL;
 
-    float mWristTilt = 0.f;
+    float wrist_tilt_ = 0.F;
 
     /* The time to use as current in this model */
-    uint64_t mModelTimeNs = 0UL;
+    uint64_t model_time_ns_ = 0UL;
 };
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

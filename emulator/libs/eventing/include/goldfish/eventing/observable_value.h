@@ -22,7 +22,7 @@ namespace goldfish::eventing {
 
 struct ObservableValueTriggerAlways {
     template <class T>
-    static constexpr bool Updated(const T& /* old_val */, const T&  /* new_val */) {
+    static constexpr bool Updated(const T& /* old_val */, const T& /* new_val */) {
         return true;
     }
 };

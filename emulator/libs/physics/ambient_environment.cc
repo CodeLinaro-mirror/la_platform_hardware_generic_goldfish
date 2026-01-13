@@ -16,80 +16,75 @@
 
 #include "goldfish/physics/ambient_environment.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
-constexpr glm::vec3 AmbientEnvironment::kDefaultMagneticField;
-constexpr glm::vec3 AmbientEnvironment::kDefaultGravity;
-
-AmbientState AmbientEnvironment::setCurrentTime(uint64_t time_ns) {
-    return AmbientState::STABLE;
+AmbientState AmbientEnvironment::SetCurrentTime(uint64_t /*time_ns*/) {
+    return AmbientState::kStable;
 }
 
-void AmbientEnvironment::setMagneticField(float north, float east, float vertical,
-                                          PhysicalInterpolation mode) {
-    mMagneticField = glm::vec3(north, east, vertical);
+void AmbientEnvironment::SetMagneticField(float north, float east, float vertical,
+                                          PhysicalInterpolation /*mode*/) {
+    magnetic_field_ = glm::vec3(north, east, vertical);
 }
 
-void AmbientEnvironment::setGravity(glm::vec3 gravity, PhysicalInterpolation mode) {
-    mGravity = gravity;
+void AmbientEnvironment::SetGravity(glm::vec3 gravity, PhysicalInterpolation /*mode*/) {
+    gravity_ = gravity;
 }
 
-void AmbientEnvironment::setTemperature(float celsius, PhysicalInterpolation mode) {
-    mTemperature = celsius;
+void AmbientEnvironment::SetTemperature(float celsius, PhysicalInterpolation /*mode*/) {
+    temperature_ = celsius;
 }
 
-void AmbientEnvironment::setProximity(float centimeters, PhysicalInterpolation mode) {
-    mProximity = centimeters;
+void AmbientEnvironment::SetProximity(float centimeters, PhysicalInterpolation /*mode*/) {
+    proximity_ = centimeters;
 }
 
-void AmbientEnvironment::setLight(float lux, PhysicalInterpolation mode) {
-    mLight = lux;
+void AmbientEnvironment::SetLight(float lux, PhysicalInterpolation /*mode*/) {
+    light_ = lux;
 }
 
-void AmbientEnvironment::setPressure(float hPa, PhysicalInterpolation mode) {
-    mPressure = hPa;
+void AmbientEnvironment::SetPressure(float pascal, PhysicalInterpolation /*mode*/) {
+    pressure_ = pascal;
 }
 
-void AmbientEnvironment::setHumidity(float percent, PhysicalInterpolation mode) {
-    mHumidity = percent;
+void AmbientEnvironment::SetHumidity(float percent, PhysicalInterpolation /*mode*/) {
+    humidity_ = percent;
 }
 
-void AmbientEnvironment::setRgbcLight(glm::vec4 light, PhysicalInterpolation mode) {
-    mRgbcLight = light;
+void AmbientEnvironment::SetRgbcLight(glm::vec4 light, PhysicalInterpolation /*mode*/) {
+    rgbc_light_ = light;
 }
 
-glm::vec3 AmbientEnvironment::getMagneticField(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultMagneticField : mMagneticField;
+glm::vec3 AmbientEnvironment::GetMagneticField(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultMagneticField : magnetic_field_;
 }
 
-glm::vec3 AmbientEnvironment::getGravity(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultGravity : mGravity;
+glm::vec3 AmbientEnvironment::GetGravity(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultGravity : gravity_;
 }
 
-float AmbientEnvironment::getTemperature(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultTemperature : mTemperature;
+float AmbientEnvironment::GetTemperature(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultTemperature : temperature_;
 }
 
-float AmbientEnvironment::getProximity(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultProximity : mProximity;
+float AmbientEnvironment::GetProximity(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultProximity : proximity_;
 }
 
-float AmbientEnvironment::getLight(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultLight : mLight;
+float AmbientEnvironment::GetLight(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultLight : light_;
 }
 
-float AmbientEnvironment::getPressure(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultPressure : mPressure;
+float AmbientEnvironment::GetPressure(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultPressure : pressure_;
 }
 
-float AmbientEnvironment::getHumidity(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultHumidity : mHumidity;
+float AmbientEnvironment::GetHumidity(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultHumidity : humidity_;
 }
 
-glm::vec4 AmbientEnvironment::getRgbcLight(ParameterValueType valueType) const {
-    return valueType == ParameterValueType::DEFAULT ? kDefaultRgbcLight : mRgbcLight;
+glm::vec4 AmbientEnvironment::GetRgbcLight(ParameterValueType value_type) const {
+    return value_type == ParameterValueType::kDefault ? kDefaultRgbcLight : rgbc_light_;
 }
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

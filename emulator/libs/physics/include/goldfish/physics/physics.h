@@ -15,15 +15,16 @@
  */
 
 #pragma once
+#include <cstdint>
 
-enum class PhysicalInterpolation {
-    SMOOTH = 0,
-    STEP = 1,
+enum class PhysicalInterpolation : std::uint8_t {
+    kSmooth = 0,
+    kStep = 1,
 };
 
-enum class ParameterValueType {
-    TARGET = 0,
-    CURRENT = 1,
-    CURRENT_NO_AMBIENT_MOTION = 2,
-    DEFAULT = 3,
+enum class ParameterValueType : std::uint8_t {
+    kTarget = 0,
+    kCurrent = 1,
+    kCurrentNoAmbientMotion = 2,
+    kDefault = 3,
 };

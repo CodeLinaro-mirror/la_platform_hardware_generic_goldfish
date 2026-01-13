@@ -45,12 +45,12 @@ class FoldableModel {
     void setRollable(uint32_t index, float percentage, PhysicalInterpolation mode,
                      std::recursive_mutex& mutex);
 
-    float getHingeAngle(uint32_t hingeIndex,
-                        ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getHingeAngle(uint32_t hingeIndex, ParameterValueType parameter_value_type =
+                                                     ParameterValueType::kCurrent) const;
 
-    float getRollable(uint32_t index, ParameterValueType parameterValueType) const;
+    float getRollable(uint32_t index, ParameterValueType parameter_value_type) const;
 
-    float getPosture(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float getPosture(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
     FoldableState getFoldableState() const { return mState; }  // structure copy
 

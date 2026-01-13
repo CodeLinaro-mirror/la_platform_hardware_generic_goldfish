@@ -20,12 +20,11 @@
 
 #include "goldfish/physics/physics.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
-enum class BodyState {
-    CHANGING = 0,
-    STABLE = 1,
+enum class BodyState : std::uint8_t {
+    kChanging = 0,
+    kStable = 1,
 };
 
 class BodyModel {
@@ -38,20 +37,20 @@ class BodyModel {
      * with the time when target state change requests are recorded as taking
      * place.  Time values must be non-decreasing.
      */
-    BodyState setCurrentTime(uint64_t time_ns);
+    static BodyState SetCurrentTime(uint64_t time_ns);
 
     /*
      * Sets the body heart rate.
      */
-    void setHeartRate(float bpm, PhysicalInterpolation mode);
+    void SetHeartRate(float bpm, PhysicalInterpolation mode);
 
-    float getHeartRate(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float GetHeartRate(
+            ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
   private:
     /* BPM */
-    static constexpr float kDefaultHeartRate = 0.f;
+    static constexpr float kDefaultHeartRate = 0.F;
 
-    float mHeartRate = kDefaultHeartRate;
+    float heart_rate_ = kDefaultHeartRate;
 };
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics
