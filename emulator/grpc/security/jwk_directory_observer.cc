@@ -42,7 +42,7 @@ using json = nlohmann::json;
 JwkDirectoryObserver::JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
                                            PathFilterPredicate filter, bool startImmediately)
         : mPathFilter(filter), mJwkPath(jwksDir), mCallback(callback) {
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             jwksDir, [this](auto change, auto path) { fileChangeHandler(change, path); });
 
     if (startImmediately) {
@@ -66,7 +66,7 @@ bool JwkDirectoryObserver::start() {
     // Initial scan..
     scanJwkPath();
     notifyKeysetUpdated();
-    return mWatcher ? mWatcher->start() : false;
+    return mWatcher ? mWatcher->Start() : false;
 }
 
 void JwkDirectoryObserver::scanJwkPath() {
@@ -87,7 +87,7 @@ void JwkDirectoryObserver::scanJwkPath() {
 void JwkDirectoryObserver::stop() {
     bool expected = true;
     if (!mRunning.compare_exchange_strong(expected, false)) {
-        mWatcher->stop();
+        mWatcher->Stop();
     }
 
     mLoadedKeys.clear();
@@ -103,9 +103,9 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
     }
 
     switch (change) {
-    case FileSystemWatcher::WatcherChangeType::Created:
+    case FileSystemWatcher::WatcherChangeType::kCreated:
         [[fallthrough]];
-    case FileSystemWatcher::WatcherChangeType::Changed: {
+    case FileSystemWatcher::WatcherChangeType::kChanged: {
         DD("Changed/Created event for: %s", path);
 
         // Wait at most 1 second for non-empty files
@@ -121,7 +121,7 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
                   << " keys loaded";
         break;
     }
-    case FileSystemWatcher::WatcherChangeType::Deleted:
+    case FileSystemWatcher::WatcherChangeType::kDeleted:
         DD("Deleted %s", path);
         auto status = mLoadedKeys.remove(path);
         if (!status.ok()) {

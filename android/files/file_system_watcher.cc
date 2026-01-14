@@ -16,10 +16,8 @@
 
 #include "android/base/system.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 using Path = std::filesystem::path;
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

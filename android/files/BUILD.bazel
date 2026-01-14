@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 # It's an older code sir but it checks out
@@ -59,4 +60,13 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@aemu//base:aemu-base",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":file_system_watcher",
+        ":ini_file",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

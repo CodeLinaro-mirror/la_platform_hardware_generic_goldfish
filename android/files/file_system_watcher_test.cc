@@ -92,7 +92,7 @@ class FileSystemWatcherTest : public ::testing::Test {
 
     void TearDown() override {
         if (mWatcher) {
-            mWatcher->stop();
+            mWatcher->Stop();
         }
         if (android::base::file::exists(mTempDir)) {
             android::base::file::rm_recursive(mTempDir).IgnoreError();
@@ -132,16 +132,16 @@ TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
     auto expected_path = mTempDir / "test_file1.txt";
     TestEventHandler handler(expected_path);
 
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
-    ASSERT_TRUE(mWatcher->start());
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->Start());
 
     createFile("test_file1.txt");
 
     auto changes = handler.waitForChange(absl::Seconds(5));
     // createFile generates both a CREATE and a MODIFY event. We only care
     // that the CREATE event was received.
-    EXPECT_THAT(changes,
-                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Created)));
+    EXPECT_THAT(changes, Contains(Field(&WatchResult::type,
+                                        FileSystemWatcher::WatcherChangeType::kCreated)));
 }
 
 TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
@@ -150,8 +150,8 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
 
     // First, create the file and wait for the initial events to clear.
     createFile("test_file2.txt");
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
-    ASSERT_TRUE(mWatcher->start());
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->Start());
     handler.waitForChange(absl::Seconds(5));
     handler.reset();
 
@@ -159,8 +159,8 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     deleteFile("test_file2.txt");
 
     auto changes = handler.waitForChange(absl::Seconds(5));
-    EXPECT_THAT(changes,
-                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Deleted)));
+    EXPECT_THAT(changes, Contains(Field(&WatchResult::type,
+                                        FileSystemWatcher::WatcherChangeType::kDeleted)));
 }
 
 TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
@@ -169,15 +169,15 @@ TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
 
     // First, create the file and set up the watcher.
     createFile("test_file3.txt");
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
-    ASSERT_TRUE(mWatcher->start());
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->Start());
 
     // Now, modify the file and wait for the "Changed" event.
     modifyFile("test_file3.txt");
     auto changes = handler.waitForChange(absl::Seconds(5));
 
-    EXPECT_THAT(changes,
-                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Changed)));
+    EXPECT_THAT(changes, Contains(Field(&WatchResult::type,
+                                        FileSystemWatcher::WatcherChangeType::kChanged)));
 }
 
 TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
@@ -190,26 +190,25 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
 
     // First, create the file and set up the watcher.
     createFile("test_file4.txt");
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(mTempDir, std::ref(handler));
-    ASSERT_TRUE(mWatcher->start());
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(mTempDir, std::ref(handler));
+    ASSERT_TRUE(mWatcher->Start());
 
     // Now, modify the file and wait for the "Changed" event.
     appendFile("test_file4.txt");
     auto changes = handler.waitForChange(absl::Seconds(10));
 
-    EXPECT_THAT(changes,
-                Contains(Field(&WatchResult::type, FileSystemWatcher::WatcherChangeType::Changed)));
+    EXPECT_THAT(changes, Contains(Field(&WatchResult::type,
+                                        FileSystemWatcher::WatcherChangeType::kChanged)));
 }
 
 TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
     absl::Notification notification;
 
-    mWatcher = FileSystemWatcher::getFileSystemWatcher(
-            mTempDir, [&](FileSystemWatcher::WatcherChangeType, const fs::path&) {
-                notification.Notify();
-            });
-    ASSERT_TRUE(mWatcher->start());
-    mWatcher->stop();
+    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
+            mTempDir,
+            [&](FileSystemWatcher::WatcherChangeType, const fs::path&) { notification.Notify(); });
+    ASSERT_TRUE(mWatcher->Start());
+    mWatcher->Stop();
 
     createFile("test_file4.txt");
 

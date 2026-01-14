@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <CoreServices/CoreServices.h>
-#include <stdio.h>
 
 #include <atomic>
-#include <chrono>
+#include <cstdio>
 #include <filesystem>
-#include <functional>
 #include <memory>
 #include <string>
 #include <thread>
@@ -29,8 +27,7 @@
 #include "android/base/file/file.h"
 #include "android/base/file_system_watcher.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 namespace {
 // Debug helpers, this allows us to log the file flags in a human readable form.
@@ -49,7 +46,7 @@ void AppendFlag(Sink& sink, bool* first, absl::string_view flag) {
 
 template <typename Sink>
 void AbslStringify(Sink& sink, FSEventFlagsWrapper wrapper) {
-    FSEventStreamEventFlags flags = wrapper.flags;
+    const FSEventStreamEventFlags flags = wrapper.flags;
     if (flags == kFSEventStreamEventFlagNone) {
         sink.Append("None");
         return;
@@ -136,86 +133,86 @@ using Path = FileSystemWatcher::Path;
 // Note: Modify events *only* detect timestamp and attribute changes.
 class FileSystemWatcherFS : public FileSystemWatcher {
   public:
-    FileSystemWatcherFS(Path path, FileSystemWatcherCallback onChangeCallback)
-            : FileSystemWatcher(onChangeCallback), mPath(path) {}
+    FileSystemWatcherFS(Path path, FileSystemWatcherCallback on_change_callback)
+            : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
-    ~FileSystemWatcherFS() { stop(); }
+    ~FileSystemWatcherFS() override { Stop(); }
 
-    bool start() override {
+    bool Start() override {
         bool expected = false;
-        if (!mRunning.compare_exchange_strong(expected, true)) {
+        if (!running_.compare_exchange_strong(expected, true)) {
             return false;
         }
-        std::thread watcher([this] { watchForChanges(); });
-        mWatcherThread = std::move(watcher);
-        mStarted.wait();
-        return mCfRunLoop != nullptr;
+        std::thread watcher([this] { WatchForChanges(); });
+        watcher_thread_ = std::move(watcher);
+        started_.wait();
+        return cf_run_loop_ != nullptr;
     }
 
-    void stop() override {
+    void Stop() override {
         bool expected = true;
-        if (mRunning.compare_exchange_strong(expected, false)) {
+        if (running_.compare_exchange_strong(expected, false)) {
             VLOG(1) << "Stopping loop.";
-            if (mCfRunLoop) {
-                CFRunLoopStop(mCfRunLoop);
+            if (cf_run_loop_) {
+                CFRunLoopStop(cf_run_loop_);
             }
-            mStarted.signal();
-            mWatcherThread.join();
+            started_.signal();
+            watcher_thread_.join();
         }
     }
 
   private:
-    static void watcherCb(ConstFSEventStreamRef, void* clientCallBackInfo, size_t numEvents,
-                          void* eventPaths, const FSEventStreamEventFlags eventFlags[],
+    static void WatcherCb(ConstFSEventStreamRef, void* client_call_back_info, size_t num_events,
+                          void* event_paths, const FSEventStreamEventFlags event_flags[],
                           const FSEventStreamEventId*) {
-        auto* watcher = static_cast<FileSystemWatcherFS*>(clientCallBackInfo);
-        char** paths = (char**)eventPaths;
+        auto* watcher = static_cast<FileSystemWatcherFS*>(client_call_back_info);
+        char** paths = static_cast<char**>(event_paths);
 
-        for (size_t i = 0; i < numEvents; i++) {
-            std::string path = paths[i];
-            const FSEventStreamEventFlags flags = eventFlags[i];
+        for (size_t i = 0; i < num_events; i++) {
+            const std::string path = paths[i];
+            const FSEventStreamEventFlags flags = event_flags[i];
 
             VLOG(1) << "FSEvent: path=" << path << ", flags=" << FSEventFlagsWrapper{flags};
 
             if (flags & kFSEventStreamEventFlagItemRemoved) {
-                watcher->mChangeCallback(WatcherChangeType::Deleted, path);
+                watcher->change_callback(WatcherChangeType::kDeleted, path);
             } else if (flags & kFSEventStreamEventFlagItemModified &&
                        (flags & kFSEventStreamEventFlagItemInodeMetaMod ||
                         flags & kFSEventStreamEventFlagItemXattrMod)) {
                 // Note, most change events are fired as Created|Modified|...
                 // we only take the ones that modify the attr, and inode meta.
-                watcher->mChangeCallback(WatcherChangeType::Changed, path);
+                watcher->change_callback(WatcherChangeType::kChanged, path);
             } else if (flags & kFSEventStreamEventFlagItemCreated) {
                 // You might get a change event (i.e. file contents change) as a create event.
-                watcher->mChangeCallback(WatcherChangeType::Created, path);
+                watcher->change_callback(WatcherChangeType::kCreated, path);
             }
         }
     }
 
-    bool watchForChanges() {
-        mCfRunLoop = nullptr;
-        auto dir =
-                CFStringCreateWithCString(nullptr, mPath.string().c_str(), kCFStringEncodingUTF8);
-        auto pathsToWatch = CFArrayCreate(nullptr, reinterpret_cast<const void**>(&dir), 1,
-                                          &kCFTypeArrayCallBacks);
+    bool WatchForChanges() {
+        cf_run_loop_ = nullptr;
+        const auto* dir =
+                CFStringCreateWithCString(nullptr, path_.string().c_str(), kCFStringEncodingUTF8);
+        const auto* paths_to_watch = CFArrayCreate(nullptr, reinterpret_cast<const void**>(&dir), 1,
+                                                   &kCFTypeArrayCallBacks);
 
-        FSEventStreamContext streamCtx = {0, this, NULL, NULL, NULL};
-        auto stream =
-                FSEventStreamCreate(nullptr, &FileSystemWatcherFS::watcherCb, &streamCtx,
-                                    pathsToWatch, kFSEventStreamEventIdSinceNow, 0,
+        FSEventStreamContext stream_ctx = {0, this, nullptr, nullptr, nullptr};
+        auto* stream =
+                FSEventStreamCreate(nullptr, &FileSystemWatcherFS::WatcherCb, &stream_ctx,
+                                    paths_to_watch, kFSEventStreamEventIdSinceNow, 0,
                                     kFSEventStreamCreateFlagFileEvents |  // Get file-level events
                                             kFSEventStreamCreateFlagNoDefer);  // Get them ASAP
 
         if (!stream) {
-            mStarted.signal();
+            started_.signal();
             return false;
         }
 
-        mCfRunLoop = CFRunLoopGetCurrent();
-        FSEventStreamScheduleWithRunLoop(stream, mCfRunLoop, kCFRunLoopDefaultMode);
+        cf_run_loop_ = CFRunLoopGetCurrent();
+        FSEventStreamScheduleWithRunLoop(stream, cf_run_loop_, kCFRunLoopDefaultMode);
         FSEventStreamStart(stream);
 
-        mStarted.signal();
+        started_.signal();
 
         VLOG(1) << "Starting run loop.";
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
@@ -228,19 +225,18 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         return true;
     }
 
-    Path mPath;
-    std::atomic_bool mRunning{false};
-    std::thread mWatcherThread;
-    Event mStarted;
-    CFRunLoopRef mCfRunLoop;
+    Path path_;
+    std::atomic_bool running_{false};
+    std::thread watcher_thread_;
+    Event started_;
+    CFRunLoopRef cf_run_loop_;
 };
 
-std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
-        Path path, FileSystemWatcherCallback onChangeCallback) {
+std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
+        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }
-    return std::make_unique<FileSystemWatcherFS>(path, onChangeCallback);
+    return std::make_unique<FileSystemWatcherFS>(path, on_change_callback);
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

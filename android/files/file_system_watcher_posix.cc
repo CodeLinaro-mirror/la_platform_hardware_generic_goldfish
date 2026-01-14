@@ -8,15 +8,15 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
-#include <stdint.h>
 #include <sys/inotify.h>
 #include <sys/select.h>
 #include <unistd.h>
 
 #include <atomic>
+#include <cerrno>
+#include <climits>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -37,129 +37,133 @@
 #define DD(...) (void)0
 #endif
 
-namespace android {
-namespace base {
+namespace android::base {
 
 class FileSystemWatcherPosix : public FileSystemWatcher {
   public:
-    FileSystemWatcherPosix(Path path, FileSystemWatcherCallback onChangeCallback)
-            : FileSystemWatcher(onChangeCallback), mPath(path) {}
+    FileSystemWatcherPosix(Path path, FileSystemWatcherCallback on_change_callback)
+            : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
-    ~FileSystemWatcherPosix() { stop(); }
+    ~FileSystemWatcherPosix() override { Stop(); }
 
-    bool start() override {
+    bool Start() override {
         bool expected = false;
-        if (!mRunning.compare_exchange_strong(expected, true)) {
+        if (!running_.compare_exchange_strong(expected, true)) {
             return false;
         }
-        std::thread watcher([this] { watchForChanges(); });
-        mWatcherThread = std::move(watcher);
-        mStarted.wait();
-        return mNotifyFd != 0 && mPipe[0] != -1;
+        std::thread watcher([this] { WatchForChanges(); });
+        watcher_thread_ = std::move(watcher);
+        started_.wait();
+        return notify_fd_ != 0 && pipe_[0] != -1;
     }
 
-    void stop() override {
+    void Stop() override {
         bool expected = true;
-        if (mRunning.compare_exchange_strong(expected, false)) {
+        if (running_.compare_exchange_strong(expected, false)) {
             DD("Closing watchers");
-            write(mPipe[1], "x", 1);
-            mWatcherThread.join();
+            if (pipe_[1] != -1) {
+                write(pipe_[1], "x", 1);
+            }
+            watcher_thread_.join();
         }
     }
 
   private:
-    void wait_for_fd_events() {
+    void WaitForFdEvents() {
         fd_set readfds;
         FD_ZERO(&readfds);
-        FD_SET(mPipe[0], &readfds);
-        FD_SET(mNotifyFd, &readfds);
-        select(std::max(mPipe[0], mNotifyFd) + 1, &readfds, nullptr, nullptr, nullptr);
+        FD_SET(pipe_[0], &readfds);
+        FD_SET(notify_fd_, &readfds);
+        select(std::max(pipe_[0], notify_fd_) + 1, &readfds, nullptr, nullptr, nullptr);
     }
-    bool watchForChanges() {
-        mNotifyFd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        if (mNotifyFd < 1) {
-            mNotifyFd = 0;
-            mStarted.signal();
+    bool WatchForChanges() {
+        notify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+        if (notify_fd_ < 1) {
+            notify_fd_ = 0;
+            started_.signal();
             return false;
         }
 
-        if (pipe(mPipe) != 0 || (fcntl(mPipe[0], F_SETFL, O_NONBLOCK) < 0)) {
+        if (pipe(pipe_) != 0 || (fcntl(pipe_[0], F_SETFL, O_NONBLOCK) < 0)) {
             PLOG(ERROR) << "Unable to open pipe.";
-            mPipe[0] = -1;
-            mPipe[1] = -1;
-            mStarted.signal();
+            pipe_[0] = -1;
+            pipe_[1] = -1;
+            started_.signal();
             return false;
         };
 
         // Note, this will not work for filenames longer than 256 chars, this
         // does not include the path.
-        constexpr int MAX_EVENTS = 4;
-        constexpr int EVENT_SIZE = sizeof(struct inotify_event);
-        constexpr int MAX_FILENAME = 256;
-        constexpr int EVENT_BUFFER = MAX_EVENTS * (EVENT_SIZE + MAX_FILENAME);
+        constexpr int kMaxEvents = 4;
+        constexpr int kEventSize = sizeof(struct inotify_event);
+        constexpr int kMaxFilename = 256;
+        constexpr int kEventBuffer = kMaxEvents * (kEventSize + kMaxFilename);
 
-        auto fd = inotify_add_watch(mNotifyFd, mPath.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
+        auto fd = inotify_add_watch(notify_fd_, path_.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
 
         if (fd == -1) {
-            close(mNotifyFd);
-            mNotifyFd = 0;
-            mStarted.signal();
+            close(notify_fd_);
+            notify_fd_ = 0;
+            started_.signal();
             return false;
         }
 
-        mStarted.signal();
-        while (mRunning) {
-            uint8_t buffer[EVENT_BUFFER];
+        started_.signal();
+        while (running_) {
+            uint8_t buffer[kEventBuffer];
 
-            wait_for_fd_events();
+            WaitForFdEvents();
 
-            if (!mRunning) {
+            if (!running_) {
                 break;
             }
 
-            int length = read(mNotifyFd, buffer, sizeof(buffer));
-            DD("Read %d bytes", length);
+            const ssize_t length = read(notify_fd_, buffer, sizeof(buffer));
+            DD("Read %zd bytes", length);
 
-            int i = 0;
-            while (i < length && mRunning) {
-                struct inotify_event* event = (struct inotify_event*)&buffer[i];
-                DD("i: %d, event->len: %d", i, event->len);
+            ssize_t i = 0;
+            while (i < length && running_) {
+                auto* event = reinterpret_cast<struct inotify_event*>(&buffer[i]);
+                DD("i: %zd, event->len: %d", i, event->len);
                 if (event->len) {
-                    Path changed = mPath / event->name;
+                    const Path changed = path_ / event->name;
                     DD("Changed: %s", changed.c_str());
                     if (event->mask & IN_CREATE) {
-                        mChangeCallback(WatcherChangeType::Created, changed);
+                        change_callback(WatcherChangeType::kCreated, changed);
                     } else if (event->mask & IN_DELETE) {
-                        mChangeCallback(WatcherChangeType::Deleted, changed);
+                        change_callback(WatcherChangeType::kDeleted, changed);
                     } else if (event->mask & IN_MODIFY) {
-                        mChangeCallback(WatcherChangeType::Changed, changed);
+                        change_callback(WatcherChangeType::kChanged, changed);
                     }
                 }
-                i += EVENT_SIZE + event->len;
+                i += kEventSize + event->len;
             }
         }
 
         DD("Exit loop");
-        close(mNotifyFd);
-        close(mPipe[0]);
-        close(mPipe[1]);
+        close(notify_fd_);
+        if (pipe_[0] != -1) {
+            close(pipe_[0]);
+        }
+        if (pipe_[1] != -1) {
+            close(pipe_[1]);
+        }
         return true;
     }
 
-    Path mPath;
-    std::atomic_bool mRunning{false};
-    std::thread mWatcherThread;
-    Event mStarted;
-    int mNotifyFd{0};
-    int mPipe[2] = {-1, -1};
+    Path path_;
+    std::atomic_bool running_{false};
+    std::thread watcher_thread_;
+    Event started_;
+    int notify_fd_{0};
+    int pipe_[2] = {-1, -1};
 };
 
-std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
-        Path path, FileSystemWatcherCallback onChangeCallback) {
+std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
+        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }
-    return std::make_unique<FileSystemWatcherPosix>(path, onChangeCallback);
+    return std::make_unique<FileSystemWatcherPosix>(path, on_change_callback);
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

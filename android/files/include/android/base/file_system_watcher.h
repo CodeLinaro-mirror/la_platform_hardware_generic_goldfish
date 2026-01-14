@@ -16,12 +16,13 @@
 
 #include <stddef.h>  // for size_t
 
+#include <cstdint>
 #include <filesystem>
 #include <functional>  // for function
 #include <memory>      // for unique_ptr
+#include <utility>
 
-namespace android {
-namespace base {
+namespace android::base {
 
 // Listens to the file system change notifications and raises events when a
 // directory, or file in a directory, changes.
@@ -34,29 +35,29 @@ class FileSystemWatcher {
     // On one day we will have std::filesystem everywhere..
     using Path = std::filesystem::path;
 
-    enum class WatcherChangeType {
-        Created,  // The creation of a file or folder.
-        Deleted,  // The deletion of a file or folder.
-        Changed,  // The change of a file or folder. The types of changes
-                  // include: changes to size, attributes, security
-                  // settings, last write, and last access time.
+    enum class WatcherChangeType : std::uint8_t {
+        kCreated,  // The creation of a file or folder.
+        kDeleted,  // The deletion of a file or folder.
+        kChanged,  // The change of a file or folder. The types of changes
+                   // include: changes to size, attributes, security
+                   // settings, last write, and last access time.
     };
 
     // Change type, and file that was created, deleted or changed.
     using FileSystemWatcherCallback = std::function<void(WatcherChangeType, const Path&)>;
 
-    FileSystemWatcher(FileSystemWatcherCallback callback) : mChangeCallback(callback) {}
+    explicit FileSystemWatcher(FileSystemWatcherCallback callback)
+            : change_callback(std::move(callback)) {}
     virtual ~FileSystemWatcher() = default;
 
-    virtual bool start() = 0;
-    virtual void stop() = 0;
+    virtual bool Start() = 0;
+    virtual void Stop() = 0;
 
     // Watches for changes in the given directory.
     // Returns nullptr if path is not a directory.
-    static std::unique_ptr<FileSystemWatcher> getFileSystemWatcher(
-            Path path, FileSystemWatcherCallback onChangeCallback);
+    static std::unique_ptr<FileSystemWatcher> GetFileSystemWatcher(
+            const Path& path, const FileSystemWatcherCallback& on_change_callback);
 
-    FileSystemWatcherCallback mChangeCallback;
+    FileSystemWatcherCallback change_callback;
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
