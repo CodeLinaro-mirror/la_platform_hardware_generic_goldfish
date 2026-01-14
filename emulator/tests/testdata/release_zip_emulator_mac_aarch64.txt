@@ -51,9 +51,6 @@ lib64/vulkan/MoltenVK_icd.json
 lib64/vulkan/vk_swiftshader_icd.json
 lib/emulator_access.json
 lib/qemu/
-lib/qemu/libabseil_dll.dylib
-lib/qemu/libandroid-emu-base-logging.dylib
-lib/qemu/libglib2_darwin-aarch64.dylib
 lib/qemu/libgoldfish_aarch64.dylib
 lib/qemu/libgoldfish_x86_64.dylib
 lib/qemu/librutabaga_ffi.dylib

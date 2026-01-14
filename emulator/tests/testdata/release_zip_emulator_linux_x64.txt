@@ -34,10 +34,7 @@ lib64/vulkan/lvp_icd.json
 lib64/vulkan/vk_swiftshader_icd.json
 lib/emulator_access.json
 lib/qemu/
-lib/qemu/libabseil_dll.so
-lib/qemu/libandroid-emu-base-logging.so
 lib/qemu/libc++.so
-lib/qemu/libglib2_linux-x86_64.so
 lib/qemu/libgoldfish_aarch64.so
 lib/qemu/libgoldfish_x86_64.so
 lib/qemu/librutabaga_ffi.so
