@@ -144,8 +144,6 @@ using Path = FileSystemWatcher::Path;
 // Filesystem watcher based on
 // https://developer.apple.com/documentation/coreservices/file_system_events
 // api.
-//
-// Note: Modify events *only* detect timestamp and attribute changes.
 class FileSystemWatcherFS : public FileSystemWatcher {
   public:
     FileSystemWatcherFS(Path path, FileSystemWatcherCallback on_change_callback)

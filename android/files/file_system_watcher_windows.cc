@@ -34,7 +34,12 @@
 
 namespace android::base {
 
-// A Very basic file system change detector.
+/**
+ * @brief Windows implementation of the FileSystemWatcher.
+ *
+ * This implementation is based on the `ReadDirectoryChangesW` API, which
+ * provides an efficient way to monitor a directory for changes.
+ */
 class ReadDirectoryChangesWin32 : public FileSystemWatcher {
   public:
     explicit ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback on_change_callback)
