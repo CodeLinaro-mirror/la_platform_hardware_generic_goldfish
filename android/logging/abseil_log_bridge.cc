@@ -22,6 +22,7 @@
 #include "absl/base/log_severity.h"
 #include "absl/log/log.h"
 
+namespace {
 /**
  * @brief Formats a string using vsnprintf and returns a std::string_view.
  *
@@ -35,9 +36,9 @@
  * @param args The arguments to the format string.
  * @return A std::string_view of the formatted string.
  */
-std::string_view formatString(char* buffer, int buffer_size, const char* format, va_list args) {
+std::string_view FormatString(char* buffer, int buffer_size, const char* format, va_list args) {
     int strlen = buffer_size;
-    int size = vsnprintf(buffer, buffer_size, format, args);
+    const int size = vsnprintf(buffer, buffer_size, format, args);
     if (size >= buffer_size) {
         // Indicate trunctation.
         strncpy(buffer + buffer_size - 3, "...", 3);
@@ -45,10 +46,10 @@ std::string_view formatString(char* buffer, int buffer_size, const char* format,
         strlen = size;
     }
 
-    return std::string_view(buffer, strlen);
+    return {buffer, static_cast<size_t>(strlen)};
 }
 
-inline absl::LogSeverity severityToAbsl(int severity) {
+inline absl::LogSeverity SeverityToAbsl(int severity) {
     switch (severity) {
     case 0:
         return absl::LogSeverity::kInfo;
@@ -62,6 +63,7 @@ inline absl::LogSeverity severityToAbsl(int severity) {
         return absl::LogSeverity::kInfo;
     }
 }
+}  // namespace
 
 using ::absl::log_internal::VLogSite;
 
@@ -82,13 +84,13 @@ struct VLogHolder {
  * @return A pointer to the VLogSite object.
  */
 extern "C" void* _get_vlog_site(const char* name) {
-    static std::mutex s_vlogSitesMutex;
+    static std::mutex s_vlog_sites_mutex;
     // We track allocated VLogSite's here, so they will be properly
     // cleaned upon exit.
-    static std::vector<std::unique_ptr<VLogHolder>> s_vlogSites;
-    std::lock_guard<std::mutex> lock(s_vlogSitesMutex);
-    auto vlog = new VLogHolder{name, VLogSite(name)};
-    s_vlogSites.emplace_back(vlog);
+    static std::vector<std::unique_ptr<VLogHolder>> s_vlog_sites;
+    const std::lock_guard<std::mutex> lock(s_vlog_sites_mutex);
+    auto* vlog = new VLogHolder{.file = name, .site = VLogSite(name)};
+    s_vlog_sites.emplace_back(vlog);
     return vlog;
 }
 
@@ -110,16 +112,16 @@ extern "C" void* _get_vlog_site(const char* name) {
  */
 extern "C" void _vlog_to_abseil(void* vlog_site, int severity, unsigned int line,
                                 const char* format, ...) {
-    constexpr int buffer_size = 4096;
-    char buffer[buffer_size];
-    static_assert(std::size(buffer) == buffer_size);
+    constexpr int kBufferSize = 4096;
+    char buffer[kBufferSize];
+    static_assert(std::size(buffer) == kBufferSize);
 
     va_list args;
     va_start(args, format);
-    auto holder = static_cast<VLogHolder*>(vlog_site);
+    auto* holder = static_cast<VLogHolder*>(vlog_site);
     if (holder->site.IsEnabled(severity)) {
-        LOG(INFO).AtLocation(holder->file, line)
-                << formatString(buffer, std::size(buffer), format, args);
+        LOG(INFO).AtLocation(holder->file, static_cast<int>(line))
+                << FormatString(buffer, std::size(buffer), format, args);
     }
     va_end(args);
 }
@@ -141,17 +143,17 @@ extern "C" void _vlog_to_abseil(void* vlog_site, int severity, unsigned int line
  */
 extern "C" void _log_to_abseil(int severity, const char* file, unsigned int line,
                                const char* format, ...) {
-    constexpr int buffer_size = 4096;
-    char buffer[buffer_size];
-    static_assert(std::size(buffer) == buffer_size);
+    constexpr int kBufferSize = 4096;
+    char buffer[kBufferSize];
+    static_assert(std::size(buffer) == kBufferSize);
 
     va_list args;
     va_start(args, format);
 
     // Note that we will only format a string if the logging system
     // is enabled.
-    LOG(LEVEL(severityToAbsl(severity))).AtLocation(file, line)
-            << formatString(buffer, std::size(buffer), format, args);
+    LOG(LEVEL(SeverityToAbsl(severity))).AtLocation(file, static_cast<int>(line))
+            << FormatString(buffer, std::size(buffer), format, args);
 
     va_end(args);
 }

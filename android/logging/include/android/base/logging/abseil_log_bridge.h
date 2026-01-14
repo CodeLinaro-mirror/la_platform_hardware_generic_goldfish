@@ -15,6 +15,7 @@
 
 __BEGIN_DECLS
 
+// NOLINTBEGIN
 // Make sure C++ hackers do not use this..
 #ifdef __cplusplus
 #define CPLUSPLUS_WARNING \
@@ -60,3 +61,4 @@ static void* _vlog_site(const char* file) {
     _vlog_to_abseil(_vlog_site(__FILE__), LEVEL, __LINE__, FMT, ##__VA_ARGS__)
 
 __END_DECLS
+// NOLINTEND

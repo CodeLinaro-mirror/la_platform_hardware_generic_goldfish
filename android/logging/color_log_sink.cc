@@ -16,11 +16,10 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 /** Standard ansi Color codes. */
-inline static constexpr std::string_view kColorNoFormat = "";
+inline static constexpr std::string_view kColorNoFormat;
 inline static constexpr std::string_view kColorNormal = "\033[0;39m";
 inline static constexpr std::string_view kColorNormalRed = "\033[31m";
 inline static constexpr std::string_view kColorNormalGreen = "\033[32m";
@@ -66,31 +65,30 @@ std::string_view ColorLogSink::TranslateSeverity(const absl::LogEntry& entry) co
 }
 
 void ColorLogSink::Send(const absl::LogEntry& entry) {
-    if (mVerbose) {
+    if (verbose_) {
         auto now = entry.timestamp();
-        auto location = absl::StrFormat("%s:%d", entry.source_basename(), entry.source_line());
-        *mOutputStream << Color(entry.log_severity())
-                       << absl::FormatTime("%H:%M:%E6S", now, absl::LocalTimeZone())
-                       << absl::StreamFormat(" %d %s ", entry.tid(), TranslateSeverity(entry))
-                       << absl::StreamFormat("%s:%d | ", entry.source_basename(),
-                                             entry.source_line())
-                       << entry.text_message_with_newline();
+        *output_stream_ << Color(entry.log_severity())
+                        << absl::FormatTime("%H:%M:%E6S", now, absl::LocalTimeZone())
+                        << absl::StreamFormat(" %d %s ", entry.tid(), TranslateSeverity(entry))
+                        << absl::StreamFormat("%s:%d | ", entry.source_basename(),
+                                              entry.source_line())
+                        << entry.text_message_with_newline();
 
     } else {
-        *mOutputStream << Color(entry.log_severity()) << TranslateSeverity(entry) << " | "
-                       << entry.text_message_with_newline();
+        *output_stream_ << Color(entry.log_severity()) << TranslateSeverity(entry) << " | "
+                        << entry.text_message_with_newline();
     }
 
-    if (mUseColor) {
-        *mOutputStream << kColorNormal;
+    if (use_color_) {
+        *output_stream_ << kColorNormal;
     }
     if (entry.log_severity() >= absl::LogSeverity::kWarning) {
-        mOutputStream->flush();
+        output_stream_->flush();
     }
 }
 
 std::string_view ColorLogSink::Color(absl::LogSeverity severity) const {
-    if (!mUseColor) {
+    if (!use_color_) {
         return kColorNoFormat;
     }
     switch (severity) {
@@ -107,5 +105,4 @@ std::string_view ColorLogSink::Color(absl::LogSeverity severity) const {
     }
 }
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
