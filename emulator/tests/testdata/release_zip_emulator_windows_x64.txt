@@ -35,8 +35,6 @@ lib64/vulkan/vulkan-1.dll
 lib/emulator_access.json
 lib/qemu/
 lib/qemu/goldfish_x86_64.dll
-lib/qemu/libandroid-emu-base-logging.dll
-lib/qemu/libglib2_windows_msvc-x86_64.dll
 lib/qemu/rutabaga_ffi.dll
 lib/qemu/rutabaga_ffi.dll.lib
 share/
