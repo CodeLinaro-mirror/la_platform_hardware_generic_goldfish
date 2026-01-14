@@ -310,7 +310,7 @@ static void help_sysdir(stralloc_t* out) {
     PRINTF("  use '-sysdir <dir>' to specify a directory where system read-only\n"
            "  image files will be searched. on this system, the default directory is:\n\n"
            "      %s\n\n",
-           android::goldfish::ConfigDirs::getSdkRootDirectoryByEnv().c_str());
+           android::goldfish::ConfigDirs::GetSdkRootDirectoryByEnv().c_str());
 
     PRINTF("  see '-help-disk-images' for more information about disk image files\n\n");
 }
@@ -319,7 +319,7 @@ static void help_datadir(stralloc_t* out) {
     PRINTF("  use '-datadir <dir>' to specify a directory where writable image files\n"
            "  will be searched. on this system, the default directory is:\n\n"
            "      %s\n\n",
-           android::goldfish::ConfigDirs::getUserDirectory().c_str());
+           android::goldfish::ConfigDirs::GetUserDirectory().c_str());
 
     PRINTF("  see '-help-disk-images' for more information about disk image files\n\n");
 }

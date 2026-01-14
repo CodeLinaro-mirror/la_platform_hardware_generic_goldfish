@@ -35,7 +35,7 @@ struct ConfigDirs {
      * @return fs::path The path to the user-specific Android configuration
      * directory.
      */
-    static fs::path getUserDirectory();
+    static fs::path GetUserDirectory();
 
     /**
      * @brief Returns the root path containing all AVD sub-directories.
@@ -53,7 +53,7 @@ struct ConfigDirs {
      *
      * @return fs::path The path to the AVD root directory.
      */
-    static fs::path getAvdRootDirectory();
+    static fs::path GetAvdRootDirectory();
 
     /**
      * @brief Returns the path to the root of the Android SDK,优先env变量
@@ -67,7 +67,7 @@ struct ConfigDirs {
      *
      * @return fs::path The path to the Android SDK root directory.
      */
-    static fs::path getSdkRootDirectoryByEnv(bool verbose = false);
+    static fs::path GetSdkRootDirectoryByEnv(bool verbose = false);
 
     /**
      * @brief Returns the path to the root of the Android SDK, by inferring it
@@ -77,7 +77,7 @@ struct ConfigDirs {
      * @param verbose Whether to print verbose log messages.
      * @return fs::path The path to the Android SDK root directory.
      */
-    static fs::path getSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose = false);
+    static fs::path GetSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose = false);
 
     /**
      * @brief Returns the path to the root of the Android SDK.
@@ -93,7 +93,7 @@ struct ConfigDirs {
      * @param verbose Whether to print verbose log messages.
      * @return fs::path The path to the Android SDK root directory.
      */
-    static fs::path getSdkRootDirectory(const fs::path& launcher_dir, bool verbose = false);
+    static fs::path GetSdkRootDirectory(const fs::path& launcher_dir, bool verbose = false);
 
     /**
      * @brief Returns the path to the Android Studio emulator discovery directory.
@@ -121,19 +121,19 @@ struct ConfigDirs {
      * @return fs::path The path to the Android Studio emulator discovery
      * directory.
      */
-    static fs::path getDiscoveryDirectory();
+    static fs::path GetDiscoveryDirectory();
 
   private:
     // Check if the specified path is a valid AVD root path.
     // It is considered valid if it has an 'avd' subdirectory
-    static bool isValidAvdRoot(const fs::path& avdPath);
+    static bool IsValidAvdRoot(const fs::path& avd_path);
 
     // Check if the specified path is a valid SDK root path.
     // It is considered valid if it has a 'platforms' subdirectory
     // and a 'platform-tools' subdirectory.
-    static bool isValidSdkRoot(const fs::path& rootPath, bool verbose = false);
+    static bool IsValidSdkRoot(const fs::path& root_path, bool verbose = false);
 
-    static fs::path getAvdRootDirectoryWithPrefsRoot(const fs::path& path);
+    static fs::path GetAvdRootDirectoryWithPrefsRoot(const fs::path& path);
 };
 
 }  // namespace android::goldfish

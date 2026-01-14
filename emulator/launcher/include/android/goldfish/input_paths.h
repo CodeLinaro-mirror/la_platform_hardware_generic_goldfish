@@ -61,6 +61,6 @@ struct ResolvedInputPaths {
     fs::path sdcard_image;
 };*/
 
-absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search);
+absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose_sdk_search);
 
 }  // namespace android::goldfish

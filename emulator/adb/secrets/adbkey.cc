@@ -189,7 +189,7 @@ bool pubkey_from_privkey(const fs::path& path, std::string* out) {
 // Get adbkey path, return "" if failed
 // adbKeyFileName could be "adbkey" or "adbkey.pub"
 fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
-    fs::path adbKeyPath = android::goldfish::ConfigDirs::getUserDirectory() / adbKeyFileName;
+    fs::path adbKeyPath = android::goldfish::ConfigDirs::GetUserDirectory() / adbKeyFileName;
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
