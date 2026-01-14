@@ -35,6 +35,21 @@ struct FSEventFlagsWrapper {
     FSEventStreamEventFlags flags;
 };
 
+bool IsCreatedEvent(FSEventStreamEventFlags flags) {
+    return flags & kFSEventStreamEventFlagItemCreated;
+}
+
+bool IsRemovedEvent(FSEventStreamEventFlags flags) {
+    return flags & kFSEventStreamEventFlagItemRemoved;
+}
+
+bool IsModifiedEvent(FSEventStreamEventFlags flags) {
+    return (flags & kFSEventStreamEventFlagItemModified ||
+            flags & kFSEventStreamEventFlagItemInodeMetaMod ||
+            flags & kFSEventStreamEventFlagItemXattrMod) &&
+           !IsRemovedEvent(flags);
+}
+
 template <typename Sink>
 void AppendFlag(Sink& sink, bool* first, absl::string_view flag) {
     if (!(*first)) {
@@ -152,7 +167,6 @@ class FileSystemWatcherFS : public FileSystemWatcher {
     void Stop() override {
         bool expected = true;
         if (running_.compare_exchange_strong(expected, false)) {
-            VLOG(1) << "Stopping loop.";
             if (cf_run_loop_) {
                 CFRunLoopStop(cf_run_loop_);
             }
@@ -166,25 +180,28 @@ class FileSystemWatcherFS : public FileSystemWatcher {
                           void* event_paths, const FSEventStreamEventFlags event_flags[],
                           const FSEventStreamEventId*) {
         auto* watcher = static_cast<FileSystemWatcherFS*>(client_call_back_info);
+        // Only process events if the watcher is still considered running.
+        if (!watcher->running_.load()) {
+            return;
+        }
+
         char** paths = static_cast<char**>(event_paths);
 
         for (size_t i = 0; i < num_events; i++) {
+            if (!paths[i]) {
+                continue;
+            }
             const std::string path = paths[i];
             const FSEventStreamEventFlags flags = event_flags[i];
 
-            VLOG(1) << "FSEvent: path=" << path << ", flags=" << FSEventFlagsWrapper{flags};
-
-            if (flags & kFSEventStreamEventFlagItemRemoved) {
+            if (IsRemovedEvent(flags)) {
                 watcher->change_callback(WatcherChangeType::kDeleted, path);
-            } else if (flags & kFSEventStreamEventFlagItemModified &&
-                       (flags & kFSEventStreamEventFlagItemInodeMetaMod ||
-                        flags & kFSEventStreamEventFlagItemXattrMod)) {
-                // Note, most change events are fired as Created|Modified|...
-                // we only take the ones that modify the attr, and inode meta.
-                watcher->change_callback(WatcherChangeType::kChanged, path);
-            } else if (flags & kFSEventStreamEventFlagItemCreated) {
-                // You might get a change event (i.e. file contents change) as a create event.
+            }
+            if (IsCreatedEvent(flags)) {
                 watcher->change_callback(WatcherChangeType::kCreated, path);
+            }
+            if (IsModifiedEvent(flags)) {
+                watcher->change_callback(WatcherChangeType::kChanged, path);
             }
         }
     }
@@ -214,10 +231,8 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
         started_.signal();
 
-        VLOG(1) << "Starting run loop.";
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
 
-        VLOG(1) << "Completed watcher loop.";
         FSEventStreamStop(stream);
         FSEventStreamInvalidate(stream);
         FSEventStreamRelease(stream);
