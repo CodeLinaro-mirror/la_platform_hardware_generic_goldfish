@@ -14,8 +14,7 @@
 
 #include "absl/log/log_sink.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 /**
  * @brief A custom log sink that can format messages using ANSI colors.
@@ -31,9 +30,9 @@ class ColorLogSink : public absl::LogSink {
      *
      * @param useColor Whether to use ANSI color codes in the output.
      */
-    ColorLogSink(std::ostream* stream, bool useColor)
-            : mOutputStream(stream), mUseColor(useColor) {}
-    virtual ~ColorLogSink() = default;
+    ColorLogSink(std::ostream* stream, bool use_color)
+            : output_stream_(stream), use_color_(use_color) {}
+    ~ColorLogSink() override = default;
 
     /**
      * @brief Sends a formatted log entry to the output stream.
@@ -67,12 +66,11 @@ class ColorLogSink : public absl::LogSink {
      */
     virtual std::string_view TranslateSeverity(const absl::LogEntry& entry) const;
 
-    void SetVerbosity(bool verbose) { mVerbose = verbose; };
+    void SetVerbosity(bool verbose) { verbose_ = verbose; };
 
   private:
-    std::ostream* mOutputStream;
-    bool mUseColor;
-    bool mVerbose{false};
+    std::ostream* output_stream_;
+    bool use_color_;
+    bool verbose_{false};
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base
