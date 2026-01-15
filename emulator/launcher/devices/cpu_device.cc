@@ -126,11 +126,11 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     // TODO(invoking qemu --cpu help will give supported cpus)
 
     const Avd& avd = emulator.avd();
-    auto target_arch = avd.detectArchitecture();
+    auto target_arch = avd.DetectArchitecture();
 
     ASSIGN_OR_RETURN(mAccelerator, getAccelString(emulator, getHostArch(), target_arch));
     ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch));
-    ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.hw()));
+    ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.Hw()));
 
     return absl::OkStatus();
 }

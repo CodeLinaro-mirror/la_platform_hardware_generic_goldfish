@@ -152,7 +152,7 @@ class IniFile {
     ConstIterator end() const { return ConstIterator(std::end(order_list_)); }      // NOLINT
 
     template <class T>
-    T Get(std::string property, T def) {
+    T Get(const std::string& property, const T& def) {
         if constexpr (std::is_same_v<T, std::string>) {
             return GetString(property, def);
         } else if constexpr (std::is_same_v<T, int>) {

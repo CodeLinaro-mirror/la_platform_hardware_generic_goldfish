@@ -26,18 +26,18 @@ TEST(Kernel, Basic_x86) {
     FakeEmulator emu;
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
 
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNEL))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -52,19 +52,19 @@ TEST(Kernel, Basic_x86) {
 TEST(Kernel, Basic_arm64) {
     FakeEmulator emu;
 
-    auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+    auto Hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(Hw));
 
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELRANCHU64))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
             .WillOnce(testing::Return(absl::NotFoundError("not found")));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNEL))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNEL))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
@@ -86,16 +86,16 @@ TEST(Kernel, AppendExtras) {
     AndroidOptions opts{.append = &foo};
     FakeEmulator emu(std::move(opts));
 
-    auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).Times(1).WillRepeatedly(testing::ReturnRef(hw));
+    auto Hw = HardwareConfig();
+    EXPECT_CALL(emu.mock_avd(), Hw()).Times(1).WillRepeatedly(testing::ReturnRef(Hw));
 
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELRANCHU))
             .WillOnce(testing::Return("some/path/kernel-ranchu"));
 
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::KERNELCOMMANDLINE))
             .WillOnce(testing::Return("some/path/kernel-ranchu-command.txt"));
 
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 

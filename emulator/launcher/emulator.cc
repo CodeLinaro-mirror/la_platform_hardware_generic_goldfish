@@ -83,7 +83,7 @@ absl::Status Emulator::addDevices() {
     });
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-name", absl::StrFormat("%s,debug-threads=on", a.name())});
+        "-name", absl::StrFormat("%s,debug-threads=on", a.Name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -224,7 +224,7 @@ absl::Status Emulator::initialize() {
 std::string Emulator::qemu_exe_path() const {
     const auto& p = paths();
     std::string base;
-    switch (avd().detectArchitecture()) {
+    switch (avd().DetectArchitecture()) {
     case Avd::CpuArchitecture::kX86:
         return p.qemu_system_x86_binary.string();
     case Avd::CpuArchitecture::kArm:
@@ -252,7 +252,7 @@ std::vector<std::string> Emulator::getCmdline() const {
 absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     const auto& o = opts();
     const auto& a = avd();
-    ABSL_LOG(INFO) << "Preparing " << a.details(true);
+    ABSL_LOG(INFO) << "Preparing " << a.Details(true);
     auto status = initialize();
     if (!status.ok()) {
         ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();

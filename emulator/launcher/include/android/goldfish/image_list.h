@@ -18,6 +18,7 @@
  * implementation. This macro will be expanded several times with
  * varying definitions of _AVD_IMG
  */
+// NOLINTBEGIN
 #define AVD_IMAGE_LIST                                                                       \
     _AVD_IMG(KERNEL, "kernel-qemu", "kernel")                                                \
     _AVD_IMG(KERNELRANCHU, "kernel-ranchu", "kernel")                                        \
@@ -38,3 +39,4 @@
     _AVD_IMG(VERIFIEDBOOTPARAMS, "VerifiedBootParams.textproto", "Verified Boot Parameters") \
     _AVD_IMG(KERNELCOMMANDLINE, "kernel_cmdline.txt", "kernel command line option")          \
     _AVD_IMG(BUILDPROP, "build.prop", "Build properties")
+// NOLINTEND

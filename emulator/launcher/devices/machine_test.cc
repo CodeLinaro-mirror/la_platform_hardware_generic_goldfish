@@ -47,7 +47,7 @@ TEST(Machine, Basic_x86) {
     base::TestSystem sys(launcher_path);
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -64,7 +64,7 @@ TEST(Machine, Basic_arm64) {
     base::TestSystem sys(launcher_path);
 
     FakeEmulator emu;
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
