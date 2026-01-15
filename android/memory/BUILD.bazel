@@ -6,12 +6,7 @@ cc_library(
         "contiguous_range_mapper.cc",
         "memory_hints.cc",
         "memory_tracker.cc",
-    ] + select({
-        "@platforms//os:windows": [
-            "shared_memory_win32.cc",
-        ],
-        "//conditions:default": ["shared_memory_posix.cc"],
-    }),
+    ],
     copts = ["-DAEMU_TCMALLOC_ENABLED=0"] +
             select({
                 "@platforms//os:windows": ["-Wno-microsoft-goto"],
@@ -38,7 +33,6 @@ cc_test(
         "contiguous_range_mapper_test.cc",
         "malloc_usable_size_test.cc",
         "memory_hints_test.cc",
-        "shared_memory_test.cc",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
