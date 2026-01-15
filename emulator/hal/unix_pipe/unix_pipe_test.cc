@@ -195,9 +195,7 @@ TEST_F(UnixPipeTest, close_on_host) {
     }));
     ASSERT_NE(server, nullptr);
 
-    IUnixPipe* device = PostAndWait([this, &endpoint] {
-        return registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
-    });
+    IUnixPipe* device = registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
     ASSERT_NE(device, nullptr);
     TestHalSocket* device_socket = registry_.halSocket();
     ASSERT_NE(device_socket, nullptr);
