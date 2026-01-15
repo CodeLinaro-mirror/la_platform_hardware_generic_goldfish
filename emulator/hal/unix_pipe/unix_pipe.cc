@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "goldfish/async/libuv_socket_factory.h"
@@ -37,15 +38,40 @@ class UnixPipe : public IUnixPipe {
             return;
         }
 
-        un_socket_ = socket_factory_.CreateSocket(client_loop, *std::move(un_addr));
-        un_socket_->SetOnReadCallbackNoFlowControl(
+        std::shared_ptr<async::AsyncSocket> un_socket =
+                socket_factory_.CreateSocket(client_loop, *un_addr);
+
+        un_socket->SetOnConnectedCallback(
+                [this](async::AsyncSocket&, const absl::Status& connect_status) {
+                    DCHECK(un_socket_);
+                    if (connect_status.ok()) {
+                        OnReceiveImpl(queued_);
+                        queued_.clear();
+                        connected_ = true;
+                    } else {
+                        LOG(WARNING) << "`Connect` failed: " << connect_status;
+                        un_socket_.reset();
+                    }
+                });
+
+        un_socket->SetOnReadCallbackNoFlowControl(
                 [this](std::string_view data, const absl::Status& err) {
                     if (err.ok()) {
                         Socket()->Send(std::string(data));
                     }
                 });
 
-        un_socket_->SetOnCloseCallback([this]() { Close(); });
+        un_socket->SetOnCloseCallback([this]() {
+            Socket()->Send({});
+            Close();
+        });
+
+        const absl::Status connect_status = un_socket->Connect();
+        if (connect_status.ok()) {
+            un_socket_ = std::move(un_socket);
+        } else {
+            LOG(WARNING) << "Could not connect to " << ToString(*un_addr) << ": " << connect_status;
+        }
     }
 
     void OnConnect() override {}
@@ -54,13 +80,21 @@ class UnixPipe : public IUnixPipe {
 
     void OnReceive(std::string_view data) override {
         if (un_socket_) {
-            const absl::Status s = un_socket_->Send(data.data(), data.size());
-            if (!s.ok()) {
-                CloseImpl();
-                LOG(WARNING) << "Send failed with " << s;
+            if (connected_) {
+                OnReceiveImpl(data);
+            } else {
+                queued_.append(data);
             }
         } else {
             LOG(WARNING) << "The host side is disconnected, " << data.size() << " bytes are lost";
+        }
+    }
+
+    void OnReceiveImpl(std::string_view data) {
+        const absl::Status s = un_socket_->Send(data.data(), data.size());
+        if (!s.ok()) {
+            CloseImpl();
+            LOG(WARNING) << "Send failed with " << s;
         }
     }
 
@@ -78,6 +112,8 @@ class UnixPipe : public IUnixPipe {
 
     async::LibuvAsyncSocketFactory socket_factory_;
     std::shared_ptr<async::AsyncSocket> un_socket_;
+    std::string queued_;
+    bool connected_ = false;
 };
 
 void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
