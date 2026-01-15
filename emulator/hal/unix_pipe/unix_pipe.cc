@@ -28,9 +28,11 @@ namespace goldfish::devices::unix_pipe {
 
 using goldfish::network::UnEndpoint;
 
-class UnixPipe : public IUnixPipe {
+class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe> {
   public:
-    UnixPipe(EventLoop* client_loop, const std::string_view path) {
+    explicit UnixPipe(EventLoop* client_loop) : client_loop_(client_loop) {}
+
+    void Init(const std::string_view path) {
         auto un_addr = UnEndpoint::Create(std::string(path));
         if (!un_addr.ok()) {
             LOG(WARNING) << "Cannot create an AF_UNIX endpoint at '" << path << ": "
@@ -38,8 +40,34 @@ class UnixPipe : public IUnixPipe {
             return;
         }
 
+        client_loop_
+                ->Post([self = shared_from_this(), un_addr = *std::move(un_addr)]() {
+                    self->InitOnEventLoop(un_addr);
+                })
+                .IgnoreError();
+    }
+
+    void OnConnect() override {}
+
+    void OnClose() override { Close(); }
+
+    void OnReceive(std::string_view data) override {
+        client_loop_
+                ->Post([self = shared_from_this(), data = std::string(data)]() {
+                    self->OnReceiveOnEventLoop(data);
+                })
+                .IgnoreError();
+    }
+
+    void Close() {
+        client_loop_->Post([self = shared_from_this()]() { self->CloseOnEventLoop(); })
+                .IgnoreError();
+    }
+
+  private:
+    void InitOnEventLoop(const UnEndpoint& un_addr) {
         std::shared_ptr<async::AsyncSocket> un_socket =
-                socket_factory_.CreateSocket(client_loop, *un_addr);
+                socket_factory_.CreateSocket(client_loop_, un_addr);
 
         un_socket->SetOnConnectedCallback(
                 [this](async::AsyncSocket&, const absl::Status& connect_status) {
@@ -70,15 +98,11 @@ class UnixPipe : public IUnixPipe {
         if (connect_status.ok()) {
             un_socket_ = std::move(un_socket);
         } else {
-            LOG(WARNING) << "Could not connect to " << ToString(*un_addr) << ": " << connect_status;
+            LOG(WARNING) << "Could not connect to " << ToString(un_addr) << ": " << connect_status;
         }
     }
 
-    void OnConnect() override {}
-
-    void OnClose() override { Close(); }
-
-    void OnReceive(std::string_view data) override {
+    void OnReceiveOnEventLoop(const std::string_view data) {
         if (un_socket_) {
             if (connected_) {
                 OnReceiveImpl(data);
@@ -90,7 +114,14 @@ class UnixPipe : public IUnixPipe {
         }
     }
 
-    void OnReceiveImpl(std::string_view data) {
+    void CloseOnEventLoop() {
+        if (un_socket_) {
+            CloseImpl();
+        }
+    }
+
+    void OnReceiveImpl(const std::string_view data) {
+        DCHECK(un_socket_);
         const absl::Status s = un_socket_->Send(data.data(), data.size());
         if (!s.ok()) {
             CloseImpl();
@@ -98,18 +129,12 @@ class UnixPipe : public IUnixPipe {
         }
     }
 
-    void Close() {
-        if (un_socket_) {
-            CloseImpl();
-        }
-    }
-
-  private:
     void CloseImpl() {
         un_socket_->Close();
         un_socket_.reset();
     }
 
+    EventLoop* const client_loop_;
     async::LibuvAsyncSocketFactory socket_factory_;
     std::shared_ptr<async::AsyncSocket> un_socket_;
     std::string queued_;
@@ -120,7 +145,9 @@ void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_l
                                EventLoop* qemu_loop) {
     registry->RegisterHalDevice(std::string(UnixPipe::kServiceName), client_loop, qemu_loop,
                                 [client_loop](const std::string_view path) {
-                                    return std::make_shared<UnixPipe>(client_loop, path);
+                                    auto dev = std::make_shared<UnixPipe>(client_loop);
+                                    dev->Init(path);
+                                    return dev;
                                 });
 }
 
