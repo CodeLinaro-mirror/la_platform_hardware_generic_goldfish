@@ -47,6 +47,8 @@ class CommandParser {
   std::string_view::const_reference& operator[](int index) const { return command_[index]; }
 
  private:
+  void SkipPast(const char c);
+
   std::string copy_command_;
   std::string_view command_;
 };
@@ -57,10 +59,7 @@ class CommandParser {
  * If '=' not exists, command_ remains unchanged
  */
 inline void CommandParser::SkipPrefix() {
-  auto pos = command_.find('=');
-  if (pos != std::string_view::npos) {
-    command_.remove_prefix(std::min(pos + 1, command_.size()));
-  }
+  SkipPast('=');
 }
 
 /**
@@ -81,10 +80,7 @@ inline void CommandParser::SkipPrefixAT() {
  * updates command_
  */
 inline void CommandParser::SkipComma() {
-  auto pos = command_.find(',');
-  if (pos != std::string_view::npos) {
-    command_.remove_prefix(std::min(pos + 1, command_.size()));
-  }
+  SkipPast(',');
 }
 
 /**
@@ -92,9 +88,13 @@ inline void CommandParser::SkipComma() {
  * updates command_
  */
 inline void CommandParser::SkipWhiteSpace() {
-  auto pos = command_.find(' ');
+  SkipPast(' ');
+}
+
+inline void CommandParser::SkipPast(const char c) {
+  auto pos = command_.find(c);
   if (pos != std::string_view::npos) {
-    command_.remove_prefix(std::min(pos + 1, command_.size()));
+    command_.remove_prefix(pos + 1);
   }
 }
 
