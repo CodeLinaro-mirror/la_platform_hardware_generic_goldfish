@@ -30,10 +30,10 @@ struct EmulatorPorts {
 
 class EmulatorConfig {
   public:
-    EmulatorConfig(EmulatorPorts ports, const std::string& netsim_endpoint,
+    EmulatorConfig(EmulatorPorts ports, std::string netsim_endpoint,
                    ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
             : mPorts(std::move(ports))
-            , mNetsimEndpoint(netsim_endpoint)
+            , mNetsimEndpoint(std::move(netsim_endpoint))
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts)) {}
