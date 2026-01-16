@@ -1,0 +1,56 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "service_forwarder",
+    srcs = ["service_forwarder_impl.cc"],
+    hdrs = ["include/android/emulation/forwarding/service_forwarder_impl.h"],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "ui_controller_forwarder",
+    srcs = ["ui_controller_forwarder.cc"],
+    hdrs = ["include/android/emulation/forwarding/ui_controller_forwarder.h"],
+    includes = ["include"],
+    deps = [
+        ":service_forwarder",
+        "//emulator/grpc/client:emulator_grpc_client",
+        "@abseil-cpp//absl/log",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
+        "@aemu//protos/services/ui-controller:ui_controller_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "service_forwarder_impl_test",
+    srcs = ["service_forwarder_impl_test.cc"],
+    deps = [
+        ":service_forwarder",
+        "//android/system:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "ui_controller_forwarder_test",
+    srcs = ["ui_controller_forwarder_test.cc"],
+    deps = [
+        ":service_forwarder",
+        ":ui_controller_forwarder",
+        "//android/system:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)

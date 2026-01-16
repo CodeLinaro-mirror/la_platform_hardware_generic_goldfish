@@ -24,11 +24,14 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
-#include "android/process/process.h"
 #include "android/base/file/file.h"
 #include "android/emulation/control/emulator_service.h"
+#include "android/emulation/forwarding/service_forwarder_impl.h"
+#include "android/emulation/forwarding/ui_controller_forwarder.h"
 #include "android/goldfish/vm_interface.h"
+#include "android/process/process.h"
 #include "emulator/plugin/grpc/grpc_display.h"
+#include "emulator_advertisement.h"
 #include "goldfish/async/android/emulation/control/grpc_services.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -37,7 +40,6 @@
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/tools/aemu_version.h"
-#include "emulator_advertisement.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -141,6 +143,13 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                            .withAllowList(config->allowlist)
                            .withPortRange(config->port, config->port + 1)
                            .withService(service);
+
+    auto serviceForwarder =
+            std::make_shared<::android::emulation::forwarding::ServiceForwarderImpl>();
+    auto uiControllerForwarder =
+            std::make_shared<::android::emulation::forwarding::UiControllerForwarder>(
+                    serviceForwarder);
+    builder.withService(serviceForwarder).withService(uiControllerForwarder);
 
     if (config->idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << config->idle_timeout
