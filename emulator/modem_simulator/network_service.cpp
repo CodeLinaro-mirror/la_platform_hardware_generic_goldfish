@@ -15,10 +15,10 @@
 
 #include "host/commands/modem_simulator/network_service.h"
 
-#include <android-base/logging.h>
-
 #include <map>
 #include <sstream>
+
+#include "absl/log/log.h"
 
 #include "common/libs/utils/files.h"
 #include "host/commands/modem_simulator/device_config.h"
@@ -191,9 +191,7 @@ void NetworkService::InitializeSimOperator() {
   }
 
   {
-    const char *operator_numeric_xml = "etc/modem_simulator/files/numeric_operator.xml";
-    auto file = cuttlefish::modem::DeviceConfig::DefaultHostArtifactsPath(
-        operator_numeric_xml);
+    auto file = cuttlefish::modem::DeviceConfig::GetFilePath("numeric_operator.xml");
     if (!cuttlefish::FileExists(file) || !cuttlefish::FileHasContent(file)) {
       return;
     }
@@ -1219,7 +1217,7 @@ void NetworkService::HandleReceiveRemoteVoiceDataReg(const Client& client,
 void NetworkService::HandleReceiveRemoteCTEC(const Client& client,
                                              std::string& command) {
   (void)client;
-  LOG(DEBUG) << "calling ctec from remote";
+  VLOG(1) << "calling ctec from remote";
   std::stringstream ss;
   std::string types = command.substr(std::string("AT+REMOTECTEC: ").size());
   int preferred_mask_new = std::stoi(types, nullptr, 10);
@@ -1254,7 +1252,7 @@ void NetworkService::HandleReceiveRemoteSignal(const Client& client,
   if (percent >= 0 && percent <= 100) {
     signal_strength_percent_ = percent;
   } else {
-    LOG(DEBUG) << "out of bound signal strength percent: " << percent;
+    VLOG(1) << "out of bound signal strength percent: " << percent;
     return;
   }
 

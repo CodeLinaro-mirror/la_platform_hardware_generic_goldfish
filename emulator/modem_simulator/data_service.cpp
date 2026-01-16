@@ -15,8 +15,6 @@
 
 #include "host/commands/modem_simulator/data_service.h"
 
-#include <android-base/strings.h>
-
 #include "host/commands/modem_simulator/device_config.h"
 
 namespace cuttlefish {

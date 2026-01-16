@@ -17,7 +17,13 @@
 
 #include <cstring>
 
-#include <android-base/logging.h>
+#include "absl/log/log.h"
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#endif
 
 #include "host/commands/modem_simulator/device_config.h"
 

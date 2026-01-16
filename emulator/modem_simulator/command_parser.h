@@ -13,10 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <android-base/strings.h>
-
-#include <algorithm>
 #include <string>
+#include <string_view>
 
 namespace cuttlefish {
 
@@ -70,7 +68,12 @@ inline void CommandParser::SkipPrefix() {
  * updates command_
  */
 inline void CommandParser::SkipPrefixAT() {
-  android::base::ConsumePrefix(&command_, std::string_view("AT"));
+  using namespace std::literals::string_view_literals;
+
+  constexpr std::string_view kAT = "AT"sv;
+  if (command_.starts_with(kAT)) {
+    command_.remove_prefix(kAT.size());
+  }
 }
 
 /**
