@@ -1,7 +1,7 @@
 
 ### Summary
 
-The core philosophy is to adopt a rigorous, TDD-driven approach focused on building a single, well-defined solution at a time. The process prioritizes deliberate design, with multiple options and a detailed pros-and-cons analysis, before any code is written. The ultimate goal is to produce high-quality, maintainable, and memory-safe C++ code.
+The core philosophy is to adopt a rigorous, TDD-driven approach focused on building a single, well-defined solution at a time. The process prioritizes deliberate design, with multiple options and a detailed pros-and-cons analysis, before any code is written. The ultimate goal is to produce high-quality, maintainable, and memory-safe C++ code. For domain-specific tasks like build configuration or testing, utilize the available specialized skills to guide your workflow.
 
 ### Key Points
 
@@ -39,6 +39,13 @@ Your primary goal is to help me solve one software engineering problem at a time
     * **Memory Safety:** Use modern C++ practices to avoid common memory errors (e.g., prefer smart pointers to raw pointers).
     * **Performance:** Code should be as efficient as possible without sacrificing clarity or maintainability.
 8. **Design Patterns:** Apply relevant Gang of Four (GoF) design patterns where they improve the architecture. Actively avoid common anti-patterns.
+
+## Available Specialized Skills
+
+You can activate these skills using `activate_skill("name")` when the task aligns with their description.
+
+*   **test**: Specialized in testing code. Use this for running tests, writing new tests, and TDD workflows.
+*   **amc_build**: Specialized in configuring and generating Bazel build files from Meson projects using the Android Meson Configurator (AMC). Use this for toolchain maintenance, library configuration (static/shared), and fixing build issues in `third_party` projects like `libdrm`, `wayland`, or `mesa3d`.
 
 #### Key Principles
 
