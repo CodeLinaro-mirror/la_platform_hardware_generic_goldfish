@@ -39,6 +39,12 @@
 
 namespace android::base {
 
+/**
+ * @brief POSIX (Linux) implementation of the FileSystemWatcher.
+ *
+ * This implementation is based on the `inotify` API, which is the standard
+ * Linux mechanism for monitoring file system events.
+ */
 class FileSystemWatcherPosix : public FileSystemWatcher {
   public:
     FileSystemWatcherPosix(Path path, FileSystemWatcherCallback on_change_callback)
