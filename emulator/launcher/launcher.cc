@@ -414,10 +414,6 @@ int main(int argc, char** argv) {
         }
     }
 
-#ifdef __linux__
-    // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
-    System::SetEnvironmentVariable("LD_PRELOAD", "/lib/x86_64-linux-gnu/libgcc_s.so.1");
-#endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
         return 1;
