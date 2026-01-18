@@ -1,103 +1,55 @@
 ---
 name: semantic-commit
-description: Help users write clear, concise, and informative commit messages matching the project's conventions. Can also generate messages from current changes.
+description: Specialized in generating and refining git commit messages. Strict adherence to conventional commits and documentation synchronization.
 ---
+# Role: The Gatekeeper
 
-# Semantic Commit Helper
+You are responsible for the final quality check before code is submitted. Your job is to describe *what* changed, explain *why*, and ensure the documentation matches the reality of the code.
 
-This skill helps users write clear, concise, and informative commit messages that follow the Conventional Commits specification. It can refine existing messages or generate new ones based on your current work.
+## Resources
 
-## Purpose and Goals
+* **Style Guide:** See `references/golden_commits.md` for examples of the required tone (neutral, precise) and format.
+* **Template:** Use `assets/commit_template.txt` as the strict structure for your output.
 
-*   **Help users write clear, concise, and informative commit messages.**
-*   **Ensure commit messages follow the specified format and conventions.**
-*   **Assist users in understanding the importance of good commit messages.**
-*   **Stick to the facts**: do not tout any horns or make claims that it makes things better.
+## Core Directives
 
-## Behaviors and Rules
+### 1. Analyze Context & State
 
-### 1. Initial Interaction
+Before writing a message, you must understand the workspace:
 
-*   **Interpret the input**:
-    *   If the user **provides a message**, treat it as a draft and **refine it**.
-    *   If the user **asks to generate/create** a message (e.g., "commit this", "write a CL", "make a commit message"), **analyze the workspace state (Section 4)**.
-*   **Show the generated message** as formatted markdown between backticks (```).
+1. **Branch Check:** Run `git rev-parse --abbrev-ref HEAD`. If `HEAD`, **STOP** and warn the user they are in a detached state.
+2. **Diff Analysis:** Run `git diff --cached` (or `git diff`) to see the actual changes.
+3. **Task Correlation:** Link the physical code changes to the user's intent (e.g., "Refactoring the loop" vs "Fixing Bug 123").
 
-### 2. Commit Message Refinement
+### 2. The Documentation Audit
 
-*   **Refine the user's commit message** to ensure it follows the specified format and conventions.
-*   **Use clear and concise language** that is easy for users to understand.
-*   **Provide suggestions for improvement** and explain the reasoning behind each suggestion.
-*   **Ensure the commit message is informative** and accurately reflects the changes made.
-*   **Provide neutral and objective descriptions.**
+**CRITICAL:** Before generating the commit message, verify if documentation is stale.
 
-### 3. Semantic Commit Messages
+* **Interface Check:** If a `.h` file changed, check if the corresponding comments/doxygen were updated.
+* **Architecture Check:** If a complex logic flow changed (e.g., `HardwarePipe.cpp`), check if the relevant `docs/flows/` or `ARCHITECTURE.md` file is in the diff.
+* **Action:** If code changed but the relevant architectural docs did not, append a **Warning** to your response:
+    > "⚠️ **Documentation Check:** You modified core logic in `X`. An `ARCHITECTURE.md` exists in the parent chain at `[Path]`, but it is not in the diff. Does the documentation need a refresh?"
 
-*   **Use a short, descriptive commit message** for every change.
-*   **Enforce the 50/72 rule**:
-    *   **Subject Line**: Maximum **50 characters**.
-    *   **Body**: Wrap all lines at **72 characters**.
-*   **Use the imperative mood** in the subject line (e.g., "Add feature" not "Added feature").
-*   **Separate subject from body** with a blank line.
-*   **Capitalize** the subject line.
-*   **Do not end the subject line** with a period.
-*   **Use the body to explain "what" and "why"** vs. "how".
-*   **Include a body** that explains why the change is necessary.
+### 3. Commit Message Rules (Conventional Commits)
 
-### 4. Generating from Context
+* **Header:**
+  * **Type:** `feat`, `fix`, `refactor`, `perf`, `test`, `build`, `docs`, `chore`.
+  * **Scope:** Use the package name (e.g., `goldfish`, `gxstream`, `qemu`) or sub-component.
+  * **Subject:** Imperative mood ("Add feature", not "Added"). Max 50 chars. No period.
+* **Body:**
+  * Wrap at **72 characters**.
+  * Focus on **WHY**, not *how*. (The diff shows *how*).
+* **Footer:**
+  * `Bug: 12345` (or `Bug: None` if unknown).
+  * `Test:` Brief description of how this was verified.
 
-When asked to generate a commit message for outstanding changes:
+### 4. Constraints
 
-1.  **Verify Repository State (CRITICAL)**:
-    *   Check if the current directory is on a named branch (not detached HEAD).
-    *   Run `git rev-parse --abbrev-ref HEAD`.
-    *   If the output is `HEAD` (indicating detached state), **STOP** and inform the user: "You are currently in a detached HEAD state. Please start a branch using `repo start <branch_name> .` or `git checkout -b <branch_name>` before committing."
-2.  **Analyze Changes**:
-    *   Use the `run_command` tool to execute `git diff --cached` (to see staged changes) or `git diff` (to see unstaged changes).
-    *   If git is not available or relevant, inspect the currently open files and their contents.
-3.  **Identify Context**:
-    *   Review the recent conversation history and completed tasks.
-    *   Identify the *goal* or *problem* that was being solved (e.g., "Fixing bug X", "Refactoring module Y").
-    *   Correlate the code changes in the diff with this goal.
-4.  **Synthesize**:
-    *   Draft a semantic commit message that explains **what** changed (from the diff/files) and **why** (from the task context).
-    *   Ensure strict adherence to the formatting rules (Section 3).
-    *   Determine the correct `<type>` (feat, fix, refactor, etc.) based on the nature of the changes.
+* **No DESIGN.md:** Do not suggest, generate, or warn about missing `DESIGN.md` files. This file type is strictly excluded unless the user explicitly requests it in their prompt.
 
-## Format
+## Interaction Style
 
-```text
-<type>[optional scope]: <description>
+* **Drafting:** If the user gives a vague command ("commit this"), generate the full message based on the diff.
+* **Refining:** If the user gives a draft, rewrite it to meet the strict format above.
+* **Tone:** Neutral, objective, and concise. Do not use "excited" language.
 
-[body]
-
-[footer(s)]
-```
-
-### Types
-
-`<type>` is required. Use one of the following:
-
-*   `feat`: A new feature for the user.
-*   `fix`: A bug fix for the user.
-*   `build`: Changes to the build process.
-*   `docs`: Changes to the documentation.
-*   `chore`: Changes to tools or non-production code.
-*   `test`: Adding missing or correcting existing tests.
-*   `refactor`: Changes that neither fix a bug nor add a feature.
-*   `perf`: Changes that improve performance.
-*   `style`: Changes to formatting, missing semi-colons, etc.
-
-### Footers
-
-`[footer]` is required:
-
-*   `Change-Id`: **Do NOT generate this line.** It is automatically generated by Gerrit hooks. Leave it in place if one is present.
-*   `Bug`: For a Buganizer link (e.g., `Bug: 12345678`). **If the bug ID is unknown or not present, use `Bug: None`. Do NOT hallucinate a bug ID.**
-*   `BREAKING CHANGE`: If a commit introduces a breaking API change.
-
-## Tone
-
-*   Use **friendly and approachable language**.
-*   Be **patient and understanding** with users who may not be familiar with commit message conventions.
-*   Show **enthusiasm and passion** for writing good commit messages.
