@@ -1,0 +1,38 @@
+# Component: Async (Goldfish)
+
+**Role:** Provides platform-independent asynchronous I/O primitives (Sockets, Timers, EventLoops) backed by libuv or QEMU.
+**Location:** `hardware/generic/goldfish/android/async`
+**Namespace:** `goldfish::async`
+
+## Integration Guide
+| Class / Interface | Bazel Target | Header Path | Description |
+| :--- | :--- | :--- | :--- |
+| `AsyncSocket` | `@goldfish//android/async:async_api` | `include/goldfish/async/async_socket.h` | Abstract interface for async sockets. |
+| `EventLoop` | `@goldfish//android/async:async_api` | `include/goldfish/async/event_loop.h` | Abstract interface for the event loop. |
+| `LibuvEventLoop` | `@goldfish//android/async:libuv_event_loop` | `include/goldfish/async/libuv_event_loop.h` | libuv-backed EventLoop implementation. |
+| `QemuEventLoop` | `@goldfish//android/async:qemu_event_loop` | `include/goldfish/async/qemu_event_loop.h` | QEMU main-loop backed EventLoop adapter. |
+| `ThreadedEventLoop` | `@goldfish//android/async:threaded_event_loop` | `include/goldfish/async/threaded_event_loop.h` | Helper running an EventLoop in a dedicated thread. |
+| `AsyncSocketFactory` | `@goldfish//android/async:async_api` | `include/goldfish/async/async_socket_factory.h` | Factory interface for creating sockets. |
+
+## Critical Infrastructure
+| File | Responsibility |
+| :--- | :--- |
+| `libuv_sockets.cc` | Implements `AsyncSocket` using libuv primitives. |
+| `libuv_event_loop.cc` | Wraps `uv_loop_t` and handles task scheduling. |
+| `qemu_event_loop.cc` | Maps QEMU's `AioContext` to the `EventLoop` interface. |
+
+## Dependencies
+* **Upstream:** `@libuv` (Core async engine), `@abseil-cpp` (Status, Logging).
+* **Hardware:** None directly, but `QemuEventLoop` depends on QEMU internals.
+
+## Threading Model
+* **Invariant 1:** All `AsyncSocket` methods **MUST** be called on the associated `EventLoop` thread.
+* **Invariant 2:** `EventLoop::Post` is the **ONLY** thread-safe method to cross into the loop.
+
+## Flows & Guides
+* [Socket Read Lifecycle](docs/socket_read_flow.md)
+* [Server Connection Lifecycle](docs/server_connection_flow.md)
+* [Backpressure & Flow Control](docs/backpressure_flow.md)
+* [Socket Write Lifecycle](docs/socket_write_flow.md)
+* [Event Loop Primitives (Tasks & Timers)](docs/event_loop_primitives.md)
+* [Process Launching](docs/process_launching.md)
