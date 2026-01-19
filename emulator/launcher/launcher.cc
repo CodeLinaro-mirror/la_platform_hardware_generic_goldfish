@@ -414,6 +414,20 @@ int main(int argc, char** argv) {
         }
     }
 
+#ifdef __linux__
+    // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
+    std::string preload_option =
+            System::Get()->GetEnvironmentVariable("ANDROID_EMU_PRELOAD_LIBGCC");
+    if (preload_option == "1") {
+        std::string current_preload = System::GetEnvironmentVariable("LD_PRELOAD");
+        std::string libgcc_path = "/lib/x86_64-linux-gnu/libgcc_s.so.1";
+        if (current_preload.empty()) {
+            System::SetEnvironmentVariable("LD_PRELOAD", libgcc_path);
+        } else {
+            System::SetEnvironmentVariable("LD_PRELOAD", libgcc_path + ":" + current_preload);
+        }
+    }
+#endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
         return 1;
