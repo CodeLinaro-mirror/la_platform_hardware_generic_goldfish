@@ -42,6 +42,7 @@ bool can_exec(const fs::path& path) noexcept;
 absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept;
 
 std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath = false) noexcept;
+std::vector<fs::path> scan_dir_recursive(const fs::path& dirPath) noexcept;
 
 absl::StatusOr<unsigned> mode(const fs::path& path) noexcept;
 

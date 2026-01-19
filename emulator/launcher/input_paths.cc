@@ -89,7 +89,7 @@ constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose_sdk_search) {
+absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose) {
     ResolvedInputPaths paths;
     ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
     ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
@@ -120,7 +120,12 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose_sdk_search) {
     }
     RETURN_IF_ERROR(CheckExists(paths.launcher_directory, "launcher directory").status());
 
-    // TODO Add a debug option to recursively list files in the launcher dir.
+    if (verbose) {
+        LOG(INFO) << "Listing launcher directory (" << paths.launcher_directory << "):";
+        for (const auto &path : base::file::scan_dir_recursive(paths.launcher_directory)) {
+            LOG(INFO) << "    " << path.lexically_relative(paths.launcher_directory).string();
+        }
+    }
 
     ASSIGN_OR_RETURN(paths.binary_directory,
                      CheckExists(paths.launcher_directory / "bin", "binary directory"));
@@ -143,7 +148,7 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose_sdk_search) {
             CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
     ASSIGN_OR_RETURN(paths.sdk_directory,
                      CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(
-                                         paths.launcher_directory, verbose_sdk_search),
+                                         paths.launcher_directory, verbose),
                                  "sdk directory"));
     ASSIGN_OR_RETURN(paths.discovery_directory,
                      CheckExists(android::goldfish::ConfigDirs::GetDiscoveryDirectory(),

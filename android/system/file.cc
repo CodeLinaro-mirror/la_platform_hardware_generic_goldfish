@@ -134,11 +134,13 @@ absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept {
             absl::StrCat("Failed to get size of: ", path.string(), " - ", ec.message()));
 }
 
-std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) noexcept {
+namespace {
+template<typename it_type>
+std::vector<fs::path> scan_dir_impl(const fs::path& dirPath, bool fullPath) noexcept {
     std::error_code ec;
 
     std::vector<fs::path> x;
-    for (const auto& e : std::filesystem::directory_iterator(dirPath, ec)) {
+    for (const auto& e : it_type(dirPath, ec)) {
         if (fullPath) {
             // This will be relative if dirPath is relative.
             x.push_back(e.path());
@@ -149,6 +151,15 @@ std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) noexcept 
     absl::c_sort(x);
 
     return x;
+}
+} // namespace
+
+std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) noexcept {
+    return scan_dir_impl<std::filesystem::directory_iterator>(dirPath, fullPath);
+}
+
+std::vector<fs::path> scan_dir_recursive(const fs::path& dirPath) noexcept {
+    return scan_dir_impl<std::filesystem::recursive_directory_iterator>(dirPath, /*fullPath=*/true);
 }
 
 namespace {
