@@ -345,21 +345,9 @@ void FileInstance::Close() {
     }
 }
 
-int FileInstance::Bind(const struct sockaddr* addr, socklen_t addrlen) {
-    return BindSocketImpl(fd_, addr, addrlen);
-}
-
-int FileInstance::Listen(int backlog) {
-    return ListenSocketImpl(fd_, backlog);
-}
-
 std::shared_ptr<FileInstance> FileInstance::Accept(struct sockaddr* addr,
                                                    socklen_t* addrlen) const {
     return std::make_shared<FileInstance>(AcceptSocketImpl(fd_, addr, addrlen), Private());
-}
-
-int FileInstance::Connect(const struct sockaddr* addr, socklen_t addrlen) {
-    return ConnectSocketImpl(fd_, addr, addrlen);
 }
 
 void FileInstance::Set(fd_set* dest, int* max_index) const {
