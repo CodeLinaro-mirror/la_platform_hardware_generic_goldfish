@@ -186,7 +186,7 @@ remapped_pkg_files(
 pkg_files(
     name = "plugins",
     srcs = plugin_binaries,
-    prefix = "lib/qemu/",
+    prefix = "lib/qemu",
 )
 
 pkg_files(
@@ -203,10 +203,8 @@ pkg_files(
 
 pkg_files(
     name = "data_virtualscene_Toren1BD",
-    srcs = [
-        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
-    ],
-    prefix = "data/virtualscene/Toren1BD/",
+    srcs = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
+    prefix = "data/virtualscene/Toren1BD",
 )
 
 remapped_pkg_files(
@@ -215,18 +213,36 @@ remapped_pkg_files(
     transform = ":goldfish_binaries_stripped",
 )
 
+pkg_files(
+    name = "emulator-access",
+    srcs = ["//emulator/grpc/security:emulator-access"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "qemu-keymaps",
+    srcs = ["@qemu//:qemu-keymaps"],
+    prefix = "share/qemu/keymaps",
+)
+
+pkg_files(
+    name = "qemu-roms",
+    srcs = ["@qemu//:qemu-roms"],
+    prefix = "share/qemu",
+)
+
 pkg_zip(
     name = "release",
     srcs = [
         ":binaries_stripped",
         ":data_virtualscene_Toren1BD",
         ":egl",
+        ":emulator-access",
         ":launcher_stripped",
         ":plugins_stripped",
+        ":qemu-keymaps",
+        ":qemu-roms",
         ":vulkan",
-        "//emulator/grpc/security:emulator-access",
-        "@qemu//:qemu-keymaps",
-        "@qemu//:qemu-roms",
     ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",

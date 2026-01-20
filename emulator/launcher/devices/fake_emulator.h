@@ -1,5 +1,6 @@
 #include <memory>
 
+#include "android/base/bazel_info.h"
 #include "android/cmdline_definitions.h"
 #include "android/goldfish/emulator_config.h"
 #include "mock_avd.h"
@@ -13,7 +14,7 @@ class FakeEmulator {
 
         mMockAvd = avd.get();
         mEmulatorConfig = std::make_unique<EmulatorConfig>(
-                std::move(ports), "", ResolvedInputPaths{}, std::move(avd), std::move(opts));
+                std::move(ports), "", ResolvedInputPaths{.launcher_directory=fs::path(android::base::Bazel::RunfilesPath("goldfish+/emulator/launcher")).make_preferred()}, std::move(avd), std::move(opts));
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}

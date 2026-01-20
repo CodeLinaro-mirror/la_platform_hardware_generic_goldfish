@@ -308,17 +308,20 @@ collect_plugins(
 collect_plugins(
     name = "roms",
     output_dir = "share/qemu",
-    plugins = [
-        "@qemu//:qemu-roms",
-    ],
+    plugins = ["@qemu//:qemu-roms"],
 )
 
 collect_plugins(
     name = "keymaps",
     output_dir = "share/qemu/keymaps",
-    plugins = [
-        "@qemu//:qemu-keymaps",
-    ],
+    plugins = ["@qemu//:qemu-keymaps"],
+)
+
+collect_plugins(
+    name = "unsecure-emulator-access",
+    output_dir = "lib",
+    plugins = ["//emulator/grpc/security:unsecure-emulator-access"],
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(
@@ -330,8 +333,8 @@ cc_binary(
         ":lib64gl",
         ":plugins",
         ":roms",
+        ":unsecure-emulator-access",
         ":vulkan_icds",
-        "//emulator/grpc/security:unsecure-emulator-access",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],

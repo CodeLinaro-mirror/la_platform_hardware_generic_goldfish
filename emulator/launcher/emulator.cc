@@ -31,7 +31,6 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "configure_drives.h"
@@ -52,7 +51,6 @@
 
 namespace android::goldfish {
 
-using android::base::Bazel;
 using android::base::System;
 
 absl::Status Emulator::addDevices() {
