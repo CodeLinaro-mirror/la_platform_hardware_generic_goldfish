@@ -76,7 +76,7 @@ std::shared_ptr<grpc::Channel> GrpcChannelFactory::createChannel() {
     std::string key_pem = mEndpoint.tls_credentials().pem_private_key();
     std::string cer_pem = mEndpoint.tls_credentials().pem_cert_chain();
 
-    if (!ca_pem.empty() && !key_pem.empty() && !cer_pem.empty()) {
+    if (!ca_pem.empty() || !key_pem.empty() || !cer_pem.empty()) {
         grpc::SslCredentialsOptions sslOpts;
         sslOpts.pem_root_certs = ca_pem;
         sslOpts.pem_private_key = key_pem;

@@ -186,7 +186,7 @@ TEST_F(BlockingClientTest, Connect_WithNonLocalAndNoTls_FailsWithInvalidArgument
     EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 }
 
-TEST_F(BlockingClientTest, Connect_WithTlsContent_TreatsAsContent) {
+TEST_F(BlockingClientTest, Connect_WithFullTlsContent_Succeeds) {
     Endpoint endpoint;
     endpoint.set_target("8.8.8.8:12345");
     endpoint.mutable_tls_credentials()->set_pem_root_certs(
