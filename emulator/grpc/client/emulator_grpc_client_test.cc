@@ -186,6 +186,25 @@ TEST_F(BlockingClientTest, Connect_WithNonLocalAndNoTls_FailsWithInvalidArgument
     EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 }
 
+TEST_F(BlockingClientTest, Connect_WithTlsContent_TreatsAsContent) {
+    Endpoint endpoint;
+    endpoint.set_target("8.8.8.8:12345");
+    endpoint.mutable_tls_credentials()->set_pem_root_certs(
+            "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----");
+    endpoint.mutable_tls_credentials()->set_pem_private_key(
+            "-----BEGIN PRIVATE KEY-----\nFAKE\n-----END PRIVATE KEY-----");
+    endpoint.mutable_tls_credentials()->set_pem_cert_chain(
+            "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----");
+
+    auto clientOrStatus = EmulatorGrpcClientBuilder().withEndpoint(endpoint).buildBlocking();
+    ASSERT_TRUE(clientOrStatus.ok());
+    auto client = std::move(*clientOrStatus);
+
+    absl::Status status = client->connect(absl::Milliseconds(100));
+    EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded)
+            << "Expected DeadlineExceeded (channel created), got " << status;
+}
+
 // --- Callback Client Tests ---
 
 class CallbackClientTest : public EmulatorGrpcClientTest {

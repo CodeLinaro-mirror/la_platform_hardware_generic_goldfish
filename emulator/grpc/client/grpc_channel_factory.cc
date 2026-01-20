@@ -16,13 +16,11 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include <fstream>
 #include <string>
 #include <unordered_map>
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 
 namespace android {
 namespace emulation {
@@ -49,15 +47,6 @@ class HeaderInjector : public grpc::MetadataCredentialsPlugin {
     std::unordered_map<std::string, std::string> mHeaders;
 };
 
-static absl::StatusOr<std::string> readFile(const std::filesystem::path& fname) {
-    std::ifstream fstream(fname);
-    if (!fstream) {
-        return absl::NotFoundError(absl::StrCat("File not found: ", fname.string()));
-    }
-    std::string contents((std::istreambuf_iterator<char>(fstream)),
-                         std::istreambuf_iterator<char>());
-    return contents;
-}
 }  // namespace
 
 GrpcChannelFactory::GrpcChannelFactory(const Endpoint& endpoint, InterceptorFactories interceptors)
@@ -83,25 +72,16 @@ std::shared_ptr<grpc::Channel> GrpcChannelFactory::createChannel() {
     auto address = mEndpoint.target();
     std::shared_ptr<grpc::ChannelCredentials> channel_creds;
 
-    std::string ca_path = mEndpoint.tls_credentials().pem_root_certs();
-    std::string key_path = mEndpoint.tls_credentials().pem_private_key();
-    std::string cer_path = mEndpoint.tls_credentials().pem_cert_chain();
+    std::string ca_pem = mEndpoint.tls_credentials().pem_root_certs();
+    std::string key_pem = mEndpoint.tls_credentials().pem_private_key();
+    std::string cer_pem = mEndpoint.tls_credentials().pem_cert_chain();
 
-    if (!ca_path.empty() && !key_path.empty() && !cer_path.empty()) {
+    if (!ca_pem.empty() && !key_pem.empty() && !cer_pem.empty()) {
         grpc::SslCredentialsOptions sslOpts;
-        auto ca = readFile(ca_path);
-        auto key = readFile(key_path);
-        auto cer = readFile(cer_path);
-
-        if (ca.ok() && key.ok() && cer.ok()) {
-            sslOpts.pem_root_certs = *ca;
-            sslOpts.pem_private_key = *key;
-            sslOpts.pem_cert_chain = *cer;
-            channel_creds = grpc::SslCredentials(sslOpts);
-        } else {
-            LOG(ERROR) << "Failed to read TLS credentials.";
-            return nullptr;
-        }
+        sslOpts.pem_root_certs = ca_pem;
+        sslOpts.pem_private_key = key_pem;
+        sslOpts.pem_cert_chain = cer_pem;
+        channel_creds = grpc::SslCredentials(sslOpts);
     } else if (absl::StartsWith(address, "127.0.0.1") || absl::StartsWith(address, "localhost")) {
         channel_creds = ::grpc::experimental::LocalCredentials(LOCAL_TCP);
     } else {
