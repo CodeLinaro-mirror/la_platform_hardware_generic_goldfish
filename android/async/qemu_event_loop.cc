@@ -341,8 +341,7 @@ std::shared_ptr<EventLoop::Timer> QemuEventLoopImpl::CreateTimer(Task task) {
 // --- Factory Function ---
 std::unique_ptr<QemuEventLoop> QemuEventLoop::Create() {
     auto loop = std::make_unique<QemuEventLoopImpl>();
-    (void)loop->Post(
-            [loop_ptr = loop.get()] { loop_ptr->SetState(LooperStatusEvent::State::kRunning); });
+    loop->Post([loop_ptr = loop.get()] { loop_ptr->SetState(LooperStatusEvent::State::kRunning); }).IgnoreError();
 
     return loop;
 }

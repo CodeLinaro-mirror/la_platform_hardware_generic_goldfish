@@ -82,7 +82,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
-        (void)mEventLoop.Post([this] {
+        mEventLoop.Post([this] {
             if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
                 LOG(FATAL) << "Failed to set ports: " << s;
             }
@@ -94,7 +94,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             } else {
                 launch_netsimd();
             }
-        });
+        }).IgnoreError();
     }
 
     int emulator_exit_status() const { return mEmulatorExitStatus; }
@@ -247,9 +247,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 mFindNetsimd.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
-                (void)mEventLoop.Post([this] {
+                mEventLoop.Post([this] {
                     try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
-                });
+                }).IgnoreError();
                 return;
             } else {
                 LOG(FATAL) << "netsimd died and there was no existing port to connect to";
@@ -270,8 +270,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->Cancel();
         mFindNetsimd.reset();
-        (void)mEventLoop.Post(
-                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
+        mEventLoop.Post(
+                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); }).IgnoreError();
     }
 
     void try_connect_netsimd(std::string netsimd_endpoint) {
@@ -283,9 +283,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            (void)mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
+            mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
                 launch_emulator(std::move(endpoint));
-            });
+            }).IgnoreError();
         } else {
             LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
                        << connection.status();
