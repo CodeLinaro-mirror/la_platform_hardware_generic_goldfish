@@ -22,16 +22,16 @@ rust_library(
     name = "flate2",
     srcs = glob(["**/*.rs"]),
     crate_name = "flate2",
-    edition = "2018",
     crate_root = "src/lib.rs",
-    deps = [
-        "@crc32fast",
-        "@libz-rs-sys",
-    ],
+    edition = "2018",
     rustc_flags = [
         "--cfg=feature=\"any_impl\"",
         "--cfg=feature=\"any_zlib\"",
         "--cfg=feature=\"libz-rs-sys\"",
         "--cfg=feature=\"zlib-rs\"",
+    ],
+    deps = [
+        "@crc32fast",
+        "@zlib-rs",
     ],
 )
