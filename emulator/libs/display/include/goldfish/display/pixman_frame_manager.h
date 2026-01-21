@@ -54,9 +54,15 @@ class PixmanFrameManager {
      */
     PixmanImagePtr getRenderableImage();
 
+    void updateSurface();
+
   private:
     int mCurrentPixelDepth{0};
     absl::Mutex mDisplayAccess;
+
+    const void* mSrcBits ABSL_GUARDED_BY(mDisplayAccess){nullptr};
+    int mStride ABSL_GUARDED_BY(mDisplayAccess){0};
+
     PixmanImagePtr mStagingImage ABSL_GUARDED_BY(mDisplayAccess);
     PixmanImagePtr mCurrentImage ABSL_GUARDED_BY(mDisplayAccess);
 };

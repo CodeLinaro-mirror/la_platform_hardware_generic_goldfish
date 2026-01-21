@@ -227,6 +227,7 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
     VLOG(2) << "updateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
             << height << ")";
 
+    mFrameManager->updateSurface();
     frameReceived();
     if (ABSL_VLOG_IS_ON(2)) {
         mFpsCalculator.AddFrame();
