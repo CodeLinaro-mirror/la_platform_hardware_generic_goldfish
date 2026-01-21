@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -119,11 +120,11 @@ class SharedMemory {
     /**
      * @brief Constructs a SharedMemory object.
      *
-     * @param path The file path of the shared memory region.
+     * @param path_or_uri The file path or URI of the shared memory region.
      * @param size The size of the shared memory region.
      * @param policy The destruction policy (default: kAuto).
      */
-    SharedMemory(std::string name, size_t size,
+    SharedMemory(std::string_view path_or_uri, size_t size,
                  DestructionPolicy policy = DestructionPolicy::kAuto);
     ~SharedMemory() { Close(); }
 
@@ -149,7 +150,7 @@ class SharedMemory {
      */
     void swap(SharedMemory& other) noexcept {  // NOLINT
         using std::swap;
-        swap(name_, other.name_);
+        swap(backing_file_, other.backing_file_);
         swap(size_, other.size_);
         swap(address_, other.address_);
         swap(fd_, other.fd_);
@@ -214,10 +215,10 @@ class SharedMemory {
     size_t Size() const { return size_; }
 
     /**
-     * @brief Gets the name of the shared memory region.
-     * @return Name string.
+     * @brief Gets the backing file of the shared memory region.
+     * @return The memory mapped file.
      */
-    std::string Name() const { return name_; }
+    std::filesystem::path BackingFile() const { return backing_file_; }
 
     /**
      * @brief Gets a pointer to the mapped memory.
@@ -253,7 +254,7 @@ class SharedMemory {
     handle_type fd_ = kInvalidHandle;
     handle_type file_ = kInvalidHandle;
 
-    std::string name_;
+    std::filesystem::path backing_file_;
     size_t size_ = 0;
     void* address_{nullptr};
     DestructionPolicy destruction_policy_{DestructionPolicy::kAuto};
