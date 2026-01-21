@@ -148,14 +148,14 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
             /// @note we are on the client loop, so no-one is touching mHostBuffer.
             VLOG(1) << "Guest (vsock) receiving initial data: (" << mHostBuffer.size()
                     << ") :" << mHostBuffer;
-            (void)Socket()->Send(std::move(mHostBuffer));
+            Socket()->Send(std::move(mHostBuffer));
             assert(mHostBuffer.empty());
         }
     }
 
     void OnReceive(std::string_view data) override {
         VLOG(VLOG_TRACE) << "Guest (vsock) forwarding: " << data << " to: " << *mHostSocket;
-        (void)mHostSocket->Send(data.data(), data.size());
+        mHostSocket->Send(data.data(), data.size()).IgnoreError();
     }
 
     void OnClose() override {
@@ -211,11 +211,11 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void close() {
-        (void)mClientLoop->PostAndWait([this] {
+        mClientLoop->PostAndWait([this] {
             if (mSocketServer) {
                 mSocketServer->Close();
             }
-        });
+        }).IgnoreError();
     }
 
   private:
@@ -224,9 +224,9 @@ class VSockProxyImpl : public VSockProxy {
         auto incoming_socket_connection =
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
-                    (void)mQemuLoop->Post([this, hostToGuest = std::move(hostToGuest)] {
+                    mQemuLoop->Post([this, hostToGuest = std::move(hostToGuest)] {
                         incomingConnectionOnQemuThread(std::move(hostToGuest));
-                    });
+                    }).IgnoreError();
                     return true;
                 };
 
@@ -250,7 +250,7 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void vsockAliveOnQemuThread() {
-        (void)mClientLoop->Post([this] { startServer(); });
+        mClientLoop->Post([this] { startServer(); }).IgnoreError();
     }
 
     bool incomingConnectionOnQemuThread(std::shared_ptr<HostToGuestConnection> hostToGuest) {
