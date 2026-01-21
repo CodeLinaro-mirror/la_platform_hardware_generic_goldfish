@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 #include "absl/status/status.h"
 
@@ -43,10 +44,21 @@
 
 namespace goldfish::memory {
 
-SharedMemory::SharedMemory(std::string name, size_t size, DestructionPolicy policy)
-        : name_(std::move(name)), size_(size), destruction_policy_(policy) {
+using namespace std::string_view_literals;
+
+SharedMemory::SharedMemory(std::string_view path_or_uri, size_t size, DestructionPolicy policy)
+        : size_(size), destruction_policy_(policy) {
+    static constexpr std::string_view kFileUri = "file://"sv;
+    static constexpr std::string_view kLocalhost = "localhost/"sv;
+
+    if (path_or_uri.starts_with(kFileUri)) {
+        path_or_uri.remove_prefix(kFileUri.length());
+        if (path_or_uri.starts_with(kLocalhost)) {
+            path_or_uri.remove_prefix(kLocalhost.length() - 1);  // Remove "localhost", keep "/"
+        }
+    }
     // Treat name as a file path directly.
-    name_ = std::filesystem::path(name_).lexically_normal().string();
+    backing_file_ = std::filesystem::path(path_or_uri).lexically_normal().string();
 }
 
 absl::Status SharedMemory::Create(std::filesystem::perms mode) {
@@ -82,7 +94,7 @@ void SharedMemory::Close() {
     }
 
     if (should_unlink) {
-        std::filesystem::remove(name_);
+        std::filesystem::remove(backing_file_);
     }
 }
 
@@ -96,7 +108,7 @@ absl::Status SharedMemory::OpenInternal(int oflag, int mode, bool do_mapping) {
     }
 
     const bool create = (oflag & O_CREAT) != 0;
-    const int fd = ::open(name_.c_str(), oflag, mode);
+    const int fd = ::open(backing_file_.c_str(), oflag, mode);
 
     if (fd == -1) {
         return absl::ErrnoToStatus(errno, "Failed to open shared memory");

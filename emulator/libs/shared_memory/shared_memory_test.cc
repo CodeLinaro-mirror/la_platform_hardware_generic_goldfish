@@ -257,4 +257,23 @@ TEST(SharedMemory, DestructionPolicy) {
     EXPECT_FALSE(std::filesystem::exists(path_destroy)) << "File should be removed with kDestroy";
 }
 
+TEST(SharedMemory, FileUriSupport) {
+    // Get a standard path
+    std::string path = GetUniqueName("test_uri");
+    // Convert to URI. logic: file:// + absolute_path
+    // On POSIX, path starts with /, so we get file:///path/to/file
+    std::string uri = "file://" + path;
+
+    SharedMemory writer(uri, 128);
+    auto status =
+            writer.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+    ASSERT_TRUE(status.ok()) << "Failed to create with URI: " << status;
+
+    // Verify the file exists at the *original* path, not the URI path
+    EXPECT_TRUE(std::filesystem::exists(path)) << "File should exist at system path: " << path;
+
+    writer.Close();
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
 }  // namespace goldfish::memory

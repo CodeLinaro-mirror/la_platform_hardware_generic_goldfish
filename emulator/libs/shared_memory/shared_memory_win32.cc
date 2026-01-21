@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -27,18 +28,20 @@
 
 namespace goldfish::memory {
 
-SharedMemory::SharedMemory(std::string name, size_t size, DestructionPolicy policy)
-        : name_(std::move(name)), size_(size), destruction_policy_(policy) {
-    const std::string k_file_uri = "file://";
-    if (name_.starts_with(k_file_uri)) {
-        const android::base::Win32UnicodeString srcUri(name_);
+using namespace std::string_view_literals;
+
+SharedMemory::SharedMemory(std::string_view path_or_uri, size_t size, DestructionPolicy policy)
+        : size_(size), destruction_policy_(policy) {
+    static constexpr std::string_view kFileUri = "file://"sv;
+    const android::base::Win32UnicodeString srcUri(std::string(path_or_uri).c_str());
+    if (path_or_uri.starts_with(kFileUri)) {
         WCHAR path[MAX_PATH];
         DWORD cPath = MAX_PATH;
         HRESULT HR = PathCreateFromUrlW(srcUri.c_str(), path, &cPath, NULL);
         assert(HR == S_OK);
-        name_ = std::filesystem::path(path).lexically_normal().string();
+        backing_file_ = std::filesystem::path(path).lexically_normal().string();
     } else {
-        name_ = std::filesystem::path(name_).lexically_normal().string();
+        backing_file_ = std::filesystem::path(srcUri.c_str()).lexically_normal().string();
     }
 }
 
@@ -60,7 +63,7 @@ absl::Status SharedMemory::OpenInternal(AccessMode access, bool create, bool do_
     }
     create_ = create;
 
-    const android::base::Win32UnicodeString wide_name(name_);
+    const android::base::Win32UnicodeString wide_name(backing_file_);
     DWORD pageAccess = (access == AccessMode::kReadWrite) ? PAGE_READWRITE : PAGE_READONLY;
 
     HANDLE hFile;
@@ -132,7 +135,7 @@ void SharedMemory::Close() {
 
         if (should_unlink) {
             // Best effort, if another file has the handle this will fail.
-            const android::base::Win32UnicodeString name(name_);
+            const android::base::Win32UnicodeString name(backing_file_);
             DeleteFileW(name.c_str());
         }
     }
