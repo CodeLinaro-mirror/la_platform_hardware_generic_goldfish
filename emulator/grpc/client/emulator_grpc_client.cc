@@ -245,7 +245,7 @@ EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::withDiscoveryFile(
     if (iniFile.HasKey("grpc.token")) {
         auto token = iniFile.GetString("grpc.token", "");
         auto* header = mDestination.add_required_headers();
-        header->set_key(android::emulation::control::BasicTokenAuth::DEFAULT_HEADER);
+        header->set_key(android::emulation::control::BasicTokenAuth::kDefaultHeader);
         header->set_value("Bearer " + token);
     }
     mDestination.set_target("localhost:" + iniFile.GetString("grpc.port", "8554"));

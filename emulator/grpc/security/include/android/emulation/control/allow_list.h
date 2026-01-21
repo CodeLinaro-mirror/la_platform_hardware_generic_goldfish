@@ -17,11 +17,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 // An AllowList can be used to configure access to gRPC uris.
 
@@ -31,48 +30,46 @@ class AllowList {
     virtual ~AllowList() = default;
 
     // Returns true if this url requires authentication
-    virtual bool requiresAuthentication(std::string_view path) = 0;
+    virtual bool RequiresAuthentication(std::string_view path) = 0;
 
     // Returns true is this url occurs on an allow list in the
     // "allowed" section. This means it does not require an explicit
     // "aud" field with the given path.
-    virtual bool isAllowed(std::string_view sub, std::string_view path) = 0;
+    virtual bool IsAllowed(std::string_view sub, std::string_view path) = 0;
 
     // Returns true is this url occurs on an allow list in the
     // "protected" section. This means it requires an explicit
     // "aud" field with the given path.
-    virtual bool isProtected(std::string_view sub, std::string_view path) = 0;
+    virtual bool IsProtected(std::string_view sub, std::string_view path) = 0;
 
-    bool isRed(std::string_view sub, std::string_view path) {
-        return !isAllowed(sub, path) && !isProtected(sub, path);
+    bool IsRed(std::string_view sub, std::string_view path) {
+        return !IsAllowed(sub, path) && !IsProtected(sub, path);
     }
 
     // Creates an allow list from the given json, note that bad json will
     // result in an allow list that denies everything to everyone.
-    static std::unique_ptr<AllowList> fromJson(std::string_view jsonWithComments);
+    static std::unique_ptr<AllowList> FromJson(std::string_view json_with_comments);
 
     // Creates an allow list from the given stream, note that bad json will
     // result in an allow list that denies everything to everyone.
-    static std::unique_ptr<AllowList> fromStream(std::istream& jsonWithComments);
+    static std::unique_ptr<AllowList> FromStream(std::istream& json_with_comments);
 
-    std::string getSource() { return mSource; }
+    std::string GetSource() { return source_; }
 
-    void setSource(std::string src) { mSource = src; }
+    void SetSource(std::string src) { source_ = std::move(src); }
 
   private:
-    std::string mSource;
+    std::string source_;
 };
 
 // Nobody can do anything. Reject everyone.
 class DisableAccess : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view /*path*/) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
+    bool IsAllowed(std::string_view /*sub*/, std::string_view /*path*/) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
+    bool IsProtected(std::string_view /*sub*/, std::string_view /*path*/) override { return false; }
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

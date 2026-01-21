@@ -33,70 +33,69 @@
 #define DD(...) (void)0
 #endif
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 using json = nlohmann::json;
 
-JwkDirectoryObserver::JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
-                                           PathFilterPredicate filter, bool startImmediately)
-        : mPathFilter(filter), mJwkPath(jwksDir), mCallback(callback) {
-    mWatcher = FileSystemWatcher::GetFileSystemWatcher(
-            jwksDir, [this](auto change, auto path) { fileChangeHandler(change, path); });
+JwkDirectoryObserver::JwkDirectoryObserver(const Path& jwks_dir, KeysetUpdatedCallback callback,
+                                           PathFilterPredicate filter, bool start_immediately)
+        : path_filter_(std::move(filter)), jwk_path_(jwks_dir), callback_(std::move(callback)) {
+    watcher_ = FileSystemWatcher::GetFileSystemWatcher(
+            jwks_dir,
+            [this](auto change, const auto& path) { FileChangeHandler(change, std::move(path)); });
 
-    if (startImmediately) {
-        if (!start()) {
-            LOG(WARNING) << "Unable to start observing " << jwksDir
-                         << ", jwks will not be updated. " << mLoadedKeys.size()
+    if (start_immediately) {
+        if (!Start()) {
+            LOG(WARNING) << "Unable to start observing " << jwks_dir
+                         << ", jwks will not be updated. " << loaded_keys_.Size()
                          << " were keysets loaded.";
         }
     }
 }
 
 JwkDirectoryObserver::~JwkDirectoryObserver() {
-    stop();
+    Stop();
 }
 
-bool JwkDirectoryObserver::start() {
+bool JwkDirectoryObserver::Start() {
     bool expected = false;
-    if (!mRunning.compare_exchange_strong(expected, true)) {
+    if (!running_.compare_exchange_strong(expected, true)) {
         return false;
     }
     // Initial scan..
-    scanJwkPath();
-    notifyKeysetUpdated();
-    return mWatcher ? mWatcher->Start() : false;
+    ScanJwkPath();
+    NotifyKeysetUpdated();
+    return watcher_ ? watcher_->Start() : false;
 }
 
-void JwkDirectoryObserver::scanJwkPath() {
-    mLoadedKeys.clear();
-    LOG(INFO) << "Scanning " << mJwkPath << "for jwk keys.";
-    for (auto path : base::file::scan_dir(mJwkPath, true)) {
-        std::string strPath = path.string();
-        auto status = mLoadedKeys.add(strPath);
+void JwkDirectoryObserver::ScanJwkPath() {
+    loaded_keys_.Clear();
+    LOG(INFO) << "Scanning " << jwk_path_ << "for jwk keys.";
+    for (const auto& path : base::file::scan_dir(jwk_path_, true)) {
+        const std::string str_path = path.string();
+        auto status = loaded_keys_.Add(str_path);
         if (!status.ok()) {
-            LOG(WARNING) << "Failed add jwk key: " << strPath << ", due to: " << status
+            LOG(WARNING) << "Failed add jwk key: " << str_path << ", due to: " << status
                          << ", access will be "
                             "denied to this provider and the file deleted.";
-            base::file::rm(strPath).IgnoreError();
+            base::file::rm(str_path).IgnoreError();
         }
     };
 }
 
-void JwkDirectoryObserver::stop() {
+void JwkDirectoryObserver::Stop() {
     bool expected = true;
-    if (!mRunning.compare_exchange_strong(expected, false)) {
-        mWatcher->Stop();
+    if (!running_.compare_exchange_strong(expected, false)) {
+        watcher_->Stop();
     }
 
-    mLoadedKeys.clear();
+    loaded_keys_.Clear();
 }
 
-void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeType change,
-                                             Path path) {
+void JwkDirectoryObserver::FileChangeHandler(FileSystemWatcher::WatcherChangeType change,
+                                             const Path& path) {
     DD("Filechange handler %d for %s", change, path);
-    if (!mPathFilter(path)) {
+    if (!path_filter_(path)) {
         // Ignore files of the given type.
         DD("Ignoring %s", path);
         return;
@@ -109,7 +108,7 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
         DD("Changed/Created event for: %s", path);
 
         // Wait at most 1 second for non-empty files
-        auto status = mLoadedKeys.addWithRetryForEmpty(path, 8, std::chrono::milliseconds(125));
+        auto status = loaded_keys_.AddWithRetryForEmpty(path, 8, std::chrono::milliseconds(125));
         if (!status.ok()) {
             LOG(WARNING) << "Failed to add jwk key: " << path << ", due to: " << status.message()
                          << ", access will be "
@@ -117,33 +116,34 @@ void JwkDirectoryObserver::fileChangeHandler(FileSystemWatcher::WatcherChangeTyp
             base::file::rm(path).IgnoreError();
             return;
         }
-        LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
+        LOG(INFO) << "Added JSON Web Key Sets from " << path << ", " << loaded_keys_.Size()
                   << " keys loaded";
         break;
     }
     case FileSystemWatcher::WatcherChangeType::kDeleted:
         DD("Deleted %s", path);
-        auto status = mLoadedKeys.remove(path);
+        auto status = loaded_keys_.Remove(path);
         if (!status.ok()) {
             // This usually means it is already deleted.
             LOG(ERROR) << "Failed to remove jwk key: " << path << ", due to: " << status.message();
             return;
         }
-        LOG(INFO) << "Removed JSON Web Key Sets from " << path << ", " << mLoadedKeys.size()
+        LOG(INFO) << "Removed JSON Web Key Sets from " << path << ", " << loaded_keys_.Size()
                   << " keys loaded";
     };
 
-    notifyKeysetUpdated();
+    NotifyKeysetUpdated();
 }
 
-static absl::Status notify(JwkDirectoryObserver::KeysetUpdatedCallback callback,
-                           const JwkKeyLoader& loader) {
-    if (loader.empty()) {
+namespace {
+absl::Status Notify(const JwkDirectoryObserver::KeysetUpdatedCallback& callback,
+                    const JwkKeyLoader& loader) {
+    if (loader.Empty()) {
         callback(nullptr);
         return absl::OkStatus();
     }
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     if (keyset.ok()) {
         callback(std::move(*keyset));
         return absl::OkStatus();
@@ -151,24 +151,23 @@ static absl::Status notify(JwkDirectoryObserver::KeysetUpdatedCallback callback,
 
     return keyset.status();
 }
+}  // namespace
 
-void JwkDirectoryObserver::notifyKeysetUpdated() {
-    auto notified = notify(mCallback, mLoadedKeys);
+void JwkDirectoryObserver::NotifyKeysetUpdated() {
+    auto notified = Notify(callback_, loaded_keys_);
 
     // Notification failed, lets see if we can rescan and update
     // our keyset..
     if (!notified.ok()) {
         LOG(ERROR) << "Failed construct jwk keyset due to: " << notified.message()
                    << ", rescanning.";
-        scanJwkPath();
-        notify(mCallback, mLoadedKeys).IgnoreError();
+        ScanJwkPath();
+        Notify(callback_, loaded_keys_).IgnoreError();
     }
 }
 
-bool JwkDirectoryObserver::acceptJwkExtOnly(Path path) {
+bool JwkDirectoryObserver::AcceptJwkExtOnly(const Path& path) {
     return absl::EndsWith(path.string(), kJwkExt);
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

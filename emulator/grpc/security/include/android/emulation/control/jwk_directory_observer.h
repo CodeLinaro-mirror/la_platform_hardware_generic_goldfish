@@ -24,9 +24,7 @@
 #include "nlohmann/json.hpp"
 #include "tink/keyset_handle.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 using Path = std::filesystem::path;
 using base::FileSystemWatcher;
@@ -68,9 +66,9 @@ class JwkDirectoryObserver {
     //
     // Note: setting startImmediately to true means you will not detect failures
     // in the watcher.
-    JwkDirectoryObserver(Path jwksDir, KeysetUpdatedCallback callback,
-                         PathFilterPredicate filter = JwkDirectoryObserver::acceptJwkExtOnly,
-                         bool startImmediately = true);
+    JwkDirectoryObserver(const Path& jwks_dir, KeysetUpdatedCallback callback,
+                         PathFilterPredicate filter = JwkDirectoryObserver::AcceptJwkExtOnly,
+                         bool start_immediately = true);
     ~JwkDirectoryObserver();
 
     // Start observing the directory structure.
@@ -78,31 +76,29 @@ class JwkDirectoryObserver {
     // directory that is being observed.
     //
     // Returns false if we are unable to observe the directory.
-    bool start();
+    bool Start();
 
     // Stops observing the directory. No new events will be delivered.
-    void stop();
+    void Stop();
 
     // The path that is being observed.
-    Path observes() { return mJwkPath; }
+    Path Observes() { return jwk_path_; }
 
   private:
-    static bool acceptJwkExtOnly(Path path);
-    void fileChangeHandler(FileSystemWatcher::WatcherChangeType change, Path path);
+    static bool AcceptJwkExtOnly(const Path& path);
+    void FileChangeHandler(FileSystemWatcher::WatcherChangeType change, const Path& path);
 
-    void notifyKeysetUpdated();
-    void scanJwkPath();
+    void NotifyKeysetUpdated();
+    void ScanJwkPath();
 
-    PathFilterPredicate mPathFilter;
-    Path mJwkPath;
-    JwkKeyLoader mLoadedKeys;
-    KeysetUpdatedCallback mCallback;
-    std::unique_ptr<FileSystemWatcher> mWatcher;
-    std::atomic_bool mRunning{false};
+    PathFilterPredicate path_filter_;
+    Path jwk_path_;
+    JwkKeyLoader loaded_keys_;
+    KeysetUpdatedCallback callback_;
+    std::unique_ptr<FileSystemWatcher> watcher_;
+    std::atomic_bool running_{false};
 
     static constexpr const std::string_view kJwkExt{".jwk"};
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

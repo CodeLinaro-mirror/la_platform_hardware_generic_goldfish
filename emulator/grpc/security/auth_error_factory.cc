@@ -16,43 +16,41 @@
 
 #include "absl/strings/str_format.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 const std::string_view kGRADLE = "gradle-utp-emulator-control";
 const std::string_view kSTUDIO = "android-studio";
 
-absl::Status AuthErrorFactory::authErrorNoKeySet(std::string_view jwk_path) {
+absl::Status AuthErrorFactory::AuthErrorNoKeySet(std::string_view jwk_path) {
     return absl::UnauthenticatedError(absl::StrFormat(
             "No key set present. Make sure your public jwk is saved in %s", jwk_path));
 }
 
-absl::Status AuthErrorFactory::authErrorNoValidatorForToken(std::string_view path,
+absl::Status AuthErrorFactory::AuthErrorNoValidatorForToken(std::string_view /*path*/,
                                                             std::string_view token) {
     return absl::UnauthenticatedError(absl::StrFormat("The token `%s` is invalid", token));
 }
 
-absl::Status AuthErrorFactory::authErrorInvalidToken(std::string_view token) {
+absl::Status AuthErrorFactory::AuthErrorInvalidToken(std::string_view token) {
     return absl::UnauthenticatedError(absl::StrFormat("The token `%s` is invalid", token));
 }
 
-absl::Status AuthErrorFactory::authErrorInvalidHeader(std::string_view header,
+absl::Status AuthErrorFactory::AuthErrorInvalidHeader(std::string_view header,
                                                       std::string_view expected) {
     return absl::UnauthenticatedError(absl::StrFormat(
             "Invalid token header: `%s`, it does not start with: `%s`", header, expected));
 }
 
-absl::Status AuthErrorFactory::authErrorMissingHeader(std::string_view header) {
+absl::Status AuthErrorFactory::AuthErrorMissingHeader(std::string_view header) {
     return absl::UnauthenticatedError(
             absl::StrFormat("Missing the '%s' header with security credentials.", header));
 }
 
-absl::Status AuthErrorFactory::authErrorMissingIss(std::string_view path) {
+absl::Status AuthErrorFactory::AuthErrorMissingIss(std::string_view /*path*/) {
     return absl::UnauthenticatedError("The JWT token is missing the iss claim.");
 }
 
-absl::Status AuthErrorFactory::authErrorMissingAud(std::string_view iss, std::string_view path) {
+absl::Status AuthErrorFactory::AuthErrorMissingAud(std::string_view iss, std::string_view path) {
     if (iss == kGRADLE) {
         // In the gradle case the user has not added the entry to the control
         // block
@@ -68,7 +66,7 @@ absl::Status AuthErrorFactory::authErrorMissingAud(std::string_view iss, std::st
                             path));
 }
 
-absl::Status AuthErrorFactory::authErrorMissingClaim(std::string_view iss, std::string_view path) {
+absl::Status AuthErrorFactory::AuthErrorMissingClaim(std::string_view iss, std::string_view path) {
     if (iss == kGRADLE) {
         return absl::PermissionDeniedError(
                 absl::StrFormat("Make sure to add `allowedEndpoints.add(\"%s\")` "
@@ -82,15 +80,13 @@ absl::Status AuthErrorFactory::authErrorMissingClaim(std::string_view iss, std::
                             path));
 }
 
-absl::Status AuthErrorFactory::authErrorNotOnAllowList(std::string_view iss, std::string_view path,
-                                                       std::string_view allowListOrigin) {
+absl::Status AuthErrorFactory::AuthErrorNotOnAllowList(std::string_view iss, std::string_view path,
+                                                       std::string_view allow_list_origin) {
     return absl::PermissionDeniedError(
             absl::StrFormat("The endpoint: %s is not on the allowlist loaded from: "
                             "`%s`. Add %s to the protected or allowed section of %s.",
-                            path, allowListOrigin, path, iss)
+                            path, allow_list_origin, path, iss)
 
     );
 }
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
