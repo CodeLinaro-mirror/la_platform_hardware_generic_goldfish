@@ -40,6 +40,10 @@ class SensorServiceImpl {
 
     grpc::Status getSensor(const SensorValue& request, SensorValue* reply);
 
+    grpc::Status setPhysicalModel(const PhysicalModelValue& request);
+
+    grpc::Status getPhysicalModel(const PhysicalModelValue& request, PhysicalModelValue* reply);
+
   private:
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 };

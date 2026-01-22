@@ -93,6 +93,9 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     SensorData GetSensorData(AndroidSensor) const;
     void SetSensorValue(AndroidSensor, const SensorValue&);
 
+    static size_t GetPhysicalParameterSize(PhysicalParameter parameter);
+    void GetPhysicalParameterValue(PhysicalParameter parameter, float* out, size_t count,
+                                   ParameterValueType parameter_value_type) const;
     void SetPhysicalParameterValue(PhysicalParameter parameter, const float* val, size_t count,
                                    PhysicalInterpolation interpolation_mode);
 

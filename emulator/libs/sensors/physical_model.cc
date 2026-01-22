@@ -95,6 +95,47 @@ void PhysicalModel::SetSensorValue(const AndroidSensor sensor_id, const SensorVa
     SetSensorValueImpl(sensor_id, val.data(), val.size());
 }
 
+size_t PhysicalModel::GetPhysicalParameterSize(PhysicalParameter parameter) {
+#define VALUE_SIZE_float 1
+#define VALUE_SIZE_vec3 3
+#define VALUE_SIZE_vec4 4
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W) \
+    case PhysicalParameter::X:                      \
+        return VALUE_SIZE_##W;
+
+    switch (parameter) {
+        GOLDFISH_PHYSICAL_PARAMETERS_LIST
+    case PhysicalParameter::MAX_PHYSICAL_PARAMETERS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected parameter: " << static_cast<int>(parameter);
+
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
+#undef VALUE_SIZE_vec4
+#undef VALUE_SIZE_vec3
+#undef VALUE_SIZE_float
+}
+
+void PhysicalModel::GetPhysicalParameterValue(const PhysicalParameter parameter, float* out,
+                                              const size_t count,
+                                              const ParameterValueType parameter_value_type) const {
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W)                   \
+    case PhysicalParameter::X:                                        \
+        getValues(getParameter##Z(parameter_value_type), out, count); \
+        return;
+
+    switch (parameter) {
+        GOLDFISH_PHYSICAL_PARAMETERS_LIST
+    case PhysicalParameter::MAX_PHYSICAL_PARAMETERS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected parameter: " << static_cast<int>(parameter);
+
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
+}
+
 size_t PhysicalModel::GetSensorValueSize(AndroidSensor sensor_id) {
 #define VALUE_SIZE_float 1
 #define VALUE_SIZE_vec3 3
