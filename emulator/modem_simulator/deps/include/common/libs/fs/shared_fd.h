@@ -71,9 +71,6 @@ struct FileInstance {
     bool IsOpen() const { return fd_ != -1; }
     void Close();
 
-    int Bind(const struct sockaddr* addr, socklen_t addrlen);
-    int Listen(int backlog);
-    int Connect(const struct sockaddr* addr, socklen_t addrlen);
     void Set(fd_set* dest, int* max_index) const;
     bool IsSet(fd_set* in) const;
     ssize_t Write(const void* buf, size_t count);
