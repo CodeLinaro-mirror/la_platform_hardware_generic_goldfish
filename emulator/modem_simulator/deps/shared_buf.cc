@@ -19,43 +19,43 @@ constexpr size_t kBuffSize = 4096;
 }  // namespace
 
 ssize_t ReadAll(SharedFD fd, std::string* buf) {
-  buf->clear();
+    buf->clear();
 
-  ssize_t total_read = 0;
-  while (true) {
-    size_t current_size = buf->size();
-    buf->resize(current_size + kBuffSize);
+    ssize_t total_read = 0;
+    while (true) {
+        size_t current_size = buf->size();
+        buf->resize(current_size + kBuffSize);
 
-    ssize_t chunk_read = fd->Read(&(*buf)[current_size], kBuffSize);
-    if (chunk_read < 0) {
-      buf->resize(current_size);
-      return chunk_read;
-    } else if (!chunk_read) {
-      return total_read;  // EOF (Read returns 0)
+        ssize_t chunk_read = fd->Read(&(*buf)[current_size], kBuffSize);
+        if (chunk_read < 0) {
+            buf->resize(current_size);
+            return chunk_read;
+        } else if (!chunk_read) {
+            return total_read;  // EOF (Read returns 0)
+        }
+
+        buf->resize(current_size + chunk_read);
+        total_read += chunk_read;
     }
 
-    buf->resize(current_size + chunk_read);
-    total_read += chunk_read;
-  }
-
-  return total_read;
+    return total_read;
 }
 
 ssize_t ReadExact(SharedFD fd, char* buf, size_t size) {
-  size_t total_read = 0;
+    size_t total_read = 0;
 
-  while (total_read < size) {
-    ssize_t read = fd->Read(&buf[total_read], size - total_read);
-    if (read < 0) {
-      return read;
-    } else if (!read) {
-      return total_read;
+    while (total_read < size) {
+        ssize_t read = fd->Read(&buf[total_read], size - total_read);
+        if (read < 0) {
+            return read;
+        } else if (!read) {
+            return total_read;
+        }
+
+        total_read += read;
     }
 
-    total_read += read;
-  }
-
-  return total_read;
+    return total_read;
 }
 
 ssize_t ReadExact(SharedFD fd, std::string* buf) {
@@ -63,20 +63,20 @@ ssize_t ReadExact(SharedFD fd, std::string* buf) {
 }
 
 ssize_t WriteAll(SharedFD fd, const char* buf, size_t size) {
-  size_t total_written = 0;
+    size_t total_written = 0;
 
-  while (total_written < size) {
-    ssize_t written = fd->Write((void*)&(buf[total_written]), size - total_written);
-    if (written <= 0) {
-      if (written < 0) {
-        return written;
-      }
-      return total_written;
+    while (total_written < size) {
+        ssize_t written = fd->Write((void*)&(buf[total_written]), size - total_written);
+        if (written <= 0) {
+            if (written < 0) {
+                return written;
+            }
+            return total_written;
+        }
+        total_written += written;
     }
-    total_written += written;
-  }
 
-  return total_written;
+    return total_written;
 }
 
 ssize_t WriteAll(SharedFD fd, std::string_view buf) {
