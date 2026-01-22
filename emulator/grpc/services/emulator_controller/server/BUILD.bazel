@@ -38,6 +38,7 @@ cc_library(
         "//emulator/grpc/services/emulator_controller/input",
         "//emulator/grpc/services/emulator_controller/keyboard",
         "//emulator/libs/fps_calculator",
+        "//emulator/libs/shared_memory",
         "//emulator/plugin/avd:info",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",

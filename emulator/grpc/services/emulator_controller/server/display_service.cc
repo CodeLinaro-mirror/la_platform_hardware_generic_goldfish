@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
@@ -27,6 +28,7 @@
 #include "goldfish/eventing/multi_event_source_waiter.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
+#include "goldfish/memory/shared_memory.h"
 #include "goldfish/physics/rotation.h"
 
 namespace android {
@@ -42,6 +44,7 @@ using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
 using ::goldfish::eventing::ObservableValue;
 using ::goldfish::eventing::ObservableValueTriggerOnUpdate;
+using ::goldfish::memory::SharedMemory;
 using ::goldfish::sensors::AndroidSensor;
 using ::goldfish::sensors::PhysicalModel;
 using ::goldfish::sensors::PhysicalModelChangeEvent;
@@ -52,6 +55,19 @@ using ProtoRotation = android::emulation::control::Rotation;
 
 using DeviceSkinRotationCallbackSource =
         ObservableValue<DeviceSkinRotation, ObservableValueTriggerOnUpdate>;
+
+PixelFormat PixelFormatFromProtobuf(const ImageFormat_ImgFormat format) {
+    switch (format) {
+    case ImageFormat::RGB888:
+        return PixelFormat::RGB888;
+    case ImageFormat::RGBA8888:
+        return PixelFormat::RGBA8888;
+    case ImageFormat::PNG:
+        return PixelFormat::PNG;
+    default:
+        return PixelFormat::RGB888;
+    }
+}
 
 ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     ProtoRotation protoRotation;
@@ -77,6 +93,15 @@ ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     return protoRotation;
 }
 
+static uint8_t* standard_allocator(Image* img, size_t size) {
+    if (img->image().size() != size) {
+        // Proto will release the existing object.
+        img->set_allocated_image(new std::string(size, 0));
+    }
+    auto* raw_data = img->mutable_image()->data();
+    return reinterpret_cast<uint8_t*>(raw_data);
+}
+
 Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageFormat* request,
                                             grpc::ServerWriter<Image>* writer) {
     // Make sure we always write the first frame, this can be
@@ -85,10 +110,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     absl::Hash<std::string> hasher;
     ::goldfish::FpsCalculator fpsCalculator(10);
 
-    // cPixels is used to verify the invariant that retrieved image
-    // is not shrinking over subsequent calls, as this might result
-    // in unexpected behavior for clients.
-    int cPixels = reply.image().size();
     bool clientAvailable = !context->IsCancelled();
 
     bool lastFrameWasEmpty = reply.format().width() == 0;
@@ -96,13 +117,17 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
     auto screen = mMultiDisplay.getDisplay(request->display());
     if (!screen.ok()) {
-        return Status(::grpc::StatusCode::INVALID_ARGUMENT,
-                      "Invalid display: " + std::to_string(request->display()), "");
+        LOG(INFO) << "Unable to retrieve display: " << screen.status();
+        return abslStatusToGrpcStatus(screen.status());
     }
     auto display = screen->lock();
     if (!display) {
-        return Status(::grpc::StatusCode::INVALID_ARGUMENT,
-                      "Invalid display: " + std::to_string(request->display()), "");
+        return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
+    }
+
+    auto allocator = createAllocator(*request, *display);
+    if (!allocator.ok()) {
+        return abslStatusToGrpcStatus(allocator.status());
     }
 
     DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
@@ -131,21 +156,16 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
             // delivered between framesArrived and this call, which resulted in
             // the increment of the frame counter. We would not "see" this frame.
             frame = frameOrSensorEvent.GetEventSequence();
-            auto status = getScreenshot(context, request, &reply);
+            auto status = getScreenshot(context, request, &reply, *allocator);
             if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION) {
                 continue;
             }
-
             if (!status.ok()) {
                 return status;
             }
 
             firstTime = false;
-            // The invariant that the pixel buffer does not decrease
-            // should hold. Clients likely rely on the buffer size to
-            // match the actual number of available pixels.
-            assert(reply.image().size() >= cPixels);
-            cPixels = reply.image().size();
+            // The size of the image might change due to rotation or scaling.
 
             // We send the first empty frame, after that we wait for
             // frames to come, or until the client gives up on us. So
@@ -171,19 +191,6 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     return Status::OK;
 }
 
-PixelFormat fromProtobuf(const ImageFormat_ImgFormat format) {
-    switch (format) {
-    case ImageFormat::RGB888:
-        return PixelFormat::RGB888;
-    case ImageFormat::RGBA8888:
-        return PixelFormat::RGBA8888;
-    case ImageFormat::PNG:
-        return PixelFormat::PNG;
-    default:
-        return PixelFormat::RGB888;
-    }
-}
-
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
     auto screen = mMultiDisplay.getDisplay(request->display());
@@ -195,6 +202,57 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     if (!display) {
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
     }
+
+    auto allocator = createAllocator(*request, *display);
+    if (!allocator.ok()) {
+        return abslStatusToGrpcStatus(allocator.status());
+    }
+    return getScreenshot(context, request, reply, *allocator);
+}
+
+absl::StatusOr<DisplayServiceImpl::MemoryAllocator> DisplayServiceImpl::createAllocator(
+        const ImageFormat& request, const IDisplay& display) {
+    if (!request.has_transport() || request.transport().channel() != ImageTransport::MMAP) {
+        return standard_allocator;
+    }
+
+    // Reserve the upper bound of pixels we could ever need.
+    PixelFormat format = PixelFormatFromProtobuf(request.format());
+    size_t bpp = (format == PixelFormat::RGB888) ? 3 : 4;
+    // Pixman requires the stride (in bytes) to be a multiple of 4 bytes.
+    auto dims = display.GetDimensions();
+    size_t stride = (dims.width * bpp + 3) & ~3;
+    size_t max_size = dims.height * stride;
+    VLOG(2) << "Requested transport: " << request.transport().ShortDebugString()
+            << ", display: " << dims.width << "x" << dims.height << ", max size: " << max_size;
+    auto mmap = std::make_unique<SharedMemory>(request.transport().handle(), max_size);
+    if (auto status = mmap->Open(SharedMemory::AccessMode::kReadWrite); !status.ok()) {
+        return status;
+    }
+    // Explicitly check if the opened shared memory is smaller than expected.
+    if (mmap->Size() < max_size) {
+        return absl::OutOfRangeError(
+                absl::StrFormat("Shared memory handle %s is too small. Expected at least %d bytes, "
+                                "but has %d bytes.",
+                                request.transport().handle(), max_size, mmap->Size()));
+    }
+    return [shm = std::move(mmap)](Image* /* img */, size_t size) -> absl::StatusOr<uint8_t*> {
+        if (size > shm->Size()) {
+            return absl::OutOfRangeError(
+                    absl::StrFormat("Requesting to allocate %d pixels for handle %s that only "
+                                    "supports %d pixels",
+                                    size, shm->BackingFile().string(), shm->Size()));
+        }
+        return static_cast<uint8_t*>(shm->Get());
+    };
+}
+
+Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
+                                         Image* reply, MemoryAllocator& allocator) {
+    bool needs_side_channel =
+            request->has_transport() && request->transport().channel() == ImageTransport::MMAP;
+    auto screen = mMultiDisplay.getDisplay(request->display());
+    auto display = screen->lock();
 
     const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
     auto dims = display->GetDimensions();
@@ -236,7 +294,6 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 
     // Calculate width and height, keeping aspect ratio in mind.
     auto [newWidth, newHeight] = display->resizeKeepAspectRatio(desiredWidth, desiredHeight);
-
     VLOG(2) << "Resizing from " << desiredWidth << "x" << desiredHeight << " to " << newWidth << "x"
             << newHeight;
 
@@ -256,29 +313,35 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         break;
     }
 
-    char* unsafe = reply->mutable_image()->data();
-    uint8_t* pixels = reinterpret_cast<uint8_t*>(unsafe);
-    size_t cPixels = reply->mutable_image()->size();
-    PixelFormat format = fromProtobuf(request->format());
+    // Let's figure out how many pixels we need, and allocate a buffer than can hold it.
+    size_t cPixels = 0;
+    PixelFormat format = PixelFormatFromProtobuf(request->format());
 
-    auto seq = display->getPixels(format, newWidth, newHeight, rotation, pixels, &cPixels);
-    if (absl::IsFailedPrecondition(seq.status())) {
-        VLOG(2) << "Allocating string object: " << seq.status();
-        auto buffer = new std::string(cPixels, 0);
+    auto seq =
+            display->getPixels(format, newWidth, newHeight, rotation, /*pixels=*/nullptr, &cPixels);
+    DCHECK(absl::IsFailedPrecondition(seq.status()))
+            << "The c-style callback should inform us how many bytes we should allocate.";
 
-        // The protobuf message takes ownership of the pointer.
-        reply->set_allocated_image(buffer);
-        unsafe = reply->mutable_image()->data();
-        pixels = reinterpret_cast<uint8_t*>(unsafe);
-        cPixels = reply->mutable_image()->size();
-        seq = display->getPixels(format, newWidth, newHeight, rotation, pixels, &cPixels);
-        if (format == PixelFormat::PNG && cPixels < reply->mutable_image()->size()) {
-            reply->mutable_image()->resize(cPixels);
-        }
+    auto allocated_pixels = allocator(reply, cPixels);
+    if (!allocated_pixels.ok()) {
+        return abslStatusToGrpcStatus(allocated_pixels.status());
     }
+    seq = display->getPixels(format, newWidth, newHeight, rotation, *allocated_pixels, &cPixels);
 
     if (!seq.status().ok()) {
         return abslStatusToGrpcStatus(seq.status());
+    }
+
+    // Make sure studio does not get confused, as the pixels required for png < image size..
+    if (!needs_side_channel && format == PixelFormat::PNG &&
+        cPixels < reply->mutable_image()->size()) {
+        reply->mutable_image()->resize(cPixels);
+    }
+
+    if (needs_side_channel) {
+        auto* transport = reply->mutable_format()->mutable_transport();
+        transport->set_handle(request->transport().handle());
+        transport->set_channel(ImageTransport::MMAP);
     }
 
     auto outFormat = reply->mutable_format();
