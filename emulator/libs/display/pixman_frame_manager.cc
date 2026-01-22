@@ -40,6 +40,12 @@ size_t calculateHash(::pixman_image_t* image) {
 
 namespace goldfish::display {
 
+void PixmanFrameManager::updateSurface() {
+    absl::MutexLock lock(&mDisplayAccess);
+    auto height = pixman_image_get_height(mCurrentImage.get());
+    memcpy(pixman_image_get_data(mCurrentImage.get()), mSrcBits, height * mStride);
+}
+
 void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
     if (pixman_image_get_depth(image) < mCurrentPixelDepth) {
         // QEMU delivers two display streams: a 24bpp stream for the "disconnected"
@@ -71,6 +77,8 @@ void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
 
     // Lock and swap the pointer. This is very fast.
     absl::MutexLock lock(&mDisplayAccess);
+    mSrcBits = src_bits;
+    mStride = stride;
     mCurrentImage = new_image;
 }
 

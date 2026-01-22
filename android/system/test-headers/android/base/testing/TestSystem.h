@@ -53,8 +53,8 @@ namespace fs = std::filesystem;
 //
 class TestSystem : public System {
   public:
-    using System::getEnvironmentVariable;
-    using System::setEnvironmentVariable;
+    using System::GetEnvironmentVariable;
+    using System::SetEnvironmentVariable;
 
     explicit TestSystem(fs::path ignored, fs::path homeDir = "/home", fs::path appDataDir = "")
             : mHomeDir(homeDir)
@@ -63,32 +63,32 @@ class TestSystem : public System {
             , mRemoteSessionType()
             , mTempDir(std::make_unique<TestTempDir>("TestSystem"))
             , mEnvPairs()
-            , mPrevSystem(System::setForTesting(this))
+            , mPrevSystem(System::SetForTesting(this))
             , mTimes()
             , mShellOpaque(nullptr)
             , mUnixTime() {}
 
-    ~TestSystem() override { System::setForTesting(mPrevSystem); }
+    ~TestSystem() override { System::SetForTesting(mPrevSystem); }
 
-    const fs::path getHomeDirectory() const override { return mHomeDir; }
+    const fs::path GetHomeDirectory() const override { return mHomeDir; }
 
     void setHomeDirectory(const fs::path& homeDir) { mHomeDir = homeDir; }
 
-    const fs::path getAppDataDirectory() const override { return mAppDataDir; }
+    const fs::path GetAppDataDirectory() const override { return mAppDataDir; }
 
     void setAppDataDirectory(std::string_view appDataDir) { mAppDataDir = appDataDir; }
 
-    OsType getOsType() const override { return mOsType; }
+    OsType GetOsType() const override { return mOsType; }
 
-    std::string getOsName() override { return mOsName; }
+    std::string GetOsName() override { return mOsName; }
 
-    std::string getMajorOsVersion() const override { return "0.0"; }
+    std::string GetMajorOsVersion() const override { return "0.0"; }
 
-    int getCpuCoreCount() const override { return mCoreCount; }
+    int GetCpuCoreCount() const override { return mCoreCount; }
 
     void setCpuCoreCount(int count) { mCoreCount = count; }
 
-    MemUsage getMemUsage() const override {
+    MemUsage GetMemUsage() const override {
         MemUsage res;
         res.resident = 4294967295ULL;
         res.resident_max = 4294967295ULL * 2;
@@ -101,7 +101,7 @@ class TestSystem : public System {
 
     void setOsType(OsType type) { mOsType = type; }
 
-    std::string envGet(std::string_view varname) const override {
+    std::string EnvGet(std::string_view varname) const override {
         for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
             const fs::path name = mEnvPairs[n];
             if (name == varname) {
@@ -111,7 +111,7 @@ class TestSystem : public System {
         return std::string();
     }
 
-    std::vector<std::string> envGetAll() const override {
+    std::vector<std::string> EnvGetAll() const override {
         std::vector<std::string> res;
         for (size_t i = 0; i < mEnvPairs.size(); i += 2) {
             const std::string name = mEnvPairs[i];
@@ -121,7 +121,7 @@ class TestSystem : public System {
         return res;
     }
 
-    void envSet(const std::string& varname, const std::string& varvalue) override {
+    void EnvSet(const std::string& varname, const std::string& varvalue) override {
         // First, find if the name is in the array.
         int index = -1;
         for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
@@ -147,7 +147,7 @@ class TestSystem : public System {
         }
     }
 
-    bool envTest(std::string_view varname) const override {
+    bool EnvTest(std::string_view varname) const override {
         for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
             const fs::path name = mEnvPairs[n];
             if (name == varname) {
@@ -159,7 +159,7 @@ class TestSystem : public System {
 
     TestTempDir* getTempRoot() const { return mTempDir.get(); }
 
-    bool isRemoteSession(std::string* sessionType) const override {
+    bool IsRemoteSession(std::string* sessionType) const override {
         if (!mIsRemoteSession) {
             return false;
         }
@@ -177,22 +177,22 @@ class TestSystem : public System {
         }
     }
 
-    Times getProcessTimes() const override { return mTimes; }
+    Times GetProcessTimes() const override { return mTimes; }
 
     void setProcessTimes(const Times& times) { mTimes = times; }
 
     // TODO remove.
-    fs::path getTempDir() const override { return "/tmp"; }
+    fs::path GetTempDir() const override { return "/tmp"; }
 
-    bool getEnableCrashReporting() const override { return true; }
+    bool GetEnableCrashReporting() const override { return true; }
 
-    time_t getUnixTime() const override { return getUnixTimeUs() / 1000000; }
+    time_t GetUnixTime() const override { return GetUnixTimeUs() / 1000000; }
 
-    Duration getUnixTimeUs() const override { return getHighResTimeUs(); }
+    Duration GetUnixTimeUs() const override { return GetHighResTimeUs(); }
 
-    WallDuration getHighResTimeUs() const override {
+    WallDuration GetHighResTimeUs() const override {
         if (mUnixTimeLive) {
-            auto now = hostSystem()->getHighResTimeUs();
+            auto now = hostSystem()->GetHighResTimeUs();
             mUnixTime += now - mUnixTimeLastQueried;
             mUnixTimeLastQueried = now;
         }
@@ -206,27 +206,25 @@ class TestSystem : public System {
     void setLiveUnixTime(bool enable) {
         mUnixTimeLive = enable;
         if (enable) {
-            mUnixTimeLastQueried = hostSystem()->getHighResTimeUs();
+            mUnixTimeLastQueried = hostSystem()->GetHighResTimeUs();
         }
     }
 
-    void sleepMs(unsigned n) const override {
+    void SleepMs(unsigned n) const override {
         // Don't sleep in tests, use the static functions from Thread class
         // if you need a delay (you don't!).
         Thread::yield();  // Add a small delay to mimic the intended behavior.
     }
 
-    void sleepUs(unsigned n) const override { sleepMs(n / 1000); }
+    void SleepUs(unsigned n) const override { SleepMs(n / 1000); }
 
-    void sleepToUs(WallDuration absTime) const override {
+    void SleepToUs(WallDuration absTime) const override {
         // Don't sleep in tests, use the static functions from Thread class
         // if you need a delay (you don't!).
         Thread::yield();  // Add a small delay to mimic the intended behavior.
     }
 
-    void yield() const override { Thread::yield(); }
-
-    void configureHost() const override {}
+    void ConfigureHost() const override {}
 
     System* host() { return hostSystem(); }
 
@@ -243,7 +241,7 @@ class TestSystem : public System {
     mutable Duration mUnixTime;
     mutable Duration mUnixTimeLastQueried = 0;
     bool mUnixTimeLive = false;
-    OsType mOsType = OsType::Windows;
+    OsType mOsType = OsType::kWindows;
     std::string mOsName;
     bool mUnderWine = false;
     int mCoreCount = 4;

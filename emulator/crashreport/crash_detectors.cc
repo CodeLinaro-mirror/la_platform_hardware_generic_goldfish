@@ -17,14 +17,14 @@ namespace crashreport {
 
 TimedHangDetector::TimedHangDetector(System::Duration intervalMs, StatefulHangdetector* check)
         : mInner(check), mIntervalMs(intervalMs) {
-    mNextCheck = System::get()->getUnixTimeUs() + (mIntervalMs * 1000);
+    mNextCheck = System::Get()->GetUnixTimeUs() + (mIntervalMs * 1000);
 }
 
 bool TimedHangDetector::check() {
-    if (System::get()->getUnixTimeUs() < mNextCheck) {
+    if (System::Get()->GetUnixTimeUs() < mNextCheck) {
         return mFailedOnce;
     }
-    mNextCheck = System::get()->getUnixTimeUs() + (mIntervalMs * 1000);
+    mNextCheck = System::Get()->GetUnixTimeUs() + (mIntervalMs * 1000);
     mFailedOnce = mFailedOnce || mInner->check();
     return mFailedOnce;
 }

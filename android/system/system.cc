@@ -240,12 +240,12 @@ class HostSystem : public System {
   public:
     HostSystem() : mHomeDir(), mAppDataDir() {
         ::atexit(HostSystem::atexit_HostSystem);
-        configureHost();
+        ConfigureHost();
     }
 
     ~HostSystem() override {}
 
-    const fs::path getHomeDirectory() const override {
+    const fs::path GetHomeDirectory() const override {
         if (mHomeDir.empty()) {
 #if defined(_WIN32)
             // NOTE: SHGetFolderPathW always takes a buffer of MAX_PATH size,
@@ -259,8 +259,8 @@ class HostSystem : public System {
                 mHomeDir = Win32UnicodeString::convertToUtf8(path);
             } else {
                 // Fallback to windows-equivalent of HOME env var
-                std::string homedrive = envGet("HOMEDRIVE");
-                std::string homepath = envGet("HOMEPATH");
+                std::string homedrive = EnvGet("HOMEDRIVE");
+                std::string homepath = EnvGet("HOMEPATH");
                 if (!homedrive.empty() && !homepath.empty()) {
                     mHomeDir.assign(homedrive);
                     mHomeDir.append(homepath);
@@ -286,10 +286,10 @@ class HostSystem : public System {
         return mHomeDir;
     }
 
-    const fs::path getAppDataDirectory() const override {
+    const fs::path GetAppDataDirectory() const override {
 #if defined(_WIN32)
         if (mAppDataDir.empty()) {
-            // NOTE: See comment in getHomeDirectory().
+            // NOTE: See comment in GetHomeDirectory().
             wchar_t path[MAX_PATH] = {0};
             if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, path))) {
                 mAppDataDir = Win32UnicodeString::convertToUtf8(path);
@@ -308,7 +308,7 @@ class HostSystem : public System {
             // applications NSSearchPathForDirectoriesInDomains
             // can be used), so we apply the common practice of
             // hard coding it
-            mAppDataDir.assign(getHomeDirectory());
+            mAppDataDir.assign(GetHomeDirectory());
             mAppDataDir.append("/Library/Preferences");
         }
 #elif defined(__linux__)
@@ -319,19 +319,19 @@ class HostSystem : public System {
         return mAppDataDir;
     }
 
-    OsType getOsType() const override {
+    OsType GetOsType() const override {
 #ifdef _WIN32
-        return OsType::Windows;
+        return OsType::kWindows;
 #elif defined(__APPLE__)
-        return OsType::Mac;
+        return OsType::kMac;
 #elif defined(__linux__)
-        return OsType::Linux;
+        return OsType::kLinux;
 #else
 #error getOsType(): unsupported OS;
 #endif
     }
 
-    std::string getOsName() override {
+    std::string GetOsName() override {
         static std::string lastSuccessfulValue;
         if (!lastSuccessfulValue.empty()) {
             return lastSuccessfulValue;
@@ -461,7 +461,7 @@ class HostSystem : public System {
 #endif
     }
 
-    std::string getMajorOsVersion() const override {
+    std::string GetMajorOsVersion() const override {
         int majorVersion = 0, minorVersion = 0;
 #ifdef _WIN32
         OSVERSIONINFOEXW ver;
@@ -480,7 +480,7 @@ class HostSystem : public System {
         return std::to_string(majorVersion) + "." + std::to_string(minorVersion);
     }
 
-    int getCpuCoreCount() const override {
+    int GetCpuCoreCount() const override {
 #ifdef _WIN32
         SYSTEM_INFO si = {};
         ::GetSystemInfo(&si);
@@ -491,7 +491,7 @@ class HostSystem : public System {
 #endif
     }
 
-    MemUsage getMemUsage() const override {
+    MemUsage GetMemUsage() const override {
         MemUsage res = {};
 #ifdef _WIN32
         PROCESS_MEMORY_COUNTERS_EX memCounters = {sizeof(memCounters)};
@@ -587,15 +587,15 @@ class HostSystem : public System {
         return res;
     }
 
-    std::string envGet(std::string_view varname) const override {
-        return getEnvironmentVariable(varname);
+    std::string EnvGet(std::string_view varname) const override {
+        return GetEnvironmentVariable(varname);
     }
 
-    void envSet(const std::string& varname, const std::string& varvalue) override {
-        setEnvironmentVariable(varname, varvalue);
+    void EnvSet(const std::string& varname, const std::string& varvalue) override {
+        SetEnvironmentVariable(varname, varvalue);
     }
 
-    bool envTest(std::string_view varname) const override {
+    bool EnvTest(std::string_view varname) const override {
 #ifdef _WIN32
         Win32UnicodeString varname_unicode(varname.data());
         const wchar_t* value = _wgetenv(varname_unicode.c_str());
@@ -606,7 +606,7 @@ class HostSystem : public System {
 #endif
     }
 
-    std::vector<std::string> envGetAll() const override {
+    std::vector<std::string> EnvGetAll() const override {
         std::vector<std::string> res;
         for (auto env = environ; env && *env; ++env) {
             res.push_back(*env);
@@ -614,23 +614,23 @@ class HostSystem : public System {
         return res;
     }
 
-    bool isRemoteSession(std::string* sessionType) const final {
-        if (envTest("NX_TEMP")) {
+    bool IsRemoteSession(std::string* sessionType) const final {
+        if (EnvTest("NX_TEMP")) {
             if (sessionType) {
                 *sessionType = "NX";
             }
             return true;
         }
-        if (envTest("CHROME_REMOTE_DESKTOP_SESSION")) {
+        if (EnvTest("CHROME_REMOTE_DESKTOP_SESSION")) {
             if (sessionType) {
                 *sessionType = "Chrome Remote Desktop";
             }
             return true;
         }
-        if (!envGet("SSH_CONNECTION").empty() && !envGet("SSH_CLIENT").empty()) {
+        if (!EnvGet("SSH_CONNECTION").empty() && !EnvGet("SSH_CLIENT").empty()) {
             // This can be a remote X11 session, let's check if DISPLAY is set
             // to something uncommon.
-            if (envGet("DISPLAY").size() > 2) {
+            if (EnvGet("DISPLAY").size() > 2) {
                 if (sessionType) {
                     *sessionType = "X11 Forwarding";
                 }
@@ -698,7 +698,7 @@ class HostSystem : public System {
         return false;
     }
 
-    Times getProcessTimes() const override {
+    Times GetProcessTimes() const override {
         Times res = {};
 
 #ifdef _WIN32
@@ -712,43 +712,43 @@ class HostSystem : public System {
         ULARGE_INTEGER kernelInt64;
         kernelInt64.LowPart = kernelTime.dwLowDateTime;
         kernelInt64.HighPart = kernelTime.dwHighDateTime;
-        res.systemMs = static_cast<Duration>(kernelInt64.QuadPart / 10000);
+        res.system_ms = static_cast<Duration>(kernelInt64.QuadPart / 10000);
 
         ULARGE_INTEGER userInt64;
         userInt64.LowPart = userTime.dwLowDateTime;
         userInt64.HighPart = userTime.dwHighDateTime;
-        res.userMs = static_cast<Duration>(userInt64.QuadPart / 10000);
+        res.user_ms = static_cast<Duration>(userInt64.QuadPart / 10000);
 #else
         tms times = {};
         ::times(&times);
         // convert to milliseconds
         const long int ticksPerSec = ::sysconf(_SC_CLK_TCK);
-        res.systemMs = (times.tms_stime * 1000ll) / ticksPerSec;
-        res.userMs = (times.tms_utime * 1000ll) / ticksPerSec;
+        res.system_ms = (times.tms_stime * 1000ll) / ticksPerSec;
+        res.user_ms = (times.tms_utime * 1000ll) / ticksPerSec;
 #endif
-        res.wallClockMs = (kTickCount.getUs() - kTickCount.getStartTimeUs()) / 1000;
+        res.wall_clock_ms = (kTickCount.getUs() - kTickCount.getStartTimeUs()) / 1000;
 
         return res;
     }
 
-    time_t getUnixTime() const override { return time(nullptr); }
+    time_t GetUnixTime() const override { return time(nullptr); }
 
-    Duration getUnixTimeUs() const override {
+    Duration GetUnixTimeUs() const override {
         timeval tv;
         gettimeofday(&tv, nullptr);
         return tv.tv_sec * 1000000LL + tv.tv_usec;
     }
 
-    WallDuration getHighResTimeUs() const override { return kTickCount.getUs(); }
-    void sleepMs(unsigned n) const override {
+    WallDuration GetHighResTimeUs() const override { return kTickCount.getUs(); }
+    void SleepMs(unsigned n) const override {
         std::this_thread::sleep_for(std::chrono::milliseconds(n));
     }
 
-    void sleepUs(unsigned n) const override {
+    void SleepUs(unsigned n) const override {
         std::this_thread::sleep_for(std::chrono::microseconds(n));
     }
 
-    void sleepToUs(WallDuration absTimeUs) const override {
+    void SleepToUs(WallDuration absTimeUs) const override {
         // Approach will vary based on platform.
         //
         // Linux has clock_nanosleep with TIMER_ABSTIME which does
@@ -760,7 +760,7 @@ class HostSystem : public System {
         // Windows has waitable timers. Pre Windows 10 1803, 1 ms was the best
         // resolution. Past that, we can use high resolution waitable timers.
 #ifdef __APPLE__
-        WallDuration current = getHighResTimeUs();
+        WallDuration current = GetHighResTimeUs();
 
         // Already passed deadline, return.
         if (absTimeUs < current) {
@@ -809,7 +809,7 @@ class HostSystem : public System {
 
         static thread_local ThreadLocalTimerState tl_timerInfo;
 
-        WallDuration current = getHighResTimeUs();
+        WallDuration current = GetHighResTimeUs();
         // Already passed deadline, return.
         if (absTimeUs < current) return;
         WallDuration diff = absTimeUs - current;
@@ -831,8 +831,6 @@ class HostSystem : public System {
 #endif
     }
 
-    void yield() const override { std::this_thread::yield(); }
-
 #ifdef _MSC_VER
     static void msvcInvalidParameterHandler(const wchar_t* expression, const wchar_t* function,
                                             const wchar_t* file, unsigned int line,
@@ -842,13 +840,13 @@ class HostSystem : public System {
     }
 #endif
 
-    void configureHost() const override {
+    void ConfigureHost() const override {
 #ifdef _MSC_VER
         _set_invalid_parameter_handler(msvcInvalidParameterHandler);
 #endif
     }
 
-    fs::path getTempDir() const override {
+    fs::path GetTempDir() const override {
 #ifdef _WIN32
         Win32UnicodeString path(PATH_MAX);
         DWORD retval = GetTempPathW(path.size(), path.data());
@@ -892,10 +890,10 @@ class HostSystem : public System {
 #endif  // !_WIN32
     }
 
-    bool getEnableCrashReporting() const override {
+    bool GetEnableCrashReporting() const override {
         const bool defaultValue = true;
 
-        const std::string enableCrashReporting = envGet("ANDROID_EMU_ENABLE_CRASH_REPORTING");
+        const std::string enableCrashReporting = EnvGet("ANDROID_EMU_ENABLE_CRASH_REPORTING");
 
         if (enableCrashReporting.empty()) {
             return defaultValue;
@@ -925,7 +923,7 @@ void HostSystem::atexit_HostSystem() {
 }  // namespace
 
 // static
-System* System::get() {
+System* System::Get() {
     System* result = sSystemForTesting;
     if (!result) {
         result = hostSystem();
@@ -935,16 +933,16 @@ System* System::get() {
 
 #ifdef _WIN32
 // static
-const char* System::kLibrarySearchListEnvVarName = "PATH";
+const char* System::k_library_search_list_env_var_name = "PATH";
 #elif defined(__APPLE__)
-const char* System::kLibrarySearchListEnvVarName = "DYLD_LIBRARY_PATH";
+const char* System::k_library_search_list_env_var_name = "DYLD_LIBRARY_PATH";
 #else
 // static
-const char* System::kLibrarySearchListEnvVarName = "LD_LIBRARY_PATH";
+const char* System::k_library_search_list_env_var_name = "LD_LIBRARY_PATH";
 #endif
 
 // static
-System* System::setForTesting(System* system) {
+System* System::SetForTesting(System* system) {
     System* result = sSystemForTesting;
     sSystemForTesting = system;
     return result;
@@ -956,29 +954,29 @@ System* System::hostSystem() {
 }
 
 // static
-void System::addLibrarySearchDir(fs::path path) {
-    System* system = System::get();
-    const char* varName = kLibrarySearchListEnvVarName;
+void System::AddLibrarySearchDir(fs::path path) {
+    System* system = System::Get();
+    const char* varName = k_library_search_list_env_var_name;
 
-    std::string libSearchPath = system->envGet(varName);
+    std::string libSearchPath = system->EnvGet(varName);
     if (libSearchPath.size()) {
         libSearchPath = absl::StrFormat("%s%c%s", path.string(), kPathSeparator, libSearchPath);
     } else {
         libSearchPath = path.string();
     }
     LOG(INFO) << "Setting " << varName << " to " << libSearchPath;
-    system->envSet(varName, libSearchPath);
+    system->EnvSet(varName, libSearchPath);
 }
 
 // static
-StorageCapacity System::freeRamMb() {
-    auto usage = get()->getMemUsage();
+StorageCapacity System::FreeRamMb() {
+    auto usage = Get()->GetMemUsage();
     return StorageCapacity(usage.avail_phys_memory, StorageCapacity::Unit::kB);
 }
 
 // static
-bool System::isUnderMemoryPressure(StorageCapacity* freeRamMb_out) {
-    StorageCapacity currentFreeRam = freeRamMb();
+bool System::IsUnderMemoryPressure(StorageCapacity* freeRamMb_out) {
+    StorageCapacity currentFreeRam = FreeRamMb();
 
     if (freeRamMb_out) {
         *freeRamMb_out = currentFreeRam;
@@ -988,7 +986,7 @@ bool System::isUnderMemoryPressure(StorageCapacity* freeRamMb_out) {
 }
 
 // static
-System::FileSize System::getFilePageSizeForPath(fs::path path) {
+System::FileSize System::GetFilePageSizeForPath(fs::path path) {
     System::FileSize pageSize;
 
 #ifdef _WIN32
@@ -1033,7 +1031,7 @@ System::FileSize System::getFilePageSizeForPath(fs::path path) {
 }
 
 // static
-void System::setEnvironmentVariable(std::string_view varname, std::string_view varvalue) {
+void System::SetEnvironmentVariable(std::string_view varname, std::string_view varvalue) {
 #ifdef _WIN32
     std::string envStr = absl::StrFormat("%s=%s", varname.data(), varvalue.data());
     // Note: this leaks the result of release().
@@ -1048,7 +1046,7 @@ void System::setEnvironmentVariable(std::string_view varname, std::string_view v
 }
 
 // static
-std::string System::getEnvironmentVariable(std::string_view varname) {
+std::string System::GetEnvironmentVariable(std::string_view varname) {
 #ifdef _WIN32
     Win32UnicodeString varname_unicode(varname.data());
     const wchar_t* value = _wgetenv(varname_unicode.c_str());
@@ -1067,17 +1065,17 @@ std::string System::getEnvironmentVariable(std::string_view varname) {
 }
 
 // static
-System::WallDuration System::getSystemTimeUs() {
+System::WallDuration System::GetSystemTimeUs() {
     return kTickCount.getUs();
 }
 
 std::string toString(OsType osType) {
     switch (osType) {
-    case OsType::Windows:
+    case OsType::kWindows:
         return "Windows";
-    case OsType::Linux:
+    case OsType::kLinux:
         return "Linux";
-    case OsType::Mac:
+    case OsType::kMac:
         return "Mac";
     default:
         return "Unknown";
@@ -1090,7 +1088,7 @@ void cpuUsageCurrentThread_macImpl(uint64_t* user, uint64_t* sys);
 #endif
 
 // static
-void System::disableAppNap() {
+void System::DisableAppNap() {
 #ifdef __APPLE__
     disableAppNap_macImpl();
 #endif

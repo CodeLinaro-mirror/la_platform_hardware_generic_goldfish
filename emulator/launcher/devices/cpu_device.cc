@@ -23,6 +23,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/utils/status_macros.h"
+#include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/emulator_config.h"
@@ -33,6 +34,7 @@ namespace android::goldfish {
 namespace {
 
 using namespace std::string_view_literals;
+using android::base::System;
 
 Avd::CpuArchitecture the_forced_arch = Avd::CpuArchitecture::kUnknown;
 
@@ -87,12 +89,16 @@ absl::StatusOr<std::string> getAccelString(const EmulatorConfig& emulator,
 }
 
 absl::StatusOr<std::string> getCpuString(Avd::CpuArchitecture target_arch) {
+    auto aehd_enable = System::Get()->GetEnvironmentVariable("ENABLE_AEHD_IN_QEMU");
+
     switch (target_arch) {
     case Avd::CpuArchitecture::kArm:
         return "cortex-a53";
     case Avd::CpuArchitecture::kX86:
         // TODO(hshan): switch to better cpu model for linux/windows
         // Maybe "host"?
+        if (!aehd_enable.empty() && !aehd_enable.compare("1"))
+            return "SandyBridge,-rdtscp";
         return "SandyBridge";
     case Avd::CpuArchitecture::kRiscV:
     case Avd::CpuArchitecture::kUnknown:
@@ -126,11 +132,16 @@ absl::Status CpuDevice::initialize(const EmulatorConfig& emulator) {
     // TODO(invoking qemu --cpu help will give supported cpus)
 
     const Avd& avd = emulator.avd();
-    auto target_arch = avd.detectArchitecture();
+    auto target_arch = avd.DetectArchitecture();
+    auto aehd_enable = System::Get()->GetEnvironmentVariable("ENABLE_AEHD_IN_QEMU");
 
-    ASSIGN_OR_RETURN(mAccelerator, getAccelString(emulator, getHostArch(), target_arch));
+    if (aehd_enable.empty() || aehd_enable.compare("1")) {
+        ASSIGN_OR_RETURN(mAccelerator, getAccelString(emulator, getHostArch(), target_arch));
+    } else {
+        mAccelerator = "aehd";
+    }
     ASSIGN_OR_RETURN(mCpu, getCpuString(target_arch));
-    ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.hw()));
+    ASSIGN_OR_RETURN(mCores, getCores(emulator, avd.Hw()));
 
     return absl::OkStatus();
 }

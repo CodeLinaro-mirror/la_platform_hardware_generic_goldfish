@@ -265,8 +265,8 @@ std::unique_ptr<AllowList> loadAllowlist(const fs::path& path) {
     }
 
     LOG(INFO) << "Using security allow list from: " << path;
-    auto list = AllowList::fromStream(emulator_access);
-    list->setSource(path.string());
+    auto list = AllowList::FromStream(emulator_access);
+    list->SetSource(path.string());
 
     return list;
 }
@@ -294,7 +294,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
         }
     }
 
-    std::unique_ptr<AllowList> allowList = loadAllowlist(mEmulatorAccessPath);
+    std::unique_ptr<AllowList> AllowList = loadAllowlist(mEmulatorAccessPath);
     if (!mAuthToken.empty() || !mJwkPath.empty()) {
         if (mSecurity == Security::Insecure) {
             mBindAddress = "[::1]";
@@ -306,17 +306,17 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
         auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
         if (!mAuthToken.empty()) {
             anyauth.emplace_back(std::make_unique<StaticTokenAuth>(mAuthToken, "android-studio",
-                                                                   allowList.get()));
+                                                                   AllowList.get()));
             auto header = endpoint.add_required_headers();
             header->set_key("authorization");
             header->set_value("Bearer " + mAuthToken);
         }
         if (!mJwkPath.empty()) {
             anyauth.emplace_back(std::make_unique<JwtTokenAuth>(
-                    mJwkPath.string(), mJwkLoadedPath.string(), allowList.get()));
+                    mJwkPath.string(), mJwkLoadedPath.string(), AllowList.get()));
         }
         mCredentials->SetAuthMetadataProcessor(
-                std::make_shared<AnyTokenAuth>(std::move(anyauth), allowList.get()));
+                std::make_shared<AnyTokenAuth>(std::move(anyauth), AllowList.get()));
     } else {
         LOG(WARNING) << "*** No gRPC protection active ***";
     }
@@ -363,7 +363,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     LOG(INFO) << "Started GRPC server at " << server_address.c_str() << ", security: " << mSecurity
               << ", auth: " << mAuthMode;
     return std::make_unique<EmulatorControllerServiceImpl>(
-            mPort, std::move(mServices), std::move(allowList), std::move(service), endpoint);
+            mPort, std::move(mServices), std::move(AllowList), std::move(service), endpoint);
 }
 }  // namespace control
 }  // namespace emulation

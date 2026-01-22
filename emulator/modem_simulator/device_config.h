@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include <filesystem>
 #include <fstream>
  
 // this file provide a few device (cvd or emulator) specific hooks for
@@ -27,9 +28,11 @@ namespace modem {
 
 class DeviceConfig {
  public:
+  static void Init(int argc, char** argv);
+  static void SetBasePath(std::filesystem::path base_path);
+
   static int host_id();
-  static std::string PerInstancePath(const char* file_name);
-  static std::string DefaultHostArtifactsPath(const std::string& file);
+  static std::string GetFilePath(const char* file_name);
   static std::string ril_address_and_prefix();
   static std::string ril_gateway();
   static std::string ril_dns();

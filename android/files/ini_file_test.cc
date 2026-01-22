@@ -89,15 +89,15 @@ class IniFileTest : public ::testing::Test {
         vector<string> lines = {key + " = somevalue"};
 
         writeIniFileData(lines);
-        EXPECT_TRUE(mIni->writeIfChanged());
-        EXPECT_TRUE(mIni->read());
+        EXPECT_TRUE(mIni->WriteIfChanged());
+        EXPECT_TRUE(mIni->Read());
 
         // If the file was updated, then the new uniquely written data must have
         // disappeared, not otherwise.
         if (updated) {
-            EXPECT_FALSE(mIni->hasKey(key));
+            EXPECT_FALSE(mIni->HasKey(key));
         } else {
-            EXPECT_TRUE(mIni->hasKey(key));
+            EXPECT_TRUE(mIni->HasKey(key));
         }
     }
 
@@ -140,82 +140,82 @@ TEST_F(IniFileTest, readWrite) {
         {"ds5k", 5 * 1024ULL}, {"ds1M", 1024 * 1024ULL}, {"ds3G", 3 * 1024 * 1024 * 1024ULL}};
 
     for (const auto& keyval : intData) {
-        mIni->setInt(keyval.first, keyval.second);
+        mIni->SetInt(keyval.first, keyval.second);
     }
     for (const auto& keyval : int64Data) {
-        mIni->setInt64(keyval.first, keyval.second);
+        mIni->SetInt64(keyval.first, keyval.second);
     }
     for (const auto& keyval : doubleData) {
-        mIni->setDouble(keyval.first, keyval.second);
+        mIni->SetDouble(keyval.first, keyval.second);
     }
     for (const auto& keyval : boolData) {
-        mIni->setBool(keyval.first, keyval.second);
+        mIni->SetBool(keyval.first, keyval.second);
     }
     for (const auto& keyval : diskSizeData) {
-        mIni->setDiskSize(keyval.first, keyval.second);
+        mIni->SetDiskSize(keyval.first, keyval.second);
     }
 
-    ASSERT_TRUE(mIni->write());
+    ASSERT_TRUE(mIni->Write());
 
     mIni = absl::make_unique<IniFile>(mIniFilePath);
-    ASSERT_EQ(0, mIni->size());
-    ASSERT_TRUE(mIni->read());
+    ASSERT_EQ(0, mIni->Size());
+    ASSERT_TRUE(mIni->Read());
     EXPECT_EQ(static_cast<int>(intData.size() + int64Data.size() + doubleData.size() +
                                boolData.size() + diskSizeData.size()),
-              mIni->size());
+              mIni->Size());
 
     // Mix-up the order a bit.
     for (const auto& keyval : boolData) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getBool(keyval.first, 99));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetBool(keyval.first, 99));
     }
     for (const auto& keyval : diskSizeData) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getDiskSize(keyval.first, 99));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetDiskSize(keyval.first, 99));
     }
     for (const auto& keyval : int64Data) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getInt64(keyval.first, 99));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetInt64(keyval.first, 99));
     }
     for (const auto& keyval : intData) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getInt(keyval.first, 99));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetInt(keyval.first, 99));
     }
     for (const auto& keyval : doubleData) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getDouble(keyval.first, 99));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetDouble(keyval.first, 99));
     }
 }
 
 TEST_F(IniFileTest, duplicateAndMissingKeys) {
-    mIni->setInt("int", 0);
-    mIni->setInt("int", 1);
-    mIni->setInt64("int64", 0ULL);
-    mIni->setInt64("int64", 1ULL);
-    mIni->setDouble("double", 0.0);
-    mIni->setDouble("double", 1.1);
-    mIni->setBool("bool", false);
-    mIni->setBool("bool", true);
-    mIni->setDiskSize("ds", 0ULL);
-    mIni->setDiskSize("ds", 1ULL);
+    mIni->SetInt("int", 0);
+    mIni->SetInt("int", 1);
+    mIni->SetInt64("int64", 0ULL);
+    mIni->SetInt64("int64", 1ULL);
+    mIni->SetDouble("double", 0.0);
+    mIni->SetDouble("double", 1.1);
+    mIni->SetBool("bool", false);
+    mIni->SetBool("bool", true);
+    mIni->SetDiskSize("ds", 0ULL);
+    mIni->SetDiskSize("ds", 1ULL);
 
-    ASSERT_TRUE(mIni->write());
+    ASSERT_TRUE(mIni->Write());
     mIni = absl::make_unique<IniFile>(mIniFilePath);
-    ASSERT_EQ(0, mIni->size());
-    ASSERT_TRUE(mIni->read());
-    EXPECT_NE(0, mIni->size());
+    ASSERT_EQ(0, mIni->Size());
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_NE(0, mIni->Size());
 
-    EXPECT_EQ(1, mIni->getInt("int", 99));
-    EXPECT_EQ(1LL, mIni->getInt64("int64", 99));
-    EXPECT_EQ(1.1, mIni->getDouble("double", 99));
-    EXPECT_EQ(true, mIni->getBool("bool", false));
-    EXPECT_EQ(1ULL, mIni->getDiskSize("ds", 99ULL));
+    EXPECT_EQ(1, mIni->GetInt("int", 99));
+    EXPECT_EQ(1LL, mIni->GetInt64("int64", 99));
+    EXPECT_EQ(1.1, mIni->GetDouble("double", 99));
+    EXPECT_EQ(true, mIni->GetBool("bool", false));
+    EXPECT_EQ(1ULL, mIni->GetDiskSize("ds", 99ULL));
 
-    EXPECT_EQ(-11, mIni->getInt("missing", -11));
-    EXPECT_EQ(22LL, mIni->getInt64("missing", 22LL));
-    EXPECT_EQ(3.3, mIni->getDouble("missing", 3.3));
-    EXPECT_EQ(true, mIni->getBool("missing", true));
-    EXPECT_EQ(44ULL, mIni->getDiskSize("missing", 44ULL));
+    EXPECT_EQ(-11, mIni->GetInt("missing", -11));
+    EXPECT_EQ(22LL, mIni->GetInt64("missing", 22LL));
+    EXPECT_EQ(3.3, mIni->GetDouble("missing", 3.3));
+    EXPECT_EQ(true, mIni->GetBool("missing", true));
+    EXPECT_EQ(44ULL, mIni->GetDiskSize("missing", 44ULL));
 }
 
 TEST_F(IniFileTest, valueFormat) {
@@ -224,30 +224,30 @@ TEST_F(IniFileTest, valueFormat) {
         "key3 = \"value with redundant quotes\"", "keyAllSpaces =       "};
     writeIniFileData(fileData);
 
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(fileData.size(), static_cast<size_t>(mIni->size()));
-    EXPECT_EQ("value with spaces", mIni->getString("key1", ""));
-    EXPECT_EQ("value with trailing spaces", mIni->getString("key2", ""));
-    EXPECT_EQ("\"value with redundant quotes\"", mIni->getString("key3", ""));
-    EXPECT_EQ("", mIni->getString("keyAllSpaces", "nonemptydefault"));
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(fileData.size(), static_cast<size_t>(mIni->Size()));
+    EXPECT_EQ("value with spaces", mIni->GetString("key1", ""));
+    EXPECT_EQ("value with trailing spaces", mIni->GetString("key2", ""));
+    EXPECT_EQ("\"value with redundant quotes\"", mIni->GetString("key3", ""));
+    EXPECT_EQ("", mIni->GetString("keyAllSpaces", "nonemptydefault"));
 }
 
-TEST_F(IniFileTest, makeValidValue) {
-    EXPECT_EQ("%%", IniFile::makeValidValue("%"));
-    EXPECT_EQ("", IniFile::makeValidValue(""));
-    EXPECT_EQ("%%Hello%%", IniFile::makeValidValue("%Hello%"));
-    EXPECT_EQ("%%%%%%", IniFile::makeValidValue("%%%"));
+TEST_F(IniFileTest, MakeValidValue) {
+    EXPECT_EQ("%%", IniFile::MakeValidValue("%"));
+    EXPECT_EQ("", IniFile::MakeValidValue(""));
+    EXPECT_EQ("%%Hello%%", IniFile::MakeValidValue("%Hello%"));
+    EXPECT_EQ("%%%%%%", IniFile::MakeValidValue("%%%"));
 }
 
 TEST_F(IniFileTest, environmentSubstitution) {
     TestSystem ts("/");
-    ts.envSet("Hello", "World!");
-    ts.envSet("Hallo", "Wereld!");
-    ts.envSet("Gutentag", "Welt!");
+    ts.EnvSet("Hello", "World!");
+    ts.EnvSet("Hallo", "Wereld!");
+    ts.EnvSet("Gutentag", "Welt!");
     std::string UNKNOWN = "X_UNKNOWN_X";
 
-    EXPECT_EQ("", System::get()->envGet(UNKNOWN));
-    EXPECT_EQ("World!", System::get()->envGet("Hello"));
+    EXPECT_EQ("", System::Get()->EnvGet(UNKNOWN));
+    EXPECT_EQ("World!", System::Get()->EnvGet("Hello"));
 
     static const vector<string> fileData = {"TEST = %%TEST%%",
                                             string("FOO = %").append(UNKNOWN).append("%")};
@@ -255,48 +255,48 @@ TEST_F(IniFileTest, environmentSubstitution) {
     writeIniFileData(fileData);
 
     const char* NON = "NOT_IN_THE_MAP";
-    ASSERT_TRUE(mIni->read());
+    ASSERT_TRUE(mIni->Read());
 
     // Make sure substitution happens for something in the file.
-    EXPECT_EQ("%TEST%", mIni->getString("TEST", ""));
+    EXPECT_EQ("%TEST%", mIni->GetString("TEST", ""));
 
     // And for default values
-    EXPECT_EQ("%HI%", mIni->getString(NON, "%%HI%%"));
-    EXPECT_EQ("%HI", mIni->getString(NON, "%HI"));
-    EXPECT_EQ("%%HI%%", mIni->getString(NON, "%%%%HI%%%%"));
-    EXPECT_EQ("", mIni->getString(NON, ""));
-    EXPECT_EQ("", mIni->getString(NON, "%INVA%%LID_ENV_NAME%"));
+    EXPECT_EQ("%HI%", mIni->GetString(NON, "%%HI%%"));
+    EXPECT_EQ("%HI", mIni->GetString(NON, "%HI"));
+    EXPECT_EQ("%%HI%%", mIni->GetString(NON, "%%%%HI%%%%"));
+    EXPECT_EQ("", mIni->GetString(NON, ""));
+    EXPECT_EQ("", mIni->GetString(NON, "%INVA%%LID_ENV_NAME%"));
 
     // Check that we can substitute all the environment variables.
-    for (const auto& env : System::get()->envGetAll()) {
+    for (const auto& env : System::Get()->EnvGetAll()) {
         string name = env.substr(0, env.find_first_of('='));
 
         // Empty environment names??!
         if (name.empty()) continue;
 
         string escaped = string("%").append(name).append("%");
-        string value = System::get()->envGet(name);
-        EXPECT_EQ(value, mIni->getString(NON, escaped));
+        string value = System::Get()->EnvGet(name);
+        EXPECT_EQ(value, mIni->GetString(NON, escaped));
 
         escaped = string("%%HELLO%% %").append(name).append("%");
         string expect = string("%HELLO% ").append(value);
-        EXPECT_EQ(expect, mIni->getString(NON, escaped));
+        EXPECT_EQ(expect, mIni->GetString(NON, escaped));
 
         escaped = string("%%%").append(name).append("%%%");
         expect = string("%").append(value).append("%");
-        EXPECT_EQ(expect, mIni->getString(NON, escaped));
+        EXPECT_EQ(expect, mIni->GetString(NON, escaped));
     }
 
     // It should work with numbers too..
-    System::get()->envSet(UNKNOWN, "15.5");
-    EXPECT_EQ(15.5, mIni->getDouble("FOO", -1.2));
-    System::get()->envSet(UNKNOWN, "");
+    System::Get()->EnvSet(UNKNOWN, "15.5");
+    EXPECT_EQ(15.5, mIni->GetDouble("FOO", -1.2));
+    System::Get()->EnvSet(UNKNOWN, "");
 
-    System::get()->envSet(UNKNOWN, "42");
-    EXPECT_EQ(42, mIni->getInt("FOO", 0));
+    System::Get()->EnvSet(UNKNOWN, "42");
+    EXPECT_EQ(42, mIni->GetInt("FOO", 0));
 
-    System::get()->envSet(UNKNOWN, "true");
-    EXPECT_EQ(true, mIni->getBool("FOO", false));
+    System::Get()->EnvSet(UNKNOWN, "true");
+    EXPECT_EQ(true, mIni->GetBool("FOO", false));
 }
 
 TEST_F(IniFileTest, readMalformedFile) {
@@ -327,11 +327,11 @@ TEST_F(IniFileTest, readMalformedFile) {
 
     writeIniFileData(fileData);
 
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(validEntries.size(), static_cast<size_t>(mIni->size()));
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(validEntries.size(), static_cast<size_t>(mIni->Size()));
     for (const auto& keyval : validEntries) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_EQ(keyval.second, mIni->getInt(keyval.first, defaultInt));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_EQ(keyval.second, mIni->GetInt(keyval.first, defaultInt));
     }
 }
 
@@ -361,25 +361,25 @@ TEST_F(IniFileTest, boolFormat) {
     formatToLines(&lines, invalidFalses);
     writeIniFileData(lines);
 
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(lines.size(), static_cast<size_t>(mIni->size()));
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(lines.size(), static_cast<size_t>(mIni->Size()));
     for (const auto& keyval : validTrues) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_TRUE(mIni->getBool(keyval.first, false));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_TRUE(mIni->GetBool(keyval.first, false));
     }
     for (const auto& keyval : validFalses) {
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_FALSE(mIni->getBool(keyval.first, true));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_FALSE(mIni->GetBool(keyval.first, true));
     }
     for (const auto& keyval : invalidTrues) {
         // The keyval exists, it's just not a valid bool value.
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_FALSE(mIni->getBool(keyval.first, false));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_FALSE(mIni->GetBool(keyval.first, false));
     }
     for (const auto& keyval : invalidFalses) {
         // The keyval exists, it's just not a valid bool value.
-        EXPECT_TRUE(mIni->hasKey(keyval.first));
-        EXPECT_TRUE(mIni->getBool(keyval.first, true));
+        EXPECT_TRUE(mIni->HasKey(keyval.first));
+        EXPECT_TRUE(mIni->GetBool(keyval.first, true));
     }
 }
 
@@ -398,41 +398,41 @@ TEST_F(IniFileTest, diskSizeFormat) {
     formatToLines(&lines, invalidDiskSizes);
     writeIniFileData(lines);
 
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(lines.size(), static_cast<size_t>(mIni->size()));
-    EXPECT_EQ(30ULL, mIni->getDiskSize("ThirtyB", 99));
-    EXPECT_EQ(1024ULL, mIni->getDiskSize("OneKilo", 99));
-    EXPECT_EQ(1024 * 1024ULL, mIni->getDiskSize("OneMega", 99));
-    EXPECT_EQ(1024 * 1024 * 1024ULL, mIni->getDiskSize("OneGiga", 99));
-    EXPECT_EQ(5 * 1024ULL, mIni->getDiskSize("FiveKilo", 99));
-    EXPECT_EQ(5 * 1024 * 1024ULL, mIni->getDiskSize("FiveMega", 99));
-    EXPECT_EQ(5 * 1024 * 1024 * 1024ULL, mIni->getDiskSize("FiveGiga", 99));
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(lines.size(), static_cast<size_t>(mIni->Size()));
+    EXPECT_EQ(30ULL, mIni->GetDiskSize("ThirtyB", 99));
+    EXPECT_EQ(1024ULL, mIni->GetDiskSize("OneKilo", 99));
+    EXPECT_EQ(1024 * 1024ULL, mIni->GetDiskSize("OneMega", 99));
+    EXPECT_EQ(1024 * 1024 * 1024ULL, mIni->GetDiskSize("OneGiga", 99));
+    EXPECT_EQ(5 * 1024ULL, mIni->GetDiskSize("FiveKilo", 99));
+    EXPECT_EQ(5 * 1024 * 1024ULL, mIni->GetDiskSize("FiveMega", 99));
+    EXPECT_EQ(5 * 1024 * 1024 * 1024ULL, mIni->GetDiskSize("FiveGiga", 99));
 
-    EXPECT_EQ(99ULL, mIni->getDiskSize("WrongUnit", 99));
-    EXPECT_EQ(99ULL, mIni->getDiskSize("FractionalNumber", 99));
-    EXPECT_EQ(99ULL, mIni->getDiskSize("FractionalKilo", 99));
-    EXPECT_EQ(99ULL, mIni->getDiskSize("smiley_really", 99));
+    EXPECT_EQ(99ULL, mIni->GetDiskSize("WrongUnit", 99));
+    EXPECT_EQ(99ULL, mIni->GetDiskSize("FractionalNumber", 99));
+    EXPECT_EQ(99ULL, mIni->GetDiskSize("FractionalKilo", 99));
+    EXPECT_EQ(99ULL, mIni->GetDiskSize("smiley_really", 99));
 }
 
 TEST_F(IniFileTest, discardEmpty) {
-    mIni->setString("nonEmpty", "someValue");
-    mIni->setString("empty", "");
+    mIni->SetString("nonEmpty", "someValue");
+    mIni->SetString("empty", "");
 
-    ASSERT_TRUE(mIni->write());
+    ASSERT_TRUE(mIni->Write());
     mIni = absl::make_unique<IniFile>(mIniFilePath);
-    ASSERT_EQ(0, mIni->size());
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(2, mIni->size());
-    EXPECT_EQ("someValue", mIni->getString("nonEmpty", "defaultString"));
-    EXPECT_EQ("", mIni->getString("empty", "defaultString"));
+    ASSERT_EQ(0, mIni->Size());
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(2, mIni->Size());
+    EXPECT_EQ("someValue", mIni->GetString("nonEmpty", "defaultString"));
+    EXPECT_EQ("", mIni->GetString("empty", "defaultString"));
 
-    EXPECT_TRUE(mIni->writeDiscardingEmpty());
+    EXPECT_TRUE(mIni->WriteDiscardingEmpty());
     mIni = absl::make_unique<IniFile>(mIniFilePath);
-    ASSERT_EQ(0, mIni->size());
-    ASSERT_TRUE(mIni->read());
-    EXPECT_EQ(1, mIni->size());
-    EXPECT_EQ("someValue", mIni->getString("nonEmpty", "defaultString"));
-    EXPECT_EQ("defaultString", mIni->getString("empty", "defaultString"));
+    ASSERT_EQ(0, mIni->Size());
+    ASSERT_TRUE(mIni->Read());
+    EXPECT_EQ(1, mIni->Size());
+    EXPECT_EQ("someValue", mIni->GetString("nonEmpty", "defaultString"));
+    EXPECT_EQ("defaultString", mIni->GetString("empty", "defaultString"));
 }
 
 TEST_F(IniFileTest, writeIfChanged) {
@@ -441,41 +441,41 @@ TEST_F(IniFileTest, writeIfChanged) {
     mIni = absl::make_unique<IniFile>(mIniFilePath);
     verifyFileUpdated(true);
 
-    mIni->write();
+    mIni->Write();
     // Now we consider the object as clean, so write shouldn't modify the
     // underlying file.
     verifyFileUpdated(false);
 
     // Now let's change the data.
-    mIni->setString("random", "yippeeee");
+    mIni->SetString("random", "yippeeee");
     verifyFileUpdated(true);
 
-    mIni->read();
+    mIni->Read();
     // No changes, so write shouldn't do anything.
     verifyFileUpdated(false);
     // But resetting the file path means we should flush.
-    mIni->setBackingFile(mIniFilePath);
+    mIni->SetBackingFile(mIniFilePath);
     verifyFileUpdated(true);
 }
 
 TEST_F(IniFileTest, noBackingFile) {
     mIni = absl::make_unique<IniFile>();
-    ASSERT_FALSE(mIni->read());
+    ASSERT_FALSE(mIni->Read());
 
-    mIni->setBackingFile(mIniFilePath);
-    ASSERT_FALSE(mIni->read());
-    ASSERT_TRUE(mIni->write());
-    ASSERT_TRUE(mIni->read());
+    mIni->SetBackingFile(mIniFilePath);
+    ASSERT_FALSE(mIni->Read());
+    ASSERT_TRUE(mIni->Write());
+    ASSERT_TRUE(mIni->Read());
 }
 
 TEST_F(IniFileTest, iterator) {
-    mIni->setString("firstKey", "firstValue");
-    mIni->setString("secondKey", "secondValue");
+    mIni->SetString("firstKey", "firstValue");
+    mIni->SetString("secondKey", "secondValue");
 
     // Const iterators, also verify order.
     const IniFile& cIni = *mIni;
     vector<string> keys = {"firstKey", "secondKey"};
-    ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->size()));
+    ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->Size()));
     size_t i = 0;
     for (const auto& key : cIni) {
         EXPECT_EQ(keys[i], key);
@@ -497,28 +497,28 @@ TEST_F(IniFileTest, diskFileOrder) {
                                       "lets = finish with valid"};
 
     writeIniFileData(lines);
-    ASSERT_TRUE(mIni->read());
-    ASSERT_TRUE(mIni->write());
+    ASSERT_TRUE(mIni->Read());
+    ASSERT_TRUE(mIni->Write());
     verifyFileContents(rewritten_lines);
 
     // This is order independent. Let's try the reverse
     std::reverse(std::begin(lines), std::end(lines));
     std::reverse(std::begin(rewritten_lines), std::end(rewritten_lines));
     writeIniFileData(lines);
-    ASSERT_TRUE(mIni->read());
-    ASSERT_TRUE(mIni->write());
+    ASSERT_TRUE(mIni->Read());
+    ASSERT_TRUE(mIni->Write());
     verifyFileContents(rewritten_lines);
 
     // Extra keys are appended to the file.
-    mIni->setString("extraKey", "extraValue");
-    ASSERT_TRUE(mIni->write());
+    mIni->SetString("extraKey", "extraValue");
+    ASSERT_TRUE(mIni->Write());
     rewritten_lines.push_back("extraKey = extraValue");
     verifyFileContents(rewritten_lines);
 
     // Test order of iteration in this complicated case.
     // Remember we reversed the lines.
     vector<string> keys = {"lets", "fourth", "first", "extraKey"};
-    ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->size()));
+    ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->Size()));
     size_t i = 0;
     for (const auto& key : *mIni) {
         EXPECT_EQ(keys[i], key);
@@ -527,19 +527,19 @@ TEST_F(IniFileTest, diskFileOrder) {
 }
 
 TEST_F(IniFileTest, strDefaultValues) {
-    ASSERT_EQ(0, mIni->size());
-    EXPECT_TRUE(mIni->getBool("missingKey", "yes"));
-    EXPECT_FALSE(mIni->getBool("missingKey", "no"));
-    EXPECT_EQ(1024ULL, mIni->getDiskSize("missingKey", "1k"));
+    ASSERT_EQ(0, mIni->Size());
+    EXPECT_TRUE(mIni->GetBool("missingKey", "yes"));
+    EXPECT_FALSE(mIni->GetBool("missingKey", "no"));
+    EXPECT_EQ(1024ULL, mIni->GetDiskSize("missingKey", "1k"));
 }
 
 TEST_F(IniFileTest, makeValidKey) {
-    EXPECT_STREQ("_key", IniFile::makeValidKey("key").c_str());
-    EXPECT_STREQ("_", IniFile::makeValidKey("").c_str());
-    EXPECT_STREQ("_.3D", IniFile::makeValidKey("=").c_str());
-    EXPECT_STREQ("_a.20sign.20.23", IniFile::makeValidKey("a sign #").c_str());
+    EXPECT_STREQ("_key", IniFile::MakeValidKey("key").c_str());
+    EXPECT_STREQ("_", IniFile::MakeValidKey("").c_str());
+    EXPECT_STREQ("_.3D", IniFile::MakeValidKey("=").c_str());
+    EXPECT_STREQ("_a.20sign.20.23", IniFile::MakeValidKey("a sign #").c_str());
     EXPECT_STREQ("_some.20number.2010.20within",
-                 IniFile::makeValidKey("some number 10 within").c_str());
+                 IniFile::MakeValidKey("some number 10 within").c_str());
 }
 
 TEST(IniFileTest2, parseInMemory) {
@@ -550,16 +550,16 @@ key3=false
 )";
 
     IniFile ini;
-    ASSERT_TRUE(ini.readFromMemory(data));
-    EXPECT_STREQ("", ini.getBackingFile().string().c_str());
+    ASSERT_TRUE(ini.ReadFromMemory(data));
+    EXPECT_STREQ("", ini.GetBackingFile().string().c_str());
 
-    ASSERT_EQ(3, ini.size());
-    EXPECT_STREQ("val1", ini.getString("key1", "").c_str());
-    EXPECT_EQ(1011, ini.getInt64("key2", 1));
-    EXPECT_FALSE(ini.getBool("key3", true));
+    ASSERT_EQ(3, ini.Size());
+    EXPECT_STREQ("val1", ini.GetString("key1", "").c_str());
+    EXPECT_EQ(1011, ini.GetInt64("key2", 1));
+    EXPECT_FALSE(ini.GetBool("key3", true));
 
     IniFile ini2(data, stringLiteralLength(data));
-    ASSERT_EQ(3, ini2.size());
+    ASSERT_EQ(3, ini2.Size());
 }
 
 }  // namespace base

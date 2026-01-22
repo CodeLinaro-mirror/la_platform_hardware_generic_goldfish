@@ -1,24 +1,17 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//emulator/grpc:__subpackages__"])
+package(default_visibility = ["//visibility:public"])
 
-pkg_files(
+filegroup(
     name = "emulator-access",
-    srcs = [
-        "src/android/emulation/control/secure/emulator_access.json",
-    ],
-    prefix = "lib",
+    srcs = ["src/android/emulation/control/secure/emulator_access.json"],
     visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "unsecure-emulator-access",
-    srcs = [
-        "test/android/emulation/control/secure/test_allow_list.json",
-    ],
-    output_group = "",
-    tags = [""],
+    srcs = ["test/android/emulation/control/secure/test_allow_list.json"],
     visibility = ["//visibility:public"],
 )
 
@@ -79,4 +72,12 @@ cc_test(
         "@googletest//:gtest",
         "@tink_cc//tink/jwt:jwt_key_templates",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":security",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

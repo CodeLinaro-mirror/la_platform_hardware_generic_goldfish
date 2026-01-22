@@ -94,7 +94,7 @@ static uint32_t bmap[INPUT_BUTTON__MAX] = {
 void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
     absl::MutexLock lock(&mSendLock);
     VLOG(2) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
-    (void)mQemuLoop->Post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
+    mQemuLoop->Post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
                            mask = button_mask] {
         if (last != mask) {
             qemu_input_update_buttons(con, bmap, last, mask);
@@ -102,16 +102,16 @@ void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
         qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, w);
         qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, h);
         qemu_input_event_sync();
-    });
+    }).IgnoreError();
     mlast_bmask = button_mask;
 }
 
 void QemuDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     absl::MutexLock lock(&mSendLock);
     VLOG(1) << *this << ", sendEvDevEvent(" << type << ", " << code << ", " << value << ")";
-    (void)mQemuLoop->Post([vhid = mVhid, type, code, value] {
+    mQemuLoop->Post([vhid = mVhid, type, code, value] {
         virtio_input_send_evdev(vhid, type, code, value);
-    });
+    }).IgnoreError();
 }
 
 }  // namespace goldfish::display

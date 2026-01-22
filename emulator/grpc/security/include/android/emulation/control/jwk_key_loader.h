@@ -27,9 +27,7 @@
 #include "nlohmann/json.hpp"
 #include "tink/keyset_handle.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 // A class for loading JSON Web Key (JWK) sets from files and managing the
 // active set of keys.
@@ -42,9 +40,9 @@ class JwkKeyLoader {
     JwkKeyLoader() = default;
     ~JwkKeyLoader() = default;
 
-    void clear();
-    bool empty() const;
-    int size() const;
+    void Clear();
+    bool Empty() const;
+    int Size() const;
 
     /**
      * Loads a JWK set from a file and adds it to the collection.
@@ -59,7 +57,8 @@ class JwkKeyLoader {
      * @param wait_for The delay between each retry attempt.
      * @return An absl::Status indicating success or failure of the operation.
      */
-    absl::Status addWithRetryForEmpty(Path toAdd, int retries, std::chrono::milliseconds wait_for);
+    absl::Status AddWithRetryForEmpty(const Path& to_add, int retries,
+                                      std::chrono::milliseconds wait_for);
 
     /**
      * Loads a JWK set from a file and adds it to the collection.
@@ -67,7 +66,7 @@ class JwkKeyLoader {
      * @param toAdd The path to the file containing the JWK set.
      * @return An absl::Status indicating success or failure of the operation.
      */
-    absl::Status add(Path toAdd);
+    absl::Status Add(const Path& to_add);
 
     /**
      * Loads a JWK set from a JSON string and adds it to the collection.
@@ -76,7 +75,7 @@ class JwkKeyLoader {
      * @param jsonString The JSON string containing the JWK set.
      * @return An absl::Status indicating success or failure of the operation.
      */
-    absl::Status add(Path toAdd, std::string jsonString);
+    absl::Status Add(const Path& to_add, const std::string& json_string);
 
     /**
      * Removes a JWK set from the collection.
@@ -84,7 +83,7 @@ class JwkKeyLoader {
      * @param toRemove The path associated with the JWK set to remove.
      * @return An absl::Status indicating success or failure of the operation.
      */
-    absl::Status remove(Path toRemove);
+    absl::Status Remove(const Path& to_remove);
 
     /**
      * Returns the active JWK keyset as a Tink KeysetHandle.
@@ -92,27 +91,25 @@ class JwkKeyLoader {
      * @return An absl::StatusOr containing the active keyset or an error
      * status.
      */
-    absl::StatusOr<Keyset> activeKeySet() const;
+    absl::StatusOr<Keyset> ActiveKeySet() const;
 
     /**
      * Returns the active JWK keyset as a JSON object.
      *
      * @return The active keyset as a JSON object.
      */
-    json activeKeysetAsJson() const;
+    json ActiveKeysetAsJson() const;
 
     /**
      * Returns the active JWK keyset as a JSON string.
      *
      * @return The active keyset as a JSON string.
      */
-    std::string activeKeysetAsString() const;
+    std::string ActiveKeysetAsString() const;
 
   private:
-    std::unordered_map<Path, json> mPublicKeys;
-    mutable std::mutex mKeylock;
+    std::unordered_map<Path, json> public_keys_;
+    mutable std::mutex keylock_;
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

@@ -86,13 +86,13 @@ int main(int argc, char* argv[]) {
                             android::crashreport::CrashReporter::databaseDirectory()));
     absl::ParseCommandLine(argc, argv);
     absl::InitializeLog();
-    if (android::base::Bazel::inBazel()) {
-        if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
-            System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+    if (android::base::Bazel::InBazel()) {
+        if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+            System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
                                            "/tmp/crash-report.db");
         }
         LOG(INFO) << "Running in bazel environment using crash database: "
-                  << System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
+                  << System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE");
     }
 
     CrashReportManager db_manager;

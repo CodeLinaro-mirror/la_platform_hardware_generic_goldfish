@@ -33,29 +33,29 @@ static const std::string_view kAndroidSubDir = ".android";
 static const std::string_view kAvdSubDir = "avd";
 
 // static
-auto ConfigDirs::getUserDirectory() -> fs::path {
-    fs::path home = System::get()->envGet("ANDROID_EMULATOR_HOME");
+auto ConfigDirs::GetUserDirectory() -> fs::path {
+    fs::path home = System::Get()->EnvGet("ANDROID_EMULATOR_HOME");
     if (!home.empty()) {
         return home;
     }
 
     // New key: ANDROID_PREFS_ROOT
-    home = System::get()->envGet("ANDROID_PREFS_ROOT");
+    home = System::Get()->EnvGet("ANDROID_PREFS_ROOT");
     if (!home.empty()) {
         // In v1.9 emulator was changed to use $ANDROID_SDK_HOME/.android
         // directory, but Android Studio has always been using $ANDROID_SDK_HOME
         // directly. Put a workaround here to make sure it works both ways,
         // preferring the one from AS.
-        auto homeNewWay = fs::path(home) / kAndroidSubDir;
-        return base::file::is_dir(homeNewWay) ? homeNewWay : home;
+        auto home_new_way = fs::path(home) / kAndroidSubDir;
+        return base::file::is_dir(home_new_way) ? home_new_way : home;
     }  // Old key that is deprecated (ANDROID_SDK_HOME)
-    home = System::get()->envGet("ANDROID_SDK_HOME");
+    home = System::Get()->EnvGet("ANDROID_SDK_HOME");
     if (!home.empty()) {
-        auto homeOldWay = fs::path(home) / kAndroidSubDir;
-        return base::file::exists(homeOldWay) ? homeOldWay : home;
+        auto home_old_way = fs::path(home) / kAndroidSubDir;
+        return base::file::exists(home_old_way) ? home_old_way : home;
     }
 
-    home = android::base::System::get()->getHomeDirectory();
+    home = android::base::System::Get()->GetHomeDirectory();
     if (home.empty()) {
         return fs::temp_directory_path();
     }
@@ -63,76 +63,76 @@ auto ConfigDirs::getUserDirectory() -> fs::path {
 }
 
 // static
-auto ConfigDirs::getAvdRootDirectory() -> fs::path {
+auto ConfigDirs::GetAvdRootDirectory() -> fs::path {
     // The search order here should match that in AndroidLocation.java
     // in Android Studio. Otherwise, Studio and the Emulator may find
     // different AVDs. Or one may find an AVD when the other doesn't.
-    fs::path avdRoot = System::get()->envGet("ANDROID_AVD_HOME");
-    if (!avdRoot.empty() && base::file::is_dir(avdRoot)) {
-        return avdRoot;
+    fs::path avd_root = System::Get()->EnvGet("ANDROID_AVD_HOME");
+    if (!avd_root.empty() && base::file::is_dir(avd_root)) {
+        return avd_root;
     }
 
     // No luck with ANDROID_AVD_HOME, try ANDROID_PREFS_ROOT/ANDROID_SDK_HOME
-    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::get()->envGet("ANDROID_PREFS_ROOT"));
-    if (!avdRoot.empty()) {
-        return avdRoot;
+    avd_root = GetAvdRootDirectoryWithPrefsRoot(System::Get()->EnvGet("ANDROID_PREFS_ROOT"));
+    if (!avd_root.empty()) {
+        return avd_root;
     }
-    avdRoot = getAvdRootDirectoryWithPrefsRoot(System::get()->envGet("ANDROID_SDK_HOME"));
-    if (!avdRoot.empty()) {
-        return avdRoot;
+    avd_root = GetAvdRootDirectoryWithPrefsRoot(System::Get()->EnvGet("ANDROID_SDK_HOME"));
+    if (!avd_root.empty()) {
+        return avd_root;
     }  // ANDROID_PREFS_ROOT/ANDROID_SDK_HOME is defined but bad. In this case,
     // Android Studio tries $TEST_TMPDIR, $USER_HOME, and
     // $HOME. We'll do the same.
-    avdRoot = System::get()->envGet("TEST_TMPDIR");
-    if (!avdRoot.empty()) {
-        avdRoot = fs::path(avdRoot) / kAndroidSubDir;
-        if (isValidAvdRoot(avdRoot)) {
-            return fs::path(avdRoot) / kAvdSubDir;
+    avd_root = System::Get()->EnvGet("TEST_TMPDIR");
+    if (!avd_root.empty()) {
+        avd_root = fs::path(avd_root) / kAndroidSubDir;
+        if (IsValidAvdRoot(avd_root)) {
+            return fs::path(avd_root) / kAvdSubDir;
         }
     }
-    avdRoot = System::get()->envGet("USER_HOME");
-    if (!avdRoot.empty()) {
-        avdRoot = fs::path(avdRoot) / kAndroidSubDir;
-        if (isValidAvdRoot(avdRoot)) {
-            return fs::path(avdRoot) / kAvdSubDir;
+    avd_root = System::Get()->EnvGet("USER_HOME");
+    if (!avd_root.empty()) {
+        avd_root = fs::path(avd_root) / kAndroidSubDir;
+        if (IsValidAvdRoot(avd_root)) {
+            return fs::path(avd_root) / kAvdSubDir;
         }
     }
-    avdRoot = System::get()->envGet("HOME");
-    if (!avdRoot.empty()) {
-        avdRoot = fs::path(avdRoot) / kAndroidSubDir;
-        if (isValidAvdRoot(avdRoot)) {
-            return fs::path(avdRoot) / kAvdSubDir;
+    avd_root = System::Get()->EnvGet("HOME");
+    if (!avd_root.empty()) {
+        avd_root = fs::path(avd_root) / kAndroidSubDir;
+        if (IsValidAvdRoot(avd_root)) {
+            return fs::path(avd_root) / kAvdSubDir;
         }
     }
 
     // No luck with ANDROID_AVD_HOME, ANDROID_SDK_HOME,
     // TEST_TMPDIR, USER_HOME, or HOME. Try even more.
-    return getUserDirectory() / kAvdSubDir;
+    return GetUserDirectory() / kAvdSubDir;
 }
 
 // static
-auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
+auto ConfigDirs::GetSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     LOG_IF(INFO, verbose) << "checking ANDROID_HOME for valid sdk root.";
-    std::string sdkRoot = System::get()->envGet("ANDROID_HOME");
-    LOG_IF(INFO, verbose) << "ANDROID_HOME: " << sdkRoot;
+    std::string sdk_root = System::Get()->EnvGet("ANDROID_HOME");
+    LOG_IF(INFO, verbose) << "ANDROID_HOME: " << sdk_root;
 
-    if (!sdkRoot.empty() && isValidSdkRoot(sdkRoot, verbose)) {
-        return sdkRoot;
+    if (!sdk_root.empty() && IsValidSdkRoot(sdk_root, verbose)) {
+        return sdk_root;
     }
 
     LOG_IF(INFO, verbose) << "checking ANDROID_SDK_ROOT for valid sdk root.";
 
     // ANDROID_HOME is not good. Try ANDROID_SDK_ROOT.
-    sdkRoot = System::get()->envGet("ANDROID_SDK_ROOT");
-    if (static_cast<unsigned int>(!sdkRoot.empty()) != 0U) {
+    sdk_root = System::Get()->EnvGet("ANDROID_SDK_ROOT");
+    if (static_cast<unsigned int>(!sdk_root.empty()) != 0U) {
         // Unquote a possibly "quoted" path.
-        if (sdkRoot[0] == '"') {
-            assert(sdkRoot.back() == '"');
-            sdkRoot.erase(0, 1);
-            sdkRoot.pop_back();
+        if (sdk_root[0] == '"') {
+            assert(sdk_root.back() == '"');
+            sdk_root.erase(0, 1);
+            sdk_root.pop_back();
         }
-        if (isValidSdkRoot(sdkRoot, verbose)) {
-            return sdkRoot;
+        if (IsValidSdkRoot(sdk_root, verbose)) {
+            return sdk_root;
         }
     }
 
@@ -140,61 +140,55 @@ auto ConfigDirs::getSdkRootDirectoryByEnv(bool verbose) -> fs::path {
     return {};
 }
 
-auto ConfigDirs::getSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose) -> fs::path {
-    fs::path sdkRoot = launcher_dir;
+auto ConfigDirs::GetSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose) -> fs::path {
+    fs::path sdk_root = launcher_dir;
     for (int i = 0; i < 3; ++i) {
-        sdkRoot = sdkRoot.parent_path();
-        LOG_IF(INFO, verbose) << "guessed sdk root: " << sdkRoot.string();
-        if (isValidSdkRoot(sdkRoot, verbose)) {
-            return sdkRoot;
+        sdk_root = sdk_root.parent_path();
+        LOG_IF(INFO, verbose) << "guessed sdk root: " << sdk_root.string();
+        if (IsValidSdkRoot(sdk_root, verbose)) {
+            return sdk_root;
         }
-        LOG_IF(INFO, verbose) << "guessed sdk root " << sdkRoot.string()
+        LOG_IF(INFO, verbose) << "guessed sdk root " << sdk_root.string()
                               << " does not seem to be valid";
     }
-    LOG_IF(WARNING, verbose) << "invalid sdk root:" << sdkRoot.string();
+    LOG_IF(WARNING, verbose) << "invalid sdk root:" << sdk_root.string();
     return {};
 }
 
 // static
-auto ConfigDirs::getSdkRootDirectory(const fs::path& launcher_dir, bool verbose) -> fs::path {
-    auto sdkRoot = getSdkRootDirectoryByEnv(verbose);
-    if (!sdkRoot.empty()) {
-        return sdkRoot;
+auto ConfigDirs::GetSdkRootDirectory(const fs::path& launcher_dir, bool verbose) -> fs::path {
+    auto sdk_root = GetSdkRootDirectoryByEnv(verbose);
+    if (!sdk_root.empty()) {
+        return sdk_root;
     }
 
     LOG_IF(WARNING, verbose) << "Cannot find valid sdk root from environment "
                                 "variable ANDROID_HOME nor ANDROID_SDK_ROOT,"
                                 "Try to infer from emulator's path";
     // Otherwise, infer from the path of the emulator's binary.
-    return getSdkRootDirectoryByPath(launcher_dir, verbose);
+    return GetSdkRootDirectoryByPath(launcher_dir, verbose);
 }
 
 // static
-auto ConfigDirs::isValidSdkRoot(const fs::path& rootPath, bool verbose) -> bool {
-    if (rootPath.empty()) {
+auto ConfigDirs::IsValidSdkRoot(const fs::path& root_path, bool verbose) -> bool {
+    if (root_path.empty()) {
         LOG_IF(WARNING, verbose) << "empty sdk root";
         return false;
     }
 
-    if (!base::file::is_dir(rootPath) || !base::file::can_read(rootPath)) {
+    if (!base::file::is_dir(root_path) || !base::file::can_read(root_path)) {
         if (verbose) {
-            if (!base::file::is_dir(rootPath)) {
-                LOG(WARNING) << rootPath << " is not a directory, and cannot be sdk root";
-            } else if (!base::file::can_read(rootPath)) {
-                LOG(WARNING) << rootPath << " is not readable, and cannot be sdk root";
+            if (!base::file::is_dir(root_path)) {
+                LOG(WARNING) << root_path << " is not a directory, and cannot be sdk root";
+            } else if (!base::file::can_read(root_path)) {
+                LOG(WARNING) << root_path << " is not readable, and cannot be sdk root";
             }
         }
         return false;
     }
-    fs::path platformsPath = fs::path(rootPath) / "platforms";
-    if (!base::file::is_dir(rootPath) || !base::file::can_read(rootPath)) {
-        LOG_IF(WARNING, verbose) << "platforms subdirectory is missing under " << rootPath
-                                 << ", please install it";
-        return false;
-    }
-    fs::path platformToolsPath = fs::path(rootPath) / "platform-tools";
-    if (!base::file::is_dir(platformToolsPath)) {
-        LOG_IF(WARNING, verbose) << "platform-tools subdirectory is missing under " << rootPath
+    const fs::path platform_tools_path = fs::path(root_path) / "platform-tools";
+    if (!base::file::is_dir(platform_tools_path)) {
+        LOG_IF(WARNING, verbose) << "platform-tools subdirectory is missing under " << root_path
                                  << ", please install it";
         return false;
     }
@@ -203,38 +197,40 @@ auto ConfigDirs::isValidSdkRoot(const fs::path& rootPath, bool verbose) -> bool 
 }
 
 // static
-auto ConfigDirs::isValidAvdRoot(const fs::path& avdPath) -> bool {
-    if (avdPath.empty()) {
+auto ConfigDirs::IsValidAvdRoot(const fs::path& avd_path) -> bool {
+    if (avd_path.empty()) {
         return false;
     }
-    if (!base::file::is_dir(avdPath) || !base::file::can_read(avdPath)) {
+    if (!base::file::is_dir(avd_path) || !base::file::can_read(avd_path)) {
         return false;
     }
-    fs::path avdAvdPath = avdPath / "avd";
-    return (base::file::is_dir(avdAvdPath) && base::file::can_read(avdAvdPath));
+    const fs::path avd_avd_path = avd_path / "avd";
+    return (base::file::is_dir(avd_avd_path) && base::file::can_read(avd_avd_path));
 }
 
-auto ConfigDirs::getAvdRootDirectoryWithPrefsRoot(const fs::path& path) -> fs::path {
+auto ConfigDirs::GetAvdRootDirectoryWithPrefsRoot(const fs::path& path) -> fs::path {
     if (path.empty()) {
         return {};
     }
 
     // ANDROID_PREFS_ROOT is defined
-    if (isValidAvdRoot(path)) {
+    if (IsValidAvdRoot(path)) {
         // ANDROID_PREFS_ROOT is good
         return path / kAvdSubDir;
     }
 
-    fs::path avdRoot = path / kAndroidSubDir;
-    if (isValidAvdRoot(avdRoot)) {
+    const fs::path avd_root = path / kAndroidSubDir;
+    if (IsValidAvdRoot(avd_root)) {
         // ANDROID_PREFS_ROOT/.android is good
-        return avdRoot / kAvdSubDir;
+        return avd_root / kAvdSubDir;
     }
 
     return {};
 }
 
-using discovery_dir = struct discovery_dir {
+namespace {
+
+using discovery_dir = struct DiscoveryDir {
     const char* root_env;
     const char* subdir;
 };
@@ -249,35 +245,38 @@ discovery_dir discovery{"HOME", "Library/Caches/TemporaryItems"};
 #error This platform is not supported.
 #endif
 
-static auto getAlternativeRoot() -> fs::path {
+auto GetAlternativeRoot() -> fs::path {
 #ifdef __linux__
     auto uid = getuid();
-    auto discovery = fs::path("/run/user/") / std::to_string(uid);
-    if (base::file::exists(discovery)) {
-        return discovery;
+    auto discovery_path = fs::path("/run/user/") / std::to_string(uid);
+    if (base::file::exists(discovery_path)) {
+        return discovery_path;
     }
 #endif
 
     // Reverting to the standard emulator user directories
-    return ConfigDirs::getUserDirectory();
+    return ConfigDirs::GetUserDirectory();
 }
 
-auto ConfigDirs::getDiscoveryDirectory() -> fs::path {
-    fs::path root = System::get()->envGet(discovery.root_env);
+}  // namespace
+
+auto ConfigDirs::GetDiscoveryDirectory() -> fs::path {
+    fs::path root = System::Get()->EnvGet(discovery.root_env);
     if (root.empty()) {
         // Reverting to the alternative root if these environment variables do
         // not exist.
         LOG(WARNING) << "Using fallback path for the emulator registration directory.";
-        root = getAlternativeRoot();
+        root = GetAlternativeRoot();
     } else {
         root = root / discovery.subdir;
     }
-    std::error_code ec;
+    const std::error_code ec;
 
     auto desired_directory = root / "avd" / "running";
     if (!base::file::exists(desired_directory)) {
         if (auto s = base::file::mkdir_recursive(desired_directory, 0755); !s.ok()) {
-            LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to " << s;
+            LOG(WARNING) << "Unable to create directories: " << desired_directory << " due to "
+                         << s;
         }
     } else {
         base::file::chmod(desired_directory, 0755);

@@ -91,6 +91,9 @@ bool PDUParser::DecodePDU(std::string& pdu) {
 
   /* 8. User Data Length: 1 byte */
   temp = pdu_view.substr(std::min(pos, pdu_total_length), 2);
+  if (temp.size() < 2U) {
+    return false;
+  }
   auto ud_length = Hex2ToByte(temp);
 
   /* 9. User Data including UDL */

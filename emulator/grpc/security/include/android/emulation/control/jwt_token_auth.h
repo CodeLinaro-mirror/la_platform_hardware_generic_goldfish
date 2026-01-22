@@ -26,9 +26,7 @@
 #include "android/emulation/control/jwk_directory_observer.h"
 #include "tink/keyset_handle.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 using Path = std::filesystem::path;
 
@@ -49,26 +47,24 @@ using Path = std::filesystem::path;
 // The 'exp' field is not yet expired.
 class JwtTokenAuth : public BasicTokenAuth {
   public:
-    JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList* list);
-    ~JwtTokenAuth() = default;
+    JwtTokenAuth(const Path& jwks_path, Path jwks_loaded_path, AllowList* list);
+    ~JwtTokenAuth() override = default;
 
-    bool canHandleToken(std::string_view token) override;
+    bool CanHandleToken(std::string_view token) override;
 
-    absl::Status isTokenValid(std::string_view path, std::string_view token) override;
+    absl::Status IsTokenValid(std::string_view path, std::string_view token) override;
 
-    std::string name() override { return "JwtTokenAuth"; }
+    std::string Name() override { return "JwtTokenAuth"; }
 
   private:
-    void updateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle> incomingHandle);
+    void UpdateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle> incoming_handle);
 
-    static constexpr const std::string_view DEFAULT_BEARER{"Bearer "};
+    static constexpr const std::string_view kDefaultBearer{"Bearer "};
     static constexpr const std::string_view kJwkExt{".jwk"};
-    Path mJwksLoadedPath;
-    std::mutex mKeyhandleAccess;
-    absl::Status mTinkInitialized;
-    std::unique_ptr<crypto::tink::KeysetHandle> mActiveKeyset;
-    std::unique_ptr<JwkDirectoryObserver> mDirectoryObserver;
+    Path jwks_loaded_path_;
+    std::mutex keyhandle_access_;
+    absl::Status tink_initialized_;
+    std::unique_ptr<crypto::tink::KeysetHandle> active_keyset_;
+    std::unique_ptr<JwkDirectoryObserver> directory_observer_;
 };
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

@@ -1,0 +1,72 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "shared_memory",
+    srcs = select({
+        "@platforms//os:windows": ["shared_memory_win32.cc"],
+        "//conditions:default": ["shared_memory_posix.cc"],
+    }),
+    hdrs = [
+        "include/goldfish/memory/shared_memory.h",
+    ],
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Shlwapi.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = select({
+        "@platforms//os:windows": [
+            "//android/system:win32_utils",
+        ],
+        "//conditions:default": [],
+    }) + [
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_binary(
+    name = "shared_memory_test_helper",
+    testonly = True,
+    srcs = ["shared_memory_test_helper.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":shared_memory",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "shared_memory_test",
+    size = "small",
+    srcs = [
+        "shared_memory_test.cc",
+    ],
+    data = [":shared_memory_test_helper"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":shared_memory",
+        "//android/process",
+        "//android/system",
+        "//android/system:googletest_main",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":shared_memory",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

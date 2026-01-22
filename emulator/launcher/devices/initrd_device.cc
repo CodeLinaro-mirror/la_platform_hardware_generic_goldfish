@@ -52,7 +52,7 @@ std::string getDeviceStateString(const HardwareConfig& hw) {
 
 std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
-        const int apiLevel, std::string kernelSerialPrefix,
+        const int api_level, std::string kernelSerialPrefix,
         const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
         const AndroidOptions& opts) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
@@ -125,12 +125,12 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     // setup skin
 
-    auto skinName = avd.skin_name();
+    auto skinName = avd.SkinName();
     if (!skinName.empty() && isalpha((unsigned char)(skinName[0]))) {
         params.push_back({androidbootQemuSkin, skinName});
     }
 
-    auto hw = avd.hw();
+    auto hw = avd.Hw();
     // Set vsync rate
     params.push_back({qemuVsyncProp, absl::StrFormat("%u", hw.hw_lcd_vsync)});
 
@@ -276,7 +276,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
 std::string getDynamicPartitionBootDevice(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    auto arch = avd.detectArchitecture();
+    auto arch = avd.DetectArchitecture();
     // auto drive = emulator.get<PciDevice>("system");
 
     if (arch == Avd::CpuArchitecture::kX86) {
@@ -328,17 +328,17 @@ std::vector<std::string> getVerifiedBootparams(const EmulatorConfig& emulator) {
 
 std::vector<std::pair<std::string, std::string>> getBootProperties(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    auto hw = avd.hw();
+    auto hw = avd.Hw();
 
     int gles_major_version = 3;
     int gles_minor_version = 0;
     int bootPropOpenglesVersion = gles_major_version << 16 | gles_minor_version;
     std::string real_console_tty_prefix = "hvc";
-    int apiLevel = 202504;
+    int api_level = 202504;
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
-    return getUserspaceBootProperties(hw.hw_cpu_arch, avd.name(), bootPropOpenglesVersion, apiLevel,
-                                      real_console_tty_prefix, verifiedBootParameters, avd,
-                                      emulator.opts());
+    return getUserspaceBootProperties(hw.hw_cpu_arch, avd.Name(), bootPropOpenglesVersion,
+                                      api_level, real_console_tty_prefix, verifiedBootParameters,
+                                      avd, emulator.opts());
 }
 
 absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
@@ -354,11 +354,11 @@ absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
                     absl::StrCat("system ramdisk specified by -ramdisk flag not found: ", ramdisk));
         }
     } else {
-        ASSIGN_OR_RETURN(system_ramdisk, avd.getSystemImageFilePath(Avd::ImageType::RAMDISK));
+        ASSIGN_OR_RETURN(system_ramdisk, avd.GetSystemImageFilePath(Avd::ImageType::RAMDISK));
     }
 
     // Why doesn't it use Avd::getImageFilename(Avd::ImageType::USERRAMDISK) ?
-    mUserRamdisk = avd.getContentPath() / "initrd";
+    mUserRamdisk = avd.GetContentPath() / "initrd";
     // TODO(whollins): if mUserRamdisk exists then don't overwrite it (but then boot properties
     // aren't updated)?
 

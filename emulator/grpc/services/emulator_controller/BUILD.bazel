@@ -1,45 +1,16 @@
-load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
-load("@grpc-java//:java_grpc_library.bzl", "java_grpc_library")
-load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@protobuf//bazel:java_proto_library.bzl", "java_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+package(default_visibility = ["//visibility:public"])
 
-package(default_visibility = ["//emulator/grpc:__subpackages__"])
-
-proto_library(
+alias(
     name = "emulator_controller_proto",
-    srcs = ["proto/emulator_controller.proto"],
-    strip_import_prefix = "proto",
-    deps = [
-        "@protobuf//:empty_proto",
-        "@protobuf//:wrappers_proto",
-    ],
+    actual = "@aemu//protos/services/emulator-controller:emulator_controller_proto",
 )
 
-cc_proto_library(
+alias(
     name = "emulator_controller_cc_proto",
-    deps = [":emulator_controller_proto"],
+    actual = "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
 )
 
-cc_grpc_library(
+alias(
     name = "emulator_controller_cc_grpc",
-    srcs = [":emulator_controller_proto"],
-    grpc_only = True,
-    visibility = [
-        "//emulator/grpc:__subpackages__",
-        "//emulator/libs/avd_universe:__subpackages__",
-        "//emulator/plugin/grpc:__subpackages__",
-    ],
-    deps = [":emulator_controller_cc_proto"],
-)
-
-java_proto_library(
-    name = "emulator_controller_java_proto",
-    deps = [":emulator_controller_proto"],
-)
-
-java_grpc_library(
-    name = "emulator_controller_java_grpc",
-    srcs = [":emulator_controller_proto"],
-    deps = [":emulator_controller_java_proto"],
+    actual = "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
 )

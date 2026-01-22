@@ -30,7 +30,7 @@ absl::Status GpuDevice::initialize(const EmulatorConfig& emulator) {
 }
 
 std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    const auto& hw = emulator.avd().hw();
+    const auto& hw = emulator.avd().Hw();
     const AndroidOptions& opts = emulator.opts();
     return {
         "-device",

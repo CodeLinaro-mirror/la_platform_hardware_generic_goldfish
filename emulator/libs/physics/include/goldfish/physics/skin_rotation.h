@@ -16,15 +16,14 @@
 
 #pragma once
 
-namespace goldfish {
-namespace physics {
+#include <cstdint>
+namespace goldfish::physics {
 
-enum class SkinRotation {
-    PORTRAIT = 0,           // Portrait orientation (0 degrees).
-    LANDSCAPE = 1,          // Landscape orientation (90 degrees clockwise).
-    REVERSE_PORTRAIT = 2,   // Reverse portrait orientation (180 degrees or -180 degrees).
-    REVERSE_LANDSCAPE = 3,  // Reverse landscape orientation (270 degrees clockwise or -90 degrees).
+enum class SkinRotation : std::uint8_t {
+    kPortrait = 0,          // Portrait orientation (0 degrees).
+    kLandscape = 1,         // Landscape orientation (90 degrees clockwise).
+    kReversePortrait = 2,   // Reverse portrait orientation (180 degrees or -180 degrees).
+    kReverseLandscape = 3,  // Reverse landscape orientation (270 degrees clockwise or -90 degrees).
 };
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

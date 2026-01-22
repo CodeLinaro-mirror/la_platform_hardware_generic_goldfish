@@ -52,7 +52,7 @@ absl::StatusOr<fs::path> getSystemImage(const Avd& avd, Avd::ImageType sys_image
                     "System image specified by flag override not found: ", flag_override));
         }
     } else {
-        ASSIGN_OR_RETURN(p, avd.getSystemImageFilePath(sys_image_type));
+        ASSIGN_OR_RETURN(p, avd.GetSystemImageFilePath(sys_image_type));
     }
     return p;
 }
@@ -61,14 +61,14 @@ fs::path getUserImage(const Avd& avd, Avd::ImageType user_image_type, char* flag
     if (flag_override != nullptr) {
         return fs::path(flag_override);
     }
-    return avd.getContentPath() / Avd::getImageFilename(user_image_type);
+    return avd.GetContentPath() / Avd::GetImageFilename(user_image_type);
 }
 
 uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
     // studio avd manager does not allow user to change partition size, set a
     // lower limit to 6GB.
     constexpr uint64_t kMinPlaystoreImageSize = 6ULL * 1024 * 1024 * 1024;
-    uint64_t data_size = avd.hw().disk_dataPartition_size.Bytes();
+    uint64_t data_size = avd.Hw().disk_dataPartition_size.Bytes();
     if (opts.partition_size != nullptr) {
         uint64_t size_mib;
         if (absl::SimpleAtoi(opts.partition_size, &size_mib)) {
@@ -82,7 +82,7 @@ uint64_t getDataSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
     constexpr uint64_t kMinCacheSize = 66ULL * 1024 * 1024;
-    uint64_t cache_size = avd.hw().disk_cachePartition_size.Bytes();
+    uint64_t cache_size = avd.Hw().disk_cachePartition_size.Bytes();
     if (opts.cache_size != nullptr) {
         uint64_t size_mib;
         if (absl::SimpleAtoi(opts.cache_size, &size_mib)) {
@@ -96,7 +96,7 @@ uint64_t getCacheSize(const Avd& avd, const AndroidOptions& opts) {
 
 uint64_t getSdcardSize(const Avd& avd, const AndroidOptions& opts) {
     // TODO minimum size?
-    return avd.hw().hw_sdCard_size.Bytes();
+    return avd.Hw().hw_sd_card_size.Bytes();
 }
 }  // namespace
 
@@ -131,7 +131,7 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
     // function won't create it. This function might remove the qcow2 file so that it can be
     // recreated.
     RETURN_IF_ERROR(
-            prepareUserDataBaseImage(init_data, user_data, data_size, wipe_data, !avd.hw().hw_arc));
+            prepareUserDataBaseImage(init_data, user_data, data_size, wipe_data, !avd.Hw().hw_arc));
 
     return std::vector<DiskConfig>{
         // Currently this must be the first drive on ARM to match the androidboot.boot_devices

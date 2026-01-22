@@ -18,6 +18,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
+#include <cstdint>
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
@@ -54,13 +55,13 @@ struct PhysicalModelChangeEvent {
     /**
      * @brief Types of physical model state changes.
      */
-    enum class Type {
+    enum class Type : std::uint8_t {
         /// Notify the agent that physical target states have changed
-        TargetStateChanged,
+        kTargetStateChanged,
         /// Notify the agent that physical state changes are beginning
-        PhysicalStateChanging,
+        kPhysicalStateChanging,
         /// Notify the agent that physical state changes are complete and model is stable
-        PhysicalStateStabilized,
+        kPhysicalStateStabilized,
     };
 
     Type type;             ///< Type of state change event
@@ -86,14 +87,14 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
   public:
     static constexpr size_t kNumSensors = static_cast<size_t>(AndroidSensor::MAX_SENSORS);
 
-    PhysicalModel(const android::goldfish::HardwareConfig& hw);
+    explicit PhysicalModel(const android::goldfish::HardwareConfig& hw);
     ~PhysicalModel() = default;
 
-    SensorData getSensorData(AndroidSensor) const;
-    void setSensorValue(AndroidSensor, const SensorValue&);
+    SensorData GetSensorData(AndroidSensor) const;
+    void SetSensorValue(AndroidSensor, const SensorValue&);
 
-    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
-                                   const size_t count, PhysicalInterpolation interpolation_mode);
+    void SetPhysicalParameterValue(PhysicalParameter parameter, const float* val, size_t count,
+                                   PhysicalInterpolation interpolation_mode);
 
     /**
      * @brief Sets the current simulation time.
@@ -103,7 +104,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      *
      * @param time_ns The current time in nanoseconds.
      */
-    void setCurrentTime(int64_t time_ns);
+    void SetCurrentTime(int64_t time_ns);
 
     /**
      * @brief Sets the gravity vector for the simulation.
@@ -111,7 +112,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @param y Y component of gravity vector
      * @param z Z component of gravity vector
      */
-    void setGravity(float x, float y, float z);
+    void SetGravity(float x, float y, float z);
 
     /*
      * Target state setters and parameter getters
@@ -126,7 +127,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Gets current target state of the modeled object.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    w getParameter##z(ParameterValueType parameterValueType) const;
+    w getParameter##z(ParameterValueType parameter_value_type) const;
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
@@ -156,23 +157,23 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @param[out] out_rotation_z Z rotation in degrees
      * @param[out] out_timestamp Timestamp in nanoseconds
      */
-    void getTransform(float* out_translation_x, float* out_translation_y, float* out_translation_z,
+    void GetTransform(float* out_translation_x, float* out_translation_y, float* out_translation_z,
                       float* out_rotation_x, float* out_rotation_y, float* out_rotation_z,
                       int64_t* out_timestamp) const;
 
-    Rotation getDeviceRotation() const;
+    Rotation GetDeviceRotation() const;
 
     /**
      * @brief Gets the current foldable device state.
      * @return Current foldable state
      */
-    FoldableState getFoldableState() const;
+    FoldableState GetFoldableState() const;
 
     /**
      * @brief Checks if the foldable device is currently folded.
      * @return true if device is folded, false otherwise
      */
-    bool foldableIsFolded() const;
+    bool FoldableIsFolded() const;
 
     /**
      * @brief Gets the folded area dimensions.
@@ -182,14 +183,14 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @param[out] h Height of folded area
      * @return true if area was retrieved successfully
      */
-    bool getFoldedArea(int* x, int* y, int* w, int* h) const;
+    bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
-    android::base::EventNotificationSupport<FoldablePostures>* getPostureListener();
+    android::base::EventNotificationSupport<FoldablePostures>* GetPostureListener();
 
   private:
-    static size_t getSensorValueSize(AndroidSensor);
-    size_t getSensorDataImpl(AndroidSensor, float* out, const size_t count) const;
-    void setSensorValueImpl(AndroidSensor, const float* val, const size_t count);
+    static size_t GetSensorValueSize(AndroidSensor);
+    size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;
+    void SetSensorValueImpl(AndroidSensor, const float* val, size_t count);
 
     /*
      * Sets the target value for the given physical parameter that the physical
@@ -213,15 +214,15 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Helper for setting overrides.
      */
     template <class T>
-    void setOverride(const AndroidSensor sensor, T* overrideMemberPointer, T overrideValue) {
-        const size_t sensorIndex = static_cast<size_t>(sensor);
+    void setOverride(const AndroidSensor sensor, T* override_member_pointer, T override_value) {
+        const auto sensor_index = static_cast<size_t>(sensor);
 
-        physicalStateChanging();
+        PhysicalStateChanging();
         {
-            std::lock_guard<std::recursive_mutex> lock(mMutex);
-            mUseOverride[sensorIndex] = true;
-            mMeasurementId[sensorIndex]++;
-            *overrideMemberPointer = overrideValue;
+            const std::lock_guard<std::recursive_mutex> lock(mutex_);
+            use_override_[sensor_index] = true;
+            measurement_id_[sensor_index]++;
+            *override_member_pointer = override_value;
         }
     }
 
@@ -229,31 +230,31 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Helper for getting current sensor values.
      */
     template <class T, class GETTER>
-    T getSensorValue(const AndroidSensor sensor, const T* overrideMemberPointer,
-                     const GETTER& physicalGetter, size_t* measurement_id) const;
+    T getSensorValue(AndroidSensor sensor, const T* override_member_pointer,
+                     const GETTER& physical_getter, size_t* measurement_id) const;
 
-    void physicalStateChanging();    ///< Called when physical state begins changing
-    void physicalStateStabilized();  ///< Called when physical state stabilizes
-    void targetStateChanged();       ///< Called when target state changes
+    void PhysicalStateChanging();    ///< Called when physical state begins changing
+    void PhysicalStateStabilized();  ///< Called when physical state stabilizes
+    void TargetStateChanged();       ///< Called when target state changes
 
-    mutable std::recursive_mutex mMutex;  ///< Mutex for thread safety
+    mutable std::recursive_mutex mutex_;  ///< Mutex for thread safety
 
-    InertialModel mInertialModel;            ///< Models inertial motion
-    AmbientEnvironment mAmbientEnvironment;  ///< Models ambient conditions
-    FoldableModel mFoldableModel;            ///< Models foldable device state
-    BodyModel mBodyModel;                    ///< Models body-related sensors
+    InertialModel inertial_model_;            ///< Models inertial motion
+    AmbientEnvironment ambient_environment_;  ///< Models ambient conditions
+    FoldableModel foldable_model_;            ///< Models foldable device state
+    BodyModel body_model_;                    ///< Models body-related sensors
 
-    mutable size_t mMeasurementId[kNumSensors] = {0};  ///< Measurement IDs
+    mutable size_t measurement_id_[kNumSensors] = {0};  ///< Measurement IDs
 
-    bool mIsPhysicalStateChanging{false};      ///< True if physical state is changing
-    bool isLoadingSnapshot{false};             ///< True if loading from snapshot
-    bool mUseOverride[kNumSensors] = {false};  ///< Sensor override flags
+    bool is_physical_state_changing_{false};    ///< True if physical state is changing
+    bool is_loading_snapshot_{false};           ///< True if loading from snapshot
+    bool use_override_[kNumSensors] = {false};  ///< Sensor override flags
 
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v m##z##Override{0.f};
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
-    int64_t mModelTimeNs = 0L;  ///< Current model time in nanoseconds
+    int64_t model_time_ns_ = 0L;  ///< Current model time in nanoseconds
 };
 
 }  // namespace goldfish::sensors

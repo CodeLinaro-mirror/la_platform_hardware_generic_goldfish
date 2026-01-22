@@ -32,18 +32,22 @@
 #define DD(...) (void)0
 #endif
 
-namespace android {
-namespace base {
+namespace android::base {
 
-// A Very basic file system change detector.
+/**
+ * @brief Windows implementation of the FileSystemWatcher.
+ *
+ * This implementation is based on the `ReadDirectoryChangesW` API, which
+ * provides an efficient way to monitor a directory for changes.
+ */
 class ReadDirectoryChangesWin32 : public FileSystemWatcher {
   public:
-    ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback onChangeCallback)
-            : FileSystemWatcher(onChangeCallback), mPath(path) {}
+    explicit ReadDirectoryChangesWin32(Path path, FileSystemWatcherCallback on_change_callback)
+            : FileSystemWatcher(std::move(on_change_callback)), mPath(std::move(path)) {}
 
-    ~ReadDirectoryChangesWin32() { stop(); }
+    ~ReadDirectoryChangesWin32() override { Stop(); }
 
-    bool start() override {
+    bool Start() override {
         bool expected = false;
         if (!mRunning.compare_exchange_strong(expected, true)) {
             return false;
@@ -54,7 +58,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         return mDirHandle != INVALID_HANDLE_VALUE;
     }
 
-    void stop() override {
+    void Stop() override {
         bool expected = true;
         if (mRunning.compare_exchange_strong(expected, false)) {
             CancelIoEx(mDirHandle, NULL);
@@ -96,19 +100,19 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                 DD("Action: %d - %s (%d)", info->Action, changed.string().c_str(), offset);
                 switch (info->Action) {
                 case FILE_ACTION_ADDED:
-                    mChangeCallback(WatcherChangeType::Created, changed);
+                    change_callback(WatcherChangeType::kCreated, changed);
                     break;
                 case FILE_ACTION_MODIFIED:
-                    mChangeCallback(WatcherChangeType::Changed, changed);
+                    change_callback(WatcherChangeType::kChanged, changed);
                     break;
                 case FILE_ACTION_REMOVED:
-                    mChangeCallback(WatcherChangeType::Deleted, changed);
+                    change_callback(WatcherChangeType::kDeleted, changed);
                     break;
                 case FILE_ACTION_RENAMED_NEW_NAME:
-                    mChangeCallback(WatcherChangeType::Created, changed);
+                    change_callback(WatcherChangeType::kCreated, changed);
                     break;
                 case FILE_ACTION_RENAMED_OLD_NAME:
-                    mChangeCallback(WatcherChangeType::Deleted, changed);
+                    change_callback(WatcherChangeType::kDeleted, changed);
                     break;
                 default:
                     break;
@@ -134,12 +138,11 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
     Event mStarted;
 };
 
-std::unique_ptr<FileSystemWatcher> FileSystemWatcher::getFileSystemWatcher(
-        Path path, FileSystemWatcherCallback onChangeCallback) {
+std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
+        const Path& path, const FileSystemWatcherCallback& on_change_callback) {
     if (!base::file::is_dir(path)) {
         return nullptr;
     }
-    return std::make_unique<ReadDirectoryChangesWin32>(path, onChangeCallback);
+    return std::make_unique<ReadDirectoryChangesWin32>(path, on_change_callback);
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

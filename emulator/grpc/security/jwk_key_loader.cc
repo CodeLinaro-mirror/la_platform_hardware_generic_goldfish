@@ -40,27 +40,26 @@
 #define DD(...) (void)0
 #endif
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
-void JwkKeyLoader::clear() {
-    std::lock_guard guard(mKeylock);
-    mPublicKeys.clear();
+void JwkKeyLoader::Clear() {
+    const std::lock_guard guard(keylock_);
+    public_keys_.clear();
 }
 
-bool JwkKeyLoader::empty() const {
-    std::lock_guard guard(mKeylock);
-    return mPublicKeys.empty();
+bool JwkKeyLoader::Empty() const {
+    const std::lock_guard guard(keylock_);
+    return public_keys_.empty();
 }
 
-int JwkKeyLoader::size() const {
-    std::lock_guard guard(mKeylock);
-    return mPublicKeys.size();
+int JwkKeyLoader::Size() const {
+    const std::lock_guard guard(keylock_);
+    return static_cast<int>(public_keys_.size());
 }
 
+namespace {
 // Reads a file into a string.
-static absl::StatusOr<std::string> readFile(JwkKeyLoader::Path fname) {
+absl::StatusOr<std::string> ReadFile(const JwkKeyLoader::Path& fname) {
     if (!base::file::is_file(fname)) {
         return absl::NotFoundError(absl::StrCat("The path: ", fname.string(), " does not exist."));
     }
@@ -71,9 +70,9 @@ static absl::StatusOr<std::string> readFile(JwkKeyLoader::Path fname) {
 
     // Open stream at the end so we can learn the size.
     std::ifstream fstream(fname, std::ios::binary | std::ios::ate);
-    std::streampos fileSize = fstream.tellg();
+    const std::streampos file_size = fstream.tellg();
 
-    if (fileSize == 0) {
+    if (file_size == 0) {
         auto message = absl::StrFormat("%s is empty", fname);
         return absl::UnavailableError(message);
     }
@@ -84,18 +83,18 @@ static absl::StatusOr<std::string> readFile(JwkKeyLoader::Path fname) {
     }
 
     // Usually a jkw file is around 300 bytes... so...
-    constexpr int MAX_JWK_SIZE = 8 * 1024;
-    if (fileSize > MAX_JWK_SIZE) {
+    constexpr int kMaxJwkSize = 8 * 1024;
+    if (file_size > kMaxJwkSize) {
         auto message =
                 absl::StrFormat("Refusing to read %s of size %d, which is over our max of %d.",
-                                fname, (int)fileSize, MAX_JWK_SIZE);
+                                fname, static_cast<int>(file_size), kMaxJwkSize);
         return absl::PermissionDeniedError(message);
     }
 
     // Allocate the string with the required size and read it.
-    std::string contents(fileSize, ' ');
+    std::string contents(file_size, ' ');
     fstream.seekg(0, std::ios::beg);
-    fstream.read(&contents[0], fileSize);
+    fstream.read(contents.data(), file_size);
 
     if (fstream.bad()) {
         auto message =
@@ -105,12 +104,13 @@ static absl::StatusOr<std::string> readFile(JwkKeyLoader::Path fname) {
 
     return contents;
 }
+}  // namespace
 
-absl::Status JwkKeyLoader::addWithRetryForEmpty(Path toAdd, int retries,
+absl::Status JwkKeyLoader::AddWithRetryForEmpty(const Path& to_add, int retries,
                                                 std::chrono::milliseconds wait_for) {
     absl::Status status;
     do {
-        status = add(toAdd);
+        status = Add(to_add);
         if (status.code() == absl::StatusCode::kUnavailable) {
             LOG(INFO) << "Token not yet available, waiting " << wait_for.count() << " ms.";
             std::this_thread::sleep_for(wait_for);
@@ -121,32 +121,32 @@ absl::Status JwkKeyLoader::addWithRetryForEmpty(Path toAdd, int retries,
     return status;
 }
 
-absl::Status JwkKeyLoader::add(Path toAdd) {
-    auto jsonString = readFile(toAdd);
-    if (!jsonString.ok()) return jsonString.status();
+absl::Status JwkKeyLoader::Add(const Path& to_add) {
+    auto json_string = ReadFile(to_add);
+    if (!json_string.ok()) return json_string.status();
 
-    if (!json::accept(*jsonString)) {
+    if (!json::accept(*json_string)) {
         return absl::InternalError(
-                absl::StrFormat("%s contains: %s, an invalid json object.", toAdd, *jsonString));
+                absl::StrFormat("%s contains: %s, an invalid json object.", to_add, *json_string));
     }
 
-    return add(toAdd, *jsonString);
+    return Add(to_add, *json_string);
 }
 
-absl::Status JwkKeyLoader::add(Path toAdd, std::string jsonString) {
-    auto handle = crypto::tink::JwkSetToPublicKeysetHandle(jsonString);
+absl::Status JwkKeyLoader::Add(const Path& to_add, const std::string& json_string) {
+    auto handle = crypto::tink::JwkSetToPublicKeysetHandle(json_string);
     if (!handle.ok()) {
-        LOG(INFO) << toAdd << " contains " << jsonString << ", which is invalid.";
-        return absl::InternalError(absl::StrFormat("%s does not contain a valid jwk", toAdd));
+        LOG(INFO) << to_add << " contains " << json_string << ", which is invalid.";
+        return absl::InternalError(absl::StrFormat("%s does not contain a valid jwk", to_add));
     }
 
-    auto jsonSnippet = crypto::tink::JwkSetFromPublicKeysetHandle(*handle->get());
-    if (!jsonSnippet.ok()) {
+    auto json_snippet = crypto::tink::JwkSetFromPublicKeysetHandle(**handle);
+    if (!json_snippet.ok()) {
         return absl::InternalError(
-                absl::StrFormat("Unable to convert key handle to json for file: %s", toAdd));
+                absl::StrFormat("Unable to convert key handle to json for file: %s", to_add));
     }
 
-    json object = json::parse(*jsonSnippet);
+    json object = json::parse(*json_snippet);
     assert(!object.is_discarded());
 
     // We should have a "keys" array (see:
@@ -157,35 +157,35 @@ absl::Status JwkKeyLoader::add(Path toAdd, std::string jsonString) {
     auto keys = object["keys"];
     auto kid = keys.front().find("kid");
     if (kid == keys.front().end()) {
-        LOG(WARNING) << "No KeyID found in JWK " << toAdd;
+        LOG(WARNING) << "No KeyID found in JWK " << to_add;
     } else {
-        DD("KeyID %s, path: %s", kid->get<std::string>().c_str(), toAdd.c_str());
+        DD("KeyID %s, path: %s", kid->get<std::string>().c_str(), to_add.c_str());
     }
 
     {
-        std::lock_guard guard(mKeylock);
-        mPublicKeys[toAdd] = keys;
+        const std::lock_guard guard(keylock_);
+        public_keys_[to_add] = keys;
     }
     return absl::OkStatus();
 }
 
-absl::Status JwkKeyLoader::remove(Path toRemove) {
-    std::lock_guard guard(mKeylock);
-    if (!mPublicKeys.count(toRemove)) {
+absl::Status JwkKeyLoader::Remove(const Path& to_remove) {
+    const std::lock_guard guard(keylock_);
+    if (!public_keys_.contains(to_remove)) {
         return absl::NotFoundError(
-                absl::StrFormat("Public key with path %s, does not exist", toRemove));
+                absl::StrFormat("Public key with path %s, does not exist", to_remove));
     }
 
-    mPublicKeys.erase(toRemove);
+    public_keys_.erase(to_remove);
     return absl::OkStatus();
 }
 
-JwkKeyLoader::json JwkKeyLoader::activeKeysetAsJson() const {
+JwkKeyLoader::json JwkKeyLoader::ActiveKeysetAsJson() const {
     // Now let's reconstruct our key set.
     std::vector<json> keys;
     {
-        std::lock_guard guard(mKeylock);
-        for (const auto& [fname, keyset] : mPublicKeys) {
+        const std::lock_guard guard(keylock_);
+        for (const auto& [fname, keyset] : public_keys_) {
             // contents is a json JWKS, so let's merge them together.
             for (const auto& key : keyset) {
                 keys.emplace_back(key);
@@ -193,25 +193,23 @@ JwkKeyLoader::json JwkKeyLoader::activeKeysetAsJson() const {
         }
     }
 
-    json combinedJwk = {{"keys", keys}};
-    return combinedJwk;
+    json combined_jwk = {{"keys", keys}};
+    return combined_jwk;
 }
 
-std::string JwkKeyLoader::activeKeysetAsString() const {
-    constexpr int indentation = 2;
-    return activeKeysetAsJson().dump(indentation);
+std::string JwkKeyLoader::ActiveKeysetAsString() const {
+    constexpr int kIndentation = 2;
+    return ActiveKeysetAsJson().dump(kIndentation);
 }
 
-absl::StatusOr<JwkKeyLoader::Keyset> JwkKeyLoader::activeKeySet() const {
-    auto jsonKeys = activeKeysetAsString();
-    auto keyHandle = crypto::tink::JwkSetToPublicKeysetHandle(jsonKeys);
-    if (!keyHandle.ok()) {
-        return absl::InternalError(keyHandle.status().message());
+absl::StatusOr<JwkKeyLoader::Keyset> JwkKeyLoader::ActiveKeySet() const {
+    auto json_keys = ActiveKeysetAsString();
+    auto key_handle = crypto::tink::JwkSetToPublicKeysetHandle(json_keys);
+    if (!key_handle.ok()) {
+        return absl::InternalError(key_handle.status().message());
     }
 
-    return absl::StatusOr<Keyset>(std::move(keyHandle.value()));
+    return {std::move(key_handle.value())};
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "android/emulation/control/allow_list.h"
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -26,14 +27,12 @@
 #include "nlohmann/json.hpp"
 #include "re2/re2.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
-enum class AllowGroup {
-    None,    // No auth needed
-    Green,   // Ok, if token present
-    Yellow,  // Ok, if token present and proper aud claim.
+enum class AllowGroup : uint8_t {
+    kNone,    // No auth needed
+    kGreen,   // Ok, if token present
+    kYellow,  // Ok, if token present and proper aud claim.
 };
 
 using regex = re2::RE2;
@@ -63,31 +62,31 @@ using json = nlohmann::json;
 // subjects quickly once they have tried to access an endpoint.
 class CachingAllowList : public AllowList {
   public:
-    static constexpr const char* UNPROTECTED = "__everyone__";
+    static constexpr const char* kUnprotected = "__everyone__";
 
-    CachingAllowList(SecurityMap securityMap) : mSecurityMap(std::move(securityMap)) {}
+    explicit CachingAllowList(SecurityMap security_map) : security_map_(std::move(security_map)) {}
 
-    bool requiresAuthentication(std::string_view path) override {
-        return !isAllowed(AllowGroup::None, UNPROTECTED, path);
+    bool RequiresAuthentication(std::string_view path) override {
+        return !IsAllowed(AllowGroup::kNone, kUnprotected, path);
     };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override {
-        return isAllowed(AllowGroup::Green, sub, path);
+    bool IsAllowed(std::string_view sub, std::string_view path) override {
+        return IsAllowed(AllowGroup::kGreen, sub, path);
     }
 
-    bool isProtected(std::string_view sub, std::string_view path) override {
-        return isAllowed(AllowGroup::Yellow, sub, path);
+    bool IsProtected(std::string_view sub, std::string_view path) override {
+        return IsAllowed(AllowGroup::kYellow, sub, path);
     }
 
   private:
     // Inserts an entry into the cache, expunging a random element
     // in case of overflow.
-    void insert(std::unordered_map<AllowGroup, AllowCache>& cache, AllowGroup color,
-                std::string iss, std::string path) {
-        constexpr int MAX_URI_CACHE = 256;
+    static void Insert(std::unordered_map<AllowGroup, AllowCache>& cache, AllowGroup color,
+                       const std::string& iss, const std::string& path) {
+        constexpr int kMaxUriCache = 256;
         // Prevent cache overflow..
 
-        if (cache[color][iss].size() >= MAX_URI_CACHE) {
+        if (cache[color][iss].size() >= kMaxUriCache) {
             // Randomly remove an element
             auto& set = cache[color][iss];
             auto it = set.begin();
@@ -100,30 +99,30 @@ class CachingAllowList : public AllowList {
         cache[color][iss].insert(path);
     }
 
-    bool isAllowed(AllowGroup color, std::string_view subView, std::string_view pathView) {
-        std::lock_guard<std::mutex> lock(mAllowCheck);
+    bool IsAllowed(AllowGroup color, std::string_view sub_view, std::string_view path_view) {
+        const std::lock_guard<std::mutex> lock(allow_check_);
 
-        std::string sub = std::string(subView.data(), subView.length());
-        if (!mSecurityMap[color].count(sub)) {
+        const std::string sub = std::string(sub_view.data(), sub_view.length());
+        if (!security_map_[color].contains(sub)) {
             LOG(WARNING) << "Unknown subject " << sub << " is requesting access.";
             return false;
         }
 
-        std::string path = std::string(pathView.data(), pathView.length());
-        if (mRejectionCache[color][sub].count(path)) {
+        const std::string path = std::string(path_view.data(), path_view.length());
+        if (rejection_cache_[color][sub].contains(path)) {
             return false;
         }
 
-        if (mAcceptCache[color][sub].count(path)) {
+        if (accept_cache_[color][sub].contains(path)) {
             return true;
         }
 
-        for (const auto& regex : mSecurityMap[color][sub]) {
+        for (const auto& regex : security_map_[color][sub]) {
             if (regex::FullMatch(path, *regex)) {
                 DD("%s is in %s group, access to %s is allowed, "
                    "caching uri",
                    sub.c_str(), colorStr(color), path.c_str());
-                insert(mAcceptCache, color, sub, path);
+                Insert(accept_cache_, color, sub, path);
                 return true;
             }
         }
@@ -131,30 +130,31 @@ class CachingAllowList : public AllowList {
         DD("%s is in %s group, access to %s is denied, "
            "caching uri",
            sub.c_str(), colorStr(color), path.c_str());
-        insert(mRejectionCache, color, sub, path);
+        Insert(rejection_cache_, color, sub, path);
         return false;
     }
 
-    const char* colorStr(AllowGroup group) {
+    static const char* ColorStr(AllowGroup group) {
         switch (group) {
-        case AllowGroup::None:
+        case AllowGroup::kNone:
             return "unprotected";
-        case AllowGroup::Green:
+        case AllowGroup::kGreen:
             return "allowed";
-        case AllowGroup::Yellow:
+        case AllowGroup::kYellow:
             return "protected";
         }
     }
 
-    std::mutex mAllowCheck;
-    SecurityMap mSecurityMap;
-    RejectionCache mRejectionCache;
-    AcceptCache mAcceptCache;
+    std::mutex allow_check_;
+    SecurityMap security_map_;
+    RejectionCache rejection_cache_;
+    AcceptCache accept_cache_;
 };
 
-AccessList parseAccessList(json regexList) {
+namespace {
+AccessList ParseAccessList(const json& regex_list) {
     AccessList access;
-    for (const auto& entry : regexList) {
+    for (const auto& entry : regex_list) {
         auto expr = entry.get<std::string>();
         auto re = std::make_unique<regex>(expr);
         if (!re->ok()) {
@@ -167,22 +167,22 @@ AccessList parseAccessList(json regexList) {
     return access;
 }
 
-std::unique_ptr<AllowList> parseJsonObject(const json& jsonObject) {
-    if (jsonObject.is_discarded()) {
+std::unique_ptr<AllowList> ParseJsonObject(const json& json_object) {
+    if (json_object.is_discarded()) {
         LOG(ERROR) << "The json is invalid, access disabled!";
         return std::make_unique<DisableAccess>();
     }
 
     SecurityMap secure;
-    std::vector<std::unique_ptr<regex>> unprotected;
-    if (jsonObject.count("unprotected")) {
+    const std::vector<std::unique_ptr<regex>> unprotected;
+    if (json_object.count("unprotected")) {
         DD("Open calls: ");
-        secure[AllowGroup::None][CachingAllowList::UNPROTECTED] =
-                parseAccessList(jsonObject["unprotected"]);
+        secure[AllowGroup::kNone][CachingAllowList::kUnprotected] =
+                ParseAccessList(json_object["unprotected"]);
     }
 
-    if (jsonObject.count("allowlist")) {
-        for (const auto& entry : jsonObject["allowlist"]) {
+    if (json_object.count("allowlist")) {
+        for (const auto& entry : json_object["allowlist"]) {
             if (!entry.count("iss")) {
                 LOG(WARNING) << "Invalid allow list. Missing \"iss\" claim, "
                                 "skipping entry: "
@@ -199,38 +199,37 @@ std::unique_ptr<AllowList> parseJsonObject(const json& jsonObject) {
 
             auto iss = entry["iss"].get<std::string>();
 
-            if (iss == CachingAllowList::UNPROTECTED) {
-                LOG(WARNING) << "Skipping " << CachingAllowList::UNPROTECTED
+            if (iss == CachingAllowList::kUnprotected) {
+                LOG(WARNING) << "Skipping " << CachingAllowList::kUnprotected
                              << ", this is a reserved issuer.";
                 continue;
             }
 
             if (entry.count("allowed")) {
                 DD("Green list for iss: %s", iss)
-                secure[AllowGroup::Green][iss] = parseAccessList(entry["allowed"]);
+                secure[AllowGroup::kGreen][iss] = ParseAccessList(entry["allowed"]);
             }
 
             if (entry.count("protected")) {
                 DD("Yellow list for iss: %s", iss);
-                secure[AllowGroup::Yellow][iss] = parseAccessList(entry["protected"]);
+                secure[AllowGroup::kYellow][iss] = ParseAccessList(entry["protected"]);
             }
         }
     }
 
     return std::make_unique<CachingAllowList>(std::move(secure));
 }
+}  // namespace
 
-std::unique_ptr<AllowList> AllowList::fromJson(std::string_view jsonWithComments) {
-    return parseJsonObject(json::parse(jsonWithComments, nullptr, false, true));
+std::unique_ptr<AllowList> AllowList::FromJson(std::string_view json_with_comments) {
+    return ParseJsonObject(json::parse(json_with_comments, nullptr, false, true));
 }
 
-std::unique_ptr<AllowList> AllowList::fromStream(std::istream& jsonWithComments) {
-    if (!jsonWithComments.good()) {
+std::unique_ptr<AllowList> AllowList::FromStream(std::istream& json_with_comments) {
+    if (!json_with_comments.good()) {
         LOG(WARNING) << "Unable to access file!";
     }
-    return parseJsonObject(json::parse(jsonWithComments, nullptr, false, true));
+    return ParseJsonObject(json::parse(json_with_comments, nullptr, false, true));
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

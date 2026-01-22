@@ -32,7 +32,7 @@ namespace android::goldfish {
 
 absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     const Avd& avd = emulator.avd();
-    auto hw = avd.hw();
+    auto hw = avd.Hw();
     mMemorySizeMiB = hw.hw_ramSize;
     if (mMemorySizeMiB <= 0) {
         LOG(WARNING) << "RAM size not specified in AVD, defaulting to 2GiB";
@@ -78,7 +78,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
     }
 
     auto ram_file = path / "ram.bin";
-    StorageCapacity filePageSize = System::getFilePageSizeForPath(ram_file.c_str());
+    StorageCapacity filePageSize = System::GetFilePageSizeForPath(ram_file.c_str());
 
 #ifdef _WIN32
     auto ramSizeBytesWithAlign = ram.align(filePageSize) + filePageSize;
@@ -118,7 +118,7 @@ absl::Status MemoryDevice::initialize(const EmulatorConfig& emulator) {
 }
 
 std::vector<std::string> MemoryDevice::getQemuParameters(const EmulatorConfig& emulator) const {
-    auto hw = emulator.avd().hw();
+    auto hw = emulator.avd().Hw();
     return {
         "-m", std::to_string(mMemorySizeMiB)
         //  ,"-object",

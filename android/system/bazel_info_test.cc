@@ -23,25 +23,25 @@
 namespace android {
 namespace base {
 
-TEST(bazel_info, inBazel) {
-    EXPECT_TRUE(Bazel::inBazel());
+TEST(bazel_info, InBazel) {
+    EXPECT_TRUE(Bazel::InBazel());
 }
 
 TEST(bazel_info, can_get_data_file) {
-    EXPECT_FALSE(Bazel::runfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt")
+    EXPECT_FALSE(Bazel::RunfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt")
                          .empty());
 }
 
 TEST(bazel_info, can_read_data_file) {
     std::string path =
-            Bazel::runfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt");
+            Bazel::RunfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt");
     std::ifstream file(path);
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     EXPECT_EQ(content, "Hello World!");
 }
 
 TEST(bazel_info, can_get_non_existent_file) {
-    EXPECT_FALSE(base::file::exists(Bazel::runfilesPath("non/existent/file.txt")));
+    EXPECT_FALSE(base::file::exists(Bazel::RunfilesPath("non/existent/file.txt")));
 }
 
 }  // namespace base

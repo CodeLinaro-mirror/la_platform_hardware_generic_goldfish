@@ -1,19 +1,15 @@
-load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
-proto_library(
+alias(
     name = "grpc_endpoint_description_proto",
-    srcs = ["proto/grpc_endpoint_description.proto"],
-    strip_import_prefix = "proto",
-    deps = ["@protobuf//:empty_proto"],
+    actual = "@aemu//protos/client:grpc_endpoint_description_proto",
 )
 
-cc_proto_library(
+alias(
     name = "grpc_endpoint_description_cc_proto",
-    deps = [":grpc_endpoint_description_proto"],
+    actual = "@aemu//protos/client:grpc_endpoint_description_cc_proto",
 )
 
 cc_library(

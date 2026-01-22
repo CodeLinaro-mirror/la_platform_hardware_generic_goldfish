@@ -32,7 +32,7 @@ TEST(MemoryDevice, Basic) {
 
     auto hw = HardwareConfig();
     hw.hw_ramSize = 512;
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
@@ -44,7 +44,7 @@ TEST(MemoryDevice, Default) {
 
     auto hw = HardwareConfig();
     hw.hw_ramSize = 0;
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
@@ -57,7 +57,7 @@ TEST(MemoryDevice, Override) {
 
     auto hw = HardwareConfig();
     hw.hw_ramSize = 512;
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
 
     MemoryDevice dev;
     EXPECT_OK(dev.initialize(emu.config()));
@@ -70,7 +70,7 @@ TEST(MemoryDevice, InvalidOverride) {
 
     auto hw = HardwareConfig();
     hw.hw_ramSize = 512;
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(ReturnRef(hw));
 
     MemoryDevice dev;
     EXPECT_FALSE(dev.initialize(emu.config()).ok());

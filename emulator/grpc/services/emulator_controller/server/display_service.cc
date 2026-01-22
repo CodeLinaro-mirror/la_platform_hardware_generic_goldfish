@@ -55,23 +55,23 @@ using DeviceSkinRotationCallbackSource =
 ProtoRotation toProtobufRotation(const DeviceRotation& rotation) {
     ProtoRotation protoRotation;
     switch (rotation.rotation) {
-    case DeviceSkinRotation::PORTRAIT:
+    case DeviceSkinRotation::kPortrait:
         protoRotation.set_rotation(ProtoRotation::PORTRAIT);
         break;
-    case DeviceSkinRotation::LANDSCAPE:
+    case DeviceSkinRotation::kLandscape:
         protoRotation.set_rotation(ProtoRotation::LANDSCAPE);
         break;
-    case DeviceSkinRotation::REVERSE_PORTRAIT:
+    case DeviceSkinRotation::kReversePortrait:
         protoRotation.set_rotation(ProtoRotation::REVERSE_PORTRAIT);
         break;
-    case DeviceSkinRotation::REVERSE_LANDSCAPE:
+    case DeviceSkinRotation::kReverseLandscape:
         protoRotation.set_rotation(ProtoRotation::REVERSE_LANDSCAPE);
         break;
     }
 
-    protoRotation.set_xaxis(static_cast<double>(rotation.xAxis));
-    protoRotation.set_yaxis(static_cast<double>(rotation.yAxis));
-    protoRotation.set_zaxis(static_cast<double>(rotation.zAxis));
+    protoRotation.set_xaxis(static_cast<double>(rotation.x_axis));
+    protoRotation.set_yaxis(static_cast<double>(rotation.y_axis));
+    protoRotation.set_zaxis(static_cast<double>(rotation.z_axis));
 
     return protoRotation;
 }
@@ -108,9 +108,9 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     const auto deviceSkinRotationSubscription = android::base::eventing::makeScopedCallback(
             mPhysicalModel,
             [this, &deviceSkinRotationCallbackSource](const PhysicalModelChangeEvent& event) {
-                if (event.type == PhysicalModelChangeEvent::Type::TargetStateChanged) {
+                if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
                     deviceSkinRotationCallbackSource.fireEvent(
-                            mPhysicalModel.getDeviceRotation().rotation);
+                            mPhysicalModel.GetDeviceRotation().rotation);
                 }
             });
 
@@ -195,7 +195,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
     }
 
-    const DeviceRotation deviceRotation = mPhysicalModel.getDeviceRotation();
+    const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
     int desiredWidth = request->width();
     int desiredHeight = request->height();
 
@@ -205,8 +205,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         desiredHeight = display->height();
 
         // Make sure they are in the right direction based on layout
-        if (deviceRotation.rotation == DeviceSkinRotation::LANDSCAPE ||
-            deviceRotation.rotation == DeviceSkinRotation::REVERSE_LANDSCAPE) {
+        if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
+            deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
             std::swap(desiredWidth, desiredHeight);
         }
     }
@@ -227,8 +227,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     // Depending on the rotation state width and height need to be
     // reversed. as our apsect ration depends on how we are holding our
     // phone..
-    if (deviceRotation.rotation == DeviceSkinRotation::LANDSCAPE ||
-        deviceRotation.rotation == DeviceSkinRotation::REVERSE_LANDSCAPE) {
+    if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
+        deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
         VLOG(2) << "Swapping width & height " << width << "x" << height << " to " << height << "x"
                 << width;
         std::swap(width, height);
@@ -258,9 +258,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         // The protobuf message takes ownership of the pointer.
         reply->set_allocated_image(buffer);
         unsafe = reply->mutable_image()->data();
-        uint8_t* pixels = reinterpret_cast<uint8_t*>(unsafe);
-        size_t cPixels = reply->mutable_image()->size();
+        pixels = reinterpret_cast<uint8_t*>(unsafe);
+        cPixels = reply->mutable_image()->size();
         seq = display->getPixels(format, newWidth, newHeight, rotationDeg, pixels, &cPixels);
+        if (format == PixelFormat::PNG && cPixels < reply->mutable_image()->size()) {
+            reply->mutable_image()->resize(cPixels);
+        }
     }
 
     if (!seq.status().ok()) {

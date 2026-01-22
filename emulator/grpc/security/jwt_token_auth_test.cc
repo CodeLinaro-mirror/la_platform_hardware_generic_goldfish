@@ -60,29 +60,29 @@ const std::string kGRADLE = "gradle-utp-emulator-control";
 
 class AllYellow : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return true; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return true; }
 };
 
 class AllGreen : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return true; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return true; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class AllRed : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class JwkTokenAuthTest : public ::testing::Test {
@@ -197,7 +197,7 @@ TEST_F(JwkTokenAuthTest, accept_yellow) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
-    EXPECT_TRUE(jwt.isTokenValid("c", "Bearer " + *token).ok());
+    EXPECT_TRUE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, accept_green) {
@@ -207,7 +207,7 @@ TEST_F(JwkTokenAuthTest, accept_green) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllGreen);
-    EXPECT_TRUE(jwt.isTokenValid("c", "Bearer " + *token).ok());
+    EXPECT_TRUE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_red_list) {
@@ -217,7 +217,7 @@ TEST_F(JwkTokenAuthTest, reject_red_list) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllRed);
-    EXPECT_FALSE(jwt.isTokenValid("c", "Bearer " + *token).ok());
+    EXPECT_FALSE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, invalid_audience) {
@@ -226,7 +226,7 @@ TEST_F(JwkTokenAuthTest, invalid_audience) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
-    EXPECT_FALSE(jwt.isTokenValid("not_in_aud_set", "Bearer " + *token).ok());
+    EXPECT_FALSE(jwt.IsTokenValid("not_in_aud_set", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_expired) {
@@ -242,7 +242,7 @@ TEST_F(JwkTokenAuthTest, reject_expired) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    EXPECT_FALSE(jwt.isTokenValid("a", "Bearer " + *token).ok());
+    EXPECT_FALSE(jwt.IsTokenValid("a", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, reject_not_ready_yet) {
@@ -258,7 +258,7 @@ TEST_F(JwkTokenAuthTest, reject_not_ready_yet) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    EXPECT_FALSE(jwt.isTokenValid("a", "Bearer " + *token).ok());
+    EXPECT_FALSE(jwt.IsTokenValid("a", "Bearer " + *token).ok());
 }
 
 TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
@@ -274,7 +274,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not include d/e/f in the aud claim. Make sure to "
               "add it to the array.");
@@ -293,7 +293,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "Make sure to add `allowedEndpoints.add(\"d/e/f\")` to the "
               "emulatorControl block in your gradle build file.");
@@ -311,7 +311,7 @@ TEST_F(JwkTokenAuthTest, fail_with_generic_message_no_aud) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not have an aud claim. Make sure to include: "
               "`\"aud\" : [\"d/e/f\"]` in your JWT.");
@@ -329,7 +329,7 @@ TEST_F(JwkTokenAuthTest, fail_with_gradle_message_no_aud) {
 
     JwtTokenAuth jwt(mTempDir->path().string(), "", &mAllYellow);
     auto token = (*sign)->SignAndEncode(*raw_jwt);
-    auto message = std::string(jwt.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(jwt.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "Make sure to add `allowedEndpoints.add(\"d/e/f\")` to the "
               "emulatorControl block in your gradle build file.");
@@ -355,7 +355,7 @@ TEST_F(JwkTokenAuthTest, any_message) {
             std::make_unique<JwtTokenAuth>(mTempDir->path().string(), "", &mAllYellow));
 
     AnyTokenAuth any(std::move(anyauth), &mAllYellow);
-    auto message = std::string(any.isTokenValid("d/e/f", "Bearer " + *token).message());
+    auto message = std::string(any.IsTokenValid("d/e/f", "Bearer " + *token).message());
     EXPECT_EQ(message,
               "The JWT does not include d/e/f in the aud claim. Make sure to "
               "add it to the array.");
@@ -379,11 +379,11 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     // the emulator activated a new keyset.
     auto json = readFile(discover_file);
     for (int i = 0; json != "" && i < 10; i++) {
-        base::System::get()->sleepMs(100);
+        base::System::Get()->SleepMs(100);
         json = readFile(discover_file);
     }
 
-    EXPECT_FALSE(jwt.isTokenValid("c", "Bearer " + *token).ok());
+    EXPECT_FALSE(jwt.IsTokenValid("c", "Bearer " + *token).ok());
 }
 }  // namespace control
 }  // namespace emulation

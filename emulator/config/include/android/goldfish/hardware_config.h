@@ -32,12 +32,12 @@ class HardwareConfig {
     HardwareConfig();
     ~HardwareConfig() = default;
 
-    void applyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path);
-    void load(const IniFile& ini);
+    void ApplyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path);
+    void Load(const IniFile& ini);
 
     // this is needed as studio embedded ui expects a file called 'hardware-qemu.ini'
     // that is similar to config.ini but has more finalized values, such as sdk root
-    void write(IniFile* ini);
+    void Write(IniFile* ini) const;
 
 #define HWCFG_BOOL(n, s, d, a, t) bool n;
 #define HWCFG_INT(n, s, d, a, t) int n;
@@ -46,7 +46,7 @@ class HardwareConfig {
 #define HWCFG_DISKSIZE(n, s, d, a, t) StorageCapacity n;
 
 #include "avd/hw-config-defs.h"
-    StorageCapacity hw_sdCard_size{512_MiB};
+    StorageCapacity hw_sd_card_size{512_MiB};
 };
 
 }  // namespace android::goldfish

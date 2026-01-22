@@ -14,49 +14,74 @@
 
 #pragma once
 
-#include <stddef.h>  // for size_t
-
+#include <cstdint>
 #include <filesystem>
-#include <functional>  // for function
-#include <memory>      // for unique_ptr
+#include <functional>
+#include <memory>
+#include <utility>
 
-namespace android {
-namespace base {
+namespace android::base {
 
-// Listens to the file system change notifications and raises events when a
-// directory, or file in a directory, changes.
-//
-// Note: Each observer consumes one thread.
-// Note: It is very expensive on mac os, so do not observe large directory
-// structures with this.
+/**
+ * @brief Listens to file system change notifications and raises events when a
+ * directory, or a file in a directory, changes.
+ *
+ * This class provides a platform-independent interface for monitoring file
+ * system activity within a specified directory.
+ *
+ * @note Each FileSystemWatcher instance consumes one dedicated thread to
+ *       monitor for changes.
+ *
+ * @warning On macOS, this implementation uses the FSEvents API, which can be
+ *          resource-intensive. Avoid watching large directory structures to
+ *          prevent performance degradation.
+ */
 class FileSystemWatcher {
   public:
     // On one day we will have std::filesystem everywhere..
     using Path = std::filesystem::path;
 
-    enum class WatcherChangeType {
-        Created,  // The creation of a file or folder.
-        Deleted,  // The deletion of a file or folder.
-        Changed,  // The change of a file or folder. The types of changes
-                  // include: changes to size, attributes, security
-                  // settings, last write, and last access time.
+    /**
+     * @brief Defines the type of file system change that occurred.
+     */
+    enum class WatcherChangeType : std::uint8_t {
+        kCreated,  ///< An item was created.
+        kDeleted,  ///< An item was deleted.
+        kChanged,  ///< An item's metadata or content was changed. This can
+                   ///< include changes to size, attributes, security settings,
+                   //< last write time, etc.
     };
 
     // Change type, and file that was created, deleted or changed.
     using FileSystemWatcherCallback = std::function<void(WatcherChangeType, const Path&)>;
 
-    FileSystemWatcher(FileSystemWatcherCallback callback) : mChangeCallback(callback) {}
+    explicit FileSystemWatcher(FileSystemWatcherCallback callback)
+            : change_callback(std::move(callback)) {}
     virtual ~FileSystemWatcher() = default;
 
-    virtual bool start() = 0;
-    virtual void stop() = 0;
+    /**
+     * @brief Starts the file system watcher.
+     * @return true if the watcher started successfully, false otherwise.
+     */
+    virtual bool Start() = 0;
 
-    // Watches for changes in the given directory.
-    // Returns nullptr if path is not a directory.
-    static std::unique_ptr<FileSystemWatcher> getFileSystemWatcher(
-            Path path, FileSystemWatcherCallback onChangeCallback);
+    /**
+     * @brief Stops the file system watcher.
+     */
+    virtual void Stop() = 0;
 
-    FileSystemWatcherCallback mChangeCallback;
+    /**
+     * @brief Creates a platform-specific FileSystemWatcher.
+     *
+     * @param path The directory to watch for changes.
+     * @param on_change_callback The callback to invoke when changes are
+     *                           detected.
+     * @return A unique_ptr to a FileSystemWatcher instance, or nullptr if the
+     *         given path is not a directory.
+     */
+    static std::unique_ptr<FileSystemWatcher> GetFileSystemWatcher(
+            const Path& path, const FileSystemWatcherCallback& on_change_callback);
+
+    FileSystemWatcherCallback change_callback;
 };
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

@@ -87,6 +87,13 @@ class UnixPipeTest : public ::testing::Test {
     LibuvAsyncSocketFactory socket_factory_;
 };
 
+struct DeviceState {
+    std::string rx_buffer;
+    bool disconnected = false;
+
+    bool ready() const { return !rx_buffer.empty() || disconnected; }
+};
+
 TEST_F(UnixPipeTest, echo_over_host_side) {
 #ifdef _WIN32
     const std::string un_path(absl::StrFormat("\\\\.\\pipe\\UnixPipeTest_echo_over_host_side_%d",
@@ -117,46 +124,40 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
     }));
     ASSERT_NE(server, nullptr);
 
-    const ScopedAsyncSocket client(PostAndWait([this, &endpoint] {
-        return socket_factory_.CreateSocket(client_loop_.get(), endpoint);
-    }));
-    ASSERT_NE(client, nullptr);
+    IUnixPipe* device = PostAndWait([this, &endpoint] {
+        return registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
+    });
+    ASSERT_NE(device, nullptr);
+    TestHalSocket* device_socket = registry_.halSocket();
+    ASSERT_NE(device_socket, nullptr);
+
+    absl::Mutex device_updated;
+    DeviceState device_state;
+
+    device_socket->on_send = [&](const std::string& data) {
+        const absl::MutexLock lk(&device_updated);
+        if (data.empty()) {
+            device_state.disconnected = true;
+        } else {
+            device_state.rx_buffer.append(data);
+        }
+    };
 
     const std::string test_message = "test message";
 
-    std::promise<std::string> echo_promise;
-    auto echo_future = echo_promise.get_future();
-    std::string rx_buffer;
+    client_loop_->PostAndWait([&]() { device->OnReceive(test_message); }).IgnoreError();
 
-    client_loop_
-            ->Post([&]() {
-                client->SetOnReadCallbackNoFlowControl(
-                        [&](const std::string_view data, const absl::Status /*err*/) {
-                            rx_buffer += std::string(data);
-                            if (rx_buffer.size() == test_message.size()) {
-                                echo_promise.set_value(std::move(rx_buffer));
-                            }
-                        });
+    const absl::MutexLock lk(&device_updated);
+    ASSERT_TRUE(device_updated.AwaitWithTimeout(
+            absl::Condition(
+                    +[](const void* ptr) { return static_cast<const DeviceState*>(ptr)->ready(); },
+                    &device_state),
+            absl::FromChrono(1s)));
 
-                client->SetOnConnectedCallback([&test_message](AsyncSocket& socket,
-                                                               absl::Status /*err*/) {
-                    ASSERT_THAT(socket.Send(test_message.data(), test_message.size()), IsOk());
-                });
+    EXPECT_EQ(device_state.rx_buffer, test_message);
 
-                ASSERT_THAT(client->Connect(), IsOk());
-            })
-            .IgnoreError();
-
-    RunUntil(echo_future);
-    EXPECT_EQ(echo_future.get(), test_message);
+    device_socket->on_send = [](const std::string& data) {};
 }
-
-struct ClientState {
-    std::string rx_buffer;
-    bool connected = true;
-
-    bool ready() const { return !rx_buffer.empty() || !connected; }
-};
 
 TEST_F(UnixPipeTest, close_on_host) {
 #ifdef _WIN32
@@ -174,19 +175,15 @@ TEST_F(UnixPipeTest, close_on_host) {
     int server_replies = 3;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
-        socket->SetOnReadCallbackNoFlowControl([socket, &server_replies](std::string_view data,
-                                                                         absl::Status /*err*/) {
-            if (server_replies > 0) {
-                fprintf(stderr, "%s:%d: server_replies=%d data.size()=%zu\n",
-                        "SetOnReadCallbackNoFlowControl", __LINE__, server_replies, data.size());
-
-                --server_replies;
-                ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
-            } else {
-                fprintf(stderr, "%s:%d: closing\n", "SetOnReadCallbackNoFlowControl", __LINE__);
-                socket->Close();
-            }
-        });
+        socket->SetOnReadCallbackNoFlowControl(
+                [socket, &server_replies](std::string_view data, absl::Status /*err*/) {
+                    if (server_replies > 0) {
+                        --server_replies;
+                        ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
+                    } else {
+                        socket->Close();
+                    }
+                });
 
         std::lock_guard<std::mutex> lock(clients_mutex);
         clients.emplace_back(std::move(socket));
@@ -198,92 +195,60 @@ TEST_F(UnixPipeTest, close_on_host) {
     }));
     ASSERT_NE(server, nullptr);
 
-    const ScopedAsyncSocket client(PostAndWait([this, &endpoint] {
-        return socket_factory_.CreateSocket(client_loop_.get(), endpoint);
-    }));
-    ASSERT_NE(client, nullptr);
+    IUnixPipe* device = registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
+    ASSERT_NE(device, nullptr);
+    TestHalSocket* device_socket = registry_.halSocket();
+    ASSERT_NE(device_socket, nullptr);
 
     std::string rx_total;
+    absl::Mutex device_updated;
+    DeviceState device_state;
 
-    absl::Mutex client_updated;
-    ClientState client_state;
-
-    {
-        std::promise<void> client_connected_promise;
-        auto client_connected_future = client_connected_promise.get_future();
-
-        client_loop_
-                ->Post([&]() {
-                    client->SetOnReadCallbackNoFlowControl([&](const std::string_view data,
-                                                               const absl::Status err) {
-                        fprintf(stderr, "%s:%d\n", "SetOnReadCallbackNoFlowControl", __LINE__);
-                        const absl::MutexLock lk(&client_updated);
-                        if (err.ok()) {
-                            client_state.rx_buffer += std::string(data);
-                        }
-                    });
-
-                    client->SetOnConnectedCallback(
-                            [&client_connected_promise](AsyncSocket& /*socket*/,
-                                                        absl::Status /*err*/) {
-                                client_connected_promise.set_value();
-                            });
-
-                    client->SetOnCloseCallback([&]() {
-                        fprintf(stderr, "%s:%d\n", "SetOnCloseCallback", __LINE__);
-                        const absl::MutexLock lk(&client_updated);
-                        client_state.connected = false;
-                    });
-
-                    ASSERT_THAT(client->Connect(), IsOk());
-                })
-                .IgnoreError();
-
-        RunUntil(client_connected_future);
-    }
+    device_socket->on_send = [&](const std::string& data) {
+        const absl::MutexLock lk(&device_updated);
+        if (data.empty()) {
+            device_state.disconnected = true;
+        } else {
+            device_state.rx_buffer.append(data);
+        }
+    };
 
     const std::string test_message = "abc";
 
     for (int n = 3; n > 0; --n) {
-        fprintf(stderr, "%s:%d good\n", "Send", __LINE__);
-        client_loop_
-                ->Post([&]() {
-                    ASSERT_THAT(client->Send(test_message.data(), test_message.size()), IsOk());
-                })
-                .IgnoreError();
+        client_loop_->PostAndWait([&]() { device->OnReceive(test_message); }).IgnoreError();
 
-        const absl::MutexLock lk(&client_updated);
-        ASSERT_TRUE(client_updated.AwaitWithTimeout(
+        const absl::MutexLock lk(&device_updated);
+        ASSERT_TRUE(device_updated.AwaitWithTimeout(
                 absl::Condition(
                         +[](const void* ptr) {
-                            return static_cast<const ClientState*>(ptr)->ready();
+                            return static_cast<const DeviceState*>(ptr)->ready();
                         },
-                        &client_state),
+                        &device_state),
                 absl::FromChrono(1s)));
 
-        rx_total += client_state.rx_buffer;
-        client_state.rx_buffer.clear();
+        rx_total.append(device_state.rx_buffer);
+        device_state.rx_buffer.clear();
     }
 
     EXPECT_EQ(rx_total, "abcabcabc");
 
-    client_loop_
-            ->Post([&]() {
-                ASSERT_THAT(client->Send(test_message.data(), test_message.size()), IsOk());
-            })
-            .IgnoreError();
+    client_loop_->PostAndWait([&]() { device->OnReceive(test_message); }).IgnoreError();
 
     {
-        const absl::MutexLock lk(&client_updated);
-        ASSERT_TRUE(client_updated.AwaitWithTimeout(
+        const absl::MutexLock lk(&device_updated);
+        ASSERT_TRUE(device_updated.AwaitWithTimeout(
                 absl::Condition(
                         +[](const void* ptr) {
-                            return static_cast<const ClientState*>(ptr)->ready();
+                            return static_cast<const DeviceState*>(ptr)->ready();
                         },
-                        &client_state),
+                        &device_state),
                 absl::FromChrono(1s)));
 
-        ASSERT_TRUE(client_state.rx_buffer.empty());
+        EXPECT_TRUE(device_state.rx_buffer.empty());
+        EXPECT_TRUE(device_state.disconnected);
+
+        device_socket->on_send = [](const std::string& data) {};
     }
 }
 

@@ -26,23 +26,23 @@ namespace emulation {
 namespace control {
 
 TEST(AllowListTest, bad_is_not_null) {
-    EXPECT_NE(AllowList::fromJson("xxx"), nullptr);
+    EXPECT_NE(AllowList::FromJson("xxx"), nullptr);
 }
 
 TEST(AllowListTest, detects_unprotected) {
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     // Set of methods that do not require any validations, the do not require a token.
     // If your method DOES NOT match this list, you will require a token of sorts.
     "unprotected": [
         ".*/getGps"
     ]})#");
-    EXPECT_FALSE(list->requiresAuthentication("foo/getGps"));
-    EXPECT_TRUE(list->requiresAuthentication("bar/huusku"));
+    EXPECT_FALSE(list->RequiresAuthentication("foo/getGps"));
+    EXPECT_TRUE(list->RequiresAuthentication("bar/huusku"));
 }
 
 TEST(AllowListTest, always_detects_unprotected) {
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     // Set of methods that do not require any validations, the do not require a token.
     // If your method DOES NOT match this list, you will require a token of sorts.
@@ -51,14 +51,14 @@ TEST(AllowListTest, always_detects_unprotected) {
     ]})#");
 
     // 2nd call might be cached.
-    EXPECT_FALSE(list->requiresAuthentication("foo/getGps"));
-    EXPECT_FALSE(list->requiresAuthentication("foo/getGps"));
-    EXPECT_TRUE(list->requiresAuthentication("bar/huusku"));
-    EXPECT_TRUE(list->requiresAuthentication("bar/huusku"));
+    EXPECT_FALSE(list->RequiresAuthentication("foo/getGps"));
+    EXPECT_FALSE(list->RequiresAuthentication("foo/getGps"));
+    EXPECT_TRUE(list->RequiresAuthentication("bar/huusku"));
+    EXPECT_TRUE(list->RequiresAuthentication("bar/huusku"));
 }
 
 TEST(AllowListTest, subject_is_protected) {
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     "allowlist": [
          {
@@ -69,13 +69,13 @@ TEST(AllowListTest, subject_is_protected) {
         }
     ]})#");
 
-    EXPECT_TRUE(list->isAllowed("android-studio", "foo/getGps"));
-    EXPECT_FALSE(list->isAllowed("gradle", "foo/getGps"));
+    EXPECT_TRUE(list->IsAllowed("android-studio", "foo/getGps"));
+    EXPECT_FALSE(list->IsAllowed("gradle", "foo/getGps"));
 }
 
 TEST(AllowListTest, do_not_consume_memory) {
     using namespace std::chrono_literals;
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     "allowlist": [
          {
@@ -89,12 +89,12 @@ TEST(AllowListTest, do_not_consume_memory) {
     int i = 0;
     while (std::chrono::system_clock::now() < end) {
         i = (i + 1) % 512;
-        EXPECT_TRUE(list->isAllowed("android-studio", "foo" + std::to_string(i) + "/getGps"));
+        EXPECT_TRUE(list->IsAllowed("android-studio", "foo" + std::to_string(i) + "/getGps"));
     }
 }
 
 TEST(AllowListTest, subject_is_always_protected) {
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     "allowlist": [
          {
@@ -105,14 +105,14 @@ TEST(AllowListTest, subject_is_always_protected) {
         }
     ]})#");
 
-    EXPECT_TRUE(list->isAllowed("android-studio", "foo/getGps"));
-    EXPECT_TRUE(list->isAllowed("android-studio", "foo/getGps"));
-    EXPECT_FALSE(list->isAllowed("gradle", "foo/getGps"));
-    EXPECT_FALSE(list->isAllowed("gradle", "foo/getGps"));
+    EXPECT_TRUE(list->IsAllowed("android-studio", "foo/getGps"));
+    EXPECT_TRUE(list->IsAllowed("android-studio", "foo/getGps"));
+    EXPECT_FALSE(list->IsAllowed("gradle", "foo/getGps"));
+    EXPECT_FALSE(list->IsAllowed("gradle", "foo/getGps"));
 }
 
 TEST(AllowListTest, ignore_reserved_iss) {
-    auto list = AllowList::fromJson(R"#(
+    auto list = AllowList::FromJson(R"#(
     {
     "allowlist": [
          {
@@ -122,8 +122,8 @@ TEST(AllowListTest, ignore_reserved_iss) {
             ]
         }
     ]})#");
-    EXPECT_TRUE(list->requiresAuthentication("foo/getGps"));
-    EXPECT_TRUE(list->isRed("__everyone__", "foo/getGps"));
+    EXPECT_TRUE(list->RequiresAuthentication("foo/getGps"));
+    EXPECT_TRUE(list->IsRed("__everyone__", "foo/getGps"));
 }
 
 TEST(AllowListTest, can_parse_default_list) {
@@ -135,7 +135,7 @@ TEST(AllowListTest, can_parse_default_list) {
     auto file = std::ifstream(path);
     ASSERT_TRUE(file.good());
 
-    auto list = AllowList::fromStream(file);
+    auto list = AllowList::FromStream(file);
     std::vector<std::string> allowed{
         "/android.emulation.control.EmulatorController/"
         "closeExtendedControls",
@@ -171,7 +171,7 @@ TEST(AllowListTest, can_parse_default_list) {
         "/android.emulation.control.SnapshotService/PushSnapshot",
         "/android.emulation.control.SnapshotService/SaveSnapshot"};
     for (const auto& isGreen : allowed) {
-        EXPECT_TRUE(list->isAllowed("android-studio", isGreen));
+        EXPECT_TRUE(list->IsAllowed("android-studio", isGreen));
     }
 }
 }  // namespace control

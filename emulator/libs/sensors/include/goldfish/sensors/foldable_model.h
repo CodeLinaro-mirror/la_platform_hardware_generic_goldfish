@@ -31,41 +31,41 @@ class FoldableModel {
     class PostureListener : public ::android::base::EventNotificationSupport<FoldablePostures> {
         friend class FoldableModel;
     };
-    FoldableModel(const android::goldfish::HardwareConfig& hw);
+    explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
     // called by physical model to set hinge angle.
     // mutex passed from physical model
-    void setHingeAngle(uint32_t hingeIndex, float degrees, PhysicalInterpolation mode,
-                       std::recursive_mutex& mutex);
+    static void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode,
+                              std::recursive_mutex& mutex);
 
     // called by physical model to set hinge posture.
     // mutex passed from physical model
-    void setPosture(float posture, PhysicalInterpolation mode, std::recursive_mutex& mutex);
+    static void SetPosture(float posture, PhysicalInterpolation mode, std::recursive_mutex& mutex);
 
-    void setRollable(uint32_t index, float percentage, PhysicalInterpolation mode,
-                     std::recursive_mutex& mutex);
+    static void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode,
+                            std::recursive_mutex& mutex);
 
-    float getHingeAngle(uint32_t hingeIndex,
-                        ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float GetHingeAngle(uint32_t hinge_index, ParameterValueType parameter_value_type =
+                                                      ParameterValueType::kCurrent) const;
 
-    float getRollable(uint32_t index, ParameterValueType parameterValueType) const;
+    float GetRollable(uint32_t index, ParameterValueType parameter_value_type) const;
 
-    float getPosture(ParameterValueType parameterValueType = ParameterValueType::CURRENT) const;
+    float GetPosture(ParameterValueType parameter_value_type = ParameterValueType::kCurrent) const;
 
-    FoldableState getFoldableState() const { return mState; }  // structure copy
+    FoldableState GetFoldableState() const { return state_; }  // structure copy
 
-    bool isFolded() const;
+    static bool IsFolded();
 
-    bool getFoldedArea(int* x, int* y, int* w, int* h) const;
+    static bool GetFoldedArea(int* x, int* y, int* w, int* h);
 
-    PostureListener* getPostureListener() { return &mPostureListener; }
+    PostureListener* GetPostureListener() { return &posture_listener_; }
 
   private:
-    void initFoldableRoll(const android::goldfish::HardwareConfig& hw);
+    void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
 
-    FoldableState mState;
-    std::vector<AnglesToPosture> mAnglesToPostures;
-    PostureListener mPostureListener;
+    FoldableState state_;
+    std::vector<AnglesToPosture> angles_to_postures_;
+    PostureListener posture_listener_;
 };
 
 }  // namespace goldfish::sensors

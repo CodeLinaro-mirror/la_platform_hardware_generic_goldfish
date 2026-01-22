@@ -20,6 +20,7 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
+#include <utility>  // For std::move
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -37,9 +38,8 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
-#include "host-common/constants.h"
-
 #include "avd_keys.h"
+#include "host-common/constants.h"
 
 /* technical note on how all of this is supposed to work:
  *
@@ -77,84 +77,87 @@ using PropertyList = const std::array<std::string, 3>;
 
 namespace {
 
-const std::string_view _imageFileNames[static_cast<int>(Avd::ImageType::AVD_IMAGE_MAX)] = {
+const std::string_view kImageFileNames[static_cast<int>(Avd::ImageType::AVD_IMAGE_MAX)] = {
 #define _AVD_IMG(x, y, z) y,
     AVD_IMAGE_LIST
 #undef _AVD_IMG
 };
 
 struct ApiLevelInfo {
-    std::string_view dessertName;
-    std::string_view fullName;
+    std::string_view dessert_name;
+    std::string_view full_name;
 };
 
 const absl::flat_hash_map<int, ApiLevelInfo> kApiLevelInfo = {
-    {10, {"Gingerbread", "2.3.3 (Gingerbread) - API 10 (Rev 2)"}},
-    {14, {"Ice Cream Sandwich", "4.0 (Ice Cream Sandwich) - API 14 (Rev 4)"}},
-    {15, {"Ice Cream Sandwich", "4.0.3 (Ice Cream Sandwich) - API 15 (Rev 5)"}},
-    {16, {"Jelly Bean", "4.1 (Jelly Bean) - API 16 (Rev 5)"}},
-    {17, {"Jelly Bean", "4.2 (Jelly Bean) - API 17 (Rev 3)"}},
-    {18, {"Jelly Bean", "4.3 (Jelly Bean) - API 18 (Rev 3)"}},
-    {19, {"KitKat", "4.4 (KitKat) - API 19 (Rev 4)"}},
-    {20, {"KitKat", "4.4 (KitKat Wear) - API 20 (Rev 2)"}},
-    {21, {"Lollipop", "5.0 (Lollipop) - API 21 (Rev 2)"}},
-    {22, {"Lollipop", "5.1 (Lollipop) - API 22 (Rev 2)"}},
-    {23, {"Marshmallow", "6.0 (Marshmallow) - API 23 (Rev 1)"}},
-    {24, {"Nougat", "7.0 (Nougat) - API 24"}},
-    {25, {"Nougat", "7.1 (Nougat) - API 25"}},
-    {26, {"Oreo", "8.0 (Oreo) - API 26"}},
-    {27, {"Oreo", "8.1 (Oreo) - API 27"}},
-    {28, {"Pie", "9.0 (Pie) - API 28"}},
-    {29, {"Q", "10.0 (Q) - API 29"}},
-    {30, {"R", "11.0 (R) - API 30"}},
-    {31, {"S", "12.0 (S) - API 31"}},
-    {32, {"Sv2", "12.0 (S) - API 32"}},
-    {33, {"Tiramisu", "13.0 (T) - API 33"}},
-    {34, {"UpsideDownCake", "14.0 (U) - API 34"}},
-    {35, {"VanillaIceCream", "15.0 (V) - API 35"}},
+    {10, {.dessert_name = "Gingerbread", .full_name = "2.3.3 (Gingerbread) - API 10 (Rev 2)"}},
+    {14,
+     {.dessert_name = "Ice Cream Sandwich",
+      .full_name = "4.0 (Ice Cream Sandwich) - API 14 (Rev 4)"}},
+    {15,
+     {.dessert_name = "Ice Cream Sandwich",
+      .full_name = "4.0.3 (Ice Cream Sandwich) - API 15 (Rev 5)"}},
+    {16, {.dessert_name = "Jelly Bean", .full_name = "4.1 (Jelly Bean) - API 16 (Rev 5)"}},
+    {17, {.dessert_name = "Jelly Bean", .full_name = "4.2 (Jelly Bean) - API 17 (Rev 3)"}},
+    {18, {.dessert_name = "Jelly Bean", .full_name = "4.3 (Jelly Bean) - API 18 (Rev 3)"}},
+    {19, {.dessert_name = "KitKat", .full_name = "4.4 (KitKat) - API 19 (Rev 4)"}},
+    {20, {.dessert_name = "KitKat", .full_name = "4.4 (KitKat Wear) - API 20 (Rev 2)"}},
+    {21, {.dessert_name = "Lollipop", .full_name = "5.0 (Lollipop) - API 21 (Rev 2)"}},
+    {22, {.dessert_name = "Lollipop", .full_name = "5.1 (Lollipop) - API 22 (Rev 2)"}},
+    {23, {.dessert_name = "Marshmallow", .full_name = "6.0 (Marshmallow) - API 23 (Rev 1)"}},
+    {24, {.dessert_name = "Nougat", .full_name = "7.0 (Nougat) - API 24"}},
+    {25, {.dessert_name = "Nougat", .full_name = "7.1 (Nougat) - API 25"}},
+    {26, {.dessert_name = "Oreo", .full_name = "8.0 (Oreo) - API 26"}},
+    {27, {.dessert_name = "Oreo", .full_name = "8.1 (Oreo) - API 27"}},
+    {28, {.dessert_name = "Pie", .full_name = "9.0 (Pie) - API 28"}},
+    {29, {.dessert_name = "Q", .full_name = "10.0 (Q) - API 29"}},
+    {30, {.dessert_name = "R", .full_name = "11.0 (R) - API 30"}},
+    {31, {.dessert_name = "S", .full_name = "12.0 (S) - API 31"}},
+    {32, {.dessert_name = "Sv2", .full_name = "12.0 (S) - API 32"}},
+    {33, {.dessert_name = "Tiramisu", .full_name = "13.0 (T) - API 33"}},
+    {34, {.dessert_name = "UpsideDownCake", .full_name = "14.0 (U) - API 34"}},
+    {35, {.dessert_name = "VanillaIceCream", .full_name = "15.0 (V) - API 35"}},
 };
 
-std::string_view getApiDessertName(int apiLevel) {
-    auto it = kApiLevelInfo.find(apiLevel);
+std::string_view GetApiDessertName(int api_level) {
+    auto it = kApiLevelInfo.find(api_level);
     if (it != kApiLevelInfo.end()) {
-        return it->second.dessertName;
+        return it->second.dessert_name;
     }
     return "";
 }
 
-std::string getFullApiName(int apiLevel) {
-    if (apiLevel < 0 || apiLevel > 99) {
+std::string GetFullApiName(int api_level) {
+    if (api_level < 0 || api_level > 99) {
         return "Unknown API version";
     }
 
-    auto it = kApiLevelInfo.find(apiLevel);
+    auto it = kApiLevelInfo.find(api_level);
     if (it != kApiLevelInfo.end()) {
-        return std::string(it->second.fullName);
-    } else {
-        return absl::StrFormat("API %d", apiLevel);
+        return std::string(it->second.full_name);
     }
+    return absl::StrFormat("API %d", api_level);
 }
 
-int getApiLevelFromDessertName(std::string_view dessertName) {
-    for (const auto& [apiLevel, info] : kApiLevelInfo) {
-        if (info.dessertName == dessertName) {
-            return apiLevel;
+int GetApiLevelFromDessertName(std::string_view dessert_name) {
+    for (const auto& [api_level, info] : kApiLevelInfo) {
+        if (info.dessert_name == dessert_name) {
+            return api_level;
         }
     }
     return Avd::kUnknownApiLevel;
 }
 
-int getApiLevelFromLetter(char letter) {
-    char letterUpper = absl::ascii_toupper(letter);
-    for (const auto& [apiLevel, info] : kApiLevelInfo) {
-        if (absl::ascii_toupper(info.dessertName[0]) == letterUpper) {
-            return apiLevel;
+int GetApiLevelFromLetter(char letter) {
+    const char letter_upper = absl::ascii_toupper(letter);
+    for (const auto& [api_level, info] : kApiLevelInfo) {
+        if (absl::ascii_toupper(info.dessert_name[0]) == letter_upper) {
+            return api_level;
         }
     }
     return Avd::kUnknownApiLevel;
 }
 
-int getApiLevel(std::string_view target) {
+int GetApiLevel(std::string_view target) {
     int level = Avd::kUnknownApiLevel;
 
     if (target.empty()) {
@@ -162,29 +165,29 @@ int getApiLevel(std::string_view target) {
         return level;
     }
 
-    std::string_view levelStr;
+    std::string_view level_str;
     if (absl::StartsWith(target, "android-")) {
-        levelStr = target.substr(8);
+        level_str = target.substr(8);
     } else {
         std::vector<std::string_view> parts = absl::StrSplit(target, ':');
         if (parts.size() == 3) {
-            levelStr = parts[2];
+            level_str = parts[2];
         }
     }
 
-    if (levelStr.empty() || !absl::ascii_isdigit(levelStr[0])) {
-        if (!levelStr.empty() && absl::ascii_isalpha(levelStr[0])) {
-            if (levelStr.size() == 1) {
-                level = getApiLevelFromLetter(levelStr[0]);
+    if (level_str.empty() || !absl::ascii_isdigit(level_str[0])) {
+        if (!level_str.empty() && absl::ascii_isalpha(level_str[0])) {
+            if (level_str.size() == 1) {
+                level = GetApiLevelFromLetter(level_str[0]);
             } else {
-                level = getApiLevelFromDessertName(levelStr);
+                level = GetApiLevelFromDessertName(level_str);
             }
         } else {
             // Use your preferred error handling here.
             return Avd::kUnknownApiLevel;
         }
     } else {
-        if (!absl::SimpleAtoi(levelStr, &level)) {
+        if (!absl::SimpleAtoi(level_str, &level)) {
             // Handle the error (e.g., log, return default value)
             return Avd::kUnknownApiLevel;
         }
@@ -195,7 +198,7 @@ int getApiLevel(std::string_view target) {
     return level;
 }
 
-std::string getIconForDeviceType(DeviceType flavor) {
+std::string GetIconForDeviceType(DeviceType flavor) {
     switch (flavor) {
     case DeviceType::kPhone:
         return "📱";  // 📱 (Smartphone)
@@ -214,8 +217,8 @@ std::string getIconForDeviceType(DeviceType flavor) {
 
 }  // namespace
 
-Avd::CpuArchitecture FileBackedAvd::detectArchitecture() const {
-    auto abi = mConfig->getString("abi.type", "unknown");
+Avd::CpuArchitecture FileBackedAvd::DetectArchitecture() const {
+    auto abi = config_->GetString("abi.type", "unknown");
     if (absl::StrContains(abi, "x86")) {
         return CpuArchitecture::kX86;
     }
@@ -227,20 +230,20 @@ Avd::CpuArchitecture FileBackedAvd::detectArchitecture() const {
     return CpuArchitecture::kUnknown;
 }
 
-int FileBackedAvd::apiLevel() const {
-    return getApiLevel(mConfig->getString("target", ""));
+int FileBackedAvd::ApiLevel() const {
+    return GetApiLevel(config_->GetString("target", ""));
 }
 
-std::string FileBackedAvd::dessert() const {
-    return std::string(getApiDessertName(apiLevel()));
+std::string FileBackedAvd::Dessert() const {
+    return std::string(GetApiDessertName(ApiLevel()));
 }
 
-std::string FileBackedAvd::apiDescription() const {
-    return getFullApiName(apiLevel());
+std::string FileBackedAvd::ApiDescription() const {
+    return GetFullApiName(ApiLevel());
 }
 
-bool FileBackedAvd::loadBuildProps() {
-    auto buildprop = getSystemImageFilePath(Avd::ImageType::BUILDPROP);
+bool FileBackedAvd::LoadBuildProps() {
+    auto buildprop = GetSystemImageFilePath(Avd::ImageType::BUILDPROP);
     if (!buildprop.ok()) {
         LOG(WARNING) << "Unable to retrieve image path: " << buildprop.status().message()
                      << ", using unknown avd device type.";
@@ -252,14 +255,14 @@ bool FileBackedAvd::loadBuildProps() {
                      << ", using unknown device type.";
         return false;
     }
-    mBuildIni.setBackingFile(*buildprop);
-    return mBuildIni.read();
+    build_ini_.SetBackingFile(*buildprop);
+    return build_ini_.Read();
 }
 
-DeviceType FileBackedAvd::getDeviceType() const {
-    DeviceType res = DeviceType::kUnknown;
+DeviceType FileBackedAvd::GetDeviceType() const {
+    const DeviceType res = DeviceType::kUnknown;
 
-    const std::unordered_map<std::string, DeviceType> labelMap{
+    const std::unordered_map<std::string, DeviceType> label_map{
         {"phone", DeviceType::kPhone},     {"atv", DeviceType::kTv},
         {"wear", DeviceType::kWear},       {"aw", DeviceType::kWear},
         {"car", DeviceType::kAndroidAuto}, {"pc", DeviceType::kDesktop}};
@@ -267,12 +270,12 @@ DeviceType FileBackedAvd::getDeviceType() const {
     const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
 
     for (const auto& prop : props) {
-        if (!mBuildIni.hasKey(prop)) {
+        if (!build_ini_.HasKey(prop)) {
             continue;
         }
 
-        auto build = mBuildIni.getString(prop, "_unused");
-        for (const auto& [key, val] : labelMap) {
+        auto build = build_ini_.GetString(prop, "_unused");
+        for (const auto& [key, val] : label_map) {
             if (build.find(key) != std::string::npos) {
                 return val;
             }
@@ -283,8 +286,8 @@ DeviceType FileBackedAvd::getDeviceType() const {
     return res;
 }
 
-absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType imgType) const {
-    auto image_file_name = getImageFilename(imgType);
+absl::StatusOr<fs::path> FileBackedAvd::GetSystemImageFilePath(Avd::ImageType img_type) const {
+    auto image_file_name = GetImageFilename(img_type);
 
     auto check_path = [](const fs::path& p) {
         return base::file::exists(p) && base::file::can_read(p);
@@ -292,7 +295,7 @@ absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType im
 
     VLOG(1) << "Searching for sys image: " << image_file_name;
     fs::path path = "no-sysimg";
-    for (const auto& sys_path : mSysImagePaths) {
+    for (const auto& sys_path : sys_image_paths_) {
         if (path = sys_path / image_file_name; check_path(path)) {
             VLOG(1) << "Found image in system dir: " << path;
             return path;
@@ -303,65 +306,64 @@ absl::StatusOr<fs::path> FileBackedAvd::getSystemImageFilePath(Avd::ImageType im
                                             " (last checked ", path.string(), ")"));
 }
 
-std::string FileBackedAvd::details(const bool verbose) const {
+std::string FileBackedAvd::Details(const bool verbose) const {
     if (verbose) {
-        auto icon = getIconForDeviceType(getDeviceType());
-        return absl::StrFormat("%-45s  - (%4dx%4d) %s", mName, mHwCfg.hw_lcd_width,
-                               mHwCfg.hw_lcd_height, icon);
-    } else {
-        return mName;
+        auto icon = GetIconForDeviceType(GetDeviceType());
+        return absl::StrFormat("%-45s  - (%4dx%4d) %s", name_, hw_cfg_.hw_lcd_width,
+                               hw_cfg_.hw_lcd_height, icon);
     }
+    return name_;
 }
 
 FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, fs::path sdk_path,
                              fs::path avd_path, fs::path content_path,
                              std::vector<fs::path> sys_image_paths)
-        : mName(name)
-        , mConfig(std::move(config))
-        , mSdkPath(std::move(sdk_path))
-        , mAvdPath(std::move(avd_path))
-        , mContentPath(std::move(content_path))
-        , mSysImagePaths(std::move(sys_image_paths)) {
-    if (!loadBuildProps()) {
+        : name_(std::move(name))
+        , config_(std::move(config))
+        , sdk_path_(std::move(sdk_path))
+        , avd_path_(std::move(avd_path))
+        , content_path_(std::move(content_path))
+        , sys_image_paths_(std::move(sys_image_paths)) {
+    if (!LoadBuildProps()) {
         LOG(ERROR) << "Failed to load build properties from file";
     }
     // check abi
 
-    mHwCfg.load(*mConfig);
+    hw_cfg_.Load(*config_);
 
     // TODO also load skin hardware.ini if present?
 
     // TODO this probably needs to be updated when snapshots are supported.
-    auto hw_path = getContentPath() / CORE_HARDWARE_INI;
+    auto hw_path = GetContentPath() / CORE_HARDWARE_INI;
     if (base::file::exists(hw_path) && base::file::can_read(hw_path)) {
         auto hw_config = std::make_unique<IniFile>(hw_path);
-        if (hw_config->read()) {
+        if (hw_config->Read()) {
             // TODO load without defaults.
-            mHwCfg.load(*hw_config);
+            hw_cfg_.Load(*hw_config);
         }
     }
 
-    mHwCfg.applyDefaults(getSdkPath(), getAvdPath());
+    hw_cfg_.ApplyDefaults(GetSdkPath(), GetAvdPath());
 
     // save to CORE_HARDWARE_INI as well, embedded ui needs it
     {
         auto hw_config = std::make_unique<IniFile>(hw_path);
-        mHwCfg.write(hw_config.get());
-        hw_config->writeDiscardingEmpty();
+        hw_cfg_.Write(hw_config.get());
+        hw_config->WriteDiscardingEmpty();
     }
 }
 
 // static
-absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
-        std::string name, fs::path config_ini_path, fs::path sdk_path, fs::path avd_path,
-        fs::path content_path, fs::path sysdir_override) {
+absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::Parse(
+        std::string name, const fs::path& config_ini_path, fs::path sdk_path, fs::path avd_path,
+        fs::path content_path, const fs::path& sysdir_override) {
     if (!base::file::exists(config_ini_path) || !base::file::can_read(config_ini_path)) {
         return absl::NotFoundError(absl::StrCat(
                 "Unable to parse ", name, ", no access to config: ", config_ini_path.string()));
     }
 
     auto config = std::make_unique<IniFile>(config_ini_path);
-    if (!config->read()) {
+    if (!config->Read()) {
         return absl::InternalError(
                 absl::StrCat("Unable to parse ini file: ", config_ini_path.string()));
     }
@@ -370,8 +372,9 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
     if (!sysdir_override.empty()) {
         sys_image_paths.push_back(sysdir_override);
     } else {
-        for (int n = 0; n < MAX_SEARCH_PATHS; n++) {
-            if (std::string s = config->getString(absl::StrCat(SEARCH_PREFIX, n), ""); !s.empty()) {
+        for (int n = 0; n < kMaxSearchPaths; n++) {
+            if (const std::string s = config->GetString(absl::StrCat(kSearchPrefix, n), "");
+                !s.empty()) {
                 sys_image_paths.push_back(sdk_path / s);
             }
         }
@@ -384,17 +387,17 @@ absl::StatusOr<std::unique_ptr<FileBackedAvd>> FileBackedAvd::parse(
 
 namespace {
 // Check that an AVD name is valid.
-bool _checkAvdName(const std::string& name) {
-    int len = strspn(name.c_str(),
-                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                     "abcdefghijklmnopqrstuvwxyz"
-                     "0123456789_.-");
+bool CheckAvdName(const std::string& name) {
+    const int len = static_cast<int>(strspn(name.c_str(),
+                                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                            "abcdefghijklmnopqrstuvwxyz"
+                                            "0123456789_.-"));
     return (name.size() == len);
 }
 }  // namespace
 
 // static
-std::vector<std::string> Avd::list(const fs::path& avd_directory) {
+std::vector<std::string> Avd::List(const fs::path& avd_directory) {
     std::vector<std::string> avds;
     auto pattern = std::regex(".*.ini");
 
@@ -405,7 +408,7 @@ std::vector<std::string> Avd::list(const fs::path& avd_directory) {
         if (std::regex_match(filename, pattern)) {
             std::string name = filename;
             name.erase(name.size() - 4);
-            if (_checkAvdName(name)) {
+            if (CheckAvdName(name)) {
                 avds.push_back(name);
             }
         }
@@ -414,9 +417,9 @@ std::vector<std::string> Avd::list(const fs::path& avd_directory) {
 }
 
 // static
-absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(
-        const android::goldfish::ResolvedInputPaths& paths, std::string name,
-        fs::path sysdir_override, fs::path writable_content_override) {
+absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
+        const android::goldfish::ResolvedInputPaths& paths, const std::string& name,
+        const fs::path& sysdir_override, fs::path writable_content_override) {
     auto ini_path = paths.avd_directory / (name + ".ini");
 
     if (!base::file::exists(ini_path) || !base::file::can_read(ini_path)) {
@@ -424,28 +427,28 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::fromName(
     }
 
     auto ini = std::make_unique<IniFile>(ini_path);
-    if (!ini->read()) {
+    if (!ini->Read()) {
         return absl::InternalError(absl::StrCat("Unable to parse ini file: ", ini_path.string()));
     }
 
-    fs::path content_path = fs::path(ini->get<std::string>("path", ""));
+    fs::path content_path = fs::path(ini->Get<std::string>("path", ""));
     if (!base::file::exists(content_path) || !base::file::can_read(content_path)) {
-        auto rel_path = ini->get<std::string>("path.rel", "");
+        auto rel_path = ini->Get<std::string>("path.rel", "");
         content_path = paths.user_directory / rel_path;
     }
-    fs::path config_ini_path = content_path / "config.ini";
+    const fs::path config_ini_path = content_path / "config.ini";
 
     if (!writable_content_override.empty()) {
         content_path = std::move(writable_content_override);
     }
 
-    return FileBackedAvd::parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
-                                std::move(content_path), std::move(sysdir_override));
+    return FileBackedAvd::Parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
+                                std::move(content_path), sysdir_override);
 }
 
 // static
-fs::path Avd::getImageFilename(Avd::ImageType imgType) {
-    return _imageFileNames[static_cast<uint8_t>(imgType)];
+fs::path Avd::GetImageFilename(Avd::ImageType img_type) {
+    return kImageFileNames[static_cast<uint8_t>(img_type)];
 }
 
 }  // namespace android::goldfish

@@ -31,7 +31,7 @@
 #include <windows.h>
 #define PATH_MAX MAX_PATH
 #else
-#include <limits.h>
+#include <climits>
 #endif
 
 namespace android::goldfish {
@@ -39,16 +39,16 @@ namespace {
 
 using android::base::System;
 
-absl::StatusOr<fs::path> get_program_path() {
+absl::StatusOr<fs::path> GetProgramPath() {
     char buf[PATH_MAX];
     size_t size = sizeof(buf);
-    if (int res = uv_exepath(buf, &size); res < 0) {
+    if (const int res = uv_exepath(buf, &size); res < 0) {
         return ::goldfish::async::UvErrToAbslStatus(res);
     }
     return fs::path(std::string_view(buf, size));
 }
 
-absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view description) {
+absl::StatusOr<fs::path> CheckExists(fs::path path, std::string_view description) {
     if (!android::base::file::exists(path)) {
         return absl::NotFoundError(
                 absl::StrCat("Path for \"", description, "\" does not exist: ", path.string()));
@@ -57,7 +57,7 @@ absl::StatusOr<fs::path> check_exists(fs::path path, std::string_view descriptio
     return path;
 }
 
-absl::StatusOr<fs::path> canonicalize(const fs::path& path) {
+absl::StatusOr<fs::path> Canonicalize(const fs::path& path) {
     ASSIGN_OR_RETURN(auto canon, android::base::file::make_canonical(path));
     if (canon != path) {
         VLOG(1) << "binary is a symlink, replacing with real path: " << path << " -> " << canon;
@@ -65,7 +65,7 @@ absl::StatusOr<fs::path> canonicalize(const fs::path& path) {
     return canon;
 }
 
-std::string add_binary_suffix(std::string binary) {
+std::string AddBinarySuffix(std::string binary) {
 #ifdef _WIN32
     constexpr std::string_view kExe = ".exe";
     absl::StrAppend(&binary, kExe);
@@ -73,36 +73,37 @@ std::string add_binary_suffix(std::string binary) {
     return binary;
 }
 
-std::string add_qemu_binary_suffix(std::string binary) {
+std::string AddQemuBinarySuffix(std::string binary) {
     // Note that this behaviour is currently defined here:
     // https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
 #ifdef __APPLE__
-    if (android::base::Bazel::inBazel()) {
+    if (android::base::Bazel::InBazel()) {
         constexpr std::string_view kSigned = ".signed";
         absl::StrAppend(&binary, kSigned);
     }
 #endif
-    return add_binary_suffix(std::move(binary));
+    return AddBinarySuffix(std::move(binary));
 }
 
 constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
+absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose_sdk_search) {
     ResolvedInputPaths paths;
-    ASSIGN_OR_RETURN(fs::path program_path, get_program_path());
-    ASSIGN_OR_RETURN(paths.launcher_binary, check_exists(program_path, "launcher binary"));
+    ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
+    ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
 
-    if (auto d = System::getEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
+    if (auto d = System::GetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR"); !d.empty()) {
         paths.launcher_directory = fs::path(d);
         // Sanity check launcher directory
-        if (auto launcher = paths.launcher_directory / add_binary_suffix(std::string(kEmulatorBinaryName));
+        if (auto launcher =
+                    paths.launcher_directory / AddBinarySuffix(std::string(kEmulatorBinaryName));
             !android::base::file::exists(launcher)) {
             LOG(WARNING)
                     << "launcher does not appear to exist within overridden launcher directory: "
                     << launcher.string();
-        } else if (auto canon = canonicalize(launcher); !canon.ok()) {
+        } else if (auto canon = Canonicalize(launcher); !canon.ok()) {
             LOG(WARNING)
                     << "unable to canonicalize launcher binary in overridden launcher directory: "
                     << launcher.string();
@@ -114,77 +115,74 @@ absl::StatusOr<ResolvedInputPaths> resolve_paths(bool verbose_sdk_search) {
     } else {
         paths.launcher_directory = paths.launcher_binary.parent_path();
         // Only set this if it wasn't already set as some integrators set it externally.
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
+        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR",
                                        paths.launcher_directory.string());
     }
-    RETURN_IF_ERROR(check_exists(paths.launcher_directory, "launcher directory").status());
+    RETURN_IF_ERROR(CheckExists(paths.launcher_directory, "launcher directory").status());
 
     // TODO Add a debug option to recursively list files in the launcher dir.
 
     ASSIGN_OR_RETURN(paths.binary_directory,
-                     check_exists(paths.launcher_directory / "bin", "binary directory"));
+                     CheckExists(paths.launcher_directory / "bin", "binary directory"));
     ASSIGN_OR_RETURN(paths.library_directory,
-                     check_exists(paths.launcher_directory / "lib" / "qemu", "library directory"));
+                     CheckExists(paths.launcher_directory / "lib" / "qemu", "library directory"));
     ASSIGN_OR_RETURN(paths.lib64_directory,
-                     check_exists(paths.launcher_directory / "lib64", "lib64 directory"));
+                     CheckExists(paths.launcher_directory / "lib64", "lib64 directory"));
     // This is used by Qemu aemu_main.c to locate the goldfish plugin library.
     // It is also used by gfxstream to locate the GL and Vulkan libraries.
-    System::setEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR",
+    System::SetEnvironmentVariable("ANDROID_EMULATOR_LIBRARY_DIR",
                                    paths.library_directory.string());
     ASSIGN_OR_RETURN(paths.bios_directory,
-                     check_exists(paths.launcher_directory / "share" / "qemu", "bios directory"));
+                     CheckExists(paths.launcher_directory / "share" / "qemu", "bios directory"));
 
     ASSIGN_OR_RETURN(
             paths.user_directory,
-            check_exists(android::goldfish::ConfigDirs::getUserDirectory(), "user directory"));
+            CheckExists(android::goldfish::ConfigDirs::GetUserDirectory(), "user directory"));
     ASSIGN_OR_RETURN(
             paths.avd_directory,
-            check_exists(android::goldfish::ConfigDirs::getAvdRootDirectory(), "avd directory"));
+            CheckExists(android::goldfish::ConfigDirs::GetAvdRootDirectory(), "avd directory"));
     ASSIGN_OR_RETURN(paths.sdk_directory,
-                     check_exists(android::goldfish::ConfigDirs::getSdkRootDirectory(
-                                          paths.launcher_directory, verbose_sdk_search),
-                                  "sdk directory"));
+                     CheckExists(android::goldfish::ConfigDirs::GetSdkRootDirectory(
+                                         paths.launcher_directory, verbose_sdk_search),
+                                 "sdk directory"));
     ASSIGN_OR_RETURN(paths.discovery_directory,
-                     check_exists(android::goldfish::ConfigDirs::getDiscoveryDirectory(),
-                                  "discovery directory"));
+                     CheckExists(android::goldfish::ConfigDirs::GetDiscoveryDirectory(),
+                                 "discovery directory"));
 
-    ASSIGN_OR_RETURN(
-            paths.qemu_system_x86_binary,
-            check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-x86_64"),
-                         "qemu-system-x86_64"));
+    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
+                     CheckExists(paths.binary_directory / AddQemuBinarySuffix("qemu-system-x86_64"),
+                                 "qemu-system-x86_64"));
 #ifndef _WIN32
     ASSIGN_OR_RETURN(
             paths.qemu_system_arm_binary,
-            check_exists(paths.binary_directory / add_qemu_binary_suffix("qemu-system-aarch64"),
-                         "qemu-system-aarch64"));
+            CheckExists(paths.binary_directory / AddQemuBinarySuffix("qemu-system-aarch64"),
+                        "qemu-system-aarch64"));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory /
     // add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));
 #endif
-    ASSIGN_OR_RETURN(
-            paths.qemu_img_binary,
-            check_exists(paths.binary_directory / add_binary_suffix("qemu-img"), "qemu-img"));
-    ASSIGN_OR_RETURN(
-            paths.netsim_binary,
-            check_exists(paths.binary_directory / add_binary_suffix("netsimd"), "netsimd"));
+    ASSIGN_OR_RETURN(paths.qemu_img_binary,
+                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-img"), "qemu-img"));
+    ASSIGN_OR_RETURN(paths.netsim_binary,
+                     CheckExists(paths.binary_directory / AddBinarySuffix("netsimd"), "netsimd"));
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
-                     check_exists(paths.binary_directory / add_binary_suffix("crashpad_handler"),
-                                  "crashpad handler"));
+                     CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
+                                 "crashpad handler"));
 
 #ifdef _WIN32
     // Canonicalize binaries as Windows cannot execute a symlink.
     // Note that Forge seems to break if we do this for Linux.
-    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, canonicalize(paths.qemu_system_x86_binary));
+    ASSIGN_OR_RETURN(paths.qemu_system_x86_binary, Canonicalize(paths.qemu_system_x86_binary));
     // ASSIGN_OR_RETURN(paths.qemu_system_arm_binary, canonicalize(paths.qemu_system_arm_binary));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary,
     // canonicalize(paths.qemu_system_riscv_binary));
-    ASSIGN_OR_RETURN(paths.qemu_img_binary, canonicalize(paths.qemu_img_binary));
-    ASSIGN_OR_RETURN(paths.netsim_binary, canonicalize(paths.netsim_binary));
-    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, canonicalize(paths.crashpad_handler_binary));
+    ASSIGN_OR_RETURN(paths.qemu_img_binary, Canonicalize(paths.qemu_img_binary));
+    ASSIGN_OR_RETURN(paths.netsim_binary, Canonicalize(paths.netsim_binary));
+    ASSIGN_OR_RETURN(paths.crashpad_handler_binary, Canonicalize(paths.crashpad_handler_binary));
 #endif
 
     // Make sure the child process is using the same crashpad handler as we are using.
     // Child uses: android::crashreport::CrashReporter::handlerExe() to retrieve this.
-    System::setEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
+    System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", paths.crashpad_handler_binary.string());
 
     return paths;
 }

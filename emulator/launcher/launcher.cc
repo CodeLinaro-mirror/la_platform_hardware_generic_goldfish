@@ -82,7 +82,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
-        (void)mEventLoop.Post([this] {
+        mEventLoop.Post([this] {
             if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
                 LOG(FATAL) << "Failed to set ports: " << s;
             }
@@ -94,7 +94,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             } else {
                 launch_netsimd();
             }
-        });
+        }).IgnoreError();
     }
 
     int emulator_exit_status() const { return mEmulatorExitStatus; }
@@ -247,9 +247,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 mFindNetsimd.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
-                (void)mEventLoop.Post([this] {
+                mEventLoop.Post([this] {
                     try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
-                });
+                }).IgnoreError();
                 return;
             } else {
                 LOG(FATAL) << "netsimd died and there was no existing port to connect to";
@@ -270,8 +270,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->Cancel();
         mFindNetsimd.reset();
-        (void)mEventLoop.Post(
-                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); });
+        mEventLoop.Post(
+                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); }).IgnoreError();
     }
 
     void try_connect_netsimd(std::string netsimd_endpoint) {
@@ -283,9 +283,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            (void)mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
+            mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
                 launch_emulator(std::move(endpoint));
-            });
+            }).IgnoreError();
         } else {
             LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
                        << connection.status();
@@ -375,13 +375,13 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 };
 
 void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sysdir_override) {
-    auto avds = Avd::list(resolved_paths.avd_directory);
+    auto avds = Avd::List(resolved_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = Avd::fromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
+        auto a = Avd::FromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
         if (!a.status().ok()) {
             std::cout << name << "is not valid: " << a.status().message();
         } else {
-            std::cout << (*a)->details(verbose) << '\n';
+            std::cout << (*a)->Details(verbose) << '\n';
         }
     }
 }
@@ -416,7 +416,17 @@ int main(int argc, char** argv) {
 
 #ifdef __linux__
     // Bug: 417138854: work around the log spam "bad fde: FDE is really a CIE"
-    System::setEnvironmentVariable("LD_PRELOAD", "/lib/x86_64-linux-gnu/libgcc_s.so.1");
+    std::string preload_option =
+            System::Get()->GetEnvironmentVariable("ANDROID_EMU_PRELOAD_LIBGCC");
+    if (preload_option == "1") {
+        std::string current_preload = System::GetEnvironmentVariable("LD_PRELOAD");
+        std::string libgcc_path = "/lib/x86_64-linux-gnu/libgcc_s.so.1";
+        if (current_preload.empty()) {
+            System::SetEnvironmentVariable("LD_PRELOAD", libgcc_path);
+        } else {
+            System::SetEnvironmentVariable("LD_PRELOAD", libgcc_path + ":" + current_preload);
+        }
+    }
 #endif
     AndroidOptions opts;
     if (android_parse_options(&argc, &argv, &opts) < 0) {
@@ -425,14 +435,14 @@ int main(int argc, char** argv) {
 
     configureLogging(opts);
 
-    Bazel::storeCommandLineArgs(argc, argv);
+    Bazel::StoreCommandLineArgs(argc, argv);
     android::goldfish::show_banner();
 
     // we will use bazel to run emulator in normal mode,
     // this -not-in-bazel option is used to force inBazel
     // to return false;
     if (opts.not_in_bazel) {
-        Bazel::setNotInBazel();
+        Bazel::SetNotInBazel();
     }
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -451,31 +461,31 @@ int main(int argc, char** argv) {
             }
         }
 #endif
-        System::get()->setEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
+        System::Get()->SetEnvironmentVariable(kXDG_RUNTIME_DIR_NAME, default_runtime_dir);
     } else {
 #if defined(__linux__)
         // Bug: 454403989
         // when systme has XDG_RUNTIME_DIR set, we need to pass it
         // to ANDROID_EMULATOR_DISCOVERY_DIR; do nothing otherwise
-        System::get()->envSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
+        System::Get()->EnvSet("ANDROID_EMULATOR_DISCOVERY_DIR", xdg_runtime_dir_val);
 #endif
     }
 #endif
 
-    if (Bazel::inBazel()) {
+    if (Bazel::InBazel()) {
         // We are running in the bazel environment, make sure the plugins and binaries can be found.
-        auto launcher_dir = fs::path(Bazel::runfilesPath("goldfish+/emulator/launcher"));
+        auto launcher_dir = fs::path(Bazel::RunfilesPath("goldfish+/emulator/launcher"));
         LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
                 << "Unable to locate launcher directory: " << launcher_dir;
-        System::setEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
-        if (System::getEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
-            System::setEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
+        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
+        if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
+            System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
                                            fs::path("/tmp/crash-report.db").string());
         }
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::resolve_paths(opts.verbose);
+    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose);
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;
@@ -501,8 +511,8 @@ int main(int argc, char** argv) {
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.
-    System::get()->addLibrarySearchDir(resolved_paths->library_directory.string());
-    System::get()->addLibrarySearchDir(resolved_paths->lib64_directory.string());
+    System::Get()->AddLibrarySearchDir(resolved_paths->library_directory.string());
+    System::Get()->AddLibrarySearchDir(resolved_paths->lib64_directory.string());
 
     if (!opts.avd) {
         LOG(ERROR) << "No AVD specified. Use '@foo' or '-avd foo' to launch a virtual device named "
@@ -519,7 +529,7 @@ int main(int argc, char** argv) {
 
     fs::path writable_content_override;
     if (opts.read_only) {
-        writable_content_override = System::get()->getTempDir();
+        writable_content_override = System::Get()->GetTempDir();
         VLOG(1) << "Content path overridden to: " << writable_content_override;
         android::base::file::mkdir_recursive(writable_content_override, 0755).IgnoreError();
     } else if (opts.datadir) {
@@ -535,7 +545,7 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = Avd::fromName(*resolved_paths, name, sysdir_override, writable_content_override);
+    auto avd = Avd::FromName(*resolved_paths, name, sysdir_override, writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;

@@ -110,7 +110,7 @@ AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
         : mProps(std::move(props)), mSensorsPhysicalModel(mProps->hw_config) {
     mGuestStatus.reset.SetValue(
             absl::UnixEpoch() +
-            absl::Milliseconds(android::base::System::get()->getProcessTimes().wallClockMs));
+            absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms));
 }
 
 AvdUniverse& getAvd() {
@@ -165,12 +165,12 @@ absl::StatusOr<std::unique_ptr<AvdExtendedUniverse>> MakeAvdExtendedUniverse(
 
     fs::path hw_path = mut_avd_props->avd_content_path / CORE_HARDWARE_INI;
     auto hw_ini = std::make_unique<android::goldfish::IniFile>(hw_path);
-    if (!hw_ini->read()) {
+    if (!hw_ini->Read()) {
         return absl::NotFoundError(
                 absl::StrFormat("Failed to parse hardware ini: %s", hw_path.string()));
     }
 
-    mut_avd_props->hw_config.load(*hw_ini);
+    mut_avd_props->hw_config.Load(*hw_ini);
 
     return std::make_unique<AvdExtendedUniverse>(std::move(mut_avd_props));
 }

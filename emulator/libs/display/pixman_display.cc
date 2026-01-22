@@ -30,6 +30,7 @@
 #include "absl/log/log.h"
 
 #include "android/base/clock.h"
+#include "goldfish/display/write_png.h"
 
 extern "C" {
 // clang-format off
@@ -50,6 +51,8 @@ static pixman_format_code_t pixmanFormat(const PixelFormat& format) {
         return PIXMAN_a8r8g8b8;
     case PixelFormat::RGB888:
         return PIXMAN_b8g8r8;
+    case PixelFormat::PNG:
+        return PIXMAN_a8b8g8r8;
     default:
         return PIXMAN_a8r8g8b8;
     }
@@ -202,6 +205,18 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     // The size of the valid pixel data is the required size.
     *cPixels = requiredSize;
 
+    if (format == PixelFormat::PNG) {
+        std::vector<uint8_t> png_buffer_vec;
+        constexpr int nChannels = 4;
+        if (!write_png(nChannels, newWidth, newHeight, pixels, png_buffer_vec)) {
+            return absl::UnavailableError("Failed to create PNG screenshot!");
+        }
+        size_t png_size = png_buffer_vec.size();
+        memcpy(pixels, png_buffer_vec.data(), png_size);
+        assert(png_size <= *cPixels);
+        *cPixels = png_size;
+    }
+
     absl::MutexLock seqlock(&mSeqAccess);
 
     VLOG(2) << "Image scaled in: " << (android::base::IClock::HostNow() - now);
@@ -212,6 +227,7 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
     VLOG(2) << "updateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
             << height << ")";
 
+    mFrameManager->updateSurface();
     frameReceived();
     if (ABSL_VLOG_IS_ON(2)) {
         mFpsCalculator.AddFrame();

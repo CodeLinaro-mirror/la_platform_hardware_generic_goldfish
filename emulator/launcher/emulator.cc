@@ -31,7 +31,6 @@
 #include "absl/strings/str_split.h"
 
 #include "aemu/base/utils/status_macros.h"
-#include "android/base/bazel_info.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "configure_drives.h"
@@ -52,7 +51,6 @@
 
 namespace android::goldfish {
 
-using android::base::Bazel;
 using android::base::System;
 
 absl::Status Emulator::addDevices() {
@@ -65,14 +63,14 @@ absl::Status Emulator::addDevices() {
                                                     : absl::LogSeverityAtLeast::kWarning);
 
     std::string vmodules = o.vmodule ? o.vmodule : "";
-    if (System::get()->getEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
+    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_LEVEL").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_LOG_LEVEL", absl::StrCat(pluginLogLevel));
     }
-    if (System::get()->getEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
+    if (System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_VLOG_LEVEL", absl::StrCat(o.V ? o.V : ""));
     }
-    if (System::get()->getEnvironmentVariable("AEMU_VMODULE").empty()) {
-        System::get()->setEnvironmentVariable("AEMU_VMODULE", vmodules);
+    if (System::Get()->GetEnvironmentVariable("AEMU_VMODULE").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
     }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
@@ -83,7 +81,7 @@ absl::Status Emulator::addDevices() {
     });
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
-        "-name", absl::StrFormat("%s,debug-threads=on", a.name())});
+        "-name", absl::StrFormat("%s,debug-threads=on", a.Name())});
     addDevice<Machine>();
     addDevice<CpuDevice>();
     addDevice<MemoryDevice>();
@@ -224,7 +222,7 @@ absl::Status Emulator::initialize() {
 std::string Emulator::qemu_exe_path() const {
     const auto& p = paths();
     std::string base;
-    switch (avd().detectArchitecture()) {
+    switch (avd().DetectArchitecture()) {
     case Avd::CpuArchitecture::kX86:
         return p.qemu_system_x86_binary.string();
     case Avd::CpuArchitecture::kArm:
@@ -252,7 +250,7 @@ std::vector<std::string> Emulator::getCmdline() const {
 absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     const auto& o = opts();
     const auto& a = avd();
-    ABSL_LOG(INFO) << "Preparing " << a.details(true);
+    ABSL_LOG(INFO) << "Preparing " << a.Details(true);
     auto status = initialize();
     if (!status.ok()) {
         ABSL_LOG(INFO) << "Failed to prepare emulator: " << status.message();
@@ -262,28 +260,28 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     // TODO(b/418838762): Move these to the gpu device once devices can supply env vars to set.
     // Graphics default to software rendering (with swangle) for now.
     // Always indirect EGL.
-    System::get()->setEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
+    System::Get()->SetEnvironmentVariable("ANDROID_EGL_ON_EGL", "1");
 
 #if defined(__linux__)
     // on linux, default to use swiftshader_indirect for gl,
     // later gl will be removed once vulkan composition is on
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swiftshader");
 #else
     // ANGLE works fine on mac/windows on top of lavapipe, no need to change it
     // in addition, swiftshader does not work on mac anyway
-    System::get()->setEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
-    System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_RENDERER", "swangle");
+    System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #endif
 
     // now all default to lavapipe
-    System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
+    System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "lavapipe");
 
     if (bool gpu_host = o.gpu && std::string(o.gpu) == "host"; gpu_host) {
-        System::get()->setEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
+        System::Get()->SetEnvironmentVariable("ANGLE_DEFAULT_PLATFORM", "vulkan");
 #if defined(__APPLE__)
-        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
+        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "moltenvk");
 #else
-        System::get()->setEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
+        System::Get()->SetEnvironmentVariable("ANDROID_EMU_VK_ICD", "");
 #endif
     }
 

@@ -29,8 +29,8 @@ int main(int argc, char* argv[]) {
 
     absl::InstallFailureSignalHandler({});
 
-    if (Bazel::inBazel()) {
-        Bazel::storeCommandLineArgs(argc, argv);
+    if (Bazel::InBazel()) {
+        Bazel::StoreCommandLineArgs(argc, argv);
     }
 
     // Parse abseil logging configuration.

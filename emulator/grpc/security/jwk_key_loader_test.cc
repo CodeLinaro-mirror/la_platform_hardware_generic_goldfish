@@ -105,7 +105,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
 TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     JwkKeyLoader loader;
     write("foo", std::string(8196 * 2, 'x'));
-    auto status = loader.add((mTempDir->path() / "foo").string());
+    auto status = loader.Add((mTempDir->path() / "foo").string());
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
 }
@@ -116,7 +116,7 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     JwkKeyLoader loader;
     write("foo", std::string(0, 'x'));
     auto start = std::chrono::system_clock::now();
-    auto status = loader.addWithRetryForEmpty((mTempDir->path() / "foo").string(), 8, 10ms);
+    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -156,7 +156,7 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
     });
 
     auto start = std::chrono::system_clock::now();
-    auto status = loader.addWithRetryForEmpty((mTempDir->path() / "foo").string(), 100, 10ms);
+    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 100, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -189,11 +189,11 @@ TEST_F(JwkKeyLoaderTest, accepts_json) {
             ]
         })##";
 
-    auto status = loader.add("test", b273331311);
+    auto status = loader.Add("test", b273331311);
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
-    EXPECT_EQ(loader.size(), 1);
+    EXPECT_EQ(loader.Size(), 1);
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_TRUE(keyset.ok()) << "Failed: " << keyset.status().message();
 }
 
@@ -236,11 +236,11 @@ TEST_F(JwkKeyLoaderTest, accepts_multiple_json) {
             ]
         })##";
 
-    EXPECT_EQ(loader.add("fst", fst), absl::OkStatus());
-    EXPECT_EQ(loader.add("snd", snd), absl::OkStatus());
-    EXPECT_EQ(loader.size(), 2);
+    EXPECT_EQ(loader.Add("fst", fst), absl::OkStatus());
+    EXPECT_EQ(loader.Add("snd", snd), absl::OkStatus());
+    EXPECT_EQ(loader.Size(), 2);
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_TRUE(keyset.ok()) << "Failed: " << keyset.status().message();
 }
 
@@ -266,11 +266,11 @@ TEST_F(JwkKeyLoaderTest, accepts_json_in_file) {
         })##";
 
     write("sample.jwk", b273331311);
-    auto status = loader.add((mTempDir->path() / "sample.jwk").string());
+    auto status = loader.Add((mTempDir->path() / "sample.jwk").string());
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
-    EXPECT_EQ(loader.size(), 1);
+    EXPECT_EQ(loader.Size(), 1);
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_TRUE(keyset.ok()) << "Failed: " << keyset.status().message();
 }
 
@@ -295,11 +295,11 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_json) {
             ]
         })##";
 
-    auto status = loader.add("test", borked);
+    auto status = loader.Add("test", borked);
     EXPECT_FALSE(status.ok());
     EXPECT_THAT(status.message(), ContainsSubstr("test does not contain a valid jwk"))
             << status.message();
-    EXPECT_TRUE(loader.empty());
+    EXPECT_TRUE(loader.Empty());
 }
 
 TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_jwk) {
@@ -322,19 +322,19 @@ TEST_F(JwkKeyLoaderTest, gracefully_rejects_broken_jwk) {
             ]
         })##";
 
-    auto status = loader.add("test", missing_y_field);
+    auto status = loader.Add("test", missing_y_field);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.message(), "test does not contain a valid jwk");
-    EXPECT_TRUE(loader.empty());
+    EXPECT_TRUE(loader.Empty());
 }
 
 TEST_F(JwkKeyLoaderTest, gracefully_rejects_missing_file) {
     JwkKeyLoader loader;
-    auto status = loader.add("this_path_does_not_exist");
+    auto status = loader.Add("this_path_does_not_exist");
 
     EXPECT_FALSE(status.ok());
     EXPECT_THAT(status.message(), ContainsSubstr("this_path_does_not_exist does not exist."));
-    EXPECT_TRUE(loader.empty());
+    EXPECT_TRUE(loader.Empty());
 }
 
 TEST_F(JwkKeyLoaderTest, can_remove_key) {
@@ -358,14 +358,14 @@ TEST_F(JwkKeyLoaderTest, can_remove_key) {
             ]
         })##";
 
-    auto status = loader.add("sample.jwk", key);
+    auto status = loader.Add("sample.jwk", key);
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
-    EXPECT_EQ(loader.size(), 1);
+    EXPECT_EQ(loader.Size(), 1);
 
-    EXPECT_EQ(loader.remove("sample.jwk"), absl::OkStatus());
-    EXPECT_TRUE(loader.empty());
+    EXPECT_EQ(loader.Remove("sample.jwk"), absl::OkStatus());
+    EXPECT_TRUE(loader.Empty());
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_FALSE(keyset.ok());
     EXPECT_EQ(keyset.status().message(), "keys list is empty");
 }
@@ -380,11 +380,11 @@ TEST_F(JwkKeyLoaderTest, no_keys) {
             ]
         })##";
 
-    auto status = loader.add("sample.jwk", key);
+    auto status = loader.Add("sample.jwk", key);
     EXPECT_FALSE(status.ok());
-    EXPECT_TRUE(loader.empty());
+    EXPECT_TRUE(loader.Empty());
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_FALSE(keyset.ok());
     EXPECT_EQ(keyset.status().message(), "keys list is empty");
 }
@@ -409,11 +409,11 @@ TEST_F(JwkKeyLoaderTest, missing_key_id) {
             ]
         })##";
 
-    auto status = loader.add("sample.jwk", key);
+    auto status = loader.Add("sample.jwk", key);
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
-    EXPECT_EQ(loader.size(), 1);
+    EXPECT_EQ(loader.Size(), 1);
 
-    auto keyset = loader.activeKeySet();
+    auto keyset = loader.ActiveKeySet();
     EXPECT_TRUE(keyset.ok());
 }
 

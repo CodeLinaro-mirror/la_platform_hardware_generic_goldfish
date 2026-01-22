@@ -31,21 +31,21 @@ HardwareConfig::HardwareConfig() {
 #include "avd/hw-config-defs.h"
 }
 
-void HardwareConfig::load(const IniFile& ini) {
+void HardwareConfig::Load(const IniFile& ini) {
     /* use the magic of macros to implement the hardware configuration loaded */
-#define HWCFG_BOOL(n, s, d, a, t) (n) = ini.getBool(s, d);
-#define HWCFG_INT(n, s, d, a, t) (n) = ini.getInt(s, d);
-#define HWCFG_STRING(n, s, d, a, t) (n) = ini.getString(s, d);
-#define HWCFG_DOUBLE(n, s, d, a, t) (n) = ini.getDouble(s, d);
-#define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini.getDiskSize(s, d);
+#define HWCFG_BOOL(n, s, d, a, t) (n) = ini.GetBool(s, d);
+#define HWCFG_INT(n, s, d, a, t) (n) = ini.GetInt(s, d);
+#define HWCFG_STRING(n, s, d, a, t) (n) = ini.GetString(s, d);
+#define HWCFG_DOUBLE(n, s, d, a, t) (n) = ini.GetDouble(s, d);
+#define HWCFG_DISKSIZE(n, s, d, a, t) (n) = ini.GetDiskSize(s, d);
 
 #include "avd/hw-config-defs.h"
 
-    hw_sdCard = ini.getDiskSize("sdcard.size", 0) > 0;
-    hw_sdCard_size = ini.getDiskSize("sdcard.size", hw_sdCard_size.Bytes());
+    hw_sdCard = ini.GetDiskSize("sdcard.size", 0) > 0;
+    hw_sd_card_size = ini.GetDiskSize("sdcard.size", hw_sd_card_size.Bytes());
 }
 
-void HardwareConfig::applyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path) {
+void HardwareConfig::ApplyDefaults(const fs::path& sdk_root_path, const fs::path& avd_home_path) {
     if (android_sdk_root.empty()) {
         android_sdk_root = sdk_root_path.string();
     }
@@ -69,16 +69,16 @@ void HardwareConfig::applyDefaults(const fs::path& sdk_root_path, const fs::path
     hw_gltransport = "virtio-gpu-pipe";
 }
 
-void HardwareConfig::write(IniFile* ini) {
-#define HWCFG_BOOL(n, s, d, a, t) ini->setBool(s, n);
-#define HWCFG_INT(n, s, d, a, t) ini->setInt(s, n);
-#define HWCFG_STRING(n, s, d, a, t) ini->setString(s, n);
-#define HWCFG_DOUBLE(n, s, d, a, t) ini->setDouble(s, n);
-#define HWCFG_DISKSIZE(n, s, d, a, t) ini->setDiskSize(s, static_cast<IniFile::DiskSize>(n));
+void HardwareConfig::Write(IniFile* ini) const {
+#define HWCFG_BOOL(n, s, d, a, t) ini->SetBool(s, n);
+#define HWCFG_INT(n, s, d, a, t) ini->SetInt(s, n);
+#define HWCFG_STRING(n, s, d, a, t) ini->SetString(s, n);
+#define HWCFG_DOUBLE(n, s, d, a, t) ini->SetDouble(s, n);
+#define HWCFG_DISKSIZE(n, s, d, a, t) ini->SetDiskSize(s, static_cast<IniFile::DiskSize>(n));
 
 #include "avd/hw-config-defs.h"
 
-    ini->setDiskSize("sdcard.size", hw_sdCard_size.Bytes());
+    ini->SetDiskSize("sdcard.size", hw_sd_card_size.Bytes());
 }
 
 }  // namespace android::goldfish

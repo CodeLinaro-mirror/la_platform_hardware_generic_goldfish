@@ -30,12 +30,14 @@ using cable::SocketPtr;
 struct TestHalSocket : public HalSocket {
     void Send(std::string data) override {
         LOG(ERROR) << "Send " << data;
+        on_send(data);
         storage.append(data);
     }
     void Close() override { closed = true; };
 
     bool closed{false};
     std::string storage;
+    std::function<void(const std::string&)> on_send = [](const std::string&) {};
 };
 
 /**

@@ -1,37 +1,16 @@
-load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
-load("@grpc-java//:java_grpc_library.bzl", "java_grpc_library")
-load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
-load("@protobuf//bazel:java_proto_library.bzl", "java_proto_library")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+package(default_visibility = ["//visibility:public"])
 
-package(default_visibility = ["//emulator/grpc:__subpackages__"])
-
-proto_library(
+alias(
     name = "adb_service_proto",
-    srcs = ["proto/adb_service.proto"],
-    strip_import_prefix = "proto",
-    deps = ["@protobuf//:empty_proto"],
+    actual = "@aemu//protos/services/adb:adb_service_proto",
 )
 
-cc_proto_library(
+alias(
     name = "adb_service_cc_proto",
-    deps = [":adb_service_proto"],
+    actual = "@aemu//protos/services/adb:adb_service_cc_proto",
 )
 
-cc_grpc_library(
+alias(
     name = "adb_service_cc_grpc",
-    srcs = [":adb_service_proto"],
-    grpc_only = True,
-    deps = [":adb_service_cc_proto"],
-)
-
-java_proto_library(
-    name = "adb_service_java_proto",
-    deps = [":adb_service_proto"],
-)
-
-java_grpc_library(
-    name = "adb_service_java_grpc",
-    srcs = [":adb_service_proto"],
-    deps = [":adb_service_java_proto"],
+    actual = "@aemu//protos/services/adb:adb_service_cc_grpc",
 )

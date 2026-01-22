@@ -31,9 +31,9 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 
 std::vector<std::string> g_argv;
 
-bool Bazel::s_notInBazel{false};
+bool Bazel::s_not_in_bazel{false};
 
-std::string Bazel::runfilesPath(const std::string& path) {
+std::string Bazel::RunfilesPath(const std::string& path) {
     std::string error;
     const char* workspace_dir = getenv("TEST_WORKSPACE");
     if (workspace_dir == nullptr || workspace_dir[0] == '\0') {
@@ -60,12 +60,12 @@ std::string Bazel::runfilesPath(const std::string& path) {
     return runfiles->Rlocation(absl::StrCat(workspace_dir, "/", path));
 }
 
-void Bazel::setNotInBazel() {
-    s_notInBazel = true;
+void Bazel::SetNotInBazel() {
+    s_not_in_bazel = true;
 }
 
-bool Bazel::inBazel() {
-    if (s_notInBazel) {
+bool Bazel::InBazel() {
+    if (s_not_in_bazel) {
         return false;
     }
     std::array<std::string, 3> markers = {
@@ -74,14 +74,14 @@ bool Bazel::inBazel() {
         "RUNFILES_DIR",
     };
     for (const auto& marker : markers) {
-        if (!System::get()->getEnvironmentVariable(marker).empty()) {
+        if (!System::Get()->GetEnvironmentVariable(marker).empty()) {
             return true;
         }
     }
     return false;
 }
 
-void Bazel::storeCommandLineArgs(int argc, char** argv) {
+void Bazel::StoreCommandLineArgs(int argc, char** argv) {
     g_argv.clear();
     for (int i = 0; i < argc; ++i) {
         g_argv.push_back(argv[i]);

@@ -53,37 +53,37 @@ using json = nlohmann::json;
 
 class AllYellow : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return true; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return true; }
 };
 
 class AllGreen : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return true; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return true; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class AllRed : public AllowList {
   public:
-    bool requiresAuthentication(std::string_view path) override { return true; };
+    bool RequiresAuthentication(std::string_view path) override { return true; };
 
-    bool isAllowed(std::string_view sub, std::string_view path) override { return false; }
+    bool IsAllowed(std::string_view sub, std::string_view path) override { return false; }
 
-    bool isProtected(std::string_view sub, std::string_view path) override { return false; }
+    bool IsProtected(std::string_view sub, std::string_view path) override { return false; }
 };
 
 class AuthErrorsTest : public ::testing::Test {
   public:
     void SetUp() override {
-        mAllGreen.setSource("/tmp/fake_source.json");
-        mAllYellow.setSource("/tmp/fake_source.json");
-        mAllRed.setSource("/tmp/fake_source.json");
+        mAllGreen.SetSource("/tmp/fake_source.json");
+        mAllYellow.SetSource("/tmp/fake_source.json");
+        mAllRed.SetSource("/tmp/fake_source.json");
         auto status = tink::TinkConfig::Register();
         EXPECT_TRUE(status.ok());
         status = tink::JwtSignatureRegister();
@@ -137,17 +137,17 @@ class AuthErrorsTest : public ::testing::Test {
 
 TEST_F(AuthErrorsTest, static_token_cannot_handle_bad_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    EXPECT_FALSE(auth.canHandleToken("bar"));
+    EXPECT_FALSE(auth.CanHandleToken("bar"));
 }
 
 TEST_F(AuthErrorsTest, static_token_can_handle_good_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    EXPECT_TRUE(auth.canHandleToken("Bearer foo"));
+    EXPECT_TRUE(auth.CanHandleToken("Bearer foo"));
 }
 
 TEST_F(AuthErrorsTest, static_token_cannot_handle_good_token_on_red_list) {
     StaticTokenAuth auth("foo", "android-studio", &mAllRed);
-    auto status = auth.isTokenValid("foo", "Bearer foo");
+    auto status = auth.IsTokenValid("foo", "Bearer foo");
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.message(),
               "The endpoint: foo is not on the allowlist loaded from: "
@@ -157,7 +157,7 @@ TEST_F(AuthErrorsTest, static_token_cannot_handle_good_token_on_red_list) {
 
 TEST_F(AuthErrorsTest, static_token_error_on_bad_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
-    auto status = auth.isTokenValid("foo", "Bearer bar");
+    auto status = auth.IsTokenValid("foo", "Bearer bar");
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("The token `Bearer bar` is invalid"));
 }
@@ -166,28 +166,28 @@ TEST_F(AuthErrorsTest, any_token_cannot_handle_bad_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
     StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
     AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
-    EXPECT_FALSE(anyauth.canHandleToken("bar"));
+    EXPECT_FALSE(anyauth.CanHandleToken("bar"));
 }
 
 TEST_F(AuthErrorsTest, any_token_can_handle_good_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
     StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
     AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
-    EXPECT_TRUE(anyauth.canHandleToken("Bearer bar"));
+    EXPECT_TRUE(anyauth.CanHandleToken("Bearer bar"));
 }
 
 TEST_F(AuthErrorsTest, any_token_can_validate_good_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
     StaticTokenAuth auth2("bar", "android-studio", &mAllGreen);
     AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
-    EXPECT_TRUE(anyauth.isTokenValid("/a/b/c", "Bearer bar").ok());
+    EXPECT_TRUE(anyauth.IsTokenValid("/a/b/c", "Bearer bar").ok());
 }
 
 TEST_F(AuthErrorsTest, any_token_reject_good_token_on_red_list) {
     StaticTokenAuth auth("foo", "android-studio", &mAllRed);
     StaticTokenAuth auth2("bar", "android-studio", &mAllRed);
     AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth, &auth2}), &mAllGreen);
-    auto status = anyauth.isTokenValid("/a/b/c", "Bearer bar");
+    auto status = anyauth.IsTokenValid("/a/b/c", "Bearer bar");
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(),
                 ContainsSubstr("The endpoint: /a/b/c is not on the allowlist loaded "
@@ -199,7 +199,7 @@ TEST_F(AuthErrorsTest, any_token_fatal_on_bad_token) {
     StaticTokenAuth auth("foo", "android-studio", &mAllGreen);
     AnyTokenAuth anyauth(std::vector<BasicTokenAuth*>({&auth}), &mAllGreen);
 
-    auto status = anyauth.isTokenValid("foo", "Bearer bar");
+    auto status = anyauth.IsTokenValid("foo", "Bearer bar");
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(),
                 ContainsSubstr("FATAL: No validator that can handle token. This "

@@ -39,62 +39,60 @@
 #define DD(...) (void)0
 #endif
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 namespace tink = crypto::tink;
 
-JwtTokenAuth::JwtTokenAuth(Path jwksPath, Path jwksLoadedPath, AllowList* list)
-        : BasicTokenAuth(DEFAULT_HEADER, list), mJwksLoadedPath(jwksLoadedPath) {
-    mTinkInitialized = tink::TinkConfig::Register();
-    if (mTinkInitialized.ok()) {
-        mTinkInitialized = tink::JwtSignatureRegister();
+JwtTokenAuth::JwtTokenAuth(const Path& jwks_path, Path jwks_loaded_path, AllowList* list)
+        : BasicTokenAuth(kDefaultHeader, list), jwks_loaded_path_(std::move(jwks_loaded_path)) {
+    tink_initialized_ = tink::TinkConfig::Register();
+    if (tink_initialized_.ok()) {
+        tink_initialized_ = tink::JwtSignatureRegister();
     }
 
-    if (!mJwksLoadedPath.empty()) {
-        LOG(INFO) << "The active JSON Web Key Sets can be found here: " << mJwksLoadedPath;
+    if (!jwks_loaded_path_.empty()) {
+        LOG(INFO) << "The active JSON Web Key Sets can be found here: " << jwks_loaded_path_;
     }
 
-    if (!mTinkInitialized.ok()) {
-        LOG(FATAL) << "Unable to initialize tink library. " << mTinkInitialized.ToString();
+    if (!tink_initialized_.ok()) {
+        LOG(FATAL) << "Unable to initialize tink library. " << tink_initialized_.ToString();
     }
-    mDirectoryObserver = std::make_unique<JwkDirectoryObserver>(
-            jwksPath, [this](auto handle) { updateKeysetHandle(std::move(handle)); },
-            [this](auto fname) {
+    directory_observer_ = std::make_unique<JwkDirectoryObserver>(
+            jwks_path, [this](auto handle) { UpdateKeysetHandle(std::move(handle)); },
+            [this](const auto& fname) {
                 DD("Check %s  != %s", fname.c_str(), mJwksLoadedPath.c_str());
-                return absl::EndsWith(fname.string(), kJwkExt) && fname != mJwksLoadedPath;
+                return absl::EndsWith(fname.string(), kJwkExt) && fname != jwks_loaded_path_;
             });
 }
 
-void JwtTokenAuth::updateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle> incomingHandle) {
-    const std::lock_guard<std::mutex> lock(mKeyhandleAccess);
-    if (mTinkInitialized.ok()) mActiveKeyset = std::move(incomingHandle);
+void JwtTokenAuth::UpdateKeysetHandle(std::unique_ptr<crypto::tink::KeysetHandle> incoming_handle) {
+    const std::lock_guard<std::mutex> lock(keyhandle_access_);
+    if (tink_initialized_.ok()) active_keyset_ = std::move(incoming_handle);
 
     // Next we serialize the Jwkset to file.
-    if (mTinkInitialized.ok() && !mJwksLoadedPath.empty()) {
+    if (tink_initialized_.ok() && !jwks_loaded_path_.empty()) {
         DD("Updating active set %p", mActiveKeyset.get());
-        std::string jsonSnippet = R"({"keys": []})";
-        if (mActiveKeyset != nullptr) {
-            auto jwkSet = tink::JwkSetFromPublicKeysetHandle(*mActiveKeyset);
-            if (!jwkSet.ok()) {
+        std::string json_snippet = R"({"keys": []})";
+        if (active_keyset_ != nullptr) {
+            auto jwk_set = tink::JwkSetFromPublicKeysetHandle(*active_keyset_);
+            if (!jwk_set.ok()) {
                 DD("Cannot serialize jwk set %s", jwkSet.status().message().data());
             } else {
-                jsonSnippet = jwkSet.value();
+                json_snippet = jwk_set.value();
             }
         }
 
-        std::ofstream out(mJwksLoadedPath, std::ios::trunc);
-        out << jsonSnippet;
+        std::ofstream out(jwks_loaded_path_, std::ios::trunc);
+        out << json_snippet;
         out.close();
-        DD("Updated %s with latest loaded keys to: %s", mJwksLoadedPath.c_str(),
+        DD("Updated %s with latest loaded keys to: %s", jwks_loaded_path_.c_str(),
            jsonSnippet.c_str());
     }
 }
 
-bool JwtTokenAuth::canHandleToken(std::string_view token) {
-    constexpr auto offset = DEFAULT_BEARER.size();
-    if (token.size() <= offset) {
+bool JwtTokenAuth::CanHandleToken(std::string_view token) {
+    constexpr auto kOffset = kDefaultBearer.size();
+    if (token.size() <= kOffset) {
         return false;
     }
 
@@ -104,23 +102,23 @@ bool JwtTokenAuth::canHandleToken(std::string_view token) {
     return std::count(token.begin(), token.end(), '.') == 2;
 }
 
-absl::Status JwtTokenAuth::isTokenValid(std::string_view path, std::string_view token) {
-    if (!mTinkInitialized.ok()) {
-        return mTinkInitialized;
+absl::Status JwtTokenAuth::IsTokenValid(std::string_view path, std::string_view token) {
+    if (!tink_initialized_.ok()) {
+        return tink_initialized_;
     }
 
-    constexpr auto offset = DEFAULT_BEARER.size();
-    if (token.size() <= offset) {
-        return AuthErrorFactory::authErrorInvalidHeader(token, DEFAULT_BEARER);
+    constexpr auto kOffset = kDefaultBearer.size();
+    if (token.size() <= kOffset) {
+        return AuthErrorFactory::AuthErrorInvalidHeader(token, kDefaultBearer);
     }
 
-    auto actual_token = absl::string_view(token.data() + offset, token.size() - offset);
+    auto actual_token = absl::string_view(token.data() + kOffset, token.size() - kOffset);
 
-    const std::lock_guard<std::mutex> lock(mKeyhandleAccess);
-    if (!mActiveKeyset) {
-        return AuthErrorFactory::authErrorNoKeySet(mDirectoryObserver->observes().string());
+    const std::lock_guard<std::mutex> lock(keyhandle_access_);
+    if (!active_keyset_) {
+        return AuthErrorFactory::AuthErrorNoKeySet(directory_observer_->Observes().string());
     }
-    auto verify = mActiveKeyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
+    auto verify = active_keyset_->template GetPrimitive<tink::JwtPublicKeyVerify>();
     if (!verify.ok()) {
         DD("Token error: %s", verify.status().error_message().c_str());
         return verify.status();
@@ -148,23 +146,23 @@ absl::Status JwtTokenAuth::isTokenValid(std::string_view path, std::string_view 
 
     auto iss = verified_jwt->GetIssuer();
     if (!iss.ok()) {
-        return AuthErrorFactory::authErrorMissingIss(path);
+        return AuthErrorFactory::AuthErrorMissingIss(path);
     }
 
     // Green list, no need to validate aud..
-    if (verified_jwt.ok() && allowList()->isAllowed(*iss, path)) {
+    if (verified_jwt.ok() && GetAllowList()->IsAllowed(*iss, path)) {
         return absl::OkStatus();
     }
 
     // On the block list, go away!
-    if (allowList()->isRed(*iss, path)) {
-        return AuthErrorFactory::authErrorNotOnAllowList(*iss, path, allowList()->getSource());
+    if (GetAllowList()->IsRed(*iss, path)) {
+        return AuthErrorFactory::AuthErrorNotOnAllowList(*iss, path, GetAllowList()->GetSource());
     }
 
     auto audiences = verified_jwt->GetAudiences();
     if (!audiences.ok()) {
         DD("Token validator error: %s", audiences.status().error_message().c_str());
-        return AuthErrorFactory::authErrorMissingAud(*iss, path);
+        return AuthErrorFactory::AuthErrorMissingAud(*iss, path);
     }
 
     for (const auto& aud : audiences.value()) {
@@ -173,9 +171,7 @@ absl::Status JwtTokenAuth::isTokenValid(std::string_view path, std::string_view 
         }
     }
 
-    return AuthErrorFactory::authErrorMissingClaim(*iss, path);
+    return AuthErrorFactory::AuthErrorMissingClaim(*iss, path);
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

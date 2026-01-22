@@ -76,20 +76,20 @@ bool OpenPortChecker::isAlive(fs::path myFile, fs::path discoveryFile) const {
     DD("Checking liveness of entry %s", discoveryFile.string().c_str());
     IniFile ini(discoveryFile);
     IniFile me(myFile);
-    if (!ini.read()) {
+    if (!ini.Read()) {
         DD("Invalid ini file: %s", discoveryFile.string().c_str());
         return false;
     }
 
-    if (!base::file::exists(myFile) || !me.read()) {
+    if (!base::file::exists(myFile) || !me.Read()) {
         DD("Invalid ini file: %s (that's ok)", myFile.string().c_str());
     }
 
     // Check if we can connect to any of the ports that are defined in the
     // discovery file.. If we can, then we are alive..
     for (const auto& port : {"grpc.port", "port.serial", "port.adb"}) {
-        auto checkPort = ini.getInt64(port, 0);
-        auto myPort = me.getInt64(port, 0);
+        auto checkPort = ini.GetInt64(port, 0);
+        auto myPort = me.GetInt64(port, 0);
 
         if (myPort != 0 && myPort == checkPort) {
             DD("Imposter! Your ini file contains ports that are owned by me!");
@@ -204,11 +204,11 @@ fs::path EmulatorAdvertisement::discoverEmulatorWithProperties(
         const EmulatorProperties& props) const {
     for (const fs::path& discoveryFile : discoverRunningEmulators()) {
         IniFile ini(discoveryFile);
-        if (!ini.read()) continue;
+        if (!ini.Read()) continue;
 
         bool match = true;
         for (const auto& [key, val] : props) {
-            match = match && ini.hasKey(key) && ini.getString(key, "") == val;
+            match = match && ini.HasKey(key) && ini.GetString(key, "") == val;
         }
         if (match) return discoveryFile;
     }

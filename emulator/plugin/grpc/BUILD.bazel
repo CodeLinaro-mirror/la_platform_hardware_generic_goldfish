@@ -28,6 +28,8 @@ cc_library(
         "//emulator/grpc/event-stream",
         "//emulator/grpc/services-stack",
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
+        "//emulator/grpc/services/forwarder:service_forwarder",
+        "//emulator/grpc/services/forwarder:ui_controller_forwarder",
         "//emulator/libs/display",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",

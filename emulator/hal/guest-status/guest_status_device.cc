@@ -66,9 +66,9 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
         // TODO shared_from_this() throws here as this no longer has any associated shared_ptr.
         // Presumably it's being destroyed?
-        /*(void)mQemuLoop->Post([self = shared_from_this()]() {
+        /*mQemuLoop->Post([self = shared_from_this()]() {
             self->mUnregisterEmulatorReset(GuestStatusDevice::QEMUResetHandler, self.get());
-        });*/
+        }).IgnoreError();*/
     }
 
     void OnReceive(const std::string_view data) override {
@@ -141,10 +141,10 @@ class GuestStatusDevice : public IGuestStatusDevice,
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
             // onReceive is not called on Qemu thread - schedule shutdown from there to be safe.
-            (void)mQemuLoop->Post([]() {
+            mQemuLoop->Post([]() {
                 android::goldfish::VmOperations::qemuVmOperations()->systemShutdownRequest(
                         android::goldfish::QemuShutdownCause::GuestShutdown);
-            });
+            }).IgnoreError();
         }
     }
 
@@ -155,7 +155,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
 
     static absl::Time wallClock() {
         return absl::UnixEpoch() +
-               absl::Milliseconds(android::base::System::get()->getProcessTimes().wallClockMs);
+               absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms);
     }
 
     static void QEMUResetHandler(void* opaque) {

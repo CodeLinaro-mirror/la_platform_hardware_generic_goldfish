@@ -1,4 +1,5 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
@@ -307,17 +308,20 @@ collect_plugins(
 collect_plugins(
     name = "roms",
     output_dir = "share/qemu",
-    plugins = [
-        "@qemu//:qemu-roms",
-    ],
+    plugins = ["@qemu//:qemu-roms"],
 )
 
 collect_plugins(
     name = "keymaps",
     output_dir = "share/qemu/keymaps",
-    plugins = [
-        "@qemu//:qemu-keymaps",
-    ],
+    plugins = ["@qemu//:qemu-keymaps"],
+)
+
+collect_plugins(
+    name = "unsecure-emulator-access",
+    output_dir = "lib",
+    plugins = ["//emulator/grpc/security:unsecure-emulator-access"],
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(
@@ -329,8 +333,8 @@ cc_binary(
         ":lib64gl",
         ":plugins",
         ":roms",
+        ":unsecure-emulator-access",
         ":vulkan_icds",
-        "//emulator/grpc/security:unsecure-emulator-access",
     ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
@@ -448,4 +452,13 @@ py_binary(
         ":emulator_lib",
         "@rules_python//python/runfiles",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":input_paths",
+        ":avd",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

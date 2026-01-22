@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "goldfish/async/libuv_socket_factory.h"
@@ -27,9 +28,11 @@ namespace goldfish::devices::unix_pipe {
 
 using goldfish::network::UnEndpoint;
 
-class UnixPipe : public IUnixPipe {
+class UnixPipe : public IUnixPipe, public std::enable_shared_from_this<UnixPipe> {
   public:
-    UnixPipe(EventLoop* client_loop, const std::string_view path) {
+    explicit UnixPipe(EventLoop* client_loop) : client_loop_(client_loop) {}
+
+    void Init(const std::string_view path) {
         auto un_addr = UnEndpoint::Create(std::string(path));
         if (!un_addr.ok()) {
             LOG(WARNING) << "Cannot create an AF_UNIX endpoint at '" << path << ": "
@@ -37,15 +40,11 @@ class UnixPipe : public IUnixPipe {
             return;
         }
 
-        un_socket_ = socket_factory_.CreateSocket(client_loop, *std::move(un_addr));
-        un_socket_->SetOnReadCallbackNoFlowControl(
-                [this](std::string_view data, const absl::Status& err) {
-                    if (err.ok()) {
-                        Socket()->Send(std::string(data));
-                    }
-                });
-
-        un_socket_->SetOnCloseCallback([this]() { Close(); });
+        client_loop_
+                ->Post([self = shared_from_this(), un_addr = *std::move(un_addr)]() {
+                    self->InitOnEventLoop(un_addr);
+                })
+                .IgnoreError();
     }
 
     void OnConnect() override {}
@@ -53,38 +52,102 @@ class UnixPipe : public IUnixPipe {
     void OnClose() override { Close(); }
 
     void OnReceive(std::string_view data) override {
+        client_loop_
+                ->Post([self = shared_from_this(), data = std::string(data)]() {
+                    self->OnReceiveOnEventLoop(data);
+                })
+                .IgnoreError();
+    }
+
+    void Close() {
+        client_loop_->Post([self = shared_from_this()]() { self->CloseOnEventLoop(); })
+                .IgnoreError();
+    }
+
+  private:
+    void InitOnEventLoop(const UnEndpoint& un_addr) {
+        std::shared_ptr<async::AsyncSocket> un_socket =
+                socket_factory_.CreateSocket(client_loop_, un_addr);
+
+        un_socket->SetOnConnectedCallback(
+                [this](async::AsyncSocket&, const absl::Status& connect_status) {
+                    DCHECK(un_socket_);
+                    if (connect_status.ok()) {
+                        OnReceiveImpl(queued_);
+                        queued_.clear();
+                        connected_ = true;
+                    } else {
+                        LOG(WARNING) << "`Connect` failed: " << connect_status;
+                        un_socket_.reset();
+                    }
+                });
+
+        un_socket->SetOnReadCallbackNoFlowControl(
+                [this](std::string_view data, const absl::Status& err) {
+                    if (err.ok()) {
+                        Socket()->Send(std::string(data));
+                    }
+                });
+
+        un_socket->SetOnCloseCallback([this]() {
+            Socket()->Send({});
+            Close();
+        });
+
+        const absl::Status connect_status = un_socket->Connect();
+        if (connect_status.ok()) {
+            un_socket_ = std::move(un_socket);
+        } else {
+            LOG(WARNING) << "Could not connect to " << ToString(un_addr) << ": " << connect_status;
+        }
+    }
+
+    void OnReceiveOnEventLoop(const std::string_view data) {
         if (un_socket_) {
-            const absl::Status s = un_socket_->Send(data.data(), data.size());
-            if (!s.ok()) {
-                CloseImpl();
-                LOG(WARNING) << "Send failed with " << s;
+            if (connected_) {
+                OnReceiveImpl(data);
+            } else {
+                queued_.append(data);
             }
         } else {
             LOG(WARNING) << "The host side is disconnected, " << data.size() << " bytes are lost";
         }
     }
 
-    void Close() {
+    void CloseOnEventLoop() {
         if (un_socket_) {
             CloseImpl();
         }
     }
 
-  private:
+    void OnReceiveImpl(const std::string_view data) {
+        DCHECK(un_socket_);
+        const absl::Status s = un_socket_->Send(data.data(), data.size());
+        if (!s.ok()) {
+            CloseImpl();
+            LOG(WARNING) << "Send failed with " << s;
+        }
+    }
+
     void CloseImpl() {
         un_socket_->Close();
         un_socket_.reset();
     }
 
+    EventLoop* const client_loop_;
     async::LibuvAsyncSocketFactory socket_factory_;
     std::shared_ptr<async::AsyncSocket> un_socket_;
+    std::string queued_;
+    bool connected_ = false;
 };
 
 void IUnixPipe::RegisterDevice(IConnectorRegistry* registry, EventLoop* client_loop,
                                EventLoop* qemu_loop) {
     registry->RegisterHalDevice(std::string(UnixPipe::kServiceName), client_loop, qemu_loop,
                                 [client_loop](const std::string_view path) {
-                                    return std::make_shared<UnixPipe>(client_loop, path);
+                                    auto dev = std::make_shared<UnixPipe>(client_loop);
+                                    dev->Init(path);
+                                    return dev;
                                 });
 }
 

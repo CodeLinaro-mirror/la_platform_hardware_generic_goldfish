@@ -27,15 +27,15 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     std::vector<std::pair<std::string, std::string>> params{
         {"serial_number", absl::StrCat(emulator.serial_number())},
         {"adb_port", absl::StrCat(emulator.adb_port())},
-        {"avd_name", emulator.avd().display_name()},
-        {"avd_id", emulator.avd().id()},
-        {"avd_abi", emulator.avd().abi()},
-        {"avd_api", absl::StrCat(emulator.avd().apiLevel())},
-        {"avd_type", absl::StrCat(static_cast<int32_t>(emulator.avd().getDeviceType()))},
-        {"avd_dir", emulator.avd().getContentPath().string()},
-        {"build_sdk", emulator.avd().build_sdk()},
-        {"build_id", emulator.avd().build_id()},
-        {"build_flavour", emulator.avd().build_flavour()},
+        {"avd_name", emulator.avd().DisplayName()},
+        {"avd_id", emulator.avd().Id()},
+        {"avd_abi", emulator.avd().Abi()},
+        {"avd_api", absl::StrCat(emulator.avd().ApiLevel())},
+        {"avd_type", absl::StrCat(static_cast<int32_t>(emulator.avd().GetDeviceType()))},
+        {"avd_dir", emulator.avd().GetContentPath().string()},
+        {"build_sdk", emulator.avd().BuildSdk()},
+        {"build_id", emulator.avd().BuildId()},
+        {"build_flavour", emulator.avd().BuildFlavour()},
     };
 
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {

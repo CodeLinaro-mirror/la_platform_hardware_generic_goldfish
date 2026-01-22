@@ -63,7 +63,7 @@ static_assert(ANDROID_PUBKEY_MODULUS_SIZE % 4 == 0,
 constexpr const int ANDROID_PUBKEY_MODULUS_SIZE_WORDS = ANDROID_PUBKEY_MODULUS_SIZE / 4;
 
 std::string get_user_info() {
-    std::string hostname = System::get()->getEnvironmentVariable("HOSTNAME");
+    std::string hostname = System::Get()->GetEnvironmentVariable("HOSTNAME");
     if (hostname.empty()) {
         hostname = "unknown";
     }
@@ -189,16 +189,16 @@ bool pubkey_from_privkey(const fs::path& path, std::string* out) {
 // Get adbkey path, return "" if failed
 // adbKeyFileName could be "adbkey" or "adbkey.pub"
 fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
-    fs::path adbKeyPath = android::goldfish::ConfigDirs::getUserDirectory() / adbKeyFileName;
+    fs::path adbKeyPath = android::goldfish::ConfigDirs::GetUserDirectory() / adbKeyFileName;
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
     D("cannot read adb key file: %s", adbKeyPath);
     D("trying again by copying from home dir");
 
-    auto home = System::get()->getHomeDirectory();
+    auto home = System::Get()->GetHomeDirectory();
     if (home.empty()) {
-        home = System::get()->getTempDir();
+        home = System::Get()->GetTempDir();
         if (home.empty()) {
             home = "/tmp";
         }

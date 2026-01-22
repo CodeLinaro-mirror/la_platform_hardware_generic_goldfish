@@ -341,7 +341,7 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
 #if HAVE_HVF
 
 Version currentMacOSVersion(std::string* status) {
-    std::string osProductVersion = base::System::get()->getOsName();
+    std::string osProductVersion = base::System::Get()->GetOsName();
     return parseMacOSVersionString(osProductVersion, status);
 }
 

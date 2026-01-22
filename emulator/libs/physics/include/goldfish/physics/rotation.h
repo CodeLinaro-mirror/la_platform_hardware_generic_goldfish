@@ -18,16 +18,14 @@
 
 #include "goldfish/physics/skin_rotation.h"
 
-namespace goldfish {
-namespace physics {
+namespace goldfish::physics {
 
 struct Rotation {
     SkinRotation rotation;
 
-    float xAxis;  ///< The x-axis acceleration value (in m/s^2).
-    float yAxis;  ///< The y-axis acceleration value (in m/s^2).
-    float zAxis;  ///< The z-axis acceleration value (in m/s^2).
+    float x_axis;  ///< The x-axis acceleration value (in m/s^2).
+    float y_axis;  ///< The y-axis acceleration value (in m/s^2).
+    float z_axis;  ///< The z-axis acceleration value (in m/s^2).
 };
 
-}  // namespace physics
-}  // namespace goldfish
+}  // namespace goldfish::physics

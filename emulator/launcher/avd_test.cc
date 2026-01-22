@@ -60,15 +60,15 @@ void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetStr
     writeToFile(avd_dir / "config.ini", "target=" + targetString);
 }
 
-TEST(Avd, apiLevel) {
+TEST(Avd, api_level) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.getTempRoot();
     auto paths = setupPaths(tmp);
 
     createTestAvd(paths, "android-30");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "test_avd"));
-    EXPECT_EQ(avd->apiLevel(), 30);
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
+    EXPECT_EQ(avd->ApiLevel(), 30);
 }
 
 TEST(Avd, dessert) {
@@ -78,8 +78,8 @@ TEST(Avd, dessert) {
 
     createTestAvd(paths, "android-30");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "test_avd"));
-    EXPECT_EQ(avd->dessert(), "R");
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
+    EXPECT_EQ(avd->Dessert(), "R");
 }
 
 TEST(Avd, unknownApiLevel) {
@@ -89,9 +89,9 @@ TEST(Avd, unknownApiLevel) {
 
     createTestAvd(paths, "android-1");  // API level 1 doesn't have a dessert name
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "test_avd"));
-    EXPECT_EQ(avd->apiLevel(), 3);  // Should default to API level 3
-    EXPECT_EQ(avd->dessert(), "");  // No dessert name for API level 1
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
+    EXPECT_EQ(avd->ApiLevel(), 3);  // Should default to API level 3
+    EXPECT_EQ(avd->Dessert(), "");  // No dessert name for API level 1
 }
 
 TEST(Avd, invalidTargetFormat) {
@@ -101,9 +101,9 @@ TEST(Avd, invalidTargetFormat) {
 
     createTestAvd(paths, "invalid-target-format");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "test_avd"));
-    EXPECT_EQ(avd->apiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
-    EXPECT_EQ(avd->dessert(), "");                      // No dessert name for invalid API level
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
+    EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
+    EXPECT_EQ(avd->Dessert(), "");                      // No dessert name for invalid API level
 }
 
 TEST(Avd, path_getAvdSystemPath) {
@@ -119,7 +119,7 @@ TEST(Avd, path_getAvdSystemPath) {
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 
-    auto inis = Avd::list(paths.avd_directory);
+    auto inis = Avd::List(paths.avd_directory);
     EXPECT_EQ(1, inis.size());
 }
 
@@ -139,15 +139,15 @@ TEST(Avd, path_getAvdSystemImage) {
     writeToFile(paths.avd_directory / "q.ini", absl::StrCat("path=", avd_dir.string()));
     writeToFile(avd_dir / "config.ini", "image.sysdir.1=sysimg");
 
-    auto inis = Avd::list(paths.avd_directory);
+    auto inis = Avd::List(paths.avd_directory);
     EXPECT_EQ(1, inis.size());
 
     // No override.
     auto expectedPath = tmp->path() / android_home / "sysimg" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    ASSERT_OK_AND_ASSIGN(auto avd, Avd::fromName(paths, "q"));
-    EXPECT_THAT(avd->getSystemImageFilePath(Avd::ImageType::INITSYSTEM),
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "q"));
+    EXPECT_THAT(avd->GetSystemImageFilePath(Avd::ImageType::INITSYSTEM),
                 IsOkAndHolds(expectedPath));
 
     std::remove(expectedPath.string().c_str());
@@ -156,8 +156,8 @@ TEST(Avd, path_getAvdSystemImage) {
     expectedPath = tmp->path() / "nothome" / "blah" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::fromName(paths, "q", tmp->path() / "nothome" / "blah"));
-    EXPECT_THAT(avd2->getSystemImageFilePath(Avd::ImageType::INITSYSTEM),
+    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::FromName(paths, "q", tmp->path() / "nothome" / "blah"));
+    EXPECT_THAT(avd2->GetSystemImageFilePath(Avd::ImageType::INITSYSTEM),
                 IsOkAndHolds(expectedPath));
 }
 

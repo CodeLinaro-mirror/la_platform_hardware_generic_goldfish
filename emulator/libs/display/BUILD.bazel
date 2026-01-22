@@ -29,6 +29,7 @@ cc_library(
         "qemu_display.cc",
         "virtio_bridge.c",
         "virtio_bridge.h",
+        "write_png.cc",
     ],
     hdrs = [
         "include/goldfish/display/QemuMultidisplay/multi_display.h",
@@ -36,6 +37,7 @@ cc_library(
         "include/goldfish/display/pixman_display.h",
         "include/goldfish/display/pixman_frame_manager.h",
         "include/goldfish/display/pixman_image_ptr.h",
+        "include/goldfish/display/write_png.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -48,6 +50,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@libpng//:png",
         "@pixman//:pixman-1",
         "@pixman//:pixman_simd",
         "@qemu//:qemu-headers",

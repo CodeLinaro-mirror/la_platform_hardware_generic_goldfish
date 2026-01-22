@@ -57,7 +57,7 @@ static std::string readResponse(int fd, int bytesToRead) {
         auto ret = android::base::socketRecv(fd, (void*)&buffer[bytesRead], bytesToRead);
 
         if (ret == EAGAIN || ret == EWOULDBLOCK) {
-            System::get()->sleepMs(500);
+            System::Get()->SleepMs(500);
             continue;
         }
 
@@ -145,7 +145,7 @@ bool AdbHostServer::notify(int adbEmulatorPort, int adbClientPort) {
 int AdbHostServer::getClientPort() {
     int clientPort = kDefaultAdbClientPort;
     const std::string_view kVarName = "ANDROID_ADB_SERVER_PORT";
-    std::string env = System::get()->envGet(kVarName);
+    std::string env = System::Get()->EnvGet(kVarName);
     if (!env.empty()) {
         long port = strtol(env.c_str(), NULL, 0);
         if (port <= 0 || port >= 65536) {

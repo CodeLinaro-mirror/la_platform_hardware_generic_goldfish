@@ -14,9 +14,7 @@
 #pragma once
 #include "absl/status/status.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 // A class that produces errors that are sensible to end users.
 class AuthErrorFactory {
@@ -27,7 +25,7 @@ class AuthErrorFactory {
      * @param jwk_path The path where the public keys should be stored.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorNoKeySet(std::string_view jwk_path);
+    static absl::Status AuthErrorNoKeySet(std::string_view jwk_path);
 
     /**
      * Produces a UnauthenticatedError when we presented a bad header
@@ -36,7 +34,7 @@ class AuthErrorFactory {
      * @param expected What we expected to be there.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorInvalidHeader(std::string_view header, std::string_view expected);
+    static absl::Status AuthErrorInvalidHeader(std::string_view header, std::string_view expected);
 
     /**
      * Produces a UnauthenticatedError when we presented a bad token.
@@ -44,7 +42,7 @@ class AuthErrorFactory {
      * @param token The token that the user presented.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorInvalidToken(std::string_view token);
+    static absl::Status AuthErrorInvalidToken(std::string_view token);
 
     /**
      * Produces a UnauthenticatedError when we are unable to process the token
@@ -53,7 +51,7 @@ class AuthErrorFactory {
      * @param token The token that the user presented.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorNoValidatorForToken(std::string_view path, std::string_view token);
+    static absl::Status AuthErrorNoValidatorForToken(std::string_view path, std::string_view token);
 
     /**
      * Produces a UnauthenticatedError when the security header is not present
@@ -61,7 +59,7 @@ class AuthErrorFactory {
      * @param header The header that is missing
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingHeader(std::string_view header);
+    static absl::Status AuthErrorMissingHeader(std::string_view header);
 
     /**
      * Produces a UnauthenticatedError when an unidentified user
@@ -70,7 +68,7 @@ class AuthErrorFactory {
      * @param path The path that the user tried to access.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingIss(std::string_view path);
+    static absl::Status AuthErrorMissingIss(std::string_view path);
 
     /**
      * Produces a PermissionDeniedError when a user tries to access a path
@@ -80,7 +78,7 @@ class AuthErrorFactory {
      * @param path The path that the user tried to access.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingAud(std::string_view iss, std::string_view path);
+    static absl::Status AuthErrorMissingAud(std::string_view iss, std::string_view path);
 
     /**
      * Produces a PermissionDeniedError when a user tries to access a path
@@ -90,7 +88,7 @@ class AuthErrorFactory {
      * @param path The path that the user tried to access.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorMissingClaim(std::string_view iss, std::string_view path);
+    static absl::Status AuthErrorMissingClaim(std::string_view iss, std::string_view path);
 
     /**
      * Produces a PermissionDeniedError when a user tries to access a path
@@ -101,10 +99,8 @@ class AuthErrorFactory {
      * @param allowListOrigin The location of the allowlist.
      * @return An absl::Status indicating failure of the operation.
      */
-    static absl::Status authErrorNotOnAllowList(std::string_view iss, std::string_view path,
-                                                std::string_view allowListOrigin);
+    static absl::Status AuthErrorNotOnAllowList(std::string_view iss, std::string_view path,
+                                                std::string_view allow_list_origin);
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

@@ -35,9 +35,9 @@ TEST(BootProperties, Basic) {
     FakeEmulator emu;
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -55,9 +55,9 @@ TEST(BootProperties, NoBootAnim) {
     FakeEmulator emu(std::move(opts));
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -73,9 +73,9 @@ TEST(BootProperties, Logcat) {
     FakeEmulator emu(std::move(opts));
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -97,15 +97,15 @@ TEST(Initrd, Basic) {
     FakeEmulator emu;
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::RAMDISK))
             .Times(1)
             .WillRepeatedly(testing::Return(system_initrd.string()));
-    EXPECT_CALL(emu.mock_avd(), getContentPath())
+    EXPECT_CALL(emu.mock_avd(), GetContentPath())
             .Times(1)
             .WillRepeatedly(testing::Return((launcher_path / "content").string()));
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
@@ -136,15 +136,15 @@ TEST(Initrd, RamdiskFlag) {
     FakeEmulator emu(std::move(opts));
 
     auto hw = HardwareConfig();
-    EXPECT_CALL(emu.mock_avd(), hw()).WillRepeatedly(testing::ReturnRef(hw));
-    EXPECT_CALL(emu.mock_avd(), name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
-    EXPECT_CALL(emu.mock_avd(), getSystemImageFilePath(Avd::ImageType::RAMDISK))
+    EXPECT_CALL(emu.mock_avd(), Hw()).WillRepeatedly(testing::ReturnRef(hw));
+    EXPECT_CALL(emu.mock_avd(), Name()).Times(1).WillRepeatedly(testing::Return("mock_avd"));
+    EXPECT_CALL(emu.mock_avd(), GetSystemImageFilePath(Avd::ImageType::RAMDISK))
             .Times(0)
             .WillRepeatedly(testing::Return(system_initrd.string()));
-    EXPECT_CALL(emu.mock_avd(), getContentPath())
+    EXPECT_CALL(emu.mock_avd(), GetContentPath())
             .Times(1)
             .WillRepeatedly(testing::Return((launcher_path / "content").string()));
-    EXPECT_CALL(emu.mock_avd(), detectArchitecture())
+    EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .Times(1)
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 

@@ -15,8 +15,9 @@
 
 #include "host/commands/modem_simulator/sim_service.h"
 
-#include <android-base/logging.h>
 #include <tinyxml2.h>
+
+#include "absl/log/log.h"
 
 #include "common/libs/utils/files.h"
 #include "host/commands/modem_simulator/device_config.h"
@@ -377,29 +378,14 @@ void SimService::InitializeSimFileSystemAndSimState() {
   }
   auto icc_profile_name = ss.str();
 
-  auto icc_profile_path = cuttlefish::modem::DeviceConfig::PerInstancePath(
+  auto icc_profile_path = cuttlefish::modem::DeviceConfig::GetFilePath(
       icc_profile_name.c_str());
   std::string file = icc_profile_path;
 
   if (!cuttlefish::FileExists(icc_profile_path) ||
       !cuttlefish::FileHasContent(icc_profile_path.c_str())) {
-    ss.clear();
-    ss.str("");
-
-    if (sim_type == 2) {  // Special sim card for CtsCarrierApiTestCases
-      ss << "etc/modem_simulator/files/iccprofile_for_sim" << service_id_
-          << "_for_CtsCarrierApiTestCases.xml";
-    } else {
-      ss << "etc/modem_simulator/files/iccprofile_for_sim" << service_id_ << ".xml";
-    }
-
-    auto etc_file_path =
-        cuttlefish::modem::DeviceConfig::DefaultHostArtifactsPath(ss.str());
-    if (!cuttlefish::FileExists(etc_file_path) || !cuttlefish::FileHasContent(etc_file_path)) {
-      sim_status_ = SIM_STATUS_ABSENT;
-      return;
-    }
-    file = etc_file_path;
+    sim_status_ = SIM_STATUS_ABSENT;
+    return;
   }
 
   sim_file_system_.file_path = icc_profile_path;

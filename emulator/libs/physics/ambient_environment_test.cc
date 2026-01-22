@@ -30,18 +30,18 @@ TEST(AmbientEnvironment, DefaultParameters) {
     AmbientEnvironment ambientEnvironment;
 
     constexpr ParameterValueType valueTypes[] = {
-        ParameterValueType::TARGET, ParameterValueType::CURRENT,
-        ParameterValueType::CURRENT_NO_AMBIENT_MOTION, ParameterValueType::DEFAULT};
+        ParameterValueType::kTarget, ParameterValueType::kCurrent,
+        ParameterValueType::kCurrentNoAmbientMotion, ParameterValueType::kDefault};
     for (auto valueType : valueTypes) {
         SCOPED_TRACE(testing::Message() << "valueType=" << static_cast<int>(valueType));
 
-        EXPECT_EQ(glm::vec3(0.0f, 5.9f, -48.4f), ambientEnvironment.getMagneticField(valueType));
-        EXPECT_EQ(glm::vec3(0.f, -9.81f, 0.f), ambientEnvironment.getGravity(valueType));
-        EXPECT_EQ(0.f, ambientEnvironment.getTemperature(valueType));
-        EXPECT_EQ(1.f, ambientEnvironment.getProximity(valueType));
-        EXPECT_EQ(0.f, ambientEnvironment.getLight(valueType));
-        EXPECT_EQ(0.f, ambientEnvironment.getPressure(valueType));
-        EXPECT_EQ(0.f, ambientEnvironment.getHumidity(valueType));
+        EXPECT_EQ(glm::vec3(0.0f, 5.9f, -48.4f), ambientEnvironment.GetMagneticField(valueType));
+        EXPECT_EQ(glm::vec3(0.f, -9.81f, 0.f), ambientEnvironment.GetGravity(valueType));
+        EXPECT_EQ(0.f, ambientEnvironment.GetTemperature(valueType));
+        EXPECT_EQ(1.f, ambientEnvironment.GetProximity(valueType));
+        EXPECT_EQ(0.f, ambientEnvironment.GetLight(valueType));
+        EXPECT_EQ(0.f, ambientEnvironment.GetPressure(valueType));
+        EXPECT_EQ(0.f, ambientEnvironment.GetHumidity(valueType));
     }
 }
 
@@ -50,8 +50,8 @@ TEST(AmbientEnvironment, SetMagneticField) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setMagneticField(8.f, 11.f, 20.f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(glm::vec3(8.f, 11.f, 20.f), ambientEnvironment.getMagneticField());
+    ambientEnvironment.SetMagneticField(8.f, 11.f, 20.f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(glm::vec3(8.f, 11.f, 20.f), ambientEnvironment.GetMagneticField());
 }
 
 TEST(AmbientEnvironment, SetGravity) {
@@ -59,8 +59,8 @@ TEST(AmbientEnvironment, SetGravity) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setGravity(glm::vec3(0.f, 1.f, 2.f), PhysicalInterpolation::STEP);
-    EXPECT_EQ(glm::vec3(0.f, 1.f, 2.f), ambientEnvironment.getGravity());
+    ambientEnvironment.SetGravity(glm::vec3(0.f, 1.f, 2.f), PhysicalInterpolation::kStep);
+    EXPECT_EQ(glm::vec3(0.f, 1.f, 2.f), ambientEnvironment.GetGravity());
 }
 
 TEST(AmbientEnvironment, SetTemperature) {
@@ -68,8 +68,8 @@ TEST(AmbientEnvironment, SetTemperature) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setTemperature(27.f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(27.f, ambientEnvironment.getTemperature());
+    ambientEnvironment.SetTemperature(27.f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(27.f, ambientEnvironment.GetTemperature());
 }
 
 TEST(AmbientEnvironment, SetProximity) {
@@ -77,8 +77,8 @@ TEST(AmbientEnvironment, SetProximity) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setProximity(8.f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(8.f, ambientEnvironment.getProximity());
+    ambientEnvironment.SetProximity(8.f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(8.f, ambientEnvironment.GetProximity());
 }
 
 TEST(AmbientEnvironment, SetLight) {
@@ -86,8 +86,8 @@ TEST(AmbientEnvironment, SetLight) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setLight(187.f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(187.f, ambientEnvironment.getLight());
+    ambientEnvironment.SetLight(187.f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(187.f, ambientEnvironment.GetLight());
 }
 
 TEST(AmbientEnvironment, SetPressure) {
@@ -95,8 +95,8 @@ TEST(AmbientEnvironment, SetPressure) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setPressure(823.f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(823.f, ambientEnvironment.getPressure());
+    ambientEnvironment.SetPressure(823.f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(823.f, ambientEnvironment.GetPressure());
 }
 
 TEST(AmbientEnvironment, SetHumidity) {
@@ -104,8 +104,8 @@ TEST(AmbientEnvironment, SetHumidity) {
     mTestSystem.setLiveUnixTime(false);
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
-    ambientEnvironment.setHumidity(0.67f, PhysicalInterpolation::STEP);
-    EXPECT_EQ(0.67f, ambientEnvironment.getHumidity());
+    ambientEnvironment.SetHumidity(0.67f, PhysicalInterpolation::kStep);
+    EXPECT_EQ(0.67f, ambientEnvironment.GetHumidity());
 }
 
 TEST(AmbientEnvironment, SetRgbcLight) {
@@ -114,6 +114,6 @@ TEST(AmbientEnvironment, SetRgbcLight) {
     mTestSystem.setUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     const glm::vec4 kTarget = glm::vec4(100, 200, 300, 400);
-    ambientEnvironment.setRgbcLight(kTarget, PhysicalInterpolation::STEP);
-    EXPECT_EQ(kTarget, ambientEnvironment.getRgbcLight());
+    ambientEnvironment.SetRgbcLight(kTarget, PhysicalInterpolation::kStep);
+    EXPECT_EQ(kTarget, ambientEnvironment.GetRgbcLight());
 }

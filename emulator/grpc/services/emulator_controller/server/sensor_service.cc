@@ -26,14 +26,14 @@ using GoldfishSensorValue = ::goldfish::sensors::SensorValue;
 grpc::Status SensorServiceImpl::setSensor(const SensorValue& request) {
     const GoldfishSensor sensor = static_cast<GoldfishSensor>(request.target());
     const auto& requestData = request.value().data();
-    mPhysicalModel.setSensorValue(sensor,
+    mPhysicalModel.SetSensorValue(sensor,
                                   GoldfishSensorValue(requestData.begin(), requestData.end()));
     return Status::OK;
 }
 
 grpc::Status SensorServiceImpl::getSensor(const SensorValue& request, SensorValue* reply) {
     const GoldfishSensor sensor = static_cast<GoldfishSensor>(request.target());
-    const GoldfishSensorData sd = mPhysicalModel.getSensorData(sensor);
+    const GoldfishSensorData sd = mPhysicalModel.GetSensorData(sensor);
     const GoldfishSensorValue& val = sd.value;
 
     reply->set_target(request.target());
