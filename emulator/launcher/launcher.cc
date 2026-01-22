@@ -38,14 +38,15 @@
 #include "android/goldfish/emulator_config.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
+#include "emulator.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
 #include "goldfish/async/libuv_signal_handlers.h"
 #include "goldfish/async/libuv_socket_factory.h"
+#include "goldfish/async/when_all.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
-#include "emulator.h"
 #include "logging.h"
 #include "netsimd.h"
 
@@ -58,6 +59,9 @@ using android::goldfish::Emulator;
 
 namespace android::goldfish {
 namespace {
+
+using ::goldfish::async::WhenAll;
+using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
@@ -87,20 +91,28 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 LOG(FATAL) << "Failed to set ports: " << s;
             }
 
-            if (mOpts.no_netsim) {
-                launch_emulator(std::string());
-            } else if (auto netsimd_endpoint = mOpts.packet_streamer_endpoint; netsimd_endpoint) {
-                try_connect_netsimd(netsimd_endpoint);
-            } else {
-                launch_netsimd();
-            }
+            auto chardevs = std::make_shared<WhenAll<ChardevEndpoints>>(
+                    &mEventLoop, [this](ChardevEndpoints ce) { launch_emulator(ce); });
+
+            mEventLoop.Post([this, chardevs]() { discover_netsimd(chardevs); }).IgnoreError();
         }).IgnoreError();
     }
 
     int emulator_exit_status() const { return mEmulatorExitStatus; }
+
     void join_shutdown_thread() {
         if (mShutdownThread.joinable()) {
             mShutdownThread.join();
+        }
+    }
+
+    void discover_netsimd(const WhenAllChardevEndpoints& chardevs) {
+        if (mOpts.no_netsim) {
+            chardevs->MutableResults().netsim = "";
+        } else if (auto netsimd_endpoint = mOpts.packet_streamer_endpoint; netsimd_endpoint) {
+            try_connect_netsimd(netsimd_endpoint, chardevs);
+        } else {
+            launch_netsimd(chardevs);
         }
     }
 
@@ -202,7 +214,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         CloseHandle(std::move(l.mNetsimdProcess));
     }
 
-    void launch_netsimd() {
+    void launch_netsimd(const WhenAllChardevEndpoints& chardevs) {
         mExistingNetsimdPort = read_netsim_port();
         if (mExistingNetsimdPort != 0) {
             LOG(WARNING) << "netsim.ini already exists with a valid port - either previous netsimd "
@@ -217,9 +229,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 VLOG(1) << "Running netsimd as pid: " << GetPid(mNetsimdProcess);
 
                 mFindNetsimd = mEventLoop.ScheduleRepeating(
-                        [this] {
+                        [this, chardevs] {
                             mRetryCountDown = 10;
-                            find_netsimd_endpoint();
+                            find_netsimd_endpoint(chardevs);
                         },
                         std::chrono::seconds(1), std::chrono::seconds(1));
             } else {
@@ -230,7 +242,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         }
     }
 
-    void find_netsimd_endpoint() {
+    void find_netsimd_endpoint(const WhenAllChardevEndpoints& chardevs) {
         if (mRetryCountDown == 0) {
             mFindNetsimd->Cancel();
             // absl::NotFoundError("Unable to determine the correct grpc endpoint for netsimd");
@@ -247,9 +259,12 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                 mFindNetsimd.reset();
                 LOG(WARNING) << "Connecting to already running netsimd, this likely means it was "
                                 "started by another emulator instance";
-                mEventLoop.Post([this] {
-                    try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort));
-                }).IgnoreError();
+                mEventLoop
+                        .Post([this, chardevs] {
+                            try_connect_netsimd(absl::StrCat("localhost:", mExistingNetsimdPort),
+                                                chardevs);
+                        })
+                        .IgnoreError();
                 return;
             } else {
                 LOG(FATAL) << "netsimd died and there was no existing port to connect to";
@@ -270,11 +285,15 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         VLOG(1) << "netsim.ini parsed successfully, grpc.port set to: " << port;
         mFindNetsimd->Cancel();
         mFindNetsimd.reset();
-        mEventLoop.Post(
-                [this, port] { try_connect_netsimd(absl::StrCat("localhost:", port)); }).IgnoreError();
+        mEventLoop
+                .Post([this, port, chardevs] {
+                    try_connect_netsimd(absl::StrCat("localhost:", port), chardevs);
+                })
+                .IgnoreError();
     }
 
-    void try_connect_netsimd(std::string netsimd_endpoint) {
+    void try_connect_netsimd(const std::string& netsimd_endpoint,
+                             const WhenAllChardevEndpoints& chardevs) {
         constexpr absl::Duration kConnectionDeadline = absl::Seconds(5);
 
         // Blocking
@@ -283,9 +302,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            mEventLoop.Post([this, endpoint = mNetsimdConnection->getEndpoint().target()] {
-                launch_emulator(std::move(endpoint));
-            }).IgnoreError();
+            chardevs->MutableResults().netsim = mNetsimdConnection->getEndpoint().target();
         } else {
             LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
                        << connection.status();
@@ -301,8 +318,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         l.shutdown();
     }
 
-    void launch_emulator(std::string netsimd_endpoint) {
-        Emulator emulator{mPorts, std::move(netsimd_endpoint), std::move(mResolvedPaths),
+    void launch_emulator(ChardevEndpoints chardev_endpoints) {
+        Emulator emulator{mPorts, std::move(chardev_endpoints), std::move(mResolvedPaths),
                           std::move(mAvd), std::move(mOpts)};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {

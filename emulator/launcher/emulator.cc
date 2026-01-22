@@ -146,12 +146,12 @@ absl::Status Emulator::addDevices() {
         // to workaround.
         addDevice<ParameterList>(std::initializer_list<std::string>{
             "-chardev",
-            absl::StrCat("netsim-uwb,id=uwb,host=", netsim_endpoint()),
+            absl::StrCat("netsim-uwb,id=uwb,host=", chardev_endpoints().netsim),
             "-device",
             "virtconsole,chardev=uwb,name=uwb",
 
             "-chardev",
-            absl::StrCat("netsim-bt,id=bluetooth,host=", netsim_endpoint()),
+            absl::StrCat("netsim-bt,id=bluetooth,host=", chardev_endpoints().netsim),
             "-device",
             "virtserialport,chardev=bluetooth,name=bluetooth",
         });
