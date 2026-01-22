@@ -17,6 +17,7 @@ cc_library(
         "include/goldfish/async/event_loop_dispatcher.h",
         "include/goldfish/async/scoped_async_resource.h",
         "include/goldfish/async/scoped_async_timer.h",
+        "include/goldfish/async/when_all.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
@@ -285,6 +286,19 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":libuv_signal_handlers",
+        "//android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
+    name = "when_all_test",
+    srcs = ["when_all_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_testing",
+        ":libuv_event_loop",
+        ":threaded_event_loop",
         "//android/system:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
