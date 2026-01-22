@@ -15,12 +15,15 @@
 #include <windows.h>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 
 #include "android/base/win32_unicode_string.h"
@@ -37,8 +40,8 @@ SharedMemory::SharedMemory(std::string_view path_or_uri, size_t size, Destructio
     if (path_or_uri.starts_with(kFileUri)) {
         WCHAR path[MAX_PATH];
         DWORD cPath = MAX_PATH;
-        HRESULT HR = PathCreateFromUrlW(srcUri.c_str(), path, &cPath, NULL);
-        assert(HR == S_OK);
+        HRESULT hr = PathCreateFromUrlW(srcUri.c_str(), path, &cPath, NULL);
+        CHECK(hr == S_OK) << "Failed to extract uri from: " << path_or_uri << " hr:" << hr;
         backing_file_ = std::filesystem::path(path).lexically_normal().string();
     } else {
         backing_file_ = std::filesystem::path(srcUri.c_str()).lexically_normal().string();
@@ -90,7 +93,6 @@ absl::Status SharedMemory::OpenInternal(AccessMode access, bool create, bool do_
         }
     }
     file_ = hFile;
-
     fd_ = CreateFileMappingW(file_, NULL, pageAccess, 0, (DWORD)size_, NULL);
     if (fd_ == NULL) {
         auto error = GetLastError();
@@ -110,6 +112,16 @@ absl::Status SharedMemory::OpenInternal(AccessMode access, bool create, bool do_
         }
     }
 
+    // The file size holds the source of truth..
+    LARGE_INTEGER size = {};
+    if (!GetFileSizeEx(hFile, &size)) {
+        Close();
+        return absl::InternalError("Failed to retrieve file size for shared memory: " +
+                                   std::to_string(GetLastError()));
+    }
+    VLOG(1) << "Explicitly set size from " << size_ << " bytes" << " to " << size.QuadPart
+            << " bytes";
+    size_ = static_cast<size_t>(size.QuadPart);
     return absl::OkStatus();
 }
 
@@ -140,7 +152,7 @@ void SharedMemory::Close() {
         }
     }
 
-    assert(!IsOpen());
+    CHECK(!IsOpen()) << "Explicitly closing of " << backing_file_ << " failed.";
 }
 
 bool SharedMemory::IsOpen() const {
