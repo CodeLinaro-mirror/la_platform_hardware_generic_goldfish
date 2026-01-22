@@ -64,4 +64,4 @@ ssize_t ReadExact(SharedFD fd, std::string* buf);
 ssize_t WriteAll(SharedFD fd, const char* buf, size_t size);
 ssize_t WriteAll(SharedFD fd, std::string_view buf);
 
-} // namespace cuttlefish
+}  // namespace cuttlefish
