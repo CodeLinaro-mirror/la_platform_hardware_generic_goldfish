@@ -84,7 +84,7 @@ void IGpsDevice::RegisterDevice(ObservableLocation* observable_location,
                 auto dev = std::make_shared<GpsDevice>();
                 std::weak_ptr<GpsDevice> weak_dev = dev;
 
-                auto location_update_subscription = makeScopedCallback(
+                auto location_update_subscription = MakeScopedCallback(
                         *observable_location,
                         [weak_dev = std::move(weak_dev)](const Location& location) {
                             if (const auto dev = weak_dev.lock()) {

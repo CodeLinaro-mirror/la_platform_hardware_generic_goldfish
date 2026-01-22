@@ -20,13 +20,13 @@
 #include <memory>
 #include <thread>
 
-#include "absl/synchronization/notification.h"
 #include "absl/status/status_matchers.h"
+#include "absl/synchronization/notification.h"
 
-#include "aemu/base/events/EventSource.h"
-#include "aemu/base/events/WithCallbacks.h"
-#include "aemu/base/events/policies/HybridStoragePolicy.h"
 #include "goldfish/async/libuv_event_loop.h"
+#include "goldfish/eventing/event_source.h"
+#include "goldfish/eventing/policies/hybrid_storage_policy.h"
+#include "goldfish/eventing/with_callbacks.h"
 #include "include/goldfish/async/event_loop.h"
 
 using namespace std::chrono_literals;
@@ -37,7 +37,7 @@ namespace goldfish::async::tests {
 using android::base::eventing::EventListener;
 using android::base::eventing::EventSource;
 using android::base::eventing::HybridStoragePolicy;
-using android::base::eventing::makeScopedCallback;
+using android::base::eventing::MakeScopedCallback;
 using android::base::eventing::WithCallbacks;
 using goldfish::async::EventLoop;
 using goldfish::async::EventLoopDispatcher;
@@ -54,7 +54,7 @@ class TestListener : public EventListener<TestEvent> {
     TestListener(EventLoop* loop, absl::Notification* notification)
             : loop_(loop), notification_(notification) {}
 
-    void eventArrived(const TestEvent& event) override {
+    void EventArrived(const TestEvent& event) override {
         // This check confirms the event is handled on the correct thread.
         EXPECT_TRUE(loop_->IsOnLoopThread());
         last_value_ = event.value;
@@ -72,14 +72,14 @@ class TestListener : public EventListener<TestEvent> {
 class RunningLoopListener {
   public:
     RunningLoopListener(EventLoop& loop) : loop_(loop) {
-        callback_id_ = loop_.addCallback([this](const LooperStatusEvent& event) {
+        callback_id_ = loop_.AddCallback([this](const LooperStatusEvent& event) {
             if (event.state == LooperStatusEvent::State::kRunning) {
                 notification_.Notify();
             }
         });
     }
 
-    ~RunningLoopListener() { loop_.removeCallback(callback_id_); }
+    ~RunningLoopListener() { loop_.RemoveCallback(callback_id_); }
 
     const absl::Notification& GetNotification() const { return notification_; }
 
@@ -110,10 +110,10 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedOnEventLoopThread) {
     // 3. Add a listener.
     absl::Notification event_received;
     auto listener = std::make_shared<TestListener>(eventLoop.get(), &event_received);
-    loopBoundSource.addListener(listener);
+    loopBoundSource.AddListener(listener);
 
     // 4. Fire an event from the main thread.
-    loopBoundSource.fireEvent({42, std::this_thread::get_id()});
+    loopBoundSource.FireEvent({42, std::this_thread::get_id()});
 
     // 5. Wait for the event to be processed.
     ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
@@ -139,12 +139,12 @@ TEST(EventLoopDispatcherTest, EventIsDispatchedImmediatelyWhenOnLoopThread) {
     // 3. Add a listener.
     absl::Notification event_received;
     auto listener = std::make_shared<TestListener>(eventLoop.get(), &event_received);
-    loopBoundSource.addListener(listener);
+    loopBoundSource.AddListener(listener);
 
     // 4. Post a task to the event loop to fire the event from there.
     ASSERT_THAT(eventLoop->Post([&]() {
         // Now we are on the loop thread, the dispatch should be immediate.
-        loopBoundSource.fireEvent({99, std::this_thread::get_id()});
+        loopBoundSource.FireEvent({99, std::this_thread::get_id()});
     }),
                 absl_testing::IsOk());
 
@@ -174,25 +174,25 @@ TEST(EventLoopDispatcherTest, ScopedCallbackIsAutomaticallyUnregistered) {
     // 3. Create a scoped callback. It will be automatically unregistered
     //    when `scoped_handle` goes out of scope.
     {
-        auto scoped_handle = makeScopedCallback(callbackSource, [&](const TestEvent& event) {
+        auto scoped_handle = MakeScopedCallback(callbackSource, [&](const TestEvent& event) {
             EXPECT_TRUE(eventLoop->IsOnLoopThread());
             received_value = event.value;
             event_received.Notify();
         });
 
         // 4. Fire an event. The callback should be active.
-        callbackSource.fireEvent({100, std::this_thread::get_id()});
+        callbackSource.FireEvent({100, std::this_thread::get_id()});
         ASSERT_TRUE(event_received.WaitForNotificationWithTimeout(absl::Seconds(2)));
         EXPECT_EQ(received_value, 100);
-        EXPECT_EQ(callbackSource.callbackCount(), 1);
+        EXPECT_EQ(callbackSource.CallbackCount(), 1);
     }  // <-- `scoped_handle` is destroyed here.
 
     // 5. The callback should now be unregistered.
-    EXPECT_EQ(callbackSource.callbackCount(), 0);
+    EXPECT_EQ(callbackSource.CallbackCount(), 0);
 
     // 6. Fire the event again. The notification should not be triggered.
     absl::Notification event_received_again;
-    callbackSource.fireEvent({200, std::this_thread::get_id()});
+    callbackSource.FireEvent({200, std::this_thread::get_id()});
     EXPECT_FALSE(event_received_again.WaitForNotificationWithTimeout(absl::Milliseconds(50)));
     EXPECT_EQ(received_value, 100);  // The value should not have changed.
 

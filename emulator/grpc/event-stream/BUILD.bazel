@@ -9,7 +9,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/grpc/async",
-        "@aemu//base:event-support",
+        "//emulator/libs/eventing",
         "@grpc//:grpc++",
     ],
 )

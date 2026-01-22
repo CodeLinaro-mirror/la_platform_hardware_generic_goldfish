@@ -24,7 +24,7 @@
 #include "absl/time/time.h"
 #include "grpc_endpoint_description.pb.h"
 
-#include "aemu/base/events/EventSources.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace android {
 namespace emulation {

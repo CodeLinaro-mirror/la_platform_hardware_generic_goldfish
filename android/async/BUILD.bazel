@@ -23,10 +23,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//android/network",
+        "//emulator/libs/eventing",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
-        "@aemu//base:event-support",
     ],
 )
 
@@ -195,8 +195,8 @@ cc_test(
     deps = [
         ":libuv_event_loop",
         "//android/system:googletest_main",
+        "//emulator/libs/eventing",
         "@abseil-cpp//absl/status:status_matchers",
-        "@aemu//base:event-support",
     ],
 )
 

@@ -220,7 +220,7 @@ class IDisplay : public FrameInfoCallbackSource,
     void frameReceived() {
         absl::MutexLock lock(&mSeqAccess);
         mSeq = FrameInfo(mSeq.sequenceNumber + 1);
-        FrameInfoCallbackSource::fireEvent(mSeq);
+        FrameInfoCallbackSource::FireEvent(mSeq);
     }
 
     virtual std::string string() const {

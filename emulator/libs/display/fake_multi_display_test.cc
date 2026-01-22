@@ -46,7 +46,7 @@ class FakeMultiDisplayTest : public ::testing::Test {
 
 class DisplayEventListener : public EventListener<DisplayEvent> {
   public:
-    void eventArrived(const DisplayEvent& event) override {
+    void EventArrived(const DisplayEvent& event) override {
         std::unique_lock<std::mutex> lock(mMutex);
         events.push_back(event);
         mCv.notify_one();
@@ -187,7 +187,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEvents) {
     // Get the singleton instance
     IMultiDisplay* multiDisplay = IMultiDisplay::instance();
     auto listener = std::make_shared<DisplayEventListener>();
-    reinterpret_cast<CallbackEventSource<DisplayEvent>*>(multiDisplay)->addListener(listener);
+    reinterpret_cast<CallbackEventSource<DisplayEvent>*>(multiDisplay)->AddListener(listener);
 
     // Create a new display
     auto result = multiDisplay->createDisplay(1, 800, 600);
@@ -214,7 +214,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     IMultiDisplay* multiDisplay = IMultiDisplay::instance();
     absl::Notification event;
     auto callback =
-            android::base::eventing::makeScopedCallback(*multiDisplay, [&](const DisplayEvent& _) {
+            android::base::eventing::MakeScopedCallback(*multiDisplay, [&](const DisplayEvent& _) {
                 ASSERT_TRUE(mLoop->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
                 event.Notify();

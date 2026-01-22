@@ -78,7 +78,7 @@ class MultiDisplayImpl : public IMultiDisplay {
         }
 
         VLOG(1) << "Created display: " << *display;
-        fireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
+        FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
         return display;
     }
 
@@ -104,7 +104,7 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display: %d does not exist (already removed?).", displayId));
         }
         mDisplays.erase(it);
-        fireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
+        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
         return absl::OkStatus();
     }
 
