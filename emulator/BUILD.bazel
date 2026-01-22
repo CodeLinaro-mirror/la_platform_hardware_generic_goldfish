@@ -2,7 +2,7 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
     "//emulator/tools:packaging.bzl",
@@ -231,8 +231,8 @@ pkg_files(
     prefix = "share/qemu",
 )
 
-pkg_zip(
-    name = "release",
+pkg_filegroup(
+    name = "emulator-dir",
     srcs = [
         ":binaries_stripped",
         ":data_virtualscene_Toren1BD",
@@ -244,6 +244,12 @@ pkg_zip(
         ":qemu-roms",
         ":vulkan",
     ],
+    prefix = "emulator",
+)
+
+pkg_zip(
+    name = "release",
+    srcs = ["emulator-dir"],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],

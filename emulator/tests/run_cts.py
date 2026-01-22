@@ -88,7 +88,7 @@ agents = {
           args: "-guest-angle"
           args: "-not-in-bazel"
           cleanup: true
-          emulator_path: "emulator"
+          emulator_path: "emulator/emulator"
         }
       }
     """,
