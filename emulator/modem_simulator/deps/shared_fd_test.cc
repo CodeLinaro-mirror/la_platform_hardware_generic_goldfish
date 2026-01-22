@@ -108,4 +108,72 @@ TEST(SharedFDTest, CheckMarked_some) {
     EXPECT_TRUE(sfdset.IsSet(b));
 }
 
+TEST(SharedFDTest, pipe) {
+    SharedFD consumer;
+    SharedFD producer;
+    ASSERT_TRUE(SharedFD::Pipe(&consumer, &producer));
+    ASSERT_TRUE(consumer);
+    ASSERT_TRUE(producer);
+
+    ASSERT_EQ(producer->Write("test", 4), 4);
+
+    char data[4];
+    ASSERT_EQ(consumer->Read(data, 4), 4);
+    EXPECT_EQ(::memcmp(data, "test", 4), 0);
+}
+
+TEST(SharedFDTest, socketpair) {
+    SharedFD a;
+    SharedFD b;
+    ASSERT_TRUE(SharedFD::SocketPair(AF_UNIX, SOCK_STREAM, 0, &a, &b));
+    ASSERT_TRUE(a);
+    ASSERT_TRUE(b);
+
+    ASSERT_EQ(a->Write("test", 4), 4);
+
+    char data[4];
+    ASSERT_EQ(b->Read(data, 4), 4);
+    EXPECT_EQ(::memcmp(data, "test", 4), 0);
+}
+
+TEST(SharedFDTest, server_client) {
+    const SharedFD server = SharedFD::SocketLocalServer();
+    ASSERT_TRUE(server);
+
+    const SharedFD client = SharedFD::SocketClient(server);
+    ASSERT_TRUE(client);
+
+    const SharedFD conn = SharedFD::Accept(*server);
+    ASSERT_TRUE(conn);
+
+    ASSERT_EQ(client->Write("test", 4), 4);
+
+    char data[4];
+    ASSERT_EQ(conn->Read(data, 4), 4);
+    EXPECT_EQ(::memcmp(data, "test", 4), 0);
+}
+
+TEST(SharedFDTest, server_client_with_endpoint) {
+    const SharedFD server = SharedFD::SocketLocalServer();
+    ASSERT_TRUE(server);
+
+    struct sockaddr_storage addr;
+    socklen_t addrlen = 0;
+    ASSERT_TRUE(server->Endpoint(&addr, &addrlen));
+    ASSERT_GT(addrlen, 0);
+
+    const SharedFD client =
+            SharedFD::SocketClient(reinterpret_cast<const struct sockaddr*>(&addr), addrlen);
+    ASSERT_TRUE(client);
+
+    const SharedFD conn = SharedFD::Accept(*server);
+    ASSERT_TRUE(conn);
+
+    ASSERT_EQ(client->Write("test", 4), 4);
+
+    char data[4];
+    ASSERT_EQ(conn->Read(data, 4), 4);
+    EXPECT_EQ(::memcmp(data, "test", 4), 0);
+}
+
 }  // namespace cuttlefish

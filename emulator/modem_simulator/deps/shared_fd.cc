@@ -149,33 +149,18 @@ void CloseSocketImpl(const int s) {
 
 #endif  // _WIN32
 
-int CreateLocalServerImpl(const int port, const bool is_ipv6) {
-    const int s = CreateSocketImpl(is_ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
+int CreateServerImpl(const struct sockaddr* addr, const socklen_t addrlen, const int backlog) {
+    const int s = CreateSocketImpl(addr->sa_family, SOCK_STREAM, 0);
     if (s < 0) {
         return s;
     }
 
-    int bind_result;
-    if (is_ipv6) {
-        struct sockaddr_in6 in6 = {};
-        in6.sin6_family = AF_INET6;
-        in6.sin6_port = htons(port);
-        in6.sin6_addr = in6addr_loopback;
-        bind_result = BindSocketImpl(s, reinterpret_cast<const sockaddr*>(&in6), sizeof(in6));
-    } else {
-        struct sockaddr_in in4 = {};
-        in4.sin_family = AF_INET;
-        in4.sin_port = htons(port);
-        in4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        bind_result = BindSocketImpl(s, reinterpret_cast<const sockaddr*>(&in4), sizeof(in4));
-    }
-
-    if (bind_result < 0) {
+    if (BindSocketImpl(s, addr, addrlen) < 0) {
         CloseSocketImpl(s);
         return -1;
     }
 
-    if (ListenSocketImpl(s, 3) < 0) {
+    if (ListenSocketImpl(s, backlog) < 0) {
         CloseSocketImpl(s);
         return -1;
     }
@@ -183,37 +168,40 @@ int CreateLocalServerImpl(const int port, const bool is_ipv6) {
     return s;
 }
 
-int CreateLocalServerImpl(const int port) {
-    int s = CreateLocalServerImpl(port, true);
+int CreateLocalServerImpl(const int port, const bool is_ipv6, const int backlog) {
+    if (is_ipv6) {
+        struct sockaddr_in6 in6 = {};
+        in6.sin6_family = AF_INET6;
+        in6.sin6_port = htons(port);
+        in6.sin6_addr = in6addr_loopback;
+
+        return CreateServerImpl(reinterpret_cast<const sockaddr*>(&in6), sizeof(in6), backlog);
+    } else {
+        struct sockaddr_in in4 = {};
+        in4.sin_family = AF_INET;
+        in4.sin_port = htons(port);
+        in4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+        return CreateServerImpl(reinterpret_cast<const sockaddr*>(&in4), sizeof(in4), backlog);
+    }
+}
+
+int CreateLocalServerImpl(const int port, const int backlog) {
+    int s = CreateLocalServerImpl(port, /*is_ipv6=*/true, backlog);
     if (s >= 0) {
         return s;
     }
 
-    return CreateLocalServerImpl(port, false);
+    return CreateLocalServerImpl(port, /*is_ipv6=*/false, backlog);
 }
 
-int CreateLocalClientImpl(const int port, const bool is_ipv6) {
-    const int s = CreateSocketImpl(is_ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
+int CreateClientImpl(const struct sockaddr* addr, const socklen_t addrlen) {
+    const int s = CreateSocketImpl(addr->sa_family, SOCK_STREAM, 0);
     if (s < 0) {
         return s;
     }
 
-    int connect_result;
-    if (is_ipv6) {
-        struct sockaddr_in6 in6 = {};
-        in6.sin6_family = AF_INET6;
-        in6.sin6_port = htons(port);
-        in6.sin6_addr = in6addr_loopback;
-        connect_result = ConnectSocketImpl(s, reinterpret_cast<const sockaddr*>(&in6), sizeof(in6));
-    } else {
-        struct sockaddr_in in4 = {};
-        in4.sin_family = AF_INET;
-        in4.sin_port = htons(port);
-        in4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        connect_result = ConnectSocketImpl(s, reinterpret_cast<const sockaddr*>(&in4), sizeof(in4));
-    }
-
-    if (connect_result < 0) {
+    if (ConnectSocketImpl(s, addr, addrlen) < 0) {
         CloseSocketImpl(s);
         return -1;
     }
@@ -221,51 +209,23 @@ int CreateLocalClientImpl(const int port, const bool is_ipv6) {
     return s;
 }
 
-#ifdef _WIN32
-bool MakeSocketPipe(int fds[2]) {
-    const int s = CreateLocalServerImpl(0);
-    if (s < 0) {
-        return false;
-    }
+int CreateLocalClientImpl(const int port, const bool is_ipv6) {
+    if (is_ipv6) {
+        struct sockaddr_in6 in6 = {};
+        in6.sin6_family = AF_INET6;
+        in6.sin6_port = htons(port);
+        in6.sin6_addr = in6addr_loopback;
 
-    struct sockaddr_storage addr;
-    socklen_t addrlen = sizeof(addr);
-    if (::getsockname(s, reinterpret_cast<struct sockaddr*>(&addr), &addrlen)) {
-        return false;
-    }
+        return CreateClientImpl(reinterpret_cast<const sockaddr*>(&in6), sizeof(in6));
+    } else {
+        struct sockaddr_in in4 = {};
+        in4.sin_family = AF_INET;
+        in4.sin_port = htons(port);
+        in4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-    int c1 = CreateSocketImpl(addr.ss_family, SOCK_STREAM, 0);
-    if (c1 < 0) {
-        CloseSocketImpl(s);
-        return false;
+        return CreateClientImpl(reinterpret_cast<const sockaddr*>(&in4), sizeof(in4));
     }
-
-    if (ConnectSocketImpl(c1, reinterpret_cast<struct sockaddr*>(&addr), addrlen)) {
-        CloseSocketImpl(s);
-        CloseSocketImpl(c1);
-        return false;
-    }
-
-    fds[0] = AcceptSocketImpl(s, nullptr, nullptr);
-    if (fds[0] < 0) {
-        CloseSocketImpl(s);
-        CloseSocketImpl(c1);
-        return false;
-    }
-
-    fds[1] = c1;
-    return true;
 }
-#else  // _WIN32
-bool MakeSocketPipe(int fds[2]) {
-#ifdef __linux__
-    return ::pipe2(fds, O_CLOEXEC) != -1;
-#else
-    return ::pipe(fds) != -1;
-#endif
-}
-#endif  // _WIN32
-
 }  // namespace
 
 SharedFD::SharedFD(std::shared_ptr<FileInstance> val) : value_(std::move(val)) {}
@@ -281,6 +241,21 @@ SharedFD SharedFD::Accept(const FileInstance& listener, struct sockaddr* addr, s
 
 SharedFD SharedFD::Accept(const FileInstance& listener) {
     return SharedFD(listener.Accept(nullptr, nullptr));
+}
+
+SharedFD SharedFD::SocketClient(const SharedFD& server) {
+    struct sockaddr_storage addr;
+    socklen_t addrlen;
+
+    if (!server->Endpoint(&addr, &addrlen)) {
+        return {};
+    }
+
+    return SocketClient(reinterpret_cast<const struct sockaddr*>(&addr), addrlen);
+}
+
+SharedFD SharedFD::SocketClient(const struct sockaddr* addr, socklen_t addrlen) {
+    return SharedFD(CreateClientImpl(addr, addrlen));
 }
 
 SharedFD SharedFD::SocketLocalClient(const int port) {
@@ -317,23 +292,70 @@ SharedFD SharedFD::SocketLocalClient(const std::string& name, bool /*is_abstract
 }
 
 SharedFD SharedFD::SocketLocalServer(const int port) {
-    return SharedFD(CreateLocalServerImpl(port));
+    constexpr int kServerBacklog = 3;
+    return SharedFD(CreateLocalServerImpl(port, kServerBacklog));
 }
 
-bool SharedFD::Pipe(SharedFD* fd0, SharedFD* fd1) {
+SharedFD SharedFD::SocketLocalServer() {
+    return SocketLocalServer(0);
+}
+
+bool SharedFD::Pipe(SharedFD* consumer, SharedFD* producer) {
+#ifdef _WIN32
+    return SocketPair(0, 0, 0, consumer, producer);
+#else // _WIN32
+
+    int ret;
     int fds[2];
-    if (!MakeSocketPipe(fds)) {
+#ifdef __linux__
+    ret = ::pipe2(fds, O_CLOEXEC);
+#else
+    ret = ::pipe(fds);
+#endif
+
+    if (ret) {
+        return false;
+    }
+
+    *consumer = SharedFD(fds[0]);
+    *producer = SharedFD(fds[1]);
+    return true;
+#endif // _WIN32
+}
+
+bool SharedFD::SocketPair(const int domain, const int type, const int protocol,
+                          SharedFD* fd0, SharedFD* fd1) {
+#ifdef _WIN32
+    (void)domain;
+    (void)type;
+    (void)protocol;
+
+    const SharedFD server = SocketLocalServer();
+    if (!server) {
+        return false;
+    }
+    SharedFD client = SocketClient(server);
+    if (!client) {
+        return false;
+    }
+    SharedFD conn = SharedFD::Accept(*server);
+    if (!conn) {
+        return false;
+    }
+
+    *fd0 = std::move(client);
+    *fd1 = std::move(conn);
+    return true;
+#else
+    int fds[2];
+    if (::socketpair(domain, type, protocol, fds)) {
         return false;
     }
 
     *fd0 = SharedFD(fds[0]);
     *fd1 = SharedFD(fds[1]);
     return true;
-}
-
-bool SharedFD::SocketPair(int /*domain*/, int /*type*/, int /*protocol*/, SharedFD* fd0,
-                          SharedFD* fd1) {
-    return Pipe(fd0, fd1);
+#endif
 }
 
 /**********************************************************************************************/
@@ -370,6 +392,11 @@ ssize_t FileInstance::Write(const void* buf, size_t count) {
 
 ssize_t FileInstance::Read(void* buf, size_t count) {
     return RecvSocketImpl(fd_, buf, count, 0);
+}
+
+bool FileInstance::Endpoint(struct sockaddr_storage* addr, socklen_t* addrlen) const {
+    *addrlen = sizeof(*addr);
+    return ::getsockname(fd_, reinterpret_cast<struct sockaddr*>(addr), addrlen) == 0;
 }
 
 int Select(SharedFDSet* read_set, SharedFDSet* write_set, SharedFDSet* error_set,
