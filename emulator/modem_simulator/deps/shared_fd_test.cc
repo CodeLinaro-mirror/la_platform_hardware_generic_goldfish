@@ -11,100 +11,101 @@
  */
 
 #include "common/libs/fs/shared_fd.h"
-#include "common/libs/fs/shared_select.h"
 
 #include <gtest/gtest.h>
+
+#include "common/libs/fs/shared_select.h"
 
 namespace cuttlefish {
 
 TEST(SharedFDTest, Set_IsSet) {
-  SharedFD a;
-  SharedFD b;
-  ASSERT_TRUE(SharedFD::Pipe(&a, &b));
+    SharedFD a;
+    SharedFD b;
+    ASSERT_TRUE(SharedFD::Pipe(&a, &b));
 
-  int max_index_a = 0;
-  fd_set fds_a;
-  FD_ZERO(&fds_a);
+    int max_index_a = 0;
+    fd_set fds_a;
+    FD_ZERO(&fds_a);
 
-  EXPECT_FALSE(a->IsSet(&fds_a));
-  a->Set(&fds_a, &max_index_a);
-  EXPECT_GT(max_index_a, 0);
-  EXPECT_TRUE(a->IsSet(&fds_a));
+    EXPECT_FALSE(a->IsSet(&fds_a));
+    a->Set(&fds_a, &max_index_a);
+    EXPECT_GT(max_index_a, 0);
+    EXPECT_TRUE(a->IsSet(&fds_a));
 
-  int max_index_b = 0;
-  fd_set fds_b;
-  FD_ZERO(&fds_b);
+    int max_index_b = 0;
+    fd_set fds_b;
+    FD_ZERO(&fds_b);
 
-  EXPECT_FALSE(b->IsSet(&fds_b));
-  b->Set(&fds_b, &max_index_b);
-  EXPECT_GT(max_index_b, 0);
-  EXPECT_TRUE(b->IsSet(&fds_b));
+    EXPECT_FALSE(b->IsSet(&fds_b));
+    b->Set(&fds_b, &max_index_b);
+    EXPECT_GT(max_index_b, 0);
+    EXPECT_TRUE(b->IsSet(&fds_b));
 
-  EXPECT_FALSE(a->IsSet(&fds_b));
-  EXPECT_FALSE(b->IsSet(&fds_a));
-  EXPECT_NE(max_index_a, max_index_b);
+    EXPECT_FALSE(a->IsSet(&fds_b));
+    EXPECT_FALSE(b->IsSet(&fds_a));
+    EXPECT_NE(max_index_a, max_index_b);
 }
 
 TEST(SharedFDTest, MarkAll) {
-  SharedFD a;
-  SharedFD b;
-  ASSERT_TRUE(SharedFD::Pipe(&a, &b));
+    SharedFD a;
+    SharedFD b;
+    ASSERT_TRUE(SharedFD::Pipe(&a, &b));
 
-  SharedFDSet sfdset;
-  sfdset.Set(a);
-  sfdset.Set(b);
+    SharedFDSet sfdset;
+    sfdset.Set(a);
+    sfdset.Set(b);
 
-  int max_index = 0;
-  fd_set fds;
-  FD_ZERO(&fds);
+    int max_index = 0;
+    fd_set fds;
+    FD_ZERO(&fds);
 
-  impl::MarkAll(sfdset, &fds, &max_index);
-  EXPECT_GT(max_index, 0);
-  EXPECT_TRUE(a->IsSet(&fds));
-  EXPECT_TRUE(b->IsSet(&fds));
+    impl::MarkAll(sfdset, &fds, &max_index);
+    EXPECT_GT(max_index, 0);
+    EXPECT_TRUE(a->IsSet(&fds));
+    EXPECT_TRUE(b->IsSet(&fds));
 }
 
 TEST(SharedFDTest, CheckMarked_empty) {
-  SharedFD a;
-  SharedFD b;
-  ASSERT_TRUE(SharedFD::Pipe(&a, &b));
+    SharedFD a;
+    SharedFD b;
+    ASSERT_TRUE(SharedFD::Pipe(&a, &b));
 
-  SharedFDSet sfdset;
-  sfdset.Set(a);
-  ASSERT_TRUE(sfdset.IsSet(a));
-  sfdset.Set(b);
-  ASSERT_TRUE(sfdset.IsSet(b));
+    SharedFDSet sfdset;
+    sfdset.Set(a);
+    ASSERT_TRUE(sfdset.IsSet(a));
+    sfdset.Set(b);
+    ASSERT_TRUE(sfdset.IsSet(b));
 
-  fd_set fds;
-  FD_ZERO(&fds);
-  impl::CheckMarked(&fds, &sfdset);
+    fd_set fds;
+    FD_ZERO(&fds);
+    impl::CheckMarked(&fds, &sfdset);
 
-  EXPECT_FALSE(sfdset.IsSet(a));
-  EXPECT_FALSE(sfdset.IsSet(b));
+    EXPECT_FALSE(sfdset.IsSet(a));
+    EXPECT_FALSE(sfdset.IsSet(b));
 }
 
 TEST(SharedFDTest, CheckMarked_some) {
-  SharedFD a;
-  SharedFD b;
-  ASSERT_TRUE(SharedFD::Pipe(&a, &b));
+    SharedFD a;
+    SharedFD b;
+    ASSERT_TRUE(SharedFD::Pipe(&a, &b));
 
-  SharedFDSet sfdset;
-  sfdset.Set(a);
-  ASSERT_TRUE(sfdset.IsSet(a));
-  sfdset.Set(b);
-  ASSERT_TRUE(sfdset.IsSet(b));
+    SharedFDSet sfdset;
+    sfdset.Set(a);
+    ASSERT_TRUE(sfdset.IsSet(a));
+    sfdset.Set(b);
+    ASSERT_TRUE(sfdset.IsSet(b));
 
-  int max_index = 0;
-  fd_set fds;
-  FD_ZERO(&fds);
+    int max_index = 0;
+    fd_set fds;
+    FD_ZERO(&fds);
 
-  b->Set(&fds, &max_index);
-  EXPECT_GT(max_index, 0);
+    b->Set(&fds, &max_index);
+    EXPECT_GT(max_index, 0);
 
-  impl::CheckMarked(&fds, &sfdset);
+    impl::CheckMarked(&fds, &sfdset);
 
-  EXPECT_FALSE(sfdset.IsSet(a));
-  EXPECT_TRUE(sfdset.IsSet(b));
+    EXPECT_FALSE(sfdset.IsSet(a));
+    EXPECT_TRUE(sfdset.IsSet(b));
 }
 
 }  // namespace cuttlefish

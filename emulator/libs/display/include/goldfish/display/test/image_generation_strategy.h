@@ -114,9 +114,8 @@ class FillColorStrategy : public ImageGenerationStrategy {
                                      static_cast<uint16_t>(((color >> 0) & 0xff) * 0x101),
                                      static_cast<uint16_t>(((color >> 24) & 0xff) * 0x101)};
 
-        pixman_image_fill_rectangles(
-                PIXMAN_OP_SRC, target_image, &fill_color, 1,
-                new pixman_rectangle16_t{0, 0, (uint16_t)width, (uint16_t)height});
+        pixman_rectangle16_t rect = {0, 0, (uint16_t)width, (uint16_t)height};
+        pixman_image_fill_rectangles(PIXMAN_OP_SRC, target_image, &fill_color, 1, &rect);
     }
 
     bool isGeneratedBy(::pixman_image_t* image, int frame) override {
@@ -164,11 +163,10 @@ class ChessboardStrategy : public ImageGenerationStrategy {
                     static_cast<uint16_t>(((color_val >> 0) & 0xff) * 0x101),
                     static_cast<uint16_t>(((color_val >> 24) & 0xff) * 0x101)};
 
-                pixman_image_fill_rectangles(
-                        PIXMAN_OP_SRC, target_image, &fill_color, 1,
-                        new pixman_rectangle16_t{(int16_t)(x * square_size_w),
-                                                 (int16_t)(y * square_size_h),
-                                                 (uint16_t)square_size_w, (uint16_t)square_size_h});
+                pixman_rectangle16_t rect = {(int16_t)(x * square_size_w),
+                                             (int16_t)(y * square_size_h), (uint16_t)square_size_w,
+                                             (uint16_t)square_size_h};
+                pixman_image_fill_rectangles(PIXMAN_OP_SRC, target_image, &fill_color, 1, &rect);
             }
         }
     }

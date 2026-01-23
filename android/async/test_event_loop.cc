@@ -277,8 +277,12 @@ bool TestEventLoopImpl::runOneUnlocked() {
     Task task_to_run = std::move(mTasks.front());
     mTasks.pop_front();
     mMutex.unlock();
-    // without lock so tasks can schedule more tasks etc..
-    task_to_run();
+    {
+        // without lock so tasks can schedule more tasks etc..
+        Task task_to_run_scoped(std::move(task_to_run));
+        task_to_run_scoped();
+        // ~Task for the original task is called here
+    }
     mMutex.lock();
     return true;
 }

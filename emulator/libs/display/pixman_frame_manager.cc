@@ -71,12 +71,28 @@ void PixmanFrameManager::updateSourceImage(::pixman_image_t* image) {
     auto format = pixman_image_get_format(image);
     auto* src_bits = pixman_image_get_data(image);
     auto stride = pixman_image_get_stride(image);
-
     PixmanImagePtr new_image(pixman_image_create_bits(format, width, height, nullptr, stride));
-    memcpy(pixman_image_get_data(new_image.get()), src_bits, height * stride);
-
     // Lock and swap the pointer. This is very fast.
     absl::MutexLock lock(&mDisplayAccess);
+    // when only the content changes, we need to
+    // preserve the continuity of frame by copying
+    // over the current content to the next frame;
+    // otherwise, it will have the appearance of out
+    // of order frames.
+    if (mCurrentImage.get()) {
+        auto curr_image = mCurrentImage.get();
+        auto curr_width = pixman_image_get_width(curr_image);
+        auto curr_height = pixman_image_get_height(curr_image);
+        auto curr_format = pixman_image_get_format(curr_image);
+        auto curr_stride = pixman_image_get_stride(curr_image);
+        if (curr_width == width && curr_height == height && curr_format == format &&
+            curr_stride == stride) {
+            src_bits = pixman_image_get_data(mCurrentImage.get());
+        }
+    }
+
+    memcpy(pixman_image_get_data(new_image.get()), src_bits, height * stride);
+    src_bits = pixman_image_get_data(image);
     mSrcBits = src_bits;
     mStride = stride;
     mCurrentImage = new_image;

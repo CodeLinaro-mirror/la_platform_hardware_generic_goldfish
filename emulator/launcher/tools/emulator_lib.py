@@ -78,7 +78,7 @@ class EmulatorLocator:
                     stderr=asyncio.subprocess.STDOUT,
                 )
                 await process.wait()
-            self.goldfish_exec = extract_path / "emulator"
+            self.goldfish_exec = extract_path / "emulator" / "emulator"
         else:
             self.goldfish_exec = Path(
                 self.r.Rlocation(

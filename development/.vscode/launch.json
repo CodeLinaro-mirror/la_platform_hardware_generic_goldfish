@@ -12,7 +12,7 @@
             // binary. If you want to debug BUILD target
             // `//path/to:my_test`, the path to your binary will be
             // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            "program": "${workspaceFolder}/bazel-bin/external/goldfish+/emulator/launcher/launcher",
             // Set any program arguments here.
             "args": [
                 "@V",
@@ -84,7 +84,7 @@
             // binary. If you want to debug BUILD target
             // `//path/to:my_test`, the path to your binary will be
             // `${workspaceFolder}/bazel-bin/path/to/my_test`.
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            "program": "${workspaceFolder}/bazel-bin/external/goldfish+/emulator/launcher/launcher",
             // Set any program arguments here.
             "args": [
                 "-avd",
@@ -212,7 +212,7 @@
             "name": "Attach to PID (goldfish)",
             // Replace <path_to_your_binary> with the actual path to your
             // binary. If you want to debug BUILD target
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            "program": "${workspaceFolder}/bazel-bin/external/goldfish+/emulator/launcher/launcher",
             // Set the pid here
             "pid": 954478,
             "debuggerRoot": "${workspaceFolder}",
@@ -246,7 +246,7 @@
             "name": "Attach to next (goldfish)",
             // Replace <path_to_your_binary> with the actual path to your
             // binary. If you want to debug BUILD target
-            "program": "${workspaceFolder}/bazel-bin/hardware/generic/goldfish/emulator/launcher/goldfish",
+            "program": "${workspaceFolder}/bazel-bin/external/goldfish+/emulator/launcher/launcher",
             "waitFor": true,
             "debuggerRoot": "${workspaceFolder}",
             "sourceMap": [
