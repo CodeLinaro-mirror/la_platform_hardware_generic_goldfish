@@ -21,10 +21,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/cpp",
+        "//emulator/libs/eventing",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
-        "@aemu//base:event-support",
         "@c-ares//:ares",
     ],
 )

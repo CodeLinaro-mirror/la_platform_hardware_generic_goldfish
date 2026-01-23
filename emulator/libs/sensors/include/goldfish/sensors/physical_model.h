@@ -22,8 +22,8 @@
 #include <mutex>
 
 #include "aemu/base/EventNotificationSupport.h"
-#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/eventing/event_sources.h"
 #include "goldfish/physics/ambient_environment.h"
 #include "goldfish/physics/body_model.h"
 #include "goldfish/physics/inertial_model.h"

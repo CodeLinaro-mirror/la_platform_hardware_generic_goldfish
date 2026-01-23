@@ -203,7 +203,7 @@ TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {
 
 class TestListener : public EventListener<ResizeEvent> {
   public:
-    void eventArrived(const ResizeEvent& event) override { events.push_back(event); }
+    void EventArrived(const ResizeEvent& event) override { events.push_back(event); }
     std::vector<ResizeEvent> events;
 };
 
@@ -216,7 +216,7 @@ TEST_F(FakePixmanDisplayTest, ResizeEvent) {
     // Create an ActiveFakePixmanDisplay
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
     auto listener = std::make_shared<TestListener>();
-    display->ResizeEventCallbackSource::addListener(listener);
+    display->ResizeEventCallbackSource::AddListener(listener);
 
     // Start the generator
     display->start();
@@ -243,7 +243,7 @@ TEST_F(FakePixmanDisplayTest, ResizeEventsAreOnTheEventLoop) {
     auto listener = std::make_shared<TestListener>();
 
     auto callbackSource = static_cast<ResizeEventCallbackSource*>(display.get());
-    auto callback = android::base::eventing::makeScopedCallback(
+    auto callback = android::base::eventing::MakeScopedCallback(
             *callbackSource, [&](const ResizeEvent& event) {
                 ASSERT_TRUE(mLoop->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
@@ -269,7 +269,7 @@ TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
     // Cast the source so our scopedCallback doesn't get confused (display has multiple event
     // sources)
     auto callbackSource = static_cast<FrameInfoCallbackSource*>(display.get());
-    auto callback = android::base::eventing::makeScopedCallback(
+    auto callback = android::base::eventing::MakeScopedCallback(
             *callbackSource, [&](const FrameInfo& event) {
                 frames++;
                 ASSERT_TRUE(mLoop->IsOnLoopThread())

@@ -677,7 +677,7 @@ void PhysicalModel::PhysicalStateChanging() {
         .type = PhysicalModelChangeEvent::Type::kPhysicalStateChanging,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 void PhysicalModel::PhysicalStateStabilized() {
@@ -697,7 +697,7 @@ void PhysicalModel::PhysicalStateStabilized() {
         .type = PhysicalModelChangeEvent::Type::kPhysicalStateStabilized,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 void PhysicalModel::TargetStateChanged() {
@@ -713,7 +713,7 @@ void PhysicalModel::TargetStateChanged() {
         .type = PhysicalModelChangeEvent::Type::kTargetStateChanged,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 }  // namespace goldfish::sensors

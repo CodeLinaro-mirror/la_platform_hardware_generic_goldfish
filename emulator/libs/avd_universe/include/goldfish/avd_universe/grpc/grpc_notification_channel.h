@@ -13,8 +13,8 @@
 // limitations under the License.
 #pragma once
 
-#include "aemu/base/events/EventSources.h"
 #include "emulator_controller.grpc.pb.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::avd_universe::grpc {
 
@@ -22,8 +22,8 @@ using GrpcNotification = android::emulation::control::Notification;
 
 struct GrpcNotificationEventSource
         : public android::base::eventing::CallbackEventSource<GrpcNotification> {
-    void fireEvent(GrpcNotification event) {
-        android::base::eventing::CallbackEventSource<GrpcNotification>::fireEvent(std::move(event));
+    void FireEvent(GrpcNotification event) {
+        android::base::eventing::CallbackEventSource<GrpcNotification>::FireEvent(std::move(event));
     }
 };
 

@@ -28,12 +28,12 @@ cc_library(
         "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//emulator/grpc/security",
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
+        "//emulator/libs/eventing",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-        "@aemu//base:event-support",
         "@grpc//:grpc++",
     ],
 )

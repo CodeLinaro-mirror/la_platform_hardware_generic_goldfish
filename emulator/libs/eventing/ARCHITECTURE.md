@@ -20,4 +20,4 @@
 
 ## Threading Model
 * **Thread Safe:** `SetValue` and `GetValue` are protected by an internal `std::mutex`.
-* **Events:** `fireEvent` is called synchronously inside `SetValue` while holding the lock (implied by typical usage, check `aemu` docs if critical).
+* **Events:** `FireEvent` is called synchronously inside `SetValue` while holding the lock (implied by typical usage, check `aemu` docs if critical).

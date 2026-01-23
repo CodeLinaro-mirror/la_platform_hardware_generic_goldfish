@@ -17,9 +17,9 @@
 #include <mutex>
 #include <vector>
 
-#include "aemu/base/events/EventSource.h"
-#include "aemu/base/events/EventSources.h"
 #include "goldfish/async/event_loop.h"
+#include "goldfish/eventing/event_source.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::async {
 
@@ -40,12 +40,12 @@ class EventLoopDispatcher {
     }
 
     template <class T, class StoragePolicy>
-    void dispatch(const T& event, typename StoragePolicy::Container& listeners, std::mutex& lock) {
+    void Dispatch(const T& event, typename StoragePolicy::Container& listeners, std::mutex& lock) {
         using Ptr = typename StoragePolicy::Ptr;
         std::vector<Ptr> listeners_copy;
         {
             const std::lock_guard<std::mutex> guard(lock);
-            listeners_copy = StoragePolicy::copy(listeners);
+            listeners_copy = StoragePolicy::Copy(listeners);
         }
 
         if (listeners_copy.empty()) {
@@ -54,7 +54,7 @@ class EventLoopDispatcher {
 
         auto dispatch_work = [event, listeners_copy = std::move(listeners_copy)]() {
             for (const auto& listener_ptr : listeners_copy) {
-                android::base::eventing::EventDispatcher::dispatch(listener_ptr, event);
+                android::base::eventing::EventDispatcher::Dispatch(listener_ptr, event);
             }
         };
 

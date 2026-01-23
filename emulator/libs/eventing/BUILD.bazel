@@ -1,14 +1,64 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
     name = "eventing",
     hdrs = [
+        "include/goldfish/eventing/event_source.h",
+        "include/goldfish/eventing/event_sources.h",
+        "include/goldfish/eventing/multi_event_source_waiter.h",
         "include/goldfish/eventing/observable_value.h",
+        "include/goldfish/eventing/policies/abseil_read_write_policy.h",
+        "include/goldfish/eventing/policies/dispatch_policies.h",
+        "include/goldfish/eventing/policies/hybrid_storage_policy.h",
+        "include/goldfish/eventing/policies/ordered_vector_storage_policy.h",
+        "include/goldfish/eventing/policies/pointer_handlers.h",
+        "include/goldfish/eventing/policies/read_copy_update_policy.h",
+        "include/goldfish/eventing/policies/unordered_set_storage_policy.h",
+        "include/goldfish/eventing/policies/vector_storage_policy.h",
+        "include/goldfish/eventing/policy_event_support.h",
+        "include/goldfish/eventing/property_change_support.h",
+        "include/goldfish/eventing/with_callbacks.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
         "@aemu//base:aemu-base",
+        "@aemu//base:aemu-base-headers",
     ],
     alwayslink = True,
+)
+
+cc_test(
+    name = "eventing_unittests",
+    srcs = [
+        "event_sources_unittest.cpp",
+        "property_change_event_unittest.cpp",
+    ],
+    deps = [
+        ":eventing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "event_support_benchmark",
+    testonly = True,
+    srcs = ["event_support_benchmark.cpp"],
+    deps = [
+        ":eventing",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":eventing_unittests",
+        ":event_support_benchmark",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

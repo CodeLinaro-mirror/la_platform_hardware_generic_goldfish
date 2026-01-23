@@ -16,7 +16,7 @@
 
 #include <mutex>
 
-#include "aemu/base/events/EventSources.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::eventing {
 
@@ -51,7 +51,7 @@ struct ObservableValue : public android::base::eventing::CallbackEventSource<T> 
         const std::lock_guard<std::mutex> lock(mutex_);
         if (force_trigger || TRIGGER::Updated(value_, new_val)) {
             value_ = std::move(new_val);
-            this->fireEvent(value_);
+            this->FireEvent(value_);
         }
     }
 

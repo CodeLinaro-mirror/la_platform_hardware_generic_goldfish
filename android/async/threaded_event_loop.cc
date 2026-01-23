@@ -105,8 +105,8 @@ class ThreadedEventLoopImpl : public ThreadedEventLoop {
 
 ThreadedEventLoopImpl::ThreadedEventLoopImpl(std::unique_ptr<LibuvEventLoop> loop, std::string name)
         : loop_(std::move(loop)), looper_name_(std::move(name)) {
-    subscription_ = android::base::eventing::makeScopedCallback(
-            *loop_, [this](const LooperStatusEvent& event) { this->fireEvent(event); });
+    subscription_ = android::base::eventing::MakeScopedCallback(
+            *loop_, [this](const LooperStatusEvent& event) { this->FireEvent(event); });
 }
 
 ThreadedEventLoopImpl::~ThreadedEventLoopImpl() {
@@ -161,7 +161,7 @@ std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::Create(
 
     auto loop = std::make_unique<ThreadedEventLoopImpl>(std::move(to_run));
     absl::Notification is_running;
-    auto wait_for_run = android::base::eventing::makeScopedCallback(
+    auto wait_for_run = android::base::eventing::MakeScopedCallback(
             *(loop->Loop()), [&is_running](const LooperStatusEvent& event) {
                 VLOG(1) << "Eventloop state transitioned to " << event;
                 if (event.state == LooperStatusEvent::State::kRunning) {

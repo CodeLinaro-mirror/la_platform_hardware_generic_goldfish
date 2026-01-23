@@ -22,9 +22,9 @@
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
 
-#include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
+#include "goldfish/eventing/multi_event_source_waiter.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
 #include "goldfish/physics/rotation.h"
@@ -105,18 +105,18 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     }
 
     DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
-    const auto deviceSkinRotationSubscription = android::base::eventing::makeScopedCallback(
+    const auto deviceSkinRotationSubscription = android::base::eventing::MakeScopedCallback(
             mPhysicalModel,
             [this, &deviceSkinRotationCallbackSource](const PhysicalModelChangeEvent& event) {
                 if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
-                    deviceSkinRotationCallbackSource.fireEvent(
+                    deviceSkinRotationCallbackSource.FireEvent(
                             mPhysicalModel.GetDeviceRotation().rotation);
                 }
             });
 
     MultiEventSourceWaiter frameOrSensorEvent;
-    frameOrSensorEvent.listen<FrameInfoCallbackSource>(display.get());
-    frameOrSensorEvent.listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
+    frameOrSensorEvent.Listen<FrameInfoCallbackSource>(display.get());
+    frameOrSensorEvent.Listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.
@@ -124,12 +124,12 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool firstTime = true;
     while (clientAvailable) {
         const auto kTimeToWaitForFrame = absl::Milliseconds(125);
-        bool framesArrived = frameOrSensorEvent.waitForNextEvent(kTimeToWaitForFrame, frame);
+        bool framesArrived = frameOrSensorEvent.WaitForNextEvent(kTimeToWaitForFrame, frame);
         if ((framesArrived || firstTime) && !context->IsCancelled()) {
             // TODO(jansene): It might have been possible for a frame to have been
             // delivered between framesArrived and this call, which resulted in
             // the increment of the frame counter. We would not "see" this frame.
-            frame = frameOrSensorEvent.getEventSequence();
+            frame = frameOrSensorEvent.GetEventSequence();
             auto status = getScreenshot(context, request, &reply);
             if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION) {
                 continue;

@@ -70,7 +70,7 @@ void IFingerprintDevice::RegisterDevice(ObservableFingerprintSensor* sensor,
                 auto dev = std::make_shared<FingerprintDevice>();
                 std::weak_ptr<FingerprintDevice> weak_dev = dev;
 
-                auto touch_event_subscription = makeScopedCallback(
+                auto touch_event_subscription = MakeScopedCallback(
                         *sensor, [weak_dev = std::move(weak_dev)](TouchEventType event) {
                             if (const auto dev = weak_dev.lock()) {
                                 dev->OnEvent(event);

@@ -122,7 +122,7 @@ void PixmanImageGenerator::generateImagesLoop() {
             }
         }
 
-        fireEvent(generateImage(color));
+        FireEvent(generateImage(color));
 
         {
             absl::MutexLock lock(&mMutex);

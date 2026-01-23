@@ -26,7 +26,7 @@ class PixmanImageGeneratorTest : public ::testing::Test {
 
 class ImageListener : public EventListener<PixmanImagePtr> {
   public:
-    void eventArrived(const PixmanImagePtr& img) override { images.push_back(img); }
+    void EventArrived(const PixmanImagePtr& img) override { images.push_back(img); }
     std::vector<PixmanImagePtr> images;
 };
 
@@ -36,7 +36,7 @@ TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
-    generator.addListener(listener);
+    generator.AddListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
@@ -78,7 +78,7 @@ TEST_F(PixmanImageGeneratorTest, FpsAccuracy) {
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
-    generator.addListener(listener);
+    generator.AddListener(listener);
 
     generator.start();
     auto start = std::chrono::steady_clock::now();
@@ -99,7 +99,7 @@ TEST_F(PixmanImageGeneratorTest, StartStop) {
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     ;
-    generator.addListener(listener);
+    generator.AddListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(1, absl::Milliseconds(200));
@@ -120,7 +120,7 @@ TEST_F(PixmanImageGeneratorTest, EventFiring) {
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
-    generator.addListener(listener);
+    generator.AddListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
@@ -135,7 +135,7 @@ TEST_F(PixmanImageGeneratorTest, Resize) {
     int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
-    generator.addListener(listener);
+    generator.AddListener(listener);
 
     generator.start();
     generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));

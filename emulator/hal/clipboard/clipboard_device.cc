@@ -92,7 +92,7 @@ void IClipboardDevice::RegisterDevice(avd_universe::clipboard::ClipboardChannel*
                 auto dev = std::make_shared<ClipboardDevice>(channel);
                 std::weak_ptr<ClipboardDevice> weak_dev = dev;
 
-                auto change_subscription = makeScopedCallback(
+                auto change_subscription = MakeScopedCallback(
                         channel->host_to_guest,
                         [weak_dev = std::move(weak_dev)](const ClipboardData& clip) {
                             if (const auto dev = weak_dev.lock()) {
