@@ -151,6 +151,7 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
                                                    size_t* cPixels) const {
     // NOTE: We expect newWidth and newHeight to be safe, shearing *WILL* happen if the ratios
     // are not proper.
+    absl::MutexLock lock(&mPixmanMutex);
     absl::Time now = android::base::IClock::HostNow();
     auto pixmanFmt = pixmanFormat(format);
     auto bpp = PIXMAN_FORMAT_BPP(pixmanFmt);

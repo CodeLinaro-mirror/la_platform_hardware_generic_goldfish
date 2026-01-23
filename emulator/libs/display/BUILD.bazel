@@ -87,6 +87,7 @@ cc_test(
         "fake_multi_display_test.cc",
         "fake_pixman_display_test.cc",
         "image_generation_strategy_test.cc",
+        "pixman_display_concurrency_test.cc",
         "pixman_frame_manager_test.cc",
         "pixman_image_generator_test.cc",
     ],

@@ -30,11 +30,11 @@ class PixmanDisplay : public IDisplay {
     PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
     PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image);
 
-    virtual void updateSourceImage(::pixman_image_t* image);
+    virtual void updateSourceImage(::pixman_image_t* image) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
     absl::StatusOr<FrameInfo> getPixels(PixelFormat format, int newWidth, int newHeight,
                                         int rotation, uint8_t* pixels,
                                         size_t* cPixels) const override;
-    void updateSurface(int x, int y, int width, int height);
+    void updateSurface(int x, int y, int width, int height) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
 
     std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight) override;
 
@@ -43,6 +43,8 @@ class PixmanDisplay : public IDisplay {
     friend void AbslStringify(Sink&, const PixmanDisplay&);
     std::unique_ptr<PixmanFrameManager> mFrameManager;
     ::goldfish::FpsCalculator mFpsCalculator{30};
+
+    mutable absl::Mutex mPixmanMutex;
 };
 
 template <typename Sink>
