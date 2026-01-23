@@ -77,8 +77,12 @@ PixmanImagePtr PixmanImageGenerator::generateImage(Color color) {
     for (int i = 0; i < mWidth * mHeight; ++i) {
         pixels[i] = colorValue;
     }
-    return PixmanImagePtr(pixman_image_create_bits(PIXMAN_a8r8g8b8, mWidth, mHeight, pixels,
-                                                   mWidth * sizeof(uint32_t)));
+    ::pixman_image_t* image = pixman_image_create_bits(PIXMAN_a8r8g8b8, mWidth, mHeight, pixels,
+                                                       mWidth * sizeof(uint32_t));
+    pixman_image_set_destroy_function(
+            image, [](pixman_image_t* image, void* data) { delete[] static_cast<uint32_t*>(data); },
+            pixels);
+    return PixmanImagePtr(image);
 }
 
 bool PixmanImageGenerator::waitForFramesWithTimeout(int n, absl::Duration timeout) {
