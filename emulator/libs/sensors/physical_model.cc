@@ -194,7 +194,12 @@ void PhysicalModel::SetCurrentTime(int64_t time_ns) {
 }
 
 void PhysicalModel::SetGravity(float x, float y, float z) {
-    ambient_environment_.SetGravity(glm::vec3(x, y, z), PhysicalInterpolation::kStep);
+    PhysicalStateChanging();
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        ambient_environment_.SetGravity(glm::vec3(x, y, z), PhysicalInterpolation::kStep);
+    }
+    TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolation mode) {
