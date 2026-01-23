@@ -220,6 +220,18 @@ pkg_files(
 )
 
 pkg_files(
+    name = "win-dlls",
+    srcs = select({
+        "@platforms//os:windows": [
+            "@vctools//:dlls",
+            "@windows_sdk//:dlls",
+        ],
+        "//conditions:default": [],
+    }),
+    prefix = "lib",
+)
+
+pkg_files(
     name = "qemu-keymaps",
     srcs = ["@qemu//:qemu-keymaps"],
     prefix = "share/qemu/keymaps",
@@ -243,6 +255,7 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":vulkan",
+        ":win-dlls",
     ],
     prefix = "emulator",
 )
