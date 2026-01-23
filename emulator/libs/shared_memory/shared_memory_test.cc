@@ -276,4 +276,23 @@ TEST(SharedMemory, FileUriSupport) {
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
+TEST(SharedMemory, FileSizeCorrectlySet) {
+    size_t size = 8192;
+    std::string path = GetUniqueName("test_filesize");
+    {
+        SharedMemory writer(path, size);
+        auto s1 = writer.Create(std::filesystem::perms::owner_read |
+                                std::filesystem::perms::owner_write);
+        ASSERT_TRUE(s1.ok()) << s1;
+
+        EXPECT_EQ(std::filesystem::file_size(path), size);
+
+        SharedMemory reader(path, size);
+        auto s2 = reader.Open(SharedMemory::AccessMode::kReadOnly);
+        ASSERT_TRUE(s2.ok()) << s2;
+        EXPECT_EQ(std::filesystem::file_size(path), size);
+    }
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
 }  // namespace goldfish::memory
