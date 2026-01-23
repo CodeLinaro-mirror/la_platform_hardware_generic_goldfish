@@ -80,12 +80,12 @@ class DisplayServiceTest : public GrcpServiceTest {
     std::unique_ptr<FakeMultiDisplay> mMultiDisplay;
     std::unique_ptr<DisplayServiceImpl> mDisplayService;
 
-    // Maps rotation -> accelerometer values.
+    // Maps rotation -> gravity vector.
     absl::flat_hash_map<Rotation_SkinRotation, std::array<float, 3>> mRotationMap = {
-        {Rotation::PORTRAIT, {0.0, 1.0, 0.0}},
-        {Rotation::LANDSCAPE, {1.0, 0.0, 0.0}},
-        {Rotation::REVERSE_PORTRAIT, {0.0, -1.0, 0.0}},
-        {Rotation::REVERSE_LANDSCAPE, {-1.0, 0.0, 0.0}}};
+        {Rotation::PORTRAIT, {0.0, -1.0, 0.0}},
+        {Rotation::LANDSCAPE, {-1.0, 0.0, 0.0}},
+        {Rotation::REVERSE_PORTRAIT, {0.0, 1.0, 0.0}},
+        {Rotation::REVERSE_LANDSCAPE, {1.0, 0.0, 0.0}}};
 };
 
 TEST_F(DisplayServiceTest, GetScreenshotRGBA8888) {
@@ -238,7 +238,7 @@ TEST_F(DisplayServiceTest, GetScreenshotNoSize) {
 }
 
 // b/448934377
-TEST_F(DisplayServiceTest, DISABLED_GetScreenshotHasCorrectRotation) {
+TEST_F(DisplayServiceTest, GetScreenshotHasCorrectRotation) {
     // Get a screenshot
     ImageFormat request;
     Image reply;
@@ -272,7 +272,7 @@ TEST_F(DisplayServiceTest, DISABLED_GetScreenshotHasCorrectRotation) {
 }
 
 // b/448934377
-TEST_F(DisplayServiceTest, DISABLED_GetScreenshotConcurrent) {
+TEST_F(DisplayServiceTest, GetScreenshotConcurrent) {
     // Test to make sure we do not lock when having multiple threads.
     // Number of concurrent threads
     const int numThreads = 100;
@@ -463,7 +463,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotSimulateEmbeddedInteraction)
 }
 
 // b/448934377
-TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotRotationProducesAFrame) {
+TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
     // Get a screenshot with scaling that is larger than the display
     ImageFormat request;
     request.set_display(1);
@@ -493,9 +493,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotRotationProducesAFrame) {
 
     // We are now going to trigger a rotation event, which should result in a new frame.
     // Note that if this doesn't work we will timeout with our context deadline and fail the test.
-    float x = 1;
-    float y = 0;
-    float z = 0;
+    auto [x, y, z] = mRotationMap[Rotation::LANDSCAPE];
     mPhysicalModel->SetGravity(x, y, z);
 
     status = reader->Read(&image);
@@ -510,7 +508,7 @@ TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotRotationProducesAFrame) {
 }
 
 // b/448934377
-TEST_F(DisplayServiceTest, DISABLED_StreamScreenshotHasCorrectRotation) {
+TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     // Note: if StreamScreenshotRotationProducesAFrame fails, then this will
     // fail as well.
     ImageFormat request;
