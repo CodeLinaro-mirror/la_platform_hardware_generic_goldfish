@@ -45,6 +45,8 @@ class TestDisplay : public IDisplay {
         mSeq.sequenceNumber = seq;
     }
 
+    void updateDimensions(uint32_t w, uint32_t h) { SetDimensions(w, h); }
+
     void incoming() { frameReceived(); }
 };
 
@@ -102,4 +104,42 @@ TEST_F(DisplayTest, WaitForNextFrameTimeout) {
 
     auto timeout = absl::Milliseconds(10);
     EXPECT_FALSE(display.waitForNextFrame(timeout));
+}
+
+TEST_F(DisplayTest, GetDimensions) {
+    uint32_t width = 800;
+    uint32_t height = 600;
+    TestDisplay display(mLoop.get(), 0, width, height);
+    Dimensions dims = display.GetDimensions();
+    EXPECT_EQ(dims.width, width);
+    EXPECT_EQ(dims.height, height);
+}
+
+TEST_F(DisplayTest, SetDimensions) {
+    TestDisplay display(mLoop.get(), 0, 100, 100);
+    display.updateDimensions(1920, 1080);
+    Dimensions dims = display.GetDimensions();
+    EXPECT_EQ(dims.width, 1920);
+    EXPECT_EQ(dims.height, 1080);
+}
+
+TEST_F(DisplayTest, ThreadSafeDimensions) {
+    TestDisplay display(mLoop.get(), 0, 100, 101);
+    std::atomic<bool> running{true};
+
+    std::thread writer([&]() {
+        uint32_t i = 0;
+        while (running) {
+            display.updateDimensions(i, i + 1);
+            i++;
+        }
+    });
+
+    for (int i = 0; i < 10000; ++i) {
+        Dimensions dims = display.GetDimensions();
+        EXPECT_EQ(dims.height, dims.width + 1);
+    }
+
+    running = false;
+    writer.join();
 }

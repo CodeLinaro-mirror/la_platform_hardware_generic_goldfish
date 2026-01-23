@@ -100,8 +100,9 @@ PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image)
 
 void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     DLOG_FIRST_N(WARNING, 2) << "--- WARNING! Reduced performance in debug builds ---";
-    auto oldWidth = mWidth;
-    auto oldHeight = mHeight;
+    Dimensions dims = GetDimensions();
+    auto oldWidth = dims.width;
+    auto oldHeight = dims.height;
 
     // Used to debug issues around scaling, it will create a set of rotating color blocks
     // in the corners that you can use to visually analyze if things "look okay".
@@ -109,7 +110,7 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     if (ABSL_VLOG_IS_ON(3)) {
         LOG_FIRST_N(WARNING, 5) << "Adding rotating color blocks in the corners to visually "
                                    "diagnose frame ordering issues.";
-        if (mWidth >= 100 && mHeight >= 100) {
+        if (dims.width >= 100 && dims.height >= 100) {
             uint64_t frame = seq().sequenceNumber;
             pixman_color_t colors[4] = {
                 {0xffff, 0, 0, 0xffff},       // Red
@@ -119,10 +120,10 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
             };
 
             pixman_rectangle16_t rects[4] = {
-                {0, 0, 100, 100},                                          // Top-left
-                {int16_t(mWidth - 100), 0, 100, 100},                      // Top-right
-                {0, int16_t(mHeight - 100), 100, 100},                     // Bottom-left
-                {int16_t(mWidth - 100), int16_t(mHeight - 100), 100, 100}  // Bottom-right
+                {0, 0, 100, 100},                                                  // Top-left
+                {int16_t(dims.width - 100), 0, 100, 100},                          // Top-right
+                {0, int16_t(dims.height - 100), 100, 100},                         // Bottom-left
+                {int16_t(dims.width - 100), int16_t(dims.height - 100), 100, 100}  // Bottom-right
             };
 
             for (int i = 0; i < 4; ++i) {
@@ -133,14 +134,15 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     }
 
     mFrameManager->updateSourceImage(image);
-    mWidth = pixman_image_get_width(image);
-    mHeight = pixman_image_get_height(image);
+    uint32_t newWidth = pixman_image_get_width(image);
+    uint32_t newHeight = pixman_image_get_height(image);
+    SetDimensions(newWidth, newHeight);
     VLOG(2) << "updateSourceImage: " << *this << " to: " << image;
-    if (oldWidth != mWidth || oldHeight != mHeight) {
+    if (oldWidth != newWidth || oldHeight != newHeight) {
         VLOG(2) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
-                << mWidth << "x" << mHeight << "\n";
+                << newWidth << "x" << newHeight << "\n";
         ResizeEventCallbackSource::fireEvent(
-                ResizeEvent{mDisplayId, oldWidth, oldHeight, mWidth, mHeight});
+                ResizeEvent{mDisplayId, oldWidth, oldHeight, newWidth, newHeight});
     }
 }
 
@@ -177,14 +179,15 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     const PixmanImagePtr dst_img(
             pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
 
-    assert(pixman_image_get_width(src_img) == mWidth);
-    assert(pixman_image_get_height(src_img) == mHeight);
+    Dimensions dims = GetDimensions();
+    assert(pixman_image_get_width(src_img) == dims.width);
+    assert(pixman_image_get_height(src_img) == dims.height);
 
-    double scale_x = (double)mWidth / (double)newWidth;
-    double scale_y = (double)mHeight / (double)newHeight;
+    double scale_x = (double)dims.width / (double)newWidth;
+    double scale_y = (double)dims.height / (double)newHeight;
 
-    VLOG(2) << "Source: " << mWidth << "x" << mHeight << ", dest: " << newWidth << "x" << newHeight
-            << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
+    VLOG(2) << "Source: " << dims.width << "x" << dims.height << ", dest: " << newWidth << "x"
+            << newHeight << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
     // centering/translation logic.
     pixman_transform_init_identity(&transform);
     pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
@@ -236,15 +239,16 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
 }
 
 std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
-    if (mWidth <= 0 || mHeight <= 0) {
+    Dimensions dims = GetDimensions();
+    if (dims.width <= 0 || dims.height <= 0) {
         return {0, 0};
     }
 
     // First, calculate the ideal dimensions while preserving aspect ratio.
     int idealWidth, idealHeight;
     // Use 64-bit integers for the cross-multiplication to prevent overflow.
-    int64_t h64 = mHeight;
-    int64_t w64 = mWidth;
+    int64_t h64 = dims.height;
+    int64_t w64 = dims.width;
 
     // Note that we will never scale above display device width and height.
     desiredWidth = std::min<int64_t>(desiredWidth, w64);
@@ -265,9 +269,9 @@ std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int d
     // We only need to check the width; the height will be recalculated
     // from the safe width to preserve the aspect ratio.
     int safeWidth = idealWidth;
-    if (!isScalingSafe(mWidth, idealWidth)) {
+    if (!isScalingSafe(dims.width, idealWidth)) {
         for (int w_check = idealWidth; w_check > 0; --w_check) {
-            if (isScalingSafe(mWidth, w_check)) {
+            if (isScalingSafe(dims.width, w_check)) {
                 safeWidth = w_check;
                 break;
             }

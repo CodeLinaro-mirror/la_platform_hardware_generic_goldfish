@@ -196,13 +196,14 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
 
     const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
+    auto dims = display->GetDimensions();
     int desiredWidth = request->width();
     int desiredHeight = request->height();
 
     // User wants to use device width/height
     if (desiredWidth == 0 || desiredHeight == 0) {
-        desiredWidth = display->width();
-        desiredHeight = display->height();
+        desiredWidth = dims.width;
+        desiredHeight = dims.height;
 
         // Make sure they are in the right direction based on layout
         if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
@@ -211,8 +212,8 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         }
     }
 
-    uint32_t width = display->width();
-    uint32_t height = display->height();
+    uint32_t width = dims.width;
+    uint32_t height = dims.height;
 
     // the desiredWidth and height are not stable at the moment
     // they switch from 616x1218 to 616x1080, and that behavior
@@ -289,10 +290,9 @@ Status DisplayServiceImpl::getDisplayConfigurations(const IMultiDisplay& multiDi
     for (const auto& weakdisplay : multiDisplay.displays()) {
         if (auto display = weakdisplay.lock()) {
             auto cfg = reply->add_displays();
-            // cfg->set_width(1080);
-            // cfg->set_height(2400);
-            cfg->set_width(display->width());
-            cfg->set_height(display->height());
+            auto dims = display->GetDimensions();
+            cfg->set_width(dims.width);
+            cfg->set_height(dims.height);
             cfg->set_dpi(display->dpi());
             cfg->set_display(display->id());
             cfg->set_flags(display->flags());

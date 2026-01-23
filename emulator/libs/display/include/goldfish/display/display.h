@@ -43,6 +43,11 @@ struct FrameInfo {
     FrameInfo(uint64_t seq) : sequenceNumber(seq), timestamp(absl::Now()) {}
 };
 
+struct Dimensions {
+    uint32_t width;
+    uint32_t height;
+};
+
 struct ResizeEvent {
     uint8_t displayId;
     uint32_t previousWidth;
@@ -106,16 +111,13 @@ class IDisplay : public FrameInfoCallbackSource,
     uint8_t id() const { return mDisplayId; }
 
     /**
-     * @brief Returns the width of the display in pixels.
-     * @return The display width (uint32_t).
+     * @brief Returns the dimensions of the display.
+     * @return The display dimensions (Dimensions).
      */
-    uint32_t width() const { return mWidth; }
-
-    /**
-     * @brief Returns the height of the display in pixels.
-     * @return The display height (uint32_t).
-     */
-    uint32_t height() const { return mHeight; }
+    Dimensions GetDimensions() const {
+        absl::MutexLock lock(&mDimensionMutex);
+        return mDimensions;
+    }
 
     uint32_t dpi() const { return mDpi; }
 
@@ -217,28 +219,31 @@ class IDisplay : public FrameInfoCallbackSource,
     static SharedDisplay nullDisplay();
 
   protected:
+    void SetDimensions(Dimensions dim) {
+        absl::MutexLock lock(mDimensionMutex);
+        mDimensions = std::move(dim);
+    }
+
+    void SetDimensions(uint32_t width, uint32_t height) {
+        SetDimensions({.width = width, .height = height});
+    }
+
     void frameReceived() {
         absl::MutexLock lock(&mSeqAccess);
         mSeq = FrameInfo(mSeq.sequenceNumber + 1);
         FrameInfoCallbackSource::fireEvent(mSeq);
     }
 
-    virtual std::string string() const {
-        return absl::StrFormat("Display: %d (%dx%d), seq: %u", mDisplayId, mWidth, mHeight,
-                               mSeq.sequenceNumber);
-    };
+    virtual std::string string() const;
 
     IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
             : FrameInfoCallbackSource(loop)
             , ResizeEventCallbackSource(loop)
             , mDisplayId(id)
-            , mWidth(width)
-            , mHeight(height)
+            , mDimensions({width, height})
             , mSeq(0) {}
 
     uint8_t mDisplayId;
-    uint32_t mWidth;
-    uint32_t mHeight;
 
     FrameInfo mSeq ABSL_GUARDED_BY(mSeqAccess);
     mutable absl::Mutex mSeqAccess;
@@ -246,6 +251,10 @@ class IDisplay : public FrameInfoCallbackSource,
     uint32_t mDpi{0};
     uint32_t mFlags{0};
     bool mActive{true};
+
+  private:
+    Dimensions mDimensions ABSL_GUARDED_BY(mDimensionMutex);
+    mutable absl::Mutex mDimensionMutex;
 };
 
 }  // namespace goldfish::display

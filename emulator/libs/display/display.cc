@@ -19,17 +19,19 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
 namespace goldfish::display {
 
 std::pair<int, int> IDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
-    if (mWidth <= 0 || mHeight <= 0) {
+    Dimensions dims = GetDimensions();
+    if (dims.width <= 0 || dims.height <= 0) {
         return {0, 0};
     }
 
     // Use 64-bit integers for the cross-multiplication to prevent overflow.
-    int64_t h64 = mHeight;
-    int64_t w64 = mWidth;
+    int64_t h64 = dims.height;
+    int64_t w64 = dims.width;
 
     // Note that we will never scale above display device width and height.
     desiredWidth = std::min<int64_t>(desiredWidth, w64);
@@ -44,6 +46,12 @@ std::pair<int, int> IDisplay::resizeKeepAspectRatio(int desiredWidth, int desire
         int newWidth = static_cast<int>((w64 * desiredHeight) / h64);
         return {newWidth, desiredHeight};
     }
+}
+
+std::string IDisplay::string() const {
+    Dimensions dims = GetDimensions();
+    return absl::StrFormat("Display: %d (%dx%d), seq: %u", mDisplayId, dims.width, dims.height,
+                           seq().sequenceNumber);
 }
 
 }  // namespace goldfish::display

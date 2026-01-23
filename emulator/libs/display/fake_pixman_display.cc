@@ -30,7 +30,8 @@ void FakePixmanDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTou
 
 void FakePixmanDisplay::updateSourceImage(::pixman_image_t* image) {
     PixmanDisplay::updateSourceImage(image);
-    updateSurface(0, 0, mWidth, mHeight);
+    Dimensions dims = GetDimensions();
+    updateSurface(0, 0, dims.width, dims.height);
 }
 
 void FakePixmanDisplay::sendMouseEvent(int x, int y, int button_mask) {

@@ -148,8 +148,9 @@ EvDevEvents Touch::toEvDevEvents(int w, int h, SlotRegistry* registry) const {
 }  // namespace internal
 
 void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::MultiTouchEvent& event) {
-    int w = display.width();
-    int h = display.height();
+    auto dims = display.GetDimensions();
+    int w = dims.width;
+    int h = dims.height;
 
     for (const auto& touch : event.touches) {
         for (auto& evdev : touch.toEvDevEvents(w, h, &mRegistry)) {
@@ -165,8 +166,9 @@ void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::Multi
 }
 
 void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::PenTouchEvent& event) {
-    int w = display.width();
-    int h = display.height();
+    auto dims = display.GetDimensions();
+    int w = dims.width;
+    int h = dims.height;
 
     for (const auto& touch : event.touches) {
         for (auto& evdev : touch.toEvDevEvents(w, h, &mRegistry)) {

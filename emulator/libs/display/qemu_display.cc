@@ -77,11 +77,12 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
 
 void QemuDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     absl::MutexLock lock(&mSendLock);
-    VLOG(1) << *this << ", sendMultiTouchEvent(" << slot << ", " << x << ", " << y << ", "
+    Dimensions dims = GetDimensions();
+    VLOG(1) << *this << ", sendMultiTouchEvent(" << (int)slot << ", " << x << ", " << y << ", "
             << (int)type << ")";
     Error* error_warn;
     auto ttype = translate_touch_type(type);
-    console_handle_touch_event(mConsole, mTouchSlots, slot, mWidth, mHeight, x, y, ttype,
+    console_handle_touch_event(mConsole, mTouchSlots, slot, dims.width, dims.height, x, y, ttype,
                                &error_warn);
     warn_report_err(error_warn);
 }
@@ -93,16 +94,19 @@ static uint32_t bmap[INPUT_BUTTON__MAX] = {
 
 void QemuDisplay::sendMouseEvent(int x, int y, int button_mask) {
     absl::MutexLock lock(&mSendLock);
+    Dimensions dims = GetDimensions();
     VLOG(2) << *this << ", sendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
-    mQemuLoop->Post([con = mConsole, x, y, w = mWidth, h = mHeight, last = mlast_bmask,
-                           mask = button_mask] {
-        if (last != mask) {
-            qemu_input_update_buttons(con, bmap, last, mask);
-        }
-        qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, w);
-        qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, h);
-        qemu_input_event_sync();
-    }).IgnoreError();
+    mQemuLoop
+            ->Post([con = mConsole, x, y, w = dims.width, h = dims.height, last = mlast_bmask,
+                    mask = button_mask] {
+                if (last != mask) {
+                    qemu_input_update_buttons(con, bmap, last, mask);
+                }
+                qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, w);
+                qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, h);
+                qemu_input_event_sync();
+            })
+            .IgnoreError();
     mlast_bmask = button_mask;
 }
 
