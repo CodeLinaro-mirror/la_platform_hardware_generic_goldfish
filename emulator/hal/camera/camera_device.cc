@@ -16,6 +16,7 @@
 #include "goldfish/devices/camera/camera_device.h"
 
 #include <algorithm>
+#include <charconv>
 #include <optional>
 #include <vector>
 

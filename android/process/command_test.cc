@@ -23,6 +23,7 @@
 #include <sstream>
 #include <streambuf>
 #include <string>
+#include <thread>
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"

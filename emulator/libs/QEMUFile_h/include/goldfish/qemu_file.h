@@ -12,7 +12,7 @@
 
 #pragma once
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(_WIN32)
 extern "C" {
 #endif
 
@@ -24,6 +24,6 @@ extern "C" {
 // IWYU pragma: end_keep
 // clang-format on
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(_WIN32)
 }  // extern "C"
 #endif

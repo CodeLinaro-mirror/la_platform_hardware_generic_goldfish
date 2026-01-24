@@ -14,8 +14,7 @@
 
 #pragma once
 
-extern "C" {
 #include "qemu/osdep.h"
-}
+
 #undef send
 #undef connect
