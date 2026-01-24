@@ -67,10 +67,10 @@ int gcd(int a, int b) {
 // The maximum denominator allowed for a "safe" scaling ratio.
 // Ratios with simplified denominators larger than this are likely to cause
 // cumulative rounding errors in pixman's fixed-point arithmetic, leading to
-// visual artifacts like shearing. A threshold of 16 is a conservative choice,
-// allowing for common fractions (1/2, 3/4, 5/8, etc.) while rejecting complex
-// ones.
-constexpr int kMaxSafeDenominator = 16;
+// visual artifacts like shearing. A threshold of 1024 is sufficient to prevent
+// visible rounding errors in 16.16 fixed-point math while allowing for
+// much closer fits to the desired dimensions.
+constexpr int kMaxSafeDenominator = 1024;
 
 // Checks if a scaling operation from a source dimension to a target dimension
 // is likely to be safe from precision-related artifacts.
@@ -145,7 +145,7 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
 }
 
 absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWidth, int newHeight,
-                                                   int rotation, uint8_t* pixels,
+                                                   ImageRotation rotation, uint8_t* pixels,
                                                    size_t* cPixels) const {
     // NOTE: We expect newWidth and newHeight to be safe, shearing *WILL* happen if the ratios
     // are not proper.
@@ -164,6 +164,11 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
                 absl::StrFormat("Buffer too small; need %u bytes, have %u", requiredSize, old));
     }
 
+    uint32_t* pixel = (uint32_t*)pixels;
+    // Create the destination image
+    const PixmanImagePtr dst_img(
+            pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
+
     auto sourceImage = mFrameManager->getRenderableImage();
     ::pixman_image_t* src_img = sourceImage.get();
     ::pixman_transform_t transform;
@@ -172,25 +177,52 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
         return absl::UnavailableError("No frame has been produced yet.");
     }
 
-    uint32_t* pixel = (uint32_t*)pixels;
-    // Create the destination image
-    const PixmanImagePtr dst_img(
-            pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
-
     assert(pixman_image_get_width(src_img) == mWidth);
     assert(pixman_image_get_height(src_img) == mHeight);
 
-    double scale_x = (double)mWidth / (double)newWidth;
-    double scale_y = (double)mHeight / (double)newHeight;
+    // If we are rotated 90/270, the destination width fits the source height.
+    bool needsDimensionSwap =
+            (rotation == ImageRotation::kRotation90 || rotation == ImageRotation::kRotation270);
+    double scale_x = needsDimensionSwap ? (double)mHeight / newWidth : (double)mWidth / newWidth;
+    double scale_y = needsDimensionSwap ? (double)mWidth / newHeight : (double)mHeight / newHeight;
 
     VLOG(2) << "Source: " << mWidth << "x" << mHeight << ", dest: " << newWidth << "x" << newHeight
-            << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
+            << ", rotation: " << static_cast<int>(rotation) << ", scale_x: " << scale_x
+            << ", scale_y: " << scale_y;
     // centering/translation logic.
     pixman_transform_init_identity(&transform);
+
+    if (rotation != ImageRotation::kRotation0) {
+        // We want to rotate around the center.
+        // The transform maps destination -> source.
+        const double radians = static_cast<int>(rotation) * M_PI / 180.0;
+
+        // 1. Translate destination center to origin
+        pixman_transform_translate(&transform, NULL,
+                                   pixman_double_to_fixed(-newWidth / 2.0),    // move left
+                                   pixman_double_to_fixed(-newHeight / 2.0));  // move up
+
+        // 2. Rotate (destination to source)
+        // A clockwise rotation of the coordinate system (destination->source)
+        // results in a counter-clockwise rotation of the image content.
+        pixman_transform_rotate(&transform, NULL,
+                                pixman_double_to_fixed(cos(radians)),   // cos(theta)
+                                pixman_double_to_fixed(sin(radians)));  // sin(theta)
+
+        // 3. Translate back to source center
+        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(mWidth / 2.0),
+                                   pixman_double_to_fixed(mHeight / 2.0));
+    }
+
+    // Scaling logic.
+    // Shift the whole image by -0.5 so we are looking at the center of each pixel
+    // instead of the edge. This is important for scaling to be smooth.
     pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
                                pixman_double_to_fixed(-0.5));
+    // Perform the scaling.
     pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
                            pixman_double_to_fixed(scale_y));
+    // Move the image back to the original position (+0.5).
     pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
                                pixman_double_to_fixed(0.5));
 
@@ -204,6 +236,8 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     // The buffer is now filled with the scaled and rotated image.
     // The size of the valid pixel data is the required size.
     *cPixels = requiredSize;
+    VLOG(2) << "getPixels source {w:" << mWidth << " h:" << mHeight << "}, dest {w:" << newWidth
+            << " h:" << newHeight << "} px_size=" << *cPixels;
 
     if (format == PixelFormat::PNG) {
         std::vector<uint8_t> png_buffer_vec;
@@ -241,33 +275,28 @@ std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int d
         return {0, 0};
     }
 
-    // Now, check if these ideal dimensions are "safe" for pixman scaling.
-    // If not, find the nearest smaller dimensions that are safe.
-    // We only need to check the physical width; the logical height will be recalculated
-    // from the safe physical width to preserve the aspect ratio.
-    int physicalIdealWidth = fit.swapped ? fit.height : fit.width;
-    int safePhysicalWidth = physicalIdealWidth;
-    if (!isScalingSafe(mWidth, physicalIdealWidth)) {
-        for (int w_check = physicalIdealWidth; w_check > 0; --w_check) {
-            if (isScalingSafe(mWidth, w_check)) {
-                safePhysicalWidth = w_check;
+    // The physical width of the destination buffer is always fit.width.
+    // To ensure scaling is safe, we check the ratio between the source physical
+    // stride and this destination physical width.
+    int sourcePhysicalStride = fit.swapped ? mHeight : mWidth;
+    int safeWidth = fit.width;
+
+    if (!isScalingSafe(sourcePhysicalStride, safeWidth)) {
+        for (int w_check = safeWidth; w_check > 0; --w_check) {
+            if (isScalingSafe(sourcePhysicalStride, w_check)) {
+                safeWidth = w_check;
                 break;
             }
         }
     }
 
-    // Recalculate the logical dimensions based on the safe physical width.
-    int64_t sourceWidth = fit.swapped ? mHeight : mWidth;
-    int64_t sourceHeight = fit.swapped ? mWidth : mHeight;
+    // Logically oriented source dimensions.
+    int64_t sWidth = fit.swapped ? mHeight : mWidth;
+    int64_t sHeight = fit.swapped ? mWidth : mHeight;
 
-    int safeWidth, safeHeight;
-    if (fit.swapped) {
-        safeHeight = safePhysicalWidth;
-        safeWidth = static_cast<int>((sourceWidth * safeHeight) / sourceHeight);
-    } else {
-        safeWidth = safePhysicalWidth;
-        safeHeight = static_cast<int>((sourceHeight * safeWidth) / sourceWidth);
-    }
+    // Recalculate the logical height based on the safe logical width to
+    // maintain the aspect ratio.
+    int safeHeight = static_cast<int>((sHeight * safeWidth) / sWidth);
 
     VLOG(2) << "Requested " << desiredWidth << "x" << desiredHeight << ", ideal " << fit.width
             << "x" << fit.height << ", snapped to safe " << safeWidth << "x" << safeHeight;

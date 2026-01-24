@@ -20,8 +20,9 @@ class NullDisplay : public IDisplay {
   public:
     NullDisplay() : IDisplay(nullptr, -1, -1, -1) { mActive = false; }
 
-    absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height, int rotationDeg,
-                                        uint8_t* pixel, size_t* cPixels) const override {
+    absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height,
+                                        ImageRotation rotation, uint8_t* pixel,
+                                        size_t* cPixels) const override {
         return absl::InvalidArgumentError("This display does not exist.");
     }
 

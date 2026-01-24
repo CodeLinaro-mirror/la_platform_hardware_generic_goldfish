@@ -79,6 +79,23 @@ enum class Orientation {
     kSquare,
 };
 
+/**
+ * @enum ImageRotation
+ * @brief Represents the supported counter-clockwise rotation angles for pixel
+ *        retrieval.
+ *
+ * Restricting rotations to these four orthogonal values ensures that
+ * coordinate transformations (swapping width/height and mirroring axes)
+ * are precise and do not introduce interpolation artifacts or require
+ * complex arbitrary-angle rotation math.
+ */
+enum class ImageRotation {
+    kRotation0 = 0,
+    kRotation90 = 90,
+    kRotation180 = 180,
+    kRotation270 = 270,
+};
+
 class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
@@ -208,7 +225,7 @@ class IDisplay : public FrameInfoCallbackSource,
      *       image processing libraries after retrieving raw pixels if needed.
      */
     virtual absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height,
-                                                int rotationDeg, uint8_t* pixel,
+                                                ImageRotation rotation, uint8_t* pixel,
                                                 size_t* cPixels) const = 0;
 
     /**

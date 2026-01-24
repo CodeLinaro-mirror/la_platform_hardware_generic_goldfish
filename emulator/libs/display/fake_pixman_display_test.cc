@@ -84,8 +84,8 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
     // Get the screenshot
     size_t cPixels = width * height * 4;
     std::vector<uint8_t> pixels(cPixels);
-    auto result =
-            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
@@ -108,8 +108,8 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotRGB888) {
     // Get the screenshot
     size_t cPixels = width * height * 3;
     std::vector<uint8_t> pixels(cPixels);
-    auto result =
-            display->getPixels(PixelFormat::RGB888, width, height, 0, pixels.data(), &cPixels);
+    auto result = display->getPixels(PixelFormat::RGB888, width, height, ImageRotation::kRotation0,
+                                     pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
@@ -130,11 +130,10 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
     // Create an ActiveFakePixmanDisplay
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
-    // Get the screenshot with a too small buffer
     size_t cPixels = 10;
     std::vector<uint8_t> pixels(cPixels);
-    auto result =
-            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
 
@@ -153,8 +152,8 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     // First call with a too small buffer
     size_t cPixels = 10;
     std::vector<uint8_t> pixels(cPixels);
-    auto result =
-            display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
     ASSERT_GT(cPixels, 10);
@@ -163,13 +162,112 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     pixels.resize(cPixels);
 
     // Second call with the resized buffer
-    result = display->getPixels(PixelFormat::RGBA8888, width, height, 0, pixels.data(), &cPixels);
+    result = display->getPixels(PixelFormat::RGBA8888, width, height, ImageRotation::kRotation0,
+                                pixels.data(), &cPixels);
     ASSERT_TRUE(result.ok());
     ASSERT_EQ(cPixels, width * height * 4);
 
     // Check if the screenshot has the correct data (at least one blue pixel)
     uint32_t* pixelData = reinterpret_cast<uint32_t*>(pixels.data());
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
+}
+
+TEST_F(FakePixmanDisplayTest, GetPixels_RotationPortraitSource) {
+    const int srcW = 100;
+    const int srcH = 200;
+
+    // 1. Create a Portrait source image (Black with one RED pixel at Top-Left 0,0)
+    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, srcW, srcH, nullptr, 0));
+    uint32_t* srcData = pixman_image_get_data(srcImage.get());
+    memset(srcData, 0, srcW * srcH * 4);
+    srcData[0] = 0xFFFF0000;  // Red (AARRGGBB)
+
+    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+
+    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
+        size_t cPixels = destW * destH * 4;
+        std::vector<uint8_t> buffer(cPixels);
+        auto result = display->getPixels(PixelFormat::RGBA8888, destW, destH, rot, buffer.data(),
+                                         &cPixels);
+        ASSERT_TRUE(result.ok()) << "Rotation " << static_cast<int>(rot) << " failed";
+
+        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
+        uint32_t color = pixels[expectedY * destW + expectedX];
+        EXPECT_EQ(color, 0xFFFF0000)
+                << "Portrait Rotation " << static_cast<int>(rot)
+                << " failed: Expected red pixel at (" << expectedX << ", " << expectedY << ")";
+    };
+
+    // Note: Pixman rotation is counter-clockwise.
+    // 0°: Red at (0, 0)
+    verifyPixel(ImageRotation::kRotation0, 0, 0, srcW, srcH);
+    // 90° CCW: Top-Left (0,0) moves to Bottom-Left (0, 99)
+    verifyPixel(ImageRotation::kRotation90, 0, 99, srcH, srcW);
+    // 180° CCW: Top-Left (0,0) moves to Bottom-Right (99, 199)
+    verifyPixel(ImageRotation::kRotation180, 99, 199, srcW, srcH);
+    // 270° CCW: Top-Left (0,0) moves to Top-Right (199, 0)
+    verifyPixel(ImageRotation::kRotation270, 199, 0, srcH, srcW);
+}
+
+TEST_F(FakePixmanDisplayTest, GetPixels_RotationLandscapeSource) {
+    const int srcW = 200;
+    const int srcH = 100;
+
+    // Create a Landscape source image (Red pixel at Top-Left 0,0)
+    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, srcW, srcH, nullptr, 0));
+    uint32_t* srcData = pixman_image_get_data(srcImage.get());
+    memset(srcData, 0, srcW * srcH * 4);
+    srcData[0] = 0xFFFF0000;
+
+    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+
+    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
+        size_t cPixels = destW * destH * 4;
+        std::vector<uint8_t> buffer(cPixels);
+        auto result = display->getPixels(PixelFormat::RGBA8888, destW, destH, rot, buffer.data(),
+                                         &cPixels);
+        ASSERT_TRUE(result.ok());
+        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
+        EXPECT_EQ(pixels[expectedY * destW + expectedX], 0xFFFF0000)
+                << "Landscape Rotation " << static_cast<int>(rot) << " failed";
+    };
+
+    // 0°: (0,0) -> (0,0)
+    verifyPixel(ImageRotation::kRotation0, 0, 0, srcW, srcH);
+    // 90° CCW: (0,0) -> (0, 199) of 100x200
+    verifyPixel(ImageRotation::kRotation90, 0, 199, srcH, srcW);
+    // 180° CCW: (0,0) -> (199, 99) of 200x100
+    verifyPixel(ImageRotation::kRotation180, 199, 99, srcW, srcH);
+    // 270° CCW: (0,0) -> (99, 0) of 100x200
+    verifyPixel(ImageRotation::kRotation270, 99, 0, srcH, srcW);
+}
+
+TEST_F(FakePixmanDisplayTest, GetPixels_RotationSquareSource) {
+    const int size = 100;
+
+    // Create a Square source image (Red pixel at Top-Left 0,0)
+    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, size, size, nullptr, 0));
+    uint32_t* srcData = pixman_image_get_data(srcImage.get());
+    memset(srcData, 0, size * size * 4);
+    srcData[0] = 0xFFFF0000;
+
+    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+
+    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY) {
+        size_t cPixels = size * size * 4;
+        std::vector<uint8_t> buffer(cPixels);
+        auto result =
+                display->getPixels(PixelFormat::RGBA8888, size, size, rot, buffer.data(), &cPixels);
+        ASSERT_TRUE(result.ok());
+        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
+        EXPECT_EQ(pixels[expectedY * size + expectedX], 0xFFFF0000)
+                << "Square Rotation " << static_cast<int>(rot) << " failed";
+    };
+
+    verifyPixel(ImageRotation::kRotation0, 0, 0);
+    verifyPixel(ImageRotation::kRotation90, 0, 99);
+    verifyPixel(ImageRotation::kRotation180, 99, 99);
+    verifyPixel(ImageRotation::kRotation270, 99, 0);
 }
 
 TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {

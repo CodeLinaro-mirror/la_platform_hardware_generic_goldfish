@@ -250,8 +250,9 @@ TEST_F(FakeMultiDisplayTest, ResizeMaintainsPatternIntegrity) {
     // 5. Retrieve Pixels
     std::vector<uint8_t> pixel_buffer(kWidth * kHeight * 4);
     size_t num_pixels = pixel_buffer.size();
-    auto pixelsResult = display->getPixels(PixelFormat::RGBA8888, kWidth, kHeight, 0,
-                                           pixel_buffer.data(), &num_pixels);
+    auto pixelsResult =
+            display->getPixels(PixelFormat::RGBA8888, kWidth, kHeight, ImageRotation::kRotation0,
+                               pixel_buffer.data(), &num_pixels);
     ASSERT_TRUE(pixelsResult.ok());
 
     // 6. Validate Pattern
@@ -287,8 +288,9 @@ TEST_F(FakeMultiDisplayTest, ResizeWithScaling) {
     constexpr int kResizeHeight1 = 1200;
     std::vector<uint8_t> pixel_buffer1(kResizeWidth1 * kResizeHeight1 * 4);
     size_t num_pixels1 = pixel_buffer1.size();
-    auto pixelsResult1 = display->getPixels(PixelFormat::RGBA8888, kResizeWidth1, kResizeHeight1, 0,
-                                            pixel_buffer1.data(), &num_pixels1);
+    auto pixelsResult1 =
+            display->getPixels(PixelFormat::RGBA8888, kResizeWidth1, kResizeHeight1,
+                               ImageRotation::kRotation0, pixel_buffer1.data(), &num_pixels1);
     ASSERT_TRUE(pixelsResult1.ok());
     auto validationImage1 = PixmanImagePtr(
             pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kResizeWidth1, kResizeHeight1,
@@ -301,8 +303,9 @@ TEST_F(FakeMultiDisplayTest, ResizeWithScaling) {
     constexpr int kResizeHeight2 = 1204;
     std::vector<uint8_t> pixel_buffer2(kResizeWidth2 * kResizeHeight2 * 4);
     size_t num_pixels2 = pixel_buffer2.size();
-    auto pixelsResult2 = display->getPixels(PixelFormat::RGBA8888, kResizeWidth2, kResizeHeight2, 0,
-                                            pixel_buffer2.data(), &num_pixels2);
+    auto pixelsResult2 =
+            display->getPixels(PixelFormat::RGBA8888, kResizeWidth2, kResizeHeight2,
+                               ImageRotation::kRotation0, pixel_buffer2.data(), &num_pixels2);
     ASSERT_TRUE(pixelsResult2.ok());
     auto validationImage2 = PixmanImagePtr(
             pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kResizeWidth2, kResizeHeight2,
@@ -353,8 +356,8 @@ TEST_F(FakeMultiDisplayTest, DISABLED_ScalingFailureBoundaryTest) {
 
         std::vector<uint8_t> buffer(newWidth * newHeight * 4);
         size_t buffer_size = buffer.size();
-        auto result = display->getPixels(PixelFormat::RGBA8888, newWidth, newHeight, 0,
-                                         buffer.data(), &buffer_size);
+        auto result = display->getPixels(PixelFormat::RGBA8888, newWidth, newHeight,
+                                         ImageRotation::kRotation0, buffer.data(), &buffer_size);
         ASSERT_TRUE(result.ok());
 
         auto validationImage = PixmanImagePtr(pixman_image_create_bits_no_clear(
@@ -451,17 +454,16 @@ TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_SquareSource) {
     // Result should fit 1000x1000 into 500x250.
     // Height-limited: 250 * (1000/1000) = 250.
     // However, Pixman snaps to 'safe' dimensions.
-    // 250 % 4 != 0 -> 248. gcd(1000, 248)=8, 248/8=31 (>16).
-    // 240: 240 % 4 == 0. gcd(1000, 240)=40, 240/40=6 (<=16). PASS.
+    // 250 % 4 != 0 -> 248. gcd(1000, 248)=8, 248/8=31 (<=1024). PASS.
     auto result1 = display->resizeKeepAspectRatio(500, 250);
-    EXPECT_EQ(result1.first, 240);
-    EXPECT_EQ(result1.second, 240);
+    EXPECT_EQ(result1.first, 248);
+    EXPECT_EQ(result1.second, 248);
 
     // Box: 250x500 (Portrait box)
-    // Result: 240x240.
+    // Result: 248x248.
     auto result2 = display->resizeKeepAspectRatio(250, 500);
-    EXPECT_EQ(result2.first, 240);
-    EXPECT_EQ(result2.second, 240);
+    EXPECT_EQ(result2.first, 248);
+    EXPECT_EQ(result2.second, 248);
 }
 
 TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_SquareBox) {
@@ -473,10 +475,60 @@ TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_SquareBox) {
     // Since box is square (not wider than tall), we treat source as Portrait.
     // Result fits 1000x2000 into 500x500.
     // Height-limited: 500 * (1000/2000) = 250.
-    // Snaps to 240 (width) -> 480 (height).
+    // Snaps to 248 (width) -> 496 (height).
     auto result1 = display->resizeKeepAspectRatio(500, 500);
-    EXPECT_EQ(result1.first, 240);
-    EXPECT_EQ(result1.second, 480);
+    EXPECT_EQ(result1.first, 248);
+    EXPECT_EQ(result1.second, 496);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_NonDivisibleBy4Source) {
+    // Physical: 1002x2002 (Portrait, not divisible by 4)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1002, 2002);
+    auto display = displayResult.value().lock();
+
+    // Box: 1002x2002
+    // Ideal: 1002x2002
+    // Safety check: 1002 % 4 != 0. Snaps width down.
+    // 1000: 1000 % 4 == 0. gcd(1002, 1000)=2. 1000/2=500 (<= 1024). PASS.
+    // Result: 1000x1998 (1998 = 1000 * 2002 / 1002)
+    auto result = display->resizeKeepAspectRatio(1002, 2002);
+    EXPECT_EQ(result.first, 1000);
+    EXPECT_EQ(result.second, 1998);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_PartialDivisibilitySource) {
+    // Physical: 1152x2570 (Portrait, width is div-4, height is NOT)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1152, 2570);
+    auto display = displayResult.value().lock();
+
+    // 1. Portrait request: 1152x2570
+    // Ideal: 1152x2570.
+    // Safety check: 1152 % 4 == 0. gcd(1152, 1152)=1152. PASS.
+    // Result: 1152x2570.
+    auto resultP = display->resizeKeepAspectRatio(1152, 2570);
+    EXPECT_EQ(resultP.first, 1152);
+    EXPECT_EQ(resultP.second, 2570);
+
+    // 2. Landscape request: 2570x1152
+    // Logical Source: 2570x1152.
+    // Ideal: 2570x1152.
+    // Safety check (Logical-to-Physical):
+    // The physical destination width is 2570.
+    // Pixman requires widths to be a multiple of 4 and share a "simple" ratio
+    // with the source to avoid rounding errors (denominator <= 1024).
+    //
+    // For a physical source dimension of 2570:
+    // - 2568: 2568 % 4 == 0. gcd(2570, 2568) = 2.
+    //   Denominator = 2570 / 2 = 1285 (Too complex, > 1024).
+    // - 2564: 2564 % 4 == 0. gcd(2570, 2564) = 2.
+    //   Denominator = 2570 / 2 = 1285 (Too complex).
+    // - 2560: 2560 % 4 == 0. gcd(2570, 2560) = 10.
+    //   Denominator = 2570 / 10 = 257 (Safe, <= 1024).
+    //
+    // Result: 2560x1147 (1147 = 2560 * 1152 / 2570).
+    auto resultL = display->resizeKeepAspectRatio(2570, 1152);
+    EXPECT_EQ(resultL.first, 2560);
+    EXPECT_EQ(resultL.second, 1147);
 }
 
 TEST_F(FakeMultiDisplayTest, GetOrientation) {
