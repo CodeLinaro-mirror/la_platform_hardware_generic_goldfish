@@ -1,7 +1,28 @@
 {
 	"folders": [
 		{
-			"path": "../../../.."
+			"path": "../../../../hardware/generic/goldfish"
+		},
+		{
+			"path": "../../../../hardware/google/gfxstream"
+		},
+		{
+			"path": "../../../../hardware/google/aemu"
+		},
+		{
+			"path": "../../../../third_party/adt-infra"
+		},
+		{
+			"path": "../../../../third_party/qemu"
+		},
+		{
+			"path": "../../../../third_party/crosvm"
+		},
+		{
+			"path": "../../../../third_party/mesa3d"
+		},
+		{
+			"path": "../../../../third_party/crashpad"
 		},
 		{
 			"name": "Bazel Configuration",
