@@ -236,49 +236,41 @@ void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
 }
 
 std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
-    if (mWidth <= 0 || mHeight <= 0) {
+    auto fit = calculateLogicalFit(desiredWidth, desiredHeight);
+    if (fit.width == 0 || fit.height == 0) {
         return {0, 0};
-    }
-
-    // First, calculate the ideal dimensions while preserving aspect ratio.
-    int idealWidth, idealHeight;
-    // Use 64-bit integers for the cross-multiplication to prevent overflow.
-    int64_t h64 = mHeight;
-    int64_t w64 = mWidth;
-
-    // Note that we will never scale above display device width and height.
-    desiredWidth = std::min<int64_t>(desiredWidth, w64);
-    desiredHeight = std::min<int64_t>(desiredHeight, h64);
-
-    if (static_cast<int64_t>(desiredWidth) * h64 < static_cast<int64_t>(desiredHeight) * w64) {
-        // Width is the limiting factor.
-        idealHeight = static_cast<int>((h64 * desiredWidth) / w64);
-        idealWidth = desiredWidth;
-    } else {
-        // Height is the limiting factor.
-        idealWidth = static_cast<int>((w64 * desiredHeight) / h64);
-        idealHeight = desiredHeight;
     }
 
     // Now, check if these ideal dimensions are "safe" for pixman scaling.
     // If not, find the nearest smaller dimensions that are safe.
-    // We only need to check the width; the height will be recalculated
-    // from the safe width to preserve the aspect ratio.
-    int safeWidth = idealWidth;
-    if (!isScalingSafe(mWidth, idealWidth)) {
-        for (int w_check = idealWidth; w_check > 0; --w_check) {
+    // We only need to check the physical width; the logical height will be recalculated
+    // from the safe physical width to preserve the aspect ratio.
+    int physicalIdealWidth = fit.swapped ? fit.height : fit.width;
+    int safePhysicalWidth = physicalIdealWidth;
+    if (!isScalingSafe(mWidth, physicalIdealWidth)) {
+        for (int w_check = physicalIdealWidth; w_check > 0; --w_check) {
             if (isScalingSafe(mWidth, w_check)) {
-                safeWidth = w_check;
+                safePhysicalWidth = w_check;
                 break;
             }
         }
     }
 
-    // Recalculate the height based on the safe width to maintain aspect ratio.
-    int safeHeight = static_cast<int>((h64 * safeWidth) / w64);
+    // Recalculate the logical dimensions based on the safe physical width.
+    int64_t sourceWidth = fit.swapped ? mHeight : mWidth;
+    int64_t sourceHeight = fit.swapped ? mWidth : mHeight;
 
-    VLOG(2) << "Requested " << desiredWidth << "x" << desiredHeight << ", ideal " << idealWidth
-            << "x" << idealHeight << ", snapped to safe " << safeWidth << "x" << safeHeight;
+    int safeWidth, safeHeight;
+    if (fit.swapped) {
+        safeHeight = safePhysicalWidth;
+        safeWidth = static_cast<int>((sourceWidth * safeHeight) / sourceHeight);
+    } else {
+        safeWidth = safePhysicalWidth;
+        safeHeight = static_cast<int>((sourceHeight * safeWidth) / sourceWidth);
+    }
+
+    VLOG(2) << "Requested " << desiredWidth << "x" << desiredHeight << ", ideal " << fit.width
+            << "x" << fit.height << ", snapped to safe " << safeWidth << "x" << safeHeight;
 
     return {safeWidth, safeHeight};
 }

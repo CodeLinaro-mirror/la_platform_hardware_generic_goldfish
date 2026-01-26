@@ -73,6 +73,12 @@ enum class PixelFormat {
     RGB888,
 };
 
+enum class Orientation {
+    kPortrait,
+    kLandscape,
+    kSquare,
+};
+
 class IDisplay;
 using DisplayPtr = std::weak_ptr<IDisplay>;
 using SharedDisplay = std::shared_ptr<IDisplay>;
@@ -100,6 +106,14 @@ class IDisplay : public FrameInfoCallbackSource,
     virtual ~IDisplay() = default;
 
     /**
+     * @brief Returns the orientation of the given dimensions.
+     * @param w Width
+     * @param h Height
+     * @return The Orientation (Portrait, Landscape, or Square).
+     */
+    static Orientation getOrientation(int w, int h);
+
+    /**
      * @brief Returns the unique identifier of this display.
      * @return The display ID (uint8_t).
      */
@@ -123,10 +137,16 @@ class IDisplay : public FrameInfoCallbackSource,
 
     /**
      * Calculates new dimensions to fit a box while preserving aspect ratio.
+     * The box dimensions (desiredWidth, desiredHeight) are logical dimensions,
+     * which means they can be rotated relative to the physical display dimensions.
+     * The returned dimensions will match the orientation of the requested box.
      *
-     * @param desiredWidth The maximum width of the bounding box.
-     * @param desiredHeight The maximum height of the bounding box.
-     * @return A std::pair<int, int> containing the new width and height.
+     * If either desiredWidth or desiredHeight is 0, the function returns {0, 0}.
+     * The returned dimensions will never exceed the dimensions of the display.
+     *
+     * @param desiredWidth The maximum logical width of the bounding box.
+     * @param desiredHeight The maximum logical height of the bounding box.
+     * @return A std::pair<int, int> containing the new logical width and height.
      */
     virtual std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight);
 
@@ -217,6 +237,24 @@ class IDisplay : public FrameInfoCallbackSource,
     static SharedDisplay nullDisplay();
 
   protected:
+    struct LogicalFit {
+        int width;
+        int height;
+        bool swapped;
+    };
+
+    /**
+     * @brief Calculates the ideal logical dimensions for the display to fit
+     *        within the given box while preserving aspect ratio and matching
+     *        the box orientation.
+     *
+     * @param desiredWidth The maximum logical width of the bounding box.
+     * @param desiredHeight The maximum logical height of the bounding box.
+     * @return A LogicalFit struct containing the new logical dimensions and
+     *         whether the source was swapped.
+     */
+    LogicalFit calculateLogicalFit(int desiredWidth, int desiredHeight) const;
+
     void frameReceived() {
         absl::MutexLock lock(&mSeqAccess);
         mSeq = FrameInfo(mSeq.sequenceNumber + 1);

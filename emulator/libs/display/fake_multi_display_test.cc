@@ -366,3 +366,122 @@ TEST_F(FakeMultiDisplayTest, DISABLED_ScalingFailureBoundaryTest) {
                   << (success ? "PASS" : "FAIL") << std::endl;
     }
 }
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_ZeroDimensionsReturnZero) {
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1080, 2400);
+    auto display = displayResult.value().lock();
+
+    auto result1 = display->resizeKeepAspectRatio(0, 100);
+    EXPECT_EQ(result1.first, 0);
+    EXPECT_EQ(result1.second, 0);
+
+    auto result2 = display->resizeKeepAspectRatio(100, 0);
+    EXPECT_EQ(result2.first, 0);
+    EXPECT_EQ(result2.second, 0);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_PortraitToPortraitBox) {
+    // Physical: 1080x2400 (Portrait)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1080, 2400);
+    auto display = displayResult.value().lock();
+
+    // Request: 540x2000 (Portrait box)
+    // Aspect ratio 1080/2400 = 0.45
+    // 540 / 0.45 = 1200.
+    // Result should be 540x1200.
+    auto result = display->resizeKeepAspectRatio(540, 2000);
+    EXPECT_EQ(result.first, 540);
+    EXPECT_EQ(result.second, 1200);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_PortraitToLandscapeBox) {
+    // Physical: 1080x2400 (Portrait)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1080, 2400);
+    auto display = displayResult.value().lock();
+
+    // Request: 2000x540 (Landscape box)
+    // The API should recognize that we want a logical Landscape view of the Portrait buffer.
+    // Logical Source: 2400x1080 (Swapped)
+    // Logical Aspect Ratio: 2400/1080 = 2.222
+    // Logical Result should fit into 2000x540.
+    // If width-limited: 2000 / 2.222 = 900 (Too tall for 540)
+    // If height-limited: 540 * 2.222 = 1200.
+    // Expected Logical Result: 1200x540.
+    auto result = display->resizeKeepAspectRatio(2000, 540);
+    EXPECT_EQ(result.first, 1200);
+    EXPECT_EQ(result.second, 540);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_LandscapeToPortraitBox) {
+    // Physical: 2400x1080 (Landscape)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 2400, 1080);
+    auto display = displayResult.value().lock();
+
+    // Request: 540x2000 (Portrait box)
+    // Logical Source: 1080x2400 (Swapped)
+    // Expected Logical Result: 540x1200.
+    auto result = display->resizeKeepAspectRatio(540, 2000);
+    EXPECT_EQ(result.first, 540);
+    EXPECT_EQ(result.second, 1200);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_Constraints) {
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1000, 1000);
+    auto display = displayResult.value().lock();
+
+    // Request larger than display
+    auto result = display->resizeKeepAspectRatio(2000, 2000);
+    EXPECT_EQ(result.first, 1000);
+    EXPECT_EQ(result.second, 1000);
+
+    // Request larger than display (rotated)
+    // Box is 2000x1500 (Landscape), Logical Source is 1000x1000.
+    auto result2 = display->resizeKeepAspectRatio(2000, 1500);
+    EXPECT_EQ(result2.first, 1000);
+    EXPECT_EQ(result2.second, 1000);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_SquareSource) {
+    // Physical: 1000x1000 (Square)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1000, 1000);
+    auto display = displayResult.value().lock();
+
+    // Box: 500x250 (Landscape box)
+    // Logical Source remains 1000x1000 (Square has no orientation preference)
+    // Result should fit 1000x1000 into 500x250.
+    // Height-limited: 250 * (1000/1000) = 250.
+    // However, Pixman snaps to 'safe' dimensions.
+    // 250 % 4 != 0 -> 248. gcd(1000, 248)=8, 248/8=31 (>16).
+    // 240: 240 % 4 == 0. gcd(1000, 240)=40, 240/40=6 (<=16). PASS.
+    auto result1 = display->resizeKeepAspectRatio(500, 250);
+    EXPECT_EQ(result1.first, 240);
+    EXPECT_EQ(result1.second, 240);
+
+    // Box: 250x500 (Portrait box)
+    // Result: 240x240.
+    auto result2 = display->resizeKeepAspectRatio(250, 500);
+    EXPECT_EQ(result2.first, 240);
+    EXPECT_EQ(result2.second, 240);
+}
+
+TEST_F(FakeMultiDisplayTest, ResizeKeepAspectRatio_SquareBox) {
+    // Physical: 1000x2000 (Portrait)
+    auto displayResult = mFakeMultiDisplay->createDisplay(1, 1000, 2000);
+    auto display = displayResult.value().lock();
+
+    // Box: 500x500 (Square box)
+    // Since box is square (not wider than tall), we treat source as Portrait.
+    // Result fits 1000x2000 into 500x500.
+    // Height-limited: 500 * (1000/2000) = 250.
+    // Snaps to 240 (width) -> 480 (height).
+    auto result1 = display->resizeKeepAspectRatio(500, 500);
+    EXPECT_EQ(result1.first, 240);
+    EXPECT_EQ(result1.second, 480);
+}
+
+TEST_F(FakeMultiDisplayTest, GetOrientation) {
+    EXPECT_EQ(IDisplay::getOrientation(1080, 2400), Orientation::kPortrait);
+    EXPECT_EQ(IDisplay::getOrientation(2400, 1080), Orientation::kLandscape);
+    EXPECT_EQ(IDisplay::getOrientation(1000, 1000), Orientation::kSquare);
+    EXPECT_EQ(IDisplay::getOrientation(0, 0), Orientation::kSquare);
+}
