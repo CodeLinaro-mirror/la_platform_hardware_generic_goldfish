@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:output_files.bzl", "output_files")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
@@ -219,16 +220,45 @@ pkg_files(
     prefix = "lib",
 )
 
+output_files(
+    name = "vctools-dlls-needed",
+    paths = [
+        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/msvcp140.dll",
+        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/vcruntime140.dll",
+        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/vcruntime140_1.dll",
+    ],
+    target = "@vctools//:dlls",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+output_files(
+    name = "winsdk-dlls-needed",
+    paths = [
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-convert-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-environment-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-filesystem-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-heap-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-locale-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-math-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-process-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-runtime-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-stdio-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-string-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-time-l1-1-0.dll",
+        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-utility-l1-1-0.dll",
+    ],
+    target = "@windows_sdk//:dlls",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 pkg_files(
     name = "win-dlls",
-    srcs = select({
-        "@platforms//os:windows": [
-            "@vctools//:dlls",
-            "@windows_sdk//:dlls",
-        ],
-        "//conditions:default": [],
-    }),
-    prefix = "lib",
+    srcs = [
+        ":vctools-dlls-needed",
+        ":winsdk-dlls-needed",
+    ],
+    prefix = "lib/qemu",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
@@ -255,8 +285,10 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":vulkan",
-        ":win-dlls",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":win-dlls"],
+        "//conditions:default": [],
+    }),
     prefix = "emulator",
 )
 
