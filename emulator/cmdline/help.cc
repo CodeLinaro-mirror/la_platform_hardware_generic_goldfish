@@ -1315,10 +1315,6 @@ static void help_gpu(stralloc_t* out) {
            "\n");
 }
 
-static void help_use_host_vulkan(stralloc_t* out) {
-    PRINTF("  Use '-use-host-vulkan' to force the use of host GPU for vulkan calls.\n\n");
-}
-
 static void help_vsync_rate(stralloc_t* out) {
     PRINTF("  Use -vsync-rate <rate> to override the vsync rate of the emulated guest\n"
            "  display. This value is in Hz, for example: -vsync-rate 30 will set the\n"
