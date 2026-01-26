@@ -132,6 +132,7 @@ stripped_binaries(
 
 # Define pkg_files rules
 pkg_files(
+    # Note no prefix.
     name = "launcher",
     srcs = launcher_binaries,
     attributes = pkg_attributes(
@@ -231,33 +232,10 @@ output_files(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
-output_files(
-    name = "winsdk-dlls-needed",
-    paths = [
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-convert-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-environment-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-filesystem-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-heap-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-locale-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-math-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-process-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-runtime-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-stdio-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-string-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-time-l1-1-0.dll",
-        "../goldfish_build++toolchain+windows_sdk/Redist/ucrt/DLLs/x64/api-ms-win-crt-utility-l1-1-0.dll",
-    ],
-    target = "@windows_sdk//:dlls",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
 pkg_files(
+    # Note no prefix. These must go in the same dir as emulator.exe.
     name = "win-dlls",
-    srcs = [
-        ":vctools-dlls-needed",
-        ":winsdk-dlls-needed",
-    ],
-    prefix = "lib/qemu",
+    srcs = [":vctools-dlls-needed"],
     target_compatible_with = ["@platforms//os:windows"],
 )
 
