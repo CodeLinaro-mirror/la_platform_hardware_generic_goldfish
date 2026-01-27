@@ -42,6 +42,31 @@ grpc::Status SensorServiceImpl::getSensor(const SensorValue& request, SensorValu
     return Status::OK;
 }
 
+grpc::Status SensorServiceImpl::setPhysicalModel(const PhysicalModelValue& request) {
+    const auto parameter = static_cast<::goldfish::sensors::PhysicalParameter>(request.target());
+    const auto& data = request.value().data();
+
+    // Default to Step for now.
+    const auto interpolation = ::PhysicalInterpolation::kStep;
+    mPhysicalModel.SetPhysicalParameterValue(parameter, data.data(), data.size(), interpolation);
+    return Status::OK;
+}
+
+grpc::Status SensorServiceImpl::getPhysicalModel(const PhysicalModelValue& request,
+                                                 PhysicalModelValue* reply) {
+    const auto parameter = static_cast<::goldfish::sensors::PhysicalParameter>(request.target());
+    const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
+
+    std::vector<float> data(sz);
+    mPhysicalModel.GetPhysicalParameterValue(parameter, data.data(), sz,
+                                             ::ParameterValueType::kCurrent);
+
+    reply->set_target(request.target());
+    reply->set_status(PhysicalModelValue::OK);
+    *reply->mutable_value()->mutable_data() = {data.begin(), data.end()};
+    return Status::OK;
+}
+
 }  // namespace control
 }  // namespace emulation
 }  // namespace android

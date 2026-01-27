@@ -44,7 +44,7 @@ void FakePixmanDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t va
 
 ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() = default;
 
-void ActiveFakePixmanDisplay::eventArrived(const PixmanImagePtr& image) {
+void ActiveFakePixmanDisplay::EventArrived(const PixmanImagePtr& image) {
     // Update the FakePixmanDisplay with the new image
     VLOG(1) << "Image arrived";
     updateSourceImage(image.get());
@@ -72,7 +72,7 @@ std::shared_ptr<ActiveFakePixmanDisplay> ActiveFakePixmanDisplay::createShared(E
     auto generator = std::make_unique<PixmanImageGenerator>(fps, w, h);
     auto fake = std::shared_ptr<ActiveFakePixmanDisplay>(
             new ActiveFakePixmanDisplay(loop, id, std::move(generator)));
-    fake->mGenerator->addListener(fake);
+    fake->mGenerator->AddListener(fake);
     return fake;
 }
 

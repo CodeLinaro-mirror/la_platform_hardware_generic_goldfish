@@ -19,8 +19,8 @@
 
 #include "google/protobuf/util/message_differencer.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "android/grpc/utils/simple_async_grpc.h"
+#include "goldfish/eventing/event_sources.h"
 
 #define DEBUG_EVT 0
 
@@ -35,8 +35,8 @@ namespace emulation {
 namespace control {
 
 using android::base::eventing::CallbackEventSource;
-using android::base::eventing::event_param;
 using android::base::eventing::EventListener;
+using android::base::eventing::EventParam;
 
 /**
  * BaseEventStreamWriter is a class for writing events of type T to a gRPC
@@ -62,10 +62,10 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
      */
     BaseEventStreamWriter(ChangeSupport* listener) : mListener(listener) {
         mCallbackId =
-                mListener->addCallback([this](const Event event) { this->eventArrived(event); });
+                mListener->AddCallback([this](const Event event) { this->EventArrived(event); });
     }
 
-    virtual ~BaseEventStreamWriter() { mListener->removeCallback(mCallbackId); }
+    virtual ~BaseEventStreamWriter() { mListener->RemoveCallback(mCallbackId); }
 
     /**
      * Overrides the SimpleServerWriter<T, EventWriterPolicy>::OnDone() method
@@ -81,7 +81,7 @@ class BaseEventStreamWriter : public SimpleServerWriter<T>, EventListener<Event>
      */
     void OnCancel() override {
         DD_EVT("Cancelled %p", this);
-        mListener->removeCallback(mCallbackId);
+        mListener->RemoveCallback(mCallbackId);
         grpc::ServerWriteReactor<T>::Finish(grpc::Status::CANCELLED);
     }
 
@@ -109,7 +109,7 @@ class GenericEventStreamWriter : public BaseEventStreamWriter<T, T> {
      * @param event The event of type T that has arrived and needs to be
      * handled.
      */
-    void eventArrived(typename event_param<T>::type event) override {
+    void EventArrived(typename EventParam<T>::type event) override {
         DD_EVT("Handling %p, %s", this, event.ShortDebugString().c_str());
         SimpleServerWriter<T>::Write(event);
     };
@@ -144,7 +144,7 @@ class UniqueEventStreamWriter : public GenericEventStreamWriter<T> {
      * @param event The event of type T that has arrived and needs to be written
      *        to the client.
      */
-    void eventArrived(typename event_param<T>::type event) override {
+    void EventArrived(typename EventParam<T>::type event) override {
         const std::lock_guard<std::mutex> lock(mEventLock);
         if (!google::protobuf::util::MessageDifferencer::Equals(event, mLastEvent)) {
             mLastEvent = event;

@@ -30,8 +30,8 @@ class NotificationStreamWriter : public UniqueEventStreamWriter<GrpcNotification
             : UniqueEventStreamWriter<GrpcNotification>(topic) {}
 
     // Dispatch an event if it is actually there.
-    void eventArrived(GrpcNotification event) {
-        UniqueEventStreamWriter<GrpcNotification>::eventArrived(std::move(event));
+    void EventArrived(GrpcNotification event) {
+        UniqueEventStreamWriter<GrpcNotification>::EventArrived(std::move(event));
     }
 };
 

@@ -23,8 +23,8 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "android/emulation/control/emulator_grpc_client.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace android {
 namespace emulation {

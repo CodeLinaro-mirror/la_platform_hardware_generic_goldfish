@@ -203,7 +203,7 @@ void GrpcConnectionMonitor::asyncWorker() {
 
 void GrpcConnectionMonitor::setConnectionState(ConnectionState state) {
     mState = state;
-    mStateChanges.fireEvent(state);
+    mStateChanges.FireEvent(state);
 }
 
 }  // namespace control

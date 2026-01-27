@@ -19,8 +19,8 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "goldfish/display/pixman_image_ptr.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::display::test {
 

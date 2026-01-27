@@ -50,6 +50,7 @@ cc_test(
     srcs = [
         "display_service_test.cc",
         "qemu_stubs.c",
+        "sensor_service_test.cc",
         "test/GrpcServiceTest.h",
         "vm_service_test.cc",
     ],

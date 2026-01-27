@@ -95,6 +95,47 @@ void PhysicalModel::SetSensorValue(const AndroidSensor sensor_id, const SensorVa
     SetSensorValueImpl(sensor_id, val.data(), val.size());
 }
 
+size_t PhysicalModel::GetPhysicalParameterSize(PhysicalParameter parameter) {
+#define VALUE_SIZE_float 1
+#define VALUE_SIZE_vec3 3
+#define VALUE_SIZE_vec4 4
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W) \
+    case PhysicalParameter::X:                      \
+        return VALUE_SIZE_##W;
+
+    switch (parameter) {
+        GOLDFISH_PHYSICAL_PARAMETERS_LIST
+    case PhysicalParameter::MAX_PHYSICAL_PARAMETERS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected parameter: " << static_cast<int>(parameter);
+
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
+#undef VALUE_SIZE_vec4
+#undef VALUE_SIZE_vec3
+#undef VALUE_SIZE_float
+}
+
+void PhysicalModel::GetPhysicalParameterValue(const PhysicalParameter parameter, float* out,
+                                              const size_t count,
+                                              const ParameterValueType parameter_value_type) const {
+#define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W)                   \
+    case PhysicalParameter::X:                                        \
+        getValues(getParameter##Z(parameter_value_type), out, count); \
+        return;
+
+    switch (parameter) {
+        GOLDFISH_PHYSICAL_PARAMETERS_LIST
+    case PhysicalParameter::MAX_PHYSICAL_PARAMETERS:
+        break;
+    }
+
+    LOG(FATAL) << "Unexpected parameter: " << static_cast<int>(parameter);
+
+#undef GOLDFISH_PHYSICAL_PARAMETER_DEF
+}
+
 size_t PhysicalModel::GetSensorValueSize(AndroidSensor sensor_id) {
 #define VALUE_SIZE_float 1
 #define VALUE_SIZE_vec3 3
@@ -194,7 +235,12 @@ void PhysicalModel::SetCurrentTime(int64_t time_ns) {
 }
 
 void PhysicalModel::SetGravity(float x, float y, float z) {
-    ambient_environment_.SetGravity(glm::vec3(x, y, z), PhysicalInterpolation::kStep);
+    PhysicalStateChanging();
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        ambient_environment_.SetGravity(glm::vec3(x, y, z), PhysicalInterpolation::kStep);
+    }
+    TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolation mode) {
@@ -677,7 +723,7 @@ void PhysicalModel::PhysicalStateChanging() {
         .type = PhysicalModelChangeEvent::Type::kPhysicalStateChanging,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 void PhysicalModel::PhysicalStateStabilized() {
@@ -697,7 +743,7 @@ void PhysicalModel::PhysicalStateStabilized() {
         .type = PhysicalModelChangeEvent::Type::kPhysicalStateStabilized,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 void PhysicalModel::TargetStateChanged() {
@@ -713,7 +759,7 @@ void PhysicalModel::TargetStateChanged() {
         .type = PhysicalModelChangeEvent::Type::kTargetStateChanged,
         .model = this,
     };
-    fireEvent(event);
+    FireEvent(event);
 }
 
 }  // namespace goldfish::sensors

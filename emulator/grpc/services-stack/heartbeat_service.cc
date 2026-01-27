@@ -46,7 +46,7 @@ namespace control {
 class EventReceiver {
   public:
     virtual ~EventReceiver() = default;
-    virtual void eventArrived() = 0;
+    virtual void EventArrived() = 0;
 };
 
 // A global heart beat...
@@ -83,7 +83,7 @@ class Beat {
                 const std::lock_guard<std::mutex> lock(mListenerLock);
 
                 for (auto waiter : mListeners) {
-                    waiter->eventArrived();
+                    waiter->EventArrived();
                 }
             }
         }
@@ -102,7 +102,7 @@ std::unique_ptr<Beat> s_global_beat = std::make_unique<Beat>();
 // A bridge from event receiver --> EventWatiter
 class SyncHeartbeatReceiver : public EventWaiter, public EventReceiver {
   public:
-    void eventArrived() override { newEvent(); };
+    void EventArrived() override { newEvent(); };
 };
 
 // The synchronous version of or our Heartbeat service.

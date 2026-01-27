@@ -32,7 +32,7 @@ class PixmanDisplay : public IDisplay {
 
     virtual void updateSourceImage(::pixman_image_t* image) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
     absl::StatusOr<FrameInfo> getPixels(PixelFormat format, int newWidth, int newHeight,
-                                        int rotation, uint8_t* pixels,
+                                        ImageRotation rotation, uint8_t* pixels,
                                         size_t* cPixels) const override;
     void updateSurface(int x, int y, int width, int height) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
 

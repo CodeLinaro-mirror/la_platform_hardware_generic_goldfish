@@ -26,7 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-#include "aemu/base/events/EventSources.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::async {
 
@@ -272,7 +272,7 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     void SetState(LooperStatusEvent::State new_state) {
         const LooperStatusEvent::State old_state = state_.exchange(new_state);
         if (old_state != new_state) {
-            fireEvent({.state = new_state});
+            FireEvent({.state = new_state});
         }
     }
 

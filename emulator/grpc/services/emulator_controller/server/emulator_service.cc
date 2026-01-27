@@ -101,6 +101,16 @@ class EmulatorControllerImpl final
         return mSensorService.getSensor(*request, reply);
     }
 
+    Status setPhysicalModel(ServerContext* /*context*/, const PhysicalModelValue* request,
+                            google::protobuf::Empty* /*reply*/) override {
+        return mSensorService.setPhysicalModel(*request);
+    }
+
+    Status getPhysicalModel(ServerContext* /*context*/, const PhysicalModelValue* request,
+                            PhysicalModelValue* reply) override {
+        return mSensorService.getPhysicalModel(*request, reply);
+    }
+
     ::grpc::ServerWriteReactor<ClipData>* streamClipboard(::grpc::CallbackServerContext* context,
                                                           const Empty* /*request*/) override {
         return mClipboardService.streamClipboard(ClipboardServiceImpl::getPeerId(*context));

@@ -302,7 +302,7 @@ TEST_F(CallbackClientTest, EventSource_FiresCorrectStates) {
     StartServer();
     auto client = CreateClient(server_address);
     std::vector<ConnectionState> received_states;
-    auto handle = android::base::eventing::makeScopedCallback(
+    auto handle = android::base::eventing::MakeScopedCallback(
             client->connectionStateChanges(),
             [&](ConnectionState s) { received_states.push_back(s); });
 
@@ -327,7 +327,7 @@ TEST_F(CallbackClientTest, LivenessMonitor_DetectsServerShutdown) {
     absl::Mutex m;
     absl::CondVar cv;
     std::vector<ConnectionState> received_states;
-    auto handle = android::base::eventing::makeScopedCallback(client->connectionStateChanges(),
+    auto handle = android::base::eventing::MakeScopedCallback(client->connectionStateChanges(),
                                                               [&](ConnectionState s) {
                                                                   absl::MutexLock lock(&m);
                                                                   received_states.push_back(s);
@@ -363,7 +363,7 @@ TEST_F(CallbackClientTest, Disconnect_FromCallback_DoesNotDeadlock) {
     absl::CondVar cv;
     bool disconnected_event_fired = false;
 
-    auto handle = android::base::eventing::makeScopedCallback(
+    auto handle = android::base::eventing::MakeScopedCallback(
             client->connectionStateChanges(), [&](ConnectionState s) {
                 if (s == ConnectionState::Connected) {
                     client->disconnect();

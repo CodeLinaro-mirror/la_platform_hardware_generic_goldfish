@@ -30,11 +30,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/goldfish/ini_file.h"
 #include "emulator/grpc/client/grpc_channel_factory.h"
 #include "emulator/grpc/client/grpc_connection_monitor.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace android {
 namespace emulation {
@@ -83,7 +83,7 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
     absl::Mutex mChannelMutex;
     std::shared_ptr<::grpc::Channel> mChannel ABSL_GUARDED_BY(mChannelMutex);
     std::unique_ptr<GrpcConnectionMonitor> mMonitor;
-    decltype(android::base::eventing::makeScopedCallback(
+    decltype(android::base::eventing::MakeScopedCallback(
             std::declval<android::base::eventing::CallbackEventSource<ConnectionState>&>(),
             std::function<void(ConnectionState)>())) mMonitorCallbackHandle;
 
@@ -96,12 +96,12 @@ absl::Status EmulatorGrpcClientImpl::connect(absl::Duration timeout) {
     if (!mState.compare_exchange_strong(expected, ConnectionState::Connecting)) {
         return absl::AlreadyExistsError("Connection is already active or connecting.");
     }
-    mConnectionStateSource.fireEvent(ConnectionState::Connecting);
+    mConnectionStateSource.FireEvent(ConnectionState::Connecting);
 
     createChannelIfNeeded();
     if (!getChannel()) {
         mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.fireEvent(ConnectionState::Disconnected);
+        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
         return absl::InvalidArgumentError(
                 "Failed to create gRPC channel. Check TLS configuration for "
                 "non-local addresses.");
@@ -112,11 +112,11 @@ absl::Status EmulatorGrpcClientImpl::connect(absl::Duration timeout) {
 
     if (connected) {
         mState.store(ConnectionState::Connected, std::memory_order_release);
-        mConnectionStateSource.fireEvent(ConnectionState::Connected);
+        mConnectionStateSource.FireEvent(ConnectionState::Connected);
         return absl::OkStatus();
     } else {
         mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.fireEvent(ConnectionState::Disconnected);
+        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
         return absl::DeadlineExceededError("Failed to connect within timeout.");
     }
 }
@@ -128,22 +128,22 @@ std::future<absl::Status> EmulatorGrpcClientImpl::connectAsync(absl::Duration ti
                 absl::AlreadyExistsError("Connection is already active or connecting."));
     }
     mShuttingDown.store(false, std::memory_order_release);
-    mConnectionStateSource.fireEvent(ConnectionState::Connecting);
+    mConnectionStateSource.FireEvent(ConnectionState::Connecting);
 
     createChannelIfNeeded();
     if (!getChannel()) {
         mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.fireEvent(ConnectionState::Disconnected);
+        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
         return make_ready_status_future(absl::InternalError("Failed to create gRPC channel."));
     }
 
     mMonitor = std::make_unique<GrpcConnectionMonitor>(getChannel());
-    mMonitorCallbackHandle = android::base::eventing::makeScopedCallback(
+    mMonitorCallbackHandle = android::base::eventing::MakeScopedCallback(
             mMonitor->mStateChanges, [weak_self = weak_from_this()](ConnectionState state) {
                 // Forward channel state event, (if we are still alive.)
                 if (auto self = weak_self.lock()) {
                     self->mState.store(state, std::memory_order_release);
-                    self->mConnectionStateSource.fireEvent(state);
+                    self->mConnectionStateSource.FireEvent(state);
                 }
             });
 
@@ -163,7 +163,7 @@ void EmulatorGrpcClientImpl::disconnect() {
         mMonitor->stop();
     }
     mState.store(ConnectionState::Disconnected, std::memory_order_release);
-    mConnectionStateSource.fireEvent(ConnectionState::Disconnected);
+    mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
 }
 
 absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientImpl::newContext() {

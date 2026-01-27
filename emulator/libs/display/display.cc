@@ -23,29 +23,50 @@
 
 namespace goldfish::display {
 
-std::pair<int, int> IDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
+Orientation IDisplay::getOrientation(int w, int h) {
+    if (w > h) return Orientation::kLandscape;
+    if (h > w) return Orientation::kPortrait;
+    return Orientation::kSquare;
+}
+
+IDisplay::LogicalFit IDisplay::calculateLogicalFit(int desiredWidth, int desiredHeight) const {
     Dimensions dims = GetDimensions();
-    if (dims.width <= 0 || dims.height <= 0) {
-        return {0, 0};
+    if (dims.width <= 0 || dims.height <= 0 || desiredWidth <= 0 || desiredHeight <= 0) {
+        return {0, 0, false};
     }
 
-    // Use 64-bit integers for the cross-multiplication to prevent overflow.
-    int64_t h64 = dims.height;
-    int64_t w64 = dims.width;
+    // We determine the source orientation based on the requested box.
+    // If the box is rectangular (not square) and its orientation differs
+    // from the physical display, we swap the source dimensions to calculate
+    // the logical fit. Square sources or square boxes do not trigger a swap.
+    Orientation boxOri = getOrientation(desiredWidth, desiredHeight);
+    Orientation sourceOri = getOrientation(dims.width, dims.height);
 
-    // Note that we will never scale above display device width and height.
-    desiredWidth = std::min<int64_t>(desiredWidth, w64);
-    desiredHeight = std::min<int64_t>(desiredHeight, h64);
+    bool swapped = (boxOri == Orientation::kLandscape && sourceOri == Orientation::kPortrait) ||
+                   (boxOri == Orientation::kPortrait && sourceOri == Orientation::kLandscape);
 
-    if (static_cast<int64_t>(desiredWidth) * h64 < static_cast<int64_t>(desiredHeight) * w64) {
-        // Width is the limiting factor, so we scale to the desired width.
-        int newHeight = static_cast<int>((h64 * desiredWidth) / w64);
-        return {desiredWidth, newHeight};
+    int64_t sWidth = swapped ? dims.height : dims.width;
+    int64_t sHeight = swapped ? dims.width : dims.height;
+
+    // Note that we will never scale above logical display device width and height.
+    desiredWidth = std::min<int64_t>(desiredWidth, sWidth);
+    desiredHeight = std::min<int64_t>(desiredHeight, sHeight);
+
+    if (static_cast<int64_t>(desiredWidth) * sHeight <
+        static_cast<int64_t>(desiredHeight) * sWidth) {
+        // Width is the limiting factor.
+        int newHeight = static_cast<int>((sHeight * desiredWidth) / sWidth);
+        return {desiredWidth, newHeight, swapped};
     } else {
-        // Height is the limiting factor, so we scale to the desired height.
-        int newWidth = static_cast<int>((w64 * desiredHeight) / h64);
-        return {newWidth, desiredHeight};
+        // Height is the limiting factor.
+        int newWidth = static_cast<int>((sWidth * desiredHeight) / sHeight);
+        return {newWidth, desiredHeight, swapped};
     }
+}
+
+std::pair<int, int> IDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
+    auto fit = calculateLogicalFit(desiredWidth, desiredHeight);
+    return {fit.width, fit.height};
 }
 
 std::string IDisplay::string() const {
@@ -53,5 +74,6 @@ std::string IDisplay::string() const {
     return absl::StrFormat("Display: %d (%dx%d), seq: %u", mDisplayId, dims.width, dims.height,
                            seq().sequenceNumber);
 }
+
 
 }  // namespace goldfish::display

@@ -64,7 +64,7 @@ TEST_F(PixmanDisplayConcurrencyTest, ConcurrentGetPixelsDifferentScales) {
             for (int j = 0; j < kNumIterations; ++j) {
                 size_t currentCPixels = cPixels;
                 auto result = display->getPixels(PixelFormat::RGBA8888, targetWidth, targetHeight,
-                                                 0, pixels.data(), &currentCPixels);
+                                                 ImageRotation::kRotation0, pixels.data(), &currentCPixels);
                 if (result.ok()) {
                     successCount++;
                     // Basic sanity check: make sure we got some data
@@ -112,7 +112,7 @@ TEST_F(PixmanDisplayConcurrencyTest, ConcurrentUpdateAndGetPixels) {
 
             while (running) {
                 size_t currentCPixels = cPixels;
-                display->getPixels(PixelFormat::RGBA8888, targetWidth, targetHeight, 0,
+                display->getPixels(PixelFormat::RGBA8888, targetWidth, targetHeight, ImageRotation::kRotation0,
                                    pixels.data(), &currentCPixels);
             }
         });

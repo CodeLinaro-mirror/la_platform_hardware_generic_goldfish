@@ -22,9 +22,9 @@
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
 
-#include "aemu/base/events/MultiEventSourceWaiter.h"
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
+#include "goldfish/eventing/multi_event_source_waiter.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
 #include "goldfish/physics/rotation.h"
@@ -37,6 +37,7 @@ using android::base::eventing::MultiEventSourceWaiter;
 using ::goldfish::display::FrameInfo;
 using ::goldfish::display::FrameInfoCallbackSource;
 using ::goldfish::display::IDisplay;
+using ::goldfish::display::ImageRotation;
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
 using ::goldfish::eventing::ObservableValue;
@@ -105,18 +106,18 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     }
 
     DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
-    const auto deviceSkinRotationSubscription = android::base::eventing::makeScopedCallback(
+    const auto deviceSkinRotationSubscription = android::base::eventing::MakeScopedCallback(
             mPhysicalModel,
             [this, &deviceSkinRotationCallbackSource](const PhysicalModelChangeEvent& event) {
                 if (event.type == PhysicalModelChangeEvent::Type::kTargetStateChanged) {
-                    deviceSkinRotationCallbackSource.fireEvent(
+                    deviceSkinRotationCallbackSource.FireEvent(
                             mPhysicalModel.GetDeviceRotation().rotation);
                 }
             });
 
     MultiEventSourceWaiter frameOrSensorEvent;
-    frameOrSensorEvent.listen<FrameInfoCallbackSource>(display.get());
-    frameOrSensorEvent.listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
+    frameOrSensorEvent.Listen<FrameInfoCallbackSource>(display.get());
+    frameOrSensorEvent.Listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
 
     // TODO(jansene): Bring back metrics.
     // Track percentiles, and report if we have seen at least 32 frames.
@@ -124,12 +125,12 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool firstTime = true;
     while (clientAvailable) {
         const auto kTimeToWaitForFrame = absl::Milliseconds(125);
-        bool framesArrived = frameOrSensorEvent.waitForNextEvent(kTimeToWaitForFrame, frame);
+        bool framesArrived = frameOrSensorEvent.WaitForNextEvent(kTimeToWaitForFrame, frame);
         if ((framesArrived || firstTime) && !context->IsCancelled()) {
             // TODO(jansene): It might have been possible for a frame to have been
             // delivered between framesArrived and this call, which resulted in
             // the increment of the frame counter. We would not "see" this frame.
-            frame = frameOrSensorEvent.getEventSequence();
+            frame = frameOrSensorEvent.GetEventSequence();
             auto status = getScreenshot(context, request, &reply);
             if (status.error_code() == grpc::StatusCode::FAILED_PRECONDITION) {
                 continue;
@@ -204,35 +205,27 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     if (desiredWidth == 0 || desiredHeight == 0) {
         desiredWidth = dims.width;
         desiredHeight = dims.height;
-
-        // Make sure they are in the right direction based on layout
-        if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
-            deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
-            std::swap(desiredWidth, desiredHeight);
-        }
     }
 
-    uint32_t width = dims.width;
-    uint32_t height = dims.height;
-
-    // the desiredWidth and height are not stable at the moment
+    // the desiredWidth and display height are not stable at the moment
     // they switch from 616x1218 to 616x1080, and that behavior
     // caused some confusion in embedded ui; in addition, the
     // sensor does not give correct orientation neither, sometime
     // it shows landscape, no idea what went wrong. for now,
     // just do a simple scale according to the ratio of display w/h
     // TODO: fix this b/448504524
-    const double desired_over_display_ratio = ((double)desiredWidth) / ((double)width);
-    desiredHeight = (int)(desired_over_display_ratio * height);
+    const double desired_over_display_ratio = ((double)desiredWidth) / ((double)dims.width);
+    desiredHeight = (int)(desired_over_display_ratio * dims.height);
+
 
     // Depending on the rotation state width and height need to be
     // reversed. as our apsect ration depends on how we are holding our
     // phone..
     if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
         deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
-        VLOG(2) << "Swapping width & height " << width << "x" << height << " to " << height << "x"
-                << width;
-        std::swap(width, height);
+        VLOG(2) << "Swapping width & height " << desiredWidth << "x" << desiredHeight << " to "
+                << desiredHeight << "x" << desiredWidth;
+        std::swap(desiredWidth, desiredHeight);
 
         // TODO(jansene): Support for folded device.
         // if (not_pixel_fold && isFolded) {
@@ -240,18 +233,35 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         //     std::swap(rect.size.w, rect.size.h);
         // }
     }
+
     // Calculate width and height, keeping aspect ratio in mind.
     auto [newWidth, newHeight] = display->resizeKeepAspectRatio(desiredWidth, desiredHeight);
 
     VLOG(2) << "Resizing from " << desiredWidth << "x" << desiredHeight << " to " << newWidth << "x"
             << newHeight;
-    int rotationDeg = 0;
+
+    ImageRotation rotation = ImageRotation::kRotation0;
+    switch (deviceRotation.rotation) {
+    case DeviceSkinRotation::kPortrait:
+        rotation = ImageRotation::kRotation0;
+        break;
+    case DeviceSkinRotation::kLandscape:
+        rotation = ImageRotation::kRotation90;
+        break;
+    case DeviceSkinRotation::kReversePortrait:
+        rotation = ImageRotation::kRotation180;
+        break;
+    case DeviceSkinRotation::kReverseLandscape:
+        rotation = ImageRotation::kRotation270;
+        break;
+    }
+
     char* unsafe = reply->mutable_image()->data();
     uint8_t* pixels = reinterpret_cast<uint8_t*>(unsafe);
     size_t cPixels = reply->mutable_image()->size();
     PixelFormat format = fromProtobuf(request->format());
 
-    auto seq = display->getPixels(format, newWidth, newHeight, rotationDeg, pixels, &cPixels);
+    auto seq = display->getPixels(format, newWidth, newHeight, rotation, pixels, &cPixels);
     if (absl::IsFailedPrecondition(seq.status())) {
         VLOG(2) << "Allocating string object: " << seq.status();
         auto buffer = new std::string(cPixels, 0);
@@ -261,7 +271,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
         unsafe = reply->mutable_image()->data();
         pixels = reinterpret_cast<uint8_t*>(unsafe);
         cPixels = reply->mutable_image()->size();
-        seq = display->getPixels(format, newWidth, newHeight, rotationDeg, pixels, &cPixels);
+        seq = display->getPixels(format, newWidth, newHeight, rotation, pixels, &cPixels);
         if (format == PixelFormat::PNG && cPixels < reply->mutable_image()->size()) {
             reply->mutable_image()->resize(cPixels);
         }

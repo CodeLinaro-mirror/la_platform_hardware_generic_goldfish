@@ -20,9 +20,9 @@
 
 #include <memory>
 
-#include "aemu/base/events/EventSources.h"
 #include "android/goldfish/hardware_config.h"
 #include "emulator/config/test/android/goldfish/fake_hardware_config.h"
+#include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::sensors {
 
@@ -269,7 +269,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
 
-    auto scoped = android::base::eventing::makeScopedCallback(
+    auto scoped = android::base::eventing::MakeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
@@ -341,7 +341,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::base::eventing::makeScopedCallback(
+    auto scoped = android::base::eventing::MakeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
@@ -418,7 +418,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 
     static bool targetStateChanged = false;
     static bool physicalStateChanging = false;
-    auto scoped = android::base::eventing::makeScopedCallback(
+    auto scoped = android::base::eventing::MakeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
@@ -519,7 +519,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
 
     bool targetStateChanged = false;
     bool physicalStateChanging = false;
-    auto scoped = android::base::eventing::makeScopedCallback(
+    auto scoped = android::base::eventing::MakeScopedCallback(
             *model, [&](PhysicalModelChangeEvent event) {
                 switch (event.type) {
                 case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:

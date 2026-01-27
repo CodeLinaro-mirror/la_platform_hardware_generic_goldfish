@@ -56,7 +56,7 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
      *
      * @param event The clipboard event that has arrived.
      */
-    void eventArrived(const ClipboardEvent& event) override {
+    void EventArrived(const ClipboardEvent& event) override {
         const std::lock_guard<std::mutex> lock(mEventLock);
         if (google::protobuf::util::MessageDifferencer::Equals(event.data, mLastEvent)) {
             VLOG(1) << "ignoring clipboard event for: " << mPeerId
@@ -83,12 +83,12 @@ class ClipDataEventStreamWriter : public BaseEventStreamWriter<ClipData, Clipboa
 }  // namespace
 
 ClipboardServiceImpl::ClipboardServiceImpl(ClipboardChannel& channel) : mClipboardChannel(channel) {
-    mGuestUpdatesCallbackId = mClipboardChannel.guest_to_host.addCallback(
-            [this](const ClipboardData& clip) { mGuestUpdates.fireEvent(toClipboardEvent(clip)); });
+    mGuestUpdatesCallbackId = mClipboardChannel.guest_to_host.AddCallback(
+            [this](const ClipboardData& clip) { mGuestUpdates.FireEvent(toClipboardEvent(clip)); });
 }
 
 ClipboardServiceImpl::~ClipboardServiceImpl() {
-    mClipboardChannel.guest_to_host.removeCallback(mGuestUpdatesCallbackId);
+    mClipboardChannel.guest_to_host.RemoveCallback(mGuestUpdatesCallbackId);
 }
 
 /**
@@ -107,7 +107,7 @@ ClipboardServiceImpl::~ClipboardServiceImpl() {
  */
 ::grpc::ServerWriteReactor<ClipData>* ClipboardServiceImpl::streamClipboard(std::string peerId) {
     auto stream = std::make_unique<ClipDataEventStreamWriter>(&mGuestUpdates, std::move(peerId));
-    stream->eventArrived(toClipboardEvent(mClipboardChannel.guest_to_host.GetValue()));
+    stream->EventArrived(toClipboardEvent(mClipboardChannel.guest_to_host.GetValue()));
     return stream.release();
 }
 

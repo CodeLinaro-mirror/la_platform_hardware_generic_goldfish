@@ -17,9 +17,9 @@
 
 #include "absl/synchronization/mutex.h"
 
-#include "aemu/base/events/EventSources.h"
 #include "emulator/libs/display/include/goldfish/display/test/pixman_image_generator.h"
 #include "goldfish/display/pixman_display.h"
+#include "goldfish/eventing/event_sources.h"
 
 extern "C" {
 // clang-format off
@@ -192,7 +192,7 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      *
      * @param image The newly generated pixman image.
      */
-    void eventArrived(const PixmanImagePtr& image) override;
+    void EventArrived(const PixmanImagePtr& image) override;
 
     /**
      * @brief Starts the image generation process.
