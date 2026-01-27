@@ -180,9 +180,11 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
     const PixmanImagePtr dst_img(
             pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
 
-    Dimensions dims = GetDimensions();
-    assert(pixman_image_get_width(src_img) == dims.width);
-    assert(pixman_image_get_height(src_img) == dims.height);
+    // Note: the source image dimensions do not have to match the current display dimensions,
+    // since during boot we switch from the "qemu default screen (no display present)" to the
+    // actual display size, which can happen at any time.
+    Dimensions dims = {.width = static_cast<uint32_t>(pixman_image_get_width(src_img)),
+                       .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
 
     double scale_x = (double)dims.width / (double)newWidth;
     double scale_y = (double)dims.height / (double)newHeight;
