@@ -105,7 +105,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({"androidboot.serialno", serialno});
     }
 
-    if (opts.guest_angle) {
+    // Use Guest ANGLE by default
+    if (!opts.no_guest_angle) {
         // Enable GuestAngle (ro.hardware.egl = angle).
         params.push_back({hwEglProp, "angle"});
     }

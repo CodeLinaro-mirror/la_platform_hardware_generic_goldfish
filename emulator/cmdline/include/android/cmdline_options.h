@@ -315,7 +315,8 @@ OPT_FLAG(no_mouse_reposition,
          "Do not reposition the mouse to emulator window center if mouse "
          "pointer gets out of the window.")
 
-OPT_FLAG(guest_angle, "Enable guest ANGLE as system driver.")
+OPT_FLAG(no_guest_angle, "Disable ANGLE as the guest system GLES driver.")
+OPT_FLAG(no_vulkan_composition, "Disable Vulkan host compositon.")
 
 OPT_FLAG(skiavk, "Enable skia vk as hwui renderer.")
 OPT_FLAG(not_in_bazel, "Run as if not in bazel build environment.")

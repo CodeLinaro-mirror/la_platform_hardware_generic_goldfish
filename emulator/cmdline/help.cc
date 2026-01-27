@@ -1552,8 +1552,12 @@ static void help_no_mouse_reposition(stralloc_t* out) {
            "  like VNC or Chrome remote desktop.\n");
 }
 
-static void help_guest_angle(stralloc_t* out) {
-    PRINTF(" Enables ANGLE as the guest system GLES driver, using Vulkan to render on the host.\n");
+static void help_no_guest_angle(stralloc_t* out) {
+    PRINTF(" Disables ANGLE as the guest system GLES driver.\n");
+}
+
+static void help_no_vulkan_composition(stralloc_t* out) {
+    PRINTF(" Disables Vulkan host compositon.\n");
 }
 
 static void help_skiavk(stralloc_t* out) {
