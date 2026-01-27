@@ -32,16 +32,28 @@ absl::Status GpuDevice::initialize(const EmulatorConfig& emulator) {
 std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     const auto& hw = emulator.avd().Hw();
     const AndroidOptions& opts = emulator.opts();
-    return {
-        "-device",
-        absl::StrJoin(
-                {"virtio-gpu-rutabaga", "x-gfxstream-gles=on",
-                 opts.renderer_features ? absl::StrCat("gfxstream-vulkan=on,renderer_features=",
-                                                       opts.renderer_features)
-                                        : "gfxstream-vulkan=on",
-                 "x-gfxstream-composer=on", "hostmem=256M", absl::StrCat("id=", mGpuName),
-                 absl::StrCat("xres=", hw.hw_lcd_width), absl::StrCat("yres=", hw.hw_lcd_height)},
-                ",")};
+
+    std::string renderer_features = opts.renderer_features ? opts.renderer_features : "";
+    if (!opts.no_guest_angle) {
+        if (!renderer_features.empty()) {
+            renderer_features.append(";");
+        }
+        renderer_features.append("GuestVulkanOnly:enabled");
+    }
+    if (!opts.no_vulkan_composition) {
+        if (!renderer_features.empty()) {
+            renderer_features.append(";");
+        }
+        renderer_features.append("VulkanNativeSwapchain:enabled");
+    }
+
+    return {"-device",
+            absl::StrJoin({"virtio-gpu-rutabaga", absl::StrCat("id=", mGpuName), "hostmem=256M",
+                           "gfxstream-vulkan=on", "x-gfxstream-gles=on", "x-gfxstream-composer=on",
+                           absl::StrCat("renderer_features=", renderer_features),
+                           absl::StrCat("xres=", hw.hw_lcd_width),
+                           absl::StrCat("yres=", hw.hw_lcd_height)},
+                          ",")};
 }
 
 }  // namespace android::goldfish
