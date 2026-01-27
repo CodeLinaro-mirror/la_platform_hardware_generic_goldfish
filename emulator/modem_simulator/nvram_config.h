@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <filesystem>
+
 #include <json/json.h>
 
 namespace cuttlefish {
@@ -32,9 +34,9 @@ class NvramConfig {
   ~NvramConfig();
   NvramConfig& operator=(NvramConfig&&);
 
-  static std::string ConfigFileLocation();
+  static std::filesystem::path ConfigFileLocation();
   // Saves the configuration object in a file
-  bool SaveToFile(const std::string& file) const;
+  bool SaveToFile(const std::filesystem::path& file) const;
 
   class InstanceSpecific;
 
@@ -82,7 +84,7 @@ class NvramConfig {
   int sim_type_;
   std::unique_ptr<Json::Value> dictionary_;
 
-  bool LoadFromFile(const char* file);
+  bool LoadFromFile(const std::filesystem::path& file);
   static NvramConfig* BuildConfigImpl(size_t num_instances, int sim_type);
 
   void InitDefaultNvramConfig();

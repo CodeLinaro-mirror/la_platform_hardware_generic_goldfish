@@ -13,14 +13,14 @@
 // limitations under the License.
 #pragma once
 
-#include <string>
+#include <filesystem>
 
 namespace cuttlefish {
 
-bool FileExists(const std::string& path, bool follow_symlinks = true);
+bool FileExists(const std::filesystem::path& path, bool follow_symlinks = true);
 
-bool FileHasContent(const std::string& path);
+bool FileHasContent(const std::filesystem::path& path);
 
-std::string AbsolutePath(const std::string& path);
+std::filesystem::path AbsolutePath(const std::filesystem::path& path);
 
 }  // namespace cuttlefish

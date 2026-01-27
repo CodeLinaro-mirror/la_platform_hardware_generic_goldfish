@@ -17,25 +17,25 @@
 
 namespace cuttlefish {
 
-bool FileExists(const std::string& path, bool follow_symlinks) {
+bool FileExists(const std::filesystem::path& path, bool follow_symlinks) {
     std::error_code ec;
     const bool r = std::filesystem::exists(path, ec);
     return !ec && r;
 }
 
-bool FileHasContent(const std::string& path) {
+bool FileHasContent(const std::filesystem::path& path) {
     std::error_code ec;
     const std::uintmax_t sz = std::filesystem::file_size(path, ec);
     return !ec && (sz > 0);
 }
 
-std::string AbsolutePath(const std::string& path) {
+std::filesystem::path AbsolutePath(const std::filesystem::path& path) {
     std::error_code ec;
     auto ap = std::filesystem::absolute(path, ec);
     if (ec) {
         return {};
     } else {
-        return ap.string();
+        return ap;
     }
 }
 

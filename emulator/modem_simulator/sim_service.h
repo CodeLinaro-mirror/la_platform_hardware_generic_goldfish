@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <filesystem>
+
 #include <tinyxml2.h>
 
 #include "host/commands/modem_simulator/modem_service.h"
@@ -183,8 +185,11 @@ class SimService : public ModemService, public std::enable_shared_from_this<SimS
     XMLElement* AppendNewElementWithText(XMLElement* parent, const char* name,
                                          const char* text);
 
+    XMLError Load();
+    void Save();
+
     XMLDocument doc;
-    std::string file_path;
+    std::filesystem::path file_path;
   };
   SimFileSystem sim_file_system_;
 
