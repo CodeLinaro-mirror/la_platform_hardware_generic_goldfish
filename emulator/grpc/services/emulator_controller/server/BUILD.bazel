@@ -61,6 +61,7 @@ cc_test(
         "//android/process",
         "//android/system:googletest_main",
         "//emulator/config:fake_hardware_config",
+        "//emulator/grpc/services/emulator_controller/keyboard:test_qemu_input_stub",
         "//emulator/libs/display:test-display",
         "//emulator/plugin/vminterface:test_vminterface",
         "//emulator/plugin/vminterface:vminterface-test",
