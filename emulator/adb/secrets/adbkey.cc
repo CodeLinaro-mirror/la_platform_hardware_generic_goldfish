@@ -206,7 +206,7 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     D("Looking in %s", home.c_str());
 
     auto guessedSrcAdbKeyPub = home / ".android" / adbKeyFileName;
-    (void)android::base::file::cp_file(adbKeyPath, guessedSrcAdbKeyPub);
+    android::base::file::cp_file(adbKeyPath, guessedSrcAdbKeyPub).IgnoreError();
 
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
