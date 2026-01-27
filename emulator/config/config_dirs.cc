@@ -155,6 +155,26 @@ auto ConfigDirs::GetSdkRootDirectoryByPath(const fs::path& launcher_dir, bool ve
     return {};
 }
 
+fs::path ConfigDirs::GetSdkRootDefault(bool verbose) {
+    auto home = android::base::System::Get()->GetHomeDirectory();
+    if (home.empty()) {
+        LOG_IF(WARNING, verbose) << "User home directory not known";
+        return home;
+    }
+    fs::path sdk_root;
+#if defined(_WIN32)
+    sdk_root = home / "AppData" / "Local" / "Android" / "Sdk";
+#elif defined(__linux__)
+    sdk_root = home / "Android" / "Sdk";
+#elif defined(__APPLE__)
+    sdk_root = home / "Library" / "Android" / "sdk";
+#endif
+    if (IsValidSdkRoot(sdk_root, verbose)) {
+        return sdk_root;
+    }
+    return {};
+}
+
 // static
 auto ConfigDirs::GetSdkRootDirectory(const fs::path& launcher_dir, bool verbose) -> fs::path {
     auto sdk_root = GetSdkRootDirectoryByEnv(verbose);
@@ -164,9 +184,15 @@ auto ConfigDirs::GetSdkRootDirectory(const fs::path& launcher_dir, bool verbose)
 
     LOG_IF(WARNING, verbose) << "Cannot find valid sdk root from environment "
                                 "variable ANDROID_HOME nor ANDROID_SDK_ROOT,"
-                                "Try to infer from emulator's path";
+                                "trying to infer from emulator's path.";
     // Otherwise, infer from the path of the emulator's binary.
-    return GetSdkRootDirectoryByPath(launcher_dir, verbose);
+    sdk_root = GetSdkRootDirectoryByPath(launcher_dir, verbose);
+    if (!sdk_root.empty()) {
+        return sdk_root;
+    }
+
+    // Fall back to default installation location.
+    return GetSdkRootDefault(verbose);
 }
 
 // static

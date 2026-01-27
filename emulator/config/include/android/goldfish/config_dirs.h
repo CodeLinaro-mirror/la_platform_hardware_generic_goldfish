@@ -80,6 +80,14 @@ struct ConfigDirs {
     static fs::path GetSdkRootDirectoryByPath(const fs::path& launcher_dir, bool verbose = false);
 
     /**
+     * @brief Returns the default installation path to the root of the Android SDK if it is valid.
+     *
+     * @param verbose Whether to print verbose log messages.
+     * @return fs::path The path to the Android SDK root directory.
+     */
+    static fs::path GetSdkRootDefault(bool verbose);
+
+    /**
      * @brief Returns the path to the root of the Android SDK.
      *
      * @details This function combines the logic of `getSdkRootDirectoryByEnv()`
