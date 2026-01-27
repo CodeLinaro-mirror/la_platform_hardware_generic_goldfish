@@ -305,7 +305,7 @@ auto ConfigDirs::GetDiscoveryDirectory() -> fs::path {
                          << s;
         }
     } else {
-        base::file::chmod(desired_directory, 0755);
+        base::file::chmod(desired_directory, 0755).IgnoreError();
     }
     return desired_directory;
 }
