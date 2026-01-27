@@ -10,11 +10,16 @@
  * GNU General Public License for more details.
  */
 
-// clang-format off
-// IWYU pragma: begin_keep
 #include "goldfish/archive/qemu_file_reader.h"
 #include "goldfish/archive/qemu_file_writer.h"
-#include "goldfish/qemu_file.h"
+
+// clang-format off
+// IWYU pragma: begin_keep
+#include "qemu/compiler.h"
+extern "C" {
+#include "qemu/osdep.h"
+#include "migration/qemu-file-types.h"
+}
 // IWYU pragma: end_keep
 // clang-format on
 

@@ -75,20 +75,16 @@ cc_test(
 
 cc_library(
     name = "QEMUFileArchive",
-    srcs = [
-        "qemu_file_archive.cc",
-    ],
+    srcs = ["qemu_file_archive.cc"],
     hdrs = [
         "include/goldfish/archive/qemu_file_reader.h",
         "include/goldfish/archive/qemu_file_writer.h",
     ],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":archive",
-        "//emulator/libs/QEMUFile_h",
+        "@qemu//:qemu-headers",
     ],
 )
 

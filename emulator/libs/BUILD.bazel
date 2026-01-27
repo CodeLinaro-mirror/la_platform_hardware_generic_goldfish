@@ -5,7 +5,6 @@ clang_tidy_test(
     tags = ["manual"],
     targets = [
         # "//emulator/libs/QEMUBH:QEMUBH",
-        # "//emulator/libs/QEMUFile_h:QEMUFile_h",
         "//emulator/libs/SocketBuffer:SocketBuffer",
         "//emulator/libs/UniqueIdAllocator:UniqueIdAllocator",
         "//emulator/libs/archive:DequeArchive",
