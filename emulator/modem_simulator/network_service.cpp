@@ -197,7 +197,7 @@ void NetworkService::InitializeSimOperator() {
     }
 
     XMLDocument doc;
-    auto err = doc.LoadFile(file.c_str());
+    auto err = doc.LoadFile(file.string().c_str());  // FIXME: Unicode
     if (err != tinyxml2::XML_SUCCESS) {
       LOG(ERROR) << "unable to load XML file '" << file << " ', error " << err;
       return;

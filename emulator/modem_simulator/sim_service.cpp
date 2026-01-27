@@ -15,6 +15,7 @@
 
 #include "host/commands/modem_simulator/sim_service.h"
 
+#include <cstdio>
 #include <tinyxml2.h>
 
 #include "absl/log/log.h"
@@ -378,9 +379,8 @@ void SimService::InitializeSimFileSystemAndSimState() {
   }
   auto icc_profile_name = ss.str();
 
-  auto icc_profile_path = cuttlefish::modem::DeviceConfig::GetFilePath(
+  const auto icc_profile_path = cuttlefish::modem::DeviceConfig::GetFilePath(
       icc_profile_name.c_str());
-  std::string file = icc_profile_path;
 
   if (!cuttlefish::FileExists(icc_profile_path) ||
       !cuttlefish::FileHasContent(icc_profile_path.c_str())) {
@@ -389,9 +389,9 @@ void SimService::InitializeSimFileSystemAndSimState() {
   }
 
   sim_file_system_.file_path = icc_profile_path;
-  auto err = sim_file_system_.doc.LoadFile(file.c_str());
+  auto err = sim_file_system_.Load();
   if (err != tinyxml2::XML_SUCCESS) {
-    LOG(ERROR) << "Unable to load XML file '" << file << " ', error " << err;
+    LOG(ERROR) << "Unable to load XML file '" << icc_profile_path << " ', error " << err;
     sim_status_ = SIM_STATUS_ABSENT;
     return;
   }
@@ -620,8 +620,7 @@ void SimService::SavePinStateToIccProfile() {
     puk2_remaining_times->SetText(ss.str().c_str());
   }
 
-  // Save file
-  sim_file_system_.doc.SaveFile(sim_file_system_.file_path.c_str());
+  sim_file_system_.Save();
 }
 
 void SimService::SaveFacilityLockToIccProfile() {
@@ -654,7 +653,7 @@ void SimService::SaveFacilityLockToIccProfile() {
     }
   }
 
-  sim_file_system_.doc.SaveFile(sim_file_system_.file_path.c_str());
+  sim_file_system_.Save();
 
   InitializeSimFileSystemAndSimState();
   InitializeFacilityLock();
@@ -774,7 +773,7 @@ bool SimService::SetPhoneNumber(std::string_view number) {
   record[footerOffset + 1] = '0' + (newLength % 16);
 
   elem->SetText(record.c_str());
-  sim_file_system_.doc.SaveFile(sim_file_system_.file_path.c_str());
+  sim_file_system_.Save();
   return true;
 }
 
@@ -1004,7 +1003,7 @@ void SimService::HandleSIM_IO(const Client& client,
     std::string temp = "144,0,";
     temp += data;
     final->SetText(temp.c_str());
-    sim_file_system_.doc.SaveFile(sim_file_system_.file_path.c_str());
+    sim_file_system_.Save();
     response.append("144,0");
   } else {
     response.append(final->GetText());
@@ -1762,6 +1761,34 @@ void SimService::HandlePhoneNumberUpdate(const Client& client,
   CommandParser cmd(command);
   cmd.SkipWhiteSpace();
   SetPhoneNumber(cmd.GetNextStr(' '));
+}
+
+XMLError SimService::SimFileSystem::Load() {
+#ifdef _WIN32
+  XMLError res;
+  FILE* fp = ::_wfopen(file_path.c_str(), L"rb");
+  if (!fp) {
+    return XML_ERROR_FILE_COULD_NOT_BE_OPENED;
+  }
+  res = doc.LoadFile(fp);
+  ::fclose(fp);
+  return res;
+#else
+  return doc.LoadFile(file_path.c_str());
+#endif
+}
+
+void SimService::SimFileSystem::Save() {
+#ifdef _WIN32
+  FILE* fp = ::_wfopen(file_path.c_str(), L"wb");
+  if (!fp) {
+    return;
+  }
+  doc.SaveFile(fp);
+  ::fclose(fp);
+#else
+  doc.SaveFile(file_path.c_str());
+#endif
 }
 
 }  // namespace cuttlefish

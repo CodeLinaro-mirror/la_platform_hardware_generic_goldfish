@@ -32,12 +32,13 @@ class DeviceConfig {
   static void SetBasePath(std::filesystem::path base_path);
 
   static int host_id();
-  static std::string GetFilePath(const char* file_name);
+  static std::filesystem::path GetFilePath(const char* file_name);
   static std::string ril_address_and_prefix();
   static std::string ril_gateway();
   static std::string ril_dns();
-  static std::ifstream open_ifstream_crossplat(const char* filename);
-  static std::ofstream open_ofstream_crossplat(const char* filename, std::ios_base::openmode mode = std::ios_base::out);
+  static std::ifstream open_ifstream_crossplat(const std::filesystem::path& filename);
+  static std::ofstream open_ofstream_crossplat(const std::filesystem::path& filename,
+                                               std::ios_base::openmode mode = std::ios_base::out);
 };
 
 }  // namespace modem

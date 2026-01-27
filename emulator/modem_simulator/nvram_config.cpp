@@ -55,7 +55,7 @@ NvramConfig* NvramConfig::BuildConfigImpl(size_t num_instances, int sim_type) {
         !cuttlefish::FileHasContent(nvram_config_path.c_str())) {
       ret->InitDefaultNvramConfig();
     } else {
-      auto loaded = ret->LoadFromFile(nvram_config_path.c_str());
+      auto loaded = ret->LoadFromFile(nvram_config_path);
       if (!loaded) {
         /** Bug: (b/315167296)
          * Fall back to default nvram config if LoadFromFile fails.
@@ -102,12 +102,12 @@ NvramConfig::InstanceSpecific NvramConfig::ForInstance(int num) const {
   return InstanceSpecific(this, std::to_string(num));
 }
 
-/* static */ std::string NvramConfig::ConfigFileLocation() {
+/* static */ std::filesystem::path NvramConfig::ConfigFileLocation() {
   return cuttlefish::AbsolutePath(
       cuttlefish::modem::DeviceConfig::GetFilePath("modem_nvram.json"));
 }
 
-bool NvramConfig::LoadFromFile(const char* file) {
+bool NvramConfig::LoadFromFile(const std::filesystem::path& file) {
   auto real_file_path = cuttlefish::AbsolutePath(file);
   if (real_file_path.empty()) {
     LOG(ERROR) << "Could not get real path for file " << file;
@@ -115,7 +115,7 @@ bool NvramConfig::LoadFromFile(const char* file) {
   }
 
   Json::CharReaderBuilder builder;
-  std::ifstream ifs = modem::DeviceConfig::open_ifstream_crossplat(real_file_path.c_str());
+  std::ifstream ifs = modem::DeviceConfig::open_ifstream_crossplat(real_file_path);
   std::string errorMessage;
   if (!Json::parseFromStream(builder, ifs, dictionary_.get(), &errorMessage)) {
     LOG(ERROR) << "Could not read config file " << file << ": "
@@ -125,8 +125,8 @@ bool NvramConfig::LoadFromFile(const char* file) {
   return true;
 }
 
-bool NvramConfig::SaveToFile(const std::string& file) const {
-  std::ofstream ofs = modem::DeviceConfig::open_ofstream_crossplat(file.c_str());
+bool NvramConfig::SaveToFile(const std::filesystem::path& file) const {
+  std::ofstream ofs = modem::DeviceConfig::open_ofstream_crossplat(file);
   if (!ofs.is_open()) {
     LOG(ERROR) << "Unable to write to file " << file;
     return false;

@@ -42,8 +42,8 @@ int DeviceConfig::host_id() {
     return g_modem_port;
 }
 
-std::string DeviceConfig::GetFilePath(const char* file_name) {
-    return (g_base_path / std::string(file_name)).string();
+std::filesystem::path DeviceConfig::GetFilePath(const char* file_name) {
+    return g_base_path / file_name;
 }
 
 std::string DeviceConfig::ril_address_and_prefix() {
@@ -58,11 +58,11 @@ std::string DeviceConfig::ril_dns() {
     return g_use_ipv6 ? DEFAULT_IPV6_DNS :  DEFAULT_IPV4_DNS;
 }
 
-std::ifstream DeviceConfig::open_ifstream_crossplat(const char* filename) {
+std::ifstream DeviceConfig::open_ifstream_crossplat(const std::filesystem::path& filename) {
     return std::ifstream(filename);
 }
 
-std::ofstream DeviceConfig::open_ofstream_crossplat(const char* filename,
+std::ofstream DeviceConfig::open_ofstream_crossplat(const std::filesystem::path& filename,
                                                     std::ios_base::openmode mode) {
     return std::ofstream(filename, mode);
 }
