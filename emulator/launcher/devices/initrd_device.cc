@@ -102,6 +102,11 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     }
 
     if (!serialno.empty()) {
+        // playstore does not like _ or . etc, replacing them with X
+        // otherwise, it does not allow playstore login
+        std::replace_if(serialno.begin(), serialno.end(),
+                [](unsigned char c){ return !std::isalnum(c); }, 'X');
+
         params.push_back({"androidboot.serialno", serialno});
     }
 
