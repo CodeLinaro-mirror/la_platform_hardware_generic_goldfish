@@ -33,11 +33,15 @@ struct SharedFD {
     static SharedFD Accept(const FileInstance& listener, struct sockaddr* addr, socklen_t* addrlen);
     static SharedFD Accept(const FileInstance& listener);
 
+    static SharedFD SocketLocalServer(int port);
+    static SharedFD SocketLocalServer();
+
+    static SharedFD SocketClient(const SharedFD& server);
+    static SharedFD SocketClient(const struct sockaddr* addr, socklen_t addrlen);
     static SharedFD SocketLocalClient(int port);
     static SharedFD SocketLocalClient(const std::string& name, bool is_abstract, int in_type);
-    static SharedFD SocketLocalServer(int port);
 
-    static bool Pipe(SharedFD* fd0, SharedFD* fd1);
+    static bool Pipe(SharedFD* consumer, SharedFD* producer);
     static bool SocketPair(int domain, int type, int protocol, SharedFD* fd0, SharedFD* fd1);
 
     SharedFD();
@@ -50,6 +54,7 @@ struct SharedFD {
     bool operator<(const SharedFD& rhs) const { return value_ < rhs.value_; }
     FileInstance* operator->() const { return value_.get(); }
     const FileInstance& operator*() const { return *value_; }
+    explicit operator bool() const;
 
   private:
     explicit SharedFD(int fd);
@@ -76,6 +81,8 @@ struct FileInstance {
     ssize_t Write(const void* buf, size_t count);
     ssize_t Read(void* buf, size_t count);
 
+    bool Endpoint(struct sockaddr_storage* addr, socklen_t* addrlen) const;
+
     std::string StrError() const { return "error"; };
 
     FileInstance(const FileInstance&) = delete;
@@ -88,5 +95,7 @@ struct FileInstance {
 
     int fd_ = -1;
 };
+
+inline SharedFD::operator bool() const { return value_->IsOpen(); }
 
 }  // namespace cuttlefish
