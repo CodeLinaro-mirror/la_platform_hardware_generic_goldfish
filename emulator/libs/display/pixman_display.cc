@@ -45,6 +45,8 @@ namespace goldfish::display {
 
 namespace {
 
+constexpr bool no_scaling = true;
+
 static pixman_format_code_t pixmanFormat(const PixelFormat& format) {
     switch (format) {
     case PixelFormat::RGBA8888:
@@ -222,21 +224,22 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
                                    pixman_double_to_fixed(dims.height / 2.0));
     }
 
+    if (!no_scaling) {
+        // Scaling logic.
+        // Shift the whole image by -0.5 so we are looking at the center of each pixel
+        // instead of the edge. This is important for scaling to be smooth.
+        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
+                                   pixman_double_to_fixed(-0.5));
+        // Perform the scaling.
+        pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
+                               pixman_double_to_fixed(scale_y));
+        // Move the image back to the original position (+0.5).
+        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
+                                   pixman_double_to_fixed(0.5));
+        // Set the transform and filter on the source image for fast scaling.
+        pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
+    }
 
-    // Scaling logic.
-    // Shift the whole image by -0.5 so we are looking at the center of each pixel
-    // instead of the edge. This is important for scaling to be smooth.
-    pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
-                               pixman_double_to_fixed(-0.5));
-    // Perform the scaling.
-    pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
-                           pixman_double_to_fixed(scale_y));
-    // Move the image back to the original position (+0.5).
-    pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
-                               pixman_double_to_fixed(0.5));
-
-    // Set the transform and filter on the source image for fast scaling.
-    pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
     pixman_image_set_transform(src_img, &transform);
 
     pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img.get(), 0, 0, 0, 0, 0, 0, newWidth,
@@ -284,7 +287,18 @@ std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int d
         return {0, 0};
     }
 
+    // fast pass: no scaling
+    // just return the original w and h, or swap them if
+    // necessary (for 90 and 270 rotation)
+
     Dimensions dims = GetDimensions();
+    if (no_scaling) {
+        if (fit.swapped) {
+            return {dims.height, dims.width};
+        } else {
+            return {dims.width, dims.height};
+        }
+    }
 
     // The physical width of the destination buffer is always fit.width.
     // To ensure scaling is safe, we check the ratio between the source physical
