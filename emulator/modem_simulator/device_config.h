@@ -28,8 +28,11 @@ namespace modem {
 
 class DeviceConfig {
  public:
-  static void Init(int argc, char** argv);
   static void SetBasePath(std::filesystem::path base_path);
+  static void SetUseIpv6(bool use_ipv6);
+  static void SetHostId(int id);
+  static void SetTimezone(std::string timezone);
+  static std::string GetTimezone();
 
   static int host_id();
   static std::filesystem::path GetFilePath(const char* file_name);
