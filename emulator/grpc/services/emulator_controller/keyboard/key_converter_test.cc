@@ -6,28 +6,10 @@
 #include "android/emulation/control/keyboard/key_conversion.h"
 #include "emulator/grpc/services/emulator_controller/keyboard/dom_key.h"
 
-extern "C" {
-// clang-format off
-// IWYU pragma: begin_keep
-#include "qemu/osdep.h"
-#include "ui/input.h"
-
-// IWYU pragma: end_keep
-// clang-format on
-}
-
 namespace android {
 namespace emulation {
 namespace control {
 namespace keyboard {
-
-extern "C" QKbdState* qkbd_state_init(QemuConsole* con) {
-    return nullptr;
-}
-extern "C" void qkbd_state_key_event(QKbdState* kbd, int qcode, bool down) {};
-extern "C" int qemu_input_linux_to_qcode(unsigned int lnx) {
-    return 0;
-}
 
 // Function to check if a QKeyCode is valid
 bool isValidQKeyCode(QKeyCode code) {

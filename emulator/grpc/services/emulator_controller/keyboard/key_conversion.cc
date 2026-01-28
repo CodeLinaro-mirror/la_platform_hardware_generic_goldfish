@@ -14,11 +14,15 @@
 #include "absl/log/log.h"
 
 #include "android/emulation/control/keyboard/key_conversion.h"
-extern "C" QKbdState* qkbd_state_init(QemuConsole* con);
-extern "C" void qkbd_state_key_event(QKbdState* kbd, int qcode, bool down);
 
-#include "ui/input-keymap-linux-to-qcode.c.inc"
-#include "ui/input-keymap-qcode-to-linux.c.inc"
+// clang-format off
+// IWYU pragma: begin_keep
+extern "C" {
+#include "ui/input.h"
+#include "ui/kbd-state.h"
+}
+// IWYU pragma: end_keep
+// clang-format on
 
 namespace android {
 namespace emulation {
