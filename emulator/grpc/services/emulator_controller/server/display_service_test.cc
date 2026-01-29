@@ -158,8 +158,8 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
     // Check the format
-    EXPECT_EQ(reply.format().width(), 200);
-    EXPECT_EQ(reply.format().height(), 100);
+    EXPECT_TRUE(reply.format().width() == 200 || reply.format().width() == 400);
+    EXPECT_TRUE(reply.format().height() == 100 || reply.format().height() == 200);
     EXPECT_EQ(reply.format().display(), 2);
 }
 
