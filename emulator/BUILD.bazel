@@ -320,6 +320,7 @@ test_suite(
         "@boringssl//:ssl_test",
         "@boringssl//:urandom_test",
         "@crashpad//:crashpad_tests",
+        "@ffmpeg//:tests",
         "@libyuv//:libyuv_unittest",
     ],
 )
