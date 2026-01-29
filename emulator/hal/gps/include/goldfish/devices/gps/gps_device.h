@@ -28,7 +28,7 @@ using namespace std::string_view_literals;
 /**
  * The guest HAL implementation resides in `device/generic/goldfish/hals/gnss`.
  */
-class IGpsDevice : public HalPlug {
+class IGpsDevice : public HalPlug, public std::enable_shared_from_this<IGpsDevice> {
   public:
     /**
      * @brief QEMU service name for the GPS device.
