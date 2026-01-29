@@ -257,7 +257,7 @@ class QemuEventLoopImpl : public goldfish::async::QemuEventLoop {
     std::atomic<bool> is_shutting_down_{false};
     std::promise<absl::Status> shutdown_complete_promise_;
 
-    std::thread::id qemu_thread_id_;
+    std::atomic<std::thread::id> qemu_thread_id_;
     std::mutex queue_mutex_;
     std::queue<Task> task_queue_;
     QEMUBHPtr drainer_bh_;

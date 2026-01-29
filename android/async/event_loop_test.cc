@@ -939,9 +939,9 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
     auto fired3_future = fired3_promise.get_future();
 
     // Shared pointers to hold timestamps to be checked inside the callback
-    auto schedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
-    auto reschedule_time = std::make_shared<std::chrono::steady_clock::time_point>();
-    auto last_fire_time = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto schedule_time = std::make_shared<std::atomic<std::chrono::steady_clock::time_point>>();
+    auto reschedule_time = std::make_shared<std::atomic<std::chrono::steady_clock::time_point>>();
+    auto last_fire_time = std::make_shared<std::atomic<std::chrono::steady_clock::time_point>>();
 
     auto handle = loop->CreateTimer([&, schedule_time, reschedule_time, last_fire_time]() {
         auto now = std::chrono::steady_clock::now();
@@ -949,15 +949,15 @@ TEST_P(EventLoopTest, RescheduleRepeatingTimer) {
 
         if (mLoopType == "libuv") {
             if (c == 1) {
-                auto elapsed = now - *schedule_time;
+                auto elapsed = now - schedule_time->load();
                 EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
                             100, tolerance.count());
             } else if (c == 2) {
-                auto elapsed = now - *reschedule_time;
+                auto elapsed = now - reschedule_time->load();
                 EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
                             200, tolerance.count());
             } else if (c == 3) {
-                auto elapsed = now - *last_fire_time;
+                auto elapsed = now - last_fire_time->load();
                 EXPECT_NEAR(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
                             200, tolerance.count());
             }

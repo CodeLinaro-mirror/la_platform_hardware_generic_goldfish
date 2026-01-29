@@ -301,7 +301,11 @@ TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {
 
 class TestListener : public EventListener<ResizeEvent> {
   public:
-    void EventArrived(const ResizeEvent& event) override { events.push_back(event); }
+    void EventArrived(const ResizeEvent& event) override {
+        absl::MutexLock lock(&eventsMutex);
+        events.push_back(event);
+    }
+    absl::Mutex eventsMutex;
     std::vector<ResizeEvent> events;
 };
 
@@ -323,6 +327,7 @@ TEST_F(FakePixmanDisplayTest, ResizeEvent) {
     display->waitForFramesWithTimeout(4, absl::Milliseconds(500));
     display->stop();
 
+    absl::MutexLock lock(&listener->eventsMutex);
     ASSERT_EQ(listener->events.size(), 1);
     EXPECT_EQ(listener->events[0].previousWidth, 100);
     EXPECT_EQ(listener->events[0].previousHeight, 50);

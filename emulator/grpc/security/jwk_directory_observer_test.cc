@@ -250,7 +250,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     enum TokenState { VALID_JWK_EXISTS, VALID_JWK_DELETED };
-    TokenState state = VALID_JWK_EXISTS;
+    std::atomic<TokenState> state = VALID_JWK_EXISTS;
     // Our observer found the public key, and hence can validate the token.
     JwkDirectoryObserver observer(mTempDir->path().string(), [&](auto keyset) {
         ASSERT_NE(keyset, nullptr);
