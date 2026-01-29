@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
-    name = "modem_simulator_lib",
+    name = "modem_simulator_internal",
     srcs = [
         "call_service.cpp",
         "channel_monitor.cpp",
@@ -41,13 +41,28 @@ cc_library(
     ],
     include_prefix = "host/commands/modem_simulator",
     strip_include_prefix = ".",
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
     deps = [
+        "//emulator/cmdline",
+        "//emulator/launcher:avd",
         "//emulator/modem_simulator/deps",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@jsoncpp",
         "@tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "modem_simulator",
+    srcs = ["modem_simulator_service.cc"],
+    hdrs = ["include/goldfish/modem_simulator/modem_simulator_service.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":modem_simulator_internal",
+        "//android/system:file",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -64,7 +79,7 @@ cc_test(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":modem_simulator_lib",
+        ":modem_simulator_internal",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",

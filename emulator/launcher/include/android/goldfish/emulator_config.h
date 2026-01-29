@@ -30,6 +30,7 @@ struct EmulatorPorts {
 
 struct ChardevEndpoints {
     std::string netsim;
+    std::string modem_simulator;
 };
 
 class EmulatorConfig {

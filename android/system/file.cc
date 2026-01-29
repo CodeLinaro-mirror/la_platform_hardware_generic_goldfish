@@ -268,5 +268,19 @@ absl::Status touch(const fs::path& path) noexcept {
     }
     return absl::DataLossError(absl::StrCat("Unable to create file: ", path.string()));
 }
+
+absl::Status copy_if_missing(const fs::path& dst, const fs::path& src) {
+    if (fs::exists(dst)) {
+        return absl::OkStatus();
+    }
+
+    std::error_code ec;
+    if (!fs::copy_file(src, dst, ec)) {
+        return absl::InternalError(ec.message());
+    }
+
+    return absl::OkStatus();
+}
+
 // NOLINTEND
 }  // namespace android::base::file

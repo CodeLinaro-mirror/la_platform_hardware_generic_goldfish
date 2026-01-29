@@ -18,11 +18,15 @@
 #include <cstring>
 #include <thread>
 
+#include "absl/strings/str_format.h"
+
 // clang-format off
 // IWYU pragma: begin_keep
 #ifdef _WIN32
 #include <ws2def.h>
+#include <ws2tcpip.h>
 #else
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -397,6 +401,36 @@ ssize_t FileInstance::Read(void* buf, size_t count) {
 bool FileInstance::Endpoint(struct sockaddr_storage* addr, socklen_t* addrlen) const {
     *addrlen = sizeof(*addr);
     return ::getsockname(fd_, reinterpret_cast<struct sockaddr*>(addr), addrlen) == 0;
+}
+
+std::string FileInstance::ChardevEndpoint() const {
+    struct sockaddr_storage addr;
+    socklen_t addrlen;
+
+    if (!Endpoint(&addr, &addrlen)) {
+        return {};
+    }
+
+    switch (addr.ss_family) {
+    case AF_INET: {
+            const struct sockaddr_in* addr4 = reinterpret_cast<const struct sockaddr_in*>(&addr);
+
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &addr4->sin_addr, ip_str, sizeof(ip_str));
+            return absl::StrFormat("port=%d,host=%s,ipv4=on", ntohs(addr4->sin_port), ip_str);
+        }
+
+    case AF_INET6: {
+            const struct sockaddr_in6* addr6 = reinterpret_cast<const struct sockaddr_in6*>(&addr);
+
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &addr6->sin6_addr, ip_str, sizeof(ip_str));
+
+            return absl::StrFormat("port=%d,host=%s,ipv6=on", ntohs(addr6->sin6_port), ip_str);
+        }
+    }
+
+    return {};
 }
 
 int Select(SharedFDSet* read_set, SharedFDSet* write_set, SharedFDSet* error_set,

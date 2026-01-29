@@ -27,19 +27,33 @@ namespace cuttlefish {
 namespace modem {
 namespace {
 std::filesystem::path g_base_path;
-int g_modem_port = 0;
+std::string g_timezone;
+int g_host_id = 0;
 bool g_use_ipv6 = true;
 }  // namespace
-
-void DeviceConfig::Init(int argc, char** argv) {
-}
 
 void DeviceConfig::SetBasePath(std::filesystem::path base_path) {
     g_base_path = std::move(base_path);
 }
 
+void DeviceConfig::SetUseIpv6(const bool use_ipv6) {
+    g_use_ipv6 = use_ipv6;
+}
+
+void DeviceConfig::SetHostId(const int id) {
+    g_host_id = id;
+}
+
+void DeviceConfig::SetTimezone(std::string timezone) {
+    g_timezone = std::move(timezone);
+}
+
+std::string DeviceConfig::GetTimezone() {
+    return g_timezone;
+}
+
 int DeviceConfig::host_id() {
-    return g_modem_port;
+    return g_host_id;
 }
 
 std::filesystem::path DeviceConfig::GetFilePath(const char* file_name) {

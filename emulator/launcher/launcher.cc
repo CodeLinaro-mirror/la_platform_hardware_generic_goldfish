@@ -45,6 +45,7 @@
 #include "goldfish/async/libuv_signal_handlers.h"
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/when_all.h"
+#include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
 #include "logging.h"
@@ -62,6 +63,8 @@ namespace {
 
 using ::goldfish::async::WhenAll;
 using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
+
+using ::goldfish::modem_simulator::ModemSimulatorService;
 
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
@@ -95,6 +98,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                     &mEventLoop, [this](ChardevEndpoints ce) { launch_emulator(ce); });
 
             mEventLoop.Post([this, chardevs]() { discover_netsimd(chardevs); }).IgnoreError();
+            mEventLoop.Post([this, chardevs]() { init_modem_simulator(chardevs); }).IgnoreError();
         }).IgnoreError();
     }
 
@@ -113,6 +117,14 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             try_connect_netsimd(netsimd_endpoint, chardevs);
         } else {
             launch_netsimd(chardevs);
+        }
+    }
+
+    void init_modem_simulator(const WhenAllChardevEndpoints& chardevs) {
+        modem_simulator_service_ = ModemSimulatorService::Create(*mAvd);
+        if (modem_simulator_service_) {
+            chardevs->MutableResults().modem_simulator =
+                    modem_simulator_service_->ChardevEndpoint();
         }
     }
 
@@ -382,6 +394,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     ProcessHandle mNetsimdProcess;
     ProcessHandle mEmulatorProcess;
+    std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
 
     int mExistingNetsimdPort = 0;
     int mRetryCountDown = 10;
