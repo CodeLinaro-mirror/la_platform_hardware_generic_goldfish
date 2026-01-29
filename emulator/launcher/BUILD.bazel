@@ -356,6 +356,7 @@ cc_binary(
         "//emulator/adb/secrets",
         "//emulator/cmdline",
         "//emulator/crashreport:init",
+        "//emulator/modem_simulator",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",
         "@abseil-cpp//absl/debugging:symbolize",

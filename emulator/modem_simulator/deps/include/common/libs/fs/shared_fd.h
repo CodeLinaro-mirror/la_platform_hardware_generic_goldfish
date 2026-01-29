@@ -83,6 +83,22 @@ struct FileInstance {
 
     bool Endpoint(struct sockaddr_storage* addr, socklen_t* addrlen) const;
 
+    /**
+     * @brief Generates the socket-specific configuration parameters for
+     * a QEMU chardev device.
+     *
+     * The returned string is designed to be appended to a chardev definition
+     * prefix (which includes parameters like `id` or `reconnect-ms`)
+     * that ends with a comma (e.g., "-chardev socket,id=my_id,").
+     *
+     * Return value examples:
+     * - TCP:  "host=::1,port=12345,ipv6=on"
+     * - UNIX: "path=/tmp/my_socket,server=on"
+     *
+     * @return A string containing the backend options appropriate for the socket type.
+     */
+    std::string ChardevEndpoint() const;
+
     std::string StrError() const { return "error"; };
 
     FileInstance(const FileInstance&) = delete;

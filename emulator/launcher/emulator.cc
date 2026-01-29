@@ -157,6 +157,16 @@ absl::Status Emulator::addDevices() {
         });
     }
 
+    if (!chardev_endpoints().modem_simulator.empty()) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-chardev",
+            absl::StrCat("socket,id=modem,nodelay=on,reconnect-ms=100,",
+                         chardev_endpoints().modem_simulator),
+            "-device",
+            "virtserialport,chardev=modem,name=modem",
+        });
+    }
+
     std::string gpu_name = "gpu0";
     addDevice<GpuDevice>(gpu_name);
 

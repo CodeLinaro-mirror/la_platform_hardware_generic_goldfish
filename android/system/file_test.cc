@@ -161,4 +161,40 @@ TEST(File, scanDirEntriesWithFullPaths) {
     }
 }
 
+TEST(File, copyIfMissing) {
+    const android::base::TestTempDir tmpdir("CopyIfMissing");
+    const fs::path existing = tmpdir.path() / "existing";
+    const fs::path missing = tmpdir.path() / "missing";
+    const fs::path src = tmpdir.path() / "src";
+
+    {
+        std::ofstream f(existing);
+        ASSERT_TRUE(f);
+        f << "existing";
+    }
+    {
+        std::ofstream f(src);
+        ASSERT_TRUE(f);
+        f << "src";
+    }
+
+    EXPECT_THAT(file::copy_if_missing(existing, src), absl_testing::IsOk());
+    {
+        std::ifstream f(existing);
+        ASSERT_TRUE(f);
+        std::string contents;
+        f >> contents;
+        EXPECT_EQ(contents, "existing");
+    }
+
+    EXPECT_THAT(file::copy_if_missing(missing, src), absl_testing::IsOk());
+    {
+        std::ifstream f(missing);
+        ASSERT_TRUE(f);
+        std::string contents;
+        f >> contents;
+        EXPECT_EQ(contents, "src");
+    }
+}
+
 }  // namespace android::base
