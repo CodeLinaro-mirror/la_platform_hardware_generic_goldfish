@@ -40,90 +40,111 @@ build_id_from_command_line(
     build_setting_default = "developer",
 )
 
-launcher_binaries = [
-    "//emulator/launcher",
+filegroup(
+    name = "launcher_binaries",
+    srcs = [
+        "//emulator/launcher",
+    ],
+)
+
+filegroup(
+    name = "qemu_binaries",
+    srcs = [
+        "//emulator/crashreport",
+        "//third_party/sparse:img2simg",
+        "@qemu//:qemu-img",
+        "@crashpad//handler:crashpad_handler",
+        #"@netsim//:netsimd",
+    ] + select({
+        "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
+            "@qemu//:qemu-system-x86_64",
+        ],
+        "@platforms//os:macos": [
+            "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
+            "@qemu//:qemu-system-aarch64_signed",
+            "@qemu//:qemu-system-x86_64_signed",
+        ],
+        "//conditions:default": [
+            "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
+            "@qemu//:qemu-system-x86_64",
+            "@qemu//:qemu-system-aarch64",
+            # We currently don't have riscv images
+            # "@qemu//:qemu-system-riscv64",
+        ],
+    }),
+)
+
+filegroup(
+    name = "egl_binaries",
+    srcs = select({
+        "@platforms//os:macos": [
+            "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+        ],
+        "@platforms//os:linux": [
+            "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
+        ],
+        "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "vulkan_binaries",
+    srcs = select({
+        "@platforms//os:macos": [
+            "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
+            "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
+        ],
+        "@platforms//os:linux": [
+            "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
+        ],
+        "@platforms//os:windows": [
+            "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
+            "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "plugin_binaries",
+    srcs = [
+        "//emulator/plugin:goldfish_x86_64",
+        "@crosvm//:rutabaga_ffi",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "//emulator/plugin:goldfish_aarch64",
+            # We currently don't have riscv images
+            # "//emulator/plugin:goldfish_riscv64",
+        ],
+    }) + select({
+        "@platforms//os:linux": [
+            # For netsimd prebuilt
+            "@goldfish_prebuilts_common//vulkan:linux_libc++",
+            # TODO(b/434942959,whollins): Re-add this.
+            #"@gcc_lib//:libpulse",
+        ],
+        "//conditions:default": [
+        ],
+    }),
+)
+
+all_binaries = [
+    ":launcher_binaries",
+    ":qemu_binaries",
+    ":plugin_binaries",
+    ":egl_binaries",
+    ":vulkan_binaries",
 ]
-
-binaries = [
-    "//emulator/crashreport",
-    "//third_party/sparse:img2simg",
-    "@qemu//:qemu-img",
-    "@crashpad//handler:crashpad_handler",
-    #"@netsim//:netsimd",
-] + select({
-    "@platforms//os:windows": [
-        "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64",
-        "@qemu//:qemu-system-x86_64",
-    ],
-    "@platforms//os:macos": [
-        "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64",
-        "@qemu//:qemu-system-x86_64_signed",
-        "@qemu//:qemu-system-aarch64_signed",
-    ],
-    "//conditions:default": [
-        "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64",
-        "@qemu//:qemu-system-x86_64",
-        "@qemu//:qemu-system-aarch64",
-        # We currently don't have riscv images
-        # "@qemu//:qemu-system-riscv64",
-    ],
-})
-
-egl_binaries = select({
-    "@platforms//os:macos": [
-        "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
-        "@goldfish_prebuilts_common//ANGLE:lib_darwin_aarch64",
-        "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
-    ],
-    "@platforms//os:linux": [
-        "@goldfish_prebuilts_common//swiftshader:lib_linux_x86_64",
-    ],
-    "@platforms//os:windows": [
-        "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
-        "@goldfish_prebuilts_common//ANGLE:lib_windows_x86_64",
-        "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
-    ],
-    "//conditions:default": [],
-})
-
-vulkan_binaries = select({
-    "@platforms//os:macos": [
-        "@goldfish_prebuilts_common//vulkan:lib_darwin_aarch64",
-        "@goldfish_prebuilts_common//vulkan:icds_darwin_aarch64",
-    ],
-    "@platforms//os:linux": [
-        "@goldfish_prebuilts_common//vulkan:lib_linux_x86_64",
-        "@goldfish_prebuilts_common//vulkan:icds_linux_x86_64",
-    ],
-    "@platforms//os:windows": [
-        "@goldfish_prebuilts_common//vulkan:lib_windows_x86_64",
-        "@goldfish_prebuilts_common//vulkan:icds_windows_x86_64",
-    ],
-    "//conditions:default": [],
-})
-
-plugin_binaries = [
-    "//emulator/plugin:goldfish_x86_64",
-    "@crosvm//:rutabaga_ffi",
-] + select({
-    "@platforms//os:windows": [],
-    "//conditions:default": [
-        "//emulator/plugin:goldfish_aarch64",
-        # We currently don't have riscv images
-        # "//emulator/plugin:goldfish_riscv64",
-    ],
-}) + select({
-    "@platforms//os:linux": [
-        # For netsimd prebuilt
-        "@goldfish_prebuilts_common//vulkan:linux_libc++",
-        # TODO(b/434942959,whollins): Re-add this.
-        #"@gcc_lib//:libpulse",
-    ],
-    "//conditions:default": [
-    ],
-})
-
-all_binaries = launcher_binaries + binaries + plugin_binaries
 
 stripped_binaries(
     name = "goldfish_binaries_stripped",
@@ -134,7 +155,7 @@ stripped_binaries(
 pkg_files(
     # Note no prefix.
     name = "launcher",
-    srcs = launcher_binaries,
+    srcs = [":launcher_binaries"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -155,8 +176,8 @@ remapped_pkg_files(
 )
 
 pkg_files(
-    name = "binaries",
-    srcs = binaries,
+    name = "qemu",
+    srcs = [":qemu_binaries"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -180,26 +201,26 @@ pkg_files(
 )
 
 remapped_pkg_files(
-    name = "binaries_stripped",
-    src = ":binaries",
+    name = "qemu_stripped",
+    src = ":qemu",
     transform = ":goldfish_binaries_stripped",
 )
 
 pkg_files(
     name = "plugins",
-    srcs = plugin_binaries,
+    srcs = [":plugin_binaries"],
     prefix = "lib/qemu",
 )
 
 pkg_files(
     name = "egl",
-    srcs = egl_binaries,
+    srcs = [":egl_binaries"],
     prefix = "lib64",
 )
 
 pkg_files(
     name = "vulkan",
-    srcs = vulkan_binaries,
+    srcs = [":vulkan_binaries"],
     prefix = "lib64/vulkan",
 )
 
@@ -207,6 +228,18 @@ pkg_files(
     name = "data_virtualscene_Toren1BD",
     srcs = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
     prefix = "data/virtualscene/Toren1BD",
+)
+
+remapped_pkg_files(
+    name = "egl_stripped",
+    src = ":egl",
+    transform = ":goldfish_binaries_stripped",
+)
+
+remapped_pkg_files(
+    name = "vulkan_stripped",
+    src = ":vulkan",
+    transform = ":goldfish_binaries_stripped",
 )
 
 remapped_pkg_files(
@@ -254,12 +287,31 @@ pkg_files(
 pkg_filegroup(
     name = "emulator-dir",
     srcs = [
-        ":binaries_stripped",
         ":data_virtualscene_Toren1BD",
-        ":egl",
+        ":egl_stripped",
         ":emulator-access",
         ":launcher_stripped",
         ":plugins_stripped",
+        ":qemu-keymaps",
+        ":qemu-roms",
+        ":qemu_stripped",
+        ":vulkan_stripped",
+    ] + select({
+        "@platforms//os:windows": [":win-dlls"],
+        "//conditions:default": [],
+    }),
+    prefix = "emulator",
+)
+
+pkg_filegroup(
+    name = "emulator-dir-unstripped",
+    srcs = [
+        ":data_virtualscene_Toren1BD",
+        ":egl",
+        ":emulator-access",
+        ":launcher",
+        ":plugins",
+        ":qemu",
         ":qemu-keymaps",
         ":qemu-roms",
         ":vulkan",
@@ -278,14 +330,22 @@ pkg_zip(
     tags = ["manual"],
 )
 
-filegroup(
-    name = "goldfish_binaries",
-    srcs = all_binaries,
+pkg_zip(
+    name = "release_unstripped",
+    srcs = ["emulator-dir-unstripped"],
+    package_file_name = "UNSTRIPPED-sdk-repo-{platform}-{product_name}-{build_id}.zip",
+    package_variables = "//emulator/tools:aemu_version_info",
+    tags = ["manual"],
 )
 
 breakpad_symbols_pkg(
     name = "package_goldfish_symbols",
     binaries = all_binaries,
+    ignore_paths_with_suffix = [
+        "goldfish_prebuilts_common+/vulkan/windows-x86_64/vulkan-1.dll",
+        "goldfish_prebuilts_common+/vulkan/windows-x86_64/icds/libvulkan_lvp.dll",
+        "goldfish_prebuilts_common+/vulkan/windows-x86_64/icds/vk_swiftshader.dll",
+    ],
     package_file_name = "sdk-repo-{platform}-{product_name}-breakpad-symbols-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
 )
@@ -295,8 +355,10 @@ native_symbols_pkg(
     binaries = all_binaries,
     layout_templates = {
         "launcher": ":launcher",
-        "qemu": ":binaries",
+        "qemu": ":qemu",
         "plugins": ":plugins",
+        "egl": ":egl",
+        "vulkan": ":vulkan",
     },
     package_file_name = "sdk-repo-{platform}-{product_name}-native-symbols-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",

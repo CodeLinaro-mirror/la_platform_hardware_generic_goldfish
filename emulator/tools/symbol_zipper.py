@@ -17,7 +17,6 @@ import logging
 import sys
 import zipfile
 from collections import namedtuple
-from functools import lru_cache
 from pathlib import Path
 
 ZIP_EPOCH = datetime.datetime(1980, 1, 1, 0, 0, 0).timestamp()
@@ -25,7 +24,6 @@ MODULE_KEYWORD = "MODULE"
 Module = namedtuple("MODULE", "operatingsystem architecture id name")
 
 
-@lru_cache
 def parse_breakpad_line(line: str) -> Module | None:
     """Parses a breakpad symbol line and returns a concrete object contained in a line.
 
@@ -112,8 +110,8 @@ def configure_logging(logging_level):
     logging.root.addHandler(logging_handler_out)
 
 
-def is_symbol_file(param):
-    """Checks to see if this parameter is a symbol file
+def is_file(param):
+    """Checks to see if this parameter is a file
 
     Args:
         param (str): The parameter to be validated.
@@ -130,16 +128,6 @@ def is_symbol_file(param):
 
     if not sym.is_file():
         raise argparse.ArgumentTypeError(param + " is not a file.")
-
-    try:
-        line = ""
-        with open(sym, "r", encoding="utf-8") as symbol:
-            line = symbol.readline()
-            parse_breakpad_line(line)
-    except Exception as exc:
-        raise argparse.ArgumentTypeError(
-            f"{param} is not a valid symbol file, found: {line}"
-        )
 
     return sym
 
@@ -180,7 +168,7 @@ def main():
     parser.add_argument(
         "symbol_file",
         metavar="symbol",
-        type=is_symbol_file,
+        type=is_file,
         nargs="+",
         help="One or more Breakpad symbol files to process.",
     )
@@ -212,11 +200,15 @@ def main():
     lvl = logging.DEBUG if args.verbose else logging.INFO
     configure_logging(lvl)
 
-    out = Path(args.out)
     unix_ts = parse_date(max(ZIP_EPOCH, args.timestamp))
     with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zipf:
+        seen_entry = set()
         for path in args.symbol_file:
             arcname = str(symbol_destination(Path(path)))
+            if arcname in seen_entry:
+                logging.debug("Already exists: %s -> %s", path, arcname)
+                continue
+            seen_entry.add(arcname)
             logging.debug("Writing %s -> %s", path, arcname)
 
             zip_info = zipfile.ZipInfo.from_file(path, arcname)

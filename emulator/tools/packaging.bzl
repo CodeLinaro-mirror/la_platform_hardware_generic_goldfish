@@ -210,7 +210,7 @@ symbol_zipper = rule(
     },
 )
 
-def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables):
+def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, ignore_paths_with_suffix = None):
     """Creates a zip file with breakpad symbols.
 
     This function first extracts symbols from the given binaries using the
@@ -220,12 +220,17 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables):
     Args:
         name: The name of the rule.
         binaries: The list of binaries to extract symbols from.
+        ignore_paths_with_suffix: A list of suffixes that should cause the binary to be ignored.
         package_file_name: The name of the output zip file.
         package_variables: A dictionary of variables to be expanded in the
                            package template.
     """
     extract = name + "_extract"
-    breakpad_symbols(name = extract, binaries = binaries)
+    breakpad_symbols(
+        name = extract,
+        binaries = binaries,
+        ignore_paths_with_suffix = ignore_paths_with_suffix or [],
+    )
     symbol_zipper(
         name = name,
         out = name + ".zip",
@@ -308,10 +313,11 @@ def _find_filename_changes(from_name, to_name):
     if not any([add_stem_prefix, add_stem_suffix, rm_stem_prefix, rm_stem_suffix]) and from_stem != to_stem:
         fail("Cannot find changes between", from_stem, "and", to_stem, ": they seem distinct")
 
-    for pos in range(min([len(from_exts), len(to_exts)])):
-        if from_exts[pos] == to_exts[pos]:
-            from_exts.pop(0)
-            to_exts.pop(0)
+    for _ in range(min(len(from_exts), len(to_exts))):
+        if from_exts[0] != to_exts[0]:
+            break
+        from_exts.pop(0)
+        to_exts.pop(0)
     rm_extensions = from_exts
     add_extensions = to_exts
 
