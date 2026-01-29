@@ -91,7 +91,7 @@ class PixmanImageGenerator : public CallbackEventSource<PixmanImagePtr> {
     int mFps;
     int mWidth ABSL_GUARDED_BY(mMutex);
     int mHeight ABSL_GUARDED_BY(mMutex);
-    bool mRunning;
+    std::atomic_bool mRunning;
     std::unique_ptr<std::thread> mThread;
     mutable absl::Mutex mMutex;
     int mFrameCount ABSL_GUARDED_BY(mMutex);

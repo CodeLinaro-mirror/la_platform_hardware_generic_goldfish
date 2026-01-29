@@ -80,8 +80,9 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         FD_ZERO(&readfds);
         FD_SET(pipe_[0], &readfds);
         FD_SET(notify_fd_, &readfds);
-        select(std::max(pipe_[0], notify_fd_) + 1, &readfds, nullptr, nullptr, nullptr);
+        select(std::max(pipe_[0].load(), notify_fd_) + 1, &readfds, nullptr, nullptr, nullptr);
     }
+
     bool WatchForChanges() {
         notify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
         if (notify_fd_ < 1) {
@@ -90,13 +91,14 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
             return false;
         }
 
-        if (pipe(pipe_) != 0 || (fcntl(pipe_[0], F_SETFL, O_NONBLOCK) < 0)) {
+        int p[2];
+        if (pipe(p) != 0 || (fcntl(p[0], F_SETFL, O_NONBLOCK) < 0)) {
             PLOG(ERROR) << "Unable to open pipe.";
-            pipe_[0] = -1;
-            pipe_[1] = -1;
             started_.signal();
             return false;
         };
+        pipe_[0] = p[0];
+        pipe_[1] = p[1];
 
         // Note, this will not work for filenames longer than 256 chars, this
         // does not include the path.
@@ -148,11 +150,13 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
 
         DD("Exit loop");
         close(notify_fd_);
-        if (pipe_[0] != -1) {
-            close(pipe_[0]);
+        if (const int fd = pipe_[0] != -1) {
+            pipe_[0] = -1;
+            close(fd);
         }
-        if (pipe_[1] != -1) {
-            close(pipe_[1]);
+        if (const int fd = pipe_[1] != -1) {
+            pipe_[1] = -1;
+            close(fd);
         }
         return true;
     }
@@ -162,7 +166,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
     std::thread watcher_thread_;
     Event started_;
     int notify_fd_{0};
-    int pipe_[2] = {-1, -1};
+    std::atomic_int pipe_[2] = {-1, -1};
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
