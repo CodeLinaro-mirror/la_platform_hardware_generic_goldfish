@@ -66,12 +66,11 @@ TEST_F(GpsDeviceTest, canSendLocation) {
     };
 
     location.SetValue(kAmsterdam);
-    EXPECT_THAT(test_socket->storage,
-#ifdef _WIN32
-                MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,\d+,0\.5,2,0)"));
-#else
-                MatchesRegex(R"(0039\$GnssRpcV1,0,52\.3676,4\.9041,0,0,1,0,[0-9]+,0\.5,2,0)"));
-#endif
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    EXPECT_THAT(
+            test_socket->storage,
+            MatchesRegex(
+                    R"(0043\$GPGGA,.*,5222.0560,N,00454.2459,E,1,00,1.0,0.00,M,0.0,M,,.*\s*0044\$GPRMC,.*,A,5222.0560,N,00454.2459,E,0.00,0.00,.*,0.0,W.*\s*)"));
 }
 
 }  // namespace goldfish::devices::gps
