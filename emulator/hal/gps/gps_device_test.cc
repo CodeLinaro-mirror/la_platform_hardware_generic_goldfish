@@ -10,6 +10,8 @@
 // GNU General Public License for more details.
 #include "goldfish/devices/gps/gps_device.h"
 
+#include <thread>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
