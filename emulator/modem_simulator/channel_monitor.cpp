@@ -179,7 +179,7 @@ void ChannelMonitor::ReadCommand(Client& client) {
     if (r_pos != std::string::npos) {
       auto command = commands.substr(pos, r_pos - pos);
       if (command.size() > 0) {  // "\r\r" ?
-        VLOG(1) << "AT> " << command;
+        VLOG(2) << "AT> " << command;
         modem_.DispatchCommand(client, command);
       }
       pos = r_pos + 1;  // Skip '\r'
