@@ -21,6 +21,7 @@ emulator/msvcp140.dll
 emulator/vcruntime140.dll
 emulator/vcruntime140_1.dll
 emulator/lib/
+emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/goldfish_x86_64.dll

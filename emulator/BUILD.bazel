@@ -254,6 +254,12 @@ pkg_files(
     prefix = "lib",
 )
 
+pkg_files(
+    name = "advanced_features",
+    srcs = ["//emulator/launcher:advanced_features_ini"],
+    prefix = "lib",
+)
+
 output_files(
     name = "vctools-dlls-needed",
     paths = [
@@ -295,6 +301,7 @@ pkg_files(
 pkg_filegroup(
     name = "emulator-dir",
     srcs = [
+        ":advanced_features",
         ":data_virtualscene_Toren1BD",
         ":egl_stripped",
         ":emulator-access",

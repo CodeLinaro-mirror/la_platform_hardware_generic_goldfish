@@ -353,13 +353,27 @@ collect_plugins(
     name = "unsecure-emulator-access",
     output_dir = "lib",
     plugins = ["//emulator/grpc/security:unsecure-emulator-access"],
+    # Visibility needed by unit tests.
+    visibility = [":__subpackages__"],
+)
+
+filegroup(
+    name = "advanced_features_ini",
+    srcs = ["data/advancedFeatures.ini"],
     visibility = ["//visibility:public"],
+)
+
+collect_plugins(
+    name = "advanced_features",
+    output_dir = "lib",
+    plugins = [":advanced_features_ini"],
 )
 
 cc_binary(
     name = "launcher",
     srcs = ["launcher.cc"],
     data = [
+        ":advanced_features",
         ":binaries",
         ":keymaps",
         ":lib64gl",

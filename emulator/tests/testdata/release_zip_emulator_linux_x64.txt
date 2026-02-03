@@ -34,6 +34,7 @@ emulator/lib64/vulkan/libxcb-aemu.so
 emulator/lib64/vulkan/libxml2.so.2
 emulator/lib64/vulkan/lvp_icd.json
 emulator/lib64/vulkan/vk_swiftshader_icd.json
+emulator/lib/advancedFeatures.ini
 emulator/lib/emulator_access.json
 emulator/lib/qemu/
 emulator/lib/qemu/libc++.so
