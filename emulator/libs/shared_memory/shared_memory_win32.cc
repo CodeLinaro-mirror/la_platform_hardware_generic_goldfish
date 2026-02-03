@@ -91,6 +91,19 @@ absl::Status SharedMemory::OpenInternal(AccessMode access, bool create, bool do_
             return absl::NotFoundError("Failed to open file for shared memory: " +
                                        std::to_string(GetLastError()));
         }
+
+        // Verify size for existing segments.
+        LARGE_INTEGER fileSize = {};
+        if (!GetFileSizeEx(hFile, &fileSize)) {
+            auto error = GetLastError();
+            CloseHandle(hFile);
+            return absl::InternalError("Failed to retrieve file size for shared memory: " +
+                                       std::to_string(error));
+        }
+        if (static_cast<size_t>(fileSize.QuadPart) < size_) {
+            CloseHandle(hFile);
+            return absl::OutOfRangeError("Shared memory size mismatch: too small");
+        }
     }
     file_ = hFile;
     fd_ = CreateFileMappingW(file_, NULL, pageAccess, 0, (DWORD)size_, NULL);

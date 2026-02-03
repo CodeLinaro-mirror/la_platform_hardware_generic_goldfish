@@ -276,6 +276,35 @@ TEST(SharedMemory, FileUriSupport) {
     EXPECT_FALSE(std::filesystem::exists(path));
 }
 
+TEST(SharedMemory, OpenNonExistentReturnsNotFound) {
+    std::string path = GetUniqueName("non_existent");
+    SharedMemory mem(path, 128);
+    auto status = mem.Open(SharedMemory::AccessMode::kReadWrite);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kNotFound);
+}
+
+TEST(SharedMemory, OpenTooSmallSegmentReturnsOutOfRange) {
+    std::string path = GetUniqueName("test_too_small");
+    size_t initial_size = 128;
+    {
+        SharedMemory mem(path, initial_size, SharedMemory::DestructionPolicy::kKeep);
+        ASSERT_TRUE(
+                mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+    }
+
+    // Now try to open it with a larger size
+    size_t larger_size = 256;
+    SharedMemory mem_larger(path, larger_size);
+    auto status = mem_larger.Open(SharedMemory::AccessMode::kReadWrite);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code(), absl::StatusCode::kOutOfRange);
+
+    // Cleanup
+    std::filesystem::remove(path);
+}
+
 TEST(SharedMemory, FileSizeCorrectlySet) {
     size_t size = 8192;
     std::string path = GetUniqueName("test_filesize");

@@ -141,7 +141,7 @@ absl::Status SharedMemory::OpenInternal(int oflag, int mode, bool do_mapping) {
         }
         if (std::cmp_less(st.st_size, size_)) {
             ::close(fd);
-            return absl::FailedPreconditionError("Shared memory size mismatch: too small");
+            return absl::OutOfRangeError("Shared memory size mismatch: too small");
         }
     }
 
