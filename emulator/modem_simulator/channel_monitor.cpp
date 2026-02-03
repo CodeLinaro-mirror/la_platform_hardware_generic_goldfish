@@ -67,7 +67,7 @@ void Client::SendCommandResponse(std::string response) const {
   if (response.back() != '\r') {
     response += '\r';
   }
-  VLOG(1) << " AT< " << response;
+  VLOG(2) << " AT< " << response;
 
   std::lock_guard<std::mutex> lock(write_mutex);
   WriteAll(client_write_fd_, response);
