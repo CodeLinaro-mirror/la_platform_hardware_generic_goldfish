@@ -46,7 +46,7 @@ collect_plugins = rule(
     attrs = {
         "plugins": attr.label_list(
             allow_files = True,
-            providers = ["files"],
+            providers = [DefaultInfo],
             doc = "A list of plugin targets to collect. Each target should provide the 'files' provider.",
         ),
         "output_dir": attr.string(
