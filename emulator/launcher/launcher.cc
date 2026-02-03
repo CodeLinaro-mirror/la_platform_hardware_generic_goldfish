@@ -39,6 +39,7 @@
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
 #include "emulator.h"
+#include "fishtank.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -50,7 +51,6 @@
 #include "goldfish/tools/aemu_version.h"
 #include "logging.h"
 #include "netsimd.h"
-#include "fishtank.h"
 
 namespace fs = std::filesystem;
 
@@ -90,21 +90,25 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             , mOpts(std::move(opts))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
-        mEventLoop.Post([this] {
-            if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
-                LOG(FATAL) << "Failed to set ports: " << s;
-            }
+        mEventLoop
+                .Post([this] {
+                    if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
+                        LOG(FATAL) << "Failed to set ports: " << s;
+                    }
 
-            if (mOpts.fishtank) {
-                launch_fishtank();
-            }
+                    if (mOpts.fishtank) {
+                        launch_fishtank();
+                    }
 
-            auto chardevs = std::make_shared<WhenAll<ChardevEndpoints>>(
-                    &mEventLoop, [this](ChardevEndpoints ce) { launch_emulator(ce); });
+                    auto chardevs = std::make_shared<WhenAll<ChardevEndpoints>>(
+                            &mEventLoop, [this](ChardevEndpoints ce) { launch_emulator(ce); });
 
-            mEventLoop.Post([this, chardevs]() { discover_netsimd(chardevs); }).IgnoreError();
-            mEventLoop.Post([this, chardevs]() { init_modem_simulator(chardevs); }).IgnoreError();
-        }).IgnoreError();
+                    mEventLoop.Post([this, chardevs]() { discover_netsimd(chardevs); })
+                            .IgnoreError();
+                    mEventLoop.Post([this, chardevs]() { init_modem_simulator(chardevs); })
+                            .IgnoreError();
+                })
+                .IgnoreError();
     }
 
     int emulator_exit_status() const { return mEmulatorExitStatus; }
@@ -233,7 +237,9 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_fishtank() {
-        if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(mResolvedPaths.fishtank_binary, mAvd->Name(), mOpts); fishtank_config.ok()) {
+        if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(
+                    mResolvedPaths.fishtank_binary, mAvd->Name(), mOpts);
+            fishtank_config.ok()) {
             if (auto s = Launch(*std::move(fishtank_config), &fishtank_exit); s.ok()) {
                 mFishtankProcess = *std::move(s);
                 LOG(INFO) << "Running fishtank as pid: " << GetPid(mFishtankProcess);

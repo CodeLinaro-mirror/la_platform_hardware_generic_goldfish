@@ -24,8 +24,8 @@
 #include "absl/status/status.h"
 
 #include "android/goldfish/emulator_config.h"
-#include "goldfish/async/launch_config.h"
 #include "devices/device.h"
+#include "goldfish/async/launch_config.h"
 
 namespace android::goldfish {
 
