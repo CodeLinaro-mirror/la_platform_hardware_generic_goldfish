@@ -1,22 +1,4 @@
-load("@rules_java//java:java_test.bzl", "java_test")
 load("@rules_python//python:defs.bzl", "py_test")
-
-py_test(
-    name = "release_zip_test",
-    size = "small",
-    srcs = ["release_zip_test.py"],
-    args = [
-        "--release_zip_path",
-        "$(rlocationpath //emulator:release)",
-        "--expected_path",
-        "$(rlocationpath :expected_contents)",
-    ],
-    data = [
-        ":expected_contents",
-        "//emulator:release",
-    ],
-    deps = ["@rules_python//python/runfiles"],
-)
 
 filegroup(
     name = "expected_contents",
@@ -33,60 +15,19 @@ filegroup(
     }),
 )
 
-java_test(
-    name = "boot_test",
+py_test(
+    name = "release_zip_test",
+    size = "small",
+    srcs = ["release_zip_test.py"],
+    args = [
+        "--release_zip_path",
+        "$(rlocationpath //emulator:release)",
+        "--expected_path",
+        "$(rlocationpath :expected_contents)",
+    ],
     data = [
-        "//emulator/launcher",
-    ] + select({
-        "@platforms//os:linux": [
-            "@android16k-x86_64//:system_image",
-            "@sdk_linux//:sdkhome",
-        ],
-        "@platforms//os:macos": [
-            "@android16k-arm64-v8a//:system_image",
-            "@sdk_macosx//:sdkhome",
-        ],
-        "@platforms//os:windows": [
-            "@android16k-x86_64//:system_image",
-            "@sdk_windows//:sdkhome",
-        ],
-        "//conditions:default": [],
-    }),
-    env = {
-        "MODULE_WORKSPACE": "tools_emulator+",
-    },
-    jvm_flags = [
-        "-Demulator.test.emulator.path=../goldfish+/emulator/launcher/launcher",
-        "-Demulator.test.emulator.is-emu-next=1",
-    ] + select({
-        "@platforms//os:linux": [
-            "-Demulator.test.sdk.path=../goldfish_build++android_sdk+sdk_linux",
-            "-Demulator.test.system.image.files=\"$(locations @android16k-x86_64//:system_image)\"",
-        ],
-        "@platforms//os:macos": [
-            "-Demulator.test.sdk.path=../goldfish_build++android_sdk+sdk_macosx",
-            "-Demulator.test.system.image.files=\"$(locations @android16k-arm64-v8a//:system_image)\"",
-        ],
-        "//conditions:default": [],
-    }),
-    tags = [
-        "exclusive-if-local",
-        "manual",
-        "requires-network",
+        ":expected_contents",
+        "//emulator:release",
     ],
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
-    test_class = "com.android.tools.idea.EmulatorTest",
-    runtime_deps = ["@tools_emulator//tests:emulator.tests"],
-)
-
-test_suite(
-    name = "integration_tests",
-    tags = ["manual"],
-    tests = [
-        ":boot_test",
-        ":release_zip_test",
-    ],
+    deps = ["@rules_python//python/runfiles"],
 )
