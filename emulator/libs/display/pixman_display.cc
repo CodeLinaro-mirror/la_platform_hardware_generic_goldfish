@@ -45,6 +45,89 @@ namespace goldfish::display {
 
 namespace {
 
+#include <cstdint>
+#include <cstring>  // Required for std::memcpy
+#include <vector>
+
+class ImageRotator {
+  public:
+    /**
+     * Rotates an RGB or RGBA buffer counter-clockwise.
+     * * @param src The source buffer (must be valid).
+     * @param dst The destination buffer (must be allocated with correct size).
+     * @param width The width of the source image.
+     * @param height The height of the source image.
+     * @param channels Number of channels per pixel (3 or 4).
+     * @param rotation The angle to rotate.
+     */
+    static void rotate(const uint8_t* src, uint8_t* dst, int width, int height, int channels,
+                       ImageRotation rotation) {
+        // Basic safety checks
+        if (!src || !dst || channels < 1) return;
+
+        // Determine destination dimensions for stride calculation
+        // Note: We don't need to return these, but we need them for the math.
+        int outWidth;
+        if (rotation == ImageRotation::kRotation180) {
+            outWidth = width;
+        } else {
+            outWidth = height;  // For 90 and 270, width and height swap
+        }
+
+        switch (rotation) {
+        case ImageRotation::kRotation90: {
+            // Source (x, y) -> Dest (y, width - 1 - x)
+            for (int y = 0; y < height; ++y) {
+                size_t srcRowOffset = static_cast<size_t>(y) * width;
+
+                for (int x = 0; x < width; ++x) {
+                    int dstRow = width - 1 - x;
+                    int dstCol = y;
+
+                    size_t srcIndex = (srcRowOffset + x) * channels;
+                    size_t dstIndex = (static_cast<size_t>(dstRow) * outWidth + dstCol) * channels;
+
+                    std::memcpy(dst + dstIndex, src + srcIndex, channels);
+                }
+            }
+            break;
+        }
+
+        case ImageRotation::kRotation180: {
+            // 180 degree rotation is simply reading the array backwards pixel by pixel.
+            // Dest Index = TotalPixels - 1 - SourceIndex
+            size_t totalPixels = static_cast<size_t>(width) * height;
+
+            for (size_t i = 0; i < totalPixels; ++i) {
+                size_t srcIndex = i * channels;
+                size_t dstIndex = (totalPixels - 1 - i) * channels;
+
+                std::memcpy(dst + dstIndex, src + srcIndex, channels);
+            }
+            break;
+        }
+
+        case ImageRotation::kRotation270: {
+            // Source (x, y) -> Dest (height - 1 - y, x)
+            for (int y = 0; y < height; ++y) {
+                size_t srcRowOffset = static_cast<size_t>(y) * width;
+
+                for (int x = 0; x < width; ++x) {
+                    int dstRow = x;
+                    int dstCol = height - 1 - y;
+
+                    size_t srcIndex = (srcRowOffset + x) * channels;
+                    size_t dstIndex = (static_cast<size_t>(dstRow) * outWidth + dstCol) * channels;
+
+                    std::memcpy(dst + dstIndex, src + srcIndex, channels);
+                }
+            }
+            break;
+        }
+        }
+    }
+};
+
 constexpr bool no_scaling = true;
 
 static pixman_format_code_t pixmanFormat(const PixelFormat& format) {
@@ -182,74 +265,116 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
         return absl::UnavailableError("No frame has been produced yet.");
     }
 
-    // Note: the source image dimensions do not have to match the current display dimensions,
-    // since during boot we switch from the "qemu default screen (no display present)" to the
-    // actual display size, which can happen at any time.
     Dimensions dims = {.width = static_cast<uint32_t>(pixman_image_get_width(src_img)),
                        .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
 
-    // If we are rotated 90/270, the destination width fits the source height.
-    bool needsDimensionSwap =
-            (rotation == ImageRotation::kRotation90 || rotation == ImageRotation::kRotation270);
-    double scale_x =
-            needsDimensionSwap ? (double)dims.height / newWidth : (double)dims.width / newWidth;
-    double scale_y =
-            needsDimensionSwap ? (double)dims.width / newHeight : (double)dims.height / newHeight;
+    int rot_channel = 0;
+    if (no_scaling) {
+        if (format == PixelFormat::PNG) {
+            auto width = pixman_image_get_width(src_img);
+            auto height = pixman_image_get_height(src_img);
+            auto* src_bits = pixman_image_get_data(src_img);
+            memcpy(pixels, src_bits, width * height * 4);
+            rot_channel = 4;
+        } else {
+            rot_channel = 3;
+            auto fast_abgr_to_rgb_le = [](const uint32_t* src, uint8_t* dst, int num_pixels) {
+                const uint8_t* byte_src = (const uint8_t*)src;  // Treat input as bytes
 
-    VLOG(2) << "Source: " << dims.width << "x" << dims.height << ", dest: " << newWidth << "x"
-            << newHeight << ", rotation: " << static_cast<int>(rotation) << ", scale_x: " << scale_x
-            << ", scale_y: " << scale_y;
-    // centering/translation logic.
-    pixman_transform_init_identity(&transform);
+                for (int i = 0; i < num_pixels; i++) {
+                    // Source index: jumps 4 bytes at a time (skip Alpha)
+                    // Dest index: jumps 3 bytes at a time
+                    dst[i * 3 + 0] = byte_src[i * 4 + 0];  // R
+                    dst[i * 3 + 1] = byte_src[i * 4 + 1];  // G
+                    dst[i * 3 + 2] = byte_src[i * 4 + 2];  // B
+                    // Skip byte_src[i*4 + 3] (Alpha)
+                }
+            };
+            auto width = pixman_image_get_width(src_img);
+            auto height = pixman_image_get_height(src_img);
+            auto* src_bits = pixman_image_get_data(src_img);
+            fast_abgr_to_rgb_le(src_bits, pixels, width * height);
+        }
+    } else {
+        // Note: the source image dimensions do not have to match the current display dimensions,
+        // since during boot we switch from the "qemu default screen (no display present)" to the
+        // actual display size, which can happen at any time.
 
-    if (rotation != ImageRotation::kRotation0) {
-        // We want to rotate around the center.
-        // The transform maps destination -> source.
-        const double radians = static_cast<int>(rotation) * M_PI / 180.0;
+        // If we are rotated 90/270, the destination width fits the source height.
+        bool needsDimensionSwap =
+                (rotation == ImageRotation::kRotation90 || rotation == ImageRotation::kRotation270);
+        double scale_x =
+                needsDimensionSwap ? (double)dims.height / newWidth : (double)dims.width / newWidth;
+        double scale_y = needsDimensionSwap ? (double)dims.width / newHeight
+                                            : (double)dims.height / newHeight;
 
-        // 1. Translate destination center to origin
-        pixman_transform_translate(&transform, NULL,
-                                   pixman_double_to_fixed(-newWidth / 2.0),    // move left
-                                   pixman_double_to_fixed(-newHeight / 2.0));  // move up
+        VLOG(2) << "Source: " << dims.width << "x" << dims.height << ", dest: " << newWidth << "x"
+                << newHeight << ", rotation: " << static_cast<int>(rotation)
+                << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
+        // centering/translation logic.
+        pixman_transform_init_identity(&transform);
 
-        // 2. Rotate (destination to source)
-        // A clockwise rotation of the coordinate system (destination->source)
-        // results in a counter-clockwise rotation of the image content.
-        pixman_transform_rotate(&transform, NULL,
-                                pixman_double_to_fixed(cos(radians)),   // cos(theta)
-                                pixman_double_to_fixed(sin(radians)));  // sin(theta)
+        if (rotation != ImageRotation::kRotation0) {
+            // We want to rotate around the center.
+            // The transform maps destination -> source.
+            const double radians = static_cast<int>(rotation) * M_PI / 180.0;
 
-        // 3. Translate back to source center
-        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(dims.width / 2.0),
-                                   pixman_double_to_fixed(dims.height / 2.0));
+            // 1. Translate destination center to origin
+            pixman_transform_translate(&transform, NULL,
+                                       pixman_double_to_fixed(-newWidth / 2.0),    // move left
+                                       pixman_double_to_fixed(-newHeight / 2.0));  // move up
+
+            // 2. Rotate (destination to source)
+            // A clockwise rotation of the coordinate system (destination->source)
+            // results in a counter-clockwise rotation of the image content.
+            pixman_transform_rotate(&transform, NULL,
+                                    pixman_double_to_fixed(cos(radians)),   // cos(theta)
+                                    pixman_double_to_fixed(sin(radians)));  // sin(theta)
+
+            // 3. Translate back to source center
+            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(dims.width / 2.0),
+                                       pixman_double_to_fixed(dims.height / 2.0));
+        }
+
+        if (!no_scaling) {
+            // Scaling logic.
+            // Shift the whole image by -0.5 so we are looking at the center of each pixel
+            // instead of the edge. This is important for scaling to be smooth.
+            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
+                                       pixman_double_to_fixed(-0.5));
+            // Perform the scaling.
+            pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
+                                   pixman_double_to_fixed(scale_y));
+            // Move the image back to the original position (+0.5).
+            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
+                                       pixman_double_to_fixed(0.5));
+            // Set the transform and filter on the source image for fast scaling.
+            pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
+        }
+
+        pixman_image_set_transform(src_img, &transform);
+
+        pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img.get(), 0, 0, 0, 0, 0, 0,
+                               newWidth, newHeight);
+
+        // The buffer is now filled with the scaled and rotated image.
+        // The size of the valid pixel data is the required size.
+        *cPixels = requiredSize;
+        VLOG(2) << "getPixels source {w:" << dims.width << " h:" << dims.height
+                << "}, dest {w:" << newWidth << " h:" << newHeight << "} px_size=" << *cPixels;
     }
 
-    if (!no_scaling) {
-        // Scaling logic.
-        // Shift the whole image by -0.5 so we are looking at the center of each pixel
-        // instead of the edge. This is important for scaling to be smooth.
-        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
-                                   pixman_double_to_fixed(-0.5));
-        // Perform the scaling.
-        pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
-                               pixman_double_to_fixed(scale_y));
-        // Move the image back to the original position (+0.5).
-        pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
-                                   pixman_double_to_fixed(0.5));
-        // Set the transform and filter on the source image for fast scaling.
-        pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
+    if (no_scaling && rotation != ImageRotation::kRotation0) {
+        int w = dims.width;
+        int h = dims.height;
+        int channels = rot_channel;
+        size_t bufferSize = w * h * channels;
+
+        const auto* src = pixels;
+        std::vector<uint8_t> dst(bufferSize);
+        ImageRotator::rotate(src, dst.data(), w, h, channels, rotation);
+        memcpy(pixels, dst.data(), bufferSize);
     }
-
-    pixman_image_set_transform(src_img, &transform);
-
-    pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img.get(), 0, 0, 0, 0, 0, 0, newWidth,
-                           newHeight);
-
-    // The buffer is now filled with the scaled and rotated image.
-    // The size of the valid pixel data is the required size.
-    *cPixels = requiredSize;
-    VLOG(2) << "getPixels source {w:" << dims.width << " h:" << dims.height << "}, dest {w:" << newWidth
-            << " h:" << newHeight << "} px_size=" << *cPixels;
 
     if (format == PixelFormat::PNG) {
         std::vector<uint8_t> png_buffer_vec;
