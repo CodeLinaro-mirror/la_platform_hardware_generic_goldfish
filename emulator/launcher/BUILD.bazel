@@ -200,15 +200,29 @@ cc_library(
 )
 
 cc_library(
+    name = "fishtank_launcher",
+    hdrs = ["fishtank.h"],
+    deps = [
+        ":input_paths",
+        "//android/async:launch_config",
+        "//emulator/cmdline",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
     name = "netsimd",
     srcs = ["netsimd.cc"],
     hdrs = ["netsimd.h"],
     deps = [
+        ":input_paths",
         "//android/async:launch_config",
         "//android/files:ini_file",
         "//android/network",
         "//emulator/cmdline",
         "//emulator/grpc/client:emulator_grpc_client",
+        "@abseil-cpp//absl/status:statusor",
         "@grpc//:grpc++",
     ],
 )
@@ -366,6 +380,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator",
+        ":fishtank_launcher",
         ":input_paths",
         ":logging",
         ":netsimd",

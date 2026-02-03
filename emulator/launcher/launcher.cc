@@ -50,6 +50,7 @@
 #include "goldfish/tools/aemu_version.h"
 #include "logging.h"
 #include "netsimd.h"
+#include "fishtank.h"
 
 namespace fs = std::filesystem;
 
@@ -92,6 +93,10 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         mEventLoop.Post([this] {
             if (auto s = setup_emulator_ports(mOpts, mEventLoop); !s.ok()) {
                 LOG(FATAL) << "Failed to set ports: " << s;
+            }
+
+            if (mOpts.fishtank) {
+                launch_fishtank();
             }
 
             auto chardevs = std::make_shared<WhenAll<ChardevEndpoints>>(
@@ -217,6 +222,26 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
+        }
+    }
+
+    static void fishtank_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
+        LOG(INFO) << "Fishtank exited with status " << exit_status << ", signal " << term_signal;
+        Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
+        // TODO(whollins): Should we sigterm the emulator when the UI is closed?
+        CloseHandle(std::move(l.mFishtankProcess));
+    }
+
+    void launch_fishtank() {
+        if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(mResolvedPaths.fishtank_binary, mAvd->Name(), mOpts); fishtank_config.ok()) {
+            if (auto s = Launch(*std::move(fishtank_config), &fishtank_exit); s.ok()) {
+                mFishtankProcess = *std::move(s);
+                LOG(INFO) << "Running fishtank as pid: " << GetPid(mFishtankProcess);
+            } else {
+                LOG(FATAL) << "Fatal error whilst launching fishtank: " << s.status();
+            }
+        } else {
+            LOG(FATAL) << "Fatal error whilst launching fishtank: " << fishtank_config.status();
         }
     }
 
@@ -392,6 +417,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     std::shared_ptr<::goldfish::async::EventLoop::Timer> mFindNetsimd;
 
+    ProcessHandle mFishtankProcess;
     ProcessHandle mNetsimdProcess;
     ProcessHandle mEmulatorProcess;
     std::shared_ptr<ModemSimulatorService> modem_simulator_service_;
@@ -515,7 +541,7 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose);
+    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose, opts.fishtank);
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;

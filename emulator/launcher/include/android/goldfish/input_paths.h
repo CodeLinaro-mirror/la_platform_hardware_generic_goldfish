@@ -44,6 +44,7 @@ struct ResolvedInputPaths {
     fs::path qemu_img_binary;
     fs::path netsim_binary;
     fs::path crashpad_handler_binary;
+    fs::path fishtank_binary;
 };
 
 // TODO
@@ -61,6 +62,6 @@ struct ResolvedInputPaths {
     fs::path sdcard_image;
 };*/
 
-absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose);
+absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fishtank);
 
 }  // namespace android::goldfish

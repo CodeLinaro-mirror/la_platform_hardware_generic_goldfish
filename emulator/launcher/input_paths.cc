@@ -89,7 +89,7 @@ constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
 
-absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose) {
+absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fishtank) {
     ResolvedInputPaths paths;
     ASSIGN_OR_RETURN(const fs::path program_path, GetProgramPath());
     ASSIGN_OR_RETURN(paths.launcher_binary, CheckExists(program_path, "launcher binary"));
@@ -172,6 +172,11 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose) {
     ASSIGN_OR_RETURN(paths.crashpad_handler_binary,
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
+    if (include_fishtank) {
+        ASSIGN_OR_RETURN(paths.fishtank_binary,
+                        CheckExists(paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"),
+                                    "fishtank"));
+    }
 
 #ifdef _WIN32
     // Canonicalize binaries as Windows cannot execute a symlink.
