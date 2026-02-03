@@ -122,7 +122,7 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
 
     if (verbose) {
         LOG(INFO) << "Listing launcher directory (" << paths.launcher_directory << "):";
-        for (const auto &path : base::file::scan_dir_recursive(paths.launcher_directory)) {
+        for (const auto& path : base::file::scan_dir_recursive(paths.launcher_directory)) {
             LOG(INFO) << "    " << path.lexically_relative(paths.launcher_directory).string();
         }
     }
@@ -173,9 +173,9 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
                      CheckExists(paths.binary_directory / AddBinarySuffix("crashpad_handler"),
                                  "crashpad handler"));
     if (include_fishtank) {
-        ASSIGN_OR_RETURN(paths.fishtank_binary,
-                        CheckExists(paths.launcher_directory / "fishtank" / AddBinarySuffix("fishtank"),
-                                    "fishtank"));
+        ASSIGN_OR_RETURN(paths.fishtank_binary, CheckExists(paths.launcher_directory / "fishtank" /
+                                                                    AddBinarySuffix("fishtank"),
+                                                            "fishtank"));
     }
 
 #ifdef _WIN32

@@ -24,7 +24,8 @@
 namespace goldfish::launcher::fishtank {
 
 absl::StatusOr<::goldfish::async::LaunchConfig> launch_config(
-        const std::filesystem::path& fishtank_binary, const std::string &avd_name, const AndroidOptions& opts) {
+        const std::filesystem::path& fishtank_binary, const std::string& avd_name,
+        const AndroidOptions& opts) {
     std::vector<std::string> args;
     args.push_back(absl::StrCat("@", avd_name));
 
