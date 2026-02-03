@@ -16,6 +16,8 @@ emulator/data/virtualscene/Toren1BD/Toren1BD.mtl
 emulator/data/virtualscene/Toren1BD/Toren1BD.obj
 emulator/data/virtualscene/Toren1BD/Toren1BD.posters
 emulator/emulator
+emulator/fishtank/
+emulator/fishtank/fishtank
 emulator/lib/
 emulator/lib64/
 emulator/lib64/libEGL.dylib

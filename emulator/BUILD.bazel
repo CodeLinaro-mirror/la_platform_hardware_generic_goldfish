@@ -3,7 +3,7 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
     "//emulator/tools:packaging.bzl",
@@ -284,12 +284,21 @@ pkg_files(
     prefix = "share/qemu",
 )
 
+pkg_files(
+    name = "fishtank",
+    srcs = ["//emulator/launcher:fishtank_unzip"],
+    # Remove the unzip directory so that we embed the zip contents directly.
+    renames = {"//emulator/launcher:fishtank_unzip": REMOVE_BASE_DIRECTORY},
+    # No prefix as the zip already contains everything inside a fishtank/ directory.
+)
+
 pkg_filegroup(
     name = "emulator-dir",
     srcs = [
         ":data_virtualscene_Toren1BD",
         ":egl_stripped",
         ":emulator-access",
+        ":fishtank",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-keymaps",
