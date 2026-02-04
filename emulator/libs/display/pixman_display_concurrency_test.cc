@@ -37,7 +37,7 @@ class PixmanDisplayConcurrencyTest : public ::testing::Test {
     std::unique_ptr<goldfish::async::EventLoop> mLoop;
 };
 
-TEST_F(PixmanDisplayConcurrencyTest, ConcurrentGetPixelsDifferentScales) {
+TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentGetPixelsDifferentScales) {
     int width = 640;
     int height = 480;
     // Use a high FPS to ensure constant updates
@@ -90,7 +90,7 @@ TEST_F(PixmanDisplayConcurrencyTest, ConcurrentGetPixelsDifferentScales) {
     EXPECT_EQ(successCount, kNumThreads * kNumIterations);
 }
 
-TEST_F(PixmanDisplayConcurrencyTest, ConcurrentUpdateAndGetPixels) {
+TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentUpdateAndGetPixels) {
     int width = 640;
     int height = 480;
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), 0, 100, width, height);

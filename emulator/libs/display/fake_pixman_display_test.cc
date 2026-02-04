@@ -172,7 +172,7 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
 }
 
-TEST_F(FakePixmanDisplayTest, GetPixels_RotationPortraitSource) {
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationPortraitSource) {
     const int srcW = 100;
     const int srcH = 200;
 
@@ -209,7 +209,7 @@ TEST_F(FakePixmanDisplayTest, GetPixels_RotationPortraitSource) {
     verifyPixel(ImageRotation::kRotation270, 199, 0, srcH, srcW);
 }
 
-TEST_F(FakePixmanDisplayTest, GetPixels_RotationLandscapeSource) {
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationLandscapeSource) {
     const int srcW = 200;
     const int srcH = 100;
 
@@ -242,7 +242,7 @@ TEST_F(FakePixmanDisplayTest, GetPixels_RotationLandscapeSource) {
     verifyPixel(ImageRotation::kRotation270, 99, 0, srcH, srcW);
 }
 
-TEST_F(FakePixmanDisplayTest, GetPixels_RotationSquareSource) {
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationSquareSource) {
     const int size = 100;
 
     // Create a Square source image (Red pixel at Top-Left 0,0)

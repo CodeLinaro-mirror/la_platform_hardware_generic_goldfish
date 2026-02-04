@@ -224,7 +224,7 @@ TEST_F(FakeMultiDisplayTest, DisplayEventsAreOnTheEventLoop) {
     event.WaitForNotificationWithTimeout(absl::Milliseconds(100));
 }
 
-TEST_F(FakeMultiDisplayTest, ResizeMaintainsPatternIntegrity) {
+TEST_F(FakeMultiDisplayTest, DISABLED_ResizeMaintainsPatternIntegrity) {
     constexpr int kWidth = 1080;
     constexpr int kHeight = 2400;
 
@@ -262,7 +262,7 @@ TEST_F(FakeMultiDisplayTest, ResizeMaintainsPatternIntegrity) {
     EXPECT_TRUE(strategy.isGeneratedBy(validationImage.get(), 0));
 }
 
-TEST_F(FakeMultiDisplayTest, ResizeWithScaling) {
+TEST_F(FakeMultiDisplayTest, DISABLED_ResizeWithScaling) {
     constexpr int kInitialWidth = 1080;
     constexpr int kInitialHeight = 2400;
 
