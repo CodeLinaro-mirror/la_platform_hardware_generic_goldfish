@@ -90,6 +90,8 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string emulatorCircularProp = "androidboot.emulator.circular";
     std::string autoRotateProp = "androidboot.qemu.autorotate";
     std::string qemuExternalDisplays = "androidboot.qemu.external.displays";
+    std::string qemuRadioDataInterfaceName = "androidboot.qemu.radio.data_interface_name";
+
     std::vector<std::pair<std::string, std::string>> params;
 
     params.push_back({"qemu.logcat_filter", "*:S"});
@@ -199,6 +201,9 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     // Keyboard config.
     params.push_back({"androidboot.qemu.keyboard_device", "QEMU Virtio Keyboard"});
+
+    // Radio config
+    params.push_back({qemuRadioDataInterfaceName, "wlan0"});
 
     if (isX86ish) {
         // x86 and x86_64 platforms use an alternative Android DT directory that
