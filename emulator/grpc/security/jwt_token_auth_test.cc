@@ -187,7 +187,18 @@ TEST_F(JwkTokenAuthTest, discovery_file_contains_our_key) {
     ASSERT_THAT(loaded, absl_testing::IsOk());
     auto loaded_json = json::parse(*loaded, nullptr, /*allow_exceptions=*/false);
 
-    EXPECT_EQ(our_json, loaded_json);
+    // We expect our keys to be present in the loaded keys.
+    auto& loaded_keys = loaded_json["keys"];
+    for (const auto& key : our_json["keys"]) {
+        bool found = false;
+        for (const auto& loaded_key : loaded_keys) {
+            if (key == loaded_key) {
+                found = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(found) << "Key " << key << " not found in loaded keys.";
+    }
 }
 
 TEST_F(JwkTokenAuthTest, accept_yellow) {
