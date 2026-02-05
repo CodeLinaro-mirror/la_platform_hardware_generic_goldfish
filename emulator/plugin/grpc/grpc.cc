@@ -26,6 +26,7 @@
 
 #include "android/base/file/file.h"
 #include "android/emulation/control/emulator_service.h"
+#include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/forwarding/service_forwarder_impl.h"
 #include "android/emulation/forwarding/ui_controller_forwarder.h"
 #include "android/goldfish/vm_interface.h"
@@ -149,7 +150,12 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto uiControllerForwarder =
             std::make_shared<::android::emulation::forwarding::UiControllerForwarder>(
                     serviceForwarder);
-    builder.withService(serviceForwarder).withService(uiControllerForwarder);
+    auto screenRecorder =
+            std::make_shared<::android::emulation::control::incubating::ScreenRecordingServiceImpl>(
+                    IMultiDisplay::instance());
+    builder.withService(serviceForwarder)
+            .withService(uiControllerForwarder)
+            .withService(screenRecorder);
 
     if (config->idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << config->idle_timeout

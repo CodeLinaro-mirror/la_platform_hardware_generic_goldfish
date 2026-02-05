@@ -1,0 +1,20 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "screen_recorder",
+    srcs = ["screen_recording_impl.cc"],
+    hdrs = ["include/android/emulation/control/incubating/screen_recording_impl.h"],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
+        "@goldfish//emulator/libs/display:video_recorder",
+        "@grpc//:grpc++",
+    ],
+)
