@@ -26,12 +26,14 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "goldfish/memory/shared_memory.h"
 
 namespace android::emulation::control {
 
 using ::goldfish::display::IMultiDisplay;
 using ::goldfish::display::PixelFormat;
 using ::goldfish::display::test::FakeMultiDisplay;
+using ::goldfish::memory::SharedMemory;
 using ::goldfish::sensors::AndroidSensor;
 using ::goldfish::sensors::PhysicalModel;
 using ::grpc::ServerContext;
@@ -146,7 +148,7 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     auto createResult = mMultiDisplay->createDisplay(2, 400, 200);
     ASSERT_TRUE(createResult.ok());
 
-    // Get a screenshot with scaling
+    // Get a screenshot with scaling (which is now disabled)
     Image reply;
     ImageFormat request;
     request.set_display(2);
@@ -157,9 +159,9 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     auto context = getContextWithTimeout();
     ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
-    // Check the format
-    EXPECT_TRUE(reply.format().width() == 200 || reply.format().width() == 400);
-    EXPECT_TRUE(reply.format().height() == 100 || reply.format().height() == 200);
+    // Check the format. We should get the original size back.
+    EXPECT_EQ(reply.format().width(), 400);
+    EXPECT_EQ(reply.format().height(), 200);
     EXPECT_EQ(reply.format().display(), 2);
 }
 
@@ -565,4 +567,187 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
         }
     }
 }
+
+TEST_F(DisplayServiceTest, GetScreenshotMmap) {
+    // Create a shared memory region.
+    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
+    std::string name =
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%d", ts)).string();
+    size_t size = 100 * 50 * 4;
+    SharedMemory mem(name, size);
+    ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+
+    // Get a screenshot via MMAP
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle(name);
+
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    // Check the format
+    EXPECT_EQ(reply.format().width(), 100);
+    EXPECT_EQ(reply.format().height(), 50);
+    EXPECT_EQ(reply.format().display(), 1);
+
+    // Image should be empty
+    EXPECT_TRUE(reply.image().empty());
+
+    // Shared memory should have data
+    uint32_t* pixelData = reinterpret_cast<uint32_t*>(*mem);
+    ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
+}
+
+TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
+    // Create a shared memory region.
+    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
+    std::string name =
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%d", ts)).string();
+
+    size_t size = 100 * 50 * 4;
+    SharedMemory mem(name, size);
+    ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+    startFrames(1);
+
+    // Get a screenshot stream via MMAP
+    ImageFormat request;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle(name);
+
+    auto context = getContextWithTimeout(2s);
+    std::unique_ptr<grpc::ClientReader<Image>> reader(
+            mStub->streamScreenshot(context.get(), request));
+    Image image;
+    int count = 0;
+
+    // Check that we have montonically increasing sequence numbers and timestamps
+    while (reader->Read(&image) && count < 5) {
+        // Image should be empty
+        EXPECT_TRUE(image.image().empty());
+
+        // Shared memory should have data
+        uint32_t* pixelData = reinterpret_cast<uint32_t*>(*mem);
+        EXPECT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
+        count++;
+    }
+
+    ASSERT_EQ(count, 5);
+}
+
+TEST_F(DisplayServiceTest, StreamScreenshotMmapResourceExhausted) {
+    // Create a shared memory region that is too small for the screenshot but large enough to map
+    // (e.g. 4KB).
+    std::string name = (std::filesystem::temp_directory_path() / "test_stream_mmap_small").string();
+    size_t size = 4096;  // One page, but too small for 100*50*4 = 20000 bytes
+    SharedMemory mem(name, size);
+    ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+    startFrames(1);
+
+    // Get a screenshot stream via MMAP
+    ImageFormat request;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle(name);
+
+    auto context = getContextWithTimeout(2s);
+    std::unique_ptr<grpc::ClientReader<Image>> reader(
+            mStub->streamScreenshot(context.get(), request));
+    Image image;
+
+    // Should fail immediately
+    EXPECT_FALSE(reader->Read(&image));
+    auto status = reader->Finish();
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotPNG) {
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::PNG);
+
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    EXPECT_EQ(reply.format().width(), 100);
+    EXPECT_EQ(reply.format().height(), 50);
+    // PNG data should start with 89 50 4E 47
+    const std::string& data = reply.image();
+    ASSERT_GE(data.size(), 4);
+    EXPECT_EQ(static_cast<uint8_t>(data[0]), 0x89);
+    EXPECT_EQ(static_cast<uint8_t>(data[1]), 'P');
+    EXPECT_EQ(static_cast<uint8_t>(data[2]), 'N');
+    EXPECT_EQ(static_cast<uint8_t>(data[3]), 'G');
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
+    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
+    std::string name =
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_png_mmap_%d", ts))
+                    .string();
+    size_t size = 100 * 50 * 4;
+    SharedMemory mem(name, size);
+    ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::PNG);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle(name);
+
+    auto context = getContextWithTimeout();
+    ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+
+    EXPECT_TRUE(reply.image().empty());
+
+    uint8_t* pngData = reinterpret_cast<uint8_t*>(*mem);
+    EXPECT_EQ(pngData[0], 0x89);
+    EXPECT_EQ(pngData[1], 'P');
+    EXPECT_EQ(pngData[2], 'N');
+    EXPECT_EQ(pngData[3], 'G');
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotMmapInvalidHandle) {
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle("invalid_handle_path_that_does_not_exist");
+
+    auto context = getContextWithTimeout();
+    Status status = mStub->getScreenshot(context.get(), request, &reply);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::NOT_FOUND);
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotMmapTooSmall) {
+    std::string name = (std::filesystem::temp_directory_path() / "test_mmap_too_small").string();
+    size_t size = 10;
+    SharedMemory mem(name, size);
+    ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
+                        .ok());
+
+    ImageFormat request;
+    Image reply;
+    request.set_display(1);
+    request.set_format(ImageFormat::RGBA8888);
+    request.mutable_transport()->set_channel(ImageTransport::MMAP);
+    request.mutable_transport()->set_handle(name);
+
+    auto context = getContextWithTimeout();
+    Status status = mStub->getScreenshot(context.get(), request, &reply);
+    EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
+}
+
 }  // namespace android::emulation::control

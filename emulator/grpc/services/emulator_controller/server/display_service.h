@@ -16,10 +16,11 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include "absl/functional/any_invocable.h"
+
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/sensors/physical_model.h"
-
 namespace android {
 namespace emulation {
 namespace control {
@@ -48,6 +49,34 @@ class DisplayServiceImpl : public EmulatorController::Service {
   private:
     static Status getDisplayConfigurations(const ::goldfish::display::IMultiDisplay& multiDisplay,
                                            DisplayConfigurations* reply);
+
+    /**
+     * @brief A callback type for allocating memory for an image.
+     *
+     * This AnyInvocable is responsible for providing a pointer to a buffer
+     * where the image data can be written. It takes an Image protobuf object
+     * (which may be modified to hold the buffer) and the required size in bytes.
+     *
+     * @return A pointer to the allocated memory, or an error status.
+     */
+    using MemoryAllocator = absl::AnyInvocable<absl::StatusOr<uint8_t*>(Image* img, size_t size)>;
+
+    /**
+     * @brief Creates an appropriate MemoryAllocator based on the request.
+     *
+     * Depending on whether the request specifies a side-channel (like MMAP)
+     * or uses the standard gRPC protobuf-allocated string, this function
+     * returns a suitable allocator.
+     *
+     * @param request The ImageFormat request containing transport details.
+     * @param display The display whose dimensions are used for MMAP bounds checking.
+     * @return A MemoryAllocator instance, or an error status if transport setup fails.
+     */
+    absl::StatusOr<MemoryAllocator> createAllocator(const ImageFormat& request,
+                                                    const ::goldfish::display::IDisplay& display);
+
+    Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply,
+                         MemoryAllocator& allocator);
 
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
