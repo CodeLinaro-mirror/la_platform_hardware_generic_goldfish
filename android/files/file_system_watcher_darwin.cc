@@ -224,10 +224,30 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         }
 
         cf_run_loop_ = CFRunLoopGetCurrent();
+
+        // Create a source to signal when the run loop starts.
+        // This schedules a source that immediately signals itself, so that we can be sure
+        // the run loop is running before returning from Start().
+        CFRunLoopSourceContext source_ctx = {
+            0, this, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, [](void* info) {
+                auto* self = static_cast<FileSystemWatcherFS*>(info);
+                self->started_.signal();
+            }};
+        auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
+        if (source) {
+            CFRunLoopAddSource(cf_run_loop_, source, kCFRunLoopDefaultMode);
+            CFRunLoopSourceSignal(source);
+            CFRunLoopWakeUp(cf_run_loop_);
+            CFRelease(source);
+        } else {
+            LOG(WARNING) << "Failed to create CFRunLoop source, proceeding without it, you might "
+                            "have missed some file events in: "
+                         << path_;
+            started_.signal();
+        }
+
         FSEventStreamScheduleWithRunLoop(stream, cf_run_loop_, kCFRunLoopDefaultMode);
         FSEventStreamStart(stream);
-
-        started_.signal();
 
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
 

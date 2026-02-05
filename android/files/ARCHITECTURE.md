@@ -25,4 +25,4 @@
 
 ## Threading Model
 * **IniFile:** Not thread-safe.
-* **FileSystemWatcher:** Thread-safe start/stop. The callback is invoked on the watcher's dedicated thread.
+* **FileSystemWatcher:** Thread-safe start/stop. The callback is invoked on the watcher's dedicated thread. `Start()` blocks until the OS-specific watcher is fully initialized and monitoring events.
