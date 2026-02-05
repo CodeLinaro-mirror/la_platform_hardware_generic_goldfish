@@ -2,25 +2,26 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
-load("//emulator/tools:fishtank.bzl", "subdir_link", "unzip")
+load("//emulator/tools:fishtank.bzl", "subpath_link", "unzip")
 load("//emulator/tools:plugins.bzl", "collect_plugins")
 load("tools/launcher_test.bzl", "create_launch_emulator_test")
 
 unzip(
     name = "fishtank_unzip",
     visibility = ["//visibility:public"],
-    # TODO(whollins): This zip should come from GCS buckets instead.
     zipfile = select({
-        "@platforms//os:windows": ":dummy_fishtank_win.zip",
-        "//conditions:default": ":dummy_fishtank.zip",
+        "@platforms//os:windows": "@fishtank-windows//file",
+        "@platforms//os:macos": "@fishtank-mac//file",
+        "@platforms//os:linux": "@fishtank-linux//file",
     }),
 )
 
 # TODO(whollins): This may not work on Windows until we switch to Bazel 9.0.0.
-subdir_link(
+subpath_link(
     name = "fishtank",
-    dir = ":fishtank_unzip",
-    subdir = "fishtank",
+    parent_dir = ":fishtank_unzip",
+    subpath = "fishtank",
+    subpath_is_dir = True,
 )
 
 cc_library(

@@ -37,32 +37,36 @@ unzip = rule(
     },
 )
 
-def _subdir_link_impl(ctx):
-    subdir = ctx.actions.declare_symlink(ctx.label.name)
+def _subpath_link_impl(ctx):
+    # TODO(whollins): check path separators in subpath.
+    link = ctx.actions.declare_symlink(ctx.label.name)
 
     ctx.actions.symlink(
-        output = subdir,
-        target_path = ctx.file.dir.basename + "/" + ctx.attr.subdir,
-        # TODO this needs Bazel 9.0.0 or later: target_type = "directory",
+        output = link,
+        target_path = ctx.file.parent_dir.basename + "/" + ctx.attr.subpath,
+        # TODO this needs Bazel 9.0.0 or later: target_type = "directory" if ctx.attr.subpath_is_dir else "file",
     )
 
-    runfiles = ctx.runfiles([ctx.file.dir])
+    runfiles = ctx.runfiles([ctx.file.parent_dir])
     return [
         DefaultInfo(
-            files = depset(direct = [subdir]),
+            files = depset(direct = [link]),
             runfiles = runfiles,
         ),
     ]
 
-subdir_link = rule(
-    _subdir_link_impl,
+subpath_link = rule(
+    _subpath_link_impl,
     attrs = {
-        "dir": attr.label(
+        "parent_dir": attr.label(
             allow_single_file = True,
             mandatory = True,
         ),
-        "subdir": attr.string(
+        "subpath": attr.string(
             mandatory = True,
+        ),
+        "subpath_is_dir": attr.bool(
+            default = False,
         ),
     },
 )

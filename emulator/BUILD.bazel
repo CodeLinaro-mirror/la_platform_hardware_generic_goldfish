@@ -1,9 +1,11 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:directory_path.bzl", "make_directory_path")
 load("@bazel_lib//lib:output_files.bzl", "output_files")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
     "//emulator/tools:packaging.bzl",
@@ -290,12 +292,52 @@ pkg_files(
     prefix = "share/qemu",
 )
 
+# We have to exclude the fishtank binary as it has to be marked executable in a separate inclusion.
+filter_directory(
+    name = "fishtank_filtered_dir",
+    src = "//emulator/launcher:fishtank_unzip",
+    excludes = select({
+        "@platforms//os:windows": ["fishtank/fishtank.exe"],
+        "//conditions:default": ["fishtank/fishtank"],
+    }),
+    outdir_name = "fishtank",
+    strip_prefix = "fishtank",
+)
+
 pkg_files(
-    name = "fishtank",
-    srcs = ["//emulator/launcher:fishtank_unzip"],
-    # Remove the unzip directory so that we embed the zip contents directly.
-    renames = {"//emulator/launcher:fishtank_unzip": REMOVE_BASE_DIRECTORY},
-    # No prefix as the zip already contains everything inside a fishtank/ directory.
+    name = "fishtank_dir",
+    srcs = [":fishtank_filtered_dir"],
+)
+
+# We have to copy the fishtank binary first as the pkg_zip implementation doesn't like a symlink.
+make_directory_path(
+    name = "fishtank_binary_path",
+    directory = "//emulator/launcher:fishtank_unzip",
+    path = select({
+        "@platforms//os:windows": "fishtank/fishtank.exe",
+        "//conditions:default": "fishtank/fishtank",
+    }),
+)
+
+copy_file(
+    name = "fishtank_binary_copy",
+    src = ":fishtank_binary_path",
+    out = "fishtank_binary_copy_file",
+)
+
+pkg_files(
+    name = "fishtank_binary",
+    srcs = [":fishtank_binary_copy"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "fishtank",
+    renames = select({
+        "@platforms//os:windows": {
+            ":fishtank_binary_copy": "fishtank.exe",
+        },
+        "//conditions:default": {
+            ":fishtank_binary_copy": "fishtank",
+        },
+    }),
 )
 
 pkg_filegroup(
@@ -305,7 +347,8 @@ pkg_filegroup(
         ":data_virtualscene_Toren1BD",
         ":egl_stripped",
         ":emulator-access",
-        ":fishtank",
+        ":fishtank_binary",
+        ":fishtank_dir",
         ":launcher_stripped",
         ":plugins_stripped",
         ":qemu-keymaps",
