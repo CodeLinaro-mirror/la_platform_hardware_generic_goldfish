@@ -174,6 +174,25 @@ class EmulatorAvd:
         ini_dir = avd_path / "phone.avd"
         ini_dir.mkdir()
 
+        # Fishtank (qemu-now) uses the following logic to get the full path to phone.avd:
+        # 1) Check $ANDROID_AVD_HOME/../<`path.rel` in phone.ini>. If it does not exist, then
+        # 2) Check the absolute path provided by `path` in phone.ini.
+        #
+        # In <avd_name>.ini files provided by the Android Studio sdk, where
+        # ANDROID_AVD_HOME=~/.android/avd, those path fields would typically be, for example:
+        #
+        # == my_avd.ini =============
+        # avd.ini.encoding=UTF-8
+        # path.rel=avd/my_avd.avd
+        # path=<abs-path-to>/my_avd.avd
+        # target=android-36
+        # ===========================
+        #
+        # So to workaround this strange logic in qemu-now, we inject the absolute path to phone.avd
+        # in phone.ini, in case fishtank can't find it with path.rel.
+        with open(avd_path / "phone.ini", "a") as f:
+            f.write(f"\npath = {ini_dir}\n")
+
         with open(self.locator.config_ini_path, "r") as f:
             config_content = f.read()
 
