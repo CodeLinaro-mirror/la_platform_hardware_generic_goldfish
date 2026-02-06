@@ -18,60 +18,88 @@
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 
-// Helper for multithreaded tests to wait for an event to occur before
-// continuing test execution. Usage:
-//
-// TestEvent event;
-// setCallback([&event]() {
-//     event.signal();
-// });
-//
-// asyncCallCallback();
-// event.wait();
-//
-// By default, the timeout is 10 seconds but it can be changed by overriding
-// the default parameter of wait().
-//
-// TestEvent is counted, so calling signal() more than once will result in
-// multiple wait() events being triggered.  Call reset() to reset the current
-// count.
-
+/**
+ * @brief Helper for multithreaded tests to wait for an event to occur before
+ * continuing test execution.
+ *
+ * Usage:
+ * @code
+ * TestEvent event;
+ * setCallback([&event]() {
+ *     event.Signal();
+ * });
+ *
+ * asyncCallCallback();
+ * event.Wait();
+ * @endcode
+ *
+ * By default, the timeout is 1 second but it can be changed by overriding
+ * the default parameter of Wait().
+ *
+ * TestEvent is counted, so calling Signal() more than once will result in
+ * multiple Wait() events being triggered.  Call Reset() to reset the current
+ * count.
+ */
 class TestEvent {
   public:
-    static constexpr int64_t kDefaultTimeoutMs = 1000;  // 1 second.
+    static constexpr absl::Duration kDefaultTimeout = absl::Seconds(1);
 
     TestEvent() = default;
     TestEvent(const TestEvent& other) = delete;
     TestEvent& operator=(const TestEvent& other) = delete;
 
-    void signal() {
+    /**
+     * @brief Signals that the event has occurred.
+     *
+     * Increments the internal signal count and wakes up any waiting threads.
+     */
+    void Signal() {
         absl::MutexLock lock(&mutex_);
         ++signal_count_;
     }
 
-    bool isSignaled() {
+    /**
+     * @brief Checks if the event has been signaled.
+     *
+     * @return true if the signal count is greater than 0.
+     */
+    bool IsSignaled() const {
         absl::MutexLock lock(&mutex_);
         return signal_count_ > 0;
     }
 
-    void reset() {
+    /**
+     * @brief Resets the event state.
+     *
+     * Sets the signal count back to 0.
+     */
+    void Reset() {
         absl::MutexLock lock(&mutex_);
         signal_count_ = 0;
     }
 
-    void wait(int64_t timeoutMs = kDefaultTimeoutMs) {
+    /**
+     * @brief Waits for the event to be signaled.
+     *
+     * Blocks until the event is signaled or the timeout expires.
+     * If the timeout expires, a GTest failure is generated.
+     * If successful, the signal count is decremented.
+     *
+     * @param timeout The maximum duration to wait. Defaults to kDefaultTimeout.
+     */
+    void Wait(absl::Duration timeout = kDefaultTimeout) {
         absl::MutexLock lock(&mutex_);
         if (!mutex_.AwaitWithTimeout(
                     absl::Condition(
                             +[](size_t* count) { return *count > 0; }, &signal_count_),
-                    absl::Milliseconds(timeoutMs))) {
-            FAIL() << "TestEvent::wait() timed out.";
+                    timeout)) {
+            FAIL() << "TestEvent::Wait() timed out.";
         }
         ASSERT_GT(signal_count_, 0);
         --signal_count_;
     }
 
   private:
-    absl::Mutex mutex_;
+    mutable absl::Mutex mutex_;
     size_t signal_count_ ABSL_GUARDED_BY(mutex_) = 0;
 };

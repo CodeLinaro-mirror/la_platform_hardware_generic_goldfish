@@ -70,12 +70,12 @@ class JwkDirectoryObserverTest : public ::testing::Test {
                                    .ExpectIssuer("JwkDirectoryObserverTest")
                                    .AllowMissingExpiration()
                                    .Build();
-        mTestEv.reset();
+        mTestEv.Reset();
     }
 
     void TearDown() override {
         mTempDir.reset();
-        mTestEv.reset();
+        mTestEv.Reset();
     }
 
     void write(fs::path fname, json snippet) { write(fname, snippet.dump(2)); }
@@ -159,18 +159,18 @@ TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
     JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
         // No keys found
         EXPECT_TRUE(keyset == nullptr);
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, finds_jwks) {
     write("sample.jwk", RS256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
         EXPECT_EQ(keyset, nullptr);
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
@@ -178,9 +178,9 @@ TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
     write("sample2.jwk", RS256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
         EXPECT_EQ(keyset, nullptr);
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, merging_multiple) {
@@ -188,9 +188,9 @@ TEST_F(JwkDirectoryObserverTest, merging_multiple) {
     write("sample2.jwk", ES256_snippet);
     JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
         EXPECT_NE(keyset, nullptr);
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, create_and_validate) {
@@ -212,9 +212,9 @@ TEST_F(JwkDirectoryObserverTest, create_and_validate) {
         auto verified_jwt = (*verify)->VerifyAndDecode(*token, *validator);
         ASSERT_THAT(verified_jwt, absl_testing::IsOk());
         EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
@@ -233,9 +233,9 @@ TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
         auto verified_jwt = (*verify)->VerifyAndDecode(*token, *mSampleValidator);
         ASSERT_THAT(verified_jwt, absl_testing::IsOk());
         EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
-        mTestEv.signal();
+        mTestEv.Signal();
     });
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
@@ -261,16 +261,16 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
         case VALID_JWK_EXISTS:
             ASSERT_THAT(verified_jwt, absl_testing::IsOk());
             EXPECT_EQ(*verified_jwt->GetIssuer(), "JwkDirectoryObserverTest");
-            mTestEv.signal();
+            mTestEv.Signal();
             break;
         case VALID_JWK_DELETED:
             EXPECT_FALSE(verified_jwt.ok());
-            mTestEv.signal();
+            mTestEv.Signal();
         }
     });
 
-    mTestEv.wait();
-    mTestEv.reset();
+    mTestEv.Wait();
+    mTestEv.Reset();
 
     // We now are going to delete the valid jwk that was used to sign the
     // jwt. This means we no longer have the KID to validate the token in our
@@ -280,7 +280,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     state = VALID_JWK_DELETED;
     auto todelete = mTempDir->path() / "valid.jwk";
     base::file::rm(todelete).IgnoreError();
-    mTestEv.wait();
+    mTestEv.Wait();
 }
 
 }  // namespace control
