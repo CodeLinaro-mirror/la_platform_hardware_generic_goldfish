@@ -38,7 +38,7 @@
 
 class TestEvent {
   public:
-    static constexpr int64_t kDefaultTimeoutMs = 10000;  // 10 seconds.
+    static constexpr int64_t kDefaultTimeoutMs = 1000;  // 1 second.
 
     TestEvent() = default;
     TestEvent(const TestEvent& other) = delete;
