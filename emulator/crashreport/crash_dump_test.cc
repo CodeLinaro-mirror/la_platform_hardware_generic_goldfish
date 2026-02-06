@@ -13,27 +13,24 @@
 // limitations under the License.
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <filesystem>
-#include <sstream>
-#include <thread>
 
 #include "absl/log/globals.h"
 #include "absl/log/log.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
-#include "android/crashreport/crash_initializer.h"
 #include "android/process/command.h"
 #include "client/crash_report_database.h"
 #include "client/settings.h"
 #include "crashpad/android/crashreport/crash_reporter.h"
 
+using android::base::Bazel;
 using android::base::Command;
 using android::base::System;
 using crashpad::CrashReportDatabase;
-using namespace std::chrono_literals;
-using android::base::Bazel;
 
 namespace fs = std::filesystem;
 const constexpr char kCrashpadDatabase[] = "emu-dev-test-crash.db";
@@ -117,16 +114,20 @@ TEST_F(CrashTest, crash_generates_minidump) {
     crash();
 
     int after = 0;
-    auto start = std::chrono::high_resolution_clock::now();
-    do {
+    auto deadline = absl::Now() + absl::Seconds(5);
+    while (absl::Now() < deadline) {
         // Let's give the crash handler some time to write to the database.
-        std::this_thread::sleep_for(50ms);
+        absl::SleepFor(absl::Milliseconds(50));
         std::vector<CrashReportDatabase::Report> newReports;
         std::vector<CrashReportDatabase::Report> newPendingReports;
         mCrashdatabase->GetCompletedReports(&newReports);
         mCrashdatabase->GetPendingReports(&newPendingReports);
         after = newReports.size() + newPendingReports.size();
-    } while (after <= before && std::chrono::high_resolution_clock::now() - start < 5s);
+        LOG_EVERY_N_SEC(INFO, 1) << "Currently have " << after << " crashes in the db";
+        if (after > before) {
+            break;
+        }
+    }
 
     EXPECT_GT(after, before) << "The database should have recorded an additional crash!";
 }
