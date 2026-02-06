@@ -170,16 +170,16 @@ class EventLoop : public CallbackEventSource<LooperStatusEvent> {
     auto Post(F&& f, std::chrono::milliseconds delay = std::chrono::milliseconds::zero())
             -> absl::StatusOr<std::future<decltype(std::forward<F>(f)())>> {
         using ReturnType = decltype(std::forward<F>(f)());
-        auto promise = std::make_shared<std::promise<ReturnType>>();
-        auto future = promise->get_future();
+        std::promise<ReturnType> promise;
+        auto future = promise.get_future();
 
         // This lambda will be executed on the event loop thread.
-        auto task_runner = [promise, f = std::forward<F>(f)]() mutable {
+        auto task_runner = [promise = std::move(promise), f = std::forward<F>(f)]() mutable {
             if constexpr (std::is_void_v<ReturnType>) {
                 f();
-                promise->set_value();
+                promise.set_value();
             } else {
-                promise->set_value(f());
+                promise.set_value(f());
             }
         };
 
