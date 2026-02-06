@@ -238,7 +238,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     void launch_fishtank() {
         if (auto fishtank_config = ::goldfish::launcher::fishtank::launch_config(
-                    mResolvedPaths.fishtank_binary, mAvd->Name(), mOpts);
+                    mResolvedPaths.fishtank_binary, mAvd->Name(), mPorts.serial_number, mOpts);
             fishtank_config.ok()) {
             if (auto s = Launch(*std::move(fishtank_config), &fishtank_exit); s.ok()) {
                 mFishtankProcess = *std::move(s);
