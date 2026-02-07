@@ -407,5 +407,15 @@ TEST(Command, DISABLED_we_can_stream_data) {
     proc->Terminate();
 }
 
+TEST(Command, reports_signal_exit_code) {
+#ifdef _WIN32
+    GTEST_SKIP() << "Signals are handled differently on Windows";
+#endif
+    // SIGSEGV is 11, so exit code should be 128 + 11 = 139.
+    auto proc = Command::Create({"sh", "-c", "kill -SEGV $$"}).Execute();
+    EXPECT_EQ(proc->ExitCode(), 139U);
+    EXPECT_FALSE(proc->IsAlive());
+}
+
 }  // namespace base
 }  // namespace android
