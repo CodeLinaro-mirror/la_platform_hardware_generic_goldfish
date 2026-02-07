@@ -12,7 +12,7 @@
 
 #include "goldfish/display/write_png.h"
 
-#include <png.h>
+#include "png.h"
 
 namespace goldfish::display {
 namespace {

@@ -30,6 +30,7 @@ cc_library(
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//emulator/grpc/services/forwarder:service_forwarder",
         "//emulator/grpc/services/forwarder:ui_controller_forwarder",
+        "//emulator/grpc/services/screen_recorder",
         "//emulator/libs/display",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",

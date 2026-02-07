@@ -58,6 +58,34 @@ cc_library(
 )
 
 cc_library(
+    name = "video_recorder",
+    srcs = [
+        "video_recorder.cc",
+        "webm_encoder.cc",
+    ],
+    hdrs = [
+        "include/goldfish/display/QemuMultidisplay/multi_display.h",
+        "include/goldfish/display/multi_display_callbacks.h",
+        "include/goldfish/display/video_recorder.h",
+        "include/goldfish/display/webm_encoder.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        "//android/logging:absl_c_bridge",
+        "//emulator/libs/base",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@ffmpeg//libavcodec:avcodec",
+        "@ffmpeg//libavformat:avformat",
+        "@ffmpeg//libavutil:avutil",
+        "@ffmpeg//libswscale:swscale",
+    ],
+)
+
+cc_library(
     name = "test-display",
     testonly = True,
     srcs = [
