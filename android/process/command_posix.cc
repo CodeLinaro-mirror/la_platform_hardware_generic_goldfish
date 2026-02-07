@@ -238,9 +238,18 @@ class PosixProcess : public ObservableProcess {
             return process_exit_;
         }
 
-        ProcessExitCode exit_code;
-        auto wait_pid = HANDLE_EINTR(waitpid(pid_, &exit_code, WNOHANG));
-        if (wait_pid > 0) process_exit_ = WEXITSTATUS(exit_code);
+        int status;
+        auto wait_pid = HANDLE_EINTR(waitpid(pid_, &status, WNOHANG));
+        if (wait_pid > 0) {
+            if (WIFEXITED(status)) {
+                // Normal exit, return the exit code.
+                process_exit_ = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                // Process was killed by a signal, return 128 + signal number
+                // See https://www.gnu.org/software/bash/manual/html_node/Exit-Status.html
+                process_exit_ = 128 + WTERMSIG(status);
+            }
+        }
 
         return process_exit_;
     };
