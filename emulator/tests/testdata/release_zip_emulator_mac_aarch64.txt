@@ -18,6 +18,10 @@ emulator/data/virtualscene/Toren1BD/Toren1BD.posters
 emulator/emulator
 emulator/fishtank/
 emulator/fishtank/lib64/
+emulator/fishtank/lib64/gles_swiftshader/
+emulator/fishtank/lib64/gles_swiftshader/libEGL.dylib
+emulator/fishtank/lib64/gles_swiftshader/libGLES_CM.dylib
+emulator/fishtank/lib64/gles_swiftshader/libGLESv2.dylib
 emulator/fishtank/lib64/libabseil_dll.dylib
 emulator/fishtank/lib64/libandroid-emu-agents.dylib
 emulator/fishtank/lib64/libandroid-emu-base-logging.dylib
@@ -27,7 +31,7 @@ emulator/fishtank/lib64/libandroid-emu-protos.dylib
 emulator/fishtank/lib64/libandroid-emu-tracing.dylib
 emulator/fishtank/lib64/libemugl_common.dylib
 emulator/fishtank/lib64/libgfxstream_backend.dylib
-emulator/fishtank/lib64/libglib2_darwin-x86_64.dylib
+emulator/fishtank/lib64/libglib2_darwin-aarch64.dylib
 emulator/fishtank/lib64/libprotobuf.28.4.0.dylib
 emulator/fishtank/lib64/libprotobuf.dylib
 emulator/fishtank/lib64/libshadertranslator.dylib

@@ -18,6 +18,10 @@ emulator/data/virtualscene/Toren1BD/Toren1BD.posters
 emulator/emulator
 emulator/fishtank/
 emulator/fishtank/lib64/
+emulator/fishtank/lib64/gles_swiftshader/
+emulator/fishtank/lib64/gles_swiftshader/libEGL.so
+emulator/fishtank/lib64/gles_swiftshader/libGLES_CM.so
+emulator/fishtank/lib64/gles_swiftshader/libGLESv2.so
 emulator/fishtank/lib64/libabseil_dll.so
 emulator/fishtank/lib64/libandroid-emu-agents.so
 emulator/fishtank/lib64/libandroid-emu-base-logging.so
