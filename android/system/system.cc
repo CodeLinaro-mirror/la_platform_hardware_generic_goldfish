@@ -448,7 +448,8 @@ class HostSystem : public System {
             return lastSuccessfulValue;
         }
         std::basic_stringbuf<char> std_out;
-        auto proc = Command::Create({"lsb_release", "-d"}).WithStdoutBuffer(&std_out).Execute();
+        auto proc =
+                Command::Create({"lsb_release", "-d"}).RedirectStdoutToUnsafe(&std_out).Execute();
 
         if (proc->WaitFor(std::chrono::seconds(1)) != std::future_status::ready) {
             return "Unknown OS";

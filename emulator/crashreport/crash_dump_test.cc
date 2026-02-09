@@ -90,7 +90,7 @@ class CrashTest : public ::testing::Test {
         std::basic_stringbuf<char> std_err;
         auto proc = Command::Create({executable.string(), "--delay_ms", "1000"})
                             .Inherit()
-                            .WithStderrBuffer(&std_err)
+                            .RedirectStderrToUnsafe(&std_err)
                             .Execute();
         while (proc->IsAlive()) {
             auto res = proc->Err()->AsString();

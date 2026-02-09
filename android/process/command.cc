@@ -22,6 +22,8 @@
 
 #include "absl/log/log.h"
 
+#include "goldfish/synchronized_stream_buf.h"
+
 #define DEBUG 0
 
 #if DEBUG >= 1
@@ -40,7 +42,7 @@ ProcessExitCode Process::ExitCode() const {
 class ProcessOutputImpl : public ProcessOutput {
   public:
     explicit ProcessOutputImpl(std::basic_streambuf<char>* buffer)
-            : buffer_(buffer), stream_(buffer_) {
+            : buffer_(buffer), stream_(buffer ? &buffer_ : nullptr) {
         DVLOG(1) << "Created process output with: " << (buffer == nullptr ? "nothing" : "buffer");
     }
 
@@ -51,16 +53,18 @@ class ProcessOutputImpl : public ProcessOutput {
         return stream_;
     }
 
-    std::basic_streambuf<char>* Buffer() { return buffer_; }
+    goldfish::SynchronizedStreamBuf<char>* Buffer() {
+        return buffer_.IsValid() ? &buffer_ : nullptr;
+    }
 
   private:
-    std::basic_streambuf<char>* buffer_;
+    goldfish::SynchronizedStreamBuf<char> buffer_;
     std::istream stream_;
 };
 
 void ObservableProcess::RunOverseer() {
     {
-        const absl::MutexLock lk(&overseer_mutex_);
+        const absl::MutexLock lk(overseer_mutex_);
         DVLOG(1) << "Starting overseer to retrieve stderr/stdout of " << Exe();
         auto* out = reinterpret_cast<ProcessOutputImpl*>(std_out_.get())->Buffer();
         auto* err = reinterpret_cast<ProcessOutputImpl*>(std_err_.get())->Buffer();
@@ -78,7 +82,7 @@ void ObservableProcess::RunOverseer() {
 
 std::future_status ObservableProcess::WaitFor(
         const std::chrono::milliseconds timeout_duration) const {
-    const absl::MutexLock lk(&overseer_mutex_);
+    const absl::MutexLock lk(overseer_mutex_);
     if (!overseer_active_) {
         return WaitForKernel(timeout_duration);
     }
@@ -101,14 +105,14 @@ ObservableProcess::~ObservableProcess() {
     if (overseer_thread_) overseer_thread_->join();
 };
 
-Command& Command::WithStdoutBuffer(std::basic_streambuf<char>* stdout_buffer) {
+Command& Command::RedirectStdoutToUnsafe(std::basic_streambuf<char>* stdout_buffer) {
     assert(daemon_ == false);
     std_out_ = stdout_buffer;
     capture_output_ = true;
     return *this;
 }
 
-Command& Command::WithStderrBuffer(std::basic_streambuf<char>* stderr_buffer) {
+Command& Command::RedirectStderrToUnsafe(std::basic_streambuf<char>* stderr_buffer) {
     assert(daemon_ == false);
     std_err_ = stderr_buffer;
     capture_output_ = true;
@@ -173,7 +177,7 @@ std::unique_ptr<ObservableProcess> Command::Execute() {
         auto* raw = proc.get();
         // TODO(jansene): Use condition_variable to assure that
         // overseer is really running after this call.
-        const absl::MutexLock lk(&proc->overseer_mutex_);
+        const absl::MutexLock lk(proc->overseer_mutex_);
         proc->overseer_active_ = true;
         proc->overseer_ = proc->CreateOverseer();
         proc->overseer_thread_ = std::make_unique<std::thread>([raw]() { raw->RunOverseer(); });

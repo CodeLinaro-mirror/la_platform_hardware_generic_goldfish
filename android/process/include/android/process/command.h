@@ -39,18 +39,27 @@ class Command {
     /**
      * @brief Sets the standard output buffer.
      *
+     * Note: This is merely a buffer, and you will need to use the
+     * ProcessOutput returned by the command to read from it. Reading
+     * directly from the buffer is not thread safe.
+     *
      * @param stdout_buffer The buffer to use for standard output.
      * @return A reference to this Command object for chaining.
      */
-    Command& WithStdoutBuffer(std::basic_streambuf<char>* stdout_buffer);
+    Command& RedirectStdoutToUnsafe(std::basic_streambuf<char>* stdout_buffer);
 
     /**
      * @brief Sets the standard error buffer.
      *
+     *
+     * Note: This is merely a buffer, and you will need to use the
+     * ProcessOutput returned by the command to read from it. Reading
+     * directly from the buffer is not thread safe.
+     *
      * @param stderr_buffer The buffer to use for standard error.
      * @return A reference to this Command object for chaining.
      */
-    Command& WithStderrBuffer(std::basic_streambuf<char>* stderr_buffer);
+    Command& RedirectStderrToUnsafe(std::basic_streambuf<char>* stderr_buffer);
 
     /**
      * @brief Adds a single argument to the list of arguments.

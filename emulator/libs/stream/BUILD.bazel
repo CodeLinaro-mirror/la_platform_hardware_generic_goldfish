@@ -1,0 +1,43 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "stream",
+    hdrs = [
+        "include/goldfish/blocking_stream_buf.h",
+        "include/goldfish/synchronized_stream_buf.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "stream_tests",
+    size = "small",
+    srcs = [
+        "stream_tests.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":stream",
+        "//android/system:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "stream_perf",
+    size = "medium",
+    srcs = [
+        "stream_perf.cc",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":stream",
+        "@google_benchmark//:benchmark",
+    ],
+)
