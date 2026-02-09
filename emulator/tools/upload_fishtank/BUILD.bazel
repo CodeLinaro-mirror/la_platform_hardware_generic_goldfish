@@ -1,0 +1,14 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_binary(
+    name = "upload_fishtank",
+    srcs = ["upload_fishtank.py"],
+    deps = ["@aemu//tools/libs_python:ab"],
+)
+
+py_test(
+    name = "upload_fishtank_test",
+    srcs = ["upload_fishtank_test.py"],
+    deps = [":upload_fishtank"],
+)
