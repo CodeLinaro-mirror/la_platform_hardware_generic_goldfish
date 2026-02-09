@@ -113,45 +113,56 @@ class PosixOverseer : public ProcessOverseer {
 
     ~PosixOverseer() override { DD("~PosixOverseer"); }
 
-    static void ReadAndFlush(int fd, std::basic_streambuf<char>* buffer) {
-        if (buffer == nullptr) {
-            return;
+    // Read from the given fd and flush it to the given buffer. Return the number of bytes read, or
+    // -1 on error.
+    int ReadAndFlush(int fd, std::basic_streambuf<char>* buffer) {
+        if (buffer == nullptr || fd < 0) {
+            return -1;
         }
         char bytes[1024];
         auto bytes_read = read(fd, bytes, sizeof(bytes));
-        buffer->sputn(bytes, bytes_read);
-        buffer->pubsync();
+        if (bytes_read > 0) {
+            buffer->sputn(bytes, bytes_read);
+            buffer->pubsync();
+        }
+        return bytes_read;
     }
 
     void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
-        std::vector<pollfd> plist = {{.fd = std_out_pipe_[0], .events = POLLIN},
-                                     {.fd = std_err_pipe_[0], .events = POLLIN}};
-        int rval;
-        while ((rval = poll(plist.data(), plist.size(),
-                            /*timeout*/ -1)) > 0) {
-            DD("Event!");
-            if (plist[0].revents & POLLIN) {
-                // out..
-                ReadAndFlush(std_out_pipe_[0], out);
-            } else if (plist[1].revents & POLLIN) {
-                ReadAndFlush(std_err_pipe_[0], err);
-            }
+        std::array<pollfd, 2> plist = {pollfd{.fd = std_out_pipe_[0], .events = POLLIN},
+                                       pollfd{.fd = std_err_pipe_[0], .events = POLLIN}};
 
-            // Detect if we have closed the pipes.
-            auto revents = plist[0].revents;
-            if (revents & POLLHUP || revents & POLLNVAL || revents & POLLERR) {
+        // We want to read until both pipes are closed.
+        // POLLERR, POLLNVAL --> Closed (Error condition,  Invalid request: fd not open)
+        // POLLHUP --> Closed, (Hangup) but we should read until EOF before we stop watching it.
+        // POLLIN --> We have data to read
+        constexpr short kReadOrStop = POLLIN | POLLHUP | POLLERR | POLLNVAL;
+        while (plist[0].fd != -1 || plist[1].fd != -1) {
+            int rval = poll(plist.data(), plist.size(), -1);
+            if (rval < 0) {
+                if (errno == EINTR) continue;
                 break;
             }
 
-            revents = plist[1].revents;
-            if (revents & POLLHUP || revents & POLLNVAL || revents & POLLERR) {
-                break;
+            if (plist[0].fd != -1 && (plist[0].revents & kReadOrStop)) {
+                // We might have data, or a closed socket, make sure we read until EOF before we
+                // stop watching it.
+                int res = ReadAndFlush(std_out_pipe_[0], out);
+                VLOG(1) << "Read " << res << " bytes from stdout, revents: " << plist[0].revents;
+                if (res <= 0) {
+                    // EOF or err, stop watching this pipe.
+                    plist[0].fd = -1;
+                }
+            }
+
+            if (plist[1].fd != -1 && (plist[1].revents & kReadOrStop)) {
+                int res = ReadAndFlush(std_err_pipe_[0], err);
+                VLOG(1) << "Read " << res << " bytes from stderr, revents: " << plist[1].revents;
+                if (res <= 0) {
+                    plist[1].fd = -1;
+                }
             }
         }
-
-        // Push out any left overs.
-        ReadAndFlush(std_out_pipe_[0], out);
-        ReadAndFlush(std_err_pipe_[0], err);
         DD("Observer finished.");
     }
 

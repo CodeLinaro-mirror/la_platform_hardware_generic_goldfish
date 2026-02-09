@@ -417,5 +417,42 @@ TEST(Command, reports_signal_exit_code) {
     EXPECT_FALSE(proc->IsAlive());
 }
 
+TEST(Command, as_string_does_not_hang_on_crash) {
+    std::basic_stringbuf<char> std_out;
+#ifdef _WIN32
+    // TODO Fix this.
+    GTEST_SKIP() << "Currently posix only test.";
+#endif
+    // Let's capture std out of a process that crashes.
+    auto proc = Command::Create({"sh", "-c", "echo hello; sleep 0.1; kill -SEGV $$"})
+                        .WithStdoutBuffer(&std_out)
+                        .Execute();
+
+    // WaitFor should return once the process crashes and the overseer finishes.
+    // If it hangs, the test will timeout.
+    ASSERT_EQ(proc->WaitFor(2s), std::future_status::ready);
+
+    EXPECT_FALSE(proc->IsAlive());
+    EXPECT_EQ(proc->Out()->AsString(), "hello\n");
+}
+
+TEST(Command, can_capture_output_when_one_pipe_closes_early) {
+    std::basic_stringbuf<char> std_out;
+    std::basic_stringbuf<char> std_err;
+#ifdef _WIN32
+    // TODO Fix this.
+    GTEST_SKIP() << "Currently posix only test.";
+#endif
+    // This closes stdout but keeps stderr open.
+    auto proc = Command::Create({"sh", "-c", "echo stdout; exec 1>&-; sleep 0.1; echo stderr >&2"})
+                        .WithStdoutBuffer(&std_out)
+                        .WithStderrBuffer(&std_err)
+                        .Execute();
+
+    EXPECT_EQ(proc->WaitFor(2s), std::future_status::ready);
+    EXPECT_EQ(proc->Out()->AsString(), "stdout\n");
+    EXPECT_EQ(proc->Err()->AsString(), "stderr\n");
+}
+
 }  // namespace base
 }  // namespace android
