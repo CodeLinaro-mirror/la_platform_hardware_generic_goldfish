@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# IMPORTANT: You may need to run "gpkg setup" before running the following bazel command.
 # Run with: bazel run @goldfish//fishtank_uploader:upload_fishtank
 
 import argparse
