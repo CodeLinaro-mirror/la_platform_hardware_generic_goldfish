@@ -13,6 +13,7 @@
 #include "absl/strings/str_split.h"
 
 #include "android/base/color_log_sink.h"
+#include "android/base/system.h"
 #include "android/cmdline_option.h"
 
 void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
@@ -21,10 +22,11 @@ void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
     absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     absl::SetMinLogLevel(launcherLogLevel);
 
-    // TODO switch launcher and qemu to color log sink
-    //static android::base::ColorLogSink logSink(&std::cout, isatty(fileno(stdout)));
-    //absl::AddLogSink(&logSink);
-    //absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
+    if (android::base::System::Get()->GetEnvironmentVariable("AEMU_NO_LOG_SINK").empty()) {
+        static android::base::ColorLogSink logSink(&std::cout, isatty(fileno(stdout)));
+        absl::AddLogSink(&logSink);
+        absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
+    }
 
     if (int v_level; opts.V && absl::SimpleAtoi(opts.V, &v_level)) {
         absl::SetGlobalVLogLevel(v_level);

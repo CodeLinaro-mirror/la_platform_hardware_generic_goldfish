@@ -23,6 +23,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
+#include "android/base/system.h"
 #include "android/cmdline_definitions.h"
 #include "android/cmdline_option.h"
 
@@ -37,7 +38,11 @@ void ResetAbslLogState() {
 
 class ConfigureLoggingRealTest : public ::testing::Test {
   protected:
-    void SetUp() override { ResetAbslLogState(); }
+    void SetUp() override { 
+        android::base::System::Get()->SetEnvironmentVariable("AEMU_NO_LOG_SINK", "TRUE");
+        ResetAbslLogState();
+    }
+
     void TearDown() override { ResetAbslLogState(); }
 };
 
