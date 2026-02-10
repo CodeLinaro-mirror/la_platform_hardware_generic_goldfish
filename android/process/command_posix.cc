@@ -110,14 +110,24 @@ class PosixOverseer : public ProcessOverseer {
         std_out_pipe_[1] = std_out[1];
         std_err_pipe_[0] = std_err[0];
         std_err_pipe_[1] = std_err[1];
+        if (pipe(stop_pipe_)) {
+            PLOG(WARNING) << "Unable to create stop pipe, we might not detect process termination "
+                             "(crashes) properly";
+            stop_pipe_[0] = -1;
+            stop_pipe_[1] = -1;
+        }
 
-        int flags = fcntl(std_out_pipe_[0], F_GETFL, 0);
-        fcntl(std_out_pipe_[0], F_SETFL, flags | O_NONBLOCK);
-        flags = fcntl(std_err_pipe_[0], F_GETFL, 0);
-        fcntl(std_err_pipe_[0], F_SETFL, flags | O_NONBLOCK);
+        SetNonBlocking(std_out_pipe_[0]);
+        SetNonBlocking(std_err_pipe_[0]);
+        SetNonBlocking(stop_pipe_[0]);
+        SetNonBlocking(stop_pipe_[1]);
     }
 
-    ~PosixOverseer() override { DD("~PosixOverseer"); }
+    ~PosixOverseer() override {
+        DD("~PosixOverseer");
+        if (stop_pipe_[0] != -1) close(stop_pipe_[0]);
+        if (stop_pipe_[1] != -1) close(stop_pipe_[1]);
+    }
 
     // Read from the given fd and flush it to the given buffer. Return the number of bytes read, or
     // -1 on error.
@@ -135,8 +145,9 @@ class PosixOverseer : public ProcessOverseer {
     }
 
     void Start(std::basic_streambuf<char>* out, std::basic_streambuf<char>* err) override {
-        std::array<pollfd, 2> plist = {pollfd{.fd = std_out_pipe_[0], .events = POLLIN},
-                                       pollfd{.fd = std_err_pipe_[0], .events = POLLIN}};
+        std::array<pollfd, 3> plist = {pollfd{.fd = std_out_pipe_[0], .events = POLLIN},
+                                       pollfd{.fd = std_err_pipe_[0], .events = POLLIN},
+                                       pollfd{.fd = stop_pipe_[0], .events = POLLIN}};
 
         // We want to read until both pipes are closed.
         // POLLERR, POLLNVAL --> Closed (Error condition,  Invalid request: fd not open)
@@ -147,6 +158,11 @@ class PosixOverseer : public ProcessOverseer {
             int rval = poll(plist.data(), plist.size(), -1);
             if (rval < 0) {
                 if (errno == EINTR) continue;
+                break;
+            }
+
+            if (plist[2].revents & kReadOrStop) {
+                // Stop has been signaled, we can stop watching for output and exit.
                 break;
             }
 
@@ -176,13 +192,25 @@ class PosixOverseer : public ProcessOverseer {
     // should be invoked.
     // no writes to std_out, std_err should happen.
     void Stop() override {
+        if (stop_pipe_[1] != -1) {
+            // Send a byte to the stop pipe to wake up the poll loop.
+            char c = 's';
+            (void)write(stop_pipe_[1], &c, 1);
+        }
         close(std_out_pipe_[0]);
         close(std_err_pipe_[0]);
     };
 
   private:
+    void SetNonBlocking(int fd) {
+        if (fd < 0) return;
+        int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+
     int std_out_pipe_[2];
     int std_err_pipe_[2];
+    int stop_pipe_[2];
 };
 
 class PosixProcess : public ObservableProcess {

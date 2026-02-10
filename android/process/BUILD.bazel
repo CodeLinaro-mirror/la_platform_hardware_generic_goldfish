@@ -55,7 +55,10 @@ cc_binary(
 cc_test(
     name = "process_unittests",
     srcs = ["command_test.cc"],
-    data = [":sleep_emu"],
+    data = [
+        ":sleep_emu",
+        "//emulator/crashreport:crash-me",
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],

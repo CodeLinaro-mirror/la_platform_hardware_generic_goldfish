@@ -202,6 +202,7 @@ cc_binary(
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
     deps = [
         ":always_consent",
         ":breadcrumb",

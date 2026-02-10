@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <streambuf>
@@ -46,6 +47,7 @@ namespace base {
 // GTEST_FLAG(std::string, sleep_exe, 0, "Path to the sleep executable");
 
 using namespace std::chrono_literals;
+namespace fs = std::filesystem;
 const std::string HELLO = "hello";
 
 class FakeOverseer : public NullOverseer {
@@ -470,6 +472,38 @@ TEST(Command, detach_keeps_process_alive) {
     EXPECT_TRUE(proc->IsAlive());
     proc->Terminate();
     EXPECT_FALSE(proc->IsAlive());
+}
+
+TEST(Command, detach_stops_overseer_immediately) {
+    if (!Bazel::InBazel()) {
+        GTEST_SKIP() << "This test can only be run under Bazel";
+    }
+    std::basic_stringbuf<char> std_out;
+    std::basic_stringbuf<char> std_err;
+
+    auto start = std::chrono::steady_clock::now();
+    android::base::Pid pid;
+    {
+        // Start a crashing process that outputs a lot to stdout, so if the overseer is still
+        // running after detach, it should not hang. Without the fix, this test can hang
+        // indefinetely (to see this run this test on repeat with -gtest_repeat=-1, without the fix)
+        fs::path executable =
+                Bazel::RunfilesPath(absl::StrCat("goldfish+/emulator/crashreport/crash-me", EXE));
+        ASSERT_TRUE(fs::exists(executable))
+                << "The crash-me executable does not exist at " << executable;
+
+        auto proc = Command::Create({executable.string(), "--delay_ms", "0"})
+                            .Inherit()
+                            .RedirectStderrToUnsafe(&std_err)
+                            .RedirectStdoutToUnsafe(&std_out)
+                            .Execute();
+        // Detach should stop the overseer immediately.
+        pid = proc->pid();
+        proc->Detach();
+    }
+    auto end = std::chrono::steady_clock::now();
+    // It should be instant.
+    EXPECT_LT(end - start, 2s);
 }
 
 }  // namespace base
