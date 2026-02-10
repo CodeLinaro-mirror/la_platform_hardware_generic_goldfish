@@ -454,5 +454,23 @@ TEST(Command, can_capture_output_when_one_pipe_closes_early) {
     EXPECT_EQ(proc->Err()->AsString(), "stderr\n");
 }
 
+TEST(Command, detach_keeps_process_alive) {
+    android::base::Pid pid;
+    {
+        // Start a long running process
+        auto proc = Command::Create({sleep_exe(), "--sleep", "10s"}).Execute();
+        // Detach should stop the overseer immediately.
+        pid = proc->pid();
+        proc->Detach();
+        // proc goes out of scope here.
+        // ~ObservableProcess will join the overseer thread.
+        // If Detach() (Stop()) didn't wake up the poll loop, this join will wait for 10s.
+    }
+    auto proc = Process::FromPid(pid);
+    EXPECT_TRUE(proc->IsAlive());
+    proc->Terminate();
+    EXPECT_FALSE(proc->IsAlive());
+}
+
 }  // namespace base
 }  // namespace android

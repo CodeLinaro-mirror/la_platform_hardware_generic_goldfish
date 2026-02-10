@@ -98,6 +98,7 @@ std::future_status ObservableProcess::WaitFor(
 
 void ObservableProcess::Detach() {
     if (overseer_) overseer_->Stop();
+    daemon_ = true;
 }
 
 ObservableProcess::~ObservableProcess() {

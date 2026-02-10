@@ -405,12 +405,11 @@ class WinProcess : public ObservableProcess {
         }
     }
 
-    WinProcess(bool daemon, bool inherit) {
-        daemon_ = daemon;
-        inherit_ = inherit;
-    }
+    WinProcess(bool daemon, bool inherit) : ObservableProcess(daemon, inherit) {}
 
-    explicit WinProcess(HANDLE process_handle) { SetHandle(process_handle); }
+    explicit WinProcess(HANDLE process_handle) : ObservableProcess(true) {
+        SetHandle(process_handle);
+    }
 
     void SetHandle(HANDLE process_handle) {
         pid_ = static_cast<Pid>(GetProcessId(process_handle));
