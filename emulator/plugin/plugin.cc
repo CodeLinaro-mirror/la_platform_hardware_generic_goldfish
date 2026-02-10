@@ -12,14 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstring>
+
+#include "absl/base/log_severity.h"
 #include "absl/debugging/failure_signal_handler.h"
 #include "absl/debugging/symbolize.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/log/log_sink_registry.h"
+#include "absl/log/log_sink.h"
 #include "absl/log/log.h"
+#include "absl/log/structured.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
+#include "android/base/color_log_sink.h"
 #include "android/base/system.h"
 #include "android/crashreport/crash_system.h"
 #include "android/crashreport/crash_reporter.h"
@@ -52,6 +59,19 @@ extern "C" {
 namespace {
 
 using android::base::System;
+
+void qemu_absl_logger(int severity, const char *file, int line, const char *fmt, va_list ap) {
+    std::string message(4096, '\0');
+    int size = vsnprintf(message.data(), message.size(), fmt, ap);
+    if (size >= message.size()) {
+        // Indicate truncation.
+        strncpy(message.data() + message.size() - 3, "...", 3);
+        VLOG(1) << "Following log message truncated, size needed: " << size << " truncated to: " << (message.size() - 3);
+        size = message.size();
+    }
+
+    LOG(LEVEL(severity)).AtLocation(file ? file : "unknown", line) << absl::LogAsLiteral(std::string_view(message.data(), size));
+}
 
 void setup_debug_logging() {
     std::string v_str = System::Get()->GetEnvironmentVariable("AEMU_VLOG_LEVEL");
@@ -103,13 +123,20 @@ int get_log_level() {
 
 void setup_logging() {
     absl::InitializeLog();
-    absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
     int log_level = get_log_level();
-    absl::SetStderrThreshold(static_cast<absl::LogSeverityAtLeast>(log_level));
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(log_level));
     setup_debug_logging();
 
-    // Disable Qemu info level logging if necessary.
-    error_set_log_info(log_level == 0);
+    if (System::Get()->GetEnvironmentVariable("AEMU_NO_LOG_SINK").empty()) {
+        static android::base::ColorLogSink logSink(&std::cout, isatty(fileno(stdout)));
+        logSink.SetVerbosity(System::Get()->GetEnvironmentVariable("AEMU_LOG_DETAILED") == "true");
+        absl::AddLogSink(&logSink);
+        absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
+    }
+
+    // Switch QEMU logging to ABSL.
+    set_logger(&qemu_absl_logger);
 }
 
 }  // namespace
