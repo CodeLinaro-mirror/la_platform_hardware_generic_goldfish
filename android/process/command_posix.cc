@@ -109,6 +109,11 @@ class PosixOverseer : public ProcessOverseer {
         std_out_pipe_[1] = std_out[1];
         std_err_pipe_[0] = std_err[0];
         std_err_pipe_[1] = std_err[1];
+
+        int flags = fcntl(std_out_pipe_[0], F_GETFL, 0);
+        fcntl(std_out_pipe_[0], F_SETFL, flags | O_NONBLOCK);
+        flags = fcntl(std_err_pipe_[0], F_GETFL, 0);
+        fcntl(std_err_pipe_[0], F_SETFL, flags | O_NONBLOCK);
     }
 
     ~PosixOverseer() override { DD("~PosixOverseer"); }
@@ -149,7 +154,7 @@ class PosixOverseer : public ProcessOverseer {
                 // stop watching it.
                 int res = ReadAndFlush(std_out_pipe_[0], out);
                 VLOG(1) << "Read " << res << " bytes from stdout, revents: " << plist[0].revents;
-                if (res <= 0) {
+                if (res == 0 || (res < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
                     // EOF or err, stop watching this pipe.
                     plist[0].fd = -1;
                 }
@@ -158,7 +163,7 @@ class PosixOverseer : public ProcessOverseer {
             if (plist[1].fd != -1 && (plist[1].revents & kReadOrStop)) {
                 int res = ReadAndFlush(std_err_pipe_[0], err);
                 VLOG(1) << "Read " << res << " bytes from stderr, revents: " << plist[1].revents;
-                if (res <= 0) {
+                if (res == 0 || (res < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
                     plist[1].fd = -1;
                 }
             }
