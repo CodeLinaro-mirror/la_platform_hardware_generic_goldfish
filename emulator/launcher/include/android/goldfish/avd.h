@@ -225,7 +225,8 @@ class Avd {
      */
     static absl::StatusOr<std::unique_ptr<Avd>> FromName(
             const android::goldfish::ResolvedInputPaths& paths, const std::string& name,
-            const fs::path& sysdir_override = {}, fs::path writable_content_override = {});
+            bool wipe_data = false, const fs::path& sysdir_override = {},
+            fs::path writable_content_override = {});
 
     static constexpr int kUnknownApiLevel = 1000;
 

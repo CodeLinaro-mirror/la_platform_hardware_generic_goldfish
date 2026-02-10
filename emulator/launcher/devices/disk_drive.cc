@@ -143,11 +143,6 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
 }
 
 absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
-    if (mWipeExisting) {
-        base::file::rm(mQcow2Image).IgnoreError();
-        base::file::rm(mDestinationImage).IgnoreError();
-    }
-
     if (!base::file::exists(mDestinationImage)) {
         base::file::rm(mQcow2Image).IgnoreError();
         if (mSourcePath) {

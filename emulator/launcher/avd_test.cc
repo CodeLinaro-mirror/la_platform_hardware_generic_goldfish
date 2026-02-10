@@ -49,7 +49,7 @@ ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     };
 }
 
-void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
+fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
     base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
 
@@ -58,6 +58,8 @@ void createTestAvd(const ResolvedInputPaths& paths, const std::string& targetStr
 
     // Set the 'target' property in the config.ini file
     writeToFile(avd_dir / "config.ini", "target=" + targetString);
+
+    return avd_dir;
 }
 
 TEST(Avd, api_level) {
@@ -156,9 +158,41 @@ TEST(Avd, path_getAvdSystemImage) {
     expectedPath = tmp->path() / "nothome" / "blah" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::FromName(paths, "q", tmp->path() / "nothome" / "blah"));
+    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::FromName(paths, "q", /*wipe_data=*/false, tmp->path() / "nothome" / "blah"));
     EXPECT_THAT(avd2->GetSystemImageFilePath(Avd::ImageType::INITSYSTEM),
                 IsOkAndHolds(expectedPath));
+}
+
+TEST(Avd, wipe_data) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    auto paths = setupPaths(tmp);
+    auto avd_dir = createTestAvd(paths, "android-30");
+
+    auto some_file = avd_dir / "some-file";
+    auto some_subdir = avd_dir / "some-subdir";
+    auto some_subdir_file = avd_dir / "some-subdir" / "some-subdir-file";
+    base::file::touch(some_file).IgnoreError();
+    base::file::mkdir_recursive(some_subdir, 0755).IgnoreError();
+    base::file::touch(some_subdir_file).IgnoreError();
+
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd", /*wipe_data=*/false));
+        EXPECT_TRUE(base::file::exists(some_file));
+        EXPECT_TRUE(base::file::exists(some_subdir));
+        EXPECT_TRUE(base::file::exists(some_subdir_file));
+
+        EXPECT_TRUE(base::file::exists(avd_dir/"config.ini"));
+    }
+
+    {
+        ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd", /*wipe_data=*/true));
+        EXPECT_FALSE(base::file::exists(some_file));
+        EXPECT_FALSE(base::file::exists(some_subdir));
+        EXPECT_FALSE(base::file::exists(some_subdir_file));
+
+        EXPECT_TRUE(base::file::exists(avd_dir/"config.ini"));
+    }
 }
 
 }  // namespace android::goldfish::avd

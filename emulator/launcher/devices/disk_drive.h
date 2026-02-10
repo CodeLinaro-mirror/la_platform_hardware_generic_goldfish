@@ -45,14 +45,12 @@ class RoDrive : public PciDevice {
 class RwDrive : public PciDevice {
   public:
     explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
-                     fs::path dst_image, fs::path qcow2_image, uint64_t size_bytes,
-                     bool wipe_existing)
+                     fs::path dst_image, fs::path qcow2_image, uint64_t size_bytes)
             : PciDevice(id, addr)
             , mSourcePath(src_path)
             , mDestinationImage(dst_image)
             , mQcow2Image(qcow2_image)
-            , mSizeBytes(size_bytes)
-            , mWipeExisting(wipe_existing) {}
+            , mSizeBytes(size_bytes) {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
@@ -62,8 +60,6 @@ class RwDrive : public PciDevice {
     fs::path mDestinationImage;
     fs::path mQcow2Image;
     uint64_t mSizeBytes;
-
-    bool mWipeExisting;
 };
 
 }  // namespace android::goldfish

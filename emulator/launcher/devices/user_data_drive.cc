@@ -112,11 +112,7 @@ absl::Status minimizePartition(fs::path image, uint64_t desired_size_bytes) {
 }  // namespace
 
 absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
-                                      bool wipe_data, bool resize) {
-    if (wipe_data) {
-        base::file::rm(user_data).IgnoreError();
-    }
-
+                                      bool resize) {
     if (base::file::exists(user_data)) {
         if (!resize) {
             return absl::OkStatus();

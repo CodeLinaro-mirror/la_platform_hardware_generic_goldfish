@@ -24,6 +24,6 @@ namespace android::goldfish {
 namespace fs = std::filesystem;
 
 absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
-                                      bool wipe_data, bool resize);
+                                      bool resize);
 
 }  // namespace android::goldfish

@@ -30,7 +30,7 @@ namespace android::goldfish::internal {
 namespace {
 DiskConfig diskConfig(const Avd& avd, std::string_view id, std::string_view pci_address,
                       bool is_writable, std::optional<fs::path> system_image, fs::path user_image,
-                      uint64_t size_bytes, bool wipe_existing = false) {
+                      uint64_t size_bytes) {
     return {
         .id = std::string(id),
         .pci_address = std::string(pci_address),
@@ -38,7 +38,6 @@ DiskConfig diskConfig(const Avd& avd, std::string_view id, std::string_view pci_
         .system_image_path_ro = system_image,
         .user_image_path = user_image,
         .size_bytes = size_bytes,
-        .wipe_existing = wipe_existing,
     };
 }
 
@@ -121,7 +120,6 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
     uint64_t sdcard_size = getSdcardSize(avd, opts);
 
     bool rw_sys = opts.writable_system;
-    bool wipe_data = opts.wipe_data;
 
     if (rw_sys) {
         LOG(WARNING) << "System image is writable";
@@ -131,7 +129,7 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
     // function won't create it. This function might remove the qcow2 file so that it can be
     // recreated.
     RETURN_IF_ERROR(
-            prepareUserDataBaseImage(init_data, user_data, data_size, wipe_data, !avd.Hw().hw_arc));
+            prepareUserDataBaseImage(init_data, user_data, data_size, !avd.Hw().hw_arc));
 
     return std::vector<DiskConfig>{
         // Currently this must be the first drive on ARM to match the androidboot.boot_devices
@@ -140,12 +138,12 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
         diskConfig(avd, "system", "03.0", rw_sys, system, user_system, 0),
         // Encryption must be second for ARM - to have path
         // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
-        diskConfig(avd, "encrypt", "06.0", true, encrypt, user_encrypt, 0, wipe_data),
+        diskConfig(avd, "encrypt", "06.0", true, encrypt, user_encrypt, 0),
         diskConfig(avd, "userdata", "05.0", true, std::nullopt, user_data, data_size),
         diskConfig(avd, "vendor", "07.0", rw_sys, vendor, user_vendor, 0),
-        diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size, wipe_data),
+        diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size),
 #ifdef __x86_64__
-        diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size, wipe_data),
+        diskConfig(avd, "sdcard", "08.0", true, std::nullopt, user_sdcard, sdcard_size),
 #endif
     };
 }

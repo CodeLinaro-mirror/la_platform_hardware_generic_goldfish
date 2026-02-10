@@ -418,7 +418,7 @@ std::vector<std::string> Avd::List(const fs::path& avd_directory) {
 
 // static
 absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
-        const android::goldfish::ResolvedInputPaths& paths, const std::string& name,
+        const android::goldfish::ResolvedInputPaths& paths, const std::string& name, bool wipe_data,
         const fs::path& sysdir_override, fs::path writable_content_override) {
     auto ini_path = paths.avd_directory / (name + ".ini");
 
@@ -436,10 +436,27 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
         auto rel_path = ini->Get<std::string>("path.rel", "");
         content_path = paths.user_directory / rel_path;
     }
-    const fs::path config_ini_path = content_path / "config.ini";
+    constexpr std::string_view kConfigIni = "config.ini";
+    constexpr std::string_view kSdCardImg = "sdcard.img";
+
+    const fs::path config_ini_path = content_path / kConfigIni;
 
     if (!writable_content_override.empty()) {
         content_path = std::move(writable_content_override);
+    } else if (wipe_data) {
+        LOG(WARNING) << "Performing factory reset: clearing AVD for an initial cold boot";
+        for (auto& path : android::base::file::scan_dir(content_path, /*fullPath=*/true)) {
+            if (path.filename() == kConfigIni) {
+                continue;
+            }
+            if (path.filename() == kSdCardImg) {
+                continue;
+            }
+            if (auto s = android::base::file::rm_recursive(path); !s.ok()) {
+                LOG(ERROR) << "Factory reset failed: unable to remove AVD file " << path.string() << " - " << s;
+                return absl::InternalError("AVD wipe data failed");
+            }
+        }
     }
 
     return FileBackedAvd::Parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,

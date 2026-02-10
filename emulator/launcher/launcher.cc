@@ -607,7 +607,7 @@ int main(int argc, char** argv) {
         VLOG(1) << "Content path overridden to: " << writable_content_override;
     }
 
-    auto avd = Avd::FromName(*resolved_paths, name, sysdir_override, writable_content_override);
+    auto avd = Avd::FromName(*resolved_paths, name, opts.wipe_data, sysdir_override, writable_content_override);
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;

@@ -38,7 +38,6 @@ struct DiskConfig {
     fs::path user_image_path;
 
     uint64_t size_bytes;
-    bool wipe_existing;
 };
 
 absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const AndroidOptions& opts);
@@ -55,8 +54,7 @@ absl::Status addDrives(T& emulator) {
         if (dc.is_writable) {
             auto qcow2 = fs::path(dc.user_image_path).concat(".qcow2");
             emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
-                                                 dc.user_image_path, qcow2, dc.size_bytes,
-                                                 dc.wipe_existing);
+                                                 dc.user_image_path, qcow2, dc.size_bytes);
         } else {
             fs::path image;
             if (base::file::exists(dc.user_image_path)) {
