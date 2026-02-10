@@ -36,8 +36,7 @@ TEST(Grpc, DefaultPort) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-device"),
-                                     testing::StartsWith("grpc,port=8560,token=true,allowlist="),
-                                     testing::Eq("-trace"), testing::Eq("module_*")));
+                                     testing::StartsWith("grpc,port=8560,token=true,allowlist=")));
 }
 
 TEST(Grpc, CustomPort) {
@@ -48,8 +47,7 @@ TEST(Grpc, CustomPort) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-device"),
-                                     testing::StartsWith("grpc,port=1000,token=true,allowlist="),
-                                     testing::Eq("-trace"), testing::Eq("module_*")));
+                                     testing::StartsWith("grpc,port=1000,token=true,allowlist=")));
 }
 
 TEST(Grpc, DefaultAllowlist) {
@@ -61,8 +59,7 @@ TEST(Grpc, DefaultAllowlist) {
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
             testing::ElementsAre(testing::Eq("-device"),
-                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/test_allow_list.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*")),
-                                 testing::Eq("-trace"), testing::Eq("module_*")));
+                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/test_allow_list.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*"))));
 }
 
 TEST(Grpc, CustomAllowlist) {
@@ -80,8 +77,7 @@ TEST(Grpc, CustomAllowlist) {
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(dev.getQemuParameters(emu.config()),
                 testing::ElementsAre(testing::Eq("-device"),
-                                     testing::HasSubstr(std::string("allowlist=") + allowlist_path),
-                                     testing::Eq("-trace"), testing::Eq("module_*")));
+                                     testing::HasSubstr(std::string("allowlist=") + allowlist_path)));
 }
 
 }  // namespace android::goldfish::test
