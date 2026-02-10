@@ -31,6 +31,7 @@
 #include "android/base/file/file.h"
 #include "android/process/command.h"
 #include "android/process/exec.h"
+#include "android/process/process.h"
 
 #define DEBUG 0
 
@@ -186,15 +187,9 @@ class PosixOverseer : public ProcessOverseer {
 
 class PosixProcess : public ObservableProcess {
   public:
-    explicit PosixProcess(Pid pid) {
-        pid_ = pid;
-        daemon_ = true;
-    }
+    explicit PosixProcess(Pid pid) : ObservableProcess(true) { pid_ = pid; }
 
-    PosixProcess(bool daemon, bool inherit) {
-        inherit_ = inherit;
-        daemon_ = daemon;
-    }
+    PosixProcess(bool daemon, bool inherit) : ObservableProcess(daemon, inherit) {}
 
     ~PosixProcess() override {
         if (actions_) {
@@ -281,7 +276,7 @@ class PosixProcess : public ObservableProcess {
             return std::nullopt;
         }
 
-        DD("%s to inheriting handles..", mInherit ? "yes" : "no");
+        DD("%s to inheriting handles..", inherit_ ? "yes" : "no");
         if (!inherit_) {
             attr_ = new posix_spawnattr_t;
             if (posix_spawnattr_init(attr_)) {

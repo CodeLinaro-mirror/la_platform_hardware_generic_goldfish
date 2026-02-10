@@ -162,7 +162,7 @@ class Process {
      */
     virtual std::future_status WaitForKernel(std::chrono::milliseconds timeout_duration) const = 0;
 
-    Pid pid_;
+    Pid pid_{-1};
 };
 
 /**
@@ -254,6 +254,9 @@ class NullOverseer : public ProcessOverseer {
  */
 class ObservableProcess : public Process {
   public:
+    ObservableProcess(bool daemon = false, bool inherit = false)
+            : daemon_(daemon), inherit_(inherit) {}
+
     // Kills the process..
     ~ObservableProcess() override;
 
