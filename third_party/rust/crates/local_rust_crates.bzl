@@ -1,103 +1,93 @@
 """Defines a module extension to create repos for local rust crates.
 
 These are dependencies of crosvm and netsim.
+
+Crate Collections:
+- _ANDROID_CRATES: Standard crates mirroring `third_party/rust/android-crates-io/crates`.
+- _GOLDFISH_UNVERSIONED_CRATES: Legacy unversioned crates in Goldfish (e.g. `winapi`).
+- _GOLDFISH_VERSIONED_CRATES: Versioned crates in Goldfish (e.g. `aes-0.8.4`).
+- _CUSTOM_PATH_CRATES: Crates with non-standard paths (e.g. `rustutils` in `system`, `pica`).
+- _MANUAL_BUILD_CRATES: Legacy crates using build files in Goldfish root (`nix`, `bitflags`, etc.).
 """
 
 load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 load("//:repository_rules.bzl", "patched_new_local_repository")
 
+# Crate locations
+_ANDROID_CRATES_IO = "third_party/rust/android-crates-io/crates"
+_GOLDFISH_CRATES = "hardware/generic/goldfish/third_party/rust/crates"
+
+def _make_android_crate(name):
+    return struct(
+        name = name,
+        build_file = "@goldfish_crates//netsim_build:{}.BUILD.bazel".format(name),
+        path = "{}/{}".format(_ANDROID_CRATES_IO, name),
+    )
+
+def _make_versioned_goldfish_crate(name, version):
+    return struct(
+        name = name,
+        build_file = "@goldfish_crates//netsim_build:{}.BUILD.bazel".format(name),
+        path = "{}/{}-{}".format(_GOLDFISH_CRATES, name, version),
+    )
+
 def _lrc_impl(module_ctx):
     """Implementation of the local_rust_crates module extension."""
 
-    # First the crosvm deps.
-    # Commented deps are now provided by netsim rules below.
-    for crate in [
-        #"anyhow",
-        "bitflags",
-        #"byteorder",
-        #"cfg-if",
-        #"equivalent",
-        #"foldhash",
-        #"hashbrown",
-        #"itoa",
-        #"libc",
-        #"log",
-        #"memchr",
-        "memoffset",
-        "nix",
-        #"once_cell",
-        #"proc-macro2",
-        #"quote",
-        "remain",
-        #"ryu",
-        #"serde_derive",
-        #"serde_json",
-        #"serde",
-        #"syn",
-        #"thiserror-impl",
-        #"thiserror",
-        #"unicode-ident",
-        #"zerocopy-derive",
-        #"zerocopy",
-    ]:
+    # 1. Goldfish Crates (Unversioned)
+    _GOLDFISH_UNVERSIONED_CRATES = [
+        "winapi",
+        "winapi-x86_64-pc-windows-gnu",
+    ]
+
+    for crate in _GOLDFISH_UNVERSIONED_CRATES:
         new_local_repository(
             name = crate,
             build_file = "@goldfish_crates//:BUILD.{}".format(crate),
-            path = "third_party/rust/android-crates-io/crates/{}".format(crate),
+            path = "{}/{}".format(_GOLDFISH_CRATES, crate),
         )
 
-    new_local_repository(
-        name = "winapi",
-        build_file = "@goldfish_crates//:BUILD.winapi",
-        path = "hardware/generic/goldfish/third_party/rust/crates/winapi",
-    )
+    # 2. Custom Path Crates
+    _CUSTOM_PATH_CRATES = [
+        struct(name = "pica", path = "third_party/rust/crates/pica"),
+        struct(name = "protobuf-rust", path = "{}/protobuf".format(_ANDROID_CRATES_IO)),
+        struct(name = "rustutils", path = "system/librustutils/rustutils"),
+    ]
 
-    new_local_repository(
-        name = "winapi-x86_64-pc-windows-gnu",
-        build_file = "@goldfish_crates//:BUILD.winapi-x86_64-pc-windows-gnu",
-        path = "hardware/generic/goldfish/third_party/rust/crates/winapi-x86_64-pc-windows-gnu",
-    )
+    for crate in _CUSTOM_PATH_CRATES:
+        new_local_repository(
+            name = crate.name,
+            build_file = "@goldfish_crates//netsim_build:{}.BUILD.bazel".format(crate.name),
+            path = crate.path,
+        )
 
-    # Needed by netsim below:
-    new_local_repository(
-        name = "protobuf-rust",
-        build_file = "@goldfish_crates//netsim_build:protobuf-rust.BUILD.bazel",
-        path = "third_party/rust/android-crates-io/crates/protobuf",
-    )
+    # 3. Manual Build Crates (Legacy)
+    # These use build files in the root of goldfish_crates.
+    _MANUAL_BUILD_CRATES = [
+        "bitflags",
+        "memoffset",
+        "nix",
+        "remain",
+    ]
 
-    new_local_repository(
-        name = "pica",
-        build_file = "@goldfish_crates//netsim_build:pica.BUILD.bazel",
-        path = "third_party/rust/crates/pica",
-    )
+    for crate in _MANUAL_BUILD_CRATES:
+        new_local_repository(
+            name = crate,
+            build_file = "@goldfish_crates//:BUILD.{}".format(crate),
+            path = "{}/{}".format(_ANDROID_CRATES_IO, crate),
+        )
 
-    new_local_repository(
-        name = "rustutils",
-        build_file = "@goldfish_crates//netsim_build:rustutils.BUILD.bazel",
-        path = "system/librustutils/rustutils",
-    )
-
-    new_local_repository(
-        name = "protobuf-parse",
-        build_file = "@goldfish_crates//netsim_build:protobuf-parse.BUILD.bazel",
-        path = "third_party/rust/android-crates-io/crates/protobuf-parse",
-    )
-
-    new_local_repository(
-        name = "protobuf-codegen",
-        build_file = "@goldfish_crates//netsim_build:protobuf-codegen.BUILD.bazel",
-        path = "third_party/rust/android-crates-io/crates/protobuf-codegen",
-    )
-
+    # 4. Patched Dependencies
     # Patch tempfile to fix API mismatches with newer rustix/errno versions and enforce deterministic RNG.
     patched_new_local_repository(
         name = "tempfile",
         build_file = "@goldfish_crates//netsim_build:tempfile.BUILD.bazel",
-        path = "third_party/rust/android-crates-io/crates/tempfile",
+        path = "{}/tempfile".format(_ANDROID_CRATES_IO),
         patches = ["@goldfish_crates//netsim_build:tempfile.patch"],
     )
 
-    for crate in [
+    # 4. Standard Android Crates
+    _ANDROID_CRATES = [
         "aho-corasick",
         "android_log-sys",
         "anstyle",
@@ -185,7 +175,9 @@ def _lrc_impl(module_ctx):
         "predicates-tree",
         "prettyplease",
         "proc-macro2",
+        "protobuf-codegen",
         "protobuf-json-mapping",
+        "protobuf-parse",
         "protobuf-support",
         "quote",
         "rand",
@@ -231,14 +223,18 @@ def _lrc_impl(module_ctx):
         "zerocopy-derive",
         "zip",
         "zlib-rs",
-    ]:
+    ]
+
+    for crate_name in _ANDROID_CRATES:
+        crate = _make_android_crate(crate_name)
         new_local_repository(
-            name = crate,
-            build_file = "@goldfish_crates//:netsim_build/{}.BUILD.bazel".format(crate),
-            path = "third_party/rust/android-crates-io/crates/{}".format(crate),
+            name = crate.name,
+            build_file = crate.build_file,
+            path = crate.path,
         )
 
-    for crate, version in [
+    # 5. Versioned Goldfish Crates
+    _GOLDFISH_VERSIONED_CRATES = [
         ("aead", "0.5.2"),
         ("aes", "0.8.4"),
         ("ccm", "0.5.0"),
@@ -251,11 +247,14 @@ def _lrc_impl(module_ctx):
         ("subtle", "2.6.1"),
         ("typenum", "1.17.0"),
         ("winapi-util", "0.1.9"),
-    ]:
+    ]
+
+    for name, version in _GOLDFISH_VERSIONED_CRATES:
+        crate = _make_versioned_goldfish_crate(name, version)
         new_local_repository(
-            name = crate,
-            build_file = "@goldfish_crates//:netsim_build/{}.BUILD.bazel".format(crate),
-            path = "hardware/generic/goldfish/third_party/rust/crates/{}-{}".format(crate, version),
+            name = crate.name,
+            build_file = crate.build_file,
+            path = crate.path,
         )
 
     return module_ctx.extension_metadata(root_module_direct_deps = "all", root_module_direct_dev_deps = [], reproducible = True)
