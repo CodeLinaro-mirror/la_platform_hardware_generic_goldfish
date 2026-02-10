@@ -168,7 +168,7 @@ TEST(Command, can_use_test_factory) {
         return std::make_unique<FakeProcess>();
     });
 
-    auto proc = Command::Create({"foo"}).WithStdoutBuffer(&std_out).Execute();
+    auto proc = Command::Create({"foo"}).RedirectStdoutToUnsafe(&std_out).Execute();
     EXPECT_EQ(create_called, 1);
     EXPECT_EQ(proc->ExitCode(), 0);
     EXPECT_FALSE(proc->IsAlive());
@@ -190,7 +190,7 @@ TEST(Command, properly_escape_params) {
     auto proc = Command::Create({sleep_exe()})
                         .Arg("--msg_std_out")
                         .Arg("Hello there")
-                        .WithStdoutBuffer(&std_out)
+                        .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
     proc->WaitFor(100ms);
     EXPECT_EQ(proc->Out()->AsString(), "Hello there");
@@ -232,7 +232,7 @@ TEST(Command, we_can_capture_std_out) {
 #endif
     // Let's capture std out
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout"})
-                        .WithStdoutBuffer(&std_out)
+                        .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
     proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
@@ -250,7 +250,7 @@ TEST(Command, we_can_capture_std_err) {
 #endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_err", "error"})
-                        .WithStderrBuffer(&std_err)
+                        .RedirectStderrToUnsafe(&std_err)
                         .Execute();
     proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
@@ -336,8 +336,8 @@ TEST(Command, we_can_capture_both) {
 #endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .WithStdoutBuffer(&std_out)
-                        .WithStderrBuffer(&std_err)
+                        .RedirectStdoutToUnsafe(&std_out)
+                        .RedirectStderrToUnsafe(&std_err)
                         .Execute();
     proc->WaitFor(200ms);
     std::this_thread::sleep_for(10ms);
@@ -355,7 +355,7 @@ TEST(Command, double_capture_should_not_lock) {
 #endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
-                        .WithStderrBuffer(&std_err)
+                        .RedirectStderrToUnsafe(&std_err)
                         .Execute();
     proc->WaitFor(1s);
     std::this_thread::sleep_for(10ms);
@@ -385,7 +385,7 @@ TEST(Command, DISABLED_we_can_stream_data) {
     // An example of streaming data, note if we do not receive
     // data every second we will consider the stream closed!
     auto proc = cmd.Arg(R"##(for i in {1..2}; do echo "Hello $i"; sleep 0.2; done)##")
-                        .WithStdoutBuffer(&std_out)
+                        .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
 
     int i = 1;
@@ -425,7 +425,7 @@ TEST(Command, as_string_does_not_hang_on_crash) {
 #endif
     // Let's capture std out of a process that crashes.
     auto proc = Command::Create({"sh", "-c", "echo hello; sleep 0.1; kill -SEGV $$"})
-                        .WithStdoutBuffer(&std_out)
+                        .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
 
     // WaitFor should return once the process crashes and the overseer finishes.
@@ -445,8 +445,8 @@ TEST(Command, can_capture_output_when_one_pipe_closes_early) {
 #endif
     // This closes stdout but keeps stderr open.
     auto proc = Command::Create({"sh", "-c", "echo stdout; exec 1>&-; sleep 0.1; echo stderr >&2"})
-                        .WithStdoutBuffer(&std_out)
-                        .WithStderrBuffer(&std_err)
+                        .RedirectStdoutToUnsafe(&std_out)
+                        .RedirectStderrToUnsafe(&std_err)
                         .Execute();
 
     EXPECT_EQ(proc->WaitFor(2s), std::future_status::ready);
