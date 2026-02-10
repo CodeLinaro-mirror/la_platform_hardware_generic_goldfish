@@ -9,6 +9,9 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
+
+#include "android/crashreport/crash_uploader.h"
+
 #include <stdio.h>
 
 #include <iostream>
@@ -17,8 +20,6 @@
 #include <string>
 #include <utility>
 
-#include "android/crashreport/crash_consent.h"
-#include "android/crashreport/uploader.h"
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
 #include "client/crash_report_database.h"

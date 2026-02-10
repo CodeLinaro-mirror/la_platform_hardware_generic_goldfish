@@ -31,8 +31,6 @@
 #include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
-#include "android/crashreport/crash_consent.h"
-#include "android/crashreport/crash_initializer.h"
 #include "android/crashreport/crash_system.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/emulator_config.h"
@@ -448,15 +446,6 @@ void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sys
     }
 }
 
-class CrashConsentProviderAlways : public android::crashreport::CrashConsent {
-  public:
-    ~CrashConsentProviderAlways() override = default;
-    Consent consentRequired() override { return Consent::ALWAYS; }
-    ReportAction requestConsent(const crashpad::CrashReportDatabase::Report& report) override {
-        return ReportAction::UPLOAD_REMOVE;
-    }
-};
-
 }  // namespace
 }  // namespace android::goldfish
 
@@ -558,13 +547,15 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if (!crashhandler_init(argc, argv)) {
+    auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
+    // TODO(b/483635069): remove consent override before release.
+    crash_consent = android::crashreport::Consent::ALWAYS;
+
+    if (android::crashreport::CrashSystem::get().initialize(crash_consent)) {
+        android::crashreport::CrashSystem::get().uploadEntries();
+    } else {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
-
-    // TODO change consent before release
-    android::crashreport::upload_crashes(
-            std::make_unique<android::goldfish::CrashConsentProviderAlways>());
 
     absl::FailureSignalHandlerOptions options;
     // Call crashpad after printing stack trace.

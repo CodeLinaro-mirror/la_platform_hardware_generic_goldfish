@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "crashpad/android/crashreport/crash_reporter.h"
+#include "android/crashreport/crash_reporter.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -24,13 +24,11 @@
 #include <utility>
 #include <vector>
 
-#include "android/base/abseil_clock.h"
-#include "android/base/bazel_info.h"
-#include "android/base/system.h"
-#include "android/crashreport/crash_handler.h"
-#include "android/crashreport/simple_string_annotation.h"
+#include "annotation_streambuf.h"
+#include "simple_string_annotation.h"
 #include "client/annotation.h"
-#include "goldfish/tools/aemu_version.h"
+
+#include "android/base/abseil_clock.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -38,53 +36,14 @@
 #include <signal.h>
 #endif
 
-using android::base::Bazel;
-using android::base::System;
-
 namespace fs = std::filesystem;
 
-namespace android {
-namespace crashreport {
-
-const constexpr std::string_view kCrashpadDatabase = "emu-dev-crash-" VERSION ".db";
+namespace android::crashreport {
 
 using DefaultStringAnnotation = crashpad::StringAnnotation<1024>;
 
-CrashReporter::CrashReporter()
-        : mHangDetector(HangDetector::create(
-                  [](std::string_view message) {
-                      std::string copy(message);
-                      CrashReporter::get()->die(copy.c_str());
-                  },
-                  HangDetector::defaultTiming(), std::make_unique<android::base::AbseilClock>())) {}
-
-fs::path CrashReporter::databaseDirectory() {
-    if (auto database_directory = System::Get()->EnvGet("ANDROID_EMU_CRASH_REPORTING_DATABASE");
-        !database_directory.empty()) {
-        return fs::path(database_directory);
-    }
-    return System::Get()->GetTempDir() / kCrashpadDatabase;
-}
-
-fs::path CrashReporter::handlerExe() {
-    auto from_env = System::Get()->GetEnvironmentVariable("AEMU_CRASHPAD_HANDLER");
-    if (from_env.empty()) {
-        LOG(ERROR) << "AEMU_CRASHPAD_HANDLER envvar is empty - unable to locate crashpad_handler";
-    }
-
-    return fs::path(from_env);
-}
-
-HangDetector& CrashReporter::hangDetector() {
-    return *mHangDetector;
-}
-
-CrashReporter* CrashReporter::get() {
-    static CrashReporter reporter;
-    return &reporter;
-}
-
-static void enableSignalTermination() {
+namespace {
+void enableSignalTermination() {
 #if defined(__APPLE__) || defined(__linux__)
     // We will not get crash reports without the signals below enabled.
     sigset_t set;
@@ -102,123 +61,84 @@ static void enableSignalTermination() {
     }
 #endif
 }
-
-void CrashReporter::die(const char* message) {
-    // Make sure we can actually register a crash on this thread.
-    enableSignalTermination();
-
-    addMessage(message);
-    // this is the most cross-platform way of crashing
-    // any other I know about has its flaws:
-    //  - abort() isn't caught by Breakpad on Windows
-    //  - null() may screw the callstack
-    //  - explicit *null = 1 can be optimized out
-    //  - requesting dump and exiting later has a very noticeable delay in
-    //    between, so some real crash could stick in the middle
-    volatile int* volatile ptr = nullptr;
-    *ptr = 1313;  // die
-
-#ifndef _WIN32
-    raise(SIGABRT);
-#endif
-    abort();  // make compiler believe it doesn't return
 }
 
-void CrashReporter::addMessage(const char* message) {
-    mAnnotationLog << message;
-}
+class CrashReporterImpl : public CrashReporter {
+  public:
+    void die(std::string_view message) override {
+        // Make sure we can actually register a crash on this thread.
+        enableSignalTermination();
 
-void CrashReporter::attachData(std::string name, std::string data, bool replace) {
-    // Let's figure out how many bytes we need in our annotations.
-    // We will bucketize by power of 2. We take the floor because
-    // 2<<1 == 2^2, 2<<2 == 2^3, ..., etc..
-    int shift = floor(log2(data.size()));
+        addMessage(message);
+        // this is the most cross-platform way of crashing
+        // any other I know about has its flaws:
+        //  - abort() isn't caught by Breakpad on Windows
+        //  - null() may screw the callstack
+        //  - explicit *null = 1 can be optimized out
+        //  - requesting dump and exiting later has a very noticeable delay in
+        //    between, so some real crash could stick in the middle
+        volatile int* volatile ptr = nullptr;
+        *ptr = 1313;  // die
 
-    std::unique_ptr<crashpad::Annotation> annotation;
-    // Sadly we have to do some pseudo switching to minimize the use of
-    // space in our minidump.
-    if (shift <= 5)
-        // 2<<5 == 2^6 == 64
-        annotation = std::make_unique<SimpleStringAnnotation<2 << 5>>(name, data);
-    if (shift == 6) annotation = std::make_unique<SimpleStringAnnotation<2 << 6>>(name, data);
-    if (shift == 7) annotation = std::make_unique<SimpleStringAnnotation<2 << 7>>(name, data);
-    if (shift == 8) annotation = std::make_unique<SimpleStringAnnotation<2 << 8>>(name, data);
-    if (shift == 9) annotation = std::make_unique<SimpleStringAnnotation<2 << 9>>(name, data);
-    if (shift == 10) annotation = std::make_unique<SimpleStringAnnotation<2 << 10>>(name, data);
-    if (shift == 11) annotation = std::make_unique<SimpleStringAnnotation<2 << 11>>(name, data);
-    if (shift == 12) annotation = std::make_unique<SimpleStringAnnotation<2 << 12>>(name, data);
-    if (shift >= 13) {
-        annotation = std::make_unique<SimpleStringAnnotation<2 << 13>>(name, data);
-        if (data.size() > 2 << 13)
-            LOG(WARNING) << "Crash annotation is very large (" << data.size()
-                         << "), only 16384 bytes will be recorded, " << data.size() - (2 << 13)
-                         << " bytes are lost.";
+    #ifndef _WIN32
+        raise(SIGABRT);
+    #endif
+        abort();  // make compiler believe it doesn't return
     }
 
-    mAnnotations.push_back(std::move(annotation));
-}
-
-}  // namespace crashreport
-}  // namespace android
-
-using android::crashreport::CrashReporter;
-
-extern "C" {
-
-void crashhandler_append_message(const char* message) {
-    CrashReporter::get()->addMessage(message);
-}
-
-void crashhandler_append_message_format_v(const char* format, va_list args) {
-    char message[2048] = {};
-    vsnprintf(message, sizeof(message) - 1, format, args);
-    crashhandler_append_message(message);
-}
-
-void crashhandler_append_message_format(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    crashhandler_append_message_format_v(format, args);
-    va_end(args);
-}
-
-void crashhandler_die(const char* message) {
-    LOG(ERROR) << "crashing system with message: " << message;
-    CrashReporter::get()->die(message);
-}
-
-void __attribute__((noreturn)) crashhandler_die_format_v(const char* format, va_list args) {
-    char message[2048] = {};
-    vsnprintf(message, sizeof(message) - 1, format, args);
-    crashhandler_die(message);
-}
-
-void crashhandler_die_format(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    crashhandler_die_format_v(format, args);
-}
-
-void crashhandler_add_string(const char* name, const char* string) {
-    CrashReporter::get()->attachData(name, string);
-}
-
-void crashhandler_exitmode(const char* message) {
-    CrashReporter::get()->addMessage(message);
-}
-
-bool crashhandler_copy_attachment(const char* destination, const char* source) {
-    fs::path path(source);
-    std::ifstream sourceFile(path, std::ios::binary);
-    std::stringstream buffer;
-    buffer << sourceFile.rdbuf();
-
-    if (sourceFile.bad()) {
-        return false;
+    void addMessage(std::string_view message) override {
+        mAnnotationLog << message;
     }
 
-    CrashReporter::get()->attachData(destination, buffer.str());
-    return true;
+    void attachData(std::string name, std::string data, bool replace) override {
+        // Let's figure out how many bytes we need in our annotations.
+        // We will bucketize by power of 2. We take the floor because
+        // 2<<1 == 2^2, 2<<2 == 2^3, ..., etc..
+        int shift = floor(log2(data.size()));
+
+        std::unique_ptr<crashpad::Annotation> annotation;
+        // Sadly we have to do some pseudo switching to minimize the use of
+        // space in our minidump.
+        if (shift <= 5)
+            // 2<<5 == 2^6 == 64
+            annotation = std::make_unique<SimpleStringAnnotation<2 << 5>>(name, data);
+        if (shift == 6) annotation = std::make_unique<SimpleStringAnnotation<2 << 6>>(name, data);
+        if (shift == 7) annotation = std::make_unique<SimpleStringAnnotation<2 << 7>>(name, data);
+        if (shift == 8) annotation = std::make_unique<SimpleStringAnnotation<2 << 8>>(name, data);
+        if (shift == 9) annotation = std::make_unique<SimpleStringAnnotation<2 << 9>>(name, data);
+        if (shift == 10) annotation = std::make_unique<SimpleStringAnnotation<2 << 10>>(name, data);
+        if (shift == 11) annotation = std::make_unique<SimpleStringAnnotation<2 << 11>>(name, data);
+        if (shift == 12) annotation = std::make_unique<SimpleStringAnnotation<2 << 12>>(name, data);
+        if (shift >= 13) {
+            annotation = std::make_unique<SimpleStringAnnotation<2 << 13>>(name, data);
+            if (data.size() > 2 << 13)
+                LOG(WARNING) << "Crash annotation is very large (" << data.size()
+                            << "), only 16384 bytes will be recorded, " << data.size() - (2 << 13)
+                            << " bytes are lost.";
+        }
+
+        mAnnotations.push_back(std::move(annotation));
+    }
+
+  private:
+    // TODO nothing ever reads this.
+    std::vector<std::unique_ptr<Annotation>> mAnnotations;
+    DefaultAnnotationStreambuf mAnnotationBuf{"internal-msg"};
+    std::ostream mAnnotationLog{&mAnnotationBuf};
+};
+
+CrashReporter& CrashReporter::get() {
+    static CrashReporterImpl reporter;
+    return reporter;
 }
 
-}  // extern "C"
+HangDetector &CrashReporter::getCrashingHangDetector() {
+    static std::unique_ptr<HangDetector> hangDetector = HangDetector::create([](std::string_view message) {
+                      std::string copy(message);
+                      CrashReporter::get().die(copy.c_str());
+                  },
+                  HangDetector::defaultTiming(), std::make_unique<android::base::AbseilClock>());
+    return *hangDetector;
+}
+
+}  // namespace android::crashreport

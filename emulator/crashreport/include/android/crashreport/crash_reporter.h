@@ -14,27 +14,11 @@
 
 #pragma once
 
-#include <filesystem>
-#include <memory>
-#include <ostream>
 #include <string>
-#include <vector>
 
-#include "android/crashreport/annotation_streambuf.h"
-#include "android/crashreport/crash_handler.h"
 #include "android/crashreport/hang_detector.h"
-#include "client/annotation.h"
 
-namespace crashpad {
-class Annotation;
-}  // namespace crashpad
-
-namespace android {
-namespace crashreport {
-
-namespace fs = std::filesystem;
-
-using crashpad::Annotation;
+namespace android::crashreport {
 
 /**
  * @brief Singleton class tracking crashpad annotations
@@ -43,22 +27,7 @@ using crashpad::Annotation;
  */
 class CrashReporter {
   public:
-    /**
-     * @brief Constructor.
-     */
-    CrashReporter();
-
-    /**
-     * @brief Destructor.
-     */
-    ~CrashReporter() = default;
-
-    /**
-     * @brief Gets the singleton instance of the CrashReporter.
-     *
-     * @return A pointer to the CrashReporter instance.
-     */
-    static CrashReporter* get();
+    virtual ~CrashReporter() = default;
 
     /**
      * @brief Attaches data to the crash report.
@@ -72,7 +41,7 @@ class CrashReporter {
      * @param replace If true, replaces existing data with the same name.
      *                If false, appends the data. Defaults to false.
      */
-    void attachData(std::string name, std::string data, bool replace = false);
+    virtual void attachData(std::string name, std::string data, bool replace = false) = 0;
 
     /**
      * @brief Adds an addition message to the default `internal-msg` annotation.
@@ -81,7 +50,7 @@ class CrashReporter {
      *
      * @param message The message.
      */
-    void addMessage(const char* message);
+    virtual void addMessage(std::string_view message) = 0;
 
     /**
      * @brief Generates a crash dump and terminates the pro cess.
@@ -90,40 +59,16 @@ class CrashReporter {
      *
      * @param message The message to include in the dump.
      */
-    ANDROID_NORETURN void die(const char* message);
+    virtual void die(std::string_view message) = 0;
 
     /**
-     * @brief Uploads all pending crash reports.
-     */
-    void uploadEntries();
-
-    /**
-     * @brief Returns a reference to the hang detector.
+     * @brief Gets the singleton instance of the CrashReporter.
      *
-     * @return Reference to the hang detector.
+     * @return A pointer to the CrashReporter instance.
      */
-    HangDetector& hangDetector();
+    static CrashReporter& get();
 
-    /**
-     * @brief Returns the path to the crash report database directory.
-     *
-     * @return The database directory as a FilePath.
-     */
-    static fs::path databaseDirectory();
-
-    /**
-     * @brief Returns the path to the crashpad handler executable.
-     *
-     * @return The handler executable path as a FilePath.
-     */
-    static fs::path handlerExe();
-
-  private:
-    std::unique_ptr<HangDetector> mHangDetector;
-    std::vector<std::unique_ptr<Annotation>> mAnnotations;
-    DefaultAnnotationStreambuf mAnnotationBuf{"internal-msg"};
-    std::ostream mAnnotationLog{&mAnnotationBuf};
+    static HangDetector &getCrashingHangDetector();
 };
 
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

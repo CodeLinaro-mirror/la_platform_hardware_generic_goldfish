@@ -21,8 +21,8 @@
 #include "absl/strings/str_split.h"
 
 #include "android/base/system.h"
-#include "android/crashreport/crash_initializer.h"
-#include "crashpad/android/crashreport/crash_reporter.h"
+#include "android/crashreport/crash_system.h"
+#include "android/crashreport/crash_reporter.h"
 #include "goldfish/adb_device/adb_device.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_finalize/avd_finalize.h"
@@ -136,7 +136,8 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     setup_logging();
 
     VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
-    if (!crashhandler_init(argc, argv)) {
+    // The plugin crash system should never try to upload - that should only be done by the launcher.
+    if (!android::crashreport::CrashSystem::get().initialize(android::crashreport::Consent::NEVER)) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
 
@@ -146,7 +147,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InstallFailureSignalHandler(options);
 
     auto* client_loop = goldfish::async::globalEventLoop();
-    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+    android::crashreport::CrashReporter::getCrashingHangDetector().addWatchedLooper(
             "GlobalEventLoop", *client_loop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";

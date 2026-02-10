@@ -18,10 +18,11 @@
 #include <string>
 #include <thread>
 
-#include "android/crashreport/crash_handler.h"
+#include "absl/log/log.h"
 
-namespace android {
-namespace crashreport {
+#include "android/crashreport/crash_reporter.h"
+
+namespace android::crashreport {
 
 /**
  * @brief Monitors a task's execution and triggers a custom action upon timeout.
@@ -74,8 +75,9 @@ class CrashOnTimeout : public TimeoutMonitor {
             : TimeoutMonitor(timeout, [msg = message, t = timeout]() {
                 auto timeout_msg =
                         "Task timeout after " + std::to_string(t.count()) + " ms. :" + msg;
-                crashhandler_die(timeout_msg.c_str());
+                LOG(ERROR) << "crashing system with message: " << msg;
+                CrashReporter::get().die(msg.c_str());
             }) {}
 };
-}  // namespace crashreport
-}  // namespace android
+
+}  // namespace android::crashreport

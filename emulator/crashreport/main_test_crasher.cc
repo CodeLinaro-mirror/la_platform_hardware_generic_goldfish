@@ -23,8 +23,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/crashreport/breadcrumb.h"
-#include "android/crashreport/crash_consent.h"
-#include "android/crashreport/crash_initializer.h"
+#include "android/crashreport/crash_system.h"
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -46,8 +45,6 @@ ABSL_FLAG(bool, nocrash, false, "Disable crash handling.");   // Default: false
 ABSL_FLAG(int, delay_ms, 0, "Delay in milliseconds.");        // Default: 0
 
 using android::base::Bazel;
-
-using consentProviderFunction = android::crashreport::CrashConsent* (*)(void);
 
 void crashme(int arg, bool nocrash, int delay_ms) {
     if (delay_ms) {
@@ -73,33 +70,6 @@ typedef HMODULE HandleType;
 typedef void* HandleType;
 #endif
 
-consentProviderFunction getConsentProvider(HandleType lib) {
-#ifdef _WIN32
-    return reinterpret_cast<consentProviderFunction>(GetProcAddress(lib, "consentProvider"));
-#else
-    return reinterpret_cast<consentProviderFunction>(dlsym(lib, "consentProvider"));
-#endif
-}
-
-bool load_consent_provider(const std::string& fromDll) {
-    HandleType library;
-#ifdef _WIN32
-    library = LoadLibraryA(fromDll.c_str());
-#else
-    library = dlopen(fromDll.c_str(), RTLD_NOW);
-#endif
-
-    if (!library) {
-        LOG(ERROR) << "Unable to load dll, not overriding initializer.";
-        return false;
-    }
-
-    // Probe for function symbol.
-    auto provider = getConsentProvider(library);
-    android::crashreport::inject_consent_provider(provider());
-    return true;
-}
-
 /* Main routine */
 int main(int argc, char** argv) {
     absl::InitializeLog();
@@ -116,11 +86,8 @@ int main(int argc, char** argv) {
     bool nocrash = absl::GetFlag(FLAGS_nocrash);
     int delay_ms = absl::GetFlag(FLAGS_delay_ms);
 
-    if (!dll.empty()) {
-        load_consent_provider(dll);
-    }
+    android::crashreport::CrashSystem::get().initialize(android::crashreport::Consent::NEVER);
 
-    crashhandler_init(argc, argv);
     TCRUMB() << "We are just getting started";
     LOG(INFO) << "Ready for " << (nocrash ? "clean exit" : "crash") << " in " << delay_ms << " ms";
     crashme(argc, nocrash, delay_ms);

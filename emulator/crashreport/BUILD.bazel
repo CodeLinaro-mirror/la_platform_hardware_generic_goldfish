@@ -1,32 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
-    name = "init",
-    srcs = ["crash_sytem_init.cc"],
-    hdrs = [
-        "include/android/crashreport/crash_consent.h",
-        "include/android/crashreport/crash_initializer.h",
-        "include/android/crashreport/crash_system.h",
-    ],
-    data = ["@crashpad//handler:crashpad_handler"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":always_consent",
-        ":crash_reporter",
-        ":uploader",
-        "@crashpad//client",
-        "@crashpad//handler",
-        "@crashpad//snapshot",
-    ],
-)
-
-cc_library(
     name = "hang_detector",
     srcs = ["hang_detector.cc"],
     hdrs = ["include/android/crashreport/hang_detector.h"],
     includes = ["include"],
-    visibility = ["//visibility:public"],
     deps = [
         "//android/async:async_api",
         "//android/system",
@@ -39,7 +17,6 @@ cc_test(
     name = "hang_detector_test",
     size = "small",
     srcs = ["hang_detector_test.cc"],
-    visibility = ["//visibility:public"],
     deps = [
         ":hang_detector",
         "//android/async:async_testing",
@@ -49,28 +26,38 @@ cc_test(
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
+    ],
+)
+
+cc_library(
+    name = "crash_uploader",
+    srcs = ["crash_uploader.cc"],
+    hdrs = ["include/android/crashreport/crash_uploader.h"],
+    #defines = ["AEMU_CRASH_SHARED"],
+    includes = ["include"],
+    #local_defines = ["AEMU_CRASH_EXPORTS"],
+    visibility = ["//emulator/crashreport:__subpackages__"],
+    deps = [
+        "@crashpad//client",
+        "@crashpad//handler",
+        "@crashpad//snapshot",
     ],
 )
 
 cc_library(
     name = "crash_reporter",
     srcs = [
+        "annotation_streambuf.h",
         "crash_reporter.cc",
-        "include/android/crashreport/annotation_streambuf.h",
-        "include/android/crashreport/crash_handler.h",
-        "include/android/crashreport/simple_string_annotation.h",
+        "simple_string_annotation.h",
     ],
-    hdrs = ["include/crashpad/android/crashreport/crash_reporter.h"],
+    hdrs = ["include/android/crashreport/crash_reporter.h"],
     includes = ["include"],
-    visibility = ["//visibility:public"],
+    visibility = ["//emulator/plugin:__subpackages__"],
     deps = [
         ":hang_detector",
-        "//android/system",
-        "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
         "@crashpad//client",
         "@crashpad//handler",
         "@crashpad//snapshot",
@@ -79,16 +66,31 @@ cc_library(
 )
 
 cc_library(
-    name = "breadcrumb",
-    srcs = [
-        "breadcrumb.cc",
-        "include/android/crashreport/annotation_circular_streambuf.h",
-    ],
-    hdrs = [
-        "include/android/crashreport/breadcrumb.h",
-    ],
+    name = "crash_system",
+    srcs = ["crash_system.cc"],
+    hdrs = ["include/android/crashreport/crash_system.h"],
+    data = ["@crashpad//handler:crashpad_handler"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        ":crash_reporter",
+        ":crash_uploader",
+        "//android/system",
+        "//emulator/tools:aemu_version",
+        "@crashpad//client",
+        "@crashpad//handler",
+        "@crashpad//snapshot",
+    ],
+)
+
+cc_library(
+    name = "breadcrumb",
+    srcs = [
+        "annotation_circular_streambuf.h",
+        "breadcrumb.cc",
+    ],
+    hdrs = ["include/android/crashreport/breadcrumb.h"],
+    includes = ["include"],
     deps = [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
@@ -107,49 +109,12 @@ cc_library(
         "include/android/crashreport/timeout_monitor.h",
     ],
     includes = ["include"],
-    visibility = ["//visibility:public"],
     deps = [
         ":crash_reporter",
         ":hang_detector",
         "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
-    ],
-)
-
-cc_library(
-    name = "uploader",
-    srcs = [
-        "crash_uploader.cc",
-        "include/android/crashreport/uploader.h",
-    ],
-    defines = ["AEMU_CRASH_SHARED"],
-    includes = ["include"],
-    local_defines = ["AEMU_CRASH_EXPORTS"],
-    visibility = ["//emulator/crashreport/tool:__subpackages__"],
-    deps = [
-        ":always_consent",
-        "@crashpad//client",
-        "@crashpad//handler",
-        "@crashpad//snapshot",
-    ],
-)
-
-cc_library(
-    name = "always_consent",
-    srcs = ["crash_consent_always.cc"],
-    hdrs = [
-        "include/android/crashreport/crash_consent.h",
-        "include/android/crashreport/crash_export.h",
-    ],
-    defines = ["AEMU_CRASH_SHARED"],
-    includes = ["include"],
-    local_defines = ["AEMU_CRASH_EXPORTS"],
-    visibility = ["//emulator/crashreport/tool:__subpackages__"],
-    deps = [
-        "@abseil-cpp//absl/log",
-        "@crashpad//client",
     ],
 )
 
@@ -177,16 +142,14 @@ cc_test(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        ":always_consent",
         ":breadcrumb",
+        ":crash_system",
         ":detectors",
-        ":init",
         "//android/process",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
         "@breakpad//src/processor",
         "@crashpad//client",
     ],
@@ -194,9 +157,7 @@ cc_test(
 
 cc_binary(
     name = "crash-me",
-    srcs = [
-        "main_test_crasher.cc",
-    ],
+    srcs = ["main_test_crasher.cc"],
     data = ["@crashpad//handler:crashpad_handler"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
@@ -204,9 +165,8 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        ":always_consent",
         ":breadcrumb",
-        ":init",
+        ":crash_system",
         "//android/process",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",

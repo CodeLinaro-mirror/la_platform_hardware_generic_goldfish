@@ -22,6 +22,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//conditions:default": None,
         }),
         deps = [
+            "//android/logging:color_log_sink",
+            "//emulator/crashreport:crash_reporter",
             "//emulator/plugin/adb-vsock",
             "//emulator/plugin/avd:impl",
             "//emulator/plugin/battery",
@@ -46,7 +48,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         }) + [
             # crashreport dep must go after the windows compat dep.
             # buildifier: leave-alone
-            "//emulator/crashreport:init",
+            "//emulator/crashreport:crash_system",
         ],
     )
     for arch in [

@@ -17,9 +17,8 @@ cc_library(
     ],
     deps = [
         "//android/system",
-        "//emulator/crashreport:always_consent",
-        "//emulator/crashreport:crash_reporter",
-        "//emulator/crashreport:uploader",
+        "//emulator/crashreport:crash_system",
+        "//emulator/crashreport:crash_uploader",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",

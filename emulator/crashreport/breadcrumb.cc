@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "android/crashreport/annotation_circular_streambuf.h"
+#include "annotation_circular_streambuf.h"
 
 namespace android {
 namespace crashreport {

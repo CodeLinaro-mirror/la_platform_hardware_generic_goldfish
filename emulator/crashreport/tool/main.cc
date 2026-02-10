@@ -20,10 +20,9 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
-#include "android/crashreport/uploader.h"
+#include "android/crashreport/crash_system.h"
 #include "base/files/file_path.h"
 #include "client/settings.h"
-#include "crashpad/android/crashreport/crash_reporter.h"
 #include "emulator/crashreport/tool/annotation_extractor.h"
 #include "emulator/crashreport/tool/crash_report_manager.h"
 #include "emulator/crashreport/tool/formatter.h"
@@ -83,7 +82,7 @@ int main(int argc, char* argv[]) {
     absl::SetProgramUsageMessage(
             absl::StrFormat("List, upload and examine emulator related crashdumps.\n"
                             "The database can be found here: \n%v",
-                            android::crashreport::CrashReporter::databaseDirectory()));
+                            android::crashreport::CrashSystem::databaseDirectory()));
     absl::ParseCommandLine(argc, argv);
     absl::InitializeLog();
     if (android::base::Bazel::InBazel()) {

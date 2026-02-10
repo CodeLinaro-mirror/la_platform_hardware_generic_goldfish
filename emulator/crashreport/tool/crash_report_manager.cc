@@ -20,7 +20,7 @@
 #include "absl/log/log.h"
 
 #include "client/settings.h"
-#include "crashpad/android/crashreport/crash_reporter.h"
+#include "android/crashreport/crash_system.h"
 
 namespace android {
 namespace crashreport {
@@ -28,7 +28,7 @@ namespace crashreport {
 bool CrashReportManager::Initialize() {
     if (mDb) return true;  // Already initialized
 
-    auto database_path = android::crashreport::CrashReporter::databaseDirectory();
+    auto database_path = android::crashreport::CrashSystem::databaseDirectory();
     for (int i = 0; !mDb && i < 5; i++) {
         mDb = crashpad::CrashReportDatabase::Initialize(::base::FilePath(database_path));
         if (!mDb) {

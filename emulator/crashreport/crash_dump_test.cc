@@ -22,10 +22,10 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
+#include "android/crashreport/crash_system.h"
 #include "android/process/command.h"
 #include "client/crash_report_database.h"
 #include "client/settings.h"
-#include "crashpad/android/crashreport/crash_reporter.h"
 
 using android::base::Bazel;
 using android::base::Command;
@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 const constexpr char kCrashpadDatabase[] = "emu-dev-test-crash.db";
 
 const std::string kCrashMe = "crash-me";
-using android::crashreport::CrashReporter;
+using android::crashreport::CrashSystem;
 
 class CrashTest : public ::testing::Test {
   protected:
@@ -70,8 +70,8 @@ class CrashTest : public ::testing::Test {
             System::SetEnvironmentVariable("AEMU_CRASHPAD_HANDLER", crashpad_handler);
         }
 
-        auto handler_path = CrashReporter::handlerExe();
-        auto database_path = CrashReporter::databaseDirectory();
+        auto handler_path = CrashSystem::handlerExe();
+        auto database_path = CrashSystem::databaseDirectory();
         auto crashDatabase =
                 crashpad::CrashReportDatabase::Initialize(base::FilePath(database_path));
         crashDatabase->GetSettings()->SetUploadsEnabled(false);

@@ -14,12 +14,90 @@
 
 #pragma once
 
-#include <memory>
-
-#include "android/crashreport/crash_consent.h"
+#include <filesystem>
 
 namespace android::crashreport {
 
-void upload_crashes(std::unique_ptr<CrashConsent> consent);
+namespace fs = std::filesystem;
+
+enum class Consent {
+    ASK,     ///< Ask for consent.
+    ALWAYS,  ///< Always grant consent.
+    NEVER    ///< Never grant consent.
+};
+
+enum class ReportAction {
+    UNDECIDED_KEEP,  ///< Consent is undecided, keep the report.
+    UPLOAD_REMOVE,   ///< Upload the report and remove it from the database.
+    REMOVE           ///< Remove the report without uploading.
+};
+
+class CrashSystem {
+  public:
+    virtual ~CrashSystem() = default;
+
+    virtual bool active() const = 0;
+
+    /**
+    * @brief Initializes the crash reporting system.
+    *
+    * This function sets up crash reporting for the emulator. It should be called
+    * only once at program startup. This function attempts to start the
+    * out-of-process Crashpad handler. If the handler is successfully started,
+    * crashes will be recorded in a local database and can be uploaded later. If
+    * the Crashpad handler cannot be started, crash reporting will be disabled, and
+    * a warning will be logged.
+    *
+    * Internally, this function utilizes the `CrashpadClient::StartHandler()`
+    * method to establish communication with the Crashpad handler and configure
+    * exception handling. Refer to the documentation of `StartHandler()` for
+    * platform-specific details on how the handler is started and how exception
+    * ports or signal handlers are configured.
+    *
+    * Crash reporting is controlled by the `ANDROID_EMU_ENABLE_CRASH_REPORTING`
+    * environment variable. If this variable is not set or is set to "0", crash
+    * reporting will be disabled.
+    *
+    * @param argc The number of command line arguments. These are used to populate
+    *     the crash report if a crash occurs.
+    * @param argv An array of command line arguments. These are used to populate
+    *     the crash report if a crash occurs.
+    * @return True if crash reporting was successfully initialized, false otherwise.
+    *
+    * @note If the Crashpad handler cannot be found, crash reporting will be
+    *     disabled. The handler location can be influenced by setting the
+    *     `AEMU_CRASHPAD_HANDLER` environment variable.
+    *
+    * @note The crash report database is stored in a platform-specific temporary
+    *     directory by default, and its name is based on the emulator version.
+    *     The location can be overridden by setting the
+    *     `ANDROID_EMU_CRASH_REPORTING_DATABASE` environment variable.
+    *
+    * @note On macOS every child process will be handled by this reporter, on every
+    *     other platform a reporter will need to be registered by the client.
+    */
+    // Catch crashes in everything.
+    // This promises to not launch any threads...
+    virtual bool initialize(Consent consent) = 0;
+
+    virtual void uploadEntries() = 0;
+
+    /**
+     * @brief Returns the path to the crash report database directory.
+     *
+     * @return The database directory as a FilePath.
+     */
+    static fs::path databaseDirectory();
+
+    /**
+     * @brief Returns the path to the crashpad handler executable.
+     *
+     * @return The handler executable path as a FilePath.
+     */
+    static fs::path handlerExe();
+
+    // Gets a handle to single instance of crash reporter
+    static CrashSystem& get();
+};
 
 }  // namespace android::crashreport

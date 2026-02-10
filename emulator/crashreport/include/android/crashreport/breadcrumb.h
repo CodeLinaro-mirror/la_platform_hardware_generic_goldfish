@@ -17,8 +17,7 @@
 #include <iostream>
 #include <memory>
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
 /**
  * @brief Breadcrumb types.
@@ -110,5 +109,4 @@ class BreadcrumbTracker {
  */
 #define TCRUMB() (android::crashreport::BreadcrumbTracker::stream())
 
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

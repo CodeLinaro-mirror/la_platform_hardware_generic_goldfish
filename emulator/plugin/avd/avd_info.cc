@@ -17,6 +17,7 @@
 #include <chrono>
 #include <memory>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -28,7 +29,7 @@
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
-#include "crashpad/android/crashreport/crash_reporter.h"
+#include "android/crashreport/crash_reporter.h"
 #include "emulator/plugin/avd/VCpuEventLoop.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
@@ -203,12 +204,12 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto* client_loop = goldfish::async::globalEventLoop();
 
     gQemuLoop = goldfish::async::QemuEventLoop::Create();
-    android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+    android::crashreport::CrashReporter::getCrashingHangDetector().addWatchedLooper(
             "QemuEventLoop", *gQemuLoop, absl::Seconds(15));
 
     gQemuCpuLoops = createVCpuEventLoops();
     for (auto& loop : gQemuCpuLoops) {
-        android::crashreport::CrashReporter::get()->hangDetector().addWatchedLooper(
+        android::crashreport::CrashReporter::getCrashingHangDetector().addWatchedLooper(
                 absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
     }
 
