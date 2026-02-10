@@ -96,14 +96,14 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
 
         // Handle empty lines, comments.
         if (citer == cend) {
-            VLOG(1) << "Line " << lineno << ": Skipped empty line.";
+            VLOG(2) << "Line " << lineno << ": Skipped empty line.";
             if (keep_comments) {
                 comments_.emplace_back(output_lineno, std::move(line));
             }
             continue;
         }
         if (*citer == '#' || *citer == ';') {
-            VLOG(1) << "Line " << lineno << ": Skipped comment line.";
+            VLOG(2) << "Line " << lineno << ": Skipped comment line.";
             if (keep_comments) {
                 comments_.emplace_back(output_lineno, std::move(line));
             }
