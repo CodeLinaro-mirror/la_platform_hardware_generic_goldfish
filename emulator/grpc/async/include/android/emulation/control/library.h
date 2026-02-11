@@ -19,9 +19,7 @@
 #include <mutex>
 #include <unordered_set>
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 /**
  * @brief A library class for managing borrowed objects with thread safety.
@@ -59,14 +57,14 @@ class Library {
      * @return A shared pointer to the borrowed object.
      */
     template <typename... Args>
-    std::shared_ptr<T> acquire(Args&&... args) {
+    std::shared_ptr<T> Acquire(Args&&... args) {
         std::shared_ptr<T> obj(new T(std::forward<Args>(args)...), [this](T* ptr) {
-            removeBorrowedObject(ptr);
+            RemoveBorrowedObject(ptr);
             delete ptr;
         });
 
-        std::lock_guard<std::mutex> lock(mBorrowedLock);
-        mBorrowed.insert(obj.get());
+        const std::lock_guard<std::mutex> lock(mutex_);
+        borrowed_.insert(obj.get());
 
         return obj;
     }
@@ -76,9 +74,9 @@ class Library {
      *
      * @param fun The function to apply to each borrowed object's pointer.
      */
-    void forEach(std::function<void(T*)> fun) {
-        std::lock_guard<std::mutex> lock(mBorrowedLock);
-        for (auto ptr : mBorrowed) {
+    void ForEach(const std::function<void(T*)>& fun) {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        for (auto* ptr : borrowed_) {
             fun(ptr);
         }
     }
@@ -86,23 +84,21 @@ class Library {
     // Wait until the library's borrowed objects are all returned, or until a
     // timeout occurs. returns `true` if the library is empty within the
     // timeout, `false` otherwise.
-    bool waitUntilLibraryIsClear(const std::chrono::milliseconds timeout) {
-        std::unique_lock<std::mutex> lock(mBorrowedLock);
-        return mBorrowedCv.wait_for(lock, timeout, [this]() { return mBorrowed.empty(); });
+    bool WaitUntilLibraryIsClear(const std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return cv_.wait_for(lock, timeout, [this]() { return borrowed_.empty(); });
     }
 
   private:
-    std::unordered_set<T*> mBorrowed;
-    std::mutex mBorrowedLock;
-    std::condition_variable mBorrowedCv;
+    std::unordered_set<T*> borrowed_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
 
     // Safely removes a borrowed object, called upon destruction of object.
-    void removeBorrowedObject(T* object) {
-        std::lock_guard<std::mutex> lock(mBorrowedLock);
-        mBorrowed.erase(object);
-        mBorrowedCv.notify_all();
+    void RemoveBorrowedObject(T* object) {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        borrowed_.erase(object);
+        cv_.notify_all();
     }
 };
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
