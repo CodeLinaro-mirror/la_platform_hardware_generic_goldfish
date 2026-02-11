@@ -102,7 +102,7 @@ TEST(RwDrive, Basic_x86) {
     EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kX86));
 
-    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
+    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
@@ -127,7 +127,7 @@ TEST(RwDrive, Basic_arm) {
     EXPECT_CALL(emu.mock_avd(), DetectArchitecture())
             .WillRepeatedly(testing::Return(Avd::CpuArchitecture::kArm));
 
-    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024, false);
+    RwDrive dev("userdata", "04.0", std::nullopt, userData, qcow2Image, 1024);
     EXPECT_OK(dev.initialize(emu.config()));
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),

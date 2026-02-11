@@ -30,8 +30,7 @@ class MockDeviceContainer {
     MOCK_METHOD(void, addRwDrive,
                 (const std::string& id, const std::string& pci_address,
                  const std::optional<fs::path>& system_image_path_ro,
-                 const fs::path& user_image_path, const fs::path& qcow2, uint64_t size_bytes,
-                 bool wipe_existing));
+                 const fs::path& user_image_path, const fs::path& qcow2, uint64_t size_bytes));
 
     MOCK_METHOD(void, addRoDrive,
                 (const std::string& id, const std::string& pci_address, const fs::path& image));
@@ -80,12 +79,12 @@ TEST(ConfigureDrivesTest, AddDrives) {
     EXPECT_CALL(mock_avd, GetContentPath()).WillRepeatedly(Return(user_dir));
 
     EXPECT_CALL(mock_container, addRoDrive("system", "03.0", system_dir / "system.img")).Times(1);
-    EXPECT_CALL(mock_container, addRwDrive("encrypt", "06.0", _, _, _, _, _)).Times(1);
+    EXPECT_CALL(mock_container, addRwDrive("encrypt", "06.0", _, _, _, _)).Times(1);
     EXPECT_CALL(mock_container, addRoDrive("vendor", "07.0", system_dir / "vendor.img")).Times(1);
-    EXPECT_CALL(mock_container, addRwDrive("userdata", "05.0", _, _, _, _, _)).Times(1);
-    EXPECT_CALL(mock_container, addRwDrive("cache", "04.0", _, _, _, _, _)).Times(1);
+    EXPECT_CALL(mock_container, addRwDrive("userdata", "05.0", _, _, _, _)).Times(1);
+    EXPECT_CALL(mock_container, addRwDrive("cache", "04.0", _, _, _, _)).Times(1);
 #ifdef __x86_64__
-    EXPECT_CALL(mock_container, addRwDrive("sdcard", "08.0", _, _, _, _, _)).Times(1);
+    EXPECT_CALL(mock_container, addRwDrive("sdcard", "08.0", _, _, _, _)).Times(1);
 #endif
     ASSERT_THAT(addDrives(mock_container), IsOk());
 }
