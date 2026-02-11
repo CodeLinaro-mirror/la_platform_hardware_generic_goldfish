@@ -492,11 +492,11 @@ py_binary(
     ] + select({
         "@platforms//os:macos": [
             "//emulator/sdk/system_images/minigbm-arm64-v8a:minigbm",
-            "@android_minigbm16k-arm64-v8a//:system_image",
+            "@android16k-arm64-v8a//:system_image",
         ],
         "//conditions:default": [
             "//emulator/sdk/system_images/minigbm-x86_64:minigbm",
-            "@android_minigbm16k-x86_64//:system_image",
+            "@android16k-x86_64//:system_image",
         ],
     }) + [
         "//emulator/sdk:sdk-marker-files",

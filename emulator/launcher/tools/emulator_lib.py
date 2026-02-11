@@ -103,10 +103,10 @@ class EmulatorLocator:
 
         for abi in abis:
             for page_size in ["", "16k"]:
-                minigbm_abi_dir = f"minigbm{page_size}-{abi}"
+                minigbm_abi_dir = f"{page_size}-{abi}"
                 try:
                     source_prop_path = self.r.Rlocation(
-                        f"android_{minigbm_abi_dir}/{abi}/source.properties"
+                        f"android{minigbm_abi_dir}/{abi}/source.properties"
                     )
                     if source_prop_path:
                         system_image_dir = Path(source_prop_path).parent
