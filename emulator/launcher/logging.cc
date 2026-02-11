@@ -24,6 +24,7 @@ void configureLogging(const AndroidOptions& opts, SetVLogLevel setVLogLevel) {
 
     if (android::base::System::Get()->GetEnvironmentVariable("AEMU_NO_LOG_SINK").empty()) {
         static android::base::ColorLogSink logSink(&std::cout, isatty(fileno(stdout)));
+        logSink.SetVerbosity(opts.verbose);
         absl::AddLogSink(&logSink);
         absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
     }

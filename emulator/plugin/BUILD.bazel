@@ -37,6 +37,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "@abseil-cpp//absl/debugging:failure_signal_handler",
             "@abseil-cpp//absl/debugging:symbolize",
             "@abseil-cpp//absl/log",
+            "@abseil-cpp//absl/log:structured",
             "@qemu//:aemu_func_defs",
             "@qemu//:qemu-headers",
             "//emulator/plugin/vsock_goldfish:vsock_impl_" + arch,

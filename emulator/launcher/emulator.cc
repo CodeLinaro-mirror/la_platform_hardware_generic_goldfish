@@ -72,6 +72,9 @@ absl::Status Emulator::addDevices() {
     if (System::Get()->GetEnvironmentVariable("AEMU_VMODULE").empty()) {
         System::Get()->SetEnvironmentVariable("AEMU_VMODULE", vmodules);
     }
+    if (System::Get()->GetEnvironmentVariable("AEMU_LOG_DETAILED").empty()) {
+        System::Get()->SetEnvironmentVariable("AEMU_LOG_DETAILED", o.verbose ? "true" : "false");
+    }
 
     addDevice<ParameterList>(std::initializer_list<std::string>{
         "-nodefaults",
