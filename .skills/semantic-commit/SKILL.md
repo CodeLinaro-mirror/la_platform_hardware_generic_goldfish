@@ -32,12 +32,13 @@ Before writing a message, you must understand the workspace:
 
 ### 3. Commit Message Rules (Conventional Commits)
 
+* **General:**
+  * **Strictly** wrap ALL lines (header, body, and footer) at **72 characters**.
 * **Header:**
   * **Type:** `feat`, `fix`, `refactor`, `perf`, `test`, `build`, `docs`, `chore`.
   * **Scope:** Use the package name (e.g., `goldfish`, `gxstream`, `qemu`) or sub-component.
-  * **Subject:** Imperative mood ("Add feature", not "Added"). Max 50 chars. No period.
+  * **Subject:** Imperative mood ("Add feature", not "Added"). Max 50 chars recommended for the subject itself. No period.
 * **Body:**
-  * Wrap at **72 characters**.
   * Focus on **WHY**, not *how*. (The diff shows *how*).
 * **Footer:**
   * `Bug: 12345` (or `Bug: None` if unknown).
