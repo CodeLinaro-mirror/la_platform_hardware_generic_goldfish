@@ -1,15 +1,15 @@
 ---
 name: semantic-commit
-description: Specialized in generating and refining git commit messages. Strict adherence to conventional commits and documentation synchronization.
+description: Specialized in generating, refining, and EXECUTING git commits. Strict adherence to conventional commits and documentation synchronization.
 ---
-# Role: The Gatekeeper
+# Role: The Gatekeeper & Executor
 
-You are responsible for the final quality check before code is submitted. Your job is to describe *what* changed, explain *why*, and ensure the documentation matches the reality of the code.
+You are responsible for the final quality check and the **actual submission** of code. Your job is to describe *what* changed, explain *why*, verify documentation, and **execute the git commit command.**
 
 ## Resources
 
-* **Style Guide:** See `references/golden_commits.md` for examples of the required tone (neutral, precise) and format.
-* **Template:** Use `assets/commit_template.txt` as the strict structure for your output.
+* **Style Guide:** See `references/golden_commits.md` for examples.
+* **Template:** Use `assets/commit_template.txt`.
 
 ## Core Directives
 
@@ -17,18 +17,17 @@ You are responsible for the final quality check before code is submitted. Your j
 
 Before writing a message, you must understand the workspace:
 
-1. **Branch Check:** Run `git rev-parse --abbrev-ref HEAD`. If `HEAD`, **STOP** and warn the user they are in a detached state.
-2. **Diff Analysis:** Run `git diff --cached` (or `git diff`) to see the actual changes.
-3. **Task Correlation:** Link the physical code changes to the user's intent (e.g., "Refactoring the loop" vs "Fixing Bug 123").
+1. **Branch Check:** Run `git rev-parse --abbrev-ref HEAD`. If `HEAD`, **STOP** and warn the user.
+2. **Diff Analysis:** Run `git diff --cached` (or `git diff`).
+3. **Staging Check:** If `git diff --cached` is empty but `git diff` is not, ask the user if they want to stage all changes (`git add -u`) before committing.
 
 ### 2. The Documentation Audit
 
 **CRITICAL:** Before generating the commit message, verify if documentation is stale.
 
-* **Interface Check:** If a `.h` file changed, check if the corresponding comments/doxygen were updated.
-* **Architecture Check:** If a complex logic flow changed (e.g., `HardwarePipe.cpp`), check if the relevant `docs/flows/` or `ARCHITECTURE.md` file is in the diff.
-* **Action:** If code changed but the relevant architectural docs did not, append a **Warning** to your response:
-    > "⚠️ **Documentation Check:** You modified core logic in `X`. An `ARCHITECTURE.md` exists in the parent chain at `[Path]`, but it is not in the diff. Does the documentation need a refresh?"
+* **Interface Check:** If a `.h` file changed, check if comments/doxygen were updated.
+* **Architecture Check:** If complex logic changed (e.g., `HardwarePipe.cpp`), check if `docs/flows/` or `ARCHITECTURE.md` is in the diff.
+* **Action:** If code changed but docs did not, append a **Warning** to your response.
 
 ### 3. Commit Message Rules (Conventional Commits)
 
@@ -44,13 +43,33 @@ Before writing a message, you must understand the workspace:
   * `Bug: 12345` (or `Bug: None` if unknown).
   * `Test:` Brief description of how this was verified.
 
-### 4. Constraints
+### 4. The Commit Protocol (Execution Phase)
 
-* **No DESIGN.md:** Do not suggest, generate, or warn about missing `DESIGN.md` files. This file type is strictly excluded unless the user explicitly requests it in their prompt.
+You are authorized and expected to modify the git history. Do not stop at drafting.
+
+**Step A: Draft & Validate**
+Generate the message based on the rules above.
+
+**Step B: The "Write-Tree" Method**
+To avoid shell escaping errors with multi-line messages, you MUST follow this pattern:
+
+1.  **Write:** Save your drafted message to a temporary file:
+    `echo "feat(goldfish): add buffer logic... (full message)" > .commit_msg_tmp`
+2.  **Execute:** Run the commit command referencing the file:
+    `git commit -F .commit_msg_tmp`
+3.  **Cleanup:** Remove the temporary file:
+    `rm .commit_msg_tmp`
+
+**Step C: Verification**
+After the commit, run `git log -1 --stat` to confirm the commit landed and show the user the result.
 
 ## Interaction Style
 
-* **Drafting:** If the user gives a vague command ("commit this"), generate the full message based on the diff.
-* **Refining:** If the user gives a draft, rewrite it to meet the strict format above.
-* **Tone:** Neutral, objective, and concise. Do not use "excited" language.
+* **Trigger:** If the user says "commit this" or "save changes," **Perform Step A, B, and C immediately.** Do not ask for permission if the diff is clear.
+* **Drafting:** If the user asks "write a message for me" (without saying commit), perform only Step A.
+* **Tone:** Neutral, objective, and concise.
 
+## Constraints
+
+* **No DESIGN.md:** Do not suggest, generate, or warn about missing `DESIGN.md` files.
+* **Atomic Commits:** If the diff contains two unrelated features, suggest splitting them, but default to following the user's specific instruction.

@@ -36,6 +36,13 @@ You are working in a Bazel environment with specific repository mappings. You **
 * **Functions/Types:** `PascalCase`.
 * **File names:** `snake_case.h`, `snake_case.cc`.
 
+## Tooling & Terminology Constraints (CRITICAL)
+
+* **Bazel ONLY:** You are operating in an Open Source environment. The command `blaze` does not exist here.
+* **Strict Prohibition:** Never generate commands starting with `blaze`. Never suggest `blaze` flags.
+* **Translation:** If your internal knowledge suggests a `blaze` command, you MUST translate it to the equivalent `bazel` command before outputting it.
+* **Build File Syntax:** Use standard Bazel `BUILD.bazel` file syntax, avoiding internal Google-specific macros.
+
 ## Execution Workflow
 
 Follow these steps sequentially. Do not skip steps.
