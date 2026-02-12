@@ -19,52 +19,55 @@
 #include <functional>
 #include <string>
 
-namespace google {
-namespace protobuf {
+namespace google::protobuf {
 class Message;
-}  // namespace protobuf
-}  // namespace google
+}  // namespace google::protobuf
 
-namespace android {
-namespace control {
-namespace interceptor {
+namespace android::control::interceptor {
 
-using namespace grpc::experimental;
+using grpc::experimental::ClientInterceptorFactoryInterface;
+using grpc::experimental::InterceptionHookPoints;
+using grpc::experimental::ServerInterceptorFactoryInterface;
 
-enum class CallType { UNARY, CLIENT_STREAMING, SERVER_STREAMING, BIDI_STREAMING, UNKNOWN };
-
-enum class Direction {
-    INCOMING /* server receives */,
-    OUTGOING /* Client calls */
+enum class CallType : uint8_t {
+    kUnary,
+    kClientStreaming,
+    kServerStreaming,
+    kBidiStreaming,
+    kUnknown
 };
-typedef struct InvocationRecord {
+
+enum class Direction : uint8_t {
+    kIncoming /* server receives */,
+    kOutgoing /* Client calls */
+};
+using InvocationRecord = struct InvocationRecord {
     std::string method = "unknown";          // Invoked method.
     std::string incoming = "...";            // Shortened receive parameters.
     std::string response = "...";            // Shortened response string.
     grpc::Status status = grpc::Status::OK;  // Status
 
-    uint64_t rcvMessages = 0;  // Number of messages received
-    uint64_t rcvBytes = 0;     // Size of all received protobuf messages.
-    uint64_t rcvTime = 0;      // Time spend receiving bytes out over the wire.
+    uint64_t rcv_messages = 0;  // Number of messages received
+    uint64_t rcv_bytes = 0;     // Size of all received protobuf messages.
+    uint64_t rcv_time = 0;      // Time spend receiving bytes out over the wire.
 
-    uint64_t sndMessages = 0;  // Number of messages send
-    uint64_t sndBytes = 0;     // Size of all send protobuf messages.
-    uint64_t sndTime = 0;      // Time spend sending bytes out over the wire.
+    uint64_t snd_messages = 0;  // Number of messages send
+    uint64_t snd_bytes = 0;     // Size of all send protobuf messages.
+    uint64_t snd_time = 0;      // Time spend sending bytes out over the wire.
 
     uint64_t duration = 0;                      // Total lifetime of the request.
-    Direction direction = Direction::INCOMING;  // Incoming (server) or outgoing (client)
-    CallType type = CallType::UNARY;
+    Direction direction = Direction::kIncoming;  // Incoming (server) or outgoing (client)
+    CallType type = CallType::kUnary;
     std::string peer;  // The peer (the other side of this request)
 
     // Timestamps of the various stages. We will use NUM_INTERCEPTION_HOOKS to
     // store the creation time
-    uint64_t mTimestamps[static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS) + 1] = {};
+    uint64_t timestamps[static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS) + 1] = {};
 
     static const std::array<std::string, 4> kTypes;
     static const int kStartTimeIdx =
             static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS);
-
-} InvocationRecord;
+};
 
 using ReportingFunction = std::function<void(const InvocationRecord&)>;
 
@@ -84,42 +87,44 @@ using ReportingFunction = std::function<void(const InvocationRecord&)>;
 //
 class LoggingInterceptor : public grpc::experimental::Interceptor {
   public:
-    LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter);
-    LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter);
-    ~LoggingInterceptor();
+    LoggingInterceptor(grpc::experimental::ServerRpcInfo* info, ReportingFunction reporter);
+    LoggingInterceptor(grpc::experimental::ClientRpcInfo* info, ReportingFunction reporter);
+    ~LoggingInterceptor() override;
 
-    virtual void Intercept(InterceptorBatchMethods* methods) override;
+    void Intercept(grpc::experimental::InterceptorBatchMethods* methods) override;
 
   private:
-    std::string chopStr(std::string);
-    std::string formatProtobufMessage(const ::google::protobuf::Message* msg);
+    std::string ChopStr(std::string) const;
+    std::string FormatProtobufMessage(const ::google::protobuf::Message* msg) const;
 
-    // We will cut of all repsone/incoming strings at this length.
-    const unsigned int kMaxStringLen = 80;
+    // We will cut off all response/incoming strings at this length.
+    static constexpr unsigned int kMaxStringLen = 80;
 
     // Max field length of protobuf message we are willing to log.
-    const unsigned int kMaxProtbufStrlen = 20;
+    static constexpr unsigned int kMaxProtobufStrLen = 20;
 
     // Maximum size of a protobuf message we are willing to log.
-    const unsigned int kMaxProtobufMsgLogSize = 2048;
+    static constexpr unsigned int kMaxProtobufMsgLogSize = 2048;
 
-    InvocationRecord mLoginfo;
-    ReportingFunction mReporter;
-    ClientRpcInfo* mClientInfo;
-    ServerRpcInfo* mServerInfo;
+    InvocationRecord loginfo_;
+    ReportingFunction reporter_;
+    grpc::experimental::ClientRpcInfo* client_info_;
+    grpc::experimental::ServerRpcInfo* server_info_;
 };
 
 // The factory class that needs to be registered with the gRPC server/client.
 class LoggingInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface,
                                   public grpc::experimental::ClientInterceptorFactoryInterface {
   public:
-    LoggingInterceptorFactory(ReportingFunction reporter);
-    virtual ~LoggingInterceptorFactory() = default;
-    virtual Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
-    virtual Interceptor* CreateClientInterceptor(ClientRpcInfo* info) override;
+    explicit LoggingInterceptorFactory(ReportingFunction reporter);
+    ~LoggingInterceptorFactory() override = default;
+    grpc::experimental::Interceptor* CreateServerInterceptor(
+            grpc::experimental::ServerRpcInfo* info) override;
+    grpc::experimental::Interceptor* CreateClientInterceptor(
+            grpc::experimental::ClientRpcInfo* info) override;
 
   private:
-    ReportingFunction mReporter;
+    ReportingFunction reporter_;
 };
 
 // A logging interceptor that logs all the requests to stdout using LOG(INFO)
@@ -128,6 +133,4 @@ class StdOutLoggingInterceptorFactory : public LoggingInterceptorFactory {
     StdOutLoggingInterceptorFactory();
 };
 
-}  // namespace interceptor
-}  // namespace control
-}  // namespace android
+}  // namespace android::control::interceptor

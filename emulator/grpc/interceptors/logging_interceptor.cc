@@ -13,10 +13,9 @@
 // limitations under the License.
 #include "google/protobuf/android/control/interceptor/logging_interceptor.h"
 
-#include <assert.h>
-#include <inttypes.h>
-
 #include <algorithm>
+#include <cassert>
+#include <cinttypes>
 #include <utility>
 
 #include "absl/log/log.h"
@@ -33,116 +32,121 @@
 #else
 #define DD(...) dinfo(__VA_ARGS__)
 #endif
-namespace android {
-namespace control {
-namespace interceptor {
 
-using namespace grpc::experimental;
+namespace android::control::interceptor {
+
 using android::base::IClock;
+using grpc::experimental::ClientRpcInfo;
+using grpc::experimental::InterceptorBatchMethods;
+using grpc::experimental::ServerRpcInfo;
 
 const std::array<std::string, 4> InvocationRecord::kTypes{"UNARY", "CLIENT_STREAMING",
                                                           "SERVER_STREAMING", "BIDI_STREAMING"};
 
-std::array<std::string, 17> kStatus{
+static const std::array<std::string, 17> kStatus{
     "OK",        "CANCELLED",      "UNKNOWN",           "INVALID_ARGUMENT",   "DEADLINE_EXCEEDED",
     "NOT_FOUND", "ALREADY_EXISTS", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION",
     "ABORTED",   "OUT_OF_RANGE",   "UNIMPLEMENTED",     "INTERNAL",           "UNAVAILABLE",
     "DATA_LOSS", "UNAUTHENTICATED"};
 
-static uint64_t getTimeDiffUs(InvocationRecord loginfo, InterceptionHookPoints from,
-                              InterceptionHookPoints to) {
-    assert(loginfo.mTimestamps[static_cast<int>(to)] >=
-           loginfo.mTimestamps[static_cast<int>(from)]);
+namespace {
+uint64_t GetTimeDiffUs(const InvocationRecord& loginfo, InterceptionHookPoints from,
+                       InterceptionHookPoints to) {
+    assert(loginfo.timestamps[static_cast<int>(to)] >= loginfo.timestamps[static_cast<int>(from)]);
 
-    return loginfo.mTimestamps[static_cast<int>(to)] - loginfo.mTimestamps[static_cast<int>(from)];
+    return loginfo.timestamps[static_cast<int>(to)] - loginfo.timestamps[static_cast<int>(from)];
 }
 
-static void printLog(const InvocationRecord& loginfo) {
+void PrintLog(const InvocationRecord& loginfo) {
     auto status_msg = kStatus[std::min<int>(static_cast<int>(loginfo.status.error_code()), 16)];
     LOG(INFO) << "from: " << loginfo.peer
-              << ", start: " << loginfo.mTimestamps[InvocationRecord::kStartTimeIdx]
-              << ", rcvTime: " << loginfo.rcvTime << ", sndTime: " << loginfo.sndTime
-              << ", rcv: " << loginfo.rcvBytes << ", snd: " << loginfo.sndBytes
-              << ", rcv_cnt: " << loginfo.rcvMessages << ", snd_cnt: " << loginfo.sndMessages
+              << ", start: " << loginfo.timestamps[InvocationRecord::kStartTimeIdx]
+              << ", rcvTime: " << loginfo.rcv_time << ", sndTime: " << loginfo.snd_time
+              << ", rcv: " << loginfo.rcv_bytes << ", snd: " << loginfo.snd_bytes
+              << ", rcv_cnt: " << loginfo.rcv_messages << ", snd_cnt: " << loginfo.snd_messages
               << ", " << status_msg << " " << loginfo.status.error_message() << ", "
               << loginfo.method << "(" << loginfo.incoming << ") -> [" << loginfo.response << "]";
-};
+}
+}  // namespace
 
 LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter)
-        : mReporter(reporter), mServerInfo(info) {
+        : reporter_(std::move(reporter)), server_info_(info) {
     if (info) {
-        mLoginfo.method = std::string(info->method()).substr(0, kMaxStringLen);
+        loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {
         case ServerRpcInfo::Type::UNARY:
-            mLoginfo.type = CallType::UNARY;
+            loginfo_.type = CallType::kUnary;
             break;
         case ServerRpcInfo::Type::CLIENT_STREAMING:
-            mLoginfo.type = CallType::CLIENT_STREAMING;
+            loginfo_.type = CallType::kClientStreaming;
             break;
         case ServerRpcInfo::Type::SERVER_STREAMING:
-            mLoginfo.type = CallType::SERVER_STREAMING;
+            loginfo_.type = CallType::kServerStreaming;
             break;
         case ServerRpcInfo::Type::BIDI_STREAMING:
-            mLoginfo.type = CallType::BIDI_STREAMING;
+            loginfo_.type = CallType::kBidiStreaming;
             break;
         }
-        mLoginfo.direction = Direction::INCOMING;
+        loginfo_.direction = Direction::kIncoming;
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
+    loginfo_.timestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
 }
 
 LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter)
-        : mReporter(reporter), mClientInfo(info) {
+        : reporter_(std::move(reporter)), client_info_(info) {
     if (info) {
-        mLoginfo.method = std::string(info->method()).substr(0, kMaxStringLen);
+        loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {
         case ClientRpcInfo::Type::UNARY:
-            mLoginfo.type = CallType::UNARY;
+            loginfo_.type = CallType::kUnary;
             break;
         case ClientRpcInfo::Type::CLIENT_STREAMING:
-            mLoginfo.type = CallType::CLIENT_STREAMING;
+            loginfo_.type = CallType::kClientStreaming;
             break;
         case ClientRpcInfo::Type::SERVER_STREAMING:
-            mLoginfo.type = CallType::SERVER_STREAMING;
+            loginfo_.type = CallType::kServerStreaming;
             break;
         case ClientRpcInfo::Type::BIDI_STREAMING:
-            mLoginfo.type = CallType::BIDI_STREAMING;
+            loginfo_.type = CallType::kBidiStreaming;
             break;
         case ClientRpcInfo::Type::UNKNOWN:
-            mLoginfo.type = CallType::UNKNOWN;
+            loginfo_.type = CallType::kUnknown;
             break;
         }
-        mLoginfo.direction = Direction::OUTGOING;
-        mLoginfo.peer = info->client_context()->peer();
+        loginfo_.direction = Direction::kOutgoing;
+        loginfo_.peer = info->client_context()->peer();
     }
-    mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
+    loginfo_.timestamps[InvocationRecord::kStartTimeIdx] = absl::ToUnixMicros(IClock::HostNow());
 }
 
 LoggingInterceptor::~LoggingInterceptor() {
     auto ts = absl::ToUnixMicros(IClock::HostNow());
-    mLoginfo.duration = ts - mLoginfo.mTimestamps[InvocationRecord::kStartTimeIdx];
-    mReporter(mLoginfo);
+    loginfo_.duration = ts - loginfo_.timestamps[InvocationRecord::kStartTimeIdx];
+    reporter_(loginfo_);
 }
 
-std::string LoggingInterceptor::formatProtobufMessage(const ::google::protobuf::Message* msg) {
+std::string LoggingInterceptor::FormatProtobufMessage(  // NOLINT
+        const ::google::protobuf::Message* msg) const {
     std::string debug_string;
 
     ::google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     printer.SetExpandAny(true);
-    printer.SetTruncateStringFieldLongerThan(kMaxProtbufStrlen);
+    printer.SetTruncateStringFieldLongerThan(kMaxProtobufStrLen);
     printer.PrintToString(*msg, &debug_string);
 
     // Single line mode currently might have an extra space at the end.
-    if (debug_string.size() > 0 && debug_string[debug_string.size() - 1] == ' ') {
+    if (!debug_string.empty() && debug_string[debug_string.size() - 1] == ' ') {
         debug_string.resize(debug_string.size() - 1);
     }
 
     return debug_string;
 }
 
-std::string LoggingInterceptor::chopStr(std::string str) {
-    if (str.size() <= kMaxStringLen) return str;
+std::string LoggingInterceptor::ChopStr(std::string str) const {  // NOLINT
+    if (str.size() <= kMaxStringLen) {
+        return str;
+    }
     return str.substr(0, kMaxStringLen - 3) + "...";
 }
 
@@ -163,76 +167,79 @@ void LoggingInterceptor::Intercept(InterceptorBatchMethods* methods) {
         // of what is happening.. Increment the time spend on receiving
         // bytes..
         int selector = InvocationRecord::kStartTimeIdx;
-        if (mLoginfo.type == CallType::CLIENT_STREAMING ||
-            mLoginfo.type == CallType::BIDI_STREAMING)
-            selector = static_cast<int>(mLoginfo.rcvTime == 0
+        if (loginfo_.type == CallType::kClientStreaming ||
+            loginfo_.type == CallType::kBidiStreaming) {
+            selector = static_cast<int>(loginfo_.rcv_time == 0
                                                 ? InterceptionHookPoints::POST_RECV_INITIAL_METADATA
                                                 : InterceptionHookPoints::POST_RECV_MESSAGE);
+        }
 
-        mLoginfo.rcvTime += (ts - mLoginfo.mTimestamps[selector]);
+        loginfo_.rcv_time += (ts - loginfo_.timestamps[selector]);
     }
 
     // Note you can get many pre/post send in case of server streaming/bidi
     // Note you can get many pre/post recv in case of client streaming/bidi
     for (int i = 0; i < static_cast<int>(InterceptionHookPoints::NUM_INTERCEPTION_HOOKS); i++) {
         if (methods->QueryInterceptionHookPoint(static_cast<InterceptionHookPoints>(i))) {
-            mLoginfo.mTimestamps[i] = ts;
+            loginfo_.timestamps[i] = ts;
         }
     }
 
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::POST_RECV_MESSAGE)) {
         // We just received a message from the client
-        auto msg = reinterpret_cast<::google::protobuf::Message*>(methods->GetRecvMessage());
-        mLoginfo.rcvMessages++;
+        auto* msg = reinterpret_cast<::google::protobuf::Message*>(methods->GetRecvMessage());
+        loginfo_.rcv_messages++;
         if (msg) {
             auto size = msg->SpaceUsedLong();
-            if (size < kMaxProtobufMsgLogSize && mLoginfo.rcvBytes == 0) {
-                mLoginfo.incoming = formatProtobufMessage(msg);
+            if (size < kMaxProtobufMsgLogSize && loginfo_.rcv_bytes == 0) {
+                loginfo_.incoming = FormatProtobufMessage(msg);
             }
-            mLoginfo.rcvBytes += size;
+            loginfo_.rcv_bytes += size;
         }
     }
 
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::PRE_SEND_MESSAGE)) {
         // We are ready to ship this message overseas!
-        auto msg = reinterpret_cast<const ::google::protobuf::Message*>(methods->GetSendMessage());
+        const auto* msg =
+                reinterpret_cast<const ::google::protobuf::Message*>(methods->GetSendMessage());
         if (msg) {
             auto size = msg->SpaceUsedLong();
-            if (size < kMaxProtobufMsgLogSize && mLoginfo.sndBytes == 0) {
-                mLoginfo.response = formatProtobufMessage(msg);
+            if (size < kMaxProtobufMsgLogSize && loginfo_.snd_bytes == 0) {
+                loginfo_.response = FormatProtobufMessage(msg);
             }
-            mLoginfo.sndBytes += size;
+            loginfo_.snd_bytes += size;
         }
     }
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::PRE_SEND_STATUS)) {
-        mLoginfo.status = methods->GetSendStatus();
+        loginfo_.status = methods->GetSendStatus();
     }
 
     if (methods->QueryInterceptionHookPoint(InterceptionHookPoints::POST_SEND_MESSAGE)) {
         // Increment the time spend on sending bytes..
-        mLoginfo.sndTime += getTimeDiffUs(mLoginfo, InterceptionHookPoints::PRE_SEND_MESSAGE,
-                                          InterceptionHookPoints::POST_SEND_MESSAGE);
-        mLoginfo.sndMessages++;
+        loginfo_.snd_time += GetTimeDiffUs(loginfo_, InterceptionHookPoints::PRE_SEND_MESSAGE,
+                                           InterceptionHookPoints::POST_SEND_MESSAGE);
+        loginfo_.snd_messages++;
     }
 
     methods->Proceed();
 }
 
 LoggingInterceptorFactory::LoggingInterceptorFactory(ReportingFunction reporter)
-        : mReporter(std::move(reporter)) {}
+        : reporter_(std::move(reporter)) {}
 
-Interceptor* LoggingInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {
+grpc::experimental::Interceptor* LoggingInterceptorFactory::CreateServerInterceptor(
+        ServerRpcInfo* info) {
     DD("Creating a server interceptor!");
-    return new LoggingInterceptor(info, mReporter);
-};
+    return new LoggingInterceptor(info, reporter_);
+}
 
-Interceptor* LoggingInterceptorFactory::CreateClientInterceptor(ClientRpcInfo* info) {
+grpc::experimental::Interceptor* LoggingInterceptorFactory::CreateClientInterceptor(
+        ClientRpcInfo* info) {
     DD("Creating a client interceptor!");
-    return new LoggingInterceptor(info, mReporter);
-};
+    return new LoggingInterceptor(info, reporter_);
+}
 
 StdOutLoggingInterceptorFactory::StdOutLoggingInterceptorFactory()
-        : LoggingInterceptorFactory(printLog) {};
-}  // namespace interceptor
-}  // namespace control
-}  // namespace android
+        : LoggingInterceptorFactory(PrintLog) {}
+
+}  // namespace android::control::interceptor

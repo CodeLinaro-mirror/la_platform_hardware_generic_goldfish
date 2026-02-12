@@ -125,7 +125,7 @@ class EmulatorControllerService::Builder {
     // Shutdown the emulator after timeout seconds of gRPC inactivity.
     // The timeout should be at least 1 second, otherwise it will
     // be ignored.
-    Builder& withIdleTimeout(std::chrono::seconds timeout, EventLoop* eventLoop);
+    Builder& withIdleTimeout(std::chrono::seconds timeout, EventLoop* event_loop);
 
     // Returns the fully configured and running service, or nullptr if
     // construction failed.

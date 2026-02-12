@@ -15,6 +15,7 @@ Checks:
 
   # --- THE KILL LIST (Noise Suppression) ---
   # Explicitly disabled based on analysis of 16k+ warnings in our codebase.
+  - '-readability-function-cognitive-complexity'
   - '-misc-include-cleaner'                 # Flaky on system headers
   - '-readability-magic-numbers'            # Too strict for HAL/Driver code
   - '-readability-identifier-length'        # Allows 'i', 'n', 'q', 'x'
