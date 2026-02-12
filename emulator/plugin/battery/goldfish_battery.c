@@ -12,6 +12,8 @@
 
 #include "goldfish/battery/goldfish_battery.h"
 
+#include <stdio.h>
+
 // clang-format off
 // IWYU pragma: begin_keep
 #include "qemu/osdep.h"
@@ -20,7 +22,7 @@
 #include "hw/sysbus.h"
 #include "monitor/monitor.h"
 #include "migration/vmstate.h"
-// IWYU pragma: end_keep
+// IWYU pragma: end_keepnext run
 // clang-format on
 
 static int sBatteryIsRealized = 0;
@@ -173,7 +175,18 @@ void goldfish_battery_set_prop(int ac, int property, int value) {
     struct goldfish_battery_state* battery_state = GOLDFISH_BATTERY(dev);
     int new_status = (ac ? AC_STATUS_CHANGED : BATTERY_STATUS_CHANGED);
 
-    if (!battery_state || !battery_state->hw_has_battery) {
+    if (!battery_state) {
+        // No battery device found, unlikely as it is part of the motherboard.
+        return;
+    }
+
+    if (property == POWER_SUPPLY_PROP_HAS_BATTERY) {
+        // Old school phones had separate batteries, so you can remove it and insert it.
+        battery_state->hw_has_battery = value;
+    }
+
+    if (!battery_state->hw_has_battery) {
+        // No battery present, so we ignore all properties.
         return;
     }
 

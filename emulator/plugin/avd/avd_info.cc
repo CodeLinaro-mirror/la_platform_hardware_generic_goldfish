@@ -26,16 +26,17 @@
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "android/base/qemu_clock.h"
 #include "android/base/system.h"
+#include "android/crashreport/crash_reporter.h"
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
-#include "android/crashreport/crash_reporter.h"
 #include "emulator/plugin/avd/VCpuEventLoop.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/avd_info/gralloc_impl.h"
+#include "goldfish/devices/battery/battery.h"
 #include "goldfish/devices/boot/boot_properties_device.h"
 #include "goldfish/devices/camera/register_device.h"
 #include "goldfish/devices/clipboard/clipboard_device.h"
@@ -253,6 +254,11 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
                                                client_loop, gQemuLoop.get());
 
     ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
+
+    // Initialize the battery to a default state and register it.
+    auto* battery = &avd_universe->getBattery();
+    DEVS::battery::RegisterBattery(&avd_universe->getBattery(), avd_props.hw_config.hw_battery,
+                                   gQemuLoop.get());
 
     gGlobalAvdUniverseInstance = avd_universe.release();
 }

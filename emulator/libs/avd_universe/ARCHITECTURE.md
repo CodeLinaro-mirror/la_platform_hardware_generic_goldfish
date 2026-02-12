@@ -8,6 +8,7 @@
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
 | `ClipboardChannel` | `:clipboard` | `.../clipboard/clipboard_data.h` | Bidirectional clipboard state (Host<->Guest). |
+| `Battery` | `:battery` | `.../battery/battery_state.h` | Battery status and health state. |
 | `ObservableFingerprintSensor` | `:fingerprint` | `.../fingerprint/fingerprint_sensor.h` | Fingerprint sensor touch events. |
 | `GrpcNotificationChannel` | `:grpc_notification` | `.../grpc/grpc_notification_channel.h` | Channel for gRPC-based notifications. |
 | `GuestStatus` | `:guest_status` | `.../guest_status/guest_status.h` | Status of the guest OS (booted, running, etc.). |
