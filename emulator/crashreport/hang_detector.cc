@@ -34,169 +34,168 @@ class LoopWatcher {
     LoopWatcher(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
                 absl::Duration hang_timeout, absl::Duration hang_check_timeout,
                 const android::base::IClock* clock)
-            : mLoopName(std::move(loop_name))
-            , mTimeout(hang_timeout)
-            , mhangCheckTimeout(hang_check_timeout)
-            , mClock(clock)
-            , mTimer(event_loop.CreateTimer([this]() { taskComplete(); })) {}
+            : loop_name_(std::move(loop_name))
+            , timeout_(hang_timeout)
+            , hang_check_timeout_(hang_check_timeout)
+            , clock_(clock)
+            , timer_(event_loop.CreateTimer([this]() { TaskComplete(); })) {}
 
-    ~LoopWatcher() { cancelHangCheck(); }
+    ~LoopWatcher() { CancelHangCheck(); }
 
     LoopWatcher(LoopWatcher&&) = delete;
     LoopWatcher& operator=(LoopWatcher&&) = delete;
     LoopWatcher(const LoopWatcher&) = delete;
     LoopWatcher& operator=(const LoopWatcher&) = delete;
 
-    void startHangCheck() {
-        absl::MutexLock l(&mMutex);
-        scheduleHangCheckLocked();
+    void StartHangCheck() {
+        const absl::MutexLock l(&mutex_);
+        ScheduleHangCheckLocked();
     }
 
-    void cancelHangCheck() {
-        absl::MutexLock l(&mMutex);
+    void CancelHangCheck() {
+        const absl::MutexLock l(&mutex_);
 
-        if (mTimer) {
-            mTimer->Cancel();
-            mTimer.reset();
+        if (timer_) {
+            timer_->Cancel();
+            timer_.reset();
         }
-        mIsTaskRunning = false;
+        is_task_running_ = false;
     }
 
-    void process(const HangDetector::HangCallback& hangCallback) {
-        absl::ReleasableMutexLock l(&mMutex);
+    void Process(const HangDetector::HangCallback& hang_callback) {
+        absl::ReleasableMutexLock l(&mutex_);
 
-        const absl::Time now = mClock->Now(base::ClockType::kRealtime);
-        if (mIsTaskRunning) {
+        const absl::Time now = clock_->Now(base::ClockType::kRealtime);
+        if (is_task_running_) {
             // Heuristic: If the looper watcher itself took much longer than
             // mTimeout to fire again, it's possible there was a system-wide
             // sleep. In this case, don't count that as hanging.
             // Note that we are using std::chrono to make sure all the durations
             // are scaled appropriately.
-            const absl::Time timeSystemLiveAndHanging = mLastCheckTime + mTimeout;
-            const absl::Time timeSystemSleepedPastHangTimeout = mLastCheckTime + 2 * mTimeout;
-            if (now > timeSystemLiveAndHanging && now < timeSystemSleepedPastHangTimeout) {
-                absl::Duration timePassed = now - mLastCheckTime;
-                const auto message = absl::StrCat("detected a hanging thread '", mLoopName,
-                                                  "'. No response for ", timePassed);
-                ++mHangCount;
+            const absl::Time time_system_live_and_hanging = last_check_time_ + timeout_;
+            const absl::Time time_system_sleeped_past_hang_timeout =
+                    last_check_time_ + 2 * timeout_;
+            if (now > time_system_live_and_hanging && now < time_system_sleeped_past_hang_timeout) {
+                const absl::Duration time_passed = now - last_check_time_;
+                const auto message = absl::StrCat("detected a hanging thread '", loop_name_,
+                                                  "'. No response for ", time_passed);
+                ++hang_count_;
 
                 LOG(ERROR) << message
                            << (android::base::IsDebuggerAttached() ? ", ignored (debugger attached)"
                                                                    : "");
-                if (mHangCount >= kMaxHangCount && hangCallback &&
+                if (hang_count_ >= kMaxHangCount && hang_callback &&
                     !android::base::IsDebuggerAttached()) {
                     l.Release();
-                    hangCallback(message);
+                    hang_callback(message);
                     return;
-                } else {
-                    // Start another hang check in case something happened to
-                    // this previous event.
-                    scheduleHangCheckLocked();
                 }
+                // Start another hang check in case something happened to this previous event.
+                ScheduleHangCheckLocked();
             }
-        } else if (now > mLastCheckTime + mhangCheckTimeout) {
-            mHangCount = 0;
-            scheduleHangCheckLocked();
+        } else if (now > last_check_time_ + hang_check_timeout_) {
+            hang_count_ = 0;
+            ScheduleHangCheckLocked();
         }
     }
 
   private:
-    void scheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mMutex) {
-        mIsTaskRunning = true;
-        mLastCheckTime = mClock->Now(base::ClockType::kRealtime);
+    void ScheduleHangCheckLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+        is_task_running_ = true;
+        last_check_time_ = clock_->Now(base::ClockType::kRealtime);
         // 0 means run as soon as possible.
-        mTimer->Schedule(std::chrono::milliseconds(0));
+        timer_->Schedule(std::chrono::milliseconds(0));
     }
 
-    void taskComplete() {
-        absl::MutexLock l(&mMutex);
-        mIsTaskRunning = false;
+    void TaskComplete() {
+        const absl::MutexLock l(&mutex_);
+        is_task_running_ = false;
     }
 
-    const std::string mLoopName;
-    const absl::Duration mTimeout;
-    const absl::Duration mhangCheckTimeout;
-    const android::base::IClock* const mClock;
+    const std::string loop_name_;
+    const absl::Duration timeout_;
+    const absl::Duration hang_check_timeout_;
+    const android::base::IClock* const clock_;
 
-    absl::Mutex mMutex;
-    std::shared_ptr<::goldfish::async::EventLoop::Timer> mTimer ABSL_GUARDED_BY(mMutex);
-    bool mIsTaskRunning ABSL_GUARDED_BY(mMutex) = false;
-    absl::Time mLastCheckTime ABSL_GUARDED_BY(mMutex);
-    int mHangCount ABSL_GUARDED_BY(mMutex) = 0;
+    absl::Mutex mutex_;
+    std::shared_ptr<::goldfish::async::EventLoop::Timer> timer_ ABSL_GUARDED_BY(mutex_);
+    bool is_task_running_ ABSL_GUARDED_BY(mutex_) = false;
+    absl::Time last_check_time_ ABSL_GUARDED_BY(mutex_);
+    int hang_count_ ABSL_GUARDED_BY(mutex_) = 0;
 
     static constexpr int kMaxHangCount = 2;
 };
 
 class HangDetectorImpl : public HangDetector {
   public:
-    HangDetectorImpl(HangCallback hangCallback, Timing timing,
+    HangDetectorImpl(HangCallback hang_callback, Timing timing,
                      std::unique_ptr<android::base::IClock> clock)
-            : mHangCallback(std::move(hangCallback))
-            , mTiming(std::move(timing))
-            , mClock(std::move(clock))
-            , mWorkerThread([this]() { workerThread(); }) {}
+            : hang_callback_(std::move(hang_callback))
+            , timing_(std::move(timing))
+            , clock_(std::move(clock))
+            , worker_thread_([this]() { WorkerThread(); }) {}
 
-    ~HangDetectorImpl() override { stop(); }
+    ~HangDetectorImpl() override { Stop(); }
 
-    void addWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
+    void AddWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
                           absl::Duration task_timeout) override {
-        absl::MutexLock l(&mMutex);
-        if (mStopping) {
+        const absl::MutexLock l(&mutex_);
+        if (stopping_) {
             return;
         }
-        mLoopWatchers.emplace_back(
+        loop_watchers_.emplace_back(
                 std::make_unique<LoopWatcher>(std::move(loop_name), event_loop, task_timeout,
-                                              mTiming.hangCheckTimeout, mClock.get()));
-        mLoopWatchers.back()->startHangCheck();
+                                              timing_.hang_check_timeout, clock_.get()));
+        loop_watchers_.back()->StartHangCheck();
     }
 
-    void addPredicateCheck(HangPredicate predicate, std::string msg) override {
-        absl::MutexLock l(&mMutex);
-        mPredicates.emplace_back(std::make_pair(std::move(predicate), std::move(msg)));
+    void AddPredicateCheck(HangPredicate predicate, std::string msg) override {
+        const absl::MutexLock l(&mutex_);
+        predicates_.emplace_back(std::move(predicate), std::move(msg));
     }
 
-    void addPredicateCheck(StatefulHangdetector* detector, std::string msg) override {
+    void AddPredicateCheck(StatefulHangdetector* detector, std::string msg) override {
         {
-            absl::MutexLock l(&mMutex);
-            mRegistered.push_back(std::unique_ptr<StatefulHangdetector>(detector));
+            const absl::MutexLock l(&mutex_);
+            registered_.push_back(std::unique_ptr<StatefulHangdetector>(detector));
         }
-        HangPredicate pred = [detector] { return detector->check(); };
-        addPredicateCheck([detector] { return detector->check(); }, std::move(msg));
+        const HangPredicate pred = [detector] { return detector->Check(); };
+        AddPredicateCheck([detector] { return detector->Check(); }, std::move(msg));
     }
 
-    void stop() override {
+    void Stop() override {
         {
-            absl::MutexLock l(&mMutex);
-            if (mStopping) {
+            const absl::MutexLock l(&mutex_);
+            if (stopping_) {
                 return;
             }
-            mStopping = true;
-            for (auto& lw : mLoopWatchers) {
-                lw->cancelHangCheck();
+            stopping_ = true;
+            for (auto& lw : loop_watchers_) {
+                lw->CancelHangCheck();
             }
         }
 
-        assert(mWorkerThread.joinable());
-        mWorkerThread.join();
+        assert(worker_thread_.joinable());
+        worker_thread_.join();
     }
 
   private:
-    void workerThread() {
-        auto await = [this] ABSL_EXCLUSIVE_LOCKS_REQUIRED(mMutex) { return mStopping; };
-        absl::MutexLock l(&mMutex);
+    void WorkerThread() {
+        auto await = [this] ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) { return stopping_; };
+        const absl::MutexLock l(&mutex_);
         for (;;) {
-            if (mMutex.AwaitWithTimeout(absl::Condition(&await),
-                                        mTiming.hangLoopIterationTimeout)) {
-                if (mStopping) {
+            if (mutex_.AwaitWithTimeout(absl::Condition(&await),
+                                        timing_.hang_loop_iteration_timeout)) {
+                if (stopping_) {
                     break;
                 }
             }
-            for (auto&& lw : mLoopWatchers) {
-                lw->process(mHangCallback);
+            for (auto&& lw : loop_watchers_) {
+                lw->Process(hang_callback_);
             }
 
             // Check to see if any of the predicates evaluate to true.
-            for (const auto& predicate : mPredicates) {
+            for (const auto& predicate : predicates_) {
                 if (predicate.first()) {
                     const auto message = absl::StrFormat("Failed hang detection predicate: '%s'",
                                                          predicate.second);
@@ -206,34 +205,34 @@ class HangDetectorImpl : public HangDetector {
                                            ? ", ignored (debugger attached)"
                                            : "");
 
-                    if (mHangCallback && !android::base::IsDebuggerAttached()) {
-                        mHangCallback(message);
+                    if (hang_callback_ && !android::base::IsDebuggerAttached()) {
+                        hang_callback_(message);
                     }
                 }
             }
         }
     }
 
-    const HangCallback mHangCallback;
-    const Timing mTiming;
-    const std::unique_ptr<android::base::IClock> mClock;
+    const HangCallback hang_callback_;
+    const Timing timing_;
+    const std::unique_ptr<android::base::IClock> clock_;
 
-    std::vector<std::unique_ptr<LoopWatcher>> mLoopWatchers ABSL_GUARDED_BY(mMutex);
-    std::vector<std::pair<HangPredicate, std::string>> mPredicates ABSL_GUARDED_BY(mMutex);
-    std::vector<std::unique_ptr<StatefulHangdetector>> mRegistered ABSL_GUARDED_BY(mMutex);
+    std::vector<std::unique_ptr<LoopWatcher>> loop_watchers_ ABSL_GUARDED_BY(mutex_);
+    std::vector<std::pair<HangPredicate, std::string>> predicates_ ABSL_GUARDED_BY(mutex_);
+    std::vector<std::unique_ptr<StatefulHangdetector>> registered_ ABSL_GUARDED_BY(mutex_);
 
-    absl::Mutex mMutex;
-    bool mStopping ABSL_GUARDED_BY(mMutex) = false;
+    absl::Mutex mutex_;
+    bool stopping_ ABSL_GUARDED_BY(mutex_) = false;
 
     // A separate worker thread so it's not affected if anything hangs.
-    std::thread mWorkerThread;
+    std::thread worker_thread_;
 };
 
 }  // namespace
 
-std::unique_ptr<HangDetector> HangDetector::create(HangCallback hangCallback, Timing timing,
+std::unique_ptr<HangDetector> HangDetector::Create(HangCallback hang_callback, Timing timing,
                                                    std::unique_ptr<android::base::IClock> clock) {
-    return std::make_unique<HangDetectorImpl>(std::move(hangCallback), std::move(timing),
+    return std::make_unique<HangDetectorImpl>(std::move(hang_callback), std::move(timing),
                                               std::move(clock));
 }
 

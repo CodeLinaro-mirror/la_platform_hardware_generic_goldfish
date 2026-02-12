@@ -28,8 +28,8 @@ namespace android::crashreport {
 // keep track of state.
 class StatefulHangdetector {
   public:
-    virtual ~StatefulHangdetector() {};
-    virtual bool check() = 0;
+    virtual ~StatefulHangdetector() = default;
+    virtual bool Check() = 0;
 };
 
 /**
@@ -41,21 +41,21 @@ class StatefulHangdetector {
  * it needs to schedule a new task on a looper, or, if a task was scheduled for
  * a while and didn't finish in time, to call the |hangCallback|.
  *
- * Note: Be careful with the timing.hangLoopIterationTimeout. Setting it too
+ * Note: Be careful with the timing.hang_loop_iteration_timeout. Setting it too
  * aggressively can prevent the hang detector from functioning properly.
  */
 class HangDetector {
   public:
     struct Timing {
         // Timeout between worker thread's loop iterations.
-        const absl::Duration hangLoopIterationTimeout;
+        const absl::Duration hang_loop_iteration_timeout;
         // Timeout between hang checks.
-        const absl::Duration hangCheckTimeout;
+        const absl::Duration hang_check_timeout;
     };
 
-    static constexpr Timing defaultTiming() {
-        return {.hangLoopIterationTimeout = absl::Seconds(5),
-                .hangCheckTimeout = absl::Seconds(15)};
+    static constexpr Timing DefaultTiming() {
+        return {.hang_loop_iteration_timeout = absl::Seconds(5),
+                .hang_check_timeout = absl::Seconds(15)};
     }
 
     using HangCallback = std::function<void(std::string_view message)>;
@@ -68,21 +68,21 @@ class HangDetector {
     HangDetector(HangDetector&&) = delete;
     HangDetector& operator=(HangDetector&&) = delete;
 
-    virtual void addWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
+    virtual void AddWatchedLooper(std::string loop_name, ::goldfish::async::EventLoop& event_loop,
                                   absl::Duration task_timeout) = 0;
 
     // We implicitly assume:
     //    predicate() -> []predicate() (if a predicate becomes true, it will
     //    always return true, we only need to infer a system hangs once)
-    virtual void addPredicateCheck(HangPredicate predicate, std::string msg) = 0;
+    virtual void AddPredicateCheck(HangPredicate predicate, std::string msg) = 0;
 
     // Registers a stateful hangdetector. This class will take ownership of the
     // object
-    virtual void addPredicateCheck(StatefulHangdetector* detector, std::string msg) = 0;
+    virtual void AddPredicateCheck(StatefulHangdetector* detector, std::string msg) = 0;
 
-    virtual void stop() = 0;
+    virtual void Stop() = 0;
 
-    static std::unique_ptr<HangDetector> create(HangCallback hangCallback, Timing timing,
+    static std::unique_ptr<HangDetector> Create(HangCallback hang_callback, Timing timing,
                                                 std::unique_ptr<android::base::IClock> clock);
 };
 

@@ -25,29 +25,29 @@ using namespace android::crashreport;
 
 class AlwaysCrash : public StatefulHangdetector {
   public:
-    bool check() { return true; }
+    bool Check() { return true; }
 };
 
 TEST(CrashDetectorsTest, timeoutProperly) {
     TestSystem testSys("foo");
     TimedHangDetector t(15, new AlwaysCrash());
-    EXPECT_FALSE(t.check());
+    EXPECT_FALSE(t.Check());
     testSys.setUnixTimeUs(1000000);
-    EXPECT_TRUE(t.check());
+    EXPECT_TRUE(t.Check());
 }
 
 TEST(CrashDetectorsTest, heartBeatDetector_detectsBootFailure) {
     TestSystem testSys("foo");
     int beatCount = 0;
     HeartBeatDetector hb([&beatCount] { return beatCount; });
-    EXPECT_FALSE(hb.check());
+    EXPECT_FALSE(hb.Check());
 
     // First time boot so should be ok
-    EXPECT_FALSE(hb.check());
+    EXPECT_FALSE(hb.Check());
 
     beatCount++;
     // Heartbeat.. no problem!
-    EXPECT_FALSE(hb.check());
+    EXPECT_FALSE(hb.Check());
     // No heartbeat.. trouble!
-    EXPECT_TRUE(hb.check());
+    EXPECT_TRUE(hb.Check());
 }
