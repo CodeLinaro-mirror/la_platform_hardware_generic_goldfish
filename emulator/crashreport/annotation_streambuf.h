@@ -14,8 +14,7 @@
 
 #include "client/annotation.h"
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
 using crashpad::Annotation;
 
@@ -48,8 +47,8 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
      * in a minidump.
      */
     explicit AnnotationStreambuf(const char name[])
-            : Annotation(Type::kString, name, mBuffer), mBuffer() {
-        setp(mBuffer, mBuffer + MaxSize);
+            : Annotation(Type::kString, name, buffer_), buffer_() {
+        setp(buffer_, buffer_ + MaxSize);
     }
 
     /**
@@ -57,7 +56,7 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
      * @return 0 on success.
      */
     int sync() override {
-        setg(mBuffer, mBuffer, mBuffer + (pptr() - pbase()));
+        setg(buffer_, buffer_, buffer_ + (pptr() - pbase()));
         return 0;
     }
 
@@ -69,8 +68,8 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
      * @return The number of characters written.
      */
     std::streamsize xsputn(const char* s, std::streamsize n) override {
-        std::streamsize available = epptr() - pptr();
-        std::streamsize to_copy = std::min(n, available);
+        const std::streamsize available = epptr() - pptr();
+        const std::streamsize to_copy = std::min(n, available);
         if (available <= 0) {
             return traits_type::eof();  // No space left in the buffer
         }
@@ -86,7 +85,7 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
      * @param ch The character causing the overflow.
      * @return traits_type::eof().
      */
-    int_type overflow(int_type ch) override { return traits_type::eof(); }
+    int_type overflow(int_type /*ch*/) override { return traits_type::eof(); }
 
     /**
      * @brief Handles underflow.
@@ -95,12 +94,11 @@ class AnnotationStreambuf : public crashpad::Annotation, public std::streambuf {
     int_type underflow() override { return gptr() == egptr() ? traits_type::eof() : *gptr(); }
 
   private:
-    char mBuffer[MaxSize];
+    char buffer_[MaxSize];
 };
 
 /**
  * @brief A stream buffer that can hold 8kb of annotation data.
  */
 using DefaultAnnotationStreambuf = AnnotationStreambuf<8192>;
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

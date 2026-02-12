@@ -174,7 +174,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
     absl::InstallFailureSignalHandler(options);
 
     auto* client_loop = goldfish::async::globalEventLoop();
-    android::crashreport::CrashReporter::getCrashingHangDetector().AddWatchedLooper(
+    android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
             "GlobalEventLoop", *client_loop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";

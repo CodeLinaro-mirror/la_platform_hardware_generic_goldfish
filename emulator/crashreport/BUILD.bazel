@@ -179,6 +179,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         "hang_detector",
+        "crash_reporter",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
