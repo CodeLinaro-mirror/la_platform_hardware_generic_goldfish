@@ -13,11 +13,11 @@
 #include <cstring>
 #include <mutex>
 #include <streambuf>
+#include <utility>
 
 #include "client/annotation.h"
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
 // #define DEBUG_CRASH
 #ifdef DEBUG_CRASH
@@ -59,10 +59,10 @@ class AnnotationCircularStreambuf : public std::streambuf {
      * @param name The name of the annotation. This is how it will show up in a minidump.
      */
     explicit AnnotationCircularStreambuf(std::string name)
-            : mBuffer()
-            , mName(name)
-            , mAnnotation(Annotation::Type::kString, mName.c_str(), mBuffer) {
-        setp(mBuffer, mBuffer + MaxSize);
+            : buffer_()
+            , name_(std::move(name))
+            , annotation_(Annotation::Type::kString, name_.c_str(), buffer_) {
+        setp(buffer_, buffer_ + MaxSize);
     }
 
     /**
@@ -70,7 +70,7 @@ class AnnotationCircularStreambuf : public std::streambuf {
      * @return 0 on success.
      */
     int sync() override {
-        setg(mBuffer, mBuffer, mBuffer + mSize);
+        setg(buffer_, buffer_, buffer_ + size_);
         return 0;
     }
 
@@ -85,42 +85,42 @@ class AnnotationCircularStreambuf : public std::streambuf {
      * nature of the buffer.
      */
     std::streamsize xsputn(const char* s, std::streamsize n) override {
-        std::lock_guard<std::mutex> lock(mBufferAccess);
-        std::streamsize toWrite = n;
+        const std::lock_guard<std::mutex> lock(buffer_access_);
+        std::streamsize to_write = n;
         std::streamsize written = 0;
         const char* p = s;
         DD_AN("Writing %.*s\n", n, s);
 
         // Optimization: If writing more than the buffer size, skip initial
         // characters that would be immediately overwritten.
-        if (toWrite > MaxSize) {
-            p += (toWrite - MaxSize);
-            written = toWrite - MaxSize;
-            toWrite = MaxSize;
+        if (std::cmp_greater(to_write, MaxSize)) {
+            p += (to_write - MaxSize);
+            written = to_write - MaxSize;
+            to_write = MaxSize;
         }
 
-        while (toWrite > 0) {
+        while (to_write > 0) {
             if (pptr() == epptr()) {  // Wrap around if buffer is full
-                setp(mBuffer, mBuffer + MaxSize);
-                mSize = MaxSize;
-                mAnnotation.SetSize(mSize);
+                setp(buffer_, buffer_ + MaxSize);
+                size_ = MaxSize;
+                annotation_.SetSize(size_);
             }
-            std::streamsize available = epptr() - pptr();
-            std::streamsize toCopy = std::min(toWrite, available);
+            const std::streamsize available = epptr() - pptr();
+            const std::streamsize to_copy = std::min(to_write, available);
             assert(available > 0);
-            assert(toCopy > 0);
+            assert(to_copy > 0);
 
-            std::memcpy(pptr(), p, static_cast<std::size_t>(toCopy));
-            pbump(static_cast<int>(toCopy));
+            std::memcpy(pptr(), p, static_cast<std::size_t>(to_copy));
+            pbump(static_cast<int>(to_copy));
 
-            p += toCopy;
-            written += toCopy;
-            toWrite -= toCopy;
+            p += to_copy;
+            written += to_copy;
+            to_write -= to_copy;
         }
 
-        if (mSize != MaxSize) {
-            mSize = pptr() - pbase();
-            mAnnotation.SetSize(mSize);
+        if (size_ != MaxSize) {
+            size_ = pptr() - pbase();
+            annotation_.SetSize(size_);
         }
         return written;
     };
@@ -130,7 +130,7 @@ class AnnotationCircularStreambuf : public std::streambuf {
      * @param ch The overflowing character
      * @return traits_type::eof().
      */
-    int_type overflow(int_type ch) override { return traits_type::eof(); }
+    int_type overflow(int_type /*ch*/) override { return traits_type::eof(); }
 
     /**
      * @brief Handles underflow.
@@ -139,11 +139,11 @@ class AnnotationCircularStreambuf : public std::streambuf {
     int_type underflow() override { return gptr() == egptr() ? traits_type::eof() : *gptr(); }
 
   private:
-    std::mutex mBufferAccess;
-    std::string mName;
-    char mBuffer[MaxSize];
-    int mSize = 0;
-    Annotation mAnnotation;
+    std::mutex buffer_access_;
+    std::string name_;
+    char buffer_[MaxSize];
+    int size_ = 0;
+    Annotation annotation_;
 };
 
 /**
@@ -151,5 +151,4 @@ class AnnotationCircularStreambuf : public std::streambuf {
  */
 using DefaultAnnotationCircularStreambuf = AnnotationCircularStreambuf<8192>;
 
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

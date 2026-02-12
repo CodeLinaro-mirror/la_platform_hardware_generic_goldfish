@@ -23,10 +23,10 @@ namespace android::crashreport {
  * @brief Breadcrumb types.
  */
 enum class Breadcrumb : std::uint8_t {
-    init,      ///< Initialization breadcrumb.
-    grpc,      ///< gRPC breadcrumb.
-    events,    ///< Events breadcrumb.
-    CRUMB_MAX  ///< Maximum breadcrumb value.
+    kInit,     ///< Initialization breadcrumb.
+    kGrpc,     ///< gRPC breadcrumb.
+    kEvents,   ///< Events breadcrumb.
+    kCrumbMax  ///< Maximum breadcrumb value.
 };
 
 /**
@@ -48,14 +48,14 @@ class BreadcrumbTracker {
      * @param crumb The breadcrumb type.
      * @return A reference to the output stream for the given breadcrumb.
      */
-    static std::ostream& stream(Breadcrumb crumb);
+    static std::ostream& Stream(Breadcrumb crumb);
 
     /**
      * @brief Gets the stream for the current thread.
      *
      * @return A reference to the output stream for the current thread.
      */
-    static std::ostream& stream();
+    static std::ostream& Stream();
 
     /**
      * @brief Gets a read stream for a specific breadcrumb (for testing).
@@ -64,14 +64,14 @@ class BreadcrumbTracker {
      * @return A unique pointer to the input stream, or nullptr if no crumb
      * was written.
      */
-    static std::unique_ptr<std::istream> rd(Breadcrumb crumb);
+    static std::unique_ptr<std::istream> Rd(Breadcrumb crumb);
 
     /**
      * @brief Gets a read stream for the current thread (for testing).
      *
      * @return A unique pointer to the input stream.
      */
-    static std::unique_ptr<std::istream> rd();
+    static std::unique_ptr<std::istream> Rd();
 };
 
 /**
@@ -90,7 +90,7 @@ class BreadcrumbTracker {
  * @endcode
  */
 #define CRUMB(x) \
-    (android::crashreport::BreadcrumbTracker::stream(android::crashreport::Breadcrumb::x))
+    (android::crashreport::BreadcrumbTracker::Stream(android::crashreport::Breadcrumb::x))
 
 /**
  * @brief Macro to leave a breadcrumb for the current thread.
@@ -107,6 +107,6 @@ class BreadcrumbTracker {
  * // 'thread-id' : foobar
  * @endcode
  */
-#define TCRUMB() (android::crashreport::BreadcrumbTracker::stream())
+#define TCRUMB() (android::crashreport::BreadcrumbTracker::Stream())
 
 }  // namespace android::crashreport

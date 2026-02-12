@@ -180,6 +180,7 @@ clang_tidy_test(
     targets = [
         "hang_detector",
         "crash_reporter",
+        "breadcrumb",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

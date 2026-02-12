@@ -24,19 +24,20 @@
 
 #include "annotation_circular_streambuf.h"
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
-#define _CRUMBSTR(x)      \
+namespace {
+
+#define CRUMBSTR(x)       \
     case (Breadcrumb::x): \
         return #x;
 
-constexpr const char* crumb_to_str(Breadcrumb value) {
+constexpr const char* CrumbToStr(Breadcrumb value) {
     switch (value) {
-        _CRUMBSTR(init);
-        _CRUMBSTR(grpc);
-        _CRUMBSTR(events);
-        _CRUMBSTR(CRUMB_MAX);
+        CRUMBSTR(kInit);
+        CRUMBSTR(kGrpc);
+        CRUMBSTR(kEvents);
+        CRUMBSTR(kCrumbMax);
     }
 }
 
@@ -44,14 +45,14 @@ constexpr int kMaxThreadIdLength = 7;  // 7 digits for the thread id is what Goo
 
 // Returns the current thread id as a string of at most kMaxThreadIdLength
 // characters.
-static std::string getStrThreadID() {
+std::string GetStrThreadId() {
     static thread_local std::string cached_id;
 
     // If the ID is not cached yet, compute and store it
     if (cached_id.empty()) {
         std::stringstream ss;
         ss << std::this_thread::get_id();
-        std::string result = ss.str();
+        const std::string result = ss.str();
 
         cached_id = result.length() > kMaxThreadIdLength
                             ? result.substr(result.length() - kMaxThreadIdLength)
@@ -60,84 +61,84 @@ static std::string getStrThreadID() {
 
     return cached_id;
 }
+}  // namespace
 
 class BreadcrumbTrackerImpl {
   public:
-    BreadcrumbTrackerImpl() {}
+    BreadcrumbTrackerImpl() = default;
 
-    std::ostream& getStreamForThread() {
-        std::lock_guard<std::mutex> mLock(mMapAccess);
+    std::ostream& GetStreamForThread() {
+        const std::lock_guard<std::mutex> lock(map_access_);
 
-        auto id = getStrThreadID();
+        auto id = GetStrThreadId();
         auto tracker = std::make_unique<DefaultAnnotationCircularStreambuf>(id);
-        mThreadStreams[id] = std::make_unique<std::ostream>(tracker.get());
-        mBuffers.push_back(std::move(tracker));
+        thread_streams_[id] = std::make_unique<std::ostream>(tracker.get());
+        buffers_.push_back(std::move(tracker));
 
-        std::unique_ptr<std::ostream>& streamPtr = mThreadStreams[id];
-        return *(streamPtr);
+        std::unique_ptr<std::ostream>& stream_ptr = thread_streams_[id];
+        return *(stream_ptr);
     }
 
-    std::ostream& getStreamFor(Breadcrumb crumb) {
-        std::lock_guard<std::mutex> mLock(mMapAccess);
-        if (mStreams.count(crumb)) {
-            std::unique_ptr<std::ostream>& streamPtr = mStreams[crumb];
-            return *(streamPtr);
+    std::ostream& GetStreamFor(Breadcrumb crumb) {
+        const std::lock_guard<std::mutex> lock(map_access_);
+        if (streams_.contains(crumb)) {
+            std::unique_ptr<std::ostream>& stream_ptr = streams_[crumb];
+            return *(stream_ptr);
         }
 
-        auto tracker = std::make_unique<DefaultAnnotationCircularStreambuf>(crumb_to_str(crumb));
-        mStreams[crumb] = std::make_unique<std::ostream>(tracker.get());
-        mBuffers.push_back(std::move(tracker));
+        auto tracker = std::make_unique<DefaultAnnotationCircularStreambuf>(CrumbToStr(crumb));
+        streams_[crumb] = std::make_unique<std::ostream>(tracker.get());
+        buffers_.push_back(std::move(tracker));
 
-        std::unique_ptr<std::ostream>& streamPtr = mStreams[crumb];
-        return *(streamPtr);
+        std::unique_ptr<std::ostream>& stream_ptr = streams_[crumb];
+        return *(stream_ptr);
     }
 
     // TESTING ONLY!
-    std::unique_ptr<std::istream> getRdStreamFor(Breadcrumb crumb) {
-        if (!mStreams.count(crumb)) {
+    std::unique_ptr<std::istream> GetRdStreamFor(Breadcrumb crumb) {
+        if (!streams_.contains(crumb)) {
             return nullptr;
         }
 
-        auto buf =
-                reinterpret_cast<DefaultAnnotationCircularStreambuf*>(getStreamFor(crumb).rdbuf());
+        auto* buf =
+                reinterpret_cast<DefaultAnnotationCircularStreambuf*>(GetStreamFor(crumb).rdbuf());
         buf->sync();
         return std::make_unique<std::istream>(buf);
     }
 
-    static BreadcrumbTrackerImpl* get() {
-        static BreadcrumbTrackerImpl sBreadcrumbTrackerImpl;
-        return &sBreadcrumbTrackerImpl;
+    static BreadcrumbTrackerImpl* Get() {
+        static BreadcrumbTrackerImpl s_breadcrumb_tracker_impl;
+        return &s_breadcrumb_tracker_impl;
     };
 
   private:
-    std::vector<std::string> mThreadIds;
-    std::vector<std::unique_ptr<DefaultAnnotationCircularStreambuf>> mBuffers;
-    std::unordered_map<std::string, std::unique_ptr<std::ostream>> mThreadStreams;
-    std::unordered_map<Breadcrumb, std::unique_ptr<std::ostream>> mStreams;
-    std::mutex mMapAccess;
+    std::vector<std::string> thread_ids_;
+    std::vector<std::unique_ptr<DefaultAnnotationCircularStreambuf>> buffers_;
+    std::unordered_map<std::string, std::unique_ptr<std::ostream>> thread_streams_;
+    std::unordered_map<Breadcrumb, std::unique_ptr<std::ostream>> streams_;
+    std::mutex map_access_;
 };
 
-std::ostream& BreadcrumbTracker::stream() {
+std::ostream& BreadcrumbTracker::Stream() {
     // Note: this will only be initialized once, this call is basically
     // cached across various threads.
-    static thread_local std::ostream& stream = BreadcrumbTrackerImpl::get()->getStreamForThread();
-    DD_AN("Requesting: %s -> %p", getStrThreadID().c_str(), &stream);
+    static thread_local std::ostream& stream = BreadcrumbTrackerImpl::Get()->GetStreamForThread();
+    DD_AN("Requesting: %s -> %p", GetStrThreadId().c_str(), &stream);
     return stream;
 }
 
-std::ostream& BreadcrumbTracker::stream(Breadcrumb crumb) {
-    return BreadcrumbTrackerImpl::get()->getStreamFor(crumb);
+std::ostream& BreadcrumbTracker::Stream(Breadcrumb crumb) {
+    return BreadcrumbTrackerImpl::Get()->GetStreamFor(crumb);
 }
 
-std::unique_ptr<std::istream> BreadcrumbTracker::rd(Breadcrumb crumb) {
-    return BreadcrumbTrackerImpl::get()->getRdStreamFor(crumb);
+std::unique_ptr<std::istream> BreadcrumbTracker::Rd(Breadcrumb crumb) {
+    return BreadcrumbTrackerImpl::Get()->GetRdStreamFor(crumb);
 }
 
-std::unique_ptr<std::istream> BreadcrumbTracker::rd() {
-    auto buf = reinterpret_cast<DefaultAnnotationCircularStreambuf*>(stream().rdbuf());
+std::unique_ptr<std::istream> BreadcrumbTracker::Rd() {
+    auto* buf = reinterpret_cast<DefaultAnnotationCircularStreambuf*>(Stream().rdbuf());
     buf->sync();
     return std::make_unique<std::istream>(buf);
 }
 
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

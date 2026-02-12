@@ -84,17 +84,17 @@ TEST(AnnotationCircularStreambuf, out_of_bounds_overwrites) {
 }
 
 TEST(Breadcrumbs, not_used_means_no_memory_wasted) {
-    EXPECT_FALSE(BreadcrumbTracker::rd(Breadcrumb::init));
+    EXPECT_FALSE(BreadcrumbTracker::Rd(Breadcrumb::kInit));
 }
 
 TEST(Breadcrumbs, used_crumbs_are_registered) {
-    CRUMB(grpc) << "Hello gRPC";
-    EXPECT_TRUE(BreadcrumbTracker::rd(Breadcrumb::grpc));
+    CRUMB(kGrpc) << "Hello gRPC";
+    EXPECT_TRUE(BreadcrumbTracker::Rd(Breadcrumb::kGrpc));
 }
 
 TEST(Breadcrumbs, crumbs_actually_track_things) {
-    CRUMB(events) << "Hello_Event";
-    auto rd_stream = BreadcrumbTracker::rd(Breadcrumb::events);
+    CRUMB(kEvents) << "Hello_Event";
+    auto rd_stream = BreadcrumbTracker::Rd(Breadcrumb::kEvents);
     std::string read;
 
     *rd_stream >> read;
@@ -103,7 +103,7 @@ TEST(Breadcrumbs, crumbs_actually_track_things) {
 
 TEST(Breadcrumbs, thread_crumbs_actually_track_things) {
     TCRUMB() << "thread_crumbs_actually_track_things";
-    auto rd_stream = BreadcrumbTracker::rd();
+    auto rd_stream = BreadcrumbTracker::Rd();
     std::string read;
 
     *rd_stream >> read;
@@ -111,13 +111,13 @@ TEST(Breadcrumbs, thread_crumbs_actually_track_things) {
 }
 
 TEST(Breadcrumbs, thread_crumbs_actually_track_things_on_their_thread) {
-    auto rd_stream = BreadcrumbTracker::rd();
+    auto rd_stream = BreadcrumbTracker::Rd();
     std::string old_read;
     *rd_stream >> old_read;
 
     auto run = std::thread([] {
         TCRUMB() << "Hello_Event";
-        auto rd_stream = BreadcrumbTracker::rd();
+        auto rd_stream = BreadcrumbTracker::Rd();
         std::string read;
 
         *rd_stream >> read;
@@ -128,7 +128,7 @@ TEST(Breadcrumbs, thread_crumbs_actually_track_things_on_their_thread) {
 
     // Note: It is very much possible that we will read crumb data from
     // the previous test.. We have no real way of cleaning them out..
-    rd_stream = BreadcrumbTracker::rd();
+    rd_stream = BreadcrumbTracker::Rd();
     std::string read;
     *rd_stream >> read;
     EXPECT_EQ(old_read, read);
