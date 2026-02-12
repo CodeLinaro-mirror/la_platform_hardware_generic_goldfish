@@ -4,6 +4,7 @@ These are dependencies of crosvm and netsim.
 """
 
 load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
+load("//:repository_rules.bzl", "patched_new_local_repository")
 
 def _lrc_impl(module_ctx):
     """Implementation of the local_rust_crates module extension."""
@@ -60,20 +61,40 @@ def _lrc_impl(module_ctx):
     # Needed by netsim below:
     new_local_repository(
         name = "protobuf-rust",
-        build_file = "@goldfish_crates//:netsim_build/protobuf-rust.BUILD.bazel",
+        build_file = "@goldfish_crates//netsim_build:protobuf-rust.BUILD.bazel",
         path = "third_party/rust/android-crates-io/crates/protobuf",
     )
 
     new_local_repository(
         name = "pica",
-        build_file = "@goldfish_crates//:netsim_build/pica.BUILD.bazel",
+        build_file = "@goldfish_crates//netsim_build:pica.BUILD.bazel",
         path = "third_party/rust/crates/pica",
     )
 
     new_local_repository(
         name = "rustutils",
-        build_file = "@goldfish_crates//:netsim_build/rustutils.BUILD.bazel",
+        build_file = "@goldfish_crates//netsim_build:rustutils.BUILD.bazel",
         path = "system/librustutils/rustutils",
+    )
+
+    new_local_repository(
+        name = "protobuf-parse",
+        build_file = "@goldfish_crates//netsim_build:protobuf-parse.BUILD.bazel",
+        path = "third_party/rust/android-crates-io/crates/protobuf-parse",
+    )
+
+    new_local_repository(
+        name = "protobuf-codegen",
+        build_file = "@goldfish_crates//netsim_build:protobuf-codegen.BUILD.bazel",
+        path = "third_party/rust/android-crates-io/crates/protobuf-codegen",
+    )
+
+    # Patch tempfile to fix API mismatches with newer rustix/errno versions and enforce deterministic RNG.
+    patched_new_local_repository(
+        name = "tempfile",
+        build_file = "@goldfish_crates//netsim_build:tempfile.BUILD.bazel",
+        path = "third_party/rust/android-crates-io/crates/tempfile",
+        patches = ["@goldfish_crates//netsim_build:tempfile.patch"],
     )
 
     for crate in [
@@ -100,10 +121,12 @@ def _lrc_impl(module_ctx):
         "crossbeam-utils",
         "data-encoding",
         "downcast",
+        "either",
         "env_logger",
         "equivalent",
         "errno",
         "etherparse",
+        "fastrand",
         "flate2",
         "fnv",
         "foldhash",
@@ -126,6 +149,7 @@ def _lrc_impl(module_ctx):
         "hex",
         "http",
         "httparse",
+        "indexmap",
         "itoa",
         "libc",
         "libz-sys",
@@ -196,6 +220,7 @@ def _lrc_impl(module_ctx):
         "unicode-ident",
         "unicode-width",
         "utf-8",
+        "which",
         "windows_aarch64_gnullvm",
         "windows_i686_gnullvm",
         "windows_x86_64_gnullvm",

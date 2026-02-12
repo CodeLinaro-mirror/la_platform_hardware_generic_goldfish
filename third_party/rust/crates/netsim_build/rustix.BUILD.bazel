@@ -8,11 +8,21 @@ package(default_visibility = ["//visibility:public"])
 
 rust_library(
     name = "rustix",
-    srcs = glob(["src/**/*.rs"]),
+    srcs = select({
+        "@rules_rust//rust/platform:linux": glob(["src/**/*.rs"]),
+        "//conditions:default": glob(
+            include = ["src/**/*.rs"],
+            exclude = ["src/backend/linux_raw/**"],
+        ),
+    }),
+    aliases = {
+        "@errno": "libc_errno",
+    },
     crate_name = "rustix",
     crate_root = "src/lib.rs",
     edition = "2021",
     features = [
+        "all-apis",
         "alloc",
         "event",
         "fs",
@@ -29,12 +39,25 @@ rust_library(
     rustc_flags = [
         "--cfg=libc",
         "--cfg=feature=\"fs\"",
-        "--cfg=rustix_no_linux_raw",
         "--cfg=static_assertions",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:linux": [
+            "--cfg=linux_like",
+            "--cfg=linux_kernel",
+            "--cfg=rustix_no_linux_raw",
+        ],
+        "@rules_rust//rust/platform:macos": [
+            "--cfg=apple",
+            "--cfg=bsd",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         "@bitflags",
         "@errno",
         "@libc",
-    ],
+    ] + select({
+        "@rules_rust//rust/platform:windows": ["@windows-sys"],
+        "//conditions:default": [],
+    }),
 )

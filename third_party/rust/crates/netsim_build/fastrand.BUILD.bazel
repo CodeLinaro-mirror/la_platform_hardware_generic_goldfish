@@ -1,0 +1,11 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "fastrand",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "fastrand",
+    edition = "2018",
+    features = ["std"],
+)

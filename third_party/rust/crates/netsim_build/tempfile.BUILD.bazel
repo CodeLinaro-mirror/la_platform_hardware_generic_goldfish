@@ -1,0 +1,23 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "tempfile",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "tempfile",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=rustix_use_libc",
+    ],
+    deps = [
+        "@fastrand",
+        "@once_cell",
+    ] + select({
+        "@rules_rust//rust/platform:linux": ["@rustix"],
+        "@rules_rust//rust/platform:android": ["@rustix"],
+        "@rules_rust//rust/platform:macos": ["@rustix"],
+        "@rules_rust//rust/platform:windows": ["@windows-sys"],
+        "//conditions:default": [],
+    }),
+)
