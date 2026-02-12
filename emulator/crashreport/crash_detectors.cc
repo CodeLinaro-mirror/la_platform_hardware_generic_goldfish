@@ -20,19 +20,19 @@ TimedHangDetector::TimedHangDetector(System::Duration intervalMs, StatefulHangde
     mNextCheck = System::Get()->GetUnixTimeUs() + (mIntervalMs * 1000);
 }
 
-bool TimedHangDetector::check() {
+bool TimedHangDetector::Check() {
     if (System::Get()->GetUnixTimeUs() < mNextCheck) {
         return mFailedOnce;
     }
     mNextCheck = System::Get()->GetUnixTimeUs() + (mIntervalMs * 1000);
-    mFailedOnce = mFailedOnce || mInner->check();
+    mFailedOnce = mFailedOnce || mInner->Check();
     return mFailedOnce;
 }
 
 HeartBeatDetector::HeartBeatDetector(std::function<int()> getHeartbeat)
         : mGetHeartbeat(getHeartbeat) {}
 
-bool HeartBeatDetector::check() {
+bool HeartBeatDetector::Check() {
     int now = mGetHeartbeat();
     // Not every image will send a heartbeat, and hence
     // it will always return 0.

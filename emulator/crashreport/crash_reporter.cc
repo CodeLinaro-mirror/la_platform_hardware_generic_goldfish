@@ -133,11 +133,12 @@ CrashReporter& CrashReporter::get() {
 }
 
 HangDetector &CrashReporter::getCrashingHangDetector() {
-    static std::unique_ptr<HangDetector> hangDetector = HangDetector::create([](std::string_view message) {
-                      std::string copy(message);
-                      CrashReporter::get().die(copy.c_str());
-                  },
-                  HangDetector::defaultTiming(), std::make_unique<android::base::AbseilClock>());
+    static std::unique_ptr<HangDetector> hangDetector = HangDetector::Create(
+            [](std::string_view message) {
+                std::string copy(message);
+                CrashReporter::get().die(copy.c_str());
+            },
+            HangDetector::DefaultTiming(), std::make_unique<android::base::AbseilClock>());
     return *hangDetector;
 }
 

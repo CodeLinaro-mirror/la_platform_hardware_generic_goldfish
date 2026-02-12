@@ -204,12 +204,12 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     auto* client_loop = goldfish::async::globalEventLoop();
 
     gQemuLoop = goldfish::async::QemuEventLoop::Create();
-    android::crashreport::CrashReporter::getCrashingHangDetector().addWatchedLooper(
+    android::crashreport::CrashReporter::getCrashingHangDetector().AddWatchedLooper(
             "QemuEventLoop", *gQemuLoop, absl::Seconds(15));
 
     gQemuCpuLoops = createVCpuEventLoops();
     for (auto& loop : gQemuCpuLoops) {
-        android::crashreport::CrashReporter::getCrashingHangDetector().addWatchedLooper(
+        android::crashreport::CrashReporter::getCrashingHangDetector().AddWatchedLooper(
                 absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
     }
 

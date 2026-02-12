@@ -47,7 +47,7 @@ class TimedHangDetector : public StatefulHangdetector {
      *
      * @return `true` if a hang is detected, `false` otherwise.
      */
-    bool check() override;
+    bool Check() override;
 
   private:
     std::unique_ptr<StatefulHangdetector> mInner;
@@ -80,7 +80,7 @@ class HeartBeatDetector : public StatefulHangdetector {
      * @brief Checks for a hang condition.
      * @return `true` if a hang is detected, `false` otherwise.
      */
-    bool check() override;
+    bool Check() override;
 
   private:
     std::function<int()> mGetHeartbeat;

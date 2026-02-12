@@ -31,19 +31,19 @@ namespace android::crashreport {
 class HangDetectorTest : public ::testing::Test {
   public:
     HangDetectorTest()
-            : mHangDetector(HangDetector::create(
+            : mHangDetector(HangDetector::Create(
                       [this](std::string_view msg) {
                           if (!mNotify.HasBeenNotified()) {
                               mNotify.Notify();
                           }
                       },
                       {
-                          .hangLoopIterationTimeout = absl::Milliseconds(100),
-                          .hangCheckTimeout = absl::Milliseconds(1000),
+                          .hang_loop_iteration_timeout = absl::Milliseconds(100),
+                          .hang_check_timeout = absl::Milliseconds(1000),
                       },
                       std::make_unique<android::base::AbseilClock>())) {}
 
-    void TearDown() override { mHangDetector->stop(); }
+    void TearDown() override { mHangDetector->Stop(); }
 
     bool wait_for_hang() { return mNotify.WaitForNotificationWithTimeout(kMaxBlockingTime); }
 
@@ -58,7 +58,7 @@ TEST_F(HangDetectorTest, PredicateTriggersHang) {
         printf("This test cannot be run under a debugger.");
         return;
     }
-    mHangDetector->addPredicateCheck([] { return true; }, "Always dead");
+    mHangDetector->AddPredicateCheck([] { return true; }, "Always dead");
     ASSERT_TRUE(wait_for_hang());
 }
 
@@ -66,7 +66,7 @@ TEST_F(HangDetectorTest, NormalLoopNoHang) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     EXPECT_FALSE(wait_for_hang());
 }
@@ -75,7 +75,7 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     // Add a hanging task
     absl::Notification hang;
@@ -94,7 +94,7 @@ TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     // Note no hanging task.
 
@@ -110,7 +110,7 @@ TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
     auto event_loop =
             goldfish::async::ThreadedEventLoop::Create(goldfish::async::LibuvEventLoop::Create());
 
-    mHangDetector->addWatchedLooper("test loop", *event_loop, absl::Seconds(1));
+    mHangDetector->AddWatchedLooper("test loop", *event_loop, absl::Seconds(1));
 
     // Add a hanging task
     absl::Notification hang;

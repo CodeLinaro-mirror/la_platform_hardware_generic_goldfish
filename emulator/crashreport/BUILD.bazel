@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 cc_library(
@@ -172,4 +173,12 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        "hang_detector",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )
