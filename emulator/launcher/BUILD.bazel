@@ -85,7 +85,7 @@ cc_library(
     deps = [
         ":avd",
         ":input_paths",
-        "//emulator/cmdline",
+        "//emulator/launcher/cmdline",
     ],
 )
 
@@ -96,7 +96,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//android/logging:color_log_sink",
-        "//emulator/cmdline",
+        "//emulator/launcher/cmdline",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
@@ -177,7 +177,7 @@ cc_library(
         ":input_paths",
         "//android/async:launch_config",
         "//android/system",
-        "//emulator/cmdline",
+        "//emulator/launcher/cmdline",
         "//emulator/launcher/devices:adb_device",
         "//emulator/launcher/devices:audio_device",
         "//emulator/launcher/devices:avd_info_device",
@@ -205,7 +205,7 @@ cc_library(
     deps = [
         ":input_paths",
         "//android/async:launch_config",
-        "//emulator/cmdline",
+        "//emulator/launcher/cmdline",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -220,8 +220,8 @@ cc_library(
         "//android/async:launch_config",
         "//android/files:ini_file",
         "//android/network",
-        "//emulator/cmdline",
         "//emulator/grpc/client:emulator_grpc_client",
+        "//emulator/launcher/cmdline",
         "@abseil-cpp//absl/status:statusor",
         "@grpc//:grpc++",
     ],
@@ -406,8 +406,8 @@ cc_binary(
         "//android/filesystems",
         "//android/system",
         "//emulator/adb/secrets",
-        "//emulator/cmdline",
         "//emulator/crashreport:crash_system",
+        "//emulator/launcher/cmdline",
         "//emulator/modem_simulator",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",

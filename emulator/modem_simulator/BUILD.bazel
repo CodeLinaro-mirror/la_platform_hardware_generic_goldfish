@@ -43,7 +43,6 @@ cc_library(
     strip_include_prefix = ".",
     visibility = ["//visibility:private"],
     deps = [
-        "//emulator/cmdline",
         "//emulator/launcher:avd",
         "//emulator/modem_simulator/deps",
         "@abseil-cpp//absl/log",

@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 
-#include "android/cmdline_definitions.h"
 #include "android/goldfish/avd.h"
 
 namespace goldfish::modem_simulator {
