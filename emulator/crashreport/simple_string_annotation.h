@@ -13,8 +13,7 @@
 
 #include "client/annotation.h"
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
 using crashpad::Annotation;
 
@@ -26,17 +25,16 @@ class SimpleStringAnnotation : public crashpad::Annotation {
     SimpleStringAnnotation& operator=(const SimpleStringAnnotation&) = delete;
 
     // Name of the annotation.. This is how it will show up in a minidump.
-    SimpleStringAnnotation(std::string name, std::string msg)
-            : Annotation(Type::kString, mName, mBuffer), mBuffer() {
-        memcpy(mName, name.c_str(), std::min<size_t>(name.size(), kNameMaxLength));
-        auto dataSize = std::min<size_t>(msg.size(), MaxSize);
-        memcpy(mBuffer, msg.c_str(), dataSize);
-        SetSize(dataSize);
+    SimpleStringAnnotation(const std::string& name, const std::string& msg)
+            : Annotation(Type::kString, name_, buffer_), buffer_() {
+        memcpy(name_, name.c_str(), std::min<size_t>(name.size(), kNameMaxLength));
+        auto data_size = std::min<size_t>(msg.size(), MaxSize);
+        memcpy(buffer_, msg.c_str(), data_size);
+        SetSize(data_size);
     }
 
   private:
-    char mName[kNameMaxLength] = {0};
-    char mBuffer[MaxSize] = {0};
+    char name_[kNameMaxLength] = {0};
+    char buffer_[MaxSize] = {0};
 };
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

@@ -76,7 +76,7 @@ class CrashOnTimeout : public TimeoutMonitor {
                 auto timeout_msg =
                         "Task timeout after " + std::to_string(t.count()) + " ms. :" + msg;
                 LOG(ERROR) << "crashing system with message: " << msg;
-                CrashReporter::get().die(msg.c_str());
+                CrashReporter::Get().Die(msg.c_str());
             }) {}
 };
 

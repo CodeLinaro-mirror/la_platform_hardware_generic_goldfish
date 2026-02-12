@@ -39,9 +39,19 @@ class CrashReporter {
      * @param name A description of the data.
      * @param data The data to attach as a string.
      * @param replace If true, replaces existing data with the same name.
-     *                If false, appends the data. Defaults to false.
+     *                If false, appends the data.
      */
-    virtual void attachData(std::string name, std::string data, bool replace = false) = 0;
+    virtual void AttachData(std::string name, std::string data, bool replace) = 0;
+
+    /**
+     * @brief Attaches data to the crash report without replacing existing data.
+     *
+     * @param name A description of the data.
+     * @param data The data to attach as a string.
+     */
+    void AttachData(std::string name, std::string data) {
+        AttachData(std::move(name), std::move(data), false);
+    }
 
     /**
      * @brief Adds an addition message to the default `internal-msg` annotation.
@@ -50,7 +60,7 @@ class CrashReporter {
      *
      * @param message The message.
      */
-    virtual void addMessage(std::string_view message) = 0;
+    virtual void AddMessage(std::string_view message) = 0;
 
     /**
      * @brief Generates a crash dump and terminates the pro cess.
@@ -59,16 +69,16 @@ class CrashReporter {
      *
      * @param message The message to include in the dump.
      */
-    virtual void die(std::string_view message) = 0;
+    virtual void Die(std::string_view message) = 0;
 
     /**
      * @brief Gets the singleton instance of the CrashReporter.
      *
      * @return A pointer to the CrashReporter instance.
      */
-    static CrashReporter& get();
+    static CrashReporter& Get();
 
-    static HangDetector &getCrashingHangDetector();
+    static HangDetector& GetCrashingHangDetector();
 };
 
 }  // namespace android::crashreport
