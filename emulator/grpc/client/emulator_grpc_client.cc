@@ -66,7 +66,7 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
     absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext();
 
     std::shared_ptr<::grpc::Channel> GetChannel() {
-        const absl::MutexLock lock(&channel_mutex_);
+        const absl::MutexLock lock(channel_mutex_);
         return channel_;
     }
 
@@ -105,7 +105,7 @@ absl::Status EmulatorGrpcClientImpl::Connect(absl::Duration timeout) {
                 "non-local addresses.");
     }
 
-    auto deadline = std::chrono::system_clock::now() + absl::ToChronoMilliseconds(timeout);
+    const auto deadline = std::chrono::system_clock::now() + absl::ToChronoMilliseconds(timeout);
     const bool connected = GetChannel()->WaitForConnected(deadline);
 
     if (connected) {
@@ -153,7 +153,7 @@ void EmulatorGrpcClientImpl::Disconnect() {
     }
     monitor_callback_handle_ = {};
     {
-        const absl::MutexLock lock(&channel_mutex_);
+        const absl::MutexLock lock(channel_mutex_);
         channel_.reset();
     }
     if (monitor_) {
@@ -177,7 +177,7 @@ absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientImpl::New
 }
 
 void EmulatorGrpcClientImpl::CreateChannelIfNeeded() {
-    const absl::MutexLock lock(&channel_mutex_);
+    const absl::MutexLock lock(channel_mutex_);
     if (channel_) return;
 
     GrpcChannelFactory factory(endpoint_, std::move(interceptors_));

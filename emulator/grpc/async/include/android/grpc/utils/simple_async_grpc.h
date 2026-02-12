@@ -133,7 +133,7 @@ class SimpleServerLambdaReader : public WithSimpleReader<grpc::ServerReadReactor
 //
 // For example:
 //
-// grpc::ClientContext* context = mClient->newContext().release();
+// grpc::ClientContext* context = mClient->NewContext().release();
 // static google::protobuf::Empty empty;
 // auto read = new SimpleClientLambdaReader<PhoneEvent>(
 //         [](auto event) {

@@ -105,7 +105,7 @@ namespace goldfish::async {
  * });
  *
  * // Initiate the connection.
- * client->connect();
+ * client->Connect();
  * });
  *
  * // 4. Wait on the main thread for the operation to complete.

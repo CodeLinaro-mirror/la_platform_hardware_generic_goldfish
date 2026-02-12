@@ -144,7 +144,7 @@ class EmulatorControllerService::Builder {
     std::vector<std::shared_ptr<::grpc::Service>> mServices;
     std::vector<std::shared_ptr<::grpc::Service>> mSecureServices;
     Security mSecurity{Security::Insecure};
-    std::shared_ptr<grpc::ServerCredentials> mCredentials;
+    std::shared_ptr<grpc::ServerCredentials> credentials_;
     std::string mBindAddress{"127.0.0.1"};
     fs::path mCertfile;
     std::string mAuthToken;

@@ -13,7 +13,7 @@
 
 ## Critical Infrastructure
 * **Discovery Support:** `EmulatorGrpcClientBuilder` can parse emulator advertisement files (`.ini`). It automatically extracts the port, authentication token, and TLS settings.
-* **Connection Monitoring:** `CallbackEmulatorGrpcClient` runs a background thread to monitor connection health and fires events via `connectionStateChanges()`.
+* **Connection Monitoring:** `CallbackEmulatorGrpcClient` runs a background thread to monitor connection health and fires events via `ConnectionStateChanges()`.
 * **Security:** Automatically configures `ClientContext` with Bearer tokens or TLS certificates based on the endpoint description.
 * **Channel Factory:** `GrpcChannelFactory` manages the underlying `grpc::Channel` lifecycle, handling TLS credentials and custom arguments.
 
@@ -23,5 +23,5 @@
 * **Utilities:** `//android/files:ini_file` (for discovery).
 
 ## Threading Model
-* **Blocking Client:** No internal threads. All operations (connect, disconnect) block the caller.
-* **Callback Client:** Manages a background worker thread for connection monitoring and state maintenance. Subscriptions to `connectionStateChanges` are thread-safe.
+* **Blocking Client:** No internal threads. All operations (Connect, Disconnect) block the caller.
+* **Callback Client:** Manages a background worker thread for connection monitoring and state maintenance. Subscriptions to `ConnectionStateChanges` are thread-safe.

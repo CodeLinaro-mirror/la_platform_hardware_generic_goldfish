@@ -57,7 +57,7 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "emulator_grpc_client",
+        ":emulator_grpc_client",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

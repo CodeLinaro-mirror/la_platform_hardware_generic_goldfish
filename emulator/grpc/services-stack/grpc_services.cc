@@ -189,7 +189,7 @@ Builder& Builder::withCertAndKey(fs::path certfile, fs::path privateKeyFile, fs:
         mCaCerts = true;
     }
 
-    mCredentials = grpc::SslServerCredentials(ssl_opts);
+    credentials_ = grpc::SslServerCredentials(ssl_opts);
     mSecurity = Security::Tls;
     return *this;
 }
@@ -285,21 +285,21 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     }
 
     remote::Endpoint endpoint;
-    if (!mCredentials) {
+    if (!credentials_) {
         if (mBindAddress == "localhost" || mBindAddress == "[::1]") {
-            mCredentials = LocalServerCredentials(LOCAL_TCP);
+            credentials_ = grpc::experimental::LocalServerCredentials(LOCAL_TCP);
             mSecurity = Security::Local;
         } else {
-            mCredentials = grpc::InsecureServerCredentials();
+            credentials_ = grpc::InsecureServerCredentials();
             mSecurity = Security::Insecure;
         }
     }
 
-    std::unique_ptr<AllowList> AllowList = loadAllowlist(mEmulatorAccessPath);
+    std::unique_ptr<AllowList> allow_list = loadAllowlist(mEmulatorAccessPath);
     if (!mAuthToken.empty() || !mJwkPath.empty()) {
         if (mSecurity == Security::Insecure) {
             mBindAddress = "[::1]";
-            mCredentials = LocalServerCredentials(LOCAL_TCP);
+            credentials_ = grpc::experimental::LocalServerCredentials(LOCAL_TCP);
             mSecurity = Security::Local;
             LOG(WARNING) << "Token/JWT auth requested without tls, restricting "
                             "access to localhost.";
@@ -307,17 +307,17 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
         auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
         if (!mAuthToken.empty()) {
             anyauth.emplace_back(std::make_unique<StaticTokenAuth>(mAuthToken, "android-studio",
-                                                                   AllowList.get()));
+                                                                   allow_list.get()));
             auto header = endpoint.add_required_headers();
             header->set_key("authorization");
             header->set_value("Bearer " + mAuthToken);
         }
         if (!mJwkPath.empty()) {
             anyauth.emplace_back(std::make_unique<JwtTokenAuth>(
-                    mJwkPath.string(), mJwkLoadedPath.string(), AllowList.get()));
+                    mJwkPath.string(), mJwkLoadedPath.string(), allow_list.get()));
         }
-        mCredentials->SetAuthMetadataProcessor(
-                std::make_shared<AnyTokenAuth>(std::move(anyauth), AllowList.get()));
+        credentials_->SetAuthMetadataProcessor(
+                std::make_shared<AnyTokenAuth>(std::move(anyauth), allow_list.get()));
     } else {
         LOG(WARNING) << "*** No gRPC protection active ***";
     }
@@ -330,8 +330,8 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     std::string server_address = mBindAddress + ":" + std::to_string(mPort);
 
     ServerBuilder builder;
-    builder.AddListeningPort(server_address, mCredentials);
-    for (auto service : mServices) {
+    builder.AddListeningPort(server_address, credentials_);
+    for (const auto& service : mServices) {
         builder.RegisterService(service.get());
     }
 
@@ -364,7 +364,7 @@ std::unique_ptr<EmulatorControllerService> Builder::build() {
     LOG(INFO) << "Started GRPC server at " << server_address.c_str() << ", security: " << mSecurity
               << ", auth: " << mAuthMode;
     return std::make_unique<EmulatorControllerServiceImpl>(
-            mPort, std::move(mServices), std::move(AllowList), std::move(service), endpoint);
+            mPort, std::move(mServices), std::move(allow_list), std::move(service), endpoint);
 }
 }  // namespace control
 }  // namespace emulation

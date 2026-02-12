@@ -93,7 +93,7 @@ class HalPlugAdapterTest : public ::testing::Test {
         mClientLoop->ShutdownAndWait(100ms);
     }
 
-    void connect() {
+    void Connect() {
         absl::Notification onConnectCalled;
         EXPECT_CALL(*mMockHalPlug, OnConnect()).WillOnce(Invoke([&]() {
             onConnectCalled.Notify();
@@ -139,7 +139,7 @@ TEST_F(HalPlugAdapterTest, OnConnectIsMarshalledToClientThread) {
 }
 
 TEST_F(HalPlugAdapterTest, OnReceiveIsMarshalledToClientThread) {
-    connect();
+    Connect();
     absl::Notification onReceiveCalled;
 
     // Test will fail if this call was not made.
@@ -155,7 +155,7 @@ TEST_F(HalPlugAdapterTest, OnReceiveIsMarshalledToClientThread) {
 }
 
 TEST_F(HalPlugAdapterTest, SendIsMarshalledToQemuThread) {
-    connect();
+    Connect();
     absl::Notification sendAsyncCalled;
     EXPECT_CALL(*mMockSocket, SendAsync(_, 5)).WillOnce(Invoke([&](const void* data, size_t) {
         EXPECT_EQ(std::this_thread::get_id(), mQemuLoop->GetId());
@@ -168,7 +168,7 @@ TEST_F(HalPlugAdapterTest, SendIsMarshalledToQemuThread) {
 }
 
 TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
-    connect();
+    Connect();
     absl::Notification onCloseCalled;
     absl::Notification unplugImplCalled;
 
@@ -194,7 +194,7 @@ TEST_F(HalPlugAdapterTest, OnUnplugIsMarshalledToOnCloseOnClientThread) {
 
 // TODO Fix this test is very flakey
 TEST_F(HalPlugAdapterTest, DISABLED_CloseIsMarshalledToUnplugImplOnQemuThread) {
-    connect();
+    Connect();
     bool callClose = false;
     absl::Notification unplugCalled;
     absl::Notification postedClose;

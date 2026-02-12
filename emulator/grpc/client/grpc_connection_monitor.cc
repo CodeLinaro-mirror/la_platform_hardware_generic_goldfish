@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 
 namespace android::emulation::control {
-
 namespace {
 
 std::ostream& operator<<(std::ostream& os, ConnectionState state) {
@@ -168,7 +167,7 @@ void GrpcConnectionMonitor::Stop() {
         {
             // Do not yank the queue out when a callback is active, callbacks could schedule
             // something which is not allowed after this call returns.
-            const absl::MutexLock lock(&callback_active_);
+            const absl::MutexLock lock(callback_active_);
             completion_queue_.Shutdown();
         }
         worker_thread_.join();
@@ -198,7 +197,7 @@ void GrpcConnectionMonitor::AsyncWorker() {
     bool ok;
     while (completion_queue_.Next(&tag, &ok)) {
         auto* callback = static_cast<MonitorCallback*>(tag);
-        const absl::MutexLock lock(&callback_active_);
+        const absl::MutexLock lock(callback_active_);
         callback->Run(ok);
     }
     VLOG(1) << "Queue is finished.";

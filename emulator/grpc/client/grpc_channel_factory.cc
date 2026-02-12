@@ -23,9 +23,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 namespace {
 // A plugin that inserts a set of headers.
@@ -102,6 +100,4 @@ std::shared_ptr<grpc::Channel> GrpcChannelFactory::CreateChannel() {
                                                                    std::move(interceptors_));
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
