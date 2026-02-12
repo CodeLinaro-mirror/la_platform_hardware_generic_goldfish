@@ -10,11 +10,13 @@
 ** GNU General Public License for more details.
 */
 #pragma once
+
+#include <cstdint>
+
 #include "client/crash_report_database.h"
 
-namespace android {
-namespace crashreport {
-enum class UploadResult {
+namespace android::crashreport {
+enum class UploadResult : std::uint8_t {
     kSuccess,
     kPermanentFailure,
     kRetry,
@@ -23,7 +25,6 @@ enum class UploadResult {
 // Pushes the given report to the crashpad server
 // You should re-read the report upon success, as you should
 // have a remote id.
-UploadResult ProcessPendingReport(crashpad::CrashReportDatabase* database_,
+UploadResult ProcessPendingReport(crashpad::CrashReportDatabase* database,
                                   const crashpad::CrashReportDatabase::Report& report);
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport
