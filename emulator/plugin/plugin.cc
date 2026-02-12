@@ -70,7 +70,7 @@ void qemu_absl_logger(int severity, const char *file, int line, const char *fmt,
         size = message.size();
     }
 
-    LOG(LEVEL(severity)).AtLocation(file ? file : "unknown", line) << absl::LogAsLiteral(std::string_view(message.data(), size));
+    LOG(LEVEL(severity)).AtLocation(file ? file : "QEMU", line) << absl::LogAsLiteral(std::string_view(message.data(), size));
 }
 
 void setup_debug_logging() {

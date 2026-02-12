@@ -69,10 +69,13 @@ void ColorLogSink::Send(const absl::LogEntry& entry) {
         auto now = entry.timestamp();
         *output_stream_ << Color(entry.log_severity())
                         << absl::FormatTime("%H:%M:%E6S", now, absl::LocalTimeZone())
-                        << absl::StreamFormat(" %d %s ", entry.tid(), TranslateSeverity(entry))
-                        << absl::StreamFormat("%s:%d | ", entry.source_basename(),
-                                              entry.source_line())
-                        << entry.text_message_with_newline();
+                        << absl::StreamFormat(" %d %s ", entry.tid(), TranslateSeverity(entry));
+        if (entry.source_line() >= 0) {
+            *output_stream_ << absl::StreamFormat("%s:%d", entry.source_basename(), entry.source_line());
+        } else {
+            *output_stream_ << absl::StreamFormat("%s", entry.source_basename());
+        }
+        *output_stream_ << " | " <<entry.text_message_with_newline();
 
     } else {
         *output_stream_ << Color(entry.log_severity()) << TranslateSeverity(entry) << " | "
