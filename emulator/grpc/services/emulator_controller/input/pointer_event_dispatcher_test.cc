@@ -105,21 +105,21 @@ TEST(PenTouchEventTest, SendEvents) {
     pen.orientation = 45;
     pen_event.touches.push_back(pen);
 
-    // Expect calls to sendEvDevEvent on the mock display.
+    // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX));
-        EXPECT_CALL(display, sendEvDevEvent(EV_KEY, BTN_TOOL_RUBBER, 1));
-        EXPECT_CALL(display, sendEvDevEvent(EV_KEY, BTN_STYLUS, 1));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_SYN, SYN_REPORT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX));
+        EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_TOOL_RUBBER, 1));
+        EXPECT_CALL(display, SendEvDevEvent(EV_KEY, BTN_STYLUS, 1));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
     // Call sendEvents.
@@ -158,12 +158,12 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     // Call sendEvents.
     dispatcher.sendEvents(display, pen_event);
     std::this_thread::sleep_for(10ms);
-    // Expect calls to sendEvDevEvent on the mock display.
+    // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
-        EXPECT_CALL(display, sendEvDevEvent(EV_SYN, SYN_REPORT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
+        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
     // Call sendEvents with no events, which will cleanup the old ones.
     PenTouchEvent pen_empty;
@@ -289,18 +289,18 @@ TEST(MultiTouchEventTest, SendEventsPress) {
     touch.orientation = 45;
     touch_event.touches.push_back(touch);
 
-    // Expect calls to sendEvDevEvent on the mock display.
+    // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_SYN, SYN_REPORT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
     // Call sendEvents.
@@ -334,12 +334,12 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     dispatcher.sendEvents(display, touch_event);
     std::this_thread::sleep_for(10ms);
 
-    // Expect calls to sendEvDevEvent on the mock display.
+    // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
-        EXPECT_CALL(display, sendEvDevEvent(EV_SYN, SYN_REPORT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
+        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
     // Call sendEvents with no events, which will cleanup the old ones.
@@ -377,29 +377,29 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
     touch2.orientation = 90;
     touch_event.touches.push_back(touch2);
 
-    // Expect calls to sendEvDevEvent on the mock display.
+    // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
         // First touch events.
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 10));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 5));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 45));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
         // Second touch events.
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 1));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_SLOT, 1));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 12));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 6));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 90));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
-        EXPECT_CALL(display, sendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, 1));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, 1));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MAJOR, 12));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TOUCH_MINOR, 6));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_ORIENTATION, 90));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_PRESSURE, 50));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_X, _));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_POSITION_Y, _));
         // syn
-        EXPECT_CALL(display, sendEvDevEvent(EV_SYN, SYN_REPORT, 0));
+        EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
     // Call sendEvents.

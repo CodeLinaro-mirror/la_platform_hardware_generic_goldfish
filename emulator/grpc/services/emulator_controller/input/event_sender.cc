@@ -24,7 +24,7 @@ namespace control {
 template <class T>
 absl::StatusOr<std::shared_ptr<IDisplay>> tryLockDisplay(IMultiDisplay& multidisplay,
                                                          const T& event) {
-    auto screen = multidisplay.getDisplay(event.display());
+    auto screen = multidisplay.GetDisplay(event.display());
     if (!screen.ok()) {
         return absl::InvalidArgumentError(absl::StrFormat("Invalid display: %d", event.display()));
     }
@@ -37,14 +37,14 @@ absl::StatusOr<std::shared_ptr<IDisplay>> tryLockDisplay(IMultiDisplay& multidis
 
 absl::Status InputEventSender::send(const AndroidEvent& event) const {
     ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
-    display->sendEvDevEvent(event.type(), event.code(), event.value());
+    display->SendEvDevEvent(event.type(), event.code(), event.value());
     return absl::OkStatus();
 };
 
 absl::Status InputEventSender::send(const MouseEvent& event) const {
     ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
 
-    display->sendMouseEvent(event.x(), event.y(), event.buttons());
+    display->SendMouseEvent(event.x(), event.y(), event.buttons());
     return absl::OkStatus();
 }
 

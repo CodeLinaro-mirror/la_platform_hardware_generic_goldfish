@@ -35,8 +35,8 @@ namespace goldfish::async {
  */
 class EventLoopDispatcher {
   public:
-    EventLoopDispatcher(goldfish::async::EventLoop* loop) : mLoop(loop) {
-        assert(mLoop != nullptr);
+    explicit EventLoopDispatcher(goldfish::async::EventLoop* loop) : loop_(loop) {
+        assert(loop_ != nullptr);
     }
 
     template <class T, class StoragePolicy>
@@ -59,15 +59,15 @@ class EventLoopDispatcher {
         };
 
         // If we are already on the loop thread, execute directly.
-        if (mLoop->IsOnLoopThread()) {
+        if (loop_->IsOnLoopThread()) {
             dispatch_work();
         } else {
-            mLoop->Post(std::move(dispatch_work));
+            loop_->Post(std::move(dispatch_work));
         }
     }
 
   private:
-    goldfish::async::EventLoop* mLoop;
+    goldfish::async::EventLoop* loop_;
 };
 
 /**

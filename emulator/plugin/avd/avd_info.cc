@@ -252,7 +252,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe->test_tools_connector_registry,
                                                client_loop, gQemuLoop.get());
 
-    ::goldfish::display::QemuMultidisplay::configureMultiDisplay(client_loop, gQemuLoop.get());
+    ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
 
     gGlobalAvdUniverseInstance = avd_universe.release();
 }

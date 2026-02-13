@@ -488,7 +488,7 @@ create_launch_emulator_test(
         "-vmodule",
         "'pixman_display=2'",
     ],
-    target_log_line = "'updateSurface Display: 0 \\(1080x2400\\), seq: 25'",
+    target_log_line = "'UpdateSurface Display: 0 \\(1080x2400\\), seq: 25'",
     timeout_seconds = 180,
 )
 

@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/statusor.h"
@@ -37,10 +38,10 @@ using ::goldfish::async::LoopBoundCallbackSource;
  *  to not only track frame updates but also have temporal context.
  */
 struct FrameInfo {
-    uint64_t sequenceNumber;  ///< Monotonically increasing frame sequence number.
+    uint64_t sequence_number;  ///< Monotonically increasing frame sequence number.
     absl::Time timestamp;     ///< Timestamp when the frame was updated.
 
-    FrameInfo(uint64_t seq) : sequenceNumber(seq), timestamp(absl::Now()) {}
+    explicit FrameInfo(uint64_t seq) : sequence_number(seq), timestamp(absl::Now()) {}
 };
 
 struct Dimensions {
@@ -49,36 +50,36 @@ struct Dimensions {
 };
 
 struct ResizeEvent {
-    uint8_t displayId;
-    uint32_t previousWidth;
-    uint32_t previousHeight;
+    uint8_t display_id;
+    uint32_t previous_width;
+    uint32_t previous_height;
     uint32_t width;
     uint32_t height;
 };
 
-enum class MultiTouchType {
-    BEGIN,   //  = INPUT_MULTI_TOUCH_TYPE_BEGIN,
-    UPDATE,  // = INPUT_MULTI_TOUCH_TYPE_UPDATE,
-    END,     // = INPUT_MULTI_TOUCH_TYPE_END,
-    CANCEL,  // = INPUT_MULTI_TOUCH_TYPE_CANCEL,
-    DATA,    // = INPUT_MULTI_TOUCH_TYPE_DATA,
+enum class MultiTouchType : std::uint8_t {
+    kBegin,   //  = INPUT_MULTI_TOUCH_TYPE_BEGIN,
+    kUpdate,  // = INPUT_MULTI_TOUCH_TYPE_UPDATE,
+    kEnd,     // = INPUT_MULTI_TOUCH_TYPE_END,
+    kCancel,  // = INPUT_MULTI_TOUCH_TYPE_CANCEL,
+    kData,    // = INPUT_MULTI_TOUCH_TYPE_DATA,
 };
 
-enum class PixelFormat {
+enum class PixelFormat : std::uint8_t {
     // Portable Network Graphics format
     // (https://en.wikipedia.org/wiki/Portable_Network_Graphics)
-    PNG = 0,
+    kPng = 0,
 
     // Three-channel RGB color model supplemented with a fourth alpha
     // channel. https://en.wikipedia.org/wiki/RGBA_color_model
     // Each pixel consists of 4 bytes.
-    RGBA8888,
+    kRgba8888,
 
     // Three-channel RGB color model, each pixel consists of 3 bytes
-    RGB888,
+    kRgb888,
 };
 
-enum class Orientation {
+enum class Orientation : std::uint8_t {
     kPortrait,
     kLandscape,
     kSquare,
@@ -94,7 +95,7 @@ enum class Orientation {
  * are precise and do not introduce interpolation artifacts or require
  * complex arbitrary-angle rotation math.
  */
-enum class ImageRotation {
+enum class ImageRotation : std::uint16_t {
     kRotation0 = 0,
     kRotation90 = 90,
     kRotation180 = 180,
@@ -123,8 +124,8 @@ class IDisplay : public FrameInfoCallbackSource,
                  public ResizeEventCallbackSource,
                  public std::enable_shared_from_this<IDisplay> {
   public:
-    IDisplay(EventLoop* loop)
-            : FrameInfoCallbackSource(loop), ResizeEventCallbackSource(loop), mSeq(0) {}
+    explicit IDisplay(EventLoop* loop)
+            : FrameInfoCallbackSource(loop), ResizeEventCallbackSource(loop), seq_(0) {}
     virtual ~IDisplay() = default;
 
     /**
@@ -133,41 +134,41 @@ class IDisplay : public FrameInfoCallbackSource,
      * @param h Height
      * @return The Orientation (Portrait, Landscape, or Square).
      */
-    static Orientation getOrientation(int w, int h);
+    static Orientation GetOrientation(int w, int h);
 
     /**
      * @brief Returns the unique identifier of this display.
      * @return The display ID (uint8_t).
      */
-    uint8_t id() const { return mDisplayId; }
+    uint8_t Id() const { return display_id_; }
 
     /**
      * @brief Returns the dimensions of the display.
      * @return The display dimensions (Dimensions).
      */
     Dimensions GetDimensions() const {
-        absl::MutexLock lock(&mDimensionMutex);
-        return mDimensions;
+        const absl::MutexLock lock(&dimension_mutex_);
+        return dimensions_;
     }
 
-    uint32_t dpi() const { return mDpi; }
+    uint32_t Dpi() const { return dpi_; }
 
-    uint32_t flags() const { return mFlags; }
+    uint32_t Flags() const { return flags_; }
 
     /**
      * Calculates new dimensions to fit a box while preserving aspect ratio.
-     * The box dimensions (desiredWidth, desiredHeight) are logical dimensions,
+     * The box dimensions (desired_width, desired_height) are logical dimensions,
      * which means they can be rotated relative to the physical display dimensions.
      * The returned dimensions will match the orientation of the requested box.
      *
-     * If either desiredWidth or desiredHeight is 0, the function returns {0, 0}.
+     * If either desired_width or desired_height is 0, the function returns {0, 0}.
      * The returned dimensions will never exceed the dimensions of the display.
      *
-     * @param desiredWidth The maximum logical width of the bounding box.
-     * @param desiredHeight The maximum logical height of the bounding box.
+     * @param desired_width The maximum logical width of the bounding box.
+     * @param desired_height The maximum logical height of the bounding box.
      * @return A std::pair<int, int> containing the new logical width and height.
      */
-    virtual std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight);
+    virtual std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height);
 
     /**
      * @brief Returns the current frame information.
@@ -183,22 +184,22 @@ class IDisplay : public FrameInfoCallbackSource,
      *
      * @return The frame information (FrameInfo).
      */
-    FrameInfo seq() const {
-        absl::MutexLock lock(&mSeqAccess);
-        return mSeq;
+    FrameInfo Seq() const {
+        const absl::MutexLock lock(&seq_access_);
+        return seq_;
     }
 
-    // True if a frame there is a frame that is newer than lastSequenceNumber before timneout.
-    bool waitForFrame(absl::Duration timeout, int lastSequenceNumber) const {
-        auto nextFrame = [&]() { return mSeq.sequenceNumber > lastSequenceNumber; };
-        absl::MutexLock lock(&mSeqAccess);
-        mSeqAccess.AwaitWithTimeout(absl::Condition(&nextFrame), timeout);
-        return mSeq.sequenceNumber > lastSequenceNumber;
+    // True if a frame there is a frame that is newer than last_sequence_number before timneout.
+    bool WaitForFrame(absl::Duration timeout, uint64_t last_sequence_number) const {
+        auto next_frame = [&]() { return seq_.sequence_number > last_sequence_number; };
+        const absl::MutexLock lock(&seq_access_);
+        seq_access_.AwaitWithTimeout(absl::Condition(&next_frame), timeout);
+        return seq_.sequence_number > last_sequence_number;
     }
 
     // True if a frame arrived before timneout.
-    bool waitForNextFrame(absl::Duration timeout) const {
-        return waitForFrame(timeout, seq().sequenceNumber);
+    bool WaitForNextFrame(absl::Duration timeout) const {
+        return WaitForFrame(timeout, Seq().sequence_number);
     }
 
     /**
@@ -207,7 +208,7 @@ class IDisplay : public FrameInfoCallbackSource,
      *  This method allows for reusing a pre-allocated buffer to potentially minimize
      *  memory allocation overhead and copying, especially when called repeatedly.
      *
-     * @param format The desired image format (ImgFormat::RGBA8888 or ImgFormat::RGB888).
+     * @param format The desired image format (PixelFormat::kRgba8888 or PixelFormat::kRgb888).
      * @param startX The starting X coordinate of the region (inclusive).
      * @param startY The starting Y coordinate of the region (inclusive).
      * @param width The width of the region to retrieve.
@@ -219,46 +220,47 @@ class IDisplay : public FrameInfoCallbackSource,
      *         absl::OkStatus() on success, or an error absl::Status on failure.
      *         Assumes pixel data is tightly packed in memory (stride == width * bytes_per_pixel).
      *
-     * @throws std::invalid_argument If an unsupported ImgFormat is provided (e.g., ImgFormat::PNG).
+     * @throws std::invalid_argument If an unsupported PixelFormat is provided (e.g.,
+     * PixelFormat::kPng).
      *
      * @note The pixelBuffer vector will be resized to the exact size of the retrieved pixel data.
-     *       Only ImgFormat::RGBA8888 and ImgFormat::RGB888 formats are supported by getPixels.
-     *       For PNG format or image resizing/rotation, use higher-level
-     *       image processing libraries after retrieving raw pixels if needed.
+     *       Only PixelFormat::kRgba8888 and PixelFormat::kRgb888 formats are supported by
+     * GetPixels. For kPng format or image resizing/rotation, use higher-level image processing
+     * libraries after retrieving raw pixels if needed.
      */
-    virtual absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height,
+    virtual absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
                                                 ImageRotation rotation, uint8_t* pixel,
-                                                size_t* cPixels) const = 0;
+                                                size_t* c_pixels) const = 0;
 
     /**
      * Sends a touch event to the proper display
      */
-    virtual void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) = 0;
+    virtual void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) = 0;
 
     /**
      * Sends a mouse event to the proper display
      */
-    virtual void sendMouseEvent(int x, int y, int button_mask) = 0;
+    virtual void SendMouseEvent(int x, int y, int button_mask) = 0;
 
     /**
      * Sends a raw evdev event to the proper display.
      */
-    virtual void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) = 0;
+    virtual void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) = 0;
 
     // True if it is active (i.e. connected)
-    virtual bool active() const { return mActive; }
+    virtual bool Active() const { return active_; }
 
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const IDisplay* display) {
-        absl::Format(&sink, "%s", display ? "<none>" : display->string());
+        absl::Format(&sink, "%s", display ? "<none>" : display->String());
     }
 
-    static SharedDisplay nullDisplay();
+    static SharedDisplay GetNullDisplay();
 
   protected:
     void SetDimensions(Dimensions dim) {
-        absl::MutexLock lock(&mDimensionMutex);
-        mDimensions = std::move(dim);
+        const absl::MutexLock lock(&dimension_mutex_);
+        dimensions_ = dim;
     }
 
     void SetDimensions(uint32_t width, uint32_t height) {
@@ -276,41 +278,40 @@ class IDisplay : public FrameInfoCallbackSource,
      *        within the given box while preserving aspect ratio and matching
      *        the box orientation.
      *
-     * @param desiredWidth The maximum logical width of the bounding box.
-     * @param desiredHeight The maximum logical height of the bounding box.
+     * @param desired_width The maximum logical width of the bounding box.
+     * @param desired_height The maximum logical height of the bounding box.
      * @return A LogicalFit struct containing the new logical dimensions and
      *         whether the source was swapped.
      */
-    LogicalFit calculateLogicalFit(int desiredWidth, int desiredHeight) const;
+    LogicalFit CalculateLogicalFit(int desired_width, int desired_height) const;
 
-
-    void frameReceived() {
-        absl::MutexLock lock(&mSeqAccess);
-        mSeq = FrameInfo(mSeq.sequenceNumber + 1);
-        FrameInfoCallbackSource::FireEvent(mSeq);
+    void FrameReceived() {
+        const absl::MutexLock lock(&seq_access_);
+        seq_ = FrameInfo(seq_.sequence_number + 1);
+        FrameInfoCallbackSource::FireEvent(seq_);
     }
 
-    virtual std::string string() const;
+    virtual std::string String() const;
 
     IDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
             : FrameInfoCallbackSource(loop)
             , ResizeEventCallbackSource(loop)
-            , mDisplayId(id)
-            , mDimensions({width, height})
-            , mSeq(0) {}
+            , display_id_(id)
+            , dimensions_({.width = width, .height = height})
+            , seq_(0) {}
 
-    uint8_t mDisplayId;
+    uint8_t display_id_;
 
-    FrameInfo mSeq ABSL_GUARDED_BY(mSeqAccess);
-    mutable absl::Mutex mSeqAccess;
+    FrameInfo seq_ ABSL_GUARDED_BY(seq_access_);
+    mutable absl::Mutex seq_access_;
 
-    uint32_t mDpi{0};
-    uint32_t mFlags{0};
-    bool mActive{true};
+    uint32_t dpi_{0};
+    uint32_t flags_{0};
+    bool active_{true};
 
   private:
-    Dimensions mDimensions ABSL_GUARDED_BY(mDimensionMutex);
-    mutable absl::Mutex mDimensionMutex;
+    Dimensions dimensions_ ABSL_GUARDED_BY(dimension_mutex_);
+    mutable absl::Mutex dimension_mutex_;
 };
 
 }  // namespace goldfish::display

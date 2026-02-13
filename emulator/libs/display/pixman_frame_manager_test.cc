@@ -43,41 +43,41 @@ class PixmanFrameManagerTest : public ::testing::Test {
 };
 
 TEST_F(PixmanFrameManagerTest, InitialImageIsNull) {
-    auto image = mManager->getRenderableImage();
+    auto image = mManager->GetRenderableImage();
     EXPECT_EQ(image.get(), nullptr);
 }
 
 TEST_F(PixmanFrameManagerTest, UpdateAndGet) {
-    mManager->updateSourceImage(mImage1.get());
-    auto image = mManager->getRenderableImage();
+    mManager->UpdateSourceImage(mImage1.get());
+    auto image = mManager->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 100);
     EXPECT_EQ(pixman_image_get_height(image.get()), 100);
 }
 
 TEST_F(PixmanFrameManagerTest, Staging) {
-    mManager->updateSourceImage(mImage1.get());
+    mManager->UpdateSourceImage(mImage1.get());
     // Staging image is not yet moved to current
-    auto image = mManager->getRenderableImage();
+    auto image = mManager->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 100);
     EXPECT_EQ(pixman_image_get_height(image.get()), 100);
 
-    mManager->updateSourceImage(mImage2.get());
+    mManager->UpdateSourceImage(mImage2.get());
     // Staging image is not yet moved to current
-    image = mManager->getRenderableImage();
+    image = mManager->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 200);
     EXPECT_EQ(pixman_image_get_height(image.get()), 200);
 }
 
 TEST_F(PixmanFrameManagerTest, ConcurrentGet) {
-    mManager->updateSourceImage(mImage1.get());
+    mManager->UpdateSourceImage(mImage1.get());
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; ++i) {
         threads.emplace_back([this]() {
-            auto image = mManager->getRenderableImage();
+            auto image = mManager->GetRenderableImage();
             ASSERT_NE(image.get(), nullptr);
             EXPECT_EQ(pixman_image_get_width(image.get()), 100);
         });
@@ -91,7 +91,7 @@ TEST_F(PixmanFrameManagerTest, ConcurrentGet) {
 TEST_F(PixmanFrameManagerTest, ConcurrentUpdateAndGet) {
     std::thread producer([this]() {
         for (int i = 0; i < 100; ++i) {
-            mManager->updateSourceImage(i % 2 == 0 ? mImage1.get() : mImage2.get());
+            mManager->UpdateSourceImage(i % 2 == 0 ? mImage1.get() : mImage2.get());
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
@@ -100,7 +100,7 @@ TEST_F(PixmanFrameManagerTest, ConcurrentUpdateAndGet) {
     for (int i = 0; i < 10; ++i) {
         consumers.emplace_back([this]() {
             for (int j = 0; j < 10; ++j) {
-                auto image = mManager->getRenderableImage();
+                auto image = mManager->GetRenderableImage();
                 if (image.get()) {
                     int width = pixman_image_get_width(image.get());
                     EXPECT_TRUE(width == 100 || width == 200);

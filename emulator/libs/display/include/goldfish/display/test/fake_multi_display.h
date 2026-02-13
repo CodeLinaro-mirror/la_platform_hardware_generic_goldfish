@@ -29,22 +29,22 @@ class FakeMultiDisplay : public IMultiDisplay {
     ~FakeMultiDisplay() = default;
 
     /**
-     * @brief Returns the singleton instance of FakeMultiDisplay.
+     * @brief Returns the singleton Instance of FakeMultiDisplay.
      *
-     * @return A pointer to the FakeMultiDisplay instance.
+     * @return A pointer to the FakeMultiDisplay Instance.
      */
-    static IMultiDisplay* instance();
+    static IMultiDisplay* Instance();
 
     /**
      * @brief Creates a new ActiveFakePixmanDisplay object and adds it to the managed collection.
      *
-     * @param displayId The unique identifier for the new display.
+     * @param display_id The unique identifier for the new display.
      * @param width The width of the display in pixels.
      * @param height The height of the display in pixels.
      * @return absl::StatusOr containing a DisplayPtr to the newly created
      *         ActiveFakePixmanDisplay on success, or an error absl::Status on failure.
      */
-    absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
+    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
                                              uint32_t height) override;
 
     /**
@@ -52,31 +52,31 @@ class FakeMultiDisplay : public IMultiDisplay {
      *
      * @return True if FakeMultiDisplay is enabled, false otherwise.
      */
-    bool isEnabled() const override;
+    bool IsEnabled() const override;
 
     /**
      * @brief Gets an ActiveFakePixmanDisplay object by its ID.
      *
-     * @param displayId The unique identifier of the display to retrieve.
+     * @param display_id The unique identifier of the display to retrieve.
      * @return absl::StatusOr containing a DisplayPtr to the ActiveFakePixmanDisplay if found,
      *         or an error absl::Status if not found.
      */
-    absl::StatusOr<DisplayPtr> getDisplay(DisplayId displayId) const override;
+    absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const override;
 
     /**
      * @brief Erases an ActiveFakePixmanDisplay object from the managed collection and destroys it.
      *
-     * @param displayId The unique identifier of the display to erase.
+     * @param display_id The unique identifier of the display to erase.
      * @return absl::Status indicating success or failure.
      */
-    absl::Status eraseDisplay(DisplayId displayId) override;
+    absl::Status EraseDisplay(DisplayId display_id) override;
 
     /**
      * @brief Returns a snapshot of all the active displays.
      *
      * @return A vector of DisplayPtr to the active displays.
      */
-    std::vector<DisplayPtr> displays() const override;
+    std::vector<DisplayPtr> Displays() const override;
 
     template <typename T>
     std::shared_ptr<T> getDisplay(absl::StatusOr<DisplayPtr> status) {

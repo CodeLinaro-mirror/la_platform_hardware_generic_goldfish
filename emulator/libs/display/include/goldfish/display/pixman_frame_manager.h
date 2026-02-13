@@ -41,7 +41,7 @@ class PixmanFrameManager {
      *
      * @param image A raw pointer to the new pixman image.
      */
-    void updateSourceImage(::pixman_image_t* image);
+    void UpdateSourceImage(::pixman_image_t* image);
 
     /**
      * @brief Returns a thread-safe image that can be safely rendered.
@@ -52,19 +52,19 @@ class PixmanFrameManager {
      *
      * @return A PixmanImagePtr to the current frame.
      */
-    PixmanImagePtr getRenderableImage();
+    PixmanImagePtr GetRenderableImage();
 
-    void updateSurface();
+    void UpdateSurface();
 
   private:
-    int mCurrentPixelDepth{0};
-    absl::Mutex mDisplayAccess;
+    int current_pixel_depth_{0};
+    absl::Mutex display_access_;
 
-    const void* mSrcBits ABSL_GUARDED_BY(mDisplayAccess){nullptr};
-    int mStride ABSL_GUARDED_BY(mDisplayAccess){0};
+    const void* src_bits_ ABSL_GUARDED_BY(display_access_){nullptr};
+    int stride_ ABSL_GUARDED_BY(display_access_){0};
 
-    PixmanImagePtr mStagingImage ABSL_GUARDED_BY(mDisplayAccess);
-    PixmanImagePtr mCurrentImage ABSL_GUARDED_BY(mDisplayAccess);
+    PixmanImagePtr staging_image_ ABSL_GUARDED_BY(display_access_);
+    PixmanImagePtr current_image_ ABSL_GUARDED_BY(display_access_);
 };
 
 }  // namespace goldfish::display

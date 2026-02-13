@@ -59,13 +59,13 @@ using DeviceSkinRotationCallbackSource =
 PixelFormat PixelFormatFromProtobuf(const ImageFormat_ImgFormat format) {
     switch (format) {
     case ImageFormat::RGB888:
-        return PixelFormat::RGB888;
+        return PixelFormat::kRgb888;
     case ImageFormat::RGBA8888:
-        return PixelFormat::RGBA8888;
+        return PixelFormat::kRgba8888;
     case ImageFormat::PNG:
-        return PixelFormat::PNG;
+        return PixelFormat::kPng;
     default:
-        return PixelFormat::RGB888;
+        return PixelFormat::kRgb888;
     }
 }
 
@@ -115,7 +115,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool lastFrameWasEmpty = reply.format().width() == 0;
     int frame = 0;
 
-    auto screen = mMultiDisplay.getDisplay(request->display());
+    auto screen = mMultiDisplay.GetDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();
         return abslStatusToGrpcStatus(screen.status());
@@ -193,7 +193,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
-    auto screen = mMultiDisplay.getDisplay(request->display());
+    auto screen = mMultiDisplay.GetDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();
         return abslStatusToGrpcStatus(screen.status());
@@ -218,7 +218,7 @@ absl::StatusOr<DisplayServiceImpl::MemoryAllocator> DisplayServiceImpl::createAl
 
     // Reserve the upper bound of pixels we could ever need.
     PixelFormat format = PixelFormatFromProtobuf(request.format());
-    size_t bpp = (format == PixelFormat::RGB888) ? 3 : 4;
+    size_t bpp = (format == PixelFormat::kRgb888) ? 3 : 4;
     // Pixman requires the stride (in bytes) to be a multiple of 4 bytes.
     auto dims = display.GetDimensions();
     size_t stride = (dims.width * bpp + 3) & ~3;
@@ -251,39 +251,38 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
                                          Image* reply, MemoryAllocator& allocator) {
     bool needs_side_channel =
             request->has_transport() && request->transport().channel() == ImageTransport::MMAP;
-    auto screen = mMultiDisplay.getDisplay(request->display());
+    auto screen = mMultiDisplay.GetDisplay(request->display());
     auto display = screen->lock();
 
     const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
     auto dims = display->GetDimensions();
-    int desiredWidth = request->width();
-    int desiredHeight = request->height();
+    int desired_width = request->width();
+    int desired_height = request->height();
 
     // User wants to use device width/height
-    if (desiredWidth == 0 || desiredHeight == 0) {
-        desiredWidth = dims.width;
-        desiredHeight = dims.height;
+    if (desired_width == 0 || desired_height == 0) {
+        desired_width = dims.width;
+        desired_height = dims.height;
     }
 
-    // the desiredWidth and display height are not stable at the moment
+    // the desired_width and display height are not stable at the moment
     // they switch from 616x1218 to 616x1080, and that behavior
     // caused some confusion in embedded ui; in addition, the
     // sensor does not give correct orientation neither, sometime
     // it shows landscape, no idea what went wrong. for now,
     // just do a simple scale according to the ratio of display w/h
     // TODO: fix this b/448504524
-    const double desired_over_display_ratio = ((double)desiredWidth) / ((double)dims.width);
-    desiredHeight = (int)(desired_over_display_ratio * dims.height);
-
+    const double desired_over_display_ratio = ((double)desired_width) / ((double)dims.width);
+    desired_height = (int)(desired_over_display_ratio * dims.height);
 
     // Depending on the rotation state width and height need to be
     // reversed. as our apsect ration depends on how we are holding our
     // phone..
     if (deviceRotation.rotation == DeviceSkinRotation::kLandscape ||
         deviceRotation.rotation == DeviceSkinRotation::kReverseLandscape) {
-        VLOG(2) << "Swapping width & height " << desiredWidth << "x" << desiredHeight << " to "
-                << desiredHeight << "x" << desiredWidth;
-        std::swap(desiredWidth, desiredHeight);
+        VLOG(2) << "Swapping width & height " << desired_width << "x" << desired_height << " to "
+                << desired_height << "x" << desired_width;
+        std::swap(desired_width, desired_height);
 
         // TODO(jansene): Support for folded device.
         // if (not_pixel_fold && isFolded) {
@@ -293,9 +292,9 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
 
     // Calculate width and height, keeping aspect ratio in mind.
-    auto [newWidth, newHeight] = display->resizeKeepAspectRatio(desiredWidth, desiredHeight);
-    VLOG(2) << "Resizing from " << desiredWidth << "x" << desiredHeight << " to " << newWidth << "x"
-            << newHeight;
+    auto [newWidth, newHeight] = display->ResizeKeepAspectRatio(desired_width, desired_height);
+    VLOG(2) << "Resizing from " << desired_width << "x" << desired_height << " to " << newWidth
+            << "x" << newHeight;
 
     ImageRotation rotation = ImageRotation::kRotation0;
     switch (deviceRotation.rotation) {
@@ -314,28 +313,28 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     }
 
     // Let's figure out how many pixels we need, and allocate a buffer than can hold it.
-    size_t cPixels = 0;
+    size_t c_pixels = 0;
     PixelFormat format = PixelFormatFromProtobuf(request->format());
 
-    auto seq =
-            display->getPixels(format, newWidth, newHeight, rotation, /*pixels=*/nullptr, &cPixels);
+    auto seq = display->GetPixels(format, newWidth, newHeight, rotation, /*pixels=*/nullptr,
+                                  &c_pixels);
     DCHECK(absl::IsFailedPrecondition(seq.status()))
             << "The c-style callback should inform us how many bytes we should allocate.";
 
-    auto allocated_pixels = allocator(reply, cPixels);
+    auto allocated_pixels = allocator(reply, c_pixels);
     if (!allocated_pixels.ok()) {
         return abslStatusToGrpcStatus(allocated_pixels.status());
     }
-    seq = display->getPixels(format, newWidth, newHeight, rotation, *allocated_pixels, &cPixels);
+    seq = display->GetPixels(format, newWidth, newHeight, rotation, *allocated_pixels, &c_pixels);
 
     if (!seq.status().ok()) {
         return abslStatusToGrpcStatus(seq.status());
     }
 
     // Make sure studio does not get confused, as the pixels required for png < image size..
-    if (!needs_side_channel && format == PixelFormat::PNG &&
-        cPixels < reply->mutable_image()->size()) {
-        reply->mutable_image()->resize(cPixels);
+    if (!needs_side_channel && format == PixelFormat::kPng &&
+        c_pixels < reply->mutable_image()->size()) {
+        reply->mutable_image()->resize(c_pixels);
     }
 
     if (needs_side_channel) {
@@ -347,12 +346,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     auto outFormat = reply->mutable_format();
     outFormat->set_width(newWidth);
     outFormat->set_height(newHeight);
-    outFormat->set_display(display->id());
+    outFormat->set_display(display->Id());
     *outFormat->mutable_rotation() = toProtobufRotation(deviceRotation);
 
     // TODO(jansene): Do we want android frame timestamp or now?
     reply->set_timestampus(absl::ToUnixMicros(seq->timestamp));
-    reply->set_seq(seq->sequenceNumber);
+    reply->set_seq(seq->sequence_number);
 
     VLOG(2) << "Produced frame: " << outFormat->ShortDebugString();
     return Status::OK;
@@ -360,20 +359,20 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 
 Status DisplayServiceImpl::getDisplayConfigurations(const IMultiDisplay& multiDisplay,
                                                     DisplayConfigurations* reply) {
-    for (const auto& weakdisplay : multiDisplay.displays()) {
+    for (const auto& weakdisplay : multiDisplay.Displays()) {
         if (auto display = weakdisplay.lock()) {
             auto cfg = reply->add_displays();
             auto dims = display->GetDimensions();
             cfg->set_width(dims.width);
             cfg->set_height(dims.height);
-            cfg->set_dpi(display->dpi());
-            cfg->set_display(display->id());
-            cfg->set_flags(display->flags());
+            cfg->set_dpi(display->Dpi());
+            cfg->set_display(display->Id());
+            cfg->set_flags(display->Flags());
         }
     }
 
     // TODO(jansene): Where should these really come from?
-    reply->set_maxdisplays(multiDisplay.maxDisplays);
+    reply->set_maxdisplays(multiDisplay.kMaxDisplays);
     reply->set_userconfigurable(3);
 
     return Status::OK;

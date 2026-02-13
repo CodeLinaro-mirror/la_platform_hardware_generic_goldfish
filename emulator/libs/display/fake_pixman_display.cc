@@ -24,21 +24,21 @@ FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* 
 FakePixmanDisplay::FakePixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image)
         : PixmanDisplay(loop, id, std::move(image)) {}
 
-void FakePixmanDisplay::sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
+void FakePixmanDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     mMultiTouchEvents.push_back({slot, x, y, type});
 }
 
-void FakePixmanDisplay::updateSourceImage(::pixman_image_t* image) {
-    PixmanDisplay::updateSourceImage(image);
+void FakePixmanDisplay::UpdateSourceImage(::pixman_image_t* image) {
+    PixmanDisplay::UpdateSourceImage(image);
     Dimensions dims = GetDimensions();
-    updateSurface(0, 0, dims.width, dims.height);
+    UpdateSurface(0, 0, dims.width, dims.height);
 }
 
-void FakePixmanDisplay::sendMouseEvent(int x, int y, int button_mask) {
+void FakePixmanDisplay::SendMouseEvent(int x, int y, int button_mask) {
     mMouseEvents.push_back({x, y, button_mask});
 }
 
-void FakePixmanDisplay::sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
+void FakePixmanDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
     mEvdevs.push_back({type, code, value});
 }
 
@@ -47,7 +47,7 @@ ActiveFakePixmanDisplay::~ActiveFakePixmanDisplay() = default;
 void ActiveFakePixmanDisplay::EventArrived(const PixmanImagePtr& image) {
     // Update the FakePixmanDisplay with the new image
     VLOG(1) << "Image arrived";
-    updateSourceImage(image.get());
+    UpdateSourceImage(image.get());
 }
 
 void ActiveFakePixmanDisplay::start() {

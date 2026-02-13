@@ -24,33 +24,33 @@ extern "C" {
 #include "ui/console.h"
 #include "ui/surface.h"
 
-typedef struct VirtIOInputHID VirtIOInputHID;
+using VirtIOInputHID = struct VirtIOInputHID;
 }
 
 namespace goldfish::display {
 
 class QemuDisplay : public PixmanDisplay {
   public:
-    QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* console, DisplaySurface* ds,
-                int id);
-    void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
-    void sendMouseEvent(int x, int y, int button_mask) override;
-    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
+    QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con, DisplaySurface* ds,
+                int index);
+    void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
+    void SendMouseEvent(int x, int y, int button_mask) override;
+    void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
 
   private:
     template <typename Sink>
     friend void AbslStringify(Sink&, const QemuDisplay&);
-    QemuConsole* mConsole;
-    EventLoop* mQemuLoop;
-    ::VirtIOInputHID* mVhid;
-    int mlast_bmask ABSL_GUARDED_BY(mSendLock) = 0;
-    struct touch_slot mTouchSlots[INPUT_EVENT_SLOTS_MAX];
-    absl::Mutex mSendLock;
+    QemuConsole* console_;
+    EventLoop* qemu_loop_;
+    ::VirtIOInputHID* vhid_;
+    int mlast_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
+    struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
+    absl::Mutex send_lock_;
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const QemuDisplay& display) {
-    absl::Format(&sink, "QemuDisplay: %s, con: %p", display.string(), display.mConsole);
+    absl::Format(&sink, "QemuDisplay: %s, con: %p", display.String(), display.console_);
 }
 
 }  // namespace goldfish::display

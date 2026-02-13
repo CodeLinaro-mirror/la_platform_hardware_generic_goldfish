@@ -54,17 +54,17 @@ class DisplayServiceTest : public GrcpServiceTest {
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mDisplayService =
                 std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
-        auto createResult = mMultiDisplay->createDisplay(1, 100, 50);
+        auto createResult = mMultiDisplay->CreateDisplay(1, 100, 50);
         ASSERT_TRUE(createResult.ok());
 
         GrcpServiceTest::SetUp();
     }
 
     // This starts the generation of fake display images on the given display id.
-    void startFrames(int displayId) {
+    void startFrames(int display_id) {
         using ::goldfish::display::test::ActiveFakePixmanDisplay;
 
-        auto screen = mMultiDisplay->getDisplay(displayId);
+        auto screen = mMultiDisplay->GetDisplay(display_id);
         ASSERT_TRUE(screen.ok());
 
         auto display = screen->lock();
@@ -145,7 +145,7 @@ TEST_F(DisplayServiceTest, GetScreenshotInvalidDisplay) {
 
 TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     // Create a display
-    auto createResult = mMultiDisplay->createDisplay(2, 400, 200);
+    auto createResult = mMultiDisplay->CreateDisplay(2, 400, 200);
     ASSERT_TRUE(createResult.ok());
 
     // Get a screenshot with scaling (which is now disabled)
@@ -167,7 +167,7 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
 
 TEST_F(DisplayServiceTest, GetDisplayConfigurations) {
     // Create a few displays
-    auto createResult2 = mMultiDisplay->createDisplay(2, 200, 100);
+    auto createResult2 = mMultiDisplay->CreateDisplay(2, 200, 100);
     ASSERT_TRUE(createResult2.ok());
 
     // Get the display configurations

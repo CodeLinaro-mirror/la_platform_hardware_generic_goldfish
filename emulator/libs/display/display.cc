@@ -23,57 +23,56 @@
 
 namespace goldfish::display {
 
-Orientation IDisplay::getOrientation(int w, int h) {
+Orientation IDisplay::GetOrientation(int w, int h) {
     if (w > h) return Orientation::kLandscape;
     if (h > w) return Orientation::kPortrait;
     return Orientation::kSquare;
 }
 
-IDisplay::LogicalFit IDisplay::calculateLogicalFit(int desiredWidth, int desiredHeight) const {
-    Dimensions dims = GetDimensions();
-    if (dims.width <= 0 || dims.height <= 0 || desiredWidth <= 0 || desiredHeight <= 0) {
-        return {0, 0, false};
+IDisplay::LogicalFit IDisplay::CalculateLogicalFit(int desired_width, int desired_height) const {
+    const Dimensions dims = GetDimensions();
+    if (dims.width <= 0 || dims.height <= 0 || desired_width <= 0 || desired_height <= 0) {
+        return {.width = 0, .height = 0, .swapped = false};
     }
 
     // We determine the source orientation based on the requested box.
     // If the box is rectangular (not square) and its orientation differs
     // from the physical display, we swap the source dimensions to calculate
     // the logical fit. Square sources or square boxes do not trigger a swap.
-    Orientation boxOri = getOrientation(desiredWidth, desiredHeight);
-    Orientation sourceOri = getOrientation(dims.width, dims.height);
+    const Orientation box_ori = GetOrientation(desired_width, desired_height);
+    const Orientation source_ori =
+            GetOrientation(static_cast<int>(dims.width), static_cast<int>(dims.height));
 
-    bool swapped = (boxOri == Orientation::kLandscape && sourceOri == Orientation::kPortrait) ||
-                   (boxOri == Orientation::kPortrait && sourceOri == Orientation::kLandscape);
+    const bool swapped =
+            (box_ori == Orientation::kLandscape && source_ori == Orientation::kPortrait) ||
+            (box_ori == Orientation::kPortrait && source_ori == Orientation::kLandscape);
 
-    int64_t sWidth = swapped ? dims.height : dims.width;
-    int64_t sHeight = swapped ? dims.width : dims.height;
+    const int64_t s_width = swapped ? dims.height : dims.width;
+    const int64_t s_height = swapped ? dims.width : dims.height;
 
     // Note that we will never scale above logical display device width and height.
-    desiredWidth = std::min<int64_t>(desiredWidth, sWidth);
-    desiredHeight = std::min<int64_t>(desiredHeight, sHeight);
+    desired_width = static_cast<int>(std::min<int64_t>(desired_width, s_width));
+    desired_height = static_cast<int>(std::min<int64_t>(desired_height, s_height));
 
-    if (static_cast<int64_t>(desiredWidth) * sHeight <
-        static_cast<int64_t>(desiredHeight) * sWidth) {
+    if (static_cast<int64_t>(desired_width) * s_height <
+        static_cast<int64_t>(desired_height) * s_width) {
         // Width is the limiting factor.
-        int newHeight = static_cast<int>((sHeight * desiredWidth) / sWidth);
-        return {desiredWidth, newHeight, swapped};
-    } else {
-        // Height is the limiting factor.
-        int newWidth = static_cast<int>((sWidth * desiredHeight) / sHeight);
-        return {newWidth, desiredHeight, swapped};
-    }
+        const int new_height = static_cast<int>((s_height * desired_width) / s_width);
+        return {.width = desired_width, .height = new_height, .swapped = swapped};
+    }  // Height is the limiting factor.
+    const int new_width = static_cast<int>((s_width * desired_height) / s_height);
+    return {.width = new_width, .height = desired_height, .swapped = swapped};
 }
 
-std::pair<int, int> IDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
-    auto fit = calculateLogicalFit(desiredWidth, desiredHeight);
+std::pair<int, int> IDisplay::ResizeKeepAspectRatio(int desired_width, int desired_height) {
+    auto fit = CalculateLogicalFit(desired_width, desired_height);
     return {fit.width, fit.height};
 }
 
-std::string IDisplay::string() const {
-    Dimensions dims = GetDimensions();
-    return absl::StrFormat("Display: %d (%dx%d), seq: %u", mDisplayId, dims.width, dims.height,
-                           seq().sequenceNumber);
+std::string IDisplay::String() const {
+    const Dimensions dims = GetDimensions();
+    return absl::StrFormat("Display: %d (%dx%d), seq: %u", display_id_, dims.width, dims.height,
+                           Seq().sequence_number);
 }
-
 
 }  // namespace goldfish::display

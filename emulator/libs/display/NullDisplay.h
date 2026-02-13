@@ -18,21 +18,21 @@ namespace goldfish::display {
 
 class NullDisplay : public IDisplay {
   public:
-    NullDisplay() : IDisplay(nullptr, -1, -1, -1) { mActive = false; }
+    NullDisplay() : IDisplay(nullptr, -1, -1, -1) { active_ = false; }
 
-    absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height,
-                                        ImageRotation rotation, uint8_t* pixel,
-                                        size_t* cPixels) const override {
+    absl::StatusOr<FrameInfo> GetPixels(PixelFormat /*fmt*/, int /*width*/, int /*height*/,
+                                        ImageRotation /*rotation*/, uint8_t* /*pixel*/,
+                                        size_t* /*c_pixels*/) const override {
         return absl::InvalidArgumentError("This display does not exist.");
     }
 
-    void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override {}
+    void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override {}
 
-    void sendMouseEvent(int x, int y, int button_mask) override {};
+    void SendMouseEvent(int x, int y, int button_mask) override {};
 
-    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {};
+    void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {};
 
-    std::string string() const override { return "NullDisplay"; }
+    std::string String() const override { return "NullDisplay"; }
 };
 
 }  // namespace goldfish::display

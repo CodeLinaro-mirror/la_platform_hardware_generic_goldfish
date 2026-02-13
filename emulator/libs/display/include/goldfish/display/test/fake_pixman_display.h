@@ -135,7 +135,7 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param y The y-coordinate of the multi-touch event.
      * @param type The type of the multi-touch event.
      */
-    void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
+    void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     /**
      * @brief Sends a simulated mouse event.
      *
@@ -143,7 +143,7 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param y The y-coordinate of the mouse event.
      * @param button_mask The button mask of the mouse event.
      */
-    void sendMouseEvent(int x, int y, int button_mask) override;
+    void SendMouseEvent(int x, int y, int button_mask) override;
     /**
      * @brief Sends a simulated evdev event.
      *
@@ -151,21 +151,21 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param code The code of the evdev event.
      * @param value The value of the evdev event.
      */
-    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
+    void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
 
     /**
      * @brief Updates the source image of the display, triggering a new frame event
      *
      * @param image The new pixman image to display.
      */
-    void updateSourceImage(::pixman_image_t* image) override;
+    void UpdateSourceImage(::pixman_image_t* image) override;
 
     /**
      * @brief Gets the current source image of the display.
      *
      * @return A pointer to the current pixman image.
      */
-    PixmanImagePtr image() { return mFrameManager->getRenderableImage(); }
+    PixmanImagePtr image() { return frame_manager_->GetRenderableImage(); }
 
     std::vector<FakeEvDevEvent> mEvdevs;       ///< A list of simulated evdev events.
     std::vector<FakeMouseEvent> mMouseEvents;  ///< A list of simulated mouse events.

@@ -26,8 +26,8 @@ namespace goldfish::display::details {
 inline absl::Mutex g_pixman_mutex;
 }  // namespace goldfish::display::details
 
-inline void intrusive_ptr_add_ref(pixman_image_t* p) {
-    // Note:
+inline void intrusive_ptr_add_ref(pixman_image_t* p) {  // NOLINT
+                                                        // Note:
     // - the pixman display interface is slated to be replaced with gfxstream,
     // so this is a temporary workaround to improve thread-safety without
     // a major refactor.
@@ -35,16 +35,16 @@ inline void intrusive_ptr_add_ref(pixman_image_t* p) {
     //.   - We have a display producer (no multi threading yet)
     //    - We have a display consumer (embedded/fishtank)
     //.   - Concurrent unit tests (those have many threads)
-    absl::MutexLock lock(goldfish::display::details::g_pixman_mutex);
+    const absl::MutexLock lock(goldfish::display::details::g_pixman_mutex);
     pixman_image_ref(p);
 }
 
-inline void intrusive_ptr_release(pixman_image_t* p) {
-    absl::MutexLock lock(goldfish::display::details::g_pixman_mutex);
+inline void intrusive_ptr_release(pixman_image_t* p) {  // NOLINT
+    const absl::MutexLock lock(goldfish::display::details::g_pixman_mutex);
     pixman_image_unref(p);
 }
 
-inline void intrusive_ptr_ctor(pixman_image_t*) {
+inline void intrusive_ptr_ctor(pixman_image_t*) {  // NOLINT
     // do nothing, the counter initialized to 1
 }
 

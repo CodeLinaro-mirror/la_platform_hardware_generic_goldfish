@@ -27,12 +27,12 @@ class MockDisplay : public IDisplay {
   public:
     MockDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
             : IDisplay(loop, id, width, height) {}
-    MOCK_METHOD(absl::StatusOr<FrameInfo>, getPixels,
+    MOCK_METHOD(absl::StatusOr<FrameInfo>, GetPixels,
                 (PixelFormat, int, int, ImageRotation, uint8_t*, size_t*), (const, override));
-    MOCK_METHOD(void, sendMultiTouchEvent, (uint8_t slot, int x, int y, MultiTouchType type),
+    MOCK_METHOD(void, SendMultiTouchEvent, (uint8_t slot, int x, int y, MultiTouchType type),
                 (override));
-    MOCK_METHOD(void, sendMouseEvent, (int x, int y, int button_mask), (override));
-    MOCK_METHOD(void, sendEvDevEvent, (uint16_t type, uint16_t code, uint32_t value), (override));
+    MOCK_METHOD(void, SendMouseEvent, (int x, int y, int button_mask), (override));
+    MOCK_METHOD(void, SendEvDevEvent, (uint16_t type, uint16_t code, uint32_t value), (override));
 };
 
 }  // namespace goldfish::display::test

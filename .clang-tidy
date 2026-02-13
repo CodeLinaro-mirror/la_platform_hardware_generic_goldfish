@@ -66,6 +66,7 @@ ExcludeHeaderFilterRegex: ".*_virtual_includes.*|\
   .*keyboard/dom_key.h|\
   .*c_str_wrapper.h|\
   .*system.h|\
+  .*pixman.h|\
   .*image_provider_cpp_adapter.h"
 
 CheckOptions:

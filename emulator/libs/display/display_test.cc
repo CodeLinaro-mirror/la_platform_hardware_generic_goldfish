@@ -32,23 +32,23 @@ class TestDisplay : public IDisplay {
     TestDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
             : IDisplay(loop, id, width, height) {}
 
-    absl::StatusOr<FrameInfo> getPixels(PixelFormat fmt, int width, int height,
+    absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
                                         ImageRotation rotation, uint8_t* pixel,
-                                        size_t* cPixels) const override {
+                                        size_t* c_pixels) const override {
         return absl::InvalidArgumentError("This display does not exist.");
     }
 
-    void sendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override {}
-    void sendMouseEvent(int x, int y, int button_mask) override {}
-    void sendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {}
+    void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override {}
+    void SendMouseEvent(int x, int y, int button_mask) override {}
+    void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override {}
     void setSeq(uint64_t seq) {
-        absl::MutexLock lock(&mSeqAccess);
-        mSeq.sequenceNumber = seq;
+        absl::MutexLock lock(&seq_access_);
+        seq_.sequence_number = seq;
     }
 
     void updateDimensions(uint32_t w, uint32_t h) { SetDimensions(w, h); }
 
-    void incoming() { frameReceived(); }
+    void incoming() { FrameReceived(); }
 };
 
 class DisplayTest : public ::testing::Test {
@@ -65,16 +65,16 @@ class DisplayTest : public ::testing::Test {
 
 TEST_F(DisplayTest, WaitForFrameTimeout) {
     TestDisplay display(mLoop.get(), 0, 100, 100);
-    uint64_t initialSeq = display.seq().sequenceNumber;
+    uint64_t initialSeq = display.Seq().sequence_number;
 
     // Test timeout.
     auto timeout = absl::Milliseconds(10);
-    EXPECT_FALSE(display.waitForFrame(timeout, initialSeq));
+    EXPECT_FALSE(display.WaitForFrame(timeout, initialSeq));
 }
 
 TEST_F(DisplayTest, WaitForFrameSuccess) {
     TestDisplay display(mLoop.get(), 0, 100, 100);
-    uint64_t initialSeq = display.seq().sequenceNumber;
+    uint64_t initialSeq = display.Seq().sequence_number;
 
     std::thread frameUpdater([&display, initialSeq]() {
         absl::SleepFor(absl::Milliseconds(5));  // Simulate frame update delay
@@ -83,7 +83,7 @@ TEST_F(DisplayTest, WaitForFrameSuccess) {
     });
 
     auto timeout = absl::Milliseconds(50);
-    EXPECT_TRUE(display.waitForFrame(timeout, initialSeq));
+    EXPECT_TRUE(display.WaitForFrame(timeout, initialSeq));
     frameUpdater.join();
 }
 
@@ -96,7 +96,7 @@ TEST_F(DisplayTest, WaitForNextFrameSuccess) {
     });
 
     auto timeout = absl::Milliseconds(50);
-    EXPECT_TRUE(display.waitForNextFrame(timeout));
+    EXPECT_TRUE(display.WaitForNextFrame(timeout));
     frameUpdater.join();
 }
 
@@ -104,7 +104,7 @@ TEST_F(DisplayTest, WaitForNextFrameTimeout) {
     TestDisplay display(mLoop.get(), 0, 100, 100);
 
     auto timeout = absl::Milliseconds(10);
-    EXPECT_FALSE(display.waitForNextFrame(timeout));
+    EXPECT_FALSE(display.WaitForNextFrame(timeout));
 }
 
 TEST_F(DisplayTest, GetDimensions) {

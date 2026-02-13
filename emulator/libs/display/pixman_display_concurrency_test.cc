@@ -58,13 +58,14 @@ TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentGetPixelsDifferentScales
             // Each thread uses a different target size to force different scaling transforms
             int targetWidth = 100 + i * 20;
             int targetHeight = 100 + i * 20;
-            size_t cPixels = targetWidth * targetHeight * 4;
-            std::vector<uint8_t> pixels(cPixels);
+            size_t c_pixels = targetWidth * targetHeight * 4;
+            std::vector<uint8_t> pixels(c_pixels);
 
             for (int j = 0; j < kNumIterations; ++j) {
-                size_t currentCPixels = cPixels;
-                auto result = display->getPixels(PixelFormat::RGBA8888, targetWidth, targetHeight,
-                                                 ImageRotation::kRotation0, pixels.data(), &currentCPixels);
+                size_t currentCPixels = c_pixels;
+                auto result = display->GetPixels(PixelFormat::kRgba8888, targetWidth, targetHeight,
+                                                 ImageRotation::kRotation0, pixels.data(),
+                                                 &currentCPixels);
                 if (result.ok()) {
                     successCount++;
                     // Basic sanity check: make sure we got some data
@@ -102,18 +103,18 @@ TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentUpdateAndGetPixels) {
     std::vector<std::thread> threads;
     std::atomic<bool> running{true};
 
-    // Threads calling getPixels
+    // Threads calling GetPixels
     for (int i = 0; i < kNumGetPixelThreads; ++i) {
         threads.emplace_back([&display, &running]() {
             int targetWidth = 320;
             int targetHeight = 240;
-            size_t cPixels = targetWidth * targetHeight * 4;
-            std::vector<uint8_t> pixels(cPixels);
+            size_t c_pixels = targetWidth * targetHeight * 4;
+            std::vector<uint8_t> pixels(c_pixels);
 
             while (running) {
-                size_t currentCPixels = cPixels;
-                display->getPixels(PixelFormat::RGBA8888, targetWidth, targetHeight, ImageRotation::kRotation0,
-                                   pixels.data(), &currentCPixels);
+                size_t currentCPixels = c_pixels;
+                display->GetPixels(PixelFormat::kRgba8888, targetWidth, targetHeight,
+                                   ImageRotation::kRotation0, pixels.data(), &currentCPixels);
             }
         });
     }

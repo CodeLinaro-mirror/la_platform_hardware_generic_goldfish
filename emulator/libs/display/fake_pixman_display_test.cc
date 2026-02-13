@@ -69,7 +69,7 @@ TEST_F(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
     ASSERT_EQ(pixman_image_get_height(currentImage), height);
 
     // We should have received at least a few frames.
-    ASSERT_GT(display->seq().sequenceNumber, 2);
+    ASSERT_GT(display->Seq().sequence_number, 2);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
@@ -82,14 +82,14 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the screenshot
-    size_t cPixels = width * height * 4;
-    std::vector<uint8_t> pixels(cPixels);
-    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
-                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
+    size_t c_pixels = width * height * 4;
+    std::vector<uint8_t> pixels(c_pixels);
+    auto result = display->GetPixels(PixelFormat::kRgba8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
-    ASSERT_EQ(cPixels, width * height * 4);
+    ASSERT_EQ(c_pixels, width * height * 4);
 
     // Check if the screenshot has the correct data (at least one pixel)
     uint32_t* pixelData = reinterpret_cast<uint32_t*>(pixels.data());
@@ -106,14 +106,14 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotRGB888) {
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // Get the screenshot
-    size_t cPixels = width * height * 3;
-    std::vector<uint8_t> pixels(cPixels);
-    auto result = display->getPixels(PixelFormat::RGB888, width, height, ImageRotation::kRotation0,
-                                     pixels.data(), &cPixels);
+    size_t c_pixels = width * height * 3;
+    std::vector<uint8_t> pixels(c_pixels);
+    auto result = display->GetPixels(PixelFormat::kRgb888, width, height, ImageRotation::kRotation0,
+                                     pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
-    ASSERT_EQ(cPixels, width * height * 3);
+    ASSERT_EQ(c_pixels, width * height * 3);
 
     // Check if the screenshot has the correct data (at least one pixel)
     uint8_t* pixelData = reinterpret_cast<uint8_t*>(pixels.data());
@@ -130,14 +130,14 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
     // Create an ActiveFakePixmanDisplay
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
-    size_t cPixels = 10;
-    std::vector<uint8_t> pixels(cPixels);
-    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
-                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
+    size_t c_pixels = 10;
+    std::vector<uint8_t> pixels(c_pixels);
+    auto result = display->GetPixels(PixelFormat::kRgba8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &c_pixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
 
-    ASSERT_GT(cPixels, 10);
+    ASSERT_GT(c_pixels, 10);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
@@ -150,22 +150,22 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
 
     // First call with a too small buffer
-    size_t cPixels = 10;
-    std::vector<uint8_t> pixels(cPixels);
-    auto result = display->getPixels(PixelFormat::RGBA8888, width, height,
-                                     ImageRotation::kRotation0, pixels.data(), &cPixels);
+    size_t c_pixels = 10;
+    std::vector<uint8_t> pixels(c_pixels);
+    auto result = display->GetPixels(PixelFormat::kRgba8888, width, height,
+                                     ImageRotation::kRotation0, pixels.data(), &c_pixels);
     ASSERT_FALSE(result.ok());
     ASSERT_EQ(result.status().code(), absl::StatusCode::kFailedPrecondition);
-    ASSERT_GT(cPixels, 10);
+    ASSERT_GT(c_pixels, 10);
 
     // Resize the buffer to the correct size
-    pixels.resize(cPixels);
+    pixels.resize(c_pixels);
 
     // Second call with the resized buffer
-    result = display->getPixels(PixelFormat::RGBA8888, width, height, ImageRotation::kRotation0,
-                                pixels.data(), &cPixels);
+    result = display->GetPixels(PixelFormat::kRgba8888, width, height, ImageRotation::kRotation0,
+                                pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
-    ASSERT_EQ(cPixels, width * height * 4);
+    ASSERT_EQ(c_pixels, width * height * 4);
 
     // Check if the screenshot has the correct data (at least one blue pixel)
     uint32_t* pixelData = reinterpret_cast<uint32_t*>(pixels.data());
@@ -185,10 +185,10 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationPortraitSource) {
     auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
 
     auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
-        size_t cPixels = destW * destH * 4;
-        std::vector<uint8_t> buffer(cPixels);
-        auto result = display->getPixels(PixelFormat::RGBA8888, destW, destH, rot, buffer.data(),
-                                         &cPixels);
+        size_t c_pixels = destW * destH * 4;
+        std::vector<uint8_t> buffer(c_pixels);
+        auto result = display->GetPixels(PixelFormat::kRgba8888, destW, destH, rot, buffer.data(),
+                                         &c_pixels);
         ASSERT_TRUE(result.ok()) << "Rotation " << static_cast<int>(rot) << " failed";
 
         uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
@@ -222,10 +222,10 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationLandscapeSource) {
     auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
 
     auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
-        size_t cPixels = destW * destH * 4;
-        std::vector<uint8_t> buffer(cPixels);
-        auto result = display->getPixels(PixelFormat::RGBA8888, destW, destH, rot, buffer.data(),
-                                         &cPixels);
+        size_t c_pixels = destW * destH * 4;
+        std::vector<uint8_t> buffer(c_pixels);
+        auto result = display->GetPixels(PixelFormat::kRgba8888, destW, destH, rot, buffer.data(),
+                                         &c_pixels);
         ASSERT_TRUE(result.ok());
         uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
         EXPECT_EQ(pixels[expectedY * destW + expectedX], 0xFFFF0000)
@@ -254,10 +254,10 @@ TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationSquareSource) {
     auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
 
     auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY) {
-        size_t cPixels = size * size * 4;
-        std::vector<uint8_t> buffer(cPixels);
-        auto result =
-                display->getPixels(PixelFormat::RGBA8888, size, size, rot, buffer.data(), &cPixels);
+        size_t c_pixels = size * size * 4;
+        std::vector<uint8_t> buffer(c_pixels);
+        auto result = display->GetPixels(PixelFormat::kRgba8888, size, size, rot, buffer.data(),
+                                         &c_pixels);
         ASSERT_TRUE(result.ok());
         uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
         EXPECT_EQ(pixels[expectedY * size + expectedX], 0xFFFF0000)
@@ -329,8 +329,8 @@ TEST_F(FakePixmanDisplayTest, ResizeEvent) {
 
     absl::MutexLock lock(&listener->eventsMutex);
     ASSERT_EQ(listener->events.size(), 1);
-    EXPECT_EQ(listener->events[0].previousWidth, 100);
-    EXPECT_EQ(listener->events[0].previousHeight, 50);
+    EXPECT_EQ(listener->events[0].previous_width, 100);
+    EXPECT_EQ(listener->events[0].previous_height, 50);
     EXPECT_EQ(listener->events[0].width, 200);
     EXPECT_EQ(listener->events[0].height, 100);
 }

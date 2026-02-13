@@ -31,22 +31,22 @@ struct DisplayEvent {
     using AddedEvent = DisplayPtr;
     using DeletedEvent = DisplayId;
 
-    std::variant<AddedEvent, DeletedEvent> eventData;
+    std::variant<AddedEvent, DeletedEvent> event_data;
 
     // Helper functions to check event type and access data safely
-    bool isAddedEvent() const { return std::get_if<AddedEvent>(&eventData); }
-    bool isDeletedEvent() const { return std::get_if<DeletedEvent>(&eventData); }
+    bool IsAddedEvent() const { return std::get_if<AddedEvent>(&event_data); }
+    bool IsDeletedEvent() const { return std::get_if<DeletedEvent>(&event_data); }
 
-    DisplayPtr display() const {
-        if (isAddedEvent()) {
-            return std::get<AddedEvent>(eventData);
+    DisplayPtr Display() const {
+        if (IsAddedEvent()) {
+            return std::get<AddedEvent>(event_data);
         }
         return {};
     }
 
-    DisplayId displayId() const {
-        if (isDeletedEvent()) {
-            return std::get<DeletedEvent>(eventData);
+    DisplayId DisplayId() const {
+        if (IsDeletedEvent()) {
+            return std::get<DeletedEvent>(event_data);
         }
         return -1;
     }
@@ -60,19 +60,20 @@ struct DisplayEvent {
 class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
   public:
     /**
-     * @brief Returns the singleton instance of MultiDisplay.
-     * @return Pointer to the MultiDisplay instance.
+     * @brief Returns the singleton Instance of MultiDisplay.
+     * @return Pointer to the MultiDisplay Instance.
      */
-    static IMultiDisplay* instance();
-    static void injectSingleton(IMultiDisplay* display);
+    static IMultiDisplay* Instance();
+    static void InjectSingleton(IMultiDisplay* display);
 
-    IMultiDisplay(EventLoop* loop) : LoopBoundCallbackSource<DisplayEvent>(loop), mLoop(loop) {}
+    explicit IMultiDisplay(EventLoop* loop)
+            : LoopBoundCallbackSource<DisplayEvent>(loop), loop_(loop) {}
     virtual ~IMultiDisplay() = default;
 
     /**
      * @brief Creates a new IDisplay object and adds it to the managed collection.
      *
-     * @param displayId The unique identifier for the new display.
+     * @param display_id The unique identifier for the new display.
      * @param width The width of the display in pixels.
      * @param height The height of the display in pixels.
      * @return absl::StatusOr containing a raw IDisplay* pointer to the newly created IDisplay on
@@ -82,22 +83,22 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      *
      * TODO(jansene): This is to be called from the UI to create an addition display in the device.
      */
-    virtual absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
+    virtual absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
                                                      uint32_t height) = 0;
 
     /**
      * @brief Returns the enabled state of MultiDisplay.
      * @return True if MultiDisplay is enabled, false otherwise.
      */
-    virtual bool isEnabled() const = 0;
+    virtual bool IsEnabled() const = 0;
 
     /**
      * @brief Gets an IDisplay object by its ID.
      *
-     * @param displayId The unique identifier of the display to retrieve.
+     * @param display_id The unique identifier of the display to retrieve.
      * @return Raw IDisplay* pointer if the display with the given ID is found, nullptr otherwise.
      */
-    virtual absl::StatusOr<DisplayPtr> getDisplay(DisplayId displayId) const = 0;
+    virtual absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const = 0;
 
     /**
      * @brief Erases an IDisplay object from the managed collection and destroys it.
@@ -106,7 +107,7 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      *  to ensure proper cleanup and resource release. Displays are NOT automatically removed
      *  when they go out of scope.
      *
-     * @param displayId The unique identifier of the display to erase.
+     * @param display_id The unique identifier of the display to erase.
      * @return absl::Status indicating success or failure.
      *         - absl::OkStatus() on success.
      *         - absl::NotFoundError if the display with the given ID is not found.
@@ -114,40 +115,40 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      * the default display)
      *         - absl::InternalError on internal errors.
      */
-    virtual absl::Status eraseDisplay(DisplayId displayId) = 0;
+    virtual absl::Status EraseDisplay(DisplayId display_id) = 0;
 
     /* Snapshot of all the active displays */
-    virtual std::vector<DisplayPtr> displays() const = 0;
+    virtual std::vector<DisplayPtr> Displays() const = 0;
 
     /**
      * @brief Retrieves the default display of the Android device.
      *
      * This method returns the main display of the Android device, which is typically
      * created very early during the device's initialization. The default display
-     * is always associated with `displayId == 0`.
+     * is always associated with `display_id == 0`.
      *
      * @return absl::StatusOr<DisplayPtr> An `absl::StatusOr` containing:
      *         - A `DisplayPtr` to the default display on success.
-     *         - An error `absl::Status` if the default display (displayId 0) is not found.
+     *         - An error `absl::Status` if the default display (display_id 0) is not found.
      *
      * @note The default display is guaranteed to exist in a properly initialized
      *       Android device. If this method returns an error, it indicates a
      *       critical issue with the display system.
-     * @note This is equivalent to calling `getDisplay(0)`.
+     * @note This is equivalent to calling `GetDisplay(0)`.
      */
-    absl::StatusOr<DisplayPtr> defaultDisplay() const { return getDisplay(0); }
+    absl::StatusOr<DisplayPtr> DefaultDisplay() const { return GetDisplay(0); }
 
-    static constexpr size_t maxDisplays = 11;  ///< Maximum number of supported Android displays.
+    static constexpr size_t kMaxDisplays = 11;  ///< Maximum number of supported Android displays.
 
   protected:
-    EventLoop* mLoop;
+    EventLoop* loop_;
 
   private:
-    static std::atomic<IMultiDisplay*> gSingleton;
+    static std::atomic<IMultiDisplay*> g_singleton;
 };
 
-namespace QemuMultidisplay {
-void configureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop);
+namespace qemu_multidisplay {
+void ConfigureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop);
 }
 
 }  // namespace goldfish::display
