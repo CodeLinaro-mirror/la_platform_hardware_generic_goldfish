@@ -2,9 +2,9 @@
 # The root of our bazel workspace
 BAZEL_ROOT = "{{ config_root }}"
 '_'.path = [
-    "{{config_root}}/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
-    "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin",
-    "$ANDROID_HOME/platform-tools/"
+  "{{config_root}}/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
+  "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin",
+  "$ANDROID_HOME/platform-tools/",
 ]
 
 [tasks.build]
@@ -39,3 +39,23 @@ run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y --label 'Presubmit-Ready+1'
 [tasks.gum]
 description = "Update the latest commit if you are the owner"
 run = "cd $MISE_ORIGINAL_CWD; if [[ $(git show HEAD --author $USER) ]]; then git add --update .; git commit --amend ; else echo Not the owner of last commit!; fi"
+
+[tasks.fastbuild]
+description = "Fast C++-only verification build"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$BAZEL_ROOT"
+
+echo "Identifying non-C++ targets to exclude..."
+RAW_EXCLUSIONS=$(bazel query "(@goldfish//...) except kind('cc_.*', @goldfish//...)" 2>/dev/null)
+
+COUNT=$(echo "$RAW_EXCLUSIONS" | grep -c . || echo 0)
+echo "Excluding $COUNT non-C++ targets from the build graph."
+
+# Use sed to prefix each target with a '-' so Bazel subtracts it
+EXCLUSIONS=$(echo "$RAW_EXCLUSIONS" | sed 's/^/-/')
+
+# Build the whole repo (@goldfish//...) minus the excluded targets
+bazel build -c fastbuild --noshow_progress -- @goldfish//... $EXCLUSIONS
+"""
