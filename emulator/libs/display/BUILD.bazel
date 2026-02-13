@@ -133,6 +133,7 @@ clang_tidy_test(
     name = "tidy",
     targets = [
         "display",
+        "video_recorder",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

@@ -82,7 +82,7 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         size_t c_pixels = width2 * height2 * 3;
         auto seq = display->GetPixels(format2, width2, height2, rotation2, pixels, &c_pixels);
     };
-    recorder_->start(kFileName, frame_generator);
+    recorder_->Start(kFileName, frame_generator);
 
     RecordingInfo new_recording = *request;
     new_recording.set_state(RecordingInfo::RECORDER_STATE_RECORDING);
@@ -115,7 +115,7 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
     it->second.set_state(RecordingInfo::RECORDER_STATE_STOPPED);
     *response = it->second;
 
-    recorder_->stop();
+    recorder_->Stop();
     recorder_.reset();
 
     LOG(INFO) << "Stopped recording: " << request->file_name() << std::endl;

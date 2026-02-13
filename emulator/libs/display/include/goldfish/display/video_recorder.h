@@ -30,39 +30,38 @@ using DrawCallback = std::function<void(uint8_t*, int, int, int, double)>;
 
 class VideoRecorder {
   public:
-    VideoRecorder(int width, int height, int fps, int bitrate, int sec);
+    VideoRecorder(int width, int height, int fps, int bitrate, int duration);
     ~VideoRecorder();
 
     // Starts the recording process in a new background thread.
     // filename: Output path for the .webm file.
     // callback: Function that will be called 'fps' times a second to fill the buffer.
-    bool start(const std::string& filename, DrawCallback callback);
+    bool Start(const std::string& filename, DrawCallback callback);
 
     // Signals the background thread to stop, waits for it to finish,
     // and flushes the encoder to disk.
-    void stop();
+    void Stop();
 
     // Returns true if the recording thread is currently active.
-    bool isRunning() const;
+    bool IsRunning() const;
 
-  private:
-    // The main loop that runs inside workerThread
-    void generationLoop();
+  private:  // The main loop that runs inside worker_thread_
+    void GenerationLoop();
 
     // Configuration
-    int width;
-    int height;
-    int fps;
-    int bitrate;
-    int duration; //seconds
+    int width_;
+    int height_;
+    int fps_;
+    int bitrate_;
+    int duration_;  // seconds
 
     // State
-    std::atomic<bool> running{false};
-    DrawCallback drawCallback;
+    std::atomic<bool> running_{false};
+    DrawCallback draw_callback_;
 
     // Resources
-    std::thread workerThread;
-    std::unique_ptr<WebMEncoder> encoder;
+    std::thread worker_thread_;
+    std::unique_ptr<WebMEncoder> encoder_;
 };
 
 }  // namespace goldfish::display
