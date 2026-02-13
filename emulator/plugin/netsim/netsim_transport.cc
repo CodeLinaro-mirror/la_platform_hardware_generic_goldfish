@@ -57,7 +57,7 @@ void NetsimTransport::cancel() {
         mDone.Notify();
     }
     if (mGrpcClient) {
-        mGrpcClient->disconnect();
+        mGrpcClient->Disconnect();
     }
 }
 
@@ -84,15 +84,15 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
 
     ASSIGN_OR_RETURN(mGrpcClient,
                      android::emulation::control::EmulatorGrpcClientBuilder()
-                             .withEndpoint(endpoint_config)
+                             .WithEndpoint(endpoint_config)
                              // TODO(whollins): re-add interceptiors e.g.
-                             //.withInterceptor(std::make_unique<MetricsInterceptorFactory>());
-                             .buildBlocking());
+                             //.WithInterceptor(std::make_unique<MetricsInterceptorFactory>());
+                             .BuildBlocking());
     // TODO(whollins): Consider changing to non-blocking.
-    RETURN_IF_ERROR(mGrpcClient->connect(kConnectionDeadline));
-    ASSIGN_OR_RETURN(mPacketStreamerStub, mGrpcClient->stub<::netsim::packet::PacketStreamer>());
+    RETURN_IF_ERROR(mGrpcClient->Connect(kConnectionDeadline));
+    ASSIGN_OR_RETURN(mPacketStreamerStub, mGrpcClient->Stub<::netsim::packet::PacketStreamer>());
 
-    ASSIGN_OR_RETURN(mStreamPacketsContext, mGrpcClient->newContext());
+    ASSIGN_OR_RETURN(mStreamPacketsContext, mGrpcClient->NewContext());
     mPacketStreamerStub->async()->StreamPackets(mStreamPacketsContext.get(), this);
     StartCall();
     send(initial_request);

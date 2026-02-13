@@ -36,12 +36,10 @@
 #include "emulator/grpc/client/grpc_connection_monitor.h"
 #include "goldfish/eventing/event_sources.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 namespace {
-static std::future<absl::Status> make_ready_status_future(absl::Status status) {
+std::future<absl::Status> MakeReadyStatusFuture(absl::Status status) {
     std::promise<absl::Status> promise;
     promise.set_value(std::move(status));
     return promise.get_future();
@@ -54,238 +52,235 @@ class EmulatorGrpcClientImpl : public std::enable_shared_from_this<EmulatorGrpcC
 
   public:
     explicit EmulatorGrpcClientImpl(Endpoint dest, InterceptorFactories interceptors)
-            : mEndpoint(std::move(dest)), mInterceptors(std::move(interceptors)) {}
-    virtual ~EmulatorGrpcClientImpl() { disconnect(); }
+            : endpoint_(std::move(dest)), interceptors_(std::move(interceptors)) {}
+    virtual ~EmulatorGrpcClientImpl() { Disconnect(); }
 
-    const Endpoint& getEndpoint() const { return mEndpoint; }
+    const Endpoint& GetEndpoint() const { return endpoint_; }
 
-    ConnectionState getConnectionState() const { return mState.load(std::memory_order_acquire); }
+    ConnectionState GetConnectionState() const { return state_.load(std::memory_order_acquire); }
 
-    absl::Status connect(absl::Duration timeout);
-    std::future<absl::Status> connectAsync(absl::Duration timeout);
-    void disconnect();
+    absl::Status Connect(absl::Duration timeout);
+    std::future<absl::Status> ConnectAsync(absl::Duration timeout);
+    void Disconnect();
 
-    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> newContext();
+    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext();
 
-    std::shared_ptr<::grpc::Channel> getChannel() {
-        absl::MutexLock lock(&mChannelMutex);
-        return mChannel;
+    std::shared_ptr<::grpc::Channel> GetChannel() {
+        const absl::MutexLock lock(&channel_mutex_);
+        return channel_;
     }
 
   private:
-    void createChannelIfNeeded();
+    void CreateChannelIfNeeded();
 
-    Endpoint mEndpoint;
-    InterceptorFactories mInterceptors;
-    std::shared_ptr<grpc::CallCredentials> mCredentials;
-    std::atomic<ConnectionState> mState{ConnectionState::Disconnected};
+    Endpoint endpoint_;
+    InterceptorFactories interceptors_;
+    std::shared_ptr<grpc::CallCredentials> credentials_;
+    std::atomic<ConnectionState> state_{ConnectionState::kDisconnected};
 
-    absl::Mutex mChannelMutex;
-    std::shared_ptr<::grpc::Channel> mChannel ABSL_GUARDED_BY(mChannelMutex);
-    std::unique_ptr<GrpcConnectionMonitor> mMonitor;
+    absl::Mutex channel_mutex_;
+    std::shared_ptr<::grpc::Channel> channel_ ABSL_GUARDED_BY(channel_mutex_);
+    std::unique_ptr<GrpcConnectionMonitor> monitor_;
     decltype(android::base::eventing::MakeScopedCallback(
             std::declval<android::base::eventing::CallbackEventSource<ConnectionState>&>(),
-            std::function<void(ConnectionState)>())) mMonitorCallbackHandle;
+            std::function<void(ConnectionState)>())) monitor_callback_handle_;
 
-    std::atomic<bool> mShuttingDown{false};
-    android::base::eventing::CallbackEventSource<ConnectionState> mConnectionStateSource;
+    std::atomic<bool> shutting_down_{false};
+    android::base::eventing::CallbackEventSource<ConnectionState> connection_state_source_;
 };
 
-absl::Status EmulatorGrpcClientImpl::connect(absl::Duration timeout) {
-    ConnectionState expected = ConnectionState::Disconnected;
-    if (!mState.compare_exchange_strong(expected, ConnectionState::Connecting)) {
+absl::Status EmulatorGrpcClientImpl::Connect(absl::Duration timeout) {
+    ConnectionState expected = ConnectionState::kDisconnected;
+    if (!state_.compare_exchange_strong(expected, ConnectionState::kConnecting)) {
         return absl::AlreadyExistsError("Connection is already active or connecting.");
     }
-    mConnectionStateSource.FireEvent(ConnectionState::Connecting);
+    connection_state_source_.FireEvent(ConnectionState::kConnecting);
 
-    createChannelIfNeeded();
-    if (!getChannel()) {
-        mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
+    CreateChannelIfNeeded();
+    if (!GetChannel()) {
+        state_.store(ConnectionState::kDisconnected, std::memory_order_release);
+        connection_state_source_.FireEvent(ConnectionState::kDisconnected);
         return absl::InvalidArgumentError(
                 "Failed to create gRPC channel. Check TLS configuration for "
                 "non-local addresses.");
     }
 
     auto deadline = std::chrono::system_clock::now() + absl::ToChronoMilliseconds(timeout);
-    bool connected = getChannel()->WaitForConnected(deadline);
+    const bool connected = GetChannel()->WaitForConnected(deadline);
 
     if (connected) {
-        mState.store(ConnectionState::Connected, std::memory_order_release);
-        mConnectionStateSource.FireEvent(ConnectionState::Connected);
+        state_.store(ConnectionState::kConnected, std::memory_order_release);
+        connection_state_source_.FireEvent(ConnectionState::kConnected);
         return absl::OkStatus();
-    } else {
-        mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
-        return absl::DeadlineExceededError("Failed to connect within timeout.");
     }
+    state_.store(ConnectionState::kDisconnected, std::memory_order_release);
+    connection_state_source_.FireEvent(ConnectionState::kDisconnected);
+    return absl::DeadlineExceededError("Failed to connect within timeout.");
 }
 
-std::future<absl::Status> EmulatorGrpcClientImpl::connectAsync(absl::Duration timeout) {
-    ConnectionState expected = ConnectionState::Disconnected;
-    if (!mState.compare_exchange_strong(expected, ConnectionState::Connecting)) {
-        return make_ready_status_future(
+std::future<absl::Status> EmulatorGrpcClientImpl::ConnectAsync(absl::Duration timeout) {
+    ConnectionState expected = ConnectionState::kDisconnected;
+    if (!state_.compare_exchange_strong(expected, ConnectionState::kConnecting)) {
+        return MakeReadyStatusFuture(
                 absl::AlreadyExistsError("Connection is already active or connecting."));
     }
-    mShuttingDown.store(false, std::memory_order_release);
-    mConnectionStateSource.FireEvent(ConnectionState::Connecting);
+    shutting_down_.store(false, std::memory_order_release);
+    connection_state_source_.FireEvent(ConnectionState::kConnecting);
 
-    createChannelIfNeeded();
-    if (!getChannel()) {
-        mState.store(ConnectionState::Disconnected, std::memory_order_release);
-        mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
-        return make_ready_status_future(absl::InternalError("Failed to create gRPC channel."));
+    CreateChannelIfNeeded();
+    if (!GetChannel()) {
+        state_.store(ConnectionState::kDisconnected, std::memory_order_release);
+        connection_state_source_.FireEvent(ConnectionState::kDisconnected);
+        return MakeReadyStatusFuture(absl::InternalError("Failed to create gRPC channel."));
     }
 
-    mMonitor = std::make_unique<GrpcConnectionMonitor>(getChannel());
-    mMonitorCallbackHandle = android::base::eventing::MakeScopedCallback(
-            mMonitor->mStateChanges, [weak_self = weak_from_this()](ConnectionState state) {
+    monitor_ = std::make_unique<GrpcConnectionMonitor>(GetChannel());
+    monitor_callback_handle_ = android::base::eventing::MakeScopedCallback(
+            monitor_->state_changes, [weak_self = weak_from_this()](ConnectionState state) {
                 // Forward channel state event, (if we are still alive.)
                 if (auto self = weak_self.lock()) {
-                    self->mState.store(state, std::memory_order_release);
-                    self->mConnectionStateSource.FireEvent(state);
+                    self->state_.store(state, std::memory_order_release);
+                    self->connection_state_source_.FireEvent(state);
                 }
             });
 
-    return mMonitor->watch(timeout);
+    return monitor_->Watch(timeout);
 }
 
-void EmulatorGrpcClientImpl::disconnect() {
-    if (mShuttingDown.exchange(true)) {
+void EmulatorGrpcClientImpl::Disconnect() {
+    if (shutting_down_.exchange(true)) {
         return;  // Already shutting down.
     }
-    mMonitorCallbackHandle = {};
+    monitor_callback_handle_ = {};
     {
-        absl::MutexLock lock(&mChannelMutex);
-        mChannel.reset();
+        const absl::MutexLock lock(&channel_mutex_);
+        channel_.reset();
     }
-    if (mMonitor) {
-        mMonitor->stop();
+    if (monitor_) {
+        monitor_->Stop();
     }
-    mState.store(ConnectionState::Disconnected, std::memory_order_release);
-    mConnectionStateSource.FireEvent(ConnectionState::Disconnected);
+    state_.store(ConnectionState::kDisconnected, std::memory_order_release);
+    connection_state_source_.FireEvent(ConnectionState::kDisconnected);
 }
 
-absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientImpl::newContext() {
-    if (getConnectionState() != ConnectionState::Connected) {
+absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientImpl::NewContext() {
+    if (GetConnectionState() != ConnectionState::kConnected) {
         return absl::FailedPreconditionError(
-                "Client is not connected. Call connect() or connectAsync() "
+                "Client is not connected. Call Connect() or ConnectAsync() "
                 "first.");
     }
     auto ctx = std::make_unique<grpc::ClientContext>();
-    if (mCredentials) {
-        ctx->set_credentials(mCredentials);
+    if (credentials_) {
+        ctx->set_credentials(credentials_);
     }
     return ctx;
 }
 
-void EmulatorGrpcClientImpl::createChannelIfNeeded() {
-    absl::MutexLock lock(&mChannelMutex);
-    if (mChannel) return;
+void EmulatorGrpcClientImpl::CreateChannelIfNeeded() {
+    const absl::MutexLock lock(&channel_mutex_);
+    if (channel_) return;
 
-    GrpcChannelFactory factory(mEndpoint, std::move(mInterceptors));
-    mChannel = factory.createChannel();
-    mCredentials = factory.credentials();
+    GrpcChannelFactory factory(endpoint_, std::move(interceptors_));
+    channel_ = factory.CreateChannel();
+    credentials_ = factory.Credentials();
 }
 
 // --- Base Class Implementation ---
-EmulatorGrpcClientBase::EmulatorGrpcClientBase() : pImpl(nullptr) {}
+EmulatorGrpcClientBase::EmulatorGrpcClientBase() : p_impl_(nullptr) {}
 EmulatorGrpcClientBase::~EmulatorGrpcClientBase() = default;
 
-const Endpoint& EmulatorGrpcClientBase::getEndpoint() const {
-    return pImpl->getEndpoint();
+const Endpoint& EmulatorGrpcClientBase::GetEndpoint() const {
+    return p_impl_->GetEndpoint();
 }
 
-ConnectionState EmulatorGrpcClientBase::getConnectionState() const {
-    return pImpl->getConnectionState();
+ConnectionState EmulatorGrpcClientBase::GetConnectionState() const {
+    return p_impl_->GetConnectionState();
 }
 
-absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientBase::newContext() {
-    return pImpl->newContext();
+absl::StatusOr<std::unique_ptr<grpc::ClientContext>> EmulatorGrpcClientBase::NewContext() {
+    return p_impl_->NewContext();
 }
 
-std::shared_ptr<::grpc::Channel> EmulatorGrpcClientBase::getChannel() {
-    return pImpl->getChannel();
+std::shared_ptr<::grpc::Channel> EmulatorGrpcClientBase::GetChannel() {
+    return p_impl_->GetChannel();
 }
 
 // --- Blocking Client Implementation ---
-absl::Status BlockingEmulatorGrpcClient::connect(absl::Duration timeout) {
-    return pImpl->connect(timeout);
+absl::Status BlockingEmulatorGrpcClient::Connect(absl::Duration timeout) {
+    return p_impl_->Connect(timeout);
 }
 
-void BlockingEmulatorGrpcClient::disconnect() {
-    pImpl->disconnect();
+void BlockingEmulatorGrpcClient::Disconnect() {
+    p_impl_->Disconnect();
 }
 
 // --- Callback Client Implementation ---
-std::future<absl::Status> CallbackEmulatorGrpcClient::connectAsync(absl::Duration timeout) {
-    return pImpl->connectAsync(timeout);
+std::future<absl::Status> CallbackEmulatorGrpcClient::ConnectAsync(absl::Duration timeout) {
+    return p_impl_->ConnectAsync(timeout);
 }
 
-void CallbackEmulatorGrpcClient::disconnect() {
-    pImpl->disconnect();
+void CallbackEmulatorGrpcClient::Disconnect() {
+    p_impl_->Disconnect();
 }
 
 android::base::eventing::CallbackEventSource<ConnectionState>&
-CallbackEmulatorGrpcClient::connectionStateChanges() {
-    return pImpl->mConnectionStateSource;
+CallbackEmulatorGrpcClient::ConnectionStateChanges() {
+    return p_impl_->connection_state_source_;
 }
 
 // --- Builder Implementation ---
-EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::withDiscoveryFile(
+EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithDiscoveryFile(
         const std::filesystem::path& discovery_file) {
-    if (!mStatus.ok()) return *this;
-    mDestination.Clear();
-    android::goldfish::IniFile iniFile(discovery_file.string());
-    iniFile.Read();
-    if (!iniFile.HasKey("grpc.port")) {
-        mStatus = absl::InvalidArgumentError("No grpc port defined in " + discovery_file.string());
+    if (!status_.ok()) return *this;
+    destination_.Clear();
+    android::goldfish::IniFile ini_file(discovery_file.string());
+    ini_file.Read();
+    if (!ini_file.HasKey("grpc.port")) {
+        status_ = absl::InvalidArgumentError("No grpc port defined in " + discovery_file.string());
         return *this;
     }
-    if (iniFile.HasKey("grpc.token")) {
-        auto token = iniFile.GetString("grpc.token", "");
-        auto* header = mDestination.add_required_headers();
+    if (ini_file.HasKey("grpc.token")) {
+        auto token = ini_file.GetString("grpc.token", "");
+        auto* header = destination_.add_required_headers();
         header->set_key(android::emulation::control::BasicTokenAuth::kDefaultHeader);
         header->set_value("Bearer " + token);
     }
-    mDestination.set_target("localhost:" + iniFile.GetString("grpc.port", "8554"));
+    destination_.set_target("localhost:" + ini_file.GetString("grpc.port", "8554"));
     return *this;
 }
 
-EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::withEndpoint(const Endpoint& endpoint) {
-    if (!mStatus.ok()) return *this;
-    mDestination.Clear();
-    mDestination.CopyFrom(endpoint);
+EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithEndpoint(const Endpoint& endpoint) {
+    if (!status_.ok()) return *this;
+    destination_.Clear();
+    destination_.CopyFrom(endpoint);
     return *this;
 }
 
-EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::withInterceptor(
+EmulatorGrpcClientBuilder& EmulatorGrpcClientBuilder::WithInterceptor(
         std::unique_ptr<ClientInterceptorFactoryInterface> factory) {
-    if (!mStatus.ok()) return *this;
-    mFactories.push_back(std::move(factory));
+    if (!status_.ok()) return *this;
+    factories_.push_back(std::move(factory));
     return *this;
 }
 
 absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>>
-EmulatorGrpcClientBuilder::buildBlocking() {
-    if (!mStatus.ok()) {
-        return mStatus;
+EmulatorGrpcClientBuilder::BuildBlocking() {
+    if (!status_.ok()) {
+        return status_;
     }
     auto client = std::make_unique<BlockingEmulatorGrpcClient>();
-    client->pImpl = std::make_shared<EmulatorGrpcClientImpl>(mDestination, std::move(mFactories));
+    client->p_impl_ = std::make_shared<EmulatorGrpcClientImpl>(destination_, std::move(factories_));
     return client;
 }
 
 absl::StatusOr<std::unique_ptr<CallbackEmulatorGrpcClient>>
-EmulatorGrpcClientBuilder::buildCallback() {
-    if (!mStatus.ok()) {
-        return mStatus;
+EmulatorGrpcClientBuilder::BuildCallback() {
+    if (!status_.ok()) {
+        return status_;
     }
     auto client = std::make_unique<CallbackEmulatorGrpcClient>();
-    client->pImpl = std::make_shared<EmulatorGrpcClientImpl>(mDestination, std::move(mFactories));
+    client->p_impl_ = std::make_shared<EmulatorGrpcClientImpl>(destination_, std::move(factories_));
     return client;
 }
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

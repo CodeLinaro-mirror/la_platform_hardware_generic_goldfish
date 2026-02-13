@@ -18,6 +18,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
@@ -31,57 +32,57 @@ namespace {
 class HeaderInjector : public grpc::MetadataCredentialsPlugin {
   public:
     explicit HeaderInjector(std::unordered_map<std::string, std::string> headers)
-            : mHeaders(std::move(headers)) {}
+            : headers_(std::move(headers)) {}
     ~HeaderInjector() override = default;
 
-    grpc::Status GetMetadata(grpc::string_ref service_url, grpc::string_ref method_name,
-                             const grpc::AuthContext& channel_auth_context,
+    grpc::Status GetMetadata(grpc::string_ref /*service_url*/, grpc::string_ref /*method_name*/,
+                             const grpc::AuthContext& /*channel_auth_context*/,
                              std::multimap<grpc::string, grpc::string>* metadata) override {
-        for (const auto& v : mHeaders) {
+        for (const auto& v : headers_) {
             metadata->insert(std::make_pair(v.first, v.second));
         }
         return grpc::Status::OK;
     }
 
   private:
-    std::unordered_map<std::string, std::string> mHeaders;
+    std::unordered_map<std::string, std::string> headers_;
 };
 
 }  // namespace
 
-GrpcChannelFactory::GrpcChannelFactory(const Endpoint& endpoint, InterceptorFactories interceptors)
-        : mEndpoint(endpoint), mInterceptors(std::move(interceptors)) {}
+GrpcChannelFactory::GrpcChannelFactory(Endpoint endpoint, InterceptorFactories interceptors)
+        : endpoint_(std::move(endpoint)), interceptors_(std::move(interceptors)) {}
 
-std::shared_ptr<grpc::CallCredentials> GrpcChannelFactory::credentials() const {
-    if (mCredentials) {
-        return mCredentials;
+std::shared_ptr<grpc::CallCredentials> GrpcChannelFactory::Credentials() const {
+    if (credentials_) {
+        return credentials_;
     }
 
-    if (!mEndpoint.required_headers().empty()) {
+    if (!endpoint_.required_headers().empty()) {
         std::unordered_map<std::string, std::string> map;
-        for (const auto& header : mEndpoint.required_headers()) {
+        for (const auto& header : endpoint_.required_headers()) {
             map[header.key()] = header.value();
         }
-        mCredentials = grpc::MetadataCredentialsFromPlugin(
+        credentials_ = grpc::MetadataCredentialsFromPlugin(
                 std::make_unique<HeaderInjector>(std::move(map)));
     }
-    return mCredentials;
+    return credentials_;
 }
 
-std::shared_ptr<grpc::Channel> GrpcChannelFactory::createChannel() {
-    auto address = mEndpoint.target();
+std::shared_ptr<grpc::Channel> GrpcChannelFactory::CreateChannel() {
+    auto address = endpoint_.target();
     std::shared_ptr<grpc::ChannelCredentials> channel_creds;
 
-    std::string ca_pem = mEndpoint.tls_credentials().pem_root_certs();
-    std::string key_pem = mEndpoint.tls_credentials().pem_private_key();
-    std::string cer_pem = mEndpoint.tls_credentials().pem_cert_chain();
+    const std::string ca_pem = endpoint_.tls_credentials().pem_root_certs();
+    const std::string key_pem = endpoint_.tls_credentials().pem_private_key();
+    const std::string cer_pem = endpoint_.tls_credentials().pem_cert_chain();
 
     if (!ca_pem.empty() || !key_pem.empty() || !cer_pem.empty()) {
-        grpc::SslCredentialsOptions sslOpts;
-        sslOpts.pem_root_certs = ca_pem;
-        sslOpts.pem_private_key = key_pem;
-        sslOpts.pem_cert_chain = cer_pem;
-        channel_creds = grpc::SslCredentials(sslOpts);
+        grpc::SslCredentialsOptions ssl_opts;
+        ssl_opts.pem_root_certs = ca_pem;
+        ssl_opts.pem_private_key = key_pem;
+        ssl_opts.pem_cert_chain = cer_pem;
+        channel_creds = grpc::SslCredentials(ssl_opts);
     } else if (absl::StartsWith(address, "127.0.0.1") || absl::StartsWith(address, "localhost")) {
         channel_creds = ::grpc::experimental::LocalCredentials(LOCAL_TCP);
     } else {
@@ -90,15 +91,15 @@ std::shared_ptr<grpc::Channel> GrpcChannelFactory::createChannel() {
         return nullptr;
     }
 
-    auto creds = credentials();
+    auto creds = Credentials();
     if (creds) {
         channel_creds = grpc::CompositeChannelCredentials(channel_creds, creds);
     }
 
-    grpc::ChannelArguments maxSize;
-    maxSize.SetMaxReceiveMessageSize(-1);
-    return grpc::experimental::CreateCustomChannelWithInterceptors(address, channel_creds, maxSize,
-                                                                   std::move(mInterceptors));
+    grpc::ChannelArguments max_size;
+    max_size.SetMaxReceiveMessageSize(-1);
+    return grpc::experimental::CreateCustomChannelWithInterceptors(address, channel_creds, max_size,
+                                                                   std::move(interceptors_));
 }
 
 }  // namespace control

@@ -62,7 +62,7 @@ std::tuple<Request*, Response*, std::shared_ptr<grpc::ClientContext>> createGrpc
         const std::shared_ptr<EmulatorGrpcClient>& client) {
     auto request = new Request();
     auto response = new Response();
-    auto context = client->newContext();
+    auto context = client->NewContext();
     return std::make_tuple(request, response, std::move(context));
 }
 

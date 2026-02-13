@@ -76,9 +76,9 @@ absl::StatusOr<NetsimConnection_ptr> connect_to_netsim(const std::string& endpoi
     endpoint_config.set_target(endpoint);
 
     ASSIGN_OR_RETURN(auto client, android::emulation::control::EmulatorGrpcClientBuilder()
-                                          .withEndpoint(endpoint_config)
-                                          .buildBlocking());
-    RETURN_IF_ERROR(client->connect(connection_deadline));
+                                          .WithEndpoint(endpoint_config)
+                                          .BuildBlocking());
+    RETURN_IF_ERROR(client->Connect(connection_deadline));
     return client;
 }
 

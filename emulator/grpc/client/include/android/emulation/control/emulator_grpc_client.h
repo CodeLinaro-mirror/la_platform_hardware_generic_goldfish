@@ -15,6 +15,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -26,9 +27,7 @@
 
 #include "goldfish/eventing/event_sources.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 // Forward declarations
 class BlockingEmulatorGrpcClient;
@@ -43,10 +42,10 @@ using InterceptorFactories = std::vector<InterceptorFactory>;
 /**
  * @brief Represents the current state of the gRPC connection.
  */
-enum class ConnectionState {
-    Disconnected,  ///< The client is not connected.
-    Connecting,    ///< A connection attempt is in progress.
-    Connected      ///< The client is connected and ready for RPC calls.
+enum class ConnectionState : std::uint8_t {
+    kDisconnected,  ///< The client is not connected.
+    kConnecting,    ///< A connection attempt is in progress.
+    kConnected      ///< The client is connected and ready for RPC calls.
 };
 
 // PIMPL class, defined in the .cpp file.
@@ -66,13 +65,13 @@ class EmulatorGrpcClientBase {
      * @brief Gets the endpoint configuration for this client.
      * @return A const reference to the `Endpoint` object.
      */
-    const Endpoint& getEndpoint() const;
+    const Endpoint& GetEndpoint() const;
 
     /**
      * @brief Gets the current connection state.
      * @return The current `ConnectionState`.
      */
-    ConnectionState getConnectionState() const;
+    ConnectionState GetConnectionState() const;
 
     /**
      * @brief Creates a new gRPC stub for a specific service.
@@ -86,13 +85,13 @@ class EmulatorGrpcClientBase {
      *         error if the client is not connected.
      */
     template <class T>
-    absl::StatusOr<std::unique_ptr<typename T::Stub>> stub() {
-        if (getConnectionState() != ConnectionState::Connected) {
+    absl::StatusOr<std::unique_ptr<typename T::Stub>> Stub() {
+        if (GetConnectionState() != ConnectionState::kConnected) {
             return absl::FailedPreconditionError(
-                    "Client is not connected. Call connect() or connectAsync() "
+                    "Client is not connected. Call Connect() or ConnectAsync() "
                     "first.");
         }
-        return T::NewStub(getChannel());
+        return T::NewStub(GetChannel());
     }
 
     /**
@@ -104,14 +103,14 @@ class EmulatorGrpcClientBase {
      *
      * @return A `StatusOr` containing either the context or an error.
      */
-    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> newContext();
+    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> NewContext();
 
   protected:
     EmulatorGrpcClientBase();
     friend class EmulatorGrpcClientBuilder;
 
-    std::shared_ptr<::grpc::Channel> getChannel();
-    std::shared_ptr<EmulatorGrpcClientImpl> pImpl;
+    std::shared_ptr<::grpc::Channel> GetChannel();
+    std::shared_ptr<EmulatorGrpcClientImpl> p_impl_;
 };
 
 /**
@@ -132,18 +131,18 @@ class EmulatorGrpcClientBase {
  *   // service headers (e.g., "emulator_controller.grpc.pb.h").
  *
  *   auto builder = EmulatorGrpcClientBuilder()
- *                      .withDiscoveryFile("path/to/discovery.ini");
+ *                      .WithDiscoveryFile("path/to/discovery.ini");
  *
- *   auto clientOrStatus = builder.buildBlocking();
+ *   auto clientOrStatus = builder.BuildBlocking();
  *   if (!clientOrStatus.ok()) { // handle config error/ }
  *   auto client = std::move(*clientOrStatus);
  *
- *   absl::Status status = client->connect(absl::Seconds(5));
+ *   absl::Status status = client->Connect(absl::Seconds(5));
  *   if (!status.ok()) { // handle connection error  }
  *
  *   // ... make RPC calls ...
  *
- *   client->disconnect();
+ *   client->Disconnect();
  * @endcode
  */
 class BlockingEmulatorGrpcClient : public EmulatorGrpcClientBase {
@@ -157,12 +156,12 @@ class BlockingEmulatorGrpcClient : public EmulatorGrpcClientBase {
      * @param timeout The maximum time to wait for a connection.
      * @return `absl::OkStatus()` on success, or an error status on failure.
      */
-    absl::Status connect(absl::Duration timeout);
+    absl::Status Connect(absl::Duration timeout);
 
     /**
      * @brief Closes the gRPC connection.
      */
-    void disconnect();
+    void Disconnect();
 };
 
 /**
@@ -173,8 +172,8 @@ class BlockingEmulatorGrpcClient : public EmulatorGrpcClientBase {
  * interfaces, that need to remain responsive and aware of the connection status.
  *
  * @par Trade-offs
- * This client provides significant benefits, including a non-blocking `connectAsync`
- * method, a `connectionStateChanges` event source for reactive UI updates, and
+ * This client provides significant benefits, including a non-blocking `ConnectAsync`
+ * method, a `ConnectionStateChanges` event source for reactive UI updates, and
  * automatic liveness monitoring to detect dropped connections. This is achieved
  * by managing a background worker thread, which introduces a small amount of
  * resource overhead compared to the `BlockingEmulatorGrpcClient`.
@@ -182,21 +181,21 @@ class BlockingEmulatorGrpcClient : public EmulatorGrpcClientBase {
  * @par Example
  * @code
  *   auto builder = EmulatorGrpcClientBuilder()
- *                      .withEndpoint(endpoint);
+ *                      .WithEndpoint(endpoint);
  *
- *   auto clientOrStatus = builder.buildCallback();
+ *   auto clientOrStatus = builder.BuildCallback();
  *   if (!clientOrStatus.ok()) { // handle config error  }
  *   auto client = std::move(*clientOrStatus);
  *
  *   // Subscribe to state changes to update a UI element.
  *   auto handle = android::base::eventing::makeScopedCallback(
- *       client->connectionStateChanges(),
+ *       client->ConnectionStateChanges(),
  *       [](ConnectionState state) {
  *           // Update UI based on state: Connecting, Connected, Disconnected
  *       });
  *
  *   // Initiate a non-blocking connection.
- *   std::future<absl::Status> future = client->connectAsync(absl::Seconds(10));
+ *   std::future<absl::Status> future = client->ConnectAsync(absl::Seconds(10));
  *   future.wait(); // Or handle the result on another thread.
  *
  *   // ... application logic ...
@@ -214,12 +213,12 @@ class CallbackEmulatorGrpcClient : public EmulatorGrpcClientBase {
      * @return A `std::future` that will be fulfilled with the connection status
      *         (`absl::OkStatus()` on success).
      */
-    std::future<absl::Status> connectAsync(absl::Duration timeout);
+    std::future<absl::Status> ConnectAsync(absl::Duration timeout);
 
     /**
      * @brief Closes the gRPC connection and stops the monitoring thread.
      */
-    void disconnect();
+    void Disconnect();
 
     /**
      * @brief Gets an event source for monitoring connection state changes.
@@ -229,7 +228,7 @@ class CallbackEmulatorGrpcClient : public EmulatorGrpcClientBase {
      *
      * @return A reference to the `CallbackEventSource`.
      */
-    android::base::eventing::CallbackEventSource<ConnectionState>& connectionStateChanges();
+    android::base::eventing::CallbackEventSource<ConnectionState>& ConnectionStateChanges();
 };
 
 /**
@@ -264,7 +263,7 @@ class EmulatorGrpcClientBuilder {
      *   ...
      * @endcode
      */
-    EmulatorGrpcClientBuilder& withDiscoveryFile(const std::filesystem::path& discovery_file);
+    EmulatorGrpcClientBuilder& WithDiscoveryFile(const std::filesystem::path& discovery_file);
 
     /**
      * @brief Configures the client using a pre-constructed `Endpoint` object.
@@ -290,11 +289,11 @@ class EmulatorGrpcClientBuilder {
      *   // security->set_server_ca_certificate("path/to/ca.pem");
      *
      *   auto client = EmulatorGrpcClientBuilder()
-     *                     .withEndpoint(endpoint)
-     *                     .buildBlocking();
+     *                     .WithEndpoint(endpoint)
+     *                     .BuildBlocking();
      * @endcode
      */
-    EmulatorGrpcClientBuilder& withEndpoint(const Endpoint& endpoint);
+    EmulatorGrpcClientBuilder& WithEndpoint(const Endpoint& endpoint);
     /**
      * @brief Adds a gRPC interceptor to the client.
      *
@@ -313,13 +312,13 @@ class EmulatorGrpcClientBuilder {
      *   // ...
      *
      *   auto client = EmulatorGrpcClientBuilder()
-     *       .withEndpoint(endpoint)
-     *       .withInterceptor(std::make_unique<
+     *       .WithEndpoint(endpoint)
+     *       .WithInterceptor(std::make_unique<
      *           android::control::interceptor::StdOutLoggingInterceptorFactory>())
-     *       .buildBlocking();
+     *       .BuildBlocking();
      * @endcode
      */
-    EmulatorGrpcClientBuilder& withInterceptor(
+    EmulatorGrpcClientBuilder& WithInterceptor(
             std::unique_ptr<ClientInterceptorFactoryInterface> factory);
 
     /**
@@ -327,32 +326,30 @@ class EmulatorGrpcClientBuilder {
      *
      * This method constructs a synchronous client based on the configuration
      * provided to the builder. The returned client will be in the
-     * `Disconnected` state. You must call `connect()` before making any RPC
+     * `Disconnected` state. You must call `Connect()` before making any RPC
      * calls.
      *
      * @return A `StatusOr` containing either the client instance or an error
      *         if the configuration was invalid.
      */
-    absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> buildBlocking();
+    absl::StatusOr<std::unique_ptr<BlockingEmulatorGrpcClient>> BuildBlocking();
 
     /**
      * @brief Builds a `CallbackEmulatorGrpcClient`.
      *
      * This method constructs an asynchronous, callback-based client. The
      * returned client will be in the `Disconnected` state. You must call
-     * `connectAsync()` to initiate a connection.
+     * `ConnectAsync()` to initiate a connection.
      *
      * @return A `StatusOr` containing either the client instance or an error
      *         if the configuration was invalid.
      */
-    absl::StatusOr<std::unique_ptr<CallbackEmulatorGrpcClient>> buildCallback();
+    absl::StatusOr<std::unique_ptr<CallbackEmulatorGrpcClient>> BuildCallback();
 
   private:
-    absl::Status mStatus{absl::OkStatus()};
-    InterceptorFactories mFactories;
-    Endpoint mDestination;
+    absl::Status status_{absl::OkStatus()};
+    InterceptorFactories factories_;
+    Endpoint destination_;
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

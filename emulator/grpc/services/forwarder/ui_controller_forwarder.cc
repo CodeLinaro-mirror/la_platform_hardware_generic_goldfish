@@ -48,7 +48,7 @@ Status UiControllerForwarder::ForwardCall(
     // TODO: We might want to cache the channel/stub if creating it every time is too expensive.
     // For infrequent UI calls, this is fine.
     android::emulation::control::GrpcChannelFactory factory(*endpoint_opt, {});
-    auto channel = factory.createChannel();
+    auto channel = factory.CreateChannel();
     if (!channel) {
         return Status(StatusCode::INTERNAL, "Failed to create forward channel");
     }

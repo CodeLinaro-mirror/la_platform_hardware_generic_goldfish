@@ -343,7 +343,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             connection.ok()) {
             VLOG(1) << "Launcher connection to netsim established";
             mNetsimdConnection = *std::move(connection);
-            chardevs->MutableResults().netsim = mNetsimdConnection->getEndpoint().target();
+            chardevs->MutableResults().netsim = mNetsimdConnection->GetEndpoint().target();
         } else {
             LOG(FATAL) << "Fatal error whilst trying to connect to netsimd: "
                        << connection.status();
@@ -387,7 +387,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         }
 
         if (mNetsimdConnection) {
-            mNetsimdConnection->disconnect();
+            mNetsimdConnection->Disconnect();
             mNetsimdConnection.reset();
         }
 
