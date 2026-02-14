@@ -1,0 +1,14 @@
+load("@rules_rust//rust:defs.bzl", "rust_proc_macro")
+
+rust_proc_macro(
+    name = "typed_builder_macro",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "typed_builder_macro",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@proc-macro2//:proc-macro2",
+        "@quote",
+        "@syn",
+    ],
+)

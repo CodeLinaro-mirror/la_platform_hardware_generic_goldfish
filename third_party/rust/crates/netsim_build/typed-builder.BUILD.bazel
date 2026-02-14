@@ -1,0 +1,12 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "typed_builder",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "typed_builder",
+    edition = "2024",
+    proc_macro_deps = [
+        "@typed-builder-macro//:typed_builder_macro",
+    ],
+    visibility = ["//visibility:public"],
+)

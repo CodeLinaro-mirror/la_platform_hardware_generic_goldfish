@@ -1,0 +1,14 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "peg_runtime",
+    srcs = [
+        "error.rs",
+        "lib.rs",
+        "slice.rs",
+        "str.rs",
+    ],
+    crate_name = "peg_runtime",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+)

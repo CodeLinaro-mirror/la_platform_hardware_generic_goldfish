@@ -1,0 +1,15 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "peg",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "peg",
+    edition = "2021",
+    proc_macro_deps = [
+        "@peg-macros//:peg_macros",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@peg-runtime//:peg_runtime",
+    ],
+)
