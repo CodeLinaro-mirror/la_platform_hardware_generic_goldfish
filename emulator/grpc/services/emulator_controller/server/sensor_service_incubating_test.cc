@@ -16,7 +16,10 @@
 #include <grpcpp/grpcpp.h>
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <memory>
+#include <thread>
+#include <vector>
 
 #include "emulator/config/test/android/goldfish/fake_hardware_config.h"
 #include "sensor_service.grpc.pb.h"
@@ -27,6 +30,8 @@ namespace control {
 namespace incubating {
 
 using ::goldfish::sensors::PhysicalModel;
+using ::google::protobuf::Empty;
+using ::grpc::ServerContext;
 using ::grpc::Status;
 
 class SensorServiceIncubatingTest : public ::testing::Test {
@@ -69,6 +74,31 @@ class SensorServiceIncubatingTest : public ::testing::Test {
     int mPort;
 };
 
+TEST_F(SensorServiceIncubatingTest, ReceivePhysicalStateEvents) {
+    auto context = getContextWithTimeout();
+    Empty request;
+    auto reader = mStub->receivePhysicalStateEvents(context.get(), request);
+
+    // Give it a bit of time to settle the connection.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Triggering target state change
+    float val = 1.0f;
+    mPhysicalModel->SetPhysicalParameterValue(::goldfish::sensors::PhysicalParameter::POSITION,
+                                              &val, 1, ::PhysicalInterpolation::kStep);
+
+    PhysicalStateEvent event;
+    // We expect at least two events: CHANGING and TARGET_STATE_CHANGED
+    ASSERT_TRUE(reader->Read(&event)) << "Failed to read first event";
+    EXPECT_EQ(event.event(), PhysicalStateEvent::STATE_PHYSICAL_STATE_CHANGING);
+
+    ASSERT_TRUE(reader->Read(&event)) << "Failed to read second event";
+    EXPECT_EQ(event.event(), PhysicalStateEvent::STATE_TARGET_STATE_CHANGED);
+
+    // Clean up
+    context->TryCancel();
+}
+
 TEST_F(SensorServiceIncubatingTest, SetGetPhysicalModel) {
     // Ensure time is set
     mPhysicalModel->SetCurrentTime(1000);
@@ -80,7 +110,7 @@ TEST_F(SensorServiceIncubatingTest, SetGetPhysicalModel) {
     request.mutable_value()->add_data(30.0f);
     request.set_interpolation(PhysicalModelValue::INTERPOLATION_STEP);
 
-    google::protobuf::Empty reply;
+    Empty reply;
     auto context = getContextWithTimeout();
     Status status = mStub->setPhysicalModel(context.get(), request, &reply);
     ASSERT_TRUE(status.ok()) << status.error_message();
@@ -101,6 +131,35 @@ TEST_F(SensorServiceIncubatingTest, SetGetPhysicalModel) {
     EXPECT_NEAR(getReply.value().data(0), 10.0f, 0.1f);
     EXPECT_NEAR(getReply.value().data(1), 20.0f, 0.1f);
     EXPECT_NEAR(getReply.value().data(2), 30.0f, 0.1f);
+}
+
+TEST_F(SensorServiceIncubatingTest, ReceivePhysicalModelEvents) {
+    auto context = getContextWithTimeout();
+    PhysicalModelValue request;
+    request.set_target(PhysicalModelValue::PHYSICAL_TYPE_POSITION);
+    request.set_value_type(PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET);
+
+    auto reader = mStub->receivePhysicalModelEvents(context.get(), request);
+
+    // Give it a bit of time to settle the connection.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Triggering target state change
+    float val[3] = {1.0f, 2.0f, 3.0f};
+    mPhysicalModel->SetPhysicalParameterValue(::goldfish::sensors::PhysicalParameter::POSITION, val,
+                                              3, ::PhysicalInterpolation::kStep);
+
+    PhysicalModelValue event;
+    // We expect one event for TARGET_STATE_CHANGED
+    ASSERT_TRUE(reader->Read(&event)) << "Failed to read event";
+    EXPECT_EQ(event.target(), PhysicalModelValue::PHYSICAL_TYPE_POSITION);
+    ASSERT_EQ(event.value().data_size(), 3);
+    EXPECT_NEAR(event.value().data(0), 1.0f, 0.1f);
+    EXPECT_NEAR(event.value().data(1), 2.0f, 0.1f);
+    EXPECT_NEAR(event.value().data(2), 3.0f, 0.1f);
+
+    // Clean up
+    context->TryCancel();
 }
 
 }  // namespace incubating

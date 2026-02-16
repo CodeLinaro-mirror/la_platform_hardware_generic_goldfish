@@ -14,10 +14,105 @@
 
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
 
+#include "android/emulation/control/grpc_event_stream_support.h"
+
 namespace android {
 namespace emulation {
 namespace control {
 namespace incubating {
+
+using ::goldfish::sensors::PhysicalModelChangeEvent;
+
+/**
+ * @brief Handles streaming of high-level physical state transition events.
+ *
+ * This writer listens to changes in the physical model and emits events
+ * such as 'changing', 'stabilized', or 'target reached' to the client.
+ */
+class PhysicalStateEventStreamWriter
+        : public BaseEventStreamWriter<PhysicalStateEvent, PhysicalModelChangeEvent> {
+  public:
+    PhysicalStateEventStreamWriter(ChangeSupport* listener) : BaseEventStreamWriter(listener) {}
+
+    void EventArrived(const PhysicalModelChangeEvent& event) override {
+        PhysicalStateEvent reply;
+        switch (event.type) {
+        case PhysicalModelChangeEvent::Type::kTargetStateChanged:
+            reply.set_event(PhysicalStateEvent::STATE_TARGET_STATE_CHANGED);
+            break;
+        case PhysicalModelChangeEvent::Type::kPhysicalStateChanging:
+            reply.set_event(PhysicalStateEvent::STATE_PHYSICAL_STATE_CHANGING);
+            break;
+        case PhysicalModelChangeEvent::Type::kPhysicalStateStabilized:
+            reply.set_event(PhysicalStateEvent::STATE_PHYSICAL_STATE_STABILIZED);
+            break;
+        default:
+            reply.set_event(PhysicalStateEvent::STATE_EVENT_UNDEFINED);
+            break;
+        }
+        Write(reply);
+    }
+};
+
+/**
+ * @brief Handles streaming of specific physical model parameter values.
+ *
+ * This writer allows a client to monitor a specific parameter (e.g., position)
+ * and receive updates whenever that parameter's state changes.
+ */
+class PhysicalModelEventStreamWriter
+        : public BaseEventStreamWriter<PhysicalModelValue, PhysicalModelChangeEvent> {
+  public:
+    PhysicalModelEventStreamWriter(::goldfish::sensors::PhysicalModel& pm,
+                                   const PhysicalModelValue& request)
+            : BaseEventStreamWriter(&pm), mPhysicalModel(pm), mRequest(request) {}
+
+    void EventArrived(const PhysicalModelChangeEvent& event) override {
+        // We only care about target state changes or stabilization for model values.
+        // During continuous motion ('changing'), we don't spam updates unless requested.
+        if (event.type == PhysicalModelChangeEvent::Type::kPhysicalStateChanging) {
+            return;
+        }
+
+        PhysicalModelValue reply;
+        const auto parameter =
+                static_cast<::goldfish::sensors::PhysicalParameter>(mRequest.target() - 1);
+        const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
+
+        // Map the requested value type to the internal physical model's ParameterValueType.
+        auto value_type = ::ParameterValueType::kCurrent;
+        switch (mRequest.value_type()) {
+        case PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET:
+            value_type = ::ParameterValueType::kTarget;
+            break;
+        case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT:
+            value_type = ::ParameterValueType::kCurrent;
+            break;
+        case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION:
+            value_type = ::ParameterValueType::kCurrentNoAmbientMotion;
+            break;
+        case PhysicalModelValue::PARAMETER_VALUE_TYPE_DEFAULT:
+            value_type = ::ParameterValueType::kDefault;
+            break;
+        default:
+            break;
+        }
+
+        std::vector<float> data(sz);
+        mPhysicalModel.GetPhysicalParameterValue(parameter, data.data(), sz, value_type);
+
+        reply.set_target(mRequest.target());
+        reply.set_status(PhysicalModelValue::PHYSICAL_STATE_VALUE_OK);
+        auto* reply_data = reply.mutable_value()->mutable_data();
+        reply_data->Resize(sz, 0);
+        std::copy(data.begin(), data.end(), reply_data->begin());
+        Write(reply);
+    }
+
+  private:
+    ::goldfish::sensors::PhysicalModel& mPhysicalModel;
+    PhysicalModelValue mRequest;
+};
 
 SensorServiceIncubatingImpl::SensorServiceIncubatingImpl(::goldfish::sensors::PhysicalModel& pm)
         : mPhysicalModel(pm) {}
@@ -106,13 +201,13 @@ grpc::Status SensorServiceIncubatingImpl::getPhysicalModel(grpc::ServerContext* 
 ::grpc::ServerWriteReactor<PhysicalModelValue>*
 SensorServiceIncubatingImpl::receivePhysicalModelEvents(::grpc::CallbackServerContext* context,
                                                         const PhysicalModelValue* request) {
-    return nullptr;
+    return new PhysicalModelEventStreamWriter(mPhysicalModel, *request);
 }
 
 ::grpc::ServerWriteReactor<PhysicalStateEvent>*
 SensorServiceIncubatingImpl::receivePhysicalStateEvents(::grpc::CallbackServerContext* context,
                                                         const google::protobuf::Empty* request) {
-    return nullptr;
+    return new PhysicalStateEventStreamWriter(&mPhysicalModel);
 }
 
 }  // namespace incubating
