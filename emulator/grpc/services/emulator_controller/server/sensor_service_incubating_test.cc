@@ -35,15 +35,72 @@ class SensorServiceIncubatingTest : public ::testing::Test {
         mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
         mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
         mService = std::make_unique<SensorServiceIncubatingImpl>(*mPhysicalModel);
+
+        grpc::ServerBuilder builder;
+        builder.RegisterService(mService.get());
+        builder.AddListeningPort("localhost:0", grpc::InsecureServerCredentials(), &mPort);
+        mServer = builder.BuildAndStart();
+
+        mChannel = grpc::CreateChannel("localhost:" + std::to_string(mPort),
+                                       grpc::InsecureChannelCredentials());
+        mStub = SensorService::NewStub(mChannel);
+    }
+
+    void TearDown() override {
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
+        mServer->Shutdown(deadline);
+        mServer->Wait();
+    }
+
+    std::unique_ptr<grpc::ClientContext> getContextWithTimeout(
+            std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+        auto context = std::make_unique<grpc::ClientContext>();
+        std::chrono::system_clock::time_point deadline = std::chrono::system_clock::now() + timeout;
+        context->set_deadline(deadline);
+        return context;
     }
 
     android::goldfish::HardwareConfig mHw;
     std::unique_ptr<PhysicalModel> mPhysicalModel;
     std::unique_ptr<SensorServiceIncubatingImpl> mService;
+    std::unique_ptr<grpc::Server> mServer;
+    std::shared_ptr<grpc::Channel> mChannel;
+    std::unique_ptr<SensorService::Stub> mStub;
+    int mPort;
 };
 
-TEST_F(SensorServiceIncubatingTest, Skeleton) {
-    EXPECT_TRUE(true);
+TEST_F(SensorServiceIncubatingTest, SetGetPhysicalModel) {
+    // Ensure time is set
+    mPhysicalModel->SetCurrentTime(1000);
+
+    PhysicalModelValue request;
+    request.set_target(PhysicalModelValue::PHYSICAL_TYPE_POSITION);
+    request.mutable_value()->add_data(10.0f);
+    request.mutable_value()->add_data(20.0f);
+    request.mutable_value()->add_data(30.0f);
+    request.set_interpolation(PhysicalModelValue::INTERPOLATION_STEP);
+
+    google::protobuf::Empty reply;
+    auto context = getContextWithTimeout();
+    Status status = mStub->setPhysicalModel(context.get(), request, &reply);
+    ASSERT_TRUE(status.ok()) << status.error_message();
+
+    mPhysicalModel->SetCurrentTime(2000);
+
+    PhysicalModelValue getRequest;
+    getRequest.set_target(PhysicalModelValue::PHYSICAL_TYPE_POSITION);
+    getRequest.set_value_type(PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET);
+
+    PhysicalModelValue getReply;
+    auto getContext = getContextWithTimeout();
+    status = mStub->getPhysicalModel(getContext.get(), getRequest, &getReply);
+    ASSERT_TRUE(status.ok()) << status.error_message();
+
+    EXPECT_EQ(getReply.target(), PhysicalModelValue::PHYSICAL_TYPE_POSITION);
+    ASSERT_EQ(getReply.value().data_size(), 3);
+    EXPECT_NEAR(getReply.value().data(0), 10.0f, 0.1f);
+    EXPECT_NEAR(getReply.value().data(1), 20.0f, 0.1f);
+    EXPECT_NEAR(getReply.value().data(2), 30.0f, 0.1f);
 }
 
 }  // namespace incubating

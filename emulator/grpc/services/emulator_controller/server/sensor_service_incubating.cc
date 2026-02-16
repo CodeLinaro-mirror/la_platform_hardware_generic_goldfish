@@ -25,13 +25,25 @@ SensorServiceIncubatingImpl::SensorServiceIncubatingImpl(::goldfish::sensors::Ph
 grpc::Status SensorServiceIncubatingImpl::getSensor(grpc::ServerContext* context,
                                                     const SensorValue* request,
                                                     SensorValue* reply) {
-    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet.");
+    const auto sensor = static_cast<::goldfish::sensors::AndroidSensor>(request->target() - 1);
+    const auto data = mPhysicalModel.GetSensorData(sensor);
+
+    reply->set_target(request->target());
+    reply->set_status(SensorValue::SENSOR_STATE_OK);
+    auto* reply_data = reply->mutable_value()->mutable_data();
+    reply_data->Resize(data.value.size(), 0);
+    std::copy(data.value.begin(), data.value.end(), reply_data->begin());
+    return grpc::Status::OK;
 }
 
 grpc::Status SensorServiceIncubatingImpl::setSensor(grpc::ServerContext* context,
                                                     const SensorValue* request,
                                                     google::protobuf::Empty* reply) {
-    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet.");
+    const auto sensor = static_cast<::goldfish::sensors::AndroidSensor>(request->target() - 1);
+    const auto& data = request->value().data();
+    ::goldfish::sensors::SensorValue val(data.begin(), data.end());
+    mPhysicalModel.SetSensorValue(sensor, val);
+    return grpc::Status::OK;
 }
 
 ::grpc::ServerWriteReactor<SensorValue>* SensorServiceIncubatingImpl::receiveSensorEvents(
@@ -42,13 +54,53 @@ grpc::Status SensorServiceIncubatingImpl::setSensor(grpc::ServerContext* context
 grpc::Status SensorServiceIncubatingImpl::setPhysicalModel(grpc::ServerContext* context,
                                                            const PhysicalModelValue* request,
                                                            google::protobuf::Empty* reply) {
-    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet.");
+    const auto parameter =
+            static_cast<::goldfish::sensors::PhysicalParameter>(request->target() - 1);
+    const auto& data = request->value().data();
+
+    auto interpolation = ::PhysicalInterpolation::kStep;
+    if (request->interpolation() == PhysicalModelValue::INTERPOLATION_SMOOTH) {
+        interpolation = ::PhysicalInterpolation::kSmooth;
+    }
+
+    mPhysicalModel.SetPhysicalParameterValue(parameter, data.data(), data.size(), interpolation);
+    return grpc::Status::OK;
 }
 
 grpc::Status SensorServiceIncubatingImpl::getPhysicalModel(grpc::ServerContext* context,
                                                            const PhysicalModelValue* request,
                                                            PhysicalModelValue* reply) {
-    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Not implemented yet.");
+    const auto parameter =
+            static_cast<::goldfish::sensors::PhysicalParameter>(request->target() - 1);
+    const size_t sz = ::goldfish::sensors::PhysicalModel::GetPhysicalParameterSize(parameter);
+
+    auto value_type = ::ParameterValueType::kCurrent;
+    switch (request->value_type()) {
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_TARGET:
+        value_type = ::ParameterValueType::kTarget;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT:
+        value_type = ::ParameterValueType::kCurrent;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_CURRENT_NO_AMBIENT_MOTION:
+        value_type = ::ParameterValueType::kCurrentNoAmbientMotion;
+        break;
+    case PhysicalModelValue::PARAMETER_VALUE_TYPE_DEFAULT:
+        value_type = ::ParameterValueType::kDefault;
+        break;
+    default:
+        break;
+    }
+
+    std::vector<float> data(sz);
+    mPhysicalModel.GetPhysicalParameterValue(parameter, data.data(), sz, value_type);
+
+    reply->set_target(request->target());
+    reply->set_status(PhysicalModelValue::PHYSICAL_STATE_VALUE_OK);
+    auto* reply_data = reply->mutable_value()->mutable_data();
+    reply_data->Resize(sz, 0);
+    std::copy(data.begin(), data.end(), reply_data->begin());
+    return grpc::Status::OK;
 }
 
 ::grpc::ServerWriteReactor<PhysicalModelValue>*
