@@ -524,6 +524,11 @@ int main(int argc, char** argv) {
 #endif
 
     if (Bazel::InBazel()) {
+        // We are running in the bazel environment, make sure the plugins and binaries can be found.
+        auto launcher_dir = fs::path(Bazel::RunfilesPath("goldfish+/emulator/launcher"));
+        LOG_IF(FATAL, !android::base::file::exists(launcher_dir))
+                << "Unable to locate launcher directory: " << launcher_dir;
+        System::SetEnvironmentVariable("ANDROID_EMULATOR_LAUNCHER_DIR", launcher_dir.string());
         if (System::GetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE").empty()) {
             System::SetEnvironmentVariable("ANDROID_EMU_CRASH_REPORTING_DATABASE",
                                            fs::path("/tmp/crash-report.db").string());
