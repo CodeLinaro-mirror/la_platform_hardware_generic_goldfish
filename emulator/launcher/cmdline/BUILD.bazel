@@ -26,7 +26,7 @@ cc_library(
     deps = [
         "//android/logging:absl_c_bridge",
         "//android/system",
-        "//emulator/config:config_dirs",
+        "//emulator/launcher:config_dirs",
     ],
 )
 

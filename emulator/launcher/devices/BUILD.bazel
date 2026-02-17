@@ -371,7 +371,6 @@ cc_library(
         ":device",
         "//android/filesystems",
         "//emulator/adb/secrets",
-        "//emulator/config:config_dirs",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@aemu//base:aemu-base",

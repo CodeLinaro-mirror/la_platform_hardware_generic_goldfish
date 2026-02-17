@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 py_binary(
@@ -41,35 +41,4 @@ cc_library(
     hdrs = ["include/android/goldfish/device_type.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "config_dirs",
-    srcs = ["config_dirs.cc"],
-    hdrs = ["include/android/goldfish/config_dirs.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//android/system",
-        "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base",
-    ],
-)
-
-cc_test(
-    name = "config_dirs_test",
-    size = "small",
-    srcs = ["config_dirs_test.cc"],
-    linkopts = select({
-        "@platforms//os:macos": ["-undefined error"],
-        "//conditions:default": [],
-    }),
-    visibility = ["//visibility:public"],
-    deps = [
-        ":config_dirs",
-        "//android/system",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
-        "@abseil-cpp//absl/status:status_matchers",
-    ],
 )
