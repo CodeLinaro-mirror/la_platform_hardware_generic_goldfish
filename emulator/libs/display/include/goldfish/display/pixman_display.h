@@ -28,28 +28,28 @@ namespace goldfish::display {
 class PixmanDisplay : public IDisplay {
   public:
     PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
-    PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image);
+    PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image);
 
-    virtual void updateSourceImage(::pixman_image_t* image) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
-    absl::StatusOr<FrameInfo> getPixels(PixelFormat format, int newWidth, int newHeight,
+    virtual void UpdateSourceImage(::pixman_image_t* image) ABSL_LOCKS_EXCLUDED(pixman_mutex_);
+    absl::StatusOr<FrameInfo> GetPixels(PixelFormat format, int new_width, int new_height,
                                         ImageRotation rotation, uint8_t* pixels,
-                                        size_t* cPixels) const override;
-    void updateSurface(int x, int y, int width, int height) ABSL_LOCKS_EXCLUDED(mPixmanMutex);
+                                        size_t* c_pixels) const override;
+    void UpdateSurface(int x, int y, int width, int height) ABSL_LOCKS_EXCLUDED(pixman_mutex_);
 
-    std::pair<int, int> resizeKeepAspectRatio(int desiredWidth, int desiredHeight) override;
+    std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height) override;
 
   protected:
     template <typename Sink>
     friend void AbslStringify(Sink&, const PixmanDisplay&);
-    std::unique_ptr<PixmanFrameManager> mFrameManager;
-    ::goldfish::FpsCalculator mFpsCalculator{30};
+    std::unique_ptr<PixmanFrameManager> frame_manager_;
+    ::goldfish::FpsCalculator fps_calculator_{30};
 
-    mutable absl::Mutex mPixmanMutex;
+    mutable absl::Mutex pixman_mutex_;
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, const PixmanDisplay& display) {
-    absl::Format(&sink, "%s", display.string());
+    absl::Format(&sink, "%s", display.String());
 }
 
 }  // namespace goldfish::display

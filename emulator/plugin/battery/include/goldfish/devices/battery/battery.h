@@ -146,9 +146,9 @@ class IBattery {
      */
     virtual Status getStatus() const = 0;
 
-    // Removed instance method as it doesn't belong in the interface.  If a
+    // Removed Instance method as it doesn't belong in the interface.  If a
     // singleton is needed, it should be managed separately.
 };
 
-IBattery* instance();
+IBattery* Instance();
 }  // namespace goldfish::devices::battery

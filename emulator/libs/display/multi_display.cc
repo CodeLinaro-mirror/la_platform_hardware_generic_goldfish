@@ -30,8 +30,6 @@
 #include "emulator/libs/display/QemuDisplay.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
-#include "goldfish/physics/rotation.h"
-#include "goldfish/physics/skin_rotation.h"
 
 extern "C" {
 // clang-format off
@@ -45,9 +43,6 @@ extern "C" {
 // clang-format on
 }
 
-using ::goldfish::physics::Rotation;
-using DeviceSkinRotation = ::goldfish::physics::SkinRotation;
-
 namespace goldfish::display {
 
 using SharedDisplayImpl = std::shared_ptr<QemuDisplay>;
@@ -57,21 +52,21 @@ using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 class MultiDisplayImpl : public IMultiDisplay {
   public:
     MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop)
-            : IMultiDisplay(loop), mQemuLoop(qemu_loop) {}
-    virtual ~MultiDisplayImpl() = default;
+            : IMultiDisplay(loop), qemu_loop_(qemu_loop) {}
+    ~MultiDisplayImpl() override = default;
 
-    absl::StatusOr<DisplayPtr> createDisplay(DisplayId displayId, uint32_t width,
-                                             uint32_t height) override {
+    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId /*display_id*/, uint32_t /*width*/,
+                                             uint32_t /*height*/) override {
         // TODO(jansene): Port multidisplay creation.
-        return absl::UnimplementedError("MultiDisplayImpl::createDisplay is not yet supported.");
+        return absl::UnimplementedError("MultiDisplayImpl::CreateDisplay is not yet supported.");
     }
 
-    absl::StatusOr<DisplayPtr> createDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
+    absl::StatusOr<DisplayPtr> CreateDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
                                                      uint8_t id) {
-        absl::MutexLock lock(&mDisplayAccess);
-        auto display = std::make_shared<QemuDisplay>(mLoop, mQemuLoop, console, ds, id);
+        const absl::MutexLock lock(&display_access_);
+        auto display = std::make_shared<QemuDisplay>(loop_, qemu_loop_, console, ds, id);
 
-        auto [it, inserted] = mDisplays.insert({id, display});
+        auto [it, inserted] = displays_.insert({id, display});
         if (!inserted) {
             return absl::AlreadyExistsError(
                     absl::StrFormat("Display with id %d already exists.", id));
@@ -82,42 +77,42 @@ class MultiDisplayImpl : public IMultiDisplay {
         return display;
     }
 
-    absl::StatusOr<DisplayPtr> getDisplay(DisplayId displayId) const override {
-        auto display = getDisplayWeak(displayId);
+    absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const override {
+        auto display = GetDisplayWeak(display_id);
         return display;
     }
 
-    absl::StatusOr<WeakDisplayImpl> getDisplayWeak(DisplayId displayId) const {
-        absl::MutexLock lock(&mDisplayAccess);
-        auto it = mDisplays.find(displayId);
-        if (it == mDisplays.end()) {
-            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", displayId));
+    absl::StatusOr<WeakDisplayImpl> GetDisplayWeak(DisplayId display_id) const {
+        const absl::MutexLock lock(&display_access_);
+        auto it = displays_.find(display_id);
+        if (it == displays_.end()) {
+            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
         }
         return it->second;
     }
 
-    absl::Status eraseDisplay(DisplayId displayId) override {
-        absl::MutexLock lock(&mDisplayAccess);
-        auto it = mDisplays.find(displayId);
-        if (it == mDisplays.end()) {
+    absl::Status EraseDisplay(DisplayId display_id) override {
+        const absl::MutexLock lock(&display_access_);
+        auto it = displays_.find(display_id);
+        if (it == displays_.end()) {
             return absl::NotFoundError(
-                    absl::StrFormat("Display: %d does not exist (already removed?).", displayId));
+                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
         }
-        mDisplays.erase(it);
-        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
+        displays_.erase(it);
+        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
         return absl::OkStatus();
     }
 
-    bool isEnabled() const override {
+    bool IsEnabled() const override {
         // TODO(jansene): Implement true multidisplay support
         return false;
     }
 
-    std::vector<DisplayPtr> displays() const override {
-        absl::MutexLock lock(&mDisplayAccess);
+    std::vector<DisplayPtr> Displays() const override {
+        const absl::MutexLock lock(&display_access_);
         std::vector<DisplayPtr> displays;
-        for (const auto& pair : mDisplays) {
-            if (pair.second->active()) {
+        for (const auto& pair : displays_) {
+            if (pair.second->Active()) {
                 displays.push_back(pair.second);
             }
         }
@@ -126,41 +121,41 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
   private:
-    mutable absl::Mutex mDisplayAccess;
-    QemuDisplayMap mDisplays ABSL_GUARDED_BY(mDisplayAccess);
-    EventLoop* mQemuLoop;
+    mutable absl::Mutex display_access_;
+    QemuDisplayMap displays_ ABSL_GUARDED_BY(display_access_);
+    EventLoop* qemu_loop_;
 
-    static std::unique_ptr<MultiDisplayImpl> gMultidisplay;
+    static std::unique_ptr<MultiDisplayImpl> g_multidisplay;
 };
 
-std::atomic<IMultiDisplay*> IMultiDisplay::gSingleton = nullptr;
+std::atomic<IMultiDisplay*> IMultiDisplay::g_singleton = nullptr;
 
-IMultiDisplay* IMultiDisplay::instance() {
-    return IMultiDisplay::gSingleton;
+IMultiDisplay* IMultiDisplay::Instance() {
+    return IMultiDisplay::g_singleton;
 }
 
-void IMultiDisplay::injectSingleton(IMultiDisplay* display) {
-    IMultiDisplay::gSingleton = display;
+void IMultiDisplay::InjectSingleton(IMultiDisplay* display) {
+    IMultiDisplay::g_singleton = display;
 }
 
-namespace QemuMultidisplay {
-void configureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop) {
+namespace qemu_multidisplay {
+void ConfigureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop) {
     static MultiDisplayImpl instance(loop, qemu_loop);
-    IMultiDisplay::injectSingleton(&instance);
+    IMultiDisplay::InjectSingleton(&instance);
 }
-}  // namespace QemuMultidisplay
+}  // namespace qemu_multidisplay
 
 extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h) {
     // TODO(jansene): True multidisplay support should go over the qemu consoles, that are tied
     // to gpu0, head:%d
-    auto multiDisplay = static_cast<MultiDisplayImpl*>(IMultiDisplay::instance());
+    auto* multi_display = static_cast<MultiDisplayImpl*>(IMultiDisplay::Instance());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
         LOG(INFO) << "grpc_dpy_gfx_update: Console is NULL, using default";
         con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
-    auto device = multiDisplay->getDisplayWeak(index);
+    auto device = multi_display->GetDisplayWeak(index);
     if (!device.ok()) {
         LOG_EVERY_N(ERROR, 60) << "Unable to find a display to handle gfx changes: "
                                << device.status();
@@ -168,7 +163,7 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     }
 
     if (auto display = device->lock()) {
-        display->updateSurface(x, y, w, h);
+        display->UpdateSurface(x, y, w, h);
     } else {
         LOG_EVERY_N(ERROR, 60) << "Display with " << index << " is no longer active.";
     }
@@ -180,7 +175,7 @@ extern "C" void grpc_dpy_gfz_refresh(DisplayChangeListener* dcl) {
 
 extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
                                     struct DisplaySurface* new_surface) {
-    auto multiDisplay = static_cast<MultiDisplayImpl*>(IMultiDisplay::instance());
+    auto* multi_display = static_cast<MultiDisplayImpl*>(IMultiDisplay::Instance());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
         LOG(INFO) << "grpc_dpy_gfx_switch: Console is NULL, using default";
@@ -188,15 +183,15 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
         con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
-    auto device = multiDisplay->getDisplayWeak(index);
+    auto device = multi_display->GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
-        auto status = multiDisplay->createDisplayFromQemu(con, new_surface, index);
+        auto status = multi_display->CreateDisplayFromQemu(con, new_surface, index);
         LOG(INFO) << "Display creation state: " << status.status();
         return;
     }
 
     if (auto display = device->lock()) {
-        display->updateSourceImage(new_surface->image);
+        display->UpdateSourceImage(new_surface->image);
     }
 }
 

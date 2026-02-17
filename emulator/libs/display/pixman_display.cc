@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This must be first to get M_PI.
-
 // Some general notes on debug levels:
 // VLOG(1) -- Get FPS from qemu
 // VLOG(2) -- Get scaling and timing information
 // VLOG(3) -- Add "blue" blocks in the corner for inspecting visual scaling issues.
 
-#define _USE_MATH_DEFINES
 #include "goldfish/display/pixman_display.h"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <numeric>
 
 #include "absl/log/log.h"
@@ -45,9 +43,10 @@ namespace goldfish::display {
 
 namespace {
 
-#include <cstdint>
 #include <cstring>  // Required for std::memcpy
 #include <vector>
+
+constexpr double kPi = std::numbers::pi;
 
 class ImageRotator {
   public:
@@ -60,34 +59,35 @@ class ImageRotator {
      * @param channels Number of channels per pixel (3 or 4).
      * @param rotation The angle to rotate.
      */
-    static void rotate(const uint8_t* src, uint8_t* dst, int width, int height, int channels,
+    static void Rotate(const uint8_t* src, uint8_t* dst, int width, int height, int channels,
                        ImageRotation rotation) {
         // Basic safety checks
         if (!src || !dst || channels < 1) return;
 
         // Determine destination dimensions for stride calculation
         // Note: We don't need to return these, but we need them for the math.
-        int outWidth;
+        int out_width;
         if (rotation == ImageRotation::kRotation180) {
-            outWidth = width;
+            out_width = width;
         } else {
-            outWidth = height;  // For 90 and 270, width and height swap
+            out_width = height;  // For 90 and 270, width and height swap
         }
 
         switch (rotation) {
         case ImageRotation::kRotation90: {
             // Source (x, y) -> Dest (y, width - 1 - x)
             for (int y = 0; y < height; ++y) {
-                size_t srcRowOffset = static_cast<size_t>(y) * width;
+                const size_t src_row_offset = static_cast<size_t>(y) * width;
 
                 for (int x = 0; x < width; ++x) {
-                    int dstRow = width - 1 - x;
-                    int dstCol = y;
+                    const int dst_row = width - 1 - x;
+                    const int dst_col = y;
 
-                    size_t srcIndex = (srcRowOffset + x) * channels;
-                    size_t dstIndex = (static_cast<size_t>(dstRow) * outWidth + dstCol) * channels;
+                    const size_t src_index = (src_row_offset + x) * channels;
+                    const size_t dst_index =
+                            (static_cast<size_t>(dst_row) * out_width + dst_col) * channels;
 
-                    std::memcpy(dst + dstIndex, src + srcIndex, channels);
+                    std::memcpy(dst + dst_index, src + src_index, channels);
                 }
             }
             break;
@@ -96,13 +96,13 @@ class ImageRotator {
         case ImageRotation::kRotation180: {
             // 180 degree rotation is simply reading the array backwards pixel by pixel.
             // Dest Index = TotalPixels - 1 - SourceIndex
-            size_t totalPixels = static_cast<size_t>(width) * height;
+            const size_t total_pixels = static_cast<size_t>(width) * height;
 
-            for (size_t i = 0; i < totalPixels; ++i) {
-                size_t srcIndex = i * channels;
-                size_t dstIndex = (totalPixels - 1 - i) * channels;
+            for (size_t i = 0; i < total_pixels; ++i) {
+                const size_t src_index = i * channels;
+                const size_t dst_index = (total_pixels - 1 - i) * channels;
 
-                std::memcpy(dst + dstIndex, src + srcIndex, channels);
+                std::memcpy(dst + dst_index, src + src_index, channels);
             }
             break;
         }
@@ -110,16 +110,17 @@ class ImageRotator {
         case ImageRotation::kRotation270: {
             // Source (x, y) -> Dest (height - 1 - y, x)
             for (int y = 0; y < height; ++y) {
-                size_t srcRowOffset = static_cast<size_t>(y) * width;
+                const size_t src_row_offset = static_cast<size_t>(y) * width;
 
                 for (int x = 0; x < width; ++x) {
-                    int dstRow = x;
-                    int dstCol = height - 1 - y;
+                    const int dst_row = x;
+                    const int dst_col = height - 1 - y;
 
-                    size_t srcIndex = (srcRowOffset + x) * channels;
-                    size_t dstIndex = (static_cast<size_t>(dstRow) * outWidth + dstCol) * channels;
+                    const size_t src_index = (src_row_offset + x) * channels;
+                    const size_t dst_index =
+                            (static_cast<size_t>(dst_row) * out_width + dst_col) * channels;
 
-                    std::memcpy(dst + dstIndex, src + srcIndex, channels);
+                    std::memcpy(dst + dst_index, src + src_index, channels);
                 }
             }
             break;
@@ -128,15 +129,15 @@ class ImageRotator {
     }
 };
 
-constexpr bool no_scaling = true;
+constexpr bool kNoScaling = true;
 
-static pixman_format_code_t pixmanFormat(const PixelFormat& format) {
+pixman_format_code_t PixmanFormat(const PixelFormat& format) {
     switch (format) {
-    case PixelFormat::RGBA8888:
+    case PixelFormat::kRgba8888:
         return PIXMAN_a8r8g8b8;
-    case PixelFormat::RGB888:
+    case PixelFormat::kRgb888:
         return PIXMAN_b8g8r8;
-    case PixelFormat::PNG:
+    case PixelFormat::kPng:
         return PIXMAN_a8b8g8r8;
     default:
         return PIXMAN_a8r8g8b8;
@@ -145,7 +146,7 @@ static pixman_format_code_t pixmanFormat(const PixelFormat& format) {
 
 // Helper function to compute the greatest common divisor.
 // Used to simplify the scaling fraction.
-int gcd(int a, int b) {
+int Gcd(int a, int b) {
     return std::abs(std::gcd(a, b));
 }
 
@@ -159,7 +160,7 @@ constexpr int kMaxSafeDenominator = 1024;
 
 // Checks if a scaling operation from a source dimension to a target dimension
 // is likely to be safe from precision-related artifacts.
-bool isScalingSafe(int source, int target) {
+bool IsScalingSafe(int source, int target) {
     if (target % 4) {
         // Pixman requires the stride (in bytes) to be a mulple of 4 bytes,
         // so for RGB (3 bytes per pixel) we need the width to be a multiple
@@ -167,8 +168,8 @@ bool isScalingSafe(int source, int target) {
         return false;
     }
     if (source == 0 || target == 0) return true;  // No scaling.
-    int common = gcd(source, target);
-    int denominator = target / common;
+    const int common = Gcd(source, target);
+    const int denominator = target / common;
     return denominator <= kMaxSafeDenominator;
 }
 
@@ -176,18 +177,18 @@ bool isScalingSafe(int source, int target) {
 
 PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image)
         : IDisplay(loop, id, pixman_image_get_width(image), pixman_image_get_height(image))
-        , mFrameManager(std::make_unique<PixmanFrameManager>()) {
-    updateSourceImage(image);
+        , frame_manager_(std::make_unique<PixmanFrameManager>()) {
+    UpdateSourceImage(image);
 }
 
-PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image)
+PixmanDisplay::PixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image)
         : PixmanDisplay(loop, id, image.get()) {}
 
-void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
+void PixmanDisplay::UpdateSourceImage(::pixman_image_t* image) {
     DLOG_FIRST_N(WARNING, 2) << "--- WARNING! Reduced performance in debug builds ---";
-    Dimensions dims = GetDimensions();
-    auto oldWidth = dims.width;
-    auto oldHeight = dims.height;
+    const Dimensions dims = GetDimensions();
+    auto old_width = dims.width;
+    auto old_height = dims.height;
 
     // Used to debug issues around scaling, it will create a set of rotating color blocks
     // in the corners that you can use to visually analyze if things "look okay".
@@ -196,19 +197,20 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
         LOG_FIRST_N(WARNING, 5) << "Adding rotating color blocks in the corners to visually "
                                    "diagnose frame ordering issues.";
         if (dims.width >= 100 && dims.height >= 100) {
-            uint64_t frame = seq().sequenceNumber;
-            pixman_color_t colors[4] = {
+            const uint64_t frame = Seq().sequence_number;
+            const pixman_color_t colors[4] = {
                 {0xffff, 0, 0, 0xffff},       // Red
                 {0, 0xffff, 0, 0xffff},       // Green
                 {0, 0, 0xffff, 0xffff},       // Blue
                 {0xffff, 0xffff, 0, 0xffff},  // Yellow
             };
 
-            pixman_rectangle16_t rects[4] = {
-                {0, 0, 100, 100},                                                  // Top-left
-                {int16_t(dims.width - 100), 0, 100, 100},                          // Top-right
-                {0, int16_t(dims.height - 100), 100, 100},                         // Bottom-left
-                {int16_t(dims.width - 100), int16_t(dims.height - 100), 100, 100}  // Bottom-right
+            const pixman_rectangle16_t rects[4] = {
+                {0, 0, 100, 100},                                        // Top-left
+                {static_cast<int16_t>(dims.width - 100), 0, 100, 100},   // Top-right
+                {0, static_cast<int16_t>(dims.height - 100), 100, 100},  // Bottom-left
+                {static_cast<int16_t>(dims.width - 100), static_cast<int16_t>(dims.height - 100),
+                 100, 100}  // Bottom-right
             };
 
             for (int i = 0; i < 4; ++i) {
@@ -218,75 +220,79 @@ void PixmanDisplay::updateSourceImage(::pixman_image_t* image) {
         }
     }
 
-    mFrameManager->updateSourceImage(image);
-    uint32_t newWidth = pixman_image_get_width(image);
-    uint32_t newHeight = pixman_image_get_height(image);
-    SetDimensions(newWidth, newHeight);
+    frame_manager_->UpdateSourceImage(image);
+    const uint32_t new_width = pixman_image_get_width(image);
+    const uint32_t new_height = pixman_image_get_height(image);
+    SetDimensions(new_width, new_height);
     VLOG(2) << "updateSourceImage: " << *this << " to: " << image;
-    if (oldWidth != newWidth || oldHeight != newHeight) {
-        VLOG(2) << "Informing listeners of change from " << oldWidth << "x" << oldHeight << " to "
-                << newWidth << "x" << newHeight << "\n";
-        ResizeEventCallbackSource::FireEvent(
-                ResizeEvent{mDisplayId, oldWidth, oldHeight, newWidth, newHeight});
+    if (old_width != new_width || old_height != new_height) {
+        VLOG(2) << "Informing listeners of change from " << old_width << "x" << old_height << " to "
+                << new_width << "x" << new_height << "\n";
+        ResizeEventCallbackSource::FireEvent(ResizeEvent{.display_id = display_id_,
+                                                         .previous_width = old_width,
+                                                         .previous_height = old_height,
+                                                         .width = new_width,
+                                                         .height = new_height});
     }
 }
 
-absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWidth, int newHeight,
-                                                   ImageRotation rotation, uint8_t* pixels,
-                                                   size_t* cPixels) const {
-    // NOTE: We expect newWidth and newHeight to be safe, shearing *WILL* happen if the ratios
+absl::StatusOr<FrameInfo> PixmanDisplay::GetPixels(PixelFormat format, int new_width,
+                                                   int new_height, ImageRotation rotation,
+                                                   uint8_t* pixels, size_t* c_pixels) const {
+    // NOTE: We expect newWidth and new_height to be safe, shearing *WILL* happen if the ratios
     // are not proper.
-    absl::MutexLock lock(mPixmanMutex);
-    absl::Time now = android::base::IClock::HostNow();
-    auto pixmanFmt = pixmanFormat(format);
-    auto bpp = PIXMAN_FORMAT_BPP(pixmanFmt);
-    auto stride =
-            ((newWidth * bpp + sizeof(uint32_t) * CHAR_BIT - 1) / (sizeof(uint32_t) * CHAR_BIT)) *
-            sizeof(uint32_t);
-    size_t requiredSize = newHeight * stride;
+    const absl::MutexLock lock(pixman_mutex_);
+    const absl::Time now = android::base::IClock::HostNow();
+    auto pixman_fmt = PixmanFormat(format);
+    auto bpp = PIXMAN_FORMAT_BPP(pixman_fmt);
+    auto stride = ((static_cast<size_t>(new_width) * bpp + sizeof(uint32_t) * CHAR_BIT - 1) /
+                   (sizeof(uint32_t) * CHAR_BIT)) *
+                  sizeof(uint32_t);
+    const size_t required_size = new_height * stride;
 
-    if (requiredSize > *cPixels) {
-        auto old = *cPixels;
-        *cPixels = requiredSize;
+    if (required_size > *c_pixels) {
+        auto old = *c_pixels;
+        *c_pixels = required_size;
         return absl::FailedPreconditionError(
-                absl::StrFormat("Buffer too small; need %u bytes, have %u", requiredSize, old));
+                absl::StrFormat("Buffer too small; need %u bytes, have %u", required_size, old));
     }
 
-    uint32_t* pixel = (uint32_t*)pixels;
+    auto* pixel = reinterpret_cast<uint32_t*>(pixels);
     // Create the destination image
-    const PixmanImagePtr dst_img(
-            pixman_image_create_bits(pixmanFmt, newWidth, newHeight, pixel, stride));
+    const PixmanImagePtr dst_img(pixman_image_create_bits(pixman_fmt, new_width, new_height, pixel,
+                                                          static_cast<int>(stride)));
 
-    auto sourceImage = mFrameManager->getRenderableImage();
-    ::pixman_image_t* src_img = sourceImage.get();
+    auto source_image = frame_manager_->GetRenderableImage();
+    ::pixman_image_t* src_img = source_image.get();
     ::pixman_transform_t transform;
 
     if (!src_img) {
         return absl::UnavailableError("No frame has been produced yet.");
     }
 
-    Dimensions dims = {.width = static_cast<uint32_t>(pixman_image_get_width(src_img)),
-                       .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
+    const Dimensions dims = {.width = static_cast<uint32_t>(pixman_image_get_width(src_img)),
+                             .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
 
     int rot_channel = 0;
-    if (no_scaling) {
-        if (format == PixelFormat::PNG) {
+    if (kNoScaling) {
+        if (format == PixelFormat::kPng) {
             auto width = pixman_image_get_width(src_img);
             auto height = pixman_image_get_height(src_img);
             auto* src_bits = pixman_image_get_data(src_img);
-            memcpy(pixels, src_bits, width * height * 4);
+            memcpy(pixels, src_bits, static_cast<size_t>(width) * height * 4);
             rot_channel = 4;
         } else {
             rot_channel = 3;
             auto fast_abgr_to_rgb_le = [](const uint32_t* src, uint8_t* dst, int num_pixels) {
-                const uint8_t* byte_src = (const uint8_t*)src;  // Treat input as bytes
+                const auto* byte_src =
+                        reinterpret_cast<const uint8_t*>(src);  // Treat input as bytes
 
                 for (int i = 0; i < num_pixels; i++) {
                     // Source index: jumps 4 bytes at a time (skip Alpha)
                     // Dest index: jumps 3 bytes at a time
-                    dst[i * 3 + 0] = byte_src[i * 4 + 0];  // R
-                    dst[i * 3 + 1] = byte_src[i * 4 + 1];  // G
-                    dst[i * 3 + 2] = byte_src[i * 4 + 2];  // B
+                    dst[(i * 3) + 0] = byte_src[(i * 4) + 0];  // R
+                    dst[(i * 3) + 1] = byte_src[(i * 4) + 1];  // G
+                    dst[(i * 3) + 2] = byte_src[(i * 4) + 2];  // B
                     // Skip byte_src[i*4 + 3] (Alpha)
                 }
             };
@@ -301,15 +307,15 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
         // actual display size, which can happen at any time.
 
         // If we are rotated 90/270, the destination width fits the source height.
-        bool needsDimensionSwap =
+        const bool needs_dimension_swap =
                 (rotation == ImageRotation::kRotation90 || rotation == ImageRotation::kRotation270);
-        double scale_x =
-                needsDimensionSwap ? (double)dims.height / newWidth : (double)dims.width / newWidth;
-        double scale_y = needsDimensionSwap ? (double)dims.width / newHeight
-                                            : (double)dims.height / newHeight;
+        const double scale_x = needs_dimension_swap ? static_cast<double>(dims.height) / new_width
+                                                    : static_cast<double>(dims.width) / new_width;
+        const double scale_y = needs_dimension_swap ? static_cast<double>(dims.width) / new_height
+                                                    : static_cast<double>(dims.height) / new_height;
 
-        VLOG(2) << "Source: " << dims.width << "x" << dims.height << ", dest: " << newWidth << "x"
-                << newHeight << ", rotation: " << static_cast<int>(rotation)
+        VLOG(2) << "Source: " << dims.width << "x" << dims.height << ", dest: " << new_width << "x"
+                << new_height << ", rotation: " << static_cast<int>(rotation)
                 << ", scale_x: " << scale_x << ", scale_y: " << scale_y;
         // centering/translation logic.
         pixman_transform_init_identity(&transform);
@@ -317,97 +323,98 @@ absl::StatusOr<FrameInfo> PixmanDisplay::getPixels(PixelFormat format, int newWi
         if (rotation != ImageRotation::kRotation0) {
             // We want to rotate around the center.
             // The transform maps destination -> source.
-            const double radians = static_cast<int>(rotation) * M_PI / 180.0;
+            const double radians = static_cast<int>(rotation) * kPi / 180.0;
 
             // 1. Translate destination center to origin
-            pixman_transform_translate(&transform, NULL,
-                                       pixman_double_to_fixed(-newWidth / 2.0),    // move left
-                                       pixman_double_to_fixed(-newHeight / 2.0));  // move up
+            pixman_transform_translate(&transform, nullptr,
+                                       pixman_double_to_fixed(-new_width / 2.0),    // move left
+                                       pixman_double_to_fixed(-new_height / 2.0));  // move up
 
             // 2. Rotate (destination to source)
             // A clockwise rotation of the coordinate system (destination->source)
             // results in a counter-clockwise rotation of the image content.
-            pixman_transform_rotate(&transform, NULL,
+            pixman_transform_rotate(&transform, nullptr,
                                     pixman_double_to_fixed(cos(radians)),   // cos(theta)
                                     pixman_double_to_fixed(sin(radians)));  // sin(theta)
 
             // 3. Translate back to source center
-            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(dims.width / 2.0),
+            pixman_transform_translate(&transform, nullptr,
+                                       pixman_double_to_fixed(dims.width / 2.0),
                                        pixman_double_to_fixed(dims.height / 2.0));
         }
 
-        if (!no_scaling) {
+        if (!kNoScaling) {
             // Scaling logic.
             // Shift the whole image by -0.5 so we are looking at the center of each pixel
             // instead of the edge. This is important for scaling to be smooth.
-            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(-0.5),
+            pixman_transform_translate(&transform, nullptr, pixman_double_to_fixed(-0.5),
                                        pixman_double_to_fixed(-0.5));
             // Perform the scaling.
-            pixman_transform_scale(&transform, NULL, pixman_double_to_fixed(scale_x),
+            pixman_transform_scale(&transform, nullptr, pixman_double_to_fixed(scale_x),
                                    pixman_double_to_fixed(scale_y));
             // Move the image back to the original position (+0.5).
-            pixman_transform_translate(&transform, NULL, pixman_double_to_fixed(0.5),
+            pixman_transform_translate(&transform, nullptr, pixman_double_to_fixed(0.5),
                                        pixman_double_to_fixed(0.5));
             // Set the transform and filter on the source image for fast scaling.
-            pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, NULL, 0);
+            pixman_image_set_filter(src_img, PIXMAN_FILTER_NEAREST, nullptr, 0);
         }
 
         pixman_image_set_transform(src_img, &transform);
 
-        pixman_image_composite(PIXMAN_OP_SRC, src_img, NULL, dst_img.get(), 0, 0, 0, 0, 0, 0,
-                               newWidth, newHeight);
+        pixman_image_composite(PIXMAN_OP_SRC, src_img, nullptr, dst_img.get(), 0, 0, 0, 0, 0, 0,
+                               new_width, new_height);
 
         // The buffer is now filled with the scaled and rotated image.
         // The size of the valid pixel data is the required size.
-        *cPixels = requiredSize;
-        VLOG(2) << "getPixels source {w:" << dims.width << " h:" << dims.height
-                << "}, dest {w:" << newWidth << " h:" << newHeight << "} px_size=" << *cPixels;
+        *c_pixels = required_size;
+        VLOG(2) << "GetPixels source {w:" << dims.width << " h:" << dims.height
+                << "}, dest {w:" << new_width << " h:" << new_height << "} px_size=" << *c_pixels;
     }
 
-    if (no_scaling && rotation != ImageRotation::kRotation0) {
-        int w = dims.width;
-        int h = dims.height;
-        int channels = rot_channel;
-        size_t bufferSize = w * h * channels;
+    if (kNoScaling && rotation != ImageRotation::kRotation0) {
+        const int w = static_cast<int>(dims.width);
+        const int h = static_cast<int>(dims.height);
+        const int channels = rot_channel;
+        const size_t buffer_size = static_cast<size_t>(w) * h * channels;
 
         const auto* src = pixels;
-        std::vector<uint8_t> dst(bufferSize);
-        ImageRotator::rotate(src, dst.data(), w, h, channels, rotation);
-        memcpy(pixels, dst.data(), bufferSize);
+        std::vector<uint8_t> dst(buffer_size);
+        ImageRotator::Rotate(src, dst.data(), w, h, channels, rotation);
+        memcpy(pixels, dst.data(), buffer_size);
     }
 
-    if (format == PixelFormat::PNG) {
+    if (format == PixelFormat::kPng) {
         std::vector<uint8_t> png_buffer_vec;
-        constexpr int nChannels = 4;
-        if (!write_png(nChannels, newWidth, newHeight, pixels, png_buffer_vec)) {
+        constexpr int kNChannels = 4;
+        if (!write_png(kNChannels, new_width, new_height, pixels, png_buffer_vec)) {
             return absl::UnavailableError("Failed to create PNG screenshot!");
         }
-        size_t png_size = png_buffer_vec.size();
+        const size_t png_size = png_buffer_vec.size();
         memcpy(pixels, png_buffer_vec.data(), png_size);
-        assert(png_size <= *cPixels);
-        *cPixels = png_size;
+        assert(png_size <= *c_pixels);
+        *c_pixels = png_size;
     }
 
-    absl::MutexLock seqlock(mSeqAccess);
+    const absl::MutexLock seqlock(seq_access_);
 
     VLOG(2) << "Image scaled in: " << (android::base::IClock::HostNow() - now);
-    return mSeq;
+    return seq_;
 }
 
-void PixmanDisplay::updateSurface(int x, int y, int width, int height) {
-    VLOG(2) << "updateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
+void PixmanDisplay::UpdateSurface(int x, int y, int width, int height) {
+    VLOG(2) << "UpdateSurface " << *this << ", to: (" << x << ", " << y << "), (" << width << "x"
             << height << ")";
 
-    mFrameManager->updateSurface();
-    frameReceived();
+    frame_manager_->UpdateSurface();
+    FrameReceived();
     if (ABSL_VLOG_IS_ON(2)) {
-        mFpsCalculator.AddFrame();
-        VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << mFpsCalculator.GetFps() << " fps";
+        fps_calculator_.AddFrame();
+        VLOG_EVERY_N_SEC(2, 1) << "Qemu framerate: " << fps_calculator_.GetFps() << " fps";
     }
 }
 
-std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int desiredHeight) {
-    auto fit = calculateLogicalFit(desiredWidth, desiredHeight);
+std::pair<int, int> PixmanDisplay::ResizeKeepAspectRatio(int desired_width, int desired_height) {
+    auto fit = CalculateLogicalFit(desired_width, desired_height);
     if (fit.width == 0 || fit.height == 0) {
         return {0, 0};
     }
@@ -416,42 +423,41 @@ std::pair<int, int> PixmanDisplay::resizeKeepAspectRatio(int desiredWidth, int d
     // just return the original w and h, or swap them if
     // necessary (for 90 and 270 rotation)
 
-    Dimensions dims = GetDimensions();
-    if (no_scaling) {
+    const Dimensions dims = GetDimensions();
+    if (kNoScaling) {
         if (fit.swapped) {
-            return {dims.height, dims.width};
-        } else {
-            return {dims.width, dims.height};
+            return {static_cast<int>(dims.height), static_cast<int>(dims.width)};
         }
+        return {static_cast<int>(dims.width), static_cast<int>(dims.height)};
     }
 
     // The physical width of the destination buffer is always fit.width.
     // To ensure scaling is safe, we check the ratio between the source physical
     // stride and this destination physical width.
-    int sourcePhysicalStride = fit.swapped ? dims.height : dims.width;
-    int safeWidth = fit.width;
+    const int source_physical_stride = static_cast<int>(fit.swapped ? dims.height : dims.width);
+    int safe_width = fit.width;
 
-    if (!isScalingSafe(sourcePhysicalStride, safeWidth)) {
-        for (int w_check = safeWidth; w_check > 0; --w_check) {
-            if (isScalingSafe(sourcePhysicalStride, w_check)) {
-                safeWidth = w_check;
+    if (!IsScalingSafe(source_physical_stride, safe_width)) {
+        for (int w_check = safe_width; w_check > 0; --w_check) {
+            if (IsScalingSafe(source_physical_stride, w_check)) {
+                safe_width = w_check;
                 break;
             }
         }
     }
 
     // Logically oriented source dimensions.
-    int64_t sWidth = fit.swapped ? dims.height : dims.width;
-    int64_t sHeight = fit.swapped ? dims.width : dims.height;
+    const int64_t s_width = fit.swapped ? dims.height : dims.width;
+    const int64_t s_height = fit.swapped ? dims.width : dims.height;
 
     // Recalculate the logical height based on the safe logical width to
     // maintain the aspect ratio.
-    int safeHeight = static_cast<int>((sHeight * safeWidth) / sWidth);
+    const int safe_height = static_cast<int>((s_height * safe_width) / s_width);
 
-    VLOG(2) << "Requested " << desiredWidth << "x" << desiredHeight << ", ideal " << fit.width
-            << "x" << fit.height << ", snapped to safe " << safeWidth << "x" << safeHeight;
+    VLOG(2) << "Requested " << desired_width << "x" << desired_height << ", ideal " << fit.width
+            << "x" << fit.height << ", snapped to safe " << safe_width << "x" << safe_height;
 
-    return {safeWidth, safeHeight};
+    return {safe_width, safe_height};
 }
 
 }  // namespace goldfish::display

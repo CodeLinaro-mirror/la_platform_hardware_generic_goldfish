@@ -154,15 +154,15 @@ void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::Multi
 
     for (const auto& touch : event.touches) {
         for (auto& evdev : touch.toEvDevEvents(w, h, &mRegistry)) {
-            display.sendEvDevEvent(evdev.type, evdev.code, evdev.value);
+            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
         }
     }
 
     for (auto& ev : mRegistry.expireOldSlots()) {
-        display.sendEvDevEvent(ev.type, ev.code, ev.value);
+        display.SendEvDevEvent(ev.type, ev.code, ev.value);
     }
 
-    display.sendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::PenTouchEvent& event) {
@@ -172,15 +172,15 @@ void PointerEventDispatcher::sendEvents(IDisplay& display, const internal::PenTo
 
     for (const auto& touch : event.touches) {
         for (auto& evdev : touch.toEvDevEvents(w, h, &mRegistry)) {
-            display.sendEvDevEvent(evdev.type, evdev.code, evdev.value);
+            display.SendEvDevEvent(evdev.type, evdev.code, evdev.value);
         }
     }
 
     for (auto& ev : mRegistry.expireOldSlots()) {
-        display.sendEvDevEvent(ev.type, ev.code, ev.value);
+        display.SendEvDevEvent(ev.type, ev.code, ev.value);
     }
 
-    display.sendEvDevEvent(EV_SYN, SYN_REPORT, 0);
+    display.SendEvDevEvent(EV_SYN, SYN_REPORT, 0);
 }
 
 }  // namespace control

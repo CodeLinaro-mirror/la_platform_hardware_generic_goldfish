@@ -22,45 +22,46 @@
 namespace goldfish::display::test {
 
 FakeMultiDisplay::FakeMultiDisplay(EventLoop* loop) : IMultiDisplay(loop), mEnabled(true) {
-    // Create the default display (displayId 0)
-    mDisplays[0] = ActiveFakePixmanDisplay::createShared(mLoop, 0, 30, 640, 480);
+    // Create the default display (display_id 0)
+    mDisplays[0] = ActiveFakePixmanDisplay::createShared(loop_, 0, 30, 640, 480);
 }
 
-absl::StatusOr<DisplayPtr> FakeMultiDisplay::createDisplay(DisplayId displayId, uint32_t width,
+absl::StatusOr<DisplayPtr> FakeMultiDisplay::CreateDisplay(DisplayId display_id, uint32_t width,
                                                            uint32_t height) {
-    if (mDisplays.count(displayId)) {
+    if (mDisplays.count(display_id)) {
         return absl::InvalidArgumentError(
-                absl::StrFormat("Display with id %d already exists", displayId));
+                absl::StrFormat("Display with id %d already exists", display_id));
     }
-    auto sharedDisplay = ActiveFakePixmanDisplay::createShared(mLoop, displayId, 30, width, height);
-    mDisplays[displayId] = sharedDisplay;
+    auto sharedDisplay =
+            ActiveFakePixmanDisplay::createShared(loop_, display_id, 30, width, height);
+    mDisplays[display_id] = sharedDisplay;
     FireEvent(DisplayEvent{DisplayEvent::AddedEvent{sharedDisplay}});
     return sharedDisplay;
 }
 
-bool FakeMultiDisplay::isEnabled() const {
+bool FakeMultiDisplay::IsEnabled() const {
     return mEnabled;
 }
 
-absl::StatusOr<DisplayPtr> FakeMultiDisplay::getDisplay(DisplayId displayId) const {
-    if (!mDisplays.count(displayId)) {
-        return absl::NotFoundError(absl::StrFormat("Display with id %d not found", displayId));
+absl::StatusOr<DisplayPtr> FakeMultiDisplay::GetDisplay(DisplayId display_id) const {
+    if (!mDisplays.count(display_id)) {
+        return absl::NotFoundError(absl::StrFormat("Display with id %d not found", display_id));
     }
-    return mDisplays.at(displayId);
+    return mDisplays.at(display_id);
 }
 
-absl::Status FakeMultiDisplay::eraseDisplay(DisplayId displayId) {
-    if (displayId == 0) {
+absl::Status FakeMultiDisplay::EraseDisplay(DisplayId display_id) {
+    if (display_id == 0) {
         return absl::InvalidArgumentError("Cannot delete default display");
     }
-    if (mDisplays.erase(displayId) == 0) {
-        return absl::NotFoundError(absl::StrFormat("Display with id %d not found", displayId));
+    if (mDisplays.erase(display_id) == 0) {
+        return absl::NotFoundError(absl::StrFormat("Display with id %d not found", display_id));
     }
-    FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{displayId}}});
+    FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
     return absl::OkStatus();
 }
 
-std::vector<DisplayPtr> FakeMultiDisplay::displays() const {
+std::vector<DisplayPtr> FakeMultiDisplay::Displays() const {
     std::vector<DisplayPtr> result;
     for (const auto& [id, display] : mDisplays) {
         result.push_back(display);

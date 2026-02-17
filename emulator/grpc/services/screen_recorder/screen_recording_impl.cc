@@ -41,7 +41,7 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         return Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
     }
 
-    auto screen = display_.getDisplay(request->display());
+    auto screen = display_.GetDisplay(request->display());
     if (!screen.ok()) {
         LOG(WARNING) << "Unable to retrieve display: " << screen.status();
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
@@ -77,12 +77,12 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     const char* kFileName = request->file_name().c_str();
     auto frame_generator = [display, width2, height2](uint8_t* pixels, int w, int h, int frameIndex,
                                                       double time) {
-        auto format2 = ::goldfish::display::PixelFormat::RGB888;
+        auto format2 = ::goldfish::display::PixelFormat::kRgb888;
         auto rotation2 = ::goldfish::display::ImageRotation::kRotation0;
-        size_t cPixels = width2 * height2 * 3;
-        auto seq = display->getPixels(format2, width2, height2, rotation2, pixels, &cPixels);
+        size_t c_pixels = width2 * height2 * 3;
+        auto seq = display->GetPixels(format2, width2, height2, rotation2, pixels, &c_pixels);
     };
-    recorder_->start(kFileName, frame_generator);
+    recorder_->Start(kFileName, frame_generator);
 
     RecordingInfo new_recording = *request;
     new_recording.set_state(RecordingInfo::RECORDER_STATE_RECORDING);
@@ -115,7 +115,7 @@ Status ScreenRecordingServiceImpl::StopRecording(ServerContext* context,
     it->second.set_state(RecordingInfo::RECORDER_STATE_STOPPED);
     *response = it->second;
 
-    recorder_->stop();
+    recorder_->Stop();
     recorder_.reset();
 
     LOG(INFO) << "Stopped recording: " << request->file_name() << std::endl;

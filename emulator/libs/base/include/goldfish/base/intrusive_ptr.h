@@ -97,13 +97,13 @@ class IntrusivePtr {
 
     explicit IntrusivePtr(T* p) noexcept : ptr_(p) {
         if (ptr_) {
-            intrusive_ptr_ctor(ptr_);
+            intrusive_ptr_ctor(ptr_);  // NOLINT
         }
     }
 
     IntrusivePtr(const IntrusivePtr& other) noexcept : ptr_(other.ptr_) {
         if (ptr_) {
-            intrusive_ptr_add_ref(ptr_);
+            intrusive_ptr_add_ref(ptr_);  // NOLINT
         }
     }
 
@@ -111,23 +111,27 @@ class IntrusivePtr {
 
     ~IntrusivePtr() {
         if (ptr_) {
-            intrusive_ptr_release(ptr_);
+            intrusive_ptr_release(ptr_);  // NOLINT
         }
     }
 
     IntrusivePtr& operator=(const IntrusivePtr& other) noexcept {
-        IntrusivePtr(other).swap(*this);
+        if (this != &other) {
+            IntrusivePtr(other).swap(*this);
+        }
         return *this;
     }
 
     IntrusivePtr& operator=(IntrusivePtr&& other) noexcept {
-        IntrusivePtr(std::move(other)).swap(*this);
+        if (this != &other) {
+            IntrusivePtr(std::move(other)).swap(*this);
+        }
         return *this;
     }
 
     void reset() noexcept {  // NOLINT
         if (ptr_) {
-            intrusive_ptr_release(ptr_);
+            intrusive_ptr_release(ptr_);  // NOLINT
             ptr_ = nullptr;
         }
     }
@@ -145,7 +149,7 @@ class IntrusivePtr {
 };
 
 template <class T>
-inline void swap(const IntrusivePtr<T>& a, const IntrusivePtr<T>& b) noexcept {  // NOLINT
+inline void swap(IntrusivePtr<T>& a, IntrusivePtr<T>& b) noexcept {  // NOLINT
     a.swap(b);
 }
 

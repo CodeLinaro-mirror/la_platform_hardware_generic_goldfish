@@ -15,7 +15,9 @@
 #include <vector>
 
 namespace goldfish::display {
+// NOLINTBEGIN
 // channel is 3 or 4
-bool write_png(unsigned int nChannels, unsigned int width, unsigned int height, const void* pixels,
+bool write_png(unsigned int n_channels, unsigned int width, unsigned int height, const void* pixels,
                std::vector<uint8_t>& out);
+// NOLINTEND
 }  // namespace goldfish::display

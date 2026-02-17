@@ -18,6 +18,7 @@
 
 __BEGIN_DECLS
 
+// NOLINTBEGIN
 struct DisplayChangeListener;
 struct DisplaySurface;
 
@@ -26,5 +27,6 @@ void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w,
 void grpc_dpy_gfz_refresh(struct DisplayChangeListener* dcl);
 
 void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);
+// NOLINTEND
 
 __END_DECLS

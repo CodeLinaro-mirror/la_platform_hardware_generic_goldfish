@@ -15,106 +15,107 @@
 #include "goldfish/display/video_recorder.h"
 
 #include <chrono>
+#include <utility>
 
 #include "absl/log/log.h"
 
 namespace goldfish::display {
 
-VideoRecorder::VideoRecorder(int w, int h, int f, int br, int sec)
-        : width(w), height(h), fps(f), bitrate(br), duration(sec) {}
+VideoRecorder::VideoRecorder(int width, int height, int fps, int bitrate, int duration)
+        : width_(width), height_(height), fps_(fps), bitrate_(bitrate), duration_(duration) {}
 
 VideoRecorder::~VideoRecorder() {
-    stop();
+    Stop();
 }
 
-bool VideoRecorder::start(const std::string& filename, DrawCallback callback) {
-    if (running) {
-        LOG(WARNING) << "[Recorder] Already running." << std::endl;
+bool VideoRecorder::Start(const std::string& filename, DrawCallback callback) {
+    if (running_) {
+        LOG(WARNING) << "[Recorder] Already running.\n";
         return false;
     }
 
     // 1. Create and Init Encoder
-    encoder = std::make_unique<WebMEncoder>(filename, width, height, fps, bitrate);
-    if (!encoder->init()) {
-        LOG(WARNING) << "[Recorder] Failed to initialize encoder." << std::endl;
+    encoder_ = std::make_unique<WebMEncoder>(filename, width_, height_, fps_, bitrate_);
+    if (!encoder_->Init()) {
+        LOG(WARNING) << "[Recorder] Failed to initialize encoder.\n";
         return false;
     }
 
     // 2. Setup State
-    drawCallback = callback;
-    running = true;
+    draw_callback_ = std::move(callback);
+    running_ = true;
 
     // 3. Launch Generation Thread
-    workerThread = std::thread(&VideoRecorder::generationLoop, this);
+    worker_thread_ = std::thread(&VideoRecorder::GenerationLoop, this);
 
-    VLOG(2) << "[Recorder] initialized encoder." << std::endl;
+    VLOG(2) << "[Recorder] initialized encoder.\n";
     return true;
 }
 
-void VideoRecorder::stop() {
-    if (!running) return;
+void VideoRecorder::Stop() {
+    if (!running_) return;
 
-    VLOG(2) << "stop called " << std::endl;
+    VLOG(2) << "stop called \n";
     // 1. Signal thread to stop
-    running = false;
+    running_ = false;
 
-    VLOG(2) << " wait for workerThread " << std::endl;
+    VLOG(2) << " wait for worker_thread_ \n";
     // 2. Wait for the generation thread to finish its current loop
-    if (workerThread.joinable()) {
-        workerThread.join();
+    if (worker_thread_.joinable()) {
+        worker_thread_.join();
     }
 
-    VLOG(2) << " done " << std::endl;
+    VLOG(2) << " done \n";
 }
 
-bool VideoRecorder::isRunning() const {
-    return running;
+bool VideoRecorder::IsRunning() const {
+    return running_;
 }
 
-void VideoRecorder::generationLoop() {
+void VideoRecorder::GenerationLoop() {
     // Pre-allocate buffer to avoid allocation inside the loop
-    std::vector<uint8_t> frameBuffer(width * height * 3);
+    std::vector<uint8_t> frame_buffer(static_cast<size_t>(width_) * height_ * 3);
 
-    int frameIndex = 0;
-    auto frameDuration = std::chrono::milliseconds(1000 / fps);
+    int frame_index = 0;
+    auto frame_duration = std::chrono::milliseconds(1000 / fps_);
 
-    int total_frames = fps * duration;
-    while (running) {
-        auto startTime = std::chrono::high_resolution_clock::now();
+    const int total_frames = fps_ * duration_;
+    while (running_) {
+        auto start_time = std::chrono::high_resolution_clock::now();
 
         // 1. Calculate time
-        double timeSec = frameIndex / static_cast<double>(fps);
+        const double time_sec = frame_index / static_cast<double>(fps_);
 
         // 2. Execute User Callback (Draw the frame)
-        if (drawCallback) {
-            drawCallback(frameBuffer.data(), width, height, frameIndex, timeSec);
+        if (draw_callback_) {
+            draw_callback_(frame_buffer.data(), width_, height_, frame_index, time_sec);
         }
 
         // 3. Send to Encoder
-        if (encoder) {
-            encoder->addFrame(frameBuffer.data());
+        if (encoder_) {
+            encoder_->AddFrame(frame_buffer.data());
         }
 
-        frameIndex++;
-        if (total_frames > 0 && frameIndex > total_frames) {
+        frame_index++;
+        if (total_frames > 0 && frame_index > total_frames) {
             break;
         }
 
         // 4. Frame Pacing
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto workDuration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto work_duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        if (workDuration < frameDuration) {
-            std::this_thread::sleep_for(frameDuration - workDuration);
+        if (work_duration < frame_duration) {
+            std::this_thread::sleep_for(frame_duration - work_duration);
         }
     }
 
-    VLOG(2) << " wait for encoder " << std::endl;
-    // 3. Tell the encoder to finish writing the file
-    if (encoder) {
-        encoder->finish();
-        encoder.reset();  // Release memory
+    VLOG(2) << " wait for encoder \n";
+    // 3. Tell the encoder to Finish writing the file
+    if (encoder_) {
+        encoder_->Finish();
+        encoder_.reset();  // Release memory
     }
 }
 

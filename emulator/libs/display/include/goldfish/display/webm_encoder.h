@@ -37,44 +37,44 @@ namespace goldfish::display {
 
 class WebMEncoder {
   public:
-    WebMEncoder(const std::string& filename, int width, int height, int fps, int bitrate);
+    WebMEncoder(std::string fname, int w, int h, int f, int br);
     ~WebMEncoder();
 
     // Initializes FFmpeg resources and starts the background thread.
     // Returns true if successful, false otherwise.
-    bool init();
+    bool Init();
 
     // Adds a frame to the encoding queue.
-    void addFrame(const uint8_t* rgbaData);
+    void AddFrame(const uint8_t* rgb_data);
 
     // Signals the encoder to stop and waits for completion.
-    void finish();
+    void Finish();
 
   private:
-    void encodeLoop();
-    void processFrame(const std::vector<uint8_t>& rawData, int64_t frameIndex);
-    void cleanup();
-    bool isFrameAvailable() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(queueMutex);
+    void EncodeLoop();
+    void ProcessFrame(const std::vector<uint8_t>& raw_data, int64_t frame_index);
+    void Cleanup();
+    bool IsFrameAvailable() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(queue_mutex_);
 
     // Config
-    std::string filename;
-    int width, height, fps, bitrate;
-    bool is_initialized = false;
+    std::string filename_;
+    int width_, height_, fps_, bitrate_;
+    bool is_initialized_ = false;
 
     // FFmpeg Pointers
-    AVFormatContext* fmt_ctx = nullptr;
-    AVCodecContext* codec_ctx = nullptr;
-    AVStream* stream = nullptr;
-    AVFrame* frame = nullptr;
-    AVPacket* pkt = nullptr;
-    SwsContext* sws_ctx = nullptr;
+    AVFormatContext* fmt_ctx_ = nullptr;
+    AVCodecContext* codec_ctx_ = nullptr;
+    AVStream* stream_ = nullptr;
+    AVFrame* frame_ = nullptr;
+    AVPacket* pkt_ = nullptr;
+    SwsContext* sws_ctx_ = nullptr;
 
     // Threading
-    std::thread encoderThread;
-    absl::Mutex queueMutex;
-    std::queue<std::vector<uint8_t>> frameQueue ABSL_GUARDED_BY(queueMutex);
-    std::atomic<bool> stopSignal ABSL_GUARDED_BY(queueMutex) {false};
-    std::atomic<bool> finished{false};
-    int64_t ptsCounter = 0;
+    std::thread encoder_thread_;
+    absl::Mutex queue_mutex_;
+    std::queue<std::vector<uint8_t>> frame_queue_ ABSL_GUARDED_BY(queue_mutex_);
+    std::atomic<bool> stop_signal_ ABSL_GUARDED_BY(queue_mutex_){false};
+    std::atomic<bool> finished_{false};
+    int64_t pts_counter_ = 0;
 };
 }  // namespace goldfish::display
