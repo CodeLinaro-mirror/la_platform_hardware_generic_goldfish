@@ -18,43 +18,36 @@
 #include <openssl/nid.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-#include <string.h>
+
 #include <sys/types.h>
 
+#include <cstring>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <system_error>
-#include <vector>
 
 #include "absl/log/log.h"
 
 #include "android/base/file/file.h"
 #include "android/base/system.h"
-#include "android/goldfish/config_dirs.h"
-
-/* set >0 for very verbose debugging */
-#define DEBUG 0
-
-#define D(...) (void)0
-#define DD(...) (void)0
-#if DEBUG >= 1
-#undef D
-#define D(fmt, ...) fprintf(stderr, "adbkey: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#endif
-#if DEBUG >= 2
-#undef DD
-#define DD(fmt, ...) fprintf(stderr, "adbkey: %s:%d| " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#endif
-
-namespace fs = std::filesystem;
-
-using android::base::System;
 
 namespace goldfish::adb {
 
+namespace internal {
+
 namespace {
+
+using android::base::System;
+
+// Adb authentication
+constexpr const int TOKEN_SIZE = 20;
+
+constexpr const char* kPrivateKeyFileName = "adbkey";
+constexpr const char* kPublicKeyFileName = "adbkey.pub";
+
 // Better safe than sorry.
 static_assert(ANDROID_PUBKEY_MODULUS_SIZE % 4 == 0,
               "RSA modulus size must be multiple of the word size!");
@@ -95,62 +88,27 @@ std::shared_ptr<RSA> read_key_file(const fs::path& file) {
     return std::shared_ptr<RSA>(key, RSA_free);
 }
 
-bool generate_key(const fs::path& file) {
-    std::unique_ptr<BIGNUM, decltype(&BN_free)> exponent(BN_new(), BN_free);
-    if (!exponent) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    BN_set_word(exponent.get(), RSA_F4);
+// This file implements encoding and decoding logic for Android's custom RSA
+// public key binary format. Public keys are stored as a sequence of
+// little-endian 32 bit words. Note that Android only supports little-endian
+// processors, so we don't do any byte order conversions when parsing the binary
+// struct.
+typedef struct RSAPublicKey {
+    // Modulus length. This must be ANDROID_PUBKEY_MODULUS_SIZE.
+    uint32_t modulus_size_words;
 
-    std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
-    if (!rsa) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    RSA_generate_key_ex(rsa.get(), 2048, exponent.get(), nullptr);
+    // Precomputed montgomery parameter: -1 / n[0] mod 2^32
+    uint32_t n0inv;
 
-    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey(EVP_PKEY_new(), EVP_PKEY_free);
-    if (!pkey) {
-        LOG(WARNING) << "Failed to allocate key";
-        return false;
-    }
-    EVP_PKEY_set1_RSA(pkey.get(), rsa.get());
+    // RSA modulus as a little-endian array.
+    uint8_t modulus[ANDROID_PUBKEY_MODULUS_SIZE];
 
-    std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "w"), fclose);
-    if (!fp) {
-        LOG(WARNING) << "Failed to open " << file.string();
-        return false;
-    }
+    // Montgomery parameter R^2 as a little-endian array of little-endian words.
+    uint8_t rr[ANDROID_PUBKEY_MODULUS_SIZE];
 
-    if (!PEM_write_PrivateKey(fp.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr)) {
-        LOG(WARNING) << "Failed to write key";
-        return false;
-    }
-
-    fp.reset();
-    if (auto s = android::base::file::chmod(file, 0777); !s.ok()) {
-        LOG(WARNING) << "Failed to change key permissions: " << s;
-        return false;
-    }
-
-    return true;
-}
-
-bool sign_token(RSA* key_rsa, const uint8_t* token, int token_size, uint8_t* sig, int& len) {
-    if (token_size != TOKEN_SIZE) {
-        DD("Unexpected token size %d\n", token_size);
-    }
-
-    if (!RSA_sign(NID_sha1, token, (size_t)token_size, sig, (unsigned int*)&len, key_rsa)) {
-        return false;
-    }
-
-    DD("successfully signed with siglen %d\n", (int)len);
-    return true;
-}
-
-}  // namespace
+    // RSA modulus: 3 or 65537
+    uint32_t exponent;
+} RSAPublicKey;
 
 // From ${AOSP}/system/core/adb/client/auth.cpp
 bool calculate_public_key(std::string* out, RSA* private_key) {
@@ -174,27 +132,13 @@ bool calculate_public_key(std::string* out, RSA* private_key) {
     return true;
 }
 
-bool adb_auth_keygen(const fs::path& filename) {
-    return generate_key(filename);
-}
-
-bool pubkey_from_privkey(const fs::path& path, std::string* out) {
-    std::shared_ptr<RSA> privkey = read_key_file(path);
-    if (!privkey) {
-        return false;
-    }
-    return calculate_public_key(out, privkey.get());
-}
-
 // Get adbkey path, return "" if failed
 // adbKeyFileName could be "adbkey" or "adbkey.pub"
-fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
-    fs::path adbKeyPath = android::goldfish::ConfigDirs::GetUserDirectory() / adbKeyFileName;
+fs::path getAdbKeyPath(const fs::path &android_user_dir, const fs::path& adbKeyFileName) {
+    fs::path adbKeyPath = android_user_dir / adbKeyFileName;
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
-    D("cannot read adb key file: %s", adbKeyPath);
-    D("trying again by copying from home dir");
 
     auto home = System::Get()->GetHomeDirectory();
     if (home.empty()) {
@@ -203,7 +147,6 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
             home = "/tmp";
         }
     }
-    D("Looking in %s", home.c_str());
 
     auto guessedSrcAdbKeyPub = home / ".android" / adbKeyFileName;
     android::base::file::cp_file(adbKeyPath, guessedSrcAdbKeyPub).IgnoreError();
@@ -211,39 +154,10 @@ fs::path getAdbKeyPath(const fs::path& adbKeyFileName) {
     if (android::base::file::is_file(adbKeyPath) && android::base::file::can_read(adbKeyPath)) {
         return adbKeyPath;
     }
-    D("cannot read adb key file (failed): %s", adbKeyPath.c_str());
     return "";
 }
 
-fs::path getPublicAdbKeyPath() {
-    return getAdbKeyPath(kPublicKeyFileName);
-}
-
-fs::path getPrivateAdbKeyPath() {
-    return getAdbKeyPath(kPrivateKeyFileName);
-}
-
-// This file implements encoding and decoding logic for Android's custom RSA
-// public key binary format. Public keys are stored as a sequence of
-// little-endian 32 bit words. Note that Android only supports little-endian
-// processors, so we don't do any byte order conversions when parsing the binary
-// struct.
-typedef struct RSAPublicKey {
-    // Modulus length. This must be ANDROID_PUBKEY_MODULUS_SIZE.
-    uint32_t modulus_size_words;
-
-    // Precomputed montgomery parameter: -1 / n[0] mod 2^32
-    uint32_t n0inv;
-
-    // RSA modulus as a little-endian array.
-    uint8_t modulus[ANDROID_PUBKEY_MODULUS_SIZE];
-
-    // Montgomery parameter R^2 as a little-endian array of little-endian words.
-    uint8_t rr[ANDROID_PUBKEY_MODULUS_SIZE];
-
-    // RSA modulus: 3 or 65537
-    uint32_t exponent;
-} RSAPublicKey;
+} // namespace
 
 bool android_pubkey_decode(const uint8_t* key_buffer, size_t size, RSA** key) {
     // Check |size| is large enough and the modulus size is correct.
@@ -323,17 +237,61 @@ bool android_pubkey_encode(const RSA* key, uint8_t* key_buffer, size_t size) {
     return true;
 }
 
-bool sign_auth_token(const uint8_t* token, int token_size, uint8_t* sig, int& siglen) {
-    const auto key_path = getAdbKeyPath(kPrivateKeyFileName);
-    if (key_path.empty()) {
-        LOG(ERROR) << "No private key found, unable to sign token";
-    }
-    auto rsa = read_key_file(key_path);
-    if (!rsa) {
-        LOG(ERROR) << "No RSA key available.";
+
+bool TestOnly_adb_auth_keygen(const fs::path& file) {
+    std::unique_ptr<BIGNUM, decltype(&BN_free)> exponent(BN_new(), BN_free);
+    if (!exponent) {
+        LOG(WARNING) << "Failed to allocate key";
         return false;
     }
-    return sign_token(rsa.get(), token, token_size, sig, siglen);
+    BN_set_word(exponent.get(), RSA_F4);
+
+    std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
+    if (!rsa) {
+        LOG(WARNING) << "Failed to allocate key";
+        return false;
+    }
+    RSA_generate_key_ex(rsa.get(), 2048, exponent.get(), nullptr);
+
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey(EVP_PKEY_new(), EVP_PKEY_free);
+    if (!pkey) {
+        LOG(WARNING) << "Failed to allocate key";
+        return false;
+    }
+    EVP_PKEY_set1_RSA(pkey.get(), rsa.get());
+
+    std::unique_ptr<FILE, decltype(&fclose)> fp(std::fopen(file.string().c_str(), "w"), fclose);
+    if (!fp) {
+        LOG(WARNING) << "Failed to open " << file.string();
+        return false;
+    }
+
+    if (!PEM_write_PrivateKey(fp.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr)) {
+        LOG(WARNING) << "Failed to write key";
+        return false;
+    }
+
+    fp.reset();
+    if (auto s = android::base::file::chmod(file, 0777); !s.ok()) {
+        LOG(WARNING) << "Failed to change key permissions: " << s;
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace internal
+
+bool pubkey_from_privkey(const fs::path& path, std::string* out) {
+    std::shared_ptr<RSA> privkey = internal::read_key_file(path);
+    if (!privkey) {
+        return false;
+    }
+    return internal::calculate_public_key(out, privkey.get());
+}
+
+fs::path getPrivateAdbKeyPath(const fs::path &android_user_dir) {
+    return internal::getAdbKeyPath(android_user_dir, internal::kPrivateKeyFileName);
 }
 
 }  // namespace goldfish::adb

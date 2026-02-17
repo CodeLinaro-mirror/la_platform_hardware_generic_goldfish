@@ -54,7 +54,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         std::string targetArch, std::string serialno, const int bootPropOpenglesVersion,
         const int api_level, std::string kernelSerialPrefix,
         const std::vector<std::string>& verifiedBootParameters, const Avd& avd,
-        const AndroidOptions& opts) {
+        const AndroidOptions& opts, const ResolvedInputPaths& paths) {
     const bool isX86ish = targetArch == "x86" || targetArch == "x86_64";
     const bool hasShellConsole = false;
     std::string androidbootVerityMode = "androidboot.veritymode";
@@ -166,7 +166,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
                       opts.logcat ? absl::StrReplaceAll(opts.logcat, {{" ", ","}}) : "*:V"});
 
     // Send adb public key to device
-    auto privkey = ::goldfish::adb::getPrivateAdbKeyPath();
+    auto privkey = ::goldfish::adb::getPrivateAdbKeyPath(paths.user_directory);
     std::string key;
 
     if (!privkey.empty() && ::goldfish::adb::pubkey_from_privkey(privkey, &key)) {
@@ -349,7 +349,7 @@ std::vector<std::pair<std::string, std::string>> getBootProperties(const Emulato
     auto verifiedBootParameters = getVerifiedBootparams(emulator);
     return getUserspaceBootProperties(hw.hw_cpu_arch, avd.Name(), bootPropOpenglesVersion,
                                       api_level, real_console_tty_prefix, verifiedBootParameters,
-                                      avd, emulator.opts());
+                                      avd, emulator.opts(), emulator.paths());
 }
 
 absl::Status InitrdDevice::initialize(const EmulatorConfig& emulator) {
