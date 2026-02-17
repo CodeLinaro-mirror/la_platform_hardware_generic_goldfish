@@ -28,11 +28,13 @@ def _collect_plugins_impl(ctx):
     deps = []
     for dep in ctx.attr.plugins:
         output_files = dep.files.to_list()
+        rename = ctx.attr.renames.get(dep)
+        if rename:
+            if len(output_files) > 1:
+                fail("Renamed targets must have a single output file.")
         for output in output_files:
             # Create a symbolic link for each output file in the plugins directory
-            link = ctx.actions.declare_file(
-                ctx.attr.output_dir + "/" + output.basename,
-            )
+            link = ctx.actions.declare_file(ctx.attr.output_dir + "/" + (rename or output.basename))
             deps.append(link)
             ctx.actions.symlink(
                 output = link,
@@ -52,6 +54,11 @@ collect_plugins = rule(
         "output_dir": attr.string(
             mandatory = True,
             doc = "The directory where the symbolic links to the plugins will be created.",
+        ),
+        "renames": attr.label_keyed_string_dict(
+            doc = "If the key matches an input label then change the filename to match the value.",
+            default = {},
+            allow_files = True,
         ),
     },
     doc = """

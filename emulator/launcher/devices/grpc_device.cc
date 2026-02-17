@@ -53,13 +53,10 @@ absl::Status GrpcDevice::initialize(const EmulatorConfig& emulator) {
 
 std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emulator) const {
     fs::path allowlist = mAllowlist;
-    if (mAllowlist.size() == 0) {
+    if (allowlist.empty()) {
         allowlist = emulator.paths().launcher_directory / "lib" / "emulator_access.json";
-        if (Bazel::InBazel()) {
-            // Development environment, allow access to the emulator.
-            allowlist = emulator.paths().launcher_directory / "lib" / "test_allow_list.json";
-            assert(base::file::exists(allowlist));
-            LOG(WARNING) << "** Using development allow list, do not use in production **";
+        if (!base::file::exists(allowlist)) {
+            LOG(WARNING) << "GRPC default allowlist doesn't exist, this may cause problems";
         }
     }
 
