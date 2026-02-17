@@ -228,6 +228,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
     extract = name + "_extract"
     breakpad_symbols(
         name = extract,
+        tags = ["manual"],
         binaries = binaries,
         ignore_paths_with_suffix = ignore_paths_with_suffix or [],
     )
@@ -235,6 +236,7 @@ def breakpad_symbols_pkg(name, binaries, package_file_name, package_variables, i
         name = name,
         out = name + ".zip",
         symbols = [extract],
+        tags = ["manual"],
         package_file_name = package_file_name,
         package_variables = package_variables,
     )
@@ -261,6 +263,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
     extract = name + "_extract"
     native_symbols(
         name = extract,
+        tags = ["manual"],
         srcs = binaries,
     )
     pkg_files = []
@@ -280,6 +283,7 @@ def native_symbols_pkg(name, binaries, package_file_name, package_variables, lay
         pkg_files.append(extract)
     pkg_zip(
         name = name,
+        tags = ["manual"],
         srcs = pkg_files,
         package_file_name = package_file_name,
         package_variables = package_variables,
