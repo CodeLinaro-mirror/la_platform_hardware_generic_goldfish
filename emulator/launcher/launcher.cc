@@ -77,6 +77,10 @@ static void show_banner() {
     std::cout << "    = _ _.*= .            \n";
 }
 
+bool should_launch_fishtank(const AndroidOptions& opts) {
+    return !opts.no_window;
+}
+
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
@@ -94,7 +98,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
                         LOG(FATAL) << "Failed to set ports: " << s;
                     }
 
-                    if (mOpts.fishtank) {
+                    if (should_launch_fishtank(mOpts)) {
                         launch_fishtank();
                     }
 
@@ -536,7 +540,7 @@ int main(int argc, char** argv) {
     }
 
     // Check that things exist so that we can error out early if necessary.
-    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose, opts.fishtank);
+    auto resolved_paths = android::goldfish::ResolvePaths(opts.verbose, android::goldfish::should_launch_fishtank(opts));
     if (!resolved_paths.ok()) {
         LOG(ERROR) << "Failed to resolve paths: " << resolved_paths.status();
         return 1;

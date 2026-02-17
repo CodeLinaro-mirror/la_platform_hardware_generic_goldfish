@@ -1788,7 +1788,6 @@ static void help_vmodule(stralloc_t* out) {
 #define help_no_netsim NULL
 #define help_netsim_stdout NULL
 #define help_V NULL
-#define help_fishtank NULL
 
 typedef struct {
     const char* name;
