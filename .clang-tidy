@@ -32,6 +32,12 @@ Checks:
   - '-modernize-use-nodiscard'              # This is a bit aggressive.
   - '-google-runtime-int'                   # We are using long long, etc in various places.
   - '-readability-use-concise-preprocessor-directives' # We are using #if defined (...) #elif
+
+  # --- PERFORMANCE OPTIMIZATIONS (High Cost / Low Value) ---
+  # Rules disabled to offset the "Luxury Tax" of identifier naming enforcement.
+  - '-google-upgrade-googletest-case'       # ~2.5% cost, legacy one-time migration.
+  - '-modernize-use-std-numbers'            # ~2.1% cost, low functional benefit.
+  - '-readability-container-contains'       # ~3.0% cost, high overhead for sugar.
 # Treat all warnings as errors (Strict Mode)
 WarningsAsErrors: '*'
 HeaderFileExtensions:         ['h','hh','hpp','hxx']
