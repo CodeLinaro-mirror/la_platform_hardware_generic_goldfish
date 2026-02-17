@@ -105,13 +105,13 @@ class EmulatorGrpcClientTest : public ::testing::Test {
 // --- Builder Tests ---
 
 TEST_F(EmulatorGrpcClientTest, Builder_CanBuildBlockingClient) {
-    auto clientOrStatus = EmulatorGrpcClientBuilder().withEndpoint(Endpoint()).buildBlocking();
+    auto clientOrStatus = EmulatorGrpcClientBuilder().WithEndpoint(Endpoint()).BuildBlocking();
     ASSERT_TRUE(clientOrStatus.ok());
     ASSERT_NE(*clientOrStatus, nullptr);
 }
 
 TEST_F(EmulatorGrpcClientTest, Builder_CanBuildCallbackClient) {
-    auto clientOrStatus = EmulatorGrpcClientBuilder().withEndpoint(Endpoint()).buildCallback();
+    auto clientOrStatus = EmulatorGrpcClientBuilder().WithEndpoint(Endpoint()).BuildCallback();
     ASSERT_TRUE(clientOrStatus.ok());
     ASSERT_NE(*clientOrStatus, nullptr);
 }
@@ -119,16 +119,16 @@ TEST_F(EmulatorGrpcClientTest, Builder_CanBuildCallbackClient) {
 TEST_F(EmulatorGrpcClientTest, Builder_ValidDiscoveryFile_Succeeds) {
     TmpDiscoveryFile tmpFile("grpc.port = 8554");
     auto clientOrStatus =
-            EmulatorGrpcClientBuilder().withDiscoveryFile(tmpFile.path()).buildBlocking();
+            EmulatorGrpcClientBuilder().WithDiscoveryFile(tmpFile.path()).BuildBlocking();
     ASSERT_TRUE(clientOrStatus.ok());
     auto client = std::move(*clientOrStatus);
     ASSERT_NE(client, nullptr);
-    EXPECT_EQ(client->getEndpoint().target(), "localhost:8554");
+    EXPECT_EQ(client->GetEndpoint().target(), "localhost:8554");
 }
 
 TEST_F(EmulatorGrpcClientTest, Builder_NonExistentDiscoveryFile_Fails) {
     auto clientOrStatus =
-            EmulatorGrpcClientBuilder().withDiscoveryFile("/no/such/file.ini").buildBlocking();
+            EmulatorGrpcClientBuilder().WithDiscoveryFile("/no/such/file.ini").BuildBlocking();
     ASSERT_FALSE(clientOrStatus.ok());
 }
 
@@ -139,40 +139,40 @@ class BlockingClientTest : public EmulatorGrpcClientTest {
     std::unique_ptr<BlockingEmulatorGrpcClient> CreateClient(const std::string& target) {
         Endpoint endpoint;
         endpoint.set_target(target);
-        return EmulatorGrpcClientBuilder().withEndpoint(endpoint).buildBlocking().value();
+        return EmulatorGrpcClientBuilder().WithEndpoint(endpoint).BuildBlocking().value();
     }
 };
 
 TEST_F(BlockingClientTest, InitialState_IsDisconnected) {
     auto client = CreateClient("localhost:12345");
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
 }
 
 TEST_F(BlockingClientTest, Connect_WithLiveServer_Succeeds) {
     StartServer();
     auto client = CreateClient(server_address);
-    absl::Status status = client->connect(absl::Seconds(5));
+    absl::Status status = client->Connect(absl::Seconds(5));
     ASSERT_TRUE(status.ok());
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Connected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kConnected);
 }
 
 TEST_F(BlockingClientTest, Connect_WithNoServer_Fails) {
     auto client = CreateClient("localhost:12345");
-    absl::Status status = client->connect(absl::Milliseconds(100));
+    absl::Status status = client->Connect(absl::Milliseconds(100));
     EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded);
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
 }
 
 TEST_F(BlockingClientTest, Rpc_WithValidStub_Succeeds) {
     StartServer();
     auto client = CreateClient(server_address);
-    ASSERT_TRUE(client->connect(absl::Seconds(5)).ok());
-    auto stubOrStatus = client->stub<EmulatorController>();
+    ASSERT_TRUE(client->Connect(absl::Seconds(5)).ok());
+    auto stubOrStatus = client->Stub<EmulatorController>();
     ASSERT_TRUE(stubOrStatus.ok());
     auto stub = std::move(*stubOrStatus);
     Empty request;
     EmulatorStatus response;
-    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> contextOrStatus = client->newContext();
+    absl::StatusOr<std::unique_ptr<grpc::ClientContext>> contextOrStatus = client->NewContext();
     ASSERT_TRUE(contextOrStatus.ok());
     auto context = std::move(*contextOrStatus);
     grpc::Status status = stub->getStatus(context.get(), request, &response);
@@ -182,7 +182,7 @@ TEST_F(BlockingClientTest, Rpc_WithValidStub_Succeeds) {
 
 TEST_F(BlockingClientTest, Connect_WithNonLocalAndNoTls_FailsWithInvalidArgument) {
     auto client = CreateClient("8.8.8.8:12345");
-    absl::Status status = client->connect(absl::Milliseconds(100));
+    absl::Status status = client->Connect(absl::Milliseconds(100));
     EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 }
 
@@ -196,11 +196,11 @@ TEST_F(BlockingClientTest, Connect_WithFullTlsContent_Succeeds) {
     endpoint.mutable_tls_credentials()->set_pem_cert_chain(
             "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----");
 
-    auto clientOrStatus = EmulatorGrpcClientBuilder().withEndpoint(endpoint).buildBlocking();
+    auto clientOrStatus = EmulatorGrpcClientBuilder().WithEndpoint(endpoint).BuildBlocking();
     ASSERT_TRUE(clientOrStatus.ok());
     auto client = std::move(*clientOrStatus);
 
-    absl::Status status = client->connect(absl::Milliseconds(100));
+    absl::Status status = client->Connect(absl::Milliseconds(100));
     EXPECT_EQ(status.code(), absl::StatusCode::kDeadlineExceeded)
             << "Expected DeadlineExceeded (channel created), got " << status;
 }
@@ -212,52 +212,52 @@ class CallbackClientTest : public EmulatorGrpcClientTest {
     std::unique_ptr<CallbackEmulatorGrpcClient> CreateClient(const std::string& target) {
         Endpoint endpoint;
         endpoint.set_target(target);
-        return EmulatorGrpcClientBuilder().withEndpoint(endpoint).buildCallback().value();
+        return EmulatorGrpcClientBuilder().WithEndpoint(endpoint).BuildCallback().value();
     }
 };
 
 TEST_F(CallbackClientTest, ConnectAsync_WithLiveServer_Succeeds) {
     StartServer();
     auto client = CreateClient(server_address);
-    auto future = client->connectAsync(absl::Seconds(5));
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Connecting);
+    auto future = client->ConnectAsync(absl::Seconds(5));
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kConnecting);
 
     ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
     absl::Status status = future.get();
     ASSERT_TRUE(status.ok()) << "Expected ok, not " << status;
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Connected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kConnected);
 }
 
 // flaky
 TEST_F(CallbackClientTest, DISABLED_ConnectAsync_WithNoServer_Fails) {
     auto client = CreateClient("localhost:12345");
-    auto future = client->connectAsync(absl::Seconds(1));
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Connecting);
+    auto future = client->ConnectAsync(absl::Seconds(1));
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kConnecting);
 
     ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
     absl::Status status = future.get();
     EXPECT_EQ(status.code(), absl::StatusCode::kUnavailable);
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
-// TODO FIX this test is flakey due to a race in the connectAsync callback handling - the fix will
+// TODO FIX this test is flakey due to a race in the ConnectAsync callback handling - the fix will
 // require changing how the grpc connection monitor works.
 TEST_F(CallbackClientTest, DISABLED_Disconnect_DuringAsyncConnection_Cancels) {
     StartServer();
     VLOG(1) << "Test: Creating client.";
     auto client = CreateClient(server_address);
-    VLOG(1) << "Test: Calling connectAsync.";
-    auto future = client->connectAsync(absl::Seconds(10));
-    VLOG(1) << "Test: Calling disconnect.";
-    client->disconnect();
+    VLOG(1) << "Test: Calling ConnectAsync.";
+    auto future = client->ConnectAsync(absl::Seconds(10));
+    VLOG(1) << "Test: Calling Disconnect.";
+    client->Disconnect();
 
     VLOG(1) << "Test: Waiting for future.";
     ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
     VLOG(1) << "Test: Future is ready. Getting status.";
     absl::Status status = future.get();
     EXPECT_EQ(status.code(), absl::StatusCode::kCancelled);
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
@@ -266,13 +266,13 @@ TEST_F(CallbackClientTest, DISABLED_ConnectAsync_WithLiveServer_CanReconnect) {
     StartServer();
     VLOG(1) << "Test: Creating client.";
     auto client = CreateClient(server_address);
-    VLOG(1) << "Test: Calling connectAsync.";
-    auto future = client->connectAsync(absl::Seconds(10));
+    VLOG(1) << "Test: Calling ConnectAsync.";
+    auto future = client->ConnectAsync(absl::Seconds(10));
     ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
 
-    VLOG(1) << "Test: Calling disconnect.";
-    client->disconnect();
-    auto snd = client->connectAsync(absl::Seconds(10));
+    VLOG(1) << "Test: Calling Disconnect.";
+    client->Disconnect();
+    auto snd = client->ConnectAsync(absl::Seconds(10));
     ASSERT_EQ(snd.wait_for(std::chrono::seconds(1)), std::future_status::ready);
     EXPECT_EQ(snd.get(), absl::OkStatus());
 }
@@ -290,7 +290,7 @@ TEST_F(CallbackClientTest, Destructor_DuringAsyncConnection_Cancels) {
     }
     auto future = std::async(std::launch::async, [this, port] {
                       auto client = CreateClient("localhost:" + std::to_string(port));
-                      return client->connectAsync(absl::Seconds(10));
+                      return client->ConnectAsync(absl::Seconds(10));
                   }).get();
 
     ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
@@ -303,20 +303,20 @@ TEST_F(CallbackClientTest, EventSource_FiresCorrectStates) {
     auto client = CreateClient(server_address);
     std::vector<ConnectionState> received_states;
     auto handle = android::base::eventing::MakeScopedCallback(
-            client->connectionStateChanges(),
+            client->ConnectionStateChanges(),
             [&](ConnectionState s) { received_states.push_back(s); });
 
-    auto future = client->connectAsync(absl::Seconds(1));
+    auto future = client->ConnectAsync(absl::Seconds(1));
     ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
     future.get();
 
     ASSERT_EQ(received_states.size(), 2);
-    EXPECT_EQ(received_states[0], ConnectionState::Connecting);
-    EXPECT_EQ(received_states[1], ConnectionState::Connected);
+    EXPECT_EQ(received_states[0], ConnectionState::kConnecting);
+    EXPECT_EQ(received_states[1], ConnectionState::kConnected);
 
-    client->disconnect();
+    client->Disconnect();
     ASSERT_EQ(received_states.size(), 3);
-    EXPECT_EQ(received_states[2], ConnectionState::Disconnected);
+    EXPECT_EQ(received_states[2], ConnectionState::kDisconnected);
     VLOG(1) << "Test: Finished. Client will be destroyed now.";
 }
 
@@ -327,32 +327,32 @@ TEST_F(CallbackClientTest, LivenessMonitor_DetectsServerShutdown) {
     absl::Mutex m;
     absl::CondVar cv;
     std::vector<ConnectionState> received_states;
-    auto handle = android::base::eventing::MakeScopedCallback(client->connectionStateChanges(),
+    auto handle = android::base::eventing::MakeScopedCallback(client->ConnectionStateChanges(),
                                                               [&](ConnectionState s) {
                                                                   absl::MutexLock lock(&m);
                                                                   received_states.push_back(s);
                                                                   cv.Signal();
                                                               });
 
-    auto future = client->connectAsync(absl::Seconds(5));
+    auto future = client->ConnectAsync(absl::Seconds(5));
     ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
     ASSERT_TRUE(future.get().ok());
-    ASSERT_EQ(client->getConnectionState(), ConnectionState::Connected);
+    ASSERT_EQ(client->GetConnectionState(), ConnectionState::kConnected);
 
     server->Shutdown();
 
     absl::MutexLock lock(&m);
-    while (client->getConnectionState() != ConnectionState::Disconnected) {
+    while (client->GetConnectionState() != ConnectionState::kDisconnected) {
         if (cv.WaitWithTimeout(&m, absl::Seconds(1))) {
             break;
         }
     }
 
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
     ASSERT_EQ(received_states.size(), 3);
-    EXPECT_EQ(received_states[0], ConnectionState::Connecting);
-    EXPECT_EQ(received_states[1], ConnectionState::Connected);
-    EXPECT_EQ(received_states[2], ConnectionState::Disconnected);
+    EXPECT_EQ(received_states[0], ConnectionState::kConnecting);
+    EXPECT_EQ(received_states[1], ConnectionState::kConnected);
+    EXPECT_EQ(received_states[2], ConnectionState::kDisconnected);
 }
 
 TEST_F(CallbackClientTest, Disconnect_FromCallback_DoesNotDeadlock) {
@@ -364,18 +364,18 @@ TEST_F(CallbackClientTest, Disconnect_FromCallback_DoesNotDeadlock) {
     bool disconnected_event_fired = false;
 
     auto handle = android::base::eventing::MakeScopedCallback(
-            client->connectionStateChanges(), [&](ConnectionState s) {
-                if (s == ConnectionState::Connected) {
-                    client->disconnect();
+            client->ConnectionStateChanges(), [&](ConnectionState s) {
+                if (s == ConnectionState::kConnected) {
+                    client->Disconnect();
                 }
-                if (s == ConnectionState::Disconnected) {
+                if (s == ConnectionState::kDisconnected) {
                     absl::MutexLock lock(&m);
                     disconnected_event_fired = true;
                     cv.Signal();
                 }
             });
 
-    auto future = client->connectAsync(absl::Seconds(5));
+    auto future = client->ConnectAsync(absl::Seconds(5));
     ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
 
     // The future should be OK because the connection succeeded before disconnect.
@@ -390,7 +390,7 @@ TEST_F(CallbackClientTest, Disconnect_FromCallback_DoesNotDeadlock) {
     }
     EXPECT_TRUE(disconnected_event_fired) << "Timed out waiting for disconnect event.";
 
-    EXPECT_EQ(client->getConnectionState(), ConnectionState::Disconnected);
+    EXPECT_EQ(client->GetConnectionState(), ConnectionState::kDisconnected);
 }
 
 }  // namespace

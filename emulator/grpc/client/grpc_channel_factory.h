@@ -20,9 +20,7 @@
 
 #include "grpc_endpoint_description.pb.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 using ::android::emulation::remote::Endpoint;
 using grpc::experimental::ClientInterceptorFactoryInterface;
@@ -48,7 +46,7 @@ class GrpcChannelFactory {
      *                     to the created channel, allowing for custom logic like
      *                     logging or metrics.
      */
-    explicit GrpcChannelFactory(const Endpoint& endpoint, InterceptorFactories interceptors);
+    explicit GrpcChannelFactory(Endpoint endpoint, InterceptorFactories interceptors);
     ~GrpcChannelFactory() = default;
 
     /**
@@ -59,7 +57,7 @@ class GrpcChannelFactory {
      *
      * @return A shared pointer to the created grpc::Channel.
      */
-    std::shared_ptr<grpc::Channel> createChannel();
+    std::shared_ptr<grpc::Channel> CreateChannel();
 
     /**
      * @brief Retrieves the call credentials for the channel.
@@ -71,14 +69,12 @@ class GrpcChannelFactory {
      * @return A shared pointer to the grpc::CallCredentials, or nullptr if no
      *         credentials are required.
      */
-    std::shared_ptr<grpc::CallCredentials> credentials() const;
+    std::shared_ptr<grpc::CallCredentials> Credentials() const;
 
   private:
-    Endpoint mEndpoint;
-    InterceptorFactories mInterceptors;
-    mutable std::shared_ptr<grpc::CallCredentials> mCredentials;
+    Endpoint endpoint_;
+    InterceptorFactories interceptors_;
+    mutable std::shared_ptr<grpc::CallCredentials> credentials_;
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

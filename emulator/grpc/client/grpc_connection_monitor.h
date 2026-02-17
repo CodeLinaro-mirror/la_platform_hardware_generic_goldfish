@@ -26,9 +26,7 @@
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "goldfish/eventing/event_sources.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 /**
  * @brief Monitors the state of a gRPC channel asynchronously.
@@ -37,7 +35,7 @@ namespace control {
  * encapsulates the `grpc::CompletionQueue` and its worker thread, providing a
  * clean, future-based API for connection state monitoring. It is responsible
  * for watching the channel's connectivity state and reporting changes through
- * the `mStateChanges` event source.
+ * the `state_changes` event source.
  */
 class GrpcConnectionMonitor {
   public:
@@ -45,7 +43,7 @@ class GrpcConnectionMonitor {
      * @brief Constructs a new GrpcConnectionMonitor.
      * @param channel The gRPC channel to monitor.
      */
-    explicit GrpcConnectionMonitor(std::shared_ptr<grpc::Channel> channel);
+    explicit GrpcConnectionMonitor(const std::shared_ptr<grpc::Channel>& channel);
 
     /**
      * @brief Destructor that stops the monitoring thread.
@@ -64,7 +62,7 @@ class GrpcConnectionMonitor {
      *         `absl::OkStatus()` on a successful connection or an error status
      *         on failure or timeout.
      */
-    std::future<absl::Status> watch(absl::Duration timeout);
+    std::future<absl::Status> Watch(absl::Duration timeout);
 
     /**
      * @brief Stops the monitoring and disconnects the channel.
@@ -72,7 +70,7 @@ class GrpcConnectionMonitor {
      * This method shuts down the completion queue and joins the worker thread,
      * ensuring a clean shutdown.
      */
-    void stop();
+    void Stop();
 
     /**
      * @brief An event source that fires when the connection state changes.
@@ -80,31 +78,29 @@ class GrpcConnectionMonitor {
      * The `CallbackEmulatorGrpcClient` subscribes to this event to provide
      * real-time connection status updates to its users.
      */
-    android::base::eventing::CallbackEventSource<ConnectionState> mStateChanges;
+    android::base::eventing::CallbackEventSource<ConnectionState> state_changes;
 
     /**
      * @brief Checks if the current thread is the monitor's worker thread.
      * @return `true` if the calling thread is the worker thread, `false`
      *         otherwise.
      */
-    bool isWorkerThread() const { return std::this_thread::get_id() == mWorkerThreadId; }
+    bool IsWorkerThread() const { return std::this_thread::get_id() == worker_thread_id_; }
 
   private:
     // Forward declaration of the internal callback handler.
     struct MonitorCallback;
 
-    void asyncWorker();
-    void setConnectionState(ConnectionState state);
+    void AsyncWorker();
+    void SetConnectionState(ConnectionState state);
 
-    std::weak_ptr<grpc::Channel> mChannel;
-    grpc::CompletionQueue mCompletionQueue;
-    std::thread mWorkerThread;
-    std::thread::id mWorkerThreadId;
-    std::atomic<bool> mShuttingDown{false};
-    absl::Mutex mCallbackActive;
-    ConnectionState mState{ConnectionState::Disconnected};
+    std::weak_ptr<grpc::Channel> channel_;
+    grpc::CompletionQueue completion_queue_;
+    std::thread worker_thread_;
+    std::thread::id worker_thread_id_;
+    std::atomic<bool> shutting_down_{false};
+    absl::Mutex callback_active_;
+    ConnectionState state_{ConnectionState::kDisconnected};
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
