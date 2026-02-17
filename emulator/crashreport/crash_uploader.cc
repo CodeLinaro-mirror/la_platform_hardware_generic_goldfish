@@ -12,13 +12,13 @@
 
 #include "android/crashreport/crash_uploader.h"
 
-#include <stdio.h>
-
 #include <iostream>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
+
+#include "absl/strings/match.h"
 
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
@@ -53,15 +53,16 @@ using crashpad::ProcessSnapshotMinidump;
 #define CRASHURL "https://clients2.google.com/cr/staging_report"
 #endif
 
-namespace android {
-namespace crashreport {
+namespace android::crashreport {
 
-static UploadResult UploadReport(const CrashReportDatabase::UploadReport* report,
-                                 std::string* response_body) {
+namespace {
+
+UploadResult UploadReport(const CrashReportDatabase::UploadReport* report,
+                          std::string* response_body) {
     std::map<std::string, std::string> parameters;
 
     FileReader* reader = report->Reader();
-    FileOffset start_offset = reader->SeekGet();
+    const FileOffset start_offset = reader->SeekGet();
     if (start_offset < 0) {
         LOG(INFO) << "Incorrect start offeset";
         return UploadResult::kPermanentFailure;
@@ -114,7 +115,7 @@ static UploadResult UploadReport(const CrashReportDatabase::UploadReport* report
     }
     http_transport->SetBodyStream(http_multipart_builder.GetBodyStream());
     // TODO(mark): The timeout should be configurable by the client.
-    double timeout_seconds = 60;
+    const double timeout_seconds = 60;
     http_transport->SetTimeout(timeout_seconds);
 
     std::string url = CRASHURL;
@@ -123,17 +124,17 @@ static UploadResult UploadReport(const CrashReportDatabase::UploadReport* report
         const char* key;
         const char* url_field_name;
     } kURLParameterMappings[] = {
-        {"prod", "product"},
-        {"ver", "version"},
-        {"guid", "guid"},
+        {.key = "prod", .url_field_name = "product"},
+        {.key = "ver", .url_field_name = "version"},
+        {.key = "guid", .url_field_name = "guid"},
     };
 
     for (const auto& parameter_mapping : kURLParameterMappings) {
         const auto it = parameters.find(parameter_mapping.key);
         if (it != parameters.end()) {
-            url.append(::base::StringPrintf(
-                    "%c%s=%s", url.find('?') == std::string::npos ? '?' : '&',
-                    parameter_mapping.url_field_name, crashpad::URLEncode(it->second).c_str()));
+            url.append(::base::StringPrintf("%c%s=%s", !absl::StrContains(url, '?') ? '?' : '&',
+                                            parameter_mapping.url_field_name,
+                                            crashpad::URLEncode(it->second).c_str()));
         }
     }
 
@@ -148,31 +149,34 @@ static UploadResult UploadReport(const CrashReportDatabase::UploadReport* report
     return UploadResult::kSuccess;
 }
 
-UploadResult ProcessPendingReport(CrashReportDatabase* database_,
+}  // namespace
+
+UploadResult ProcessPendingReport(CrashReportDatabase* database,
                                   const CrashReportDatabase::Report& report) {
 #ifdef __APPLE__
     crashpad::RecordFileLimitAnnotation();
 #endif
 
     std::unique_ptr<const CrashReportDatabase::UploadReport> upload_report;
-    CrashReportDatabase::OperationStatus status =
-            database_->GetReportForUploading(report.uuid, &upload_report);
+    const CrashReportDatabase::OperationStatus status =
+            database->GetReportForUploading(report.uuid, &upload_report);
     if (status != CrashReportDatabase::kNoError) {
-        printf("Bad news! %s, %d\n", report.uuid.ToString().c_str(), status);
+        std::cerr << "Bad news! " << report.uuid.ToString() << ", " << static_cast<int>(status)
+                  << "\n";
         return UploadResult::kPermanentFailure;
     }
 
     std::string response_body;
-    UploadResult upload_result = UploadReport(upload_report.get(), &response_body);
+    const UploadResult upload_result = UploadReport(upload_report.get(), &response_body);
 
     switch (upload_result) {
     case UploadResult::kSuccess:
-        database_->RecordUploadComplete(std::move(upload_report), response_body);
+        database->RecordUploadComplete(std::move(upload_report), response_body);
         break;
     case UploadResult::kPermanentFailure:
         upload_report.reset();
-        database_->SkipReportUpload(report.uuid,
-                                    crashpad::Metrics::CrashSkippedReason::kPrepareForUploadFailed);
+        database->SkipReportUpload(report.uuid,
+                                   crashpad::Metrics::CrashSkippedReason::kPrepareForUploadFailed);
         break;
     case UploadResult::kRetry:
         upload_report.reset();
@@ -180,12 +184,11 @@ UploadResult ProcessPendingReport(CrashReportDatabase* database_,
         // TODO(mark): Deal with retries properly: don’t call
         // SkipReportUpload() if the result was kRetry and the report
         // hasn’t already been retried too many times.
-        database_->SkipReportUpload(report.uuid,
-                                    crashpad::Metrics::CrashSkippedReason::kUploadFailed);
+        database->SkipReportUpload(report.uuid,
+                                   crashpad::Metrics::CrashSkippedReason::kUploadFailed);
         break;
     }
 
     return upload_result;
 }
-}  // namespace crashreport
-}  // namespace android
+}  // namespace android::crashreport

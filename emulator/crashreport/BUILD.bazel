@@ -181,6 +181,7 @@ clang_tidy_test(
         "hang_detector",
         "crash_reporter",
         "breadcrumb",
+        "crash_system",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
