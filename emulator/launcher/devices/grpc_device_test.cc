@@ -59,7 +59,7 @@ TEST(Grpc, DefaultAllowlist) {
     EXPECT_THAT(
             dev.getQemuParameters(emu.config()),
             testing::ElementsAre(testing::Eq("-device"),
-                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/test_allow_list.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*"))));
+                                 testing::MatchesRegex(absl::StrCat(".*allowlist=.*goldfish\\+", absl::StrReplaceAll(std::filesystem::path("/emulator/launcher/lib/emulator_access.json").make_preferred().string(), {{"\\", "\\\\"}}), ".*"))));
 }
 
 TEST(Grpc, CustomAllowlist) {

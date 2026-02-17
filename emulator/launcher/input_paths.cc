@@ -73,18 +73,6 @@ std::string AddBinarySuffix(std::string binary) {
     return binary;
 }
 
-std::string AddQemuBinarySuffix(std::string binary) {
-    // Note that this behaviour is currently defined here:
-    // https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
-#ifdef __APPLE__
-    if (android::base::Bazel::InBazel()) {
-        constexpr std::string_view kSigned = ".signed";
-        absl::StrAppend(&binary, kSigned);
-    }
-#endif
-    return AddBinarySuffix(std::move(binary));
-}
-
 constexpr std::string_view kEmulatorBinaryName = "emulator";
 
 }  // namespace
@@ -155,12 +143,12 @@ absl::StatusOr<ResolvedInputPaths> ResolvePaths(bool verbose, bool include_fisht
                                  "discovery directory"));
 
     ASSIGN_OR_RETURN(paths.qemu_system_x86_binary,
-                     CheckExists(paths.binary_directory / AddQemuBinarySuffix("qemu-system-x86_64"),
+                     CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-x86_64"),
                                  "qemu-system-x86_64"));
 #ifndef _WIN32
     ASSIGN_OR_RETURN(
             paths.qemu_system_arm_binary,
-            CheckExists(paths.binary_directory / AddQemuBinarySuffix("qemu-system-aarch64"),
+            CheckExists(paths.binary_directory / AddBinarySuffix("qemu-system-aarch64"),
                         "qemu-system-aarch64"));
     // ASSIGN_OR_RETURN(paths.qemu_system_riscv_binary, check_exists(paths.binary_directory /
     // add_qemu_binary_suffix("qemu-system-riscv64"), "qemu-system-riscv64"));

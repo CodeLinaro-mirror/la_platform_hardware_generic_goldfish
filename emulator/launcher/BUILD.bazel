@@ -365,6 +365,13 @@ collect_plugins(
             "@qemu//:qemu-system-x86_64",
         ],
     }),
+    renames = select({
+        "@platforms//os:macos": {
+            "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
+            "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
+        },
+        "//conditions:default": {},
+    }),
 )
 
 collect_plugins(
@@ -383,6 +390,9 @@ collect_plugins(
     name = "unsecure-emulator-access",
     output_dir = "lib",
     plugins = ["//emulator/grpc/security:unsecure-emulator-access"],
+    renames = {
+        "//emulator/grpc/security:unsecure-emulator-access": "emulator_access.json",
+    },
     # Visibility needed by unit tests.
     visibility = [":__subpackages__"],
 )

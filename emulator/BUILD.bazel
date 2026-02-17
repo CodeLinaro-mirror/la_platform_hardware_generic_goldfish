@@ -190,6 +190,9 @@ pkg_files(
             "@qemu//:qemu-system-x86_64": "qemu-system-x86_64.exe",
         },
         "@platforms//os:macos": {
+            # On Mac the Qemu binaries need to be signed and that extra steps results in a
+            # different name for the binary. See here for details:
+            # https://source.corp.google.com/h/googleplex-android/platform/superproject/main-emu-next-dev/+/main-emu-next-dev:external/qemu/platform/cc_interface_binary.bzl;l=101;drc=9e3171a3998e1fefddb5a024b0e0b5ffcc3f5576
             "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
         },
