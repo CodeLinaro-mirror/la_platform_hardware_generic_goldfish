@@ -16,7 +16,6 @@ unzip(
     }),
 )
 
-# TODO(whollins): This may not work on Windows until we switch to Bazel 9.0.0.
 subpath_link(
     name = "fishtank",
     parent_dir = ":fishtank_unzip",
@@ -415,18 +414,14 @@ cc_binary(
     data = [
         ":advanced_features",
         ":binaries",
+        ":fishtank",
         ":keymaps",
         ":lib64gl",
         ":plugins",
         ":roms",
         ":unsecure-emulator-access",
         ":vulkan_icds",
-    ] + select({
-        # Fishtank is not currently available on Windows when run under bazel.
-        # Use the release zip instead.
-        "@platforms//os:windows": [],
-        "//conditions:default": [":fishtank"],
-    }),
+    ],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
