@@ -47,6 +47,7 @@ using Builder = EmulatorControllerService::Builder;
 namespace fs = std::filesystem;
 namespace file = android::base::file;
 using namespace android::control::interceptor;
+using namespace grpc::experimental;
 using grpc::ServerBuilder;
 using grpc::ServerCompletionQueue;
 using grpc::Service;

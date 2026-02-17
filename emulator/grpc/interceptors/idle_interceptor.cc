@@ -22,52 +22,55 @@
 #include "android/base/clock.h"
 #include "goldfish/async/event_loop.h"
 
-namespace android {
-namespace control {
-namespace interceptor {
+namespace android::control::interceptor {
 
-using namespace grpc::experimental;
 using android::base::IClock;
-using android::base::Process;
 using goldfish::async::EventLoop;
+using grpc::experimental::Interceptor;
+using grpc::experimental::InterceptorBatchMethods;
+using grpc::experimental::ServerRpcInfo;
 
 IdleInterceptor::IdleInterceptor(std::chrono::seconds timeout,
-                                 std::atomic<uint64_t>* terminationUnixTime,
-                                 std::atomic<uint64_t>* activeRequests)
-        : mTimeout(timeout)
-        , mTerminationUnixTime(terminationUnixTime)
-        , mActiveRequests(activeRequests) {}
+                                 std::atomic<uint64_t>* termination_unix_time,
+                                 std::atomic<uint64_t>* active_requests)
+        : timeout_(timeout)
+        , termination_unix_time_(termination_unix_time)
+        , active_requests_(active_requests) {}
 
 IdleInterceptor::~IdleInterceptor() {
-    auto idleTime = absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(mTimeout.count()));
-    mTerminationUnixTime->store(idleTime);
-    mActiveRequests->fetch_sub(1);
+    const uint64_t idle_time =
+            absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout_.count()));
+    termination_unix_time_->store(idle_time);
+    active_requests_->fetch_sub(1);
 }
 
 void IdleInterceptor::Intercept(InterceptorBatchMethods* methods) {
     methods->Proceed();
 }
 
-IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* eventLoop)
-        : mTimeout(timeout)
-        , mTerminationUnixTime(
-                  absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout.count()))) {
-    mTimeoutChecker = eventLoop->ScheduleRepeating([this]() { checkIdleTimeout(); },
-                                                   std::chrono::milliseconds(mTimeout),
-                                                   std::chrono::milliseconds(mTimeout));
+IdleInterceptorFactory::IdleInterceptorFactory(std::chrono::seconds timeout, EventLoop* event_loop)
+        : timeout_(timeout)
+        , termination_unix_time_(static_cast<uint64_t>(
+                  absl::ToUnixSeconds(IClock::HostNow() + absl::Seconds(timeout.count())))) {
+    timeout_checker_ = event_loop->ScheduleRepeating([this]() { CheckIdleTimeout(); },
+                                                     std::chrono::milliseconds(timeout_),
+                                                     std::chrono::milliseconds(timeout_));
 }
 
-Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* info) {
-    mActiveRequests++;
-    return new IdleInterceptor(mTimeout, &mTerminationUnixTime, &mActiveRequests);
+Interceptor* IdleInterceptorFactory::CreateServerInterceptor(ServerRpcInfo* /* info */) {
+    active_requests_++;
+    return new IdleInterceptor(timeout_, &termination_unix_time_, &active_requests_);
 }
 
-bool IdleInterceptorFactory::checkIdleTimeout() {
+bool IdleInterceptorFactory::CheckIdleTimeout() {
     auto epoch = absl::ToUnixSeconds(IClock::HostNow());
-    if (mActiveRequests > 0 || epoch < mTerminationUnixTime) return true;
+    if (active_requests_ > 0U || static_cast<uint64_t>(epoch) < termination_unix_time_.load()) {
+        return true;
+    }
 
-    LOG(WARNING) << "Idled to long, shutting down. " << epoch << " > " << mTerminationUnixTime;
-    if (mShutdownAttempt == 0) {
+    LOG(WARNING) << "Idled to long, shutting down. " << epoch << " > "
+                 << termination_unix_time_.load();
+    if (shutdown_attempt_ == 0) {
         LOG(WARNING) << "Trying nicely is not yet implemented..";
     } else {
         LOG(INFO) << "Terminating the emulator.";
@@ -77,10 +80,8 @@ bool IdleInterceptorFactory::checkIdleTimeout() {
         }
     }
 
-    mShutdownAttempt++;
+    shutdown_attempt_++;
     return true;
 }
 
-}  // namespace interceptor
-}  // namespace control
-}  // namespace android
+}  // namespace android::control::interceptor

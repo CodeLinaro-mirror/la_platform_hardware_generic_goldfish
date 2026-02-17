@@ -95,8 +95,8 @@ TEST(LoggingInterceptor, LoggerRecordsData) {
     EXPECT_TRUE(record.duration > 0);
     EXPECT_STREQ(record.method.c_str(), "unknown");
     EXPECT_EQ(record.status.error_code(), Status::CANCELLED.error_code());
-    EXPECT_EQ(record.rcvBytes, msg.SpaceUsed());
-    EXPECT_EQ(record.sndBytes, msg.SpaceUsed());
+    EXPECT_EQ(record.rcv_bytes, msg.SpaceUsed());
+    EXPECT_EQ(record.snd_bytes, msg.SpaceUsed());
     EXPECT_EQ(record.response, "width: 123 height: 321");
 }
 
@@ -186,7 +186,7 @@ TEST(LoggingInterceptor, LoggerOnlyLogsFirstMsg) {
         record = invocation;
     };
 
-    EXPECT_TRUE(record.rcvBytes == 0);
+    EXPECT_TRUE(record.rcv_bytes == 0);
     {
         auto factory = std::make_unique<LoggingInterceptorFactory>(report);
         auto interceptor = std::unique_ptr<Interceptor>(factory->CreateServerInterceptor(nullptr));
@@ -198,7 +198,7 @@ TEST(LoggingInterceptor, LoggerOnlyLogsFirstMsg) {
     }
 
     // We only recorded the first incoming/response, not the 2nd/3rd.
-    EXPECT_TRUE(record.rcvBytes > 0);
+    EXPECT_TRUE(record.rcv_bytes > 0);
     EXPECT_EQ(record.response, "width: 123");
     EXPECT_EQ(record.incoming, "width: 123");
 }

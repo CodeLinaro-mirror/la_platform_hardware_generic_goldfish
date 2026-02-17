@@ -254,7 +254,7 @@ class NullOverseer : public ProcessOverseer {
  */
 class ObservableProcess : public Process {
   public:
-    ObservableProcess(bool daemon = false, bool inherit = false)
+    explicit ObservableProcess(bool daemon = false, bool inherit = false)
             : daemon_(daemon), inherit_(inherit) {}
 
     // Kills the process..
@@ -297,7 +297,7 @@ class ObservableProcess : public Process {
      * @return std::future_status::ready if the process and overseer have completed,
      *         std::future_status::timeout otherwise.
      */
-    std::future_status WaitFor(const std::chrono::milliseconds timeout_duration) const override;
+    std::future_status WaitFor(std::chrono::milliseconds timeout_duration) const override;
 
   protected:
     /**
