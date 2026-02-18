@@ -14,13 +14,9 @@
 
 #pragma once
 
-#include <gtest/gtest.h>
-
-#include <chrono>
-#include <condition_variable>
-#include <mutex>
-
-#include "aemu/base/Compiler.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "gtest/gtest.h"
 
 // Helper for multithreaded tests to wait for an event to occur before
 // continuing test execution. Usage:
@@ -41,44 +37,41 @@
 // count.
 
 class TestEvent {
-    DISALLOW_COPY_AND_ASSIGN(TestEvent);
-
   public:
     static constexpr int64_t kDefaultTimeoutMs = 10000;  // 10 seconds.
 
     TestEvent() = default;
+    TestEvent(const TestEvent& other) = delete;
+    TestEvent& operator=(const TestEvent& other) = delete;
 
     void signal() {
-        {
-            std::lock_guard<std::mutex> lock(mMutex);
-            ++mSignaledCount;
-        }
-        mCv.notify_one();
+        absl::MutexLock lock(&mutex_);
+        ++signal_count_;
     }
 
     bool isSignaled() {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return mSignaledCount > 0;
+        absl::MutexLock lock(&mutex_);
+        return signal_count_ > 0;
     }
 
     void reset() {
-        std::lock_guard<std::mutex> lock(mMutex);
-        mSignaledCount = 0;
+        absl::MutexLock lock(&mutex_);
+        signal_count_ = 0;
     }
 
     void wait(int64_t timeoutMs = kDefaultTimeoutMs) {
-        std::unique_lock<std::mutex> lock(mMutex);
-        if (mSignaledCount > 0 || mCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
-                                               [this] { return mSignaledCount > 0; })) {
-            ASSERT_GT(mSignaledCount, 0);
-            --mSignaledCount;
-        } else {
+        absl::MutexLock lock(&mutex_);
+        if (!mutex_.AwaitWithTimeout(
+                    absl::Condition(
+                            +[](size_t* count) { return *count > 0; }, &signal_count_),
+                    absl::Milliseconds(timeoutMs))) {
             FAIL() << "TestEvent::wait() timed out.";
         }
+        ASSERT_GT(signal_count_, 0);
+        --signal_count_;
     }
 
   private:
-    std::condition_variable mCv;
-    std::mutex mMutex;
-    size_t mSignaledCount = 0;
+    absl::Mutex mutex_;
+    size_t signal_count_ ABSL_GUARDED_BY(mutex_) = 0;
 };
