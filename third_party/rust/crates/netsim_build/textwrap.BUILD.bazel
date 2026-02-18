@@ -1,0 +1,15 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "textwrap",
+    srcs = glob(["src/**/*.rs"]),
+    # Disable default features to avoid missing dependencies (unicode-linebreak, smawk)
+    # dedent should work without them.
+    crate_features = ["unicode-width"],
+    crate_name = "textwrap",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@unicode-width//:unicode-width",
+    ],
+)

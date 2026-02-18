@@ -1,0 +1,21 @@
+load("@rules_rust//rust:defs.bzl", "rust_proc_macro")
+
+rust_proc_macro(
+    name = "peg_macros",
+    srcs = [
+        "analysis.rs",
+        "ast.rs",
+        "grammar.rs",
+        "lib.rs",
+        "tokens.rs",
+        "translate.rs",
+    ],
+    crate_name = "peg_macros",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@peg-runtime//:peg_runtime",
+        "@proc-macro2//:proc-macro2",
+        "@quote",
+    ],
+)
