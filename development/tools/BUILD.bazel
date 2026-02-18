@@ -1,0 +1,8 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "generate_bcc",
+    srcs = ["generate_bcc.py"],
+    main = "generate_bcc.py",
+    visibility = ["//visibility:public"],
+)

@@ -17,7 +17,7 @@ run = "cd $BAZEL_ROOT && bazel test @goldfish//..."
 
 [tasks.bcc]
 description = "Generate the compilation database"
-run = "cd $BAZEL_ROOT && bazel run --nocheck_visibility @goldfish//:compile_commands"
+run = "cd $BAZEL_ROOT && bazel run @goldfish//development/tools:generate_bcc -- --workspace $BAZEL_ROOT"
 
 [tasks.tidy]
 description = "Generate the clang tidy report"

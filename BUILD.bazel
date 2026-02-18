@@ -1,5 +1,4 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_report")
-load("@goldfish_build//rules:compile_commands.bzl", "compile_commands_json")
 
 # You can update the tests (on macos) by running:
 # bazel query -k 'kind("cc_test", @goldfish//...)' |  grep -v 'win' | sed 's/.*/    "&",/' | pbcopy
@@ -129,24 +128,6 @@ EMULATOR = [
     ],
     "//conditions:default": [],
 })
-
-# Since none of our tests are visible from here will have to run this target
-# with:
-#      bazel run --nocheck_visibility @goldfish//:compile_commands
-# This will suppress any visibility warnigns and will generate
-# ${BAZEL_ROOT}/compile_commands.json
-compile_commands_json(
-    name = "compile_commands",
-    testonly = True,
-    allow_external_workspaces = [
-        "aemu+",  # Matches @aemu
-        "gfxstream+",  # Matches @gfxstream
-        "goldfish+",  # Matches @goldfish
-        "qemu+",  # Matches qemu
-    ],
-    tags = ["manual"],  # Invoke explicitly
-    targets = TESTS + PERF_TESTS + QEMU + EMULATOR,
-)
 
 # This is the clang tidy configuration used by the goldfish project
 filegroup(
