@@ -17,12 +17,12 @@
 
 #include "aemu/base/utils/status_macros.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
+
+namespace {
 
 template <class T>
-absl::StatusOr<std::shared_ptr<IDisplay>> tryLockDisplay(IMultiDisplay& multidisplay,
+absl::StatusOr<std::shared_ptr<IDisplay>> TryLockDisplay(IMultiDisplay& multidisplay,
                                                          const T& event) {
     auto screen = multidisplay.GetDisplay(event.display());
     if (!screen.ok()) {
@@ -35,39 +35,39 @@ absl::StatusOr<std::shared_ptr<IDisplay>> tryLockDisplay(IMultiDisplay& multidis
     return display;
 }
 
-absl::Status InputEventSender::send(const AndroidEvent& event) const {
-    ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
+}  // namespace
+
+absl::Status InputEventSender::Send(const AndroidEvent& event) const {
+    ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
     display->SendEvDevEvent(event.type(), event.code(), event.value());
     return absl::OkStatus();
 };
 
-absl::Status InputEventSender::send(const MouseEvent& event) const {
-    ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
+absl::Status InputEventSender::Send(const MouseEvent& event) const {
+    ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
 
     display->SendMouseEvent(event.x(), event.y(), event.buttons());
     return absl::OkStatus();
 }
 
-absl::Status InputEventSender::send(const WheelEvent& event) const {
+absl::Status InputEventSender::Send(const WheelEvent& event) {
     LOG(ERROR) << "Wheel events are not yet supported, dropping event: "
                << event.ShortDebugString();
     return absl::OkStatus();
 }
 
-absl::Status InputEventSender::send(const PenEvent& event) {
-    ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
-    mPointerDispatcher.sendEvents(*display, internal::PenTouchEvent::fromProto(event));
+absl::Status InputEventSender::Send(const PenEvent& event) {
+    ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
+    pointer_dispatcher_.SendEvents(*display, internal::PenTouchEvent::FromProto(event));
     return absl::OkStatus();
 }
 
-absl::Status InputEventSender::send(const TouchEvent& event) {
-    ASSIGN_OR_RETURN(auto display, tryLockDisplay(*mMultiDisplay, event));
-    mPointerDispatcher.sendEvents(*display, internal::MultiTouchEvent::fromProto(event));
+absl::Status InputEventSender::Send(const TouchEvent& event) {
+    ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
+    pointer_dispatcher_.SendEvents(*display, internal::MultiTouchEvent::FromProto(event));
     return absl::OkStatus();
 }
 
-InputEventSender::InputEventSender(IMultiDisplay* multidisplay) : mMultiDisplay(multidisplay) {}
+InputEventSender::InputEventSender(IMultiDisplay* multidisplay) : multi_display_(multidisplay) {}
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
