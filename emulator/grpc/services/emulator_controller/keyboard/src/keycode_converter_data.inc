@@ -79,7 +79,7 @@
 //       scan code 0x72 kVK_Help. We map this to UI Events 'Insert', since
 //       Apple keyboards with USB 0x070049 [Insert] labelled "Help" have not
 //       been made since 2007.
-
+// NOLINTBEGIN
 USB_KEYMAP_DECLARATION {
 
   //            USB     evdev    XKB     Win     Mac   Code
@@ -598,3 +598,4 @@ USB_KEYMAP_DECLARATION {
   // TODO(jansene): Kernel excavation needed for others.
   // USB_KEYMAP(0x0c0193, 0x00d4, 0x00d4, 0x0000, 0xffff, "Camera", CAMERA), // AL A/V Capture
 };
+// NOLINTEND

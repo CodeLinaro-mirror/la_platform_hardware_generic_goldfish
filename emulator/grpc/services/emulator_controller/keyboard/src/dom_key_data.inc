@@ -22,6 +22,7 @@
 //
 // NOTE: Some uses of this data expect that encodings remain fixed,
 // so existing key values should not be changed.
+// NOLINTBEGIN
 
 DOM_KEY_MAP_DECLARATION {
 
@@ -543,3 +544,4 @@ DOM_KEY_MAP_DECLARATION {
   DOM_KEY_MAP("Wink",                 WINK,                     0x0D4D),
   DOM_KEY_MAP("ZoomToggle",           ZOOM_TOGGLE,              0x0D4E),
 };
+// NOLINTEND
