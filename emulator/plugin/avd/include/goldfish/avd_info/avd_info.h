@@ -16,6 +16,7 @@
 
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/avd_universe/battery/battery_state.h"
 #include "goldfish/avd_universe/clipboard/clipboard_data.h"
 #include "goldfish/avd_universe/fingerprint/fingerprint_sensor.h"
 #include "goldfish/avd_universe/gps/location.h"
@@ -57,6 +58,7 @@ struct AvdProperties {
 struct AvdUniverse {
     const AvdProperties& props() const { return *mProps; }
 
+    avd_universe::battery::ObservableBattery& getBattery() { return mBattery; }
     avd_universe::clipboard::ClipboardChannel& getClipboardChannel() { return mClipboardChannel; }
     avd_universe::fingerprint::ObservableFingerprintSensor& getFingerprintSensor() {
         return mFingerprintSensor;
@@ -77,6 +79,7 @@ struct AvdUniverse {
   private:
     const std::unique_ptr<const AvdProperties> mProps;
 
+    avd_universe::battery::ObservableBattery mBattery;
     avd_universe::clipboard::ClipboardChannel mClipboardChannel;
     avd_universe::fingerprint::ObservableFingerprintSensor mFingerprintSensor;
     avd_universe::grpc::GrpcNotificationEventSource mGrpcNotificationEventSource;

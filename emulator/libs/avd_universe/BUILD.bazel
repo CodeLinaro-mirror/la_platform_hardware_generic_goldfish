@@ -1,4 +1,4 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "clipboard",
@@ -73,12 +73,28 @@ cc_library(
 )
 
 cc_library(
+    name = "battery",
+    hdrs = [
+        "include/goldfish/avd_universe/battery/battery_state.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/eventing",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "avd_universe",
     includes = ["include"],
     visibility = [
         "//visibility:public",
     ],
     deps = [
+        ":battery",
         ":clipboard",
         ":fingerprint",
         ":grpc_notification",

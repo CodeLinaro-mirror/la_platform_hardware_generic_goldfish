@@ -8,6 +8,10 @@ cc_library(
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//android/async:async_api",
+        "//emulator/libs/avd_universe:battery",
+    ],
 )
 
 cc_library(
@@ -19,6 +23,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":headers",
+        "//android/async:async_api",
+        "//emulator/libs/avd_universe:battery",
+        "//emulator/libs/eventing",
         "@qemu//:qemu-headers",
     ],
     alwayslink = True,

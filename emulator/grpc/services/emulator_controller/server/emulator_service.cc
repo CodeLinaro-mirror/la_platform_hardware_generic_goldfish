@@ -25,6 +25,7 @@
 #include "android/emulation/control/keyboard/key_event_sender.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/vm_interface.h"
+#include "emulator/grpc/services/emulator_controller/server/battery_service.h"
 #include "emulator/grpc/services/emulator_controller/server/clipboard_service.h"
 #include "emulator/grpc/services/emulator_controller/server/display_service.h"
 #include "emulator/grpc/services/emulator_controller/server/gps_service.h"
@@ -62,11 +63,22 @@ class EmulatorControllerImpl final
             , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemu_loop))
             , mStatusService(avdUniverse->getGuestStatus(), avdUniverse->props().avd_api,
                              avdUniverse->props().hw_config)
+            , mBatteryService(avdUniverse->getBattery())
             , mSensorService(avdUniverse->getSensorsPhysicalModel())
             , mGpsService(avdUniverse->getLocation())
             , mClipboardService(avdUniverse->getClipboardChannel())
             , mInputEventSender(multidisplay)
             , mDisplayService(multidisplay, &avdUniverse->getSensorsPhysicalModel()) {}
+
+    Status getBattery(ServerContext* /*context*/, const Empty* /*request*/,
+                      BatteryState* reply) override {
+        return mBatteryService.getBattery(reply);
+    }
+
+    Status setBattery(ServerContext* /*context*/, const BatteryState* request,
+                      Empty* /*reply*/) override {
+        return mBatteryService.setBattery(*request);
+    }
 
     Status getStatus(ServerContext* /*context*/, const Empty* /*request*/,
                      EmulatorStatus* reply) override {
@@ -203,6 +215,7 @@ class EmulatorControllerImpl final
     GrpcNotificationEventSource& mGrpcNotificationChannel;
     const std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
     StatusServiceImpl mStatusService;
+    BatteryServiceImpl mBatteryService;
     SensorServiceImpl mSensorService;
     GpsServiceImpl mGpsService;
     ClipboardServiceImpl mClipboardService;

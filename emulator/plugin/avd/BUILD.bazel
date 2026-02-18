@@ -115,6 +115,7 @@ cc_library(
         "//emulator/hal/sensors",
         "//emulator/hal/unix_pipe",
         "//emulator/libs/display",
+        "//emulator/plugin/battery",
         "//emulator/plugin/system:qemu_clock",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
