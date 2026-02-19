@@ -42,7 +42,7 @@ using TimestampSubscription =
 void emptyUnregisterEmulatorReset(EmulatorResetCallbacks::QEMUResetHandler*, void*) {}
 
 class GuestStatusDevice : public IGuestStatusDevice,
-                          std::enable_shared_from_this<GuestStatusDevice> {
+                          public std::enable_shared_from_this<GuestStatusDevice> {
   public:
     GuestStatusDevice(GuestStatus& guestStatus, const EmulatorResetCallbacks resetCallbacks,
                       async::EventLoop* qemu_loop, const int quitAfterBootTimeoutSeconds)
@@ -64,11 +64,11 @@ class GuestStatusDevice : public IGuestStatusDevice,
     void OnClose() override {
         VLOG(1) << "Guest status device has been disconnected";
 
-        // TODO shared_from_this() throws here as this no longer has any associated shared_ptr.
-        // Presumably it's being destroyed?
-        /*mQemuLoop->Post([self = shared_from_this()]() {
-            self->mUnregisterEmulatorReset(GuestStatusDevice::QEMUResetHandler, self.get());
-        }).IgnoreError();*/
+        mQemuLoop
+                ->Post([self = shared_from_this()]() {
+                    self->mUnregisterEmulatorReset(GuestStatusDevice::QEMUResetHandler, self.get());
+                })
+                .IgnoreError();
     }
 
     void OnReceive(const std::string_view data) override {
