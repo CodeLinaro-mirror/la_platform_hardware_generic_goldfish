@@ -45,6 +45,16 @@ TEST(KeyConversionTest, DISABLED_EvdevToQKeyCode) {
     }
 }
 
+TEST(KeyConversionTest, HandlesEvdevBit11) {
+    // 102 is KEY_HOME in evdev.
+    // 1126 is 102 | 0x400 (bit 11 set).
+    uint32_t evdev_102 = keycode_to_evdev(102, KeyCodeType::evdev);
+    uint32_t evdev_1126 = keycode_to_evdev(1126, KeyCodeType::evdev);
+
+    EXPECT_EQ(evdev_102, 102u);
+    EXPECT_EQ(evdev_102, evdev_1126);
+}
+
 }  // namespace keyboard
 }  // namespace control
 }  // namespace emulation

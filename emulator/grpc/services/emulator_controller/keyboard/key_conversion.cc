@@ -181,6 +181,11 @@ uint32_t dom_to_evdev(DomCode key) {
 }
 
 uint32_t keycode_to_evdev(uint32_t from, KeyCodeType source) {
+    // The emulator-controller.proto defines that bit 11 (0x400) is set for keydown events.
+    // Some clients might send this bit in the keyCode field when using Evdev.
+    if (source == KeyCodeType::evdev) {
+        from &= ~0x400;
+    }
     for (const auto& entry : usb_keycode_map) {
         switch (source) {
         case KeyCodeType::usb:
