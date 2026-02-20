@@ -15,6 +15,17 @@ cc_library(
 )
 
 cc_library(
+    name = "info-fake",
+    srcs = ["avd_info_fake.cc"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":info",
+        "//emulator/hal/multidisplay",
+    ],
+)
+
+cc_library(
     name = "gralloc_impl",
     srcs = [
         "gralloc_impl.cc",
@@ -112,6 +123,7 @@ cc_library(
         "//emulator/hal/fingerprint",
         "//emulator/hal/gps",
         "//emulator/hal/guest-status",
+        "//emulator/hal/multidisplay",
         "//emulator/hal/sensors",
         "//emulator/hal/unix_pipe",
         "//emulator/libs/display",

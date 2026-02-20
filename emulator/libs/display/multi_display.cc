@@ -30,6 +30,9 @@
 #include "emulator/libs/display/QemuDisplay.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
+#include "goldfish/display/virtual_display.h"
+#include "goldfish/physics/rotation.h"
+#include "goldfish/physics/skin_rotation.h"
 
 extern "C" {
 // clang-format off
@@ -49,16 +52,30 @@ using SharedDisplayImpl = std::shared_ptr<QemuDisplay>;
 using WeakDisplayImpl = std::weak_ptr<QemuDisplay>;
 using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 
+using SharedVirtualDisplayImpl = std::shared_ptr<VirtualDisplay>;
+using WeakVirtualDisplayImpl = std::weak_ptr<VirtualDisplay>;
+using VirtualDisplayMap = std::unordered_map<unsigned, SharedVirtualDisplayImpl>;
+
 class MultiDisplayImpl : public IMultiDisplay {
   public:
     MultiDisplayImpl(EventLoop* loop, EventLoop* qemu_loop)
             : IMultiDisplay(loop), qemu_loop_(qemu_loop) {}
     ~MultiDisplayImpl() override = default;
 
-    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId /*display_id*/, uint32_t /*width*/,
-                                             uint32_t /*height*/) override {
-        // TODO(jansene): Port multidisplay creation.
-        return absl::UnimplementedError("MultiDisplayImpl::CreateDisplay is not yet supported.");
+    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
+                                             uint32_t dpi, uint32_t flags) override {
+        const absl::MutexLock lock(&display_access_);
+        auto display = std::make_shared<VirtualDisplay>(loop_, qemu_loop_, display_id, width,
+                                                        height, dpi, flags);
+        auto [it, inserted] = virtual_displays_.insert({display_id, display});
+        if (!inserted) {
+            return absl::AlreadyExistsError(
+                    absl::StrFormat("Display with id %d already exists.", display_id));
+        }
+
+        VLOG(1) << "Created display: " << display_id;
+        FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
+        return display;
     }
 
     absl::StatusOr<DisplayPtr> CreateDisplayFromQemu(QemuConsole* console, DisplaySurface* ds,
@@ -79,7 +96,19 @@ class MultiDisplayImpl : public IMultiDisplay {
 
     absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const override {
         auto display = GetDisplayWeak(display_id);
-        return display;
+        if (display.ok()) {
+            return display;
+        }
+        return GetVirtualDisplayWeak(display_id);
+    }
+
+    absl::StatusOr<WeakVirtualDisplayImpl> GetVirtualDisplayWeak(DisplayId display_id) const {
+        const absl::MutexLock lock(&display_access_);
+        auto it = virtual_displays_.find(display_id);
+        if (it == virtual_displays_.end()) {
+            return absl::NotFoundError(absl::StrFormat("Invalid display: %d", display_id));
+        }
+        return it->second;
     }
 
     absl::StatusOr<WeakDisplayImpl> GetDisplayWeak(DisplayId display_id) const {
@@ -92,6 +121,14 @@ class MultiDisplayImpl : public IMultiDisplay {
     }
 
     absl::Status EraseDisplay(DisplayId display_id) override {
+        auto result = EraseQemuDisplay(display_id);
+        if (!result.ok()) {
+            result = EraseVirtualDisplay(display_id);
+        }
+        return result;
+    }
+
+    absl::Status EraseQemuDisplay(DisplayId display_id) {
         const absl::MutexLock lock(&display_access_);
         auto it = displays_.find(display_id);
         if (it == displays_.end()) {
@@ -103,15 +140,29 @@ class MultiDisplayImpl : public IMultiDisplay {
         return absl::OkStatus();
     }
 
-    bool IsEnabled() const override {
-        // TODO(jansene): Implement true multidisplay support
-        return false;
+    absl::Status EraseVirtualDisplay(DisplayId display_id) {
+        const absl::MutexLock lock(&display_access_);
+        auto it = virtual_displays_.find(display_id);
+        if (it == virtual_displays_.end()) {
+            return absl::NotFoundError(
+                    absl::StrFormat("Display: %d does not exist (already removed?).", display_id));
+        }
+        virtual_displays_.erase(it);
+        FireEvent({DisplayEvent{DisplayEvent::DeletedEvent{display_id}}});
+        return absl::OkStatus();
     }
+
+    bool IsEnabled() const override { return true; }
 
     std::vector<DisplayPtr> Displays() const override {
         const absl::MutexLock lock(&display_access_);
         std::vector<DisplayPtr> displays;
         for (const auto& pair : displays_) {
+            if (pair.second->Active()) {
+                displays.push_back(pair.second);
+            }
+        }
+        for (const auto& pair : virtual_displays_) {
             if (pair.second->Active()) {
                 displays.push_back(pair.second);
             }
@@ -123,20 +174,9 @@ class MultiDisplayImpl : public IMultiDisplay {
   private:
     mutable absl::Mutex display_access_;
     QemuDisplayMap displays_ ABSL_GUARDED_BY(display_access_);
+    VirtualDisplayMap virtual_displays_ ABSL_GUARDED_BY(display_access_);
     EventLoop* qemu_loop_;
-
-    static std::unique_ptr<MultiDisplayImpl> g_multidisplay;
 };
-
-std::atomic<IMultiDisplay*> IMultiDisplay::g_singleton = nullptr;
-
-IMultiDisplay* IMultiDisplay::Instance() {
-    return IMultiDisplay::g_singleton;
-}
-
-void IMultiDisplay::InjectSingleton(IMultiDisplay* display) {
-    IMultiDisplay::g_singleton = display;
-}
 
 namespace qemu_multidisplay {
 void ConfigureMultiDisplay(EventLoop* loop, EventLoop* qemu_loop) {

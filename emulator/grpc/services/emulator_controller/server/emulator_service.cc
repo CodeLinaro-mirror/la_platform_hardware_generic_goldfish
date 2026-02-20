@@ -195,6 +195,11 @@ class EmulatorControllerImpl final
         return mDisplayService.getDisplayConfigurations(context, request, reply);
     }
 
+    Status setDisplayConfigurations(ServerContext* context, const DisplayConfigurations* request,
+                                    DisplayConfigurations* reply) override {
+        return mDisplayService.setDisplayConfigurations(context, request, reply);
+    }
+
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override {
         return mDisplayService.streamScreenshot(context, request, writer);

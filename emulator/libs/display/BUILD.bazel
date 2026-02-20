@@ -22,9 +22,30 @@ cc_library(
 cc_library(
     name = "display",
     srcs = [
+        "multi_display.cc",
+        "virtual_display.cc",
+    ],
+    hdrs = [
+        "include/goldfish/display/virtual_display.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":primary_display",
+        "//android/async:async_api",
+        "//emulator/hal/multidisplay",
+        "//emulator/libs/base",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "primary_display",
+    srcs = [
         "NullDisplay.h",
         "QemuDisplay.h",
-        "multi_display.cc",
+        "imulti_display_impl.cc",
         "pixman_display.cc",
         "pixman_frame_manager.cc",
         "qemu_display.cc",
@@ -105,7 +126,7 @@ cc_library(
     includes = ["test/include"],
     visibility = ["//visibility:public"],
     deps = [
-        ":display",
+        ":primary_display",
     ],
 )
 
@@ -132,7 +153,7 @@ cc_test(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        "display",
+        "primary_display",
         "video_recorder",
     ],
     tidy_config_file = "//:clang_tidy_config",

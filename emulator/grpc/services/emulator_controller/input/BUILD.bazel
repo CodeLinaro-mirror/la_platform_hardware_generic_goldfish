@@ -42,6 +42,7 @@ cc_test(
         "//android/system:test-headers",
         "//emulator/grpc/event-stream",
         "//emulator/libs/display:test-display",
+        "//emulator/plugin/avd:info-fake",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@bazel_tools//tools/cpp/runfiles",

@@ -24,3 +24,7 @@ struct rutabaga* rutabagaGetInstance();
 int32_t rutabagaImageTransfer(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
                               uint32_t height, uint32_t stride, const void* framebuffer,
                               uint32_t framebufferSize);
+
+int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
+                          uint32_t height, uint32_t stride, void* framebuffer,
+                          uint32_t framebufferSize);

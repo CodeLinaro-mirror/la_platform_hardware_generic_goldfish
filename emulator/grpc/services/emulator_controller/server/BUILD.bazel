@@ -71,6 +71,7 @@ cc_test(
         "//emulator/config:fake_hardware_config",
         "//emulator/grpc/services/emulator_controller/keyboard:test_qemu_input_stub",
         "//emulator/libs/display:test-display",
+        "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/vminterface:test_vminterface",
         "//emulator/plugin/vminterface:vminterface-test",
         "@aemu//base:aemu-base",

@@ -83,9 +83,11 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      *
      * TODO(jansene): This is to be called from the UI to create an addition display in the device.
      */
+    // NOLINTBEGIN
     virtual absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
-                                                     uint32_t height) = 0;
-
+                                                     uint32_t height, uint32_t dpi = 320,
+                                                     uint32_t flags = 1) = 0;
+    // NOLINTEND
     /**
      * @brief Returns the enabled state of MultiDisplay.
      * @return True if MultiDisplay is enabled, false otherwise.

@@ -45,6 +45,8 @@ class DisplayServiceImpl : public EmulatorController::Service {
 
     Status getDisplayConfigurations(ServerContext* context, const Empty* request,
                                     DisplayConfigurations* reply) override;
+    Status setDisplayConfigurations(ServerContext* context, const DisplayConfigurations* request,
+                                    DisplayConfigurations* reply) override;
 
   private:
     static Status getDisplayConfigurations(const ::goldfish::display::IMultiDisplay& multiDisplay,
