@@ -25,6 +25,7 @@
 | Library | Description | Documentation |
 | :--- | :--- | :--- |
 | **SocketBuffer** | Auto-resizing ring buffer for streaming I/O. | [Architecture](SocketBuffer/ARCHITECTURE.md) |
+| **proto_data_store** | Atomic, fixed-size circular storage for Protobuf messages. | [Architecture](proto_data_store/ARCHITECTURE.md) |
 | **archive** | Serialization (`IReader`/`IWriter`) with VarInt encoding. | [Architecture](archive/ARCHITECTURE.md) |
 | **UniqueIdAllocator** | ID generation and recycling. | [Architecture](UniqueIdAllocator/ARCHITECTURE.md) |
 | **parsing** | String splitting and key-value parsing. | [Architecture](parsing/ARCHITECTURE.md) |
