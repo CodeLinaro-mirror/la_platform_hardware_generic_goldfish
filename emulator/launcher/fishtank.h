@@ -38,8 +38,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> launch_config(
         .args = args,
         //.environment = {},
         .daemon = true,
-        // TODO(whollins): Put this behind a flag.
-        .keep_stdio = true,
+        .keep_stdio = opts.fishtank_stdout != 0,
     };
 }
 

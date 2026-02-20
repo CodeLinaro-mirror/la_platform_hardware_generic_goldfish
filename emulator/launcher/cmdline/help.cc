@@ -1787,6 +1787,7 @@ static void help_vmodule(stralloc_t* out) {
 #define help_no_grpc NULL
 #define help_no_netsim NULL
 #define help_netsim_stdout NULL
+#define help_fishtank_stdout NULL
 #define help_V NULL
 
 typedef struct {
