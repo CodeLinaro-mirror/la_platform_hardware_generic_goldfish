@@ -360,6 +360,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         l.mEmulatorExitStatus = exit_status;
         CloseHandle(std::move(l.mEmulatorProcess));
 
+        // Shutdown fishtank if it's running.
+        if (auto* p = l.mFishtankProcess.get()) {
+            uv_process_kill(p, SIGTERM);
+        }
+
         l.shutdown();
     }
 
