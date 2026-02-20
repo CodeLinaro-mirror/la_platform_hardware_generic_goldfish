@@ -417,9 +417,6 @@ OPT_FLAG(netsim_stdout, "send netsim output to stdout")
 
 OPT_PARAM(V, "<v log level>", "Set the global vlog level to this integer value")
 
-// This flag is temporary and will become the default behaviour in the future.
-OPT_FLAG(fishtank, "launch the fishtank UI")
-
 #undef CFG_FLAG
 #undef CFG_PARAM
 #undef OPT_FLAG
