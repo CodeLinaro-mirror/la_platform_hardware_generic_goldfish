@@ -77,6 +77,8 @@ struct GrpcConfig {
     fs::path tls_ca;
     fs::path allowlist;
     fs::path discovery_path;
+    bool enable_logging{false};
+    bool enable_embedded{false};
     bool use_token{false};
     int idle_timeout{0};
     int port{0};
@@ -140,7 +142,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
 
     // TODO config->addr is set but not used anywhere
     auto builder = EmulatorControllerService::Builder()
-                           .withLogging(true)
+                           .withLogging(config->enable_logging)
                            .withCertAndKey(config->tls_cer, config->tls_key, config->tls_ca)
                            .withAllowList(config->allowlist)
                            .withPortRange(config->port, config->port + 1)
@@ -178,9 +180,8 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                              {"avd.id", avdprops.avd_id},
                              {"avd.dir", avdprops.avd_content_path.string()},
                              // TODO(jansene):
-                             {"cmdline",
-                              "\"qemu-system-x86_64\" \"@testing\" \"-qt-hide-window\" "
-                              "\"-grpc-use-token\""}};
+                             {"cmdline", absl::StrCat("\"qemu-system-x86_64\" ", "\"@dummy\" ", (config->enable_embedded ? "\"-qt-hide-window\" ": ""), "\"-grpc-use-token\"")}
+                            };
 
     if (config->use_token) {
         const int of64Bytes = 64;
@@ -300,6 +301,16 @@ void grpc_set_discovery_dir(Object* obj, const char* value, Error** errp) {
     grpc_device->config->discovery_path = value;
 }
 
+void grpc_set_enable_logging(Object* obj, bool v, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    grpc_device->config->enable_logging = v;
+}
+
+void grpc_set_enable_embedded(Object* obj, bool v, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    grpc_device->config->enable_embedded = v;
+}
+
 static void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
@@ -350,6 +361,9 @@ void grpc_class_init(ObjectClass* oc, void* data) {
                                           "a valid token for every grpc call.");
 
     object_class_property_add_str(oc, "discovery_dir", NULL, grpc_set_discovery_dir);
+
+    object_class_property_add_bool(oc, "logging", NULL, grpc_set_enable_logging);
+    object_class_property_add_bool(oc, "embedded", NULL, grpc_set_enable_embedded);
 
     // TODO should this be done on instance realization rather than setup?
     grpc_display_register();

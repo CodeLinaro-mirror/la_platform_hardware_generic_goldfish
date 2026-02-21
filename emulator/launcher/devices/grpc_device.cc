@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 
 #include "android/base/bazel_info.h"
 #include "android/base/file/file.h"
@@ -60,11 +61,19 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
         }
     }
 
-    std::string grpc_device =
-            absl::StrCat("grpc,port=", mPort, ",token=true,allowlist=", allowlist.string(),
-                         ",discovery_dir=", emulator.paths().discovery_directory.string());
+    std::vector<std::pair<std::string, std::string>> params{
+        {"port", absl::StrCat(mPort)},
+        {"token", "true"},
+        {"allowlist", allowlist.string()},
+        {"discovery_dir", emulator.paths().discovery_directory.string()}};
+    params.emplace_back(std::pair{"logging", emulator.opts().verbose_grpc ? "true" : "false"});
+    params.emplace_back(std::pair{"embedded", emulator.opts().qt_hide_window ? "true" : "false"});
 
-    return {"-device", grpc_device};
+    auto grpc_params = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
+        absl::StrAppend(s, pair.first, "=", pair.second);
+    });
+
+    return {"-device", absl::StrCat("grpc,", grpc_params)};
 }
 
 }  // namespace android::goldfish

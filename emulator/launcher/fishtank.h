@@ -31,6 +31,9 @@ absl::StatusOr<::goldfish::async::LaunchConfig> launch_config(
     args.push_back("-fishtank");
     args.push_back(absl::StrCat(serial_number));
     args.push_back("-verbose");
+    if (opts.qt_hide_window) {
+        args.push_back("-qt-hide-window");
+    }
 
     LOG(INFO) << "Fishtank launch command: " << fishtank_binary << " " << absl::StrJoin(args, " ");
     return ::goldfish::async::LaunchConfig{
