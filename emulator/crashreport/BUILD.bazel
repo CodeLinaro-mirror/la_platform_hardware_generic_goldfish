@@ -76,9 +76,11 @@ cc_library(
         "crash_reporter.cc",
         "simple_string_annotation.h",
     ],
-    hdrs = ["include/android/crashreport/crash_reporter.h"],
+    hdrs = [
+        "include/android/crashreport/crash_reporter.h",
+    ],
     includes = ["include"],
-    visibility = ["//emulator/plugin:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [
         ":hang_detector",
         "@abseil-cpp//absl/log",
@@ -115,8 +117,13 @@ cc_library(
         "annotation_circular_streambuf.h",
         "breadcrumb.cc",
     ],
-    hdrs = ["include/android/crashreport/breadcrumb.h"],
+    hdrs = [
+        "include/android/crashreport/binary_annotation.h",
+        "include/android/crashreport/breadcrumb.h",
+        "include/android/crashreport/thread.h",
+    ],
     includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
@@ -154,6 +161,7 @@ cc_test(
     name = "crashreport_test",
     srcs = [
         "annotation_buffer_test.cc",
+        "binary_annotation_test.cc",
         "crash_detectors_test.cc",
         "crash_dump_test.cc",
         "timeout_monitor_test.cc",
@@ -172,12 +180,17 @@ cc_test(
         ":crash_system",
         ":detectors",
         "//android/process",
+        "//android/status_macros",
+        "//android/status_macros:status_matcher_macros",
         "//android/system",
         "//android/system:googletest_main",
         "//android/system:test-headers",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@breakpad//src/processor",
         "@crashpad//client",
+        "@goldfish//emulator/libs/proto_data_store",
     ],
 )
 
