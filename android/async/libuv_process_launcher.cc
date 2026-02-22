@@ -37,6 +37,9 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     const std::string exe = config.exe_path.string();
 
     VLOG(1) << "Launching " << exe << ": " << config.daemon;
+    // Flush the streams to try to reduce interleaved logs from the different processes.
+    std::cout << std::flush;
+    std::cerr << std::flush;
     char* args[config.args.size() + 2];
     args[0] = const_cast<char*>(exe.c_str());
     for (size_t i = 0; i < config.args.size(); ++i) {
