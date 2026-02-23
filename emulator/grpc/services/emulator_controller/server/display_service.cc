@@ -25,6 +25,7 @@
 
 #include "android/base/system.h"
 #include "android/emulation/control/absl_status_translate.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "goldfish/eventing/multi_event_source_waiter.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
@@ -374,6 +375,87 @@ Status DisplayServiceImpl::getDisplayConfigurations(const IMultiDisplay& multiDi
     // TODO(jansene): Where should these really come from?
     reply->set_maxdisplays(multiDisplay.kMaxDisplays);
     reply->set_userconfigurable(3);
+
+    return Status::OK;
+}
+
+Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
+                                                    const DisplayConfigurations* request,
+                                                    DisplayConfigurations* reply) {
+    std::unordered_set<uint32_t> requested_ids;
+    // Validation
+    for (int i = 0; i < request->displays_size(); ++i) {
+        const auto& disp = request->displays(i);
+        uint32_t id = disp.display();
+
+        if (id == 0) {
+            return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Display ID 0 (primary) cannot be modified.");
+        }
+        if (disp.width() == 0 || disp.height() == 0) {
+            return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Display width and height must be greater than 0.");
+        }
+        if (!requested_ids.insert(id).second) {
+            return Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Duplicate display ID found in request.");
+        }
+    }
+
+    // Fetch current state to compute the diffs
+    DisplayConfigurations current_config;
+    Status status = getDisplayConfigurations(context, nullptr, &current_config);
+    if (!status.ok()) {
+        return status;
+    }
+
+    std::unordered_set<uint32_t> current_ids;
+    for (int i = 0; i < current_config.displays_size(); ++i) {
+        uint32_t id = current_config.displays(i).display();
+        if (id != 0) {
+            current_ids.insert(id);
+        }
+    }
+
+    // Apply changes: DEL missing displays
+    for (uint32_t current_id : current_ids) {
+        if (requested_ids.find(current_id) == requested_ids.end()) {
+            // Display is in current state but missing from request -> delete it
+            mMultiDisplay.EraseDisplay(current_id).IgnoreError();
+        }
+    }
+
+    // Apply changes: ADD new displays
+    for (int i = 0; i < request->displays_size(); ++i) {
+        const auto& disp = request->displays(i);
+        uint32_t id = disp.display();
+
+        if (current_ids.find(id) == current_ids.end()) {
+            // Display ID is new -> add it
+            mMultiDisplay.CreateDisplay(id, disp.width(), disp.height(), disp.dpi(), disp.flags())
+                    .IgnoreError();
+        } else {
+            // Display ID already exists -> do nothing
+        }
+    }
+
+    // Populate the final reply
+    // We call getDisplayConfigurations again to get the verified updated state
+    // to send back to the client.
+    getDisplayConfigurations(context, nullptr, reply);
+
+    // Fill and fire the notification event
+    auto& avdUniverse = ::goldfish::avd_info::getAvd();
+    ::android::emulation::control::Notification event;
+
+    // Set the oneof type to DisplayConfigurationsChangedNotification
+    auto* changed_notification = event.mutable_displayconfigurationschangednotification();
+
+    // Copy the populated reply into the notification payload
+    *changed_notification->mutable_displayconfigurations() = *reply;
+
+    // Fire the event to any connected gRPC notification streams
+    avdUniverse.getGrpcNotificationChannel().FireEvent(event);
 
     return Status::OK;
 }

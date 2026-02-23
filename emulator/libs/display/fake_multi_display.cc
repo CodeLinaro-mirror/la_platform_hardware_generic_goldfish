@@ -27,7 +27,8 @@ FakeMultiDisplay::FakeMultiDisplay(EventLoop* loop) : IMultiDisplay(loop), mEnab
 }
 
 absl::StatusOr<DisplayPtr> FakeMultiDisplay::CreateDisplay(DisplayId display_id, uint32_t width,
-                                                           uint32_t height) {
+                                                           uint32_t height, uint32_t dpi,
+                                                           uint32_t flags) {
     if (mDisplays.count(display_id)) {
         return absl::InvalidArgumentError(
                 absl::StrFormat("Display with id %d already exists", display_id));

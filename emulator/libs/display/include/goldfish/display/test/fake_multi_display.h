@@ -44,8 +44,9 @@ class FakeMultiDisplay : public IMultiDisplay {
      * @return absl::StatusOr containing a DisplayPtr to the newly created
      *         ActiveFakePixmanDisplay on success, or an error absl::Status on failure.
      */
-    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
-                                             uint32_t height) override;
+    virtual absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
+                                                     uint32_t height, uint32_t dpi = 320,
+                                                     uint32_t flags = 1) override;
 
     /**
      * @brief Returns the enabled state of FakeMultiDisplay.

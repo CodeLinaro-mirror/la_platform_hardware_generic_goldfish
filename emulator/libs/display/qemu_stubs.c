@@ -64,6 +64,10 @@ Object* object_resolve_path_component(Object* root, const char* path) {
     return NULL;
 }
 
+Object* object_resolve_path_type(const char* path, const char* type_name, bool* ambiguous) {
+    return NULL;
+}
+
 void virtio_input_send(VirtIOInput* vinput, virtio_input_event* event) {}
 void console_handle_touch_event(QemuConsole* con,
                                 struct touch_slot touch_slots[INPUT_EVENT_SLOTS_MAX],

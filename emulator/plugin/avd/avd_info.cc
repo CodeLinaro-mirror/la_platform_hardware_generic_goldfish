@@ -44,6 +44,7 @@
 #include "goldfish/devices/fingerprint/fingerprint_device.h"
 #include "goldfish/devices/gps/gps_device.h"
 #include "goldfish/devices/guest_status/guest_status_device.h"
+#include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/vsock/clear.h"
@@ -113,6 +114,18 @@ AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
     mGuestStatus.reset.SetValue(
             absl::UnixEpoch() +
             absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms));
+}
+
+void AvdUniverse::setActiveMultiDisplayDevice(
+        std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device) {
+    absl::MutexLock lock(&mDeviceMutex);
+    mActiveMultiDisplayDevice = device;
+}
+
+std::shared_ptr<devices::multidisplay::MultiDisplayDevice>
+AvdUniverse::getActiveMultiDisplayDevice() {
+    absl::MutexLock lock(&mDeviceMutex);
+    return mActiveMultiDisplayDevice;
 }
 
 AvdUniverse& getAvd() {
@@ -232,6 +245,12 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe->getLocation(), registry, client_loop,
                                           gQemuLoop.get());
 
+    auto multi_display_device =
+            std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);
+    avd_universe->setActiveMultiDisplayDevice(multi_display_device);
+    DEVS::multidisplay::MultiDisplayDevice::RegisterDevice(multi_display_device, registry,
+                                                           client_loop, gQemuLoop.get());
+
     std::string emulatedCameraProp;
     DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
                                  []() { return getGrallocImpl(); });
@@ -256,7 +275,6 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
 
     // Initialize the battery to a default state and register it.
-    auto* battery = &avd_universe->getBattery();
     DEVS::battery::RegisterBattery(&avd_universe->getBattery(), avd_props.hw_config.hw_battery,
                                    gQemuLoop.get());
 

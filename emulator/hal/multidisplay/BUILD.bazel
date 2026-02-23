@@ -1,0 +1,32 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "multidisplay",
+    srcs = [
+        "multidisplay_device.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/multidisplay/multidisplay_device.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//android/async:async_api",
+        "//android/system",
+        "//emulator/hal/common:emulator_reset",
+        "//emulator/hal/connector:cable",
+        "//emulator/hal/connector:connector_registry",
+        "//emulator/hal/connector:qemud",
+        "//emulator/libs/eventing",
+        "//emulator/plugin/avd:gralloc_impl",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//base:aemu-base",
+    ],
+    alwayslink = True,
+)

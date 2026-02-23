@@ -24,6 +24,10 @@
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 #include "goldfish/sensors/physical_model.h"
 
+namespace goldfish::devices::multidisplay {
+class MultiDisplayDevice;
+}
+
 namespace goldfish::avd_info {
 
 struct AvdProperties {
@@ -70,6 +74,10 @@ struct AvdUniverse {
     avd_universe::gps::ObservableLocation& getLocation() { return mLocation; }
     sensors::PhysicalModel& getSensorsPhysicalModel() { return mSensorsPhysicalModel; }
 
+    void setActiveMultiDisplayDevice(
+            std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
+    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> getActiveMultiDisplayDevice();
+
     AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;
     AvdUniverse(AvdUniverse&&) = delete;
@@ -78,6 +86,10 @@ struct AvdUniverse {
 
   private:
     const std::unique_ptr<const AvdProperties> mProps;
+
+    mutable absl::Mutex mDeviceMutex;
+    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> mActiveMultiDisplayDevice
+            ABSL_GUARDED_BY(mDeviceMutex);
 
     avd_universe::battery::ObservableBattery mBattery;
     avd_universe::clipboard::ClipboardChannel mClipboardChannel;
