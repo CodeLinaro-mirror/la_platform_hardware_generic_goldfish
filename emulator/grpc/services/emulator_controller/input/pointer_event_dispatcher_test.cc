@@ -67,7 +67,7 @@ TEST(PenTouchEventTest, EvDevEventsConversion) {
     pen.orientation = 45;
 
     event.touches.push_back(pen);
-    EvDevEvents events = event.touches[0].toEvDevEvents(1024, 768, &registry);
+    EvDevEvents events = event.touches[0].ToEvDevEvents(1024, 768, &registry);
     // Expected events.
     EvDevEvents expected_events = {{EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_MAX},
                                    {EV_KEY, BTN_TOOL_RUBBER, 1},
@@ -122,12 +122,12 @@ TEST(PenTouchEventTest, SendEvents) {
         EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
-    // Call sendEvents.
-    dispatcher.sendEvents(display, pen_event);
+    // Call SendEvents.
+    dispatcher.SendEvents(display, pen_event);
 }
 
 struct PointerEventDispatcherUnderTest : public PointerEventDispatcher {
-    SlotRegistry* registry() { return &mRegistry; }
+    SlotRegistry* registry() { return &registry_; }
 };
 
 TEST(PenTouchEventTest, SendEventsWithOldSlots) {
@@ -139,7 +139,7 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcherUnderTest dispatcher;
-    dispatcher.registry()->setSlotExpiration(absl::Milliseconds(1));
+    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(1));
 
     // Create a PenTouchEvent.
     PenTouchEvent pen_event;
@@ -155,19 +155,19 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     pen.orientation = 45;
     pen_event.touches.push_back(pen);
 
-    // Call sendEvents.
-    dispatcher.sendEvents(display, pen_event);
+    // Call SendEvents.
+    dispatcher.SendEvents(display, pen_event);
     std::this_thread::sleep_for(10ms);
     // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
         EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
-    // Call sendEvents with no events, which will cleanup the old ones.
+    // Call SendEvents with no events, which will cleanup the old ones.
     PenTouchEvent pen_empty;
-    dispatcher.sendEvents(display, pen_empty);
+    dispatcher.SendEvents(display, pen_empty);
 }
 
 TEST(TouchEvDevTest, toEvDevEventsPress) {
@@ -181,7 +181,7 @@ TEST(TouchEvDevTest, toEvDevEventsPress) {
     touch.touch_minor = 5;
     touch.orientation = 45;
 
-    EvDevEvents events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents events = touch.ToEvDevEvents(1024, 768, &registry);
 
     // Expected events for a touch press.
     EvDevEvents expected_events = {
@@ -192,8 +192,8 @@ TEST(TouchEvDevTest, toEvDevEventsPress) {
 
     EXPECT_EQ(events.size(), expected_events.size());
     EXPECT_THAT(events, Eq(expected_events));
-    EXPECT_TRUE(registry.isSlotRegistered(0));
-    EXPECT_TRUE(registry.isIdentifierRegistered(1));
+    EXPECT_TRUE(registry.IsSlotRegistered(0));
+    EXPECT_TRUE(registry.IsIdentifierRegistered(1));
 }
 
 TEST(TouchEvDevTest, toEvDevEventsRelease) {
@@ -207,7 +207,7 @@ TEST(TouchEvDevTest, toEvDevEventsRelease) {
     touch.touch_major = 10;
     touch.touch_minor = 5;
     touch.orientation = 45;
-    EvDevEvents events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents events = touch.ToEvDevEvents(1024, 768, &registry);
 
     // Now release it
     touch.pressure = 0;
@@ -215,18 +215,18 @@ TEST(TouchEvDevTest, toEvDevEventsRelease) {
     touch.touch_minor = 0;
     touch.orientation = 0;
 
-    EvDevEvents release_events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents release_events = touch.ToEvDevEvents(1024, 768, &registry);
 
     EvDevEvents expected_release_events = {{EV_ABS, ABS_MT_SLOT, 0},
                                            {EV_ABS, ABS_MT_PRESSURE, 0},
                                            {EV_ABS, ABS_MT_POSITION_X, 0xc7f},
                                            {EV_ABS, ABS_MT_POSITION_Y, 0x2155},
-                                           {EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP},
+                                           {EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp},
                                            {EV_ABS, ABS_MT_ORIENTATION, 0}};
     EXPECT_EQ(release_events.size(), expected_release_events.size());
     EXPECT_THAT(release_events, Eq(expected_release_events));
-    EXPECT_FALSE(registry.isSlotRegistered(0));
-    EXPECT_FALSE(registry.isIdentifierRegistered(1));
+    EXPECT_FALSE(registry.IsSlotRegistered(0));
+    EXPECT_FALSE(registry.IsIdentifierRegistered(1));
 }
 
 TEST(TouchEvDevTest, toEvDevEventsNoPressure) {
@@ -240,9 +240,9 @@ TEST(TouchEvDevTest, toEvDevEventsNoPressure) {
     touch.touch_minor = 5;
     touch.orientation = 45;
 
-    EvDevEvents events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents events = touch.ToEvDevEvents(1024, 768, &registry);
     EXPECT_EQ(events.size(), 0);
-    EXPECT_FALSE(registry.isIdentifierRegistered(1));
+    EXPECT_FALSE(registry.IsIdentifierRegistered(1));
 }
 
 TEST(TouchEvDevTest, NoReleaseTwice) {
@@ -256,17 +256,17 @@ TEST(TouchEvDevTest, NoReleaseTwice) {
     touch.touch_major = 10;
     touch.touch_minor = 5;
     touch.orientation = 45;
-    EvDevEvents events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents events = touch.ToEvDevEvents(1024, 768, &registry);
 
     // Now release it
     touch.pressure = 0;
-    EvDevEvents release_events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents release_events = touch.ToEvDevEvents(1024, 768, &registry);
 
     // Now release again
-    EvDevEvents release_again_events = touch.toEvDevEvents(1024, 768, &registry);
+    EvDevEvents release_again_events = touch.ToEvDevEvents(1024, 768, &registry);
     EXPECT_EQ(release_again_events.size(), 0);
-    EXPECT_FALSE(registry.isSlotRegistered(0));
-    EXPECT_FALSE(registry.isIdentifierRegistered(1));
+    EXPECT_FALSE(registry.IsSlotRegistered(0));
+    EXPECT_FALSE(registry.IsIdentifierRegistered(1));
 }
 
 TEST(MultiTouchEventTest, SendEventsPress) {
@@ -303,8 +303,8 @@ TEST(MultiTouchEventTest, SendEventsPress) {
         EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
-    // Call sendEvents.
-    dispatcher.sendEvents(display, touch_event);
+    // Call SendEvents.
+    dispatcher.SendEvents(display, touch_event);
 }
 
 TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
@@ -316,7 +316,7 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
 
     // Create a PointerEventDispatcher.
     PointerEventDispatcherUnderTest dispatcher;
-    dispatcher.registry()->setSlotExpiration(absl::Milliseconds(1));
+    dispatcher.registry()->SetSlotExpiration(absl::Milliseconds(1));
 
     // Create a MultiTouchEvent.
     MultiTouchEvent touch_event;
@@ -330,21 +330,21 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     touch.orientation = 45;
     touch_event.touches.push_back(touch);
 
-    // Call sendEvents.
-    dispatcher.sendEvents(display, touch_event);
+    // Call SendEvents.
+    dispatcher.SendEvents(display, touch_event);
     std::this_thread::sleep_for(10ms);
 
     // Expect calls to SendEvDevEvent on the mock display.
     {
         InSequence seq;
         EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_SLOT, _));
-        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP));
+        EXPECT_CALL(display, SendEvDevEvent(EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp));
         EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
-    // Call sendEvents with no events, which will cleanup the old ones.
+    // Call SendEvents with no events, which will cleanup the old ones.
     MultiTouchEvent touch_empty;
-    dispatcher.sendEvents(display, touch_empty);
+    dispatcher.SendEvents(display, touch_empty);
 }
 
 TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
@@ -402,8 +402,8 @@ TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
         EXPECT_CALL(display, SendEvDevEvent(EV_SYN, SYN_REPORT, 0));
     }
 
-    // Call sendEvents.
-    dispatcher.sendEvents(display, touch_event);
+    // Call SendEvents.
+    dispatcher.SendEvents(display, touch_event);
 }
 
 }  // namespace internal

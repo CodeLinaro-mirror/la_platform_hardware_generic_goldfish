@@ -135,17 +135,17 @@ class EmulatorControllerImpl final
     }
 
     Status sendMouse(ServerContext* context, const MouseEvent* request, Empty* /*reply*/) override {
-        return abslStatusToGrpcStatus(mInputEventSender.send(*request));
+        return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
     }
 
     Status sendTouch(ServerContext* context, const TouchEvent* request, Empty* /*reply*/) override {
-        return abslStatusToGrpcStatus(mInputEventSender.send(*request));
+        return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
     }
 
     ::grpc::ServerReadReactor<WheelEvent>* injectWheel(::grpc::CallbackServerContext* /*context*/,
                                                        Empty* /*response*/) override {
         return new SimpleServerLambdaReader<WheelEvent>([this](auto request) {
-            return abslStatusToGrpcStatus(mInputEventSender.send(*request));
+            return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
         });
     }
 
@@ -159,15 +159,15 @@ class EmulatorControllerImpl final
                         mKeyEventSender->send(request->key_event());
                         status = absl::OkStatus();
                     } else if (request->has_mouse_event()) {
-                        status = mInputEventSender.send(request->mouse_event());
+                        status = mInputEventSender.Send(request->mouse_event());
                     } else if (request->has_touch_event()) {
-                        status = mInputEventSender.send(request->touch_event());
+                        status = mInputEventSender.Send(request->touch_event());
                     } else if (request->has_android_event()) {
-                        status = mInputEventSender.send(request->android_event());
+                        status = mInputEventSender.Send(request->android_event());
                     } else if (request->has_pen_event()) {
-                        status = mInputEventSender.send(request->pen_event());
+                        status = mInputEventSender.Send(request->pen_event());
                     } else if (request->has_wheel_event()) {
-                        status = mInputEventSender.send(request->wheel_event());
+                        status = mInputEventSender.Send(request->wheel_event());
                     } else {
                         status = absl::InvalidArgumentError(
                                 "Unknown event, is the emulator out of date?.");

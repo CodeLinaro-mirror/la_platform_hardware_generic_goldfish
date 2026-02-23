@@ -32,61 +32,61 @@ using namespace std::chrono_literals;
 
 TEST(SlotRegistryTest, AcquireReleaseSlot) {
     SlotRegistry registry(absl::Milliseconds(10));
-    int slot1 = registry.acquireSlot(1);
+    int slot1 = registry.AcquireSlot(1);
     ASSERT_GE(slot1, 0);
-    ASSERT_TRUE(registry.isSlotRegistered(slot1));
-    ASSERT_TRUE(registry.isIdentifierRegistered(1));
+    ASSERT_TRUE(registry.IsSlotRegistered(slot1));
+    ASSERT_TRUE(registry.IsIdentifierRegistered(1));
 
-    registry.releaseSlot(1);
-    ASSERT_FALSE(registry.isSlotRegistered(slot1));
-    ASSERT_FALSE(registry.isIdentifierRegistered(1));
+    registry.ReleaseSlot(1);
+    ASSERT_FALSE(registry.IsSlotRegistered(slot1));
+    ASSERT_FALSE(registry.IsIdentifierRegistered(1));
 }
 
 TEST(SlotRegistryTest, AcquireMultipleSlots) {
     SlotRegistry registry(absl::Milliseconds(10));
     std::vector<int> slots;
-    for (int i = 0; i < MTS_POINTERS_NUM; ++i) {
-        int slot = registry.acquireSlot(i);
+    for (int i = 0; i < kMtsPointersNum; ++i) {
+        int slot = registry.AcquireSlot(i);
         ASSERT_GE(slot, 0);
         slots.push_back(slot);
-        ASSERT_TRUE(registry.isSlotRegistered(slot));
-        ASSERT_TRUE(registry.isIdentifierRegistered(i));
+        ASSERT_TRUE(registry.IsSlotRegistered(slot));
+        ASSERT_TRUE(registry.IsIdentifierRegistered(i));
     }
 
     // Check that we can't acquire any more slots.
-    ASSERT_EQ(registry.acquireSlot(MTS_POINTERS_NUM), -1);
+    ASSERT_EQ(registry.AcquireSlot(kMtsPointersNum), -1);
 
     // Release all slots.
-    for (int i = 0; i < MTS_POINTERS_NUM; ++i) {
-        registry.releaseSlot(i);
-        ASSERT_FALSE(registry.isSlotRegistered(slots[i]));
-        ASSERT_FALSE(registry.isIdentifierRegistered(i));
+    for (int i = 0; i < kMtsPointersNum; ++i) {
+        registry.ReleaseSlot(i);
+        ASSERT_FALSE(registry.IsSlotRegistered(slots[i]));
+        ASSERT_FALSE(registry.IsIdentifierRegistered(i));
     }
 }
 
 TEST(SlotRegistryTest, ReacquireSlot) {
     SlotRegistry registry(absl::Milliseconds(10));
-    int slot1 = registry.acquireSlot(1);
+    int slot1 = registry.AcquireSlot(1);
     ASSERT_GE(slot1, 0);
-    registry.releaseSlot(1);
+    registry.ReleaseSlot(1);
 
     // Reacquire the same slot.
-    int slot2 = registry.acquireSlot(1);
+    int slot2 = registry.AcquireSlot(1);
     ASSERT_EQ(slot2, slot1);
 }
 
 TEST(SlotRegistryTest, ExpireOldSlots) {
     SlotRegistry registry(absl::Milliseconds(10));
 
-    int slot1 = registry.acquireSlot(1);
-    int slot2 = registry.acquireSlot(2);
+    int slot1 = registry.AcquireSlot(1);
+    int slot2 = registry.AcquireSlot(2);
 
-    registry.updateSlotExpiration(1);
-    registry.updateSlotExpiration(2);
+    registry.UpdateSlotExpiration(1);
+    registry.UpdateSlotExpiration(2);
     // Advance time past expiration
     std::this_thread::sleep_for(20ms);
 
-    std::vector<EvDevEvent> events = registry.expireOldSlots();
+    std::vector<EvDevEvent> events = registry.ExpireOldSlots();
     ASSERT_EQ(events.size(), 4);
 
     // Note that expiration of slot events depends on the hashmap ordering.
@@ -99,7 +99,7 @@ TEST(SlotRegistryTest, ExpireOldSlots) {
 
     ASSERT_EQ(events[1].type, EV_ABS);
     ASSERT_EQ(events[1].code, ABS_MT_TRACKING_ID);
-    ASSERT_EQ(events[1].value, MTS_POINTER_UP);
+    ASSERT_EQ(events[1].value, kMtsPointerUp);
 
     // check the second events are the slot events
     ASSERT_EQ(events[2].type, EV_ABS);
@@ -108,24 +108,24 @@ TEST(SlotRegistryTest, ExpireOldSlots) {
     ASSERT_TRUE(events[0].value == slot1 || events[0].value == slot2);
     ASSERT_EQ(events[3].type, EV_ABS);
     ASSERT_EQ(events[3].code, ABS_MT_TRACKING_ID);
-    ASSERT_EQ(events[3].value, MTS_POINTER_UP);
+    ASSERT_EQ(events[3].value, kMtsPointerUp);
 
-    ASSERT_FALSE(registry.isSlotRegistered(slot1));
-    ASSERT_FALSE(registry.isIdentifierRegistered(1));
-    ASSERT_FALSE(registry.isSlotRegistered(slot2));
-    ASSERT_FALSE(registry.isIdentifierRegistered(2));
+    ASSERT_FALSE(registry.IsSlotRegistered(slot1));
+    ASSERT_FALSE(registry.IsIdentifierRegistered(1));
+    ASSERT_FALSE(registry.IsSlotRegistered(slot2));
+    ASSERT_FALSE(registry.IsIdentifierRegistered(2));
 }
 
 TEST(SlotRegistryTest, ExpireOldSlotsOne) {
     SlotRegistry registry(absl::Milliseconds(10));
 
-    int slot1 = registry.acquireSlot(1);
+    int slot1 = registry.AcquireSlot(1);
 
-    registry.updateSlotExpiration(1);
+    registry.UpdateSlotExpiration(1);
     // Advance time past expiration
     std::this_thread::sleep_for(20ms);
 
-    std::vector<EvDevEvent> events = registry.expireOldSlots();
+    std::vector<EvDevEvent> events = registry.ExpireOldSlots();
     ASSERT_EQ(events.size(), 2);
 
     // check the first events are the slot events
@@ -134,22 +134,22 @@ TEST(SlotRegistryTest, ExpireOldSlotsOne) {
     ASSERT_EQ(events[0].value, slot1);
     ASSERT_EQ(events[1].type, EV_ABS);
     ASSERT_EQ(events[1].code, ABS_MT_TRACKING_ID);
-    ASSERT_EQ(events[1].value, MTS_POINTER_UP);
+    ASSERT_EQ(events[1].value, kMtsPointerUp);
 
-    ASSERT_FALSE(registry.isSlotRegistered(slot1));
-    ASSERT_FALSE(registry.isIdentifierRegistered(1));
+    ASSERT_FALSE(registry.IsSlotRegistered(slot1));
+    ASSERT_FALSE(registry.IsIdentifierRegistered(1));
 }
 TEST(SlotRegistryTest, NoExpireRecent) {
     SlotRegistry registry(absl::Milliseconds(10));
 
-    int slot1 = registry.acquireSlot(1);
+    int slot1 = registry.AcquireSlot(1);
 
-    registry.updateSlotExpiration(1);
-    std::vector<EvDevEvent> events = registry.expireOldSlots();
+    registry.UpdateSlotExpiration(1);
+    std::vector<EvDevEvent> events = registry.ExpireOldSlots();
     ASSERT_EQ(events.size(), 0);
 
-    ASSERT_TRUE(registry.isSlotRegistered(slot1));
-    ASSERT_TRUE(registry.isIdentifierRegistered(1));
+    ASSERT_TRUE(registry.IsSlotRegistered(slot1));
+    ASSERT_TRUE(registry.IsIdentifierRegistered(1));
 }
 }  // namespace control
 }  // namespace emulation

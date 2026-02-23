@@ -42,7 +42,7 @@ class InputEventSender {
      *
      * @param multidisplay The IMultiDisplay instance used to manage multiple displays.
      */
-    InputEventSender(IMultiDisplay* multidisplay);
+    explicit InputEventSender(IMultiDisplay* multidisplay);
 
     /**
      * @brief Sends a mouse event to the emulator.
@@ -50,7 +50,7 @@ class InputEventSender {
      * @param event The MouseEvent to send.
      * @return An absl::Status indicating success or failure.
      */
-    absl::Status send(const MouseEvent& event) const;
+    absl::Status Send(const MouseEvent& event) const;
 
     /**
      * @brief Sends a generic Android event (a raw evdev event) to the emulator.
@@ -58,7 +58,7 @@ class InputEventSender {
      * @param event The AndroidEvent to send.
      * @return An absl::Status indicating success or failure.
      */
-    absl::Status send(const AndroidEvent& event) const;
+    absl::Status Send(const AndroidEvent& event) const;
 
     /**
      * @brief Sends a wheel event to the emulator.
@@ -67,16 +67,16 @@ class InputEventSender {
      * @return An absl::Status indicating success or failure.
      * @note Wheel events are currently not supported.
      */
-    absl::Status send(const WheelEvent& event) const;
+    static absl::Status Send(const WheelEvent& event);
 
     /**
      * @brief Sends a touch event to the emulator.
      *
-     * @param touch The TouchEvent to send.
+     * @param event The TouchEvent to send.
      * @return An absl::Status indicating success or failure.
      * @note This method will update the internal state of used slots in the SlotRegistry.
      */
-    absl::Status send(const TouchEvent& touch);
+    absl::Status Send(const TouchEvent& event);
 
     /**
      * @brief Sends a pen event to the emulator.
@@ -85,11 +85,12 @@ class InputEventSender {
      * @return An absl::Status indicating success or failure.
      * @note This method will update the internal state of used slots in the SlotRegistry.
      */
-    absl::Status send(const PenEvent& event);
+    absl::Status Send(const PenEvent& event);
 
   private:
-    PointerEventDispatcher mPointerDispatcher;  ///< The dispatcher for pointer events (touch, pen).
-    IMultiDisplay* mMultiDisplay;               ///< The multi-display manager.
+    PointerEventDispatcher
+            pointer_dispatcher_;    ///< The dispatcher for pointer events (touch, pen).
+    IMultiDisplay* multi_display_;  ///< The multi-display manager.
 };
 
 }  // namespace android::emulation::control

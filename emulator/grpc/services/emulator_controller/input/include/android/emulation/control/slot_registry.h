@@ -21,19 +21,17 @@
 
 #include "android/emulation/control/ev_dev_event.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 
 /**
  * @brief Maximum number of pointers, supported by multi-touch emulation.
  */
-constexpr uint32_t MTS_POINTERS_NUM = 10;
+constexpr uint32_t kMtsPointersNum = 10;
 
 /**
  * @brief Signals that a pointer is not tracked (or is "up").
  */
-constexpr uint32_t MTS_POINTER_UP = -1;
+constexpr uint32_t kMtsPointerUp = -1;
 
 /**
  * @brief Manages the allocation and deallocation of touch slots for multi-touch events.
@@ -47,11 +45,11 @@ class SlotRegistry {
     /**
      * @brief Constructs a SlotRegistry with a specified slot expiration duration.
      *
-     * @param slotExpiration The duration after which a slot is considered expired.
-     *                       Defaults to kTOUCH_EXPIRE_AFTER_120S (120 seconds).
+     * @param slot_expiration The duration after which a slot is considered expired.
+     *                       Defaults to kTouchExpireAfter120S (120 seconds).
      */
-    SlotRegistry(absl::Duration slotExpiration = kTOUCH_EXPIRE_AFTER_120S)
-            : mSlotExpiration(slotExpiration) {};
+    explicit SlotRegistry(absl::Duration slot_expiration = kTouchExpireAfter120S)
+            : slot_expiration_(slot_expiration) {};
 
     /**
      * @brief Acquires a free slot for a given touch identifier.
@@ -62,7 +60,7 @@ class SlotRegistry {
      * @param identifier The unique identifier for the touch event.
      * @return The allocated slot number, or -1 if no slots are available.
      */
-    int acquireSlot(uint32_t identifier);
+    int AcquireSlot(uint32_t identifier);
 
     /**
      * @brief Checks if a slot is currently registered.
@@ -70,7 +68,7 @@ class SlotRegistry {
      * @param slot The slot number to check.
      * @return True if the slot is registered, false otherwise.
      */
-    bool isSlotRegistered(uint32_t slot);
+    bool IsSlotRegistered(uint32_t slot);
 
     /**
      * @brief Checks if a touch identifier is currently registered.
@@ -78,7 +76,7 @@ class SlotRegistry {
      * @param identifier The touch identifier to check.
      * @return True if the identifier is registered, false otherwise.
      */
-    bool isIdentifierRegistered(uint32_t identifier);
+    bool IsIdentifierRegistered(uint32_t identifier);
 
     /**
      * @brief Updates the expiration time for a given touch identifier.
@@ -88,7 +86,7 @@ class SlotRegistry {
      *
      * @param identifier The touch identifier to update.
      */
-    void updateSlotExpiration(uint32_t identifier);
+    void UpdateSlotExpiration(uint32_t identifier);
 
     /**
      * @brief Releases the slot associated with a given touch identifier.
@@ -97,7 +95,7 @@ class SlotRegistry {
      *
      * @param identifier The touch identifier to release.
      */
-    void releaseSlot(uint32_t identifier);
+    void ReleaseSlot(uint32_t identifier);
 
     /**
      * @brief Expires old, unused slots and generates corresponding release events.
@@ -108,14 +106,14 @@ class SlotRegistry {
      *
      * @return A vector of EvDevEvent representing the release events for expired slots.
      */
-    std::vector<EvDevEvent> expireOldSlots();
+    std::vector<EvDevEvent> ExpireOldSlots();
 
     /**
      * @brief Sets the slot expiration duration.
      *
-     * @param slotExpiration The new slot expiration duration.
+     * @param slot_expiration The new slot expiration duration.
      */
-    void setSlotExpiration(absl::Duration slotExpiration) { mSlotExpiration = slotExpiration; }
+    void SetSlotExpiration(absl::Duration slot_expiration) { slot_expiration_ = slot_expiration; }
 
   private:
     /**
@@ -123,36 +121,34 @@ class SlotRegistry {
      *
      * @return The next free slot number, or -1 if no slots are available.
      */
-    int findNextFreeSlot();
+    int FindNextFreeSlot();
 
     /**
      * @brief Set of active slots.
      */
-    std::bitset<MTS_POINTERS_NUM> mUsedSlots;
+    std::bitset<kMtsPointersNum> used_slots_;
 
     /**
      * @brief Maps external touch id to linux slot.
      */
-    absl::flat_hash_map<int, int> mIdMap;
+    absl::flat_hash_map<uint32_t, uint32_t> id_map_;
 
     /**
      * @brief Last time external touch id was used.
      * We use this to expunge dangling events.
      */
-    absl::flat_hash_map<int, absl::Time> mIdLastUsedEpoch;
+    absl::flat_hash_map<uint32_t, absl::Time> id_last_used_epoch_;
 
     /**
      * @brief The duration after which a slot is considered expired.
      */
-    absl::Duration mSlotExpiration;
+    absl::Duration slot_expiration_;
 
     /**
      * @brief Default expiration time for touch events (120 seconds).
      * This means that if a given id has not received any updates in 120 seconds it will
      * be closed out upon receipt of the next event.
      */
-    static constexpr absl::Duration kTOUCH_EXPIRE_AFTER_120S = absl::Seconds(120);
+    static constexpr absl::Duration kTouchExpireAfter120S = absl::Seconds(120);
 };
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

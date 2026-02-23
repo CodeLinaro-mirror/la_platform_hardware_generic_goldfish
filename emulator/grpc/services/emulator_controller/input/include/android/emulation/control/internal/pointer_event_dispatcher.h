@@ -21,9 +21,7 @@
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/display.h"
 
-namespace android {
-namespace emulation {
-namespace control {
+namespace android::emulation::control {
 namespace internal {
 
 using EvDevEvents = std::vector<EvDevEvent>;
@@ -51,7 +49,7 @@ struct Touch {
      * @param registry The SlotRegistry to use for managing touch slots.
      * @return A vector of EvDevEvents representing the touch.
      */
-    virtual EvDevEvents toEvDevEvents(int w, int h, SlotRegistry* registry) const;
+    virtual EvDevEvents ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) const;
 };
 
 /**
@@ -72,7 +70,7 @@ struct Pen : public Touch {
      * @param registry The SlotRegistry to use for managing touch slots.
      * @return A vector of EvDevEvents representing the pen event.
      */
-    EvDevEvents toEvDevEvents(int w, int h, SlotRegistry* registry) const override;
+    EvDevEvents ToEvDevEvents(uint32_t w, uint32_t h, SlotRegistry* registry) const override;
 };
 
 /**
@@ -89,7 +87,7 @@ struct PenTouchEvent {
      * @param proto The protobuf PenEvent to convert.
      * @return A PenTouchEvent representing the protobuf event.
      */
-    static PenTouchEvent fromProto(const ::android::emulation::control::PenEvent& proto);
+    static PenTouchEvent FromProto(const ::android::emulation::control::PenEvent& proto);
 };
 
 /**
@@ -106,7 +104,7 @@ struct MultiTouchEvent {
      * @param proto The protobuf TouchEvent to convert.
      * @return A MultiTouchEvent representing the protobuf event.
      */
-    static MultiTouchEvent fromProto(const ::android::emulation::control::TouchEvent& proto);
+    static MultiTouchEvent FromProto(const ::android::emulation::control::TouchEvent& proto);
 };
 
 }  // namespace internal
@@ -133,7 +131,7 @@ class PointerEventDispatcher {
      * @param display The display to send the events to.
      * @param event The MultiTouchEvent to send.
      */
-    void sendEvents(IDisplay& display, const internal::MultiTouchEvent& event);
+    void SendEvents(IDisplay& display, const internal::MultiTouchEvent& event);
 
     /**
      * @brief Sends a PenTouchEvent to the emulator.
@@ -145,12 +143,10 @@ class PointerEventDispatcher {
      * @param display The display to send the events to.
      * @param event The PenTouchEvent to send.
      */
-    void sendEvents(IDisplay& display, const internal::PenTouchEvent& event);
+    void SendEvents(IDisplay& display, const internal::PenTouchEvent& event);
 
   protected:                 /* This allows for testing. */
-    SlotRegistry mRegistry;  ///< The SlotRegistry used to manage touch slots.
+    SlotRegistry registry_;  ///< The SlotRegistry used to manage touch slots.
 };
 
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control

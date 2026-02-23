@@ -13,78 +13,80 @@
 // limitations under the License.
 #include "android/emulation/control/slot_registry.h"
 
+#include <utility>
+
 #include "absl/log/log.h"
 
 #include "standard-headers/linux/input-event-codes.h"
-namespace android {
-namespace emulation {
-namespace control {
 
-int SlotRegistry::acquireSlot(uint32_t identifier) {
-    int slot = 0;
-    if (mIdMap.count(identifier) == 0) {
+namespace android::emulation::control {
+
+int SlotRegistry::AcquireSlot(uint32_t identifier) {
+    uint32_t slot = 0;
+    if (id_map_.count(identifier) == 0) {
         // pick next available slot.
-        slot = findNextFreeSlot();
-        if (slot < 0) {
+        const int next_slot = FindNextFreeSlot();
+        if (next_slot < 0) {
             VLOG(1) << "No slot available for" << identifier;
-            return slot;
+            return next_slot;
         }
-        mIdMap[identifier] = slot;
-        mUsedSlots.set(slot);
+        slot = static_cast<uint32_t>(next_slot);
+        id_map_[identifier] = slot;
+        used_slots_.set(slot);
         auto now = absl::Now();
-        mIdLastUsedEpoch[identifier] = now + mSlotExpiration;
+        id_last_used_epoch_[identifier] = now + slot_expiration_;
     } else {
-        slot = mIdMap[identifier];
+        slot = id_map_[identifier];
     }
 
-    return slot;
+    return static_cast<int>(slot);
 }
 
-bool SlotRegistry::isIdentifierRegistered(uint32_t identifier) {
-    return mIdMap.count(identifier) > 0;
+bool SlotRegistry::IsIdentifierRegistered(uint32_t identifier) {
+    return id_map_.count(identifier) > 0;
 }
 
-bool SlotRegistry::isSlotRegistered(uint32_t slot) {
-    return mUsedSlots.test(slot);
+bool SlotRegistry::IsSlotRegistered(uint32_t slot) {
+    return used_slots_.test(slot);
 }
 
-void SlotRegistry::updateSlotExpiration(uint32_t identifier) {
-    assert(mIdLastUsedEpoch.count(identifier) > 0);
+void SlotRegistry::UpdateSlotExpiration(uint32_t identifier) {
+    assert(id_last_used_epoch_.count(identifier) > 0);
     auto now = absl::Now();
-    mIdLastUsedEpoch[identifier] = now + mSlotExpiration;
+    id_last_used_epoch_[identifier] = now + slot_expiration_;
 }
 
-void SlotRegistry::releaseSlot(uint32_t identifier) {
-    if (mIdMap.count(identifier) == 0) {
+void SlotRegistry::ReleaseSlot(uint32_t identifier) {
+    if (id_map_.count(identifier) == 0) {
         return;
     }
 
-    uint32_t slot = mIdMap[identifier];
-    mIdMap.erase(identifier);
-    mUsedSlots.reset(slot);
-    mIdLastUsedEpoch.erase(identifier);
+    const uint32_t slot = id_map_[identifier];
+    id_map_.erase(identifier);
+    used_slots_.reset(slot);
+    id_last_used_epoch_.erase(identifier);
 }
 
-std::vector<EvDevEvent> SlotRegistry::expireOldSlots() {
+std::vector<EvDevEvent> SlotRegistry::ExpireOldSlots() {
     std::vector<EvDevEvent> events;
 
-    absl::Time now = absl::Now();
-    for (auto it = mIdLastUsedEpoch.begin(); it != mIdLastUsedEpoch.end();) {
+    const absl::Time now = absl::Now();
+    for (auto it = id_last_used_epoch_.begin(); it != id_last_used_epoch_.end();) {
         if (it->second < now) {
-            assert(mIdMap.count(it->first) > 0);
-            uint32_t removeSlot = mIdMap[it->first];
+            assert(id_map_.count(it->first) > 0);
+            const uint32_t remove_slot = id_map_[it->first];
             VLOG(1) << "Expiring outdated touch event identifier: " << it->first
-                    << ", slot: " << removeSlot;
+                    << ", slot: " << remove_slot;
 
             // First create an up event, otherwise android kernel might get
             // confused
-            events.push_back({EV_ABS, ABS_MT_SLOT, removeSlot});
-            events.push_back({EV_ABS, ABS_MT_TRACKING_ID, MTS_POINTER_UP});
+            events.push_back({EV_ABS, ABS_MT_SLOT, remove_slot});
+            events.push_back({EV_ABS, ABS_MT_TRACKING_ID, kMtsPointerUp});
 
             // Next remove the mappings from existence.
-            mIdMap.erase(it->first);
-            mIdLastUsedEpoch.erase(it++);
-            mUsedSlots.reset(removeSlot);
+            id_map_.erase(it->first);
+            id_last_used_epoch_.erase(it++);
+            used_slots_.reset(remove_slot);
         } else {
             ++it;
         }
@@ -93,15 +95,13 @@ std::vector<EvDevEvent> SlotRegistry::expireOldSlots() {
     return events;
 }
 
-int SlotRegistry::findNextFreeSlot() {
-    static_assert(MTS_POINTERS_NUM < 20, "Consider a better algorithm for finding an empty slot.");
-    for (int i = 0; i < MTS_POINTERS_NUM; i++) {
-        if (!mUsedSlots.test(i)) {
+int SlotRegistry::FindNextFreeSlot() {
+    static_assert(kMtsPointersNum < 20, "Consider a better algorithm for finding an empty slot.");
+    for (int i = 0; std::cmp_less(i, kMtsPointersNum); i++) {
+        if (!used_slots_.test(i)) {
             return i;
         }
     }
     return -1;
 }
-}  // namespace control
-}  // namespace emulation
-}  // namespace android
+}  // namespace android::emulation::control
