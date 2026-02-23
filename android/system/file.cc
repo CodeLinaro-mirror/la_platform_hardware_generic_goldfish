@@ -27,7 +27,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
 // NOLINTBEGIN

@@ -26,7 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"

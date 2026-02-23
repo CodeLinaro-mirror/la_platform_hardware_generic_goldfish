@@ -15,7 +15,7 @@
 
 #include "gmock/gmock.h"
 
-#include "aemu/base/utils/status_matcher_macros.h"
+#include "android/status/status_matcher_macros.h"
 #include "fake_emulator.h"
 
 namespace android::goldfish::test {

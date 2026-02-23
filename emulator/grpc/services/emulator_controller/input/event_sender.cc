@@ -15,7 +15,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 
 namespace android::emulation::control {
 

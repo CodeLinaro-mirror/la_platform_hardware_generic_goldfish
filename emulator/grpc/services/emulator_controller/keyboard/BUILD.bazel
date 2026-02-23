@@ -42,7 +42,6 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
         "@qemu//:qemu-headers",
     ],
 )

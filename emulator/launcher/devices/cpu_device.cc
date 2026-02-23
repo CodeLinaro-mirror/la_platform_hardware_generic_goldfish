@@ -22,7 +22,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"

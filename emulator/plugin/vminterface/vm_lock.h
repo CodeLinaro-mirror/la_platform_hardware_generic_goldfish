@@ -14,8 +14,6 @@
 
 #pragma once
 
-#include "aemu/base/Compiler.h"
-
 namespace android::goldfish {
 
 // In QEMU2, each virtual CPU runs on its own host threads, but all these
@@ -39,11 +37,13 @@ namespace android::goldfish {
 //
 
 class VmLock {
-    DISALLOW_COPY_ASSIGN_AND_MOVE(VmLock);
-
   public:
     VmLock() = default;
     virtual ~VmLock();
+    VmLock(VmLock&&) = delete;
+    VmLock(const VmLock&) = delete;
+    VmLock operator=(VmLock&&) = delete;
+    VmLock operator=(const VmLock&) = delete;
 
     // Lock the VM global mutex.
     virtual void lock() {}
@@ -76,8 +76,6 @@ class VmLock {
 
 // Convenience class to perform scoped VM locking.
 class ScopedVmLock {
-    DISALLOW_COPY_ASSIGN_AND_MOVE(ScopedVmLock);
-
   public:
     ScopedVmLock(VmLock* vmLock = VmLock::get()) : mVmLock(vmLock) { mVmLock->lock(); }
 
@@ -90,8 +88,6 @@ class ScopedVmLock {
 // Convenience class to perform scoped VM locking (but does not try
 // to lock twice).
 class RecursiveScopedVmLock {
-    DISALLOW_COPY_ASSIGN_AND_MOVE(RecursiveScopedVmLock);
-
   public:
     RecursiveScopedVmLock(VmLock* vmLock = VmLock::get()) {
         if (vmLock->isLockedBySelf()) {
@@ -115,8 +111,6 @@ class RecursiveScopedVmLock {
 // Convenience class to perform scoped VM locking (but does not try
 // to lock twice), but no-ops if there is no instance.
 class RecursiveScopedVmLockIfInstance {
-    DISALLOW_COPY_ASSIGN_AND_MOVE(RecursiveScopedVmLockIfInstance);
-
   public:
     RecursiveScopedVmLockIfInstance() {
         if (!VmLock::hasInstance()) return;
@@ -145,8 +139,6 @@ class RecursiveScopedVmLockIfInstance {
 // Another convenience class for a code that may run either under a lock or not
 // but needs to ensure that some part of it runs without a VmLock.
 class ScopedVmUnlock {
-    DISALLOW_COPY_ASSIGN_AND_MOVE(ScopedVmUnlock);
-
   public:
     ScopedVmUnlock(VmLock* vmLock = VmLock::get()) {
         if (vmLock->isLockedBySelf()) {

@@ -2,12 +2,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "guest-status",
-    srcs = [
-        "guest_status_device.cc",
-    ],
-    hdrs = [
-        "include/goldfish/devices/guest_status/guest_status_device.h",
-    ],
+    srcs = ["guest_status_device.cc"],
+    hdrs = ["include/goldfish/devices/guest_status/guest_status_device.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -24,16 +20,13 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@aemu//base:aemu-base",
     ],
     alwayslink = True,
 )
 
 cc_test(
     name = "guest-status_unittests",
-    srcs = [
-        "guest_status_device_test.cc",
-    ],
+    srcs = ["guest_status_device_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [

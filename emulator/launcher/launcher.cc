@@ -26,7 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/bazel_info.h"
 #include "android/base/file/file.h"
 #include "android/base/system.h"

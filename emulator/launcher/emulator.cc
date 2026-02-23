@@ -30,7 +30,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "configure_drives.h"

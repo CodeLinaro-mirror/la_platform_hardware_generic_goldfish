@@ -19,7 +19,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"

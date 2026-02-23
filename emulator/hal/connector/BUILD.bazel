@@ -134,7 +134,6 @@ cc_library(
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 

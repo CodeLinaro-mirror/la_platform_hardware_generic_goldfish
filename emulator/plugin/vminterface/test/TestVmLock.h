@@ -13,7 +13,8 @@
 // limitations under the License.
 #pragma once
 
-#include "aemu/base/synchronization/Lock.h"
+#include "absl/synchronization/mutex.h"
+
 #include "emulator/plugin/vminterface/vm_lock.h"
 
 namespace android::goldfish {
@@ -63,14 +64,14 @@ class HostVmLock : public VmLock {
     void lock() override { mLock.lock(); }
     void unlock() override { mLock.unlock(); }
     bool isLockedBySelf() const override {
-        if (mLock.tryLock()) {
+        if (mLock.TryLock()) {
             mLock.unlock();
             return false;
         }
         return true;
     }
 
-    mutable base::Lock mLock;
+    mutable absl::Mutex mLock;
     VmLock* mOldVmLock = nullptr;
     bool mInstalled = false;
 };
