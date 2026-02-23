@@ -1,7 +1,7 @@
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:directory_path.bzl", "make_directory_path")
-load("@bazel_lib//lib:output_files.bzl", "output_files")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@goldfish_build//rules/native:native_binaries.bzl", "stripped_binaries")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
@@ -265,21 +265,25 @@ pkg_files(
     prefix = "lib",
 )
 
-output_files(
-    name = "vctools-dlls-needed",
-    paths = [
-        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/msvcp140.dll",
-        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/vcruntime140.dll",
-        "../goldfish_build++toolchain+vctools/msvc/bin/Hostx64/x64/vcruntime140_1.dll",
-    ],
-    target = "@vctools//:dlls",
-    target_compatible_with = ["@platforms//os:windows"],
-)
+msvc_dlls_needed = [
+    "msvcp140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+]
+
+[
+    select_file(
+        name = "msvc_" + dll,
+        srcs = "@toolchain_hub//cc/windows_clang:msvc_dlls_x64",
+        subpath = dll,
+    )
+    for dll in msvc_dlls_needed
+]
 
 pkg_files(
     # Note no prefix. These must go in the same dir as emulator.exe.
     name = "win-dlls",
-    srcs = [":vctools-dlls-needed"],
+    srcs = ["msvc_" + dll for dll in msvc_dlls_needed],
     target_compatible_with = ["@platforms//os:windows"],
 )
 
