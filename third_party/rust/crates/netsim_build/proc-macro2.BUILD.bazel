@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "proc-macro2",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "proc-macro",
+        "span-locations",
+    ],
     crate_name = "proc_macro2",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@unicode-ident",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"proc-macro\"",
-        "--cfg=feature=\"span-locations\"",
     ],
 )

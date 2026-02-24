@@ -22,8 +22,8 @@ rust_library(
     name = "num_cpus",
     srcs = glob(["**/*.rs"]),
     crate_name = "num_cpus",
-    edition = "2015",
     crate_root = "src/lib.rs",
+    edition = "2015",
     deps = [
         "@libc",
     ],

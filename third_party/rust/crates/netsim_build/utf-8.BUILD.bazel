@@ -22,6 +22,6 @@ rust_library(
     name = "utf-8",
     srcs = glob(["**/*.rs"]),
     crate_name = "utf8",
-    edition = "2015",
     crate_root = "src/lib.rs",
+    edition = "2015",
 )

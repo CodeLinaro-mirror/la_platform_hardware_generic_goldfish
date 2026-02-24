@@ -21,13 +21,13 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "once_cell",
     srcs = glob(["**/*.rs"]),
-    crate_name = "once_cell",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"alloc\"",
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"race\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "alloc",
+        "default",
+        "race",
+        "std",
     ],
+    crate_name = "once_cell",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

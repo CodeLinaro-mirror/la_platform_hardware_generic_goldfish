@@ -21,16 +21,16 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "zip",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "deflate-zlib",
+        "flate2",
+    ],
     crate_name = "zip",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@byteorder",
         "@crc32fast",
         "@flate2",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"deflate-zlib\"",
-        "--cfg=feature=\"flate2\"",
     ],
 )

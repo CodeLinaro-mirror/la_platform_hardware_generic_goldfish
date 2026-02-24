@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "lock_api",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "arc_lock",
+        "atomic_usize",
+        "default",
+    ],
     crate_name = "lock_api",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@scopeguard",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"arc_lock\"",
-        "--cfg=feature=\"atomic_usize\"",
-        "--cfg=feature=\"default\"",
     ],
 )

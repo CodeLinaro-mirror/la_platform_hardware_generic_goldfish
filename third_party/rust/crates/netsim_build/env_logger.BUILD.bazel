@@ -22,8 +22,8 @@ rust_library(
     name = "env_logger",
     srcs = glob(["**/*.rs"]),
     crate_name = "env_logger",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@log",
     ],

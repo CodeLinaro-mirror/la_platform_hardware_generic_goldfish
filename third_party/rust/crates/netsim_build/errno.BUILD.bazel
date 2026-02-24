@@ -21,10 +21,10 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "errno",
     srcs = glob(["src/**/*.rs"]),
-    crate_name = "errno",
-    edition = "2018",
     crate_features = ["std"],
+    crate_name = "errno",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@libc",
     ] + select({

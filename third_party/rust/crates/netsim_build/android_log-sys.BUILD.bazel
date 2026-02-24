@@ -22,6 +22,6 @@ rust_library(
     name = "android_log-sys",
     srcs = glob(["**/*.rs"]),
     crate_name = "android_log_sys",
-    edition = "2015",
     crate_root = "src/lib.rs",
+    edition = "2015",
 )

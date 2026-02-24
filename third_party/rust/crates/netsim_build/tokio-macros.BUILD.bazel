@@ -22,8 +22,8 @@ rust_proc_macro(
     name = "tokio-macros",
     srcs = glob(["**/*.rs"]),
     crate_name = "tokio_macros",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@proc-macro2",
         "@quote",

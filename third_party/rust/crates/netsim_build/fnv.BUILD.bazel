@@ -21,10 +21,10 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "fnv",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "fnv",
     edition = "2015",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
-    ],
 )

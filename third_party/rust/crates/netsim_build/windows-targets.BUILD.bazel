@@ -22,8 +22,8 @@ rust_library(
     name = "windows-targets",
     srcs = glob(["**/*.rs"]),
     crate_name = "windows_targets",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@windows_aarch64_gnullvm",
         "@windows_i686_gnullvm",

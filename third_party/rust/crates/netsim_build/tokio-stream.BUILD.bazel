@@ -21,21 +21,21 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "tokio-stream",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "fs",
+        "io-util",
+        "net",
+        "sync",
+        "time",
+        "tokio-util",
+    ],
     crate_name = "tokio_stream",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@futures-core",
         "@pin-project-lite",
         "@tokio",
         "@tokio-util",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"fs\"",
-        "--cfg=feature=\"io-util\"",
-        "--cfg=feature=\"net\"",
-        "--cfg=feature=\"sync\"",
-        "--cfg=feature=\"time\"",
-        "--cfg=feature=\"tokio-util\"",
     ],
 )

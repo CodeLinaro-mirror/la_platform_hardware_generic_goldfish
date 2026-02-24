@@ -22,8 +22,8 @@ rust_library(
     name = "prettyplease",
     srcs = glob(["**/*.rs"]),
     crate_name = "prettyplease",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@proc-macro2",
         "@syn",

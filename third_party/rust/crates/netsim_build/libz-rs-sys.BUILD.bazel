@@ -21,16 +21,16 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "libz-rs-sys",
     srcs = glob(["**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_features = [
+        "default",
+        "rust-allocator",
+        "std",
+    ],
     crate_name = "libz_rs_sys",
-    edition = "2021",
-    compile_data = glob(["README.md"]),
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@zlib-rs",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"rust-allocator\"",
-        "--cfg=feature=\"std\"",
     ],
 )

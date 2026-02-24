@@ -22,6 +22,6 @@ rust_library(
     name = "argh_shared",
     srcs = glob(["**/*.rs"]),
     crate_name = "argh_shared",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
 )

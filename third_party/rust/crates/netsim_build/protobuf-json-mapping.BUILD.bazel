@@ -22,8 +22,8 @@ rust_library(
     name = "protobuf-json-mapping",
     srcs = glob(["**/*.rs"]),
     crate_name = "protobuf_json_mapping",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@protobuf-rust",
         "@protobuf-support",

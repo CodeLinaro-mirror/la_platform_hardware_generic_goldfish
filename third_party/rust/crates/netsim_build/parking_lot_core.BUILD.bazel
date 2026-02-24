@@ -22,14 +22,17 @@ rust_library(
     name = "parking_lot_core",
     srcs = glob(["**/*.rs"]),
     crate_name = "parking_lot_core",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@cfg-if",
         "@libc",
         "@smallvec",
     ] + select({
-        "@platforms//os:windows": ["@windows-targets", "@windows-link"],
+        "@platforms//os:windows": [
+            "@windows-link",
+            "@windows-targets",
+        ],
         "//conditions:default": [],
     }),
 )

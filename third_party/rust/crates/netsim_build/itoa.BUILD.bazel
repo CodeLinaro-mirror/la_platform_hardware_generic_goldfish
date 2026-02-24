@@ -22,6 +22,6 @@ rust_library(
     name = "itoa",
     srcs = glob(["src/**/*.rs"]),
     crate_name = "itoa",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
 )

@@ -21,18 +21,18 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "serde",
     srcs = glob(["**/*.rs"]),
-    data = ["out/private.rs"],
+    crate_features = [
+        "default",
+        "derive",
+        "rc",
+        "serde_derive",
+        "std",
+    ],
     crate_name = "serde",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    data = ["out/private.rs"],
+    edition = "2021",
+    proc_macro_deps = ["@serde_derive"],
     rustc_env = {"OUT_DIR": "../out"},
     deps = ["@serde_core"],
-    proc_macro_deps = ["@serde_derive"],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"derive\"",
-        "--cfg=feature=\"rc\"",
-        "--cfg=feature=\"serde_derive\"",
-        "--cfg=feature=\"std\"",
-    ],
 )

@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "libz-sys",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "libc",
+        "stock-zlib",
+    ],
     crate_name = "libz_sys",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@libc",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"libc\"",
-        "--cfg=feature=\"stock-zlib\"",
     ],
 )

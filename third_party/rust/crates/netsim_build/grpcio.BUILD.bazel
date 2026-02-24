@@ -21,9 +21,16 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "grpcio",
     srcs = glob(["**/*.rs"]),
+    aliases = {
+        "@protobuf-rust": "protobufv3",
+    },
+    crate_features = [
+        "protobufv3",
+        "protobufv3-codec",
+    ],
     crate_name = "grpcio",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@futures-executor",
         "@futures-util",
@@ -33,11 +40,4 @@ rust_library(
         "@parking_lot",
         "@protobuf-rust",
     ],
-    rustc_flags = [
-        "--cfg=feature=\"protobufv3\"",
-        "--cfg=feature=\"protobufv3-codec\"",
-    ],
-    aliases = {
-        "@protobuf-rust": "protobufv3",
-    },
 )

@@ -22,6 +22,6 @@ rust_library(
     name = "cfg-if",
     srcs = glob(["**/*.rs"]),
     crate_name = "cfg_if",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
 )

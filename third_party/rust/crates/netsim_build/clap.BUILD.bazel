@@ -21,23 +21,23 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "clap",
     srcs = glob(["**/*.rs"]),
-    crate_name = "clap",
-    edition = "2021",
-    compile_data = glob(["examples/demo.md"]),
-    crate_root = "src/lib.rs",
-    deps = [
-        "@clap_builder",
+    compile_data = ["examples/demo.md"],
+    crate_features = [
+        "derive",
+        "env",
+        "error-context",
+        "help",
+        "std",
+        "string",
+        "usage",
     ],
+    crate_name = "clap",
+    crate_root = "src/lib.rs",
+    edition = "2021",
     proc_macro_deps = [
         "@clap_derive",
     ],
-    rustc_flags = [
-        "--cfg=feature=\"derive\"",
-        "--cfg=feature=\"env\"",
-        "--cfg=feature=\"error-context\"",
-        "--cfg=feature=\"help\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=feature=\"string\"",
-        "--cfg=feature=\"usage\"",
+    deps = [
+        "@clap_builder",
     ],
 )

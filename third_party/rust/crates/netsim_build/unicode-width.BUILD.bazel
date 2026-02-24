@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "unicode-width",
     srcs = glob(["**/*.rs"]),
-    crate_name = "unicode_width",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"cjk\"",
-        "--cfg=feature=\"default\"",
+    crate_features = [
+        "cjk",
+        "default",
     ],
+    crate_name = "unicode_width",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

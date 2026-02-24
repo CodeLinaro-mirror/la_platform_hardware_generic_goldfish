@@ -22,8 +22,8 @@ rust_proc_macro(
     name = "thiserror-impl",
     srcs = glob(["**/*.rs"]),
     crate_name = "thiserror_impl",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@proc-macro2",
         "@quote",

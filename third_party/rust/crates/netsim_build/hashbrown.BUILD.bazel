@@ -21,17 +21,17 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "hashbrown",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default-hasher",
+        "equivalent",
+        "inline-more",
+        "raw-entry",
+    ],
     crate_name = "hashbrown",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@equivalent",
         "@foldhash",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default-hasher\"",
-        "--cfg=feature=\"equivalent\"",
-        "--cfg=feature=\"inline-more\"",
-        "--cfg=feature=\"raw-entry\"",
     ],
 )

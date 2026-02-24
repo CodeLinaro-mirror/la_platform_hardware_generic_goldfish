@@ -22,8 +22,8 @@ rust_proc_macro(
     name = "futures-macro",
     srcs = glob(["**/*.rs"]),
     crate_name = "futures_macro",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@proc-macro2",
         "@quote",

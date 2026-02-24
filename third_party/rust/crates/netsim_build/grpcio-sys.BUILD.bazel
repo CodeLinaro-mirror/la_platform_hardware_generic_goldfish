@@ -21,18 +21,25 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "grpc_wrap_deps",
+    srcs = ["grpc_wrap.cc"],
     deps = [
         "@grpc//:grpc++",
     ],
-    srcs = ["grpc_wrap.cc"],
 )
 
 rust_library(
     name = "grpcio-sys",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "_libz-sys",
+        "_secure",
+        "boringssl",
+        "boringssl-src",
+        "libz-sys",
+    ],
     crate_name = "grpcio_sys",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     rustc_env = {
         "BINDING_PATH": "../bindings/bindings.rs",
     },
@@ -40,12 +47,5 @@ rust_library(
         ":grpc_wrap_deps",
         "@libc",
         "@libz-sys",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"_libz-sys\"",
-        "--cfg=feature=\"_secure\"",
-        "--cfg=feature=\"boringssl\"",
-        "--cfg=feature=\"boringssl-src\"",
-        "--cfg=feature=\"libz-sys\"",
     ],
 )

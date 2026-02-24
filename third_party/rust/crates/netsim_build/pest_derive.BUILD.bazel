@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_proc_macro(
     name = "pest_derive",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "pest_derive",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@pest",
         "@pest_generator",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
     ],
 )

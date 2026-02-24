@@ -22,6 +22,6 @@ rust_library(
     name = "pin-utils",
     srcs = glob(["**/*.rs"]),
     crate_name = "pin_utils",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
 )

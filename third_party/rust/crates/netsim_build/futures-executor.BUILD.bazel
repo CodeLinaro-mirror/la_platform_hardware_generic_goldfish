@@ -21,18 +21,18 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "futures-executor",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "num_cpus",
+        "std",
+        "thread-pool",
+    ],
     crate_name = "futures_executor",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@futures-core",
         "@futures-task",
         "@futures-util",
         "@num_cpus",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"num_cpus\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=feature=\"thread-pool\"",
     ],
 )

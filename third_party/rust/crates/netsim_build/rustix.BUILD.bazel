@@ -18,6 +18,9 @@ rust_library(
     aliases = {
         "@errno": "libc_errno",
     },
+    crate_features = [
+        "fs",
+    ],
     crate_name = "rustix",
     crate_root = "src/lib.rs",
     edition = "2021",
@@ -38,7 +41,6 @@ rust_library(
     ],
     rustc_flags = [
         "--cfg=libc",
-        "--cfg=feature=\"fs\"",
         "--cfg=static_assertions",
     ] + select({
         "@rules_rust//rust/platform:linux": [

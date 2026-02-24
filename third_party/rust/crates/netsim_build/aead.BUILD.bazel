@@ -20,11 +20,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "aead",
     srcs = glob(["**/*.rs"]),
+    crate_features = ["alloc"],
     crate_name = "aead",
     edition = "2021",
     deps = [
         "@crypto-common",
         "@generic-array",
     ],
-    crate_features = ["alloc"],
 )

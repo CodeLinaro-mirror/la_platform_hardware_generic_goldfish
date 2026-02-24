@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "glam",
     srcs = glob(["**/*.rs"]),
-    crate_name = "glam",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "default",
+        "std",
     ],
+    crate_name = "glam",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

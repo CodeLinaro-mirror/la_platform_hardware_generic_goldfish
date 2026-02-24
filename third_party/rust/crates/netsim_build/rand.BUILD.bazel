@@ -21,20 +21,20 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "rand",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "default",
+        "os_rng",
+        "small_rng",
+        "std",
+        "std_rng",
+        "thread_rng",
+    ],
     crate_name = "rand",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@rand_chacha",
         "@rand_core",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"alloc\"",
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"os_rng\"",
-        "--cfg=feature=\"small_rng\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=feature=\"std_rng\"",
-        "--cfg=feature=\"thread_rng\"",
     ],
 )

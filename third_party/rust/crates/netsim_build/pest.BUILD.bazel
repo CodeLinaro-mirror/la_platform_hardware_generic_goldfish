@@ -21,17 +21,17 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "pest",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "memchr",
+        "std",
+    ],
     crate_name = "pest",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@memchr",
         "@thiserror",
         "@ucd-trie",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"memchr\"",
-        "--cfg=feature=\"std\"",
     ],
 )
