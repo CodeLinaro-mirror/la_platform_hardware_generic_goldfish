@@ -47,12 +47,9 @@ using crashpad::HTTPMultipartBuilder;
 using crashpad::HTTPTransport;
 using crashpad::ProcessSnapshotMinidump;
 
-#ifdef NDEBUG
-#define CRASHURL "https://clients2.google.com/cr/report"
-#else
-#define CRASHURL "https://clients2.google.com/cr/staging_report"
+#ifndef CRASHURL
+#error "You must define CRASHURL to be the URL you want to upload crash reports to."
 #endif
-
 namespace android::crashreport {
 
 namespace {
