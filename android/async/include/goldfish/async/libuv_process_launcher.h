@@ -24,15 +24,20 @@
 namespace goldfish::async {
 
 class UvProcessLauncher {
+  private:
+    struct ProcessHandleDeleter {
+        void operator()(uv_process_t* handle) const {
+            uv_close(reinterpret_cast<uv_handle_t*>(handle), [] (uv_handle_t* handle) {
+                delete handle;
+            });
+        }
+    };
+
   protected:
-    using ProcessHandle = std::unique_ptr<uv_process_t>;
+    using ProcessHandle = std::unique_ptr<uv_process_t, ProcessHandleDeleter>;
 
     static UvProcessLauncher& GetLauncher(const uv_process_t& handle) {
         return *static_cast<UvProcessLauncher*>(handle.data);
-    }
-
-    static void CloseHandle(ProcessHandle handle) {
-        uv_close(reinterpret_cast<uv_handle_t*>(handle.get()), nullptr);
     }
 
     static int GetPid(const ProcessHandle& handle) { return handle->pid; }
