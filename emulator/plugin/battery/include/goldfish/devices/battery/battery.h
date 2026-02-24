@@ -27,8 +27,10 @@ namespace goldfish::devices::battery {
  * @param observable_battery The source of battery state updates.
  * @param is_present The initial presence state of the battery.
  * @param qemu_loop The event loop on which QEMU updates should be performed.
+ * @return A handle to the subscription.
  */
-void RegisterBattery(avd_universe::battery::ObservableBattery* observable_battery, bool is_present,
-                     async::EventLoop* qemu_loop);
+avd_universe::battery::ObservableBattery::ScopedCallbackHandle RegisterBattery(
+        avd_universe::battery::ObservableBattery* observable_battery, bool is_present,
+        async::EventLoop* qemu_loop);
 
 }  // namespace goldfish::devices::battery

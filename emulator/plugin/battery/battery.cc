@@ -111,8 +111,9 @@ void ApplyStateToQemu(const Battery& state) {
 
 }  // namespace
 
-void RegisterBattery(ObservableBattery* observable_battery, bool is_present,
-                     async::EventLoop* qemu_loop) {
+ObservableBattery::ScopedCallbackHandle RegisterBattery(ObservableBattery* observable_battery,
+                                                        bool is_present,
+                                                        async::EventLoop* qemu_loop) {
     DCHECK(observable_battery) << "observable_battery cannot be null.";
     DCHECK(qemu_loop) << "qemu_loop cannot be null.";
 
@@ -134,7 +135,7 @@ void RegisterBattery(ObservableBattery* observable_battery, bool is_present,
             .IgnoreError();
 
     // The subscription is alive for the duration of the emulator.
-    static auto subscription = MakeScopedCallback(*observable_battery, [qemu_loop](Battery state) {
+    return MakeScopedCallback(*observable_battery, [qemu_loop](Battery state) {
         qemu_loop->Post([state]() { ApplyStateToQemu(state); }).IgnoreError();
     });
 }

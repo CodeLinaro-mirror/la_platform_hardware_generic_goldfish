@@ -81,6 +81,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
 
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;
+    avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
 };
 
 struct AvdInfoDev {
@@ -275,7 +276,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
 
     // Initialize the battery to a default state and register it.
-    DEVS::battery::RegisterBattery(&avd_universe->GetBattery(), avd_props.hw_config.hw_battery,
+    avd_universe->battery_subscription = DEVS::battery::RegisterBattery(&avd_universe->GetBattery(), avd_props.hw_config.hw_battery,
                                    gQemuLoop.get());
 
     gGlobalAvdUniverseInstance = avd_universe.release();
