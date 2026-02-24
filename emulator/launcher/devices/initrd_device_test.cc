@@ -21,7 +21,7 @@
 
 #include "gmock/gmock.h"
 
-#include "aemu/base/utils/status_matcher_macros.h"
+#include "android/status/status_matcher_macros.h"
 #include "android/cmdline_definitions.h"
 #include "android/base/testing/TestSystem.h"
 #include "fake_emulator.h"

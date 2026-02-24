@@ -42,6 +42,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":network",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",

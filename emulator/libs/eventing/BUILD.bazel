@@ -26,8 +26,6 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/synchronization",
-        "@aemu//base:aemu-base",
-        "@aemu//base:aemu-base-headers",
     ],
     alwayslink = True,
 )

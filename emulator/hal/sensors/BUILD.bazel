@@ -20,7 +20,6 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:aemu-base",
         "@gfxstream//third_party/glm",
     ],
     alwayslink = True,

@@ -22,7 +22,6 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",
-        "@aemu//base:aemu-base",
         "@breakpad//src/processor",
         "@crashpad//client",
         "@crashpad//snapshot",

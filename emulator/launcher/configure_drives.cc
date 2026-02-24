@@ -22,7 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "devices/user_data_drive.h"
 
 namespace android::goldfish::internal {

@@ -36,7 +36,6 @@ cc_library(
         "//emulator/libs/base",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -60,6 +59,7 @@ cc_test(
         ":adb_device",
         ":device",
         ":fake_emulator",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -87,6 +87,7 @@ cc_test(
         ":avd_info_device",
         ":device",
         ":fake_emulator",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -104,7 +105,6 @@ cc_library(
         "//android/cpu",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -116,6 +116,7 @@ cc_test(
         ":cpu_device",
         ":device",
         ":fake_emulator",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -143,6 +144,7 @@ cc_test(
         ":device",
         ":display_device",
         ":fake_emulator",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -159,7 +161,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -172,7 +173,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -185,6 +185,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":grpc_device",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -204,7 +205,6 @@ cc_library(
         "//emulator/launcher:bootconfig",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -216,6 +216,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":initrd_device",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -233,7 +234,6 @@ cc_library(
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -245,6 +245,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":kernel_device",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -261,7 +262,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -273,6 +273,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":machine",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -289,7 +290,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -301,6 +301,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":memory_device",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -317,7 +318,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -329,6 +329,7 @@ cc_test(
         ":device",
         ":fake_emulator",
         ":network_device",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",
@@ -345,7 +346,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -358,7 +358,6 @@ cc_library(
         ":device",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -373,7 +372,6 @@ cc_library(
         "//emulator/adb/secrets",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -388,7 +386,6 @@ cc_library(
         "//android/process",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -399,6 +396,7 @@ cc_test(
     deps = [
         ":disk_drive",
         ":fake_emulator",
+        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/status:status_matchers",

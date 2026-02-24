@@ -23,7 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "emulator/plugin/netsim/NetsimTransport.h"
 #include "goldfish/avd_info/avd_info.h"

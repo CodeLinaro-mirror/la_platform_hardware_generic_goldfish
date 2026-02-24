@@ -20,7 +20,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/ini_file.h"
 #include "goldfish/async/launch_config.h"

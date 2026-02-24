@@ -9,7 +9,6 @@ cc_library(
     includes = ["src"],
     deps = [
         "@abseil-cpp//absl/synchronization",
-        "@aemu//base:aemu-base-headers",
         "@qemu//:qemu-headers",
     ],
 )
@@ -36,6 +35,7 @@ cc_library(
     hdrs = ["include/android/goldfish/vm_interface.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/strings:str_format"],
 )
 
 cc_library(
@@ -70,37 +70,33 @@ cc_library(
         "test_vm_lock.cc",
         "vm_mock.c",
     ],
-    hdrs = ["include/android/goldfish/vm_interface.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         ":vm_lock",
         ":vm_ops_with_fake_machine_info",
+        ":vminterface",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
 cc_test(
     name = "vminterface_unittests",
     testonly = True,
-    srcs = [
-        "vm_test.cc",
-    ],
+    srcs = ["vm_test.cc"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [
         ":vminterface-test",
         "//android/system:googletest_main",
         "//android/system:test-headers",
-        "@aemu//base:aemu-base-headers",
     ],
 )
 
 cc_library(
     name = "test_vminterface",
     testonly = True,
-    hdrs = [
-        "test/FakeVmOperations.h",
-    ],
+    hdrs = ["test/FakeVmOperations.h"],
     includes = ["test"],
     visibility = ["//visibility:public"],
     deps = [":vminterface"],

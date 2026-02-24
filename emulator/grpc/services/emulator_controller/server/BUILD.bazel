@@ -46,7 +46,6 @@ cc_library(
         "//emulator/plugin/avd:info",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",
-        "@aemu//base:aemu-base",
         "@aemu//protos/services/incubating/sensor:sensor_service_cc_grpc",
     ],
 )
@@ -74,6 +73,5 @@ cc_test(
         "//emulator/plugin/avd:info-fake",
         "//emulator/plugin/vminterface:test_vminterface",
         "//emulator/plugin/vminterface:vminterface-test",
-        "@aemu//base:aemu-base",
     ],
 )

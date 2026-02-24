@@ -23,7 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/utils/status_macros.h"
+#include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
 #include "android/filesystems/ext4_resize.h"

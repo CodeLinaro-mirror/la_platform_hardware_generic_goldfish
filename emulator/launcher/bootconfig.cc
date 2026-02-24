@@ -14,7 +14,6 @@
 
 #include "emulator/launcher/bootconfig.h"
 
-#include <aemu/base/utils/status_macros.h>
 #include <sys/stat.h>
 
 #include <fstream>
@@ -26,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/base/file/file.h"
+#include "android/status/status_macros.h"
 
 namespace goldfish::bootconfig {
 using namespace std::literals;
