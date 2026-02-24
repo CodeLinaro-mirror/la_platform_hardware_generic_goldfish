@@ -445,7 +445,7 @@ Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
     getDisplayConfigurations(context, nullptr, reply);
 
     // Fill and fire the notification event
-    auto& avdUniverse = ::goldfish::avd_info::getAvd();
+    auto& avdUniverse = ::goldfish::avd_info::GetAvd();
     ::android::emulation::control::Notification event;
 
     // Set the oneof type to DisplayConfigurationsChangedNotification
@@ -455,7 +455,7 @@ Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
     *changed_notification->mutable_displayconfigurations() = *reply;
 
     // Fire the event to any connected gRPC notification streams
-    avdUniverse.getGrpcNotificationChannel().FireEvent(event);
+    avdUniverse.GetGrpcNotificationChannel().FireEvent(event);
 
     return Status::OK;
 }

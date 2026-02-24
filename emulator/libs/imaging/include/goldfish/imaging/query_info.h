@@ -22,8 +22,8 @@
 
 namespace goldfish::imaging {
 
-size_t getStride(ImageFormat, size_t width);
-size_t getStride(const ImageRef&);
-size_t getDataSize(ImageFormat, size_t width, size_t height);
+size_t GetStride(ImageFormat, size_t width);
+size_t GetStride(const ImageRef&);
+size_t GetDataSize(ImageFormat, size_t width, size_t height);
 
 }  // namespace goldfish::imaging

@@ -518,7 +518,7 @@ float PhysicalModel::getParameterWristTilt(ParameterValueType parameter_value_ty
 }
 
 template <class T, class GETTER>
-T PhysicalModel::getSensorValue(const AndroidSensor sensor, const T* override_member_pointer,
+T PhysicalModel::GetSensorValue(const AndroidSensor sensor, const T* override_member_pointer,
                                 const GETTER& physical_getter, size_t* measurement_id) const {
     const auto sensor_index = static_cast<size_t>(sensor);
 
@@ -543,7 +543,7 @@ T PhysicalModel::getSensorValue(const AndroidSensor sensor, const T* override_me
 // Implement sensor overrides.
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                              \
     void PhysicalModel::OVERRIDE_FUNCTION_NAME(z)(v override_value) {   \
-        setOverride(SENSOR_NAME(x), &OVERRIDE_NAME(z), override_value); \
+        SetOverride(SENSOR_NAME(x), &OVERRIDE_NAME(z), override_value); \
     }
 
 GOLDFISH_SENSORS_LIST
@@ -552,7 +552,7 @@ GOLDFISH_SENSORS_LIST
 // Implement getters that respect overrides.
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                                                        \
     v PhysicalModel::GET_FUNCTION_NAME(z)(size_t* measurement_id) const {                         \
-        return getSensorValue<v>(                                                                 \
+        return GetSensorValue<v>(                                                                 \
                 SENSOR_NAME(x), &OVERRIDE_NAME(z), [this]() { return this->PHYSICAL_NAME(z)(); }, \
                 measurement_id);                                                                  \
     }

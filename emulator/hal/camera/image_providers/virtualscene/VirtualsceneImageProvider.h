@@ -83,7 +83,7 @@ struct VirtualsceneImageProvider {
         gvk::Framebuffer framebuffer;
         gvk::Pipeline pipeline;
         VkCommandBuffer renderCmdBuf = VK_NULL_HANDLE;
-        CameraImageProviderRect framebufferSize;
+        CameraImageProviderRect framebuffer_size;
         uint8_t frameCounter = 0;
     };
 
@@ -91,7 +91,7 @@ struct VirtualsceneImageProvider {
                      const CameraImageProviderStreamCaptureInfo* sci, unsigned scin,
                      uint8_t* yuvConversionBuffer);
 
-    bool updateUniformData(CameraImageProviderRect framebufferSize, float angle);
+    bool updateUniformData(CameraImageProviderRect framebuffer_size, float angle);
 
     VkCommandBuffer recordCommandBuffer(const CaptureSession&,
                                         const CameraImageProviderStreamCaptureInfo* sci,

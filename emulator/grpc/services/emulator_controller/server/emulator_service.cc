@@ -59,16 +59,16 @@ class EmulatorControllerImpl final
     EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
                            IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemu_loop)
             : mVmService(vm)
-            , mGrpcNotificationChannel(avdUniverse->getGrpcNotificationChannel())
+            , mGrpcNotificationChannel(avdUniverse->GetGrpcNotificationChannel())
             , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemu_loop))
-            , mStatusService(avdUniverse->getGuestStatus(), avdUniverse->props().avd_api,
-                             avdUniverse->props().hw_config)
-            , mBatteryService(avdUniverse->getBattery())
-            , mSensorService(avdUniverse->getSensorsPhysicalModel())
-            , mGpsService(avdUniverse->getLocation())
-            , mClipboardService(avdUniverse->getClipboardChannel())
+            , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props().avd_api,
+                             avdUniverse->Props().hw_config)
+            , mBatteryService(avdUniverse->GetBattery())
+            , mSensorService(avdUniverse->GetSensorsPhysicalModel())
+            , mGpsService(avdUniverse->GetLocation())
+            , mClipboardService(avdUniverse->GetClipboardChannel())
             , mInputEventSender(multidisplay)
-            , mDisplayService(multidisplay, &avdUniverse->getSensorsPhysicalModel()) {}
+            , mDisplayService(multidisplay, &avdUniverse->GetSensorsPhysicalModel()) {}
 
     Status getBattery(ServerContext* /*context*/, const Empty* /*request*/,
                       BatteryState* reply) override {

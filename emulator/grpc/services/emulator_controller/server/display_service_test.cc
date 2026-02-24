@@ -54,7 +54,7 @@ class DisplayServiceTest : public GrcpServiceTest {
         mMultiDisplay = std::make_unique<FakeMultiDisplay>(mLoop.get());
         mDisplayService =
                 std::make_unique<DisplayServiceImpl>(mMultiDisplay.get(), mPhysicalModel.get());
-        auto createResult = mMultiDisplay->CreateDisplay(1, 100, 50);
+        auto createResult = mMultiDisplay->CreateDisplay(1, 100, 50, 320, 1);
         ASSERT_TRUE(createResult.ok());
 
         GrcpServiceTest::SetUp();
@@ -69,7 +69,7 @@ class DisplayServiceTest : public GrcpServiceTest {
 
         auto display = screen->lock();
         ASSERT_TRUE(display);
-        reinterpret_cast<ActiveFakePixmanDisplay*>(display.get())->start();
+        reinterpret_cast<ActiveFakePixmanDisplay*>(display.get())->Start();
     }
 
     EmulatorController::Service* getService() override { return mDisplayService.get(); }
@@ -106,7 +106,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGBA8888) {
     EXPECT_EQ(reply.format().display(), 1);
 
     // Check if the screenshot has the correct data (at least one pixel)
-    uint32_t* pixelData = reinterpret_cast<uint32_t*>(reply.mutable_image()->data());
+    const uint32_t* pixelData = reinterpret_cast<const uint32_t*>(reply.mutable_image()->data());
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
 }
 
@@ -126,7 +126,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGB888) {
     EXPECT_EQ(reply.format().display(), 1);
 
     // Check if the screenshot has the correct data (at least one pixel)
-    uint8_t* pixelData = reinterpret_cast<uint8_t*>(reply.mutable_image()->data());
+    const uint8_t* pixelData = reinterpret_cast<const uint8_t*>(reply.mutable_image()->data());
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2], 0);
 }
 
@@ -145,7 +145,7 @@ TEST_F(DisplayServiceTest, GetScreenshotInvalidDisplay) {
 
 TEST_F(DisplayServiceTest, GetScreenshotScaling) {
     // Create a display
-    auto createResult = mMultiDisplay->CreateDisplay(2, 400, 200);
+    auto createResult = mMultiDisplay->CreateDisplay(2, 400, 200, 320, 1);
     ASSERT_TRUE(createResult.ok());
 
     // Get a screenshot with scaling (which is now disabled)
@@ -167,7 +167,7 @@ TEST_F(DisplayServiceTest, GetScreenshotScaling) {
 
 TEST_F(DisplayServiceTest, GetDisplayConfigurations) {
     // Create a few displays
-    auto createResult2 = mMultiDisplay->CreateDisplay(2, 200, 100);
+    auto createResult2 = mMultiDisplay->CreateDisplay(2, 200, 100, 320, 1);
     ASSERT_TRUE(createResult2.ok());
 
     // Get the display configurations
@@ -572,7 +572,8 @@ TEST_F(DisplayServiceTest, GetScreenshotMmap) {
     // Create a shared memory region.
     auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
     std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%d", ts)).string();
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%ld", ts))
+                    .string();
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
     ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
@@ -598,7 +599,7 @@ TEST_F(DisplayServiceTest, GetScreenshotMmap) {
     EXPECT_TRUE(reply.image().empty());
 
     // Shared memory should have data
-    uint32_t* pixelData = reinterpret_cast<uint32_t*>(*mem);
+    const uint32_t* pixelData = reinterpret_cast<const uint32_t*>(*mem);
     ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
 }
 
@@ -606,7 +607,8 @@ TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
     // Create a shared memory region.
     auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
     std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%d", ts)).string();
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%ld", ts))
+                    .string();
 
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
@@ -633,7 +635,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
         EXPECT_TRUE(image.image().empty());
 
         // Shared memory should have data
-        uint32_t* pixelData = reinterpret_cast<uint32_t*>(*mem);
+        const uint32_t* pixelData = reinterpret_cast<const uint32_t*>(*mem);
         EXPECT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
         count++;
     }
@@ -692,7 +694,7 @@ TEST_F(DisplayServiceTest, GetScreenshotPNG) {
 TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
     auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
     std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_png_mmap_%d", ts))
+            (std::filesystem::temp_directory_path() / absl::StrFormat("test_png_mmap_%ld", ts))
                     .string();
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
@@ -711,7 +713,7 @@ TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
 
     EXPECT_TRUE(reply.image().empty());
 
-    uint8_t* pngData = reinterpret_cast<uint8_t*>(*mem);
+    const uint8_t* pngData = reinterpret_cast<const uint8_t*>(*mem);
     EXPECT_EQ(pngData[0], 0x89);
     EXPECT_EQ(pngData[1], 'P');
     EXPECT_EQ(pngData[2], 'N');

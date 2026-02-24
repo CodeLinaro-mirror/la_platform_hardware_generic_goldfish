@@ -211,11 +211,13 @@ class VSockProxyImpl : public VSockProxy {
     }
 
     void close() {
-        mClientLoop->PostAndWait([this] {
-            if (mSocketServer) {
-                mSocketServer->Close();
-            }
-        }).IgnoreError();
+        mClientLoop
+                ->PostAndWait([this] {
+                    if (mSocketServer) {
+                        mSocketServer->Close();
+                    }
+                })
+                .IgnoreError();
     }
 
   private:
@@ -224,9 +226,11 @@ class VSockProxyImpl : public VSockProxy {
         auto incoming_socket_connection =
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
-                    mQemuLoop->Post([this, hostToGuest = std::move(hostToGuest)] {
-                        incomingConnectionOnQemuThread(std::move(hostToGuest));
-                    }).IgnoreError();
+                    mQemuLoop
+                            ->Post([this, hostToGuest = std::move(hostToGuest)] {
+                                incomingConnectionOnQemuThread(std::move(hostToGuest));
+                            })
+                            .IgnoreError();
                     return true;
                 };
 
@@ -317,7 +321,7 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
 
     vsock_fwd_device->forwarder =
             new VSockProxyImpl(*preferred, vsock_fwd_device,
-                               goldfish::avd_info::getAvd().getGuestStatus().bootcomplete);
+                               goldfish::avd_info::GetAvd().GetGuestStatus().bootcomplete);
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
                    << "<->" << vsock_fwd_device->guest_port;
 }

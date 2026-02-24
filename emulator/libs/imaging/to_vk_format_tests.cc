@@ -20,10 +20,10 @@
 namespace goldfish::imaging {
 
 TEST(ToVkFormat, AllFormats) {
-    EXPECT_EQ(toVkFormat(ImageFormat::RGBA_8888), VK_FORMAT_R8G8B8A8_UNORM);
-    EXPECT_EQ(toVkFormat(ImageFormat::YUV420_3P), VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM);
-    EXPECT_EQ(toVkFormat(ImageFormat::YUV420_NV12), VK_FORMAT_G8_B8R8_2PLANE_420_UNORM);
-    EXPECT_EQ(toVkFormat(ImageFormat::NONE), VK_FORMAT_UNDEFINED);
+    EXPECT_EQ(ToVkFormat(ImageFormat::kRgba8888), VK_FORMAT_R8G8B8A8_UNORM);
+    EXPECT_EQ(ToVkFormat(ImageFormat::kYuV4203P), VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM);
+    EXPECT_EQ(ToVkFormat(ImageFormat::kYuV420NV12), VK_FORMAT_G8_B8R8_2PLANE_420_UNORM);
+    EXPECT_EQ(ToVkFormat(ImageFormat::kNone), VK_FORMAT_UNDEFINED);
 }
 
 }  // namespace goldfish::imaging

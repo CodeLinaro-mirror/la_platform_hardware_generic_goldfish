@@ -17,6 +17,6 @@
 
 namespace goldfish::avd_info {
 
-devices::camera::GrallocDetailsPtr getGrallocImpl();
+devices::camera::GrallocDetailsPtr GetGrallocImpl();
 
 }  // namespace goldfish::avd_info

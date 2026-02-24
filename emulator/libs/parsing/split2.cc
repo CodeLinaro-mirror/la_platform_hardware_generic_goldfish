@@ -18,7 +18,7 @@
 
 namespace goldfish::parsing {
 
-std::pair<std::string_view, std::string_view> split2(const std::string_view str, const char sep) {
+std::pair<std::string_view, std::string_view> Split2(const std::string_view str, const char sep) {
     return absl::StrSplit(str, absl::MaxSplits(sep, 1));
 }
 

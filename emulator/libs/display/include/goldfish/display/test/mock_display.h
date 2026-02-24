@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #pragma once
 
 #include <gmock/gmock.h>
@@ -20,9 +19,7 @@
 
 namespace goldfish::display::test {
 
-using ::testing::InSequence;
-using ::testing::Mock;
-
+// NOLINTBEGIN(modernize-type-traits)
 class MockDisplay : public IDisplay {
   public:
     MockDisplay(EventLoop* loop, uint8_t id, uint32_t width, uint32_t height)
@@ -34,5 +31,6 @@ class MockDisplay : public IDisplay {
     MOCK_METHOD(void, SendMouseEvent, (int x, int y, int button_mask), (override));
     MOCK_METHOD(void, SendEvDevEvent, (uint16_t type, uint16_t code, uint32_t value), (override));
 };
+// NOLINTEND(modernize-type-traits)
 
 }  // namespace goldfish::display::test

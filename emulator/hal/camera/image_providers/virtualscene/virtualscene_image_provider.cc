@@ -257,7 +257,7 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         return FAILURE_STR("render output size size is zero", -1);
     }
 
-    const VkFormat framebufferFormat = toVkFormat(roc.getFormat());
+    const VkFormat framebufferFormat = ToVkFormat(roc.getFormat());
     if (framebufferFormat == VK_FORMAT_UNDEFINED) {
         return FAILURE(-1);
     }
@@ -274,12 +274,12 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
 
         const imaging::ImageFormat streamFormat = static_cast<imaging::ImageFormat>(cfg.format);
         switch (streamFormat) {
-        case imaging::ImageFormat::NONE:
-        case imaging::ImageFormat::RGBA_8888:
+        case imaging::ImageFormat::kNone:
+        case imaging::ImageFormat::kRgba8888:
             break;
 
-        case imaging::ImageFormat::YUV420_3P:
-        case imaging::ImageFormat::YUV420_NV12:
+        case imaging::ImageFormat::kYuV4203P:
+        case imaging::ImageFormat::kYuV420NV12:
             if ((cfg.size.width | cfg.size.height) & 1U) {
                 return FAILURE_STR("YUV stream with odd size", -1);
             }
@@ -287,13 +287,13 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         }
 
         const imaging::ImageFormat stagingFormat = getStagingFormat(streamFormat);
-        const VkFormat stagingGpuFormat = toVkFormat(stagingFormat);
+        const VkFormat stagingGpuFormat = ToVkFormat(stagingFormat);
         if (stagingGpuFormat == VK_FORMAT_UNDEFINED) {
             return FAILURE_STR("stagingGpuFormat", -1);
         }
 
         const uint32_t dstBufferSize =
-                imaging::getDataSize(stagingFormat, cfg.size.width, cfg.size.height);
+                imaging::GetDataSize(stagingFormat, cfg.size.width, cfg.size.height);
         if (!dstBufferSize) {
             return FAILURE_STR("dstBufferSize", -1);
         }
@@ -358,15 +358,15 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
         }
 
         switch (streamFormat) {
-        case imaging::ImageFormat::NONE:
-        case imaging::ImageFormat::RGBA_8888:
+        case imaging::ImageFormat::kNone:
+        case imaging::ImageFormat::kRgba8888:
             break;
 
-        case imaging::ImageFormat::YUV420_3P:
-        case imaging::ImageFormat::YUV420_NV12:
+        case imaging::ImageFormat::kYuV4203P:
+        case imaging::ImageFormat::kYuV420NV12:
             maxYuvConversionBufferSize =
                     std::max(maxYuvConversionBufferSize,
-                             imaging::getDataSize(streamFormat, cfg.size.width, cfg.size.height));
+                             imaging::GetDataSize(streamFormat, cfg.size.width, cfg.size.height));
             break;
         }
 
@@ -668,7 +668,7 @@ int VirtualsceneImageProvider::start(const CameraImageProviderStreamConfig* cons
     captureSession.framebuffer = std::move(framebuffer);
     captureSession.pipeline = std::move(pipeline);
     captureSession.renderCmdBuf = renderCmdBuf;
-    captureSession.framebufferSize = roc.size;
+    captureSession.framebuffer_size = roc.size;
 
     mCaptureSession = std::move(captureSession);
     return 0;
@@ -690,25 +690,25 @@ VirtualsceneImageProvider::RenderOutputConfig VirtualsceneImageProvider::getRend
 
 imaging::ImageFormat VirtualsceneImageProvider::RenderOutputConfig::getFormat() const {
     // TODO: HDR
-    return imaging::ImageFormat::RGBA_8888;
+    return imaging::ImageFormat::kRgba8888;
 }
 
 imaging::ImageFormat VirtualsceneImageProvider::getStagingFormat(const imaging::ImageFormat fmt) {
     using imaging::ImageFormat;
 
     switch (fmt) {
-    case ImageFormat::NONE:
+    case ImageFormat::kNone:
         break;
 
     // vkCmdBlitImage into YUV support is optional,
     // we have to convert on the CPU via libuyv.
-    case ImageFormat::YUV420_3P:
-    case ImageFormat::YUV420_NV12:
-    case ImageFormat::RGBA_8888:
-        return ImageFormat::RGBA_8888;
+    case ImageFormat::kYuV4203P:
+    case ImageFormat::kYuV420NV12:
+    case ImageFormat::kRgba8888:
+        return ImageFormat::kRgba8888;
     }
 
-    return ImageFormat::NONE;
+    return ImageFormat::kNone;
 }
 
 VirtualsceneImageProvider::CropRegion VirtualsceneImageProvider::getCropRegion(
@@ -762,7 +762,7 @@ int VirtualsceneImageProvider::capture(const CameraImageProviderCaptureOpts& /*o
         return 0;
     } else if (mCaptureSession) {
         CaptureSession& session = *mCaptureSession;
-        if (!updateUniformData(session.framebufferSize, ++session.frameCounter / 256.0f)) {
+        if (!updateUniformData(session.framebuffer_size, ++session.frameCounter / 256.0f)) {
             return FAILURE_STR("updateUniformData", -1);
         }
 
@@ -777,7 +777,7 @@ int VirtualsceneImageProvider::capture(const CameraImageProviderCaptureOpts& /*o
     }
 }
 
-bool VirtualsceneImageProvider::updateUniformData(const CameraImageProviderRect framebufferSize,
+bool VirtualsceneImageProvider::updateUniformData(const CameraImageProviderRect framebuffer_size,
                                                   const float angle) {
     glm::mat4 modelMatrix =
             glm::rotate(glm::mat4(1.0f), angle * glm::radians(360.f), glm::vec3(0, 0, 1));
@@ -787,8 +787,9 @@ bool VirtualsceneImageProvider::updateUniformData(const CameraImageProviderRect 
     auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
     // Set up projection
-    auto projMatrix = glm::perspective(
-            glm::radians(70.f), framebufferSize.width / float(framebufferSize.height), 0.1f, 10.0f);
+    auto projMatrix =
+            glm::perspective(glm::radians(70.f),
+                             framebuffer_size.width / float(framebuffer_size.height), 0.1f, 10.0f);
 
     UniformBufferData uniformData = {
         .transformationMatrix = projMatrix * viewMatrix * modelMatrix,
@@ -839,14 +840,14 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
         }
 
         switch (static_cast<imaging::ImageFormat>(cfg.format)) {
-        case imaging::ImageFormat::NONE:
+        case imaging::ImageFormat::kNone:
             break;
 
-        case imaging::ImageFormat::RGBA_8888:
+        case imaging::ImageFormat::kRgba8888:
             sink(sinkOpaque, &sci, bits, bufs->bufferSizeBytes);
             break;
 
-        case imaging::ImageFormat::YUV420_3P: {
+        case imaging::ImageFormat::kYuV4203P: {
             const int width = static_cast<int>(cfg.size.width);
             const int width2 = width / 2;
             const int height = static_cast<int>(cfg.size.height);
@@ -858,7 +859,7 @@ bool VirtualsceneImageProvider::captureImpl(const CaptureSession& session,
             sink(sinkOpaque, &sci, yuvConversionBuffer, width * height * 3 / 2);
         } break;
 
-        case imaging::ImageFormat::YUV420_NV12: {
+        case imaging::ImageFormat::kYuV420NV12: {
             const int width = static_cast<int>(cfg.size.width);
             const int height = static_cast<int>(cfg.size.height);
             uint8_t* y = yuvConversionBuffer;
@@ -896,7 +897,7 @@ VkCommandBuffer VirtualsceneImageProvider::recordCommandBuffer(
 
         const auto renderPassEnder = mDeviceDispatch->cmdBeginRenderPass(
                 renderCmdBuf, session.renderPass.get(), session.framebuffer.get(),
-                {{0, 0}, {session.framebufferSize.width, session.framebufferSize.height}}, 1,
+                {{0, 0}, {session.framebuffer_size.width, session.framebuffer_size.height}}, 1,
                 &clearColor, VK_SUBPASS_CONTENTS_INLINE);
         if (!renderPassEnder) {
             return FAILURE_STR("cmdBeginRenderPass", VK_NULL_HANDLE);
@@ -939,8 +940,8 @@ VkCommandBuffer VirtualsceneImageProvider::recordCommandBuffer(
                             .layerCount = 1,
                         },
                 .srcOffsets = {{0, 0, 0},
-                               {static_cast<int32_t>(session.framebufferSize.width),
-                                static_cast<int32_t>(session.framebufferSize.height), 1}},
+                               {static_cast<int32_t>(session.framebuffer_size.width),
+                                static_cast<int32_t>(session.framebuffer_size.height), 1}},
                 .dstSubresource =
                         {
                             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,

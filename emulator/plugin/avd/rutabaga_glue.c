@@ -39,9 +39,9 @@ struct rutabaga* rutabagaGetInstance() {
     return vr->rutabaga;
 }
 
-int32_t rutabagaImageTransfer(struct rutabaga* instance, const uint32_t resourceId,
+int32_t rutabagaImageTransfer(struct rutabaga* instance, const uint32_t resource_id,
                               const uint32_t width, const uint32_t height, const uint32_t stride,
-                              const void* const framebuffer, const uint32_t framebufferSize) {
+                              const void* const framebuffer, const uint32_t framebuffer_size) {
     struct rutabaga_transfer transfer = {
         .x = 0,
         .y = 0,
@@ -56,14 +56,14 @@ int32_t rutabagaImageTransfer(struct rutabaga* instance, const uint32_t resource
 
     struct iovec iov = {
         .iov_base = (uint8_t*)framebuffer,
-        .iov_len = framebufferSize,
+        .iov_len = framebuffer_size,
     };
 
-    return rutabaga_resource_transfer_write_goldfish(instance, 0, resourceId, &transfer, &iov);
+    return rutabaga_resource_transfer_write_goldfish(instance, 0, resource_id, &transfer, &iov);
 }
-int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
+int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resource_id, uint32_t width,
                           uint32_t height, uint32_t stride, void* framebuffer,
-                          uint32_t framebufferSize) {
+                          uint32_t framebuffer_size) {
     struct rutabaga_transfer transfer = {
         .x = 0,
         .y = 0,
@@ -78,8 +78,8 @@ int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resourceId, uint32
 
     struct iovec iov = {
         .iov_base = (uint8_t*)framebuffer,
-        .iov_len = framebufferSize,
+        .iov_len = framebuffer_size,
     };
 
-    return rutabaga_resource_transfer_read(instance, 0, resourceId, &transfer, &iov);
+    return rutabaga_resource_transfer_read(instance, 0, resource_id, &transfer, &iov);
 }

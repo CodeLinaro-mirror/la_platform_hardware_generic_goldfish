@@ -22,7 +22,7 @@
 namespace goldfish::parsing {
 
 template <class T>
-std::optional<T> fromChars(const std::string_view str, const int base = 10) {
+std::optional<T> FromChars(const std::string_view str, const int base = 10) {
     if (str.empty()) {
         return std::nullopt;
     }
@@ -31,13 +31,12 @@ std::optional<T> fromChars(const std::string_view str, const int base = 10) {
     const auto [ptr, ec] = std::from_chars(&*str.begin(), &*str.end(), value, base);
     if ((ec == std::errc()) && (ptr == &*str.end())) {
         return value;
-    } else {
-        return std::nullopt;
     }
+    return std::nullopt;
 }
 
 template <class T>
-std::optional<T> fromCharsF(const std::string_view str) {
+std::optional<T> FromCharsF(const std::string_view str) {
     if (str.empty()) {
         return std::nullopt;
     }
@@ -46,9 +45,8 @@ std::optional<T> fromCharsF(const std::string_view str) {
     const auto [ptr, ec] = std::from_chars(&*str.begin(), &*str.end(), value);
     if ((ec == std::errc()) && (ptr == &*str.end())) {
         return value;
-    } else {
-        return std::nullopt;
     }
+    return std::nullopt;
 }
 
 }  // namespace goldfish::parsing

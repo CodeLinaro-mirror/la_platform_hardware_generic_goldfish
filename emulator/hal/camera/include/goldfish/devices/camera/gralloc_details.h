@@ -33,14 +33,14 @@ struct IGrallocDetails {
     /*
      * Returns the gralloc specific format for PixelFormat in Android.
      */
-    virtual imaging::ImageFormat getImageFormat(imaging::AndroidPixelFormat) const = 0;
+    virtual imaging::ImageFormat GetImageFormat(imaging::AndroidPixelFormat) const = 0;
 
     /*
-     * Transfers an image into the gralloc using the handle stored in `handleStr`.
+     * Transfers an image into the gralloc using the handle stored in `handle_str`.
      *
      * Returns non-zero if an error.
      */
-    virtual int transfer(std::string_view handleStr, const imaging::ImageRef& img) const = 0;
+    virtual int Transfer(std::string_view handle_str, const imaging::ImageRef& img) const = 0;
 };
 
 using GrallocDetailsPtr = std::shared_ptr<IGrallocDetails>;

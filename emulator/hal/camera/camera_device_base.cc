@@ -61,7 +61,7 @@ void CameraDeviceBase::stopCapturingImpl() const {
 }
 
 ImageFormat CameraDeviceBase::getImageFormatFromAndroid(AndroidPixelFormat fmt) const {
-    return mGrallocDetails->getImageFormat(fmt);
+    return mGrallocDetails->GetImageFormat(fmt);
 }
 
 int CameraDeviceBase::imageSink(const CameraImageProviderStreamCaptureInfo& sci,
@@ -71,7 +71,7 @@ int CameraDeviceBase::imageSink(const CameraImageProviderStreamCaptureInfo& sci,
 
     const CameraImageProviderStreamConfig& cfg = *sci.cfg;
 
-    return mGrallocDetails->transfer(*static_cast<const std::string_view*>(sci.bufOpaque),
+    return mGrallocDetails->Transfer(*static_cast<const std::string_view*>(sci.bufOpaque),
                                      ImageRef(static_cast<ImageFormat>(cfg.format),
                                               Rect<uint32_t>(cfg.size.width, cfg.size.height),
                                               framebufferPtr, framebufferSize));

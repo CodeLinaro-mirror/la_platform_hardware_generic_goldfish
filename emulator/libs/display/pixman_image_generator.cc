@@ -28,113 +28,119 @@ extern "C" {
 
 namespace goldfish::display::test {
 
-static uint32_t getColorValue(Color color) {
+namespace {
+uint32_t GetColorValue(Color color) {
     switch (color) {
-    case Color::Red:
+    case Color::kRed:
         return 0xFFFF0000;
-    case Color::Green:
+    case Color::kGreen:
         return 0xFF00FF00;
-    case Color::Blue:
+    case Color::kBlue:
         return 0xFF0000FF;
     default:
         return 0xFF000000;  // Default to black if unknown
     }
 }
+}  // namespace
 
 PixmanImageGenerator::PixmanImageGenerator(int fps, int width, int height)
-        : mFps(fps), mWidth(width), mHeight(height), mRunning(false), mFrameCount(0) {}
+        : fps_(fps), width_(width), height_(height), running_(false) {}
 
 PixmanImageGenerator::~PixmanImageGenerator() {
-    stop();
+    Stop();
 }
 
-void PixmanImageGenerator::start() {
-    if (mRunning) return;
-    mRunning = true;
-    mThread = std::make_unique<std::thread>([this] { generateImagesLoop(); });
+void PixmanImageGenerator::Start() {
+    if (running_) return;
+    running_ = true;
+    thread_ = std::make_unique<std::thread>([this] { GenerateImagesLoop(); });
 }
 
-void PixmanImageGenerator::stop() {
-    if (!mRunning) return;
-    mRunning = false;
-    if (mThread && mThread->joinable()) {
-        mThread->join();
+void PixmanImageGenerator::Stop() {
+    if (!running_) return;
+    running_ = false;
+    if (thread_ && thread_->joinable()) {
+        thread_->join();
     }
-    fprintf(stderr, "Clearing out thread\n");
-    mThread.reset();
+    VLOG(1) << "Clearing out thread";
+    thread_.reset();
 }
 
-void PixmanImageGenerator::resize(int w, int h) {
-    absl::MutexLock lock(&mMutex);
-    mWidth = w;
-    mHeight = h;
+void PixmanImageGenerator::Resize(int w, int h) {
+    const absl::MutexLock lock(&mutex_);
+    width_ = w;
+    height_ = h;
 }
 
-PixmanImagePtr PixmanImageGenerator::generateImage(Color color) {
-    absl::MutexLock lock(&mMutex);
-    uint32_t* pixels = new uint32_t[mWidth * mHeight];
-    uint32_t colorValue = getColorValue(color);
-    for (int i = 0; i < mWidth * mHeight; ++i) {
-        pixels[i] = colorValue;
+PixmanImagePtr PixmanImageGenerator::GenerateImage(Color color) {
+    const absl::MutexLock lock(&mutex_);
+    auto* pixels = new uint32_t[static_cast<size_t>(width_) * height_];
+    const uint32_t color_value = GetColorValue(color);
+    for (int i = 0; i < width_ * height_; ++i) {
+        pixels[i] = color_value;
     }
-    ::pixman_image_t* image = pixman_image_create_bits(PIXMAN_a8r8g8b8, mWidth, mHeight, pixels,
-                                                       mWidth * sizeof(uint32_t));
+    ::pixman_image_t* image = pixman_image_create_bits(PIXMAN_a8r8g8b8, width_, height_, pixels,
+                                                       static_cast<int>(width_ * sizeof(uint32_t)));
     pixman_image_set_destroy_function(
-            image, [](pixman_image_t* image, void* data) { delete[] static_cast<uint32_t*>(data); },
+            image,
+            [](pixman_image_t* /*image*/, void* data) { delete[] static_cast<uint32_t*>(data); },
             pixels);
     return PixmanImagePtr(image);
 }
 
-bool PixmanImageGenerator::waitForFramesWithTimeout(int n, absl::Duration timeout) {
-    absl::MutexLock lock(&mMutex);
-    while (mFrameCount < n) {
-        if (mFrameCv.WaitWithTimeout(&mMutex, timeout)) {
+bool PixmanImageGenerator::WaitForFramesWithTimeout(int n, absl::Duration timeout) {
+    const absl::MutexLock lock(&mutex_);
+    while (frame_count_ < n) {
+        if (frame_cv_.WaitWithTimeout(&mutex_, timeout)) {
             return false;
         }
     }
     return true;
 }
 
-int PixmanImageGenerator::frameCount() const {
-    absl::MutexLock lock(&mMutex);
-    return mFrameCount;
+int PixmanImageGenerator::FrameCount() const {
+    const absl::MutexLock lock(&mutex_);
+    return frame_count_;
 }
 
-void PixmanImageGenerator::generateImagesLoop() {
-    const std::chrono::milliseconds frameDuration(1000 / mFps);
+void PixmanImageGenerator::GenerateImagesLoop() {
+    const std::chrono::milliseconds frame_duration(1000 / fps_);
 
-    while (mRunning) {
+    while (running_) {
         auto start = std::chrono::steady_clock::now();
 
         Color color;
         {
-            absl::MutexLock lock(&mMutex);
-            switch (mFrameCount % 3) {
+            const absl::MutexLock lock(&mutex_);
+            switch (frame_count_ % 3) {
             case 0:
-                color = Color::Red;
+                color = Color::kRed;
                 break;
             case 1:
-                color = Color::Green;
+                color = Color::kGreen;
                 break;
             case 2:
-                color = Color::Blue;
+                color = Color::kBlue;
+                break;
+            default:
+                color = Color::kRed;  // Should not happen
                 break;
             }
         }
 
-        FireEvent(generateImage(color));
+        FireEvent(GenerateImage(color));
 
         {
-            absl::MutexLock lock(&mMutex);
-            mFrameCount++;
-            mFrameCv.SignalAll();
+            const absl::MutexLock lock(&mutex_);
+            frame_count_++;
+            frame_cv_.SignalAll();
         }
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        if (elapsed < frameDuration) {
-            std::this_thread::sleep_for(frameDuration - elapsed);
+        if (elapsed < frame_duration) {
+            std::this_thread::sleep_for(frame_duration - elapsed);
         } else {
             LOG(WARNING) << "Frame generation took longer than expected: " << elapsed.count()
                          << "ms";

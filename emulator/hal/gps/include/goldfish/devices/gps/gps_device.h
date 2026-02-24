@@ -42,7 +42,7 @@ class IGpsDevice : public HalPlug, public std::enable_shared_from_this<IGpsDevic
      * instance, making it available for connection through the qemud pipe.
      *
      * @param registry The connector registry instance.
-     * @param clientLoop The event loop for client-side operations.
+     * @param client_loop The event loop for client-side operations.
      * @param qemu_loop The event loop for QEMU-side operations.
      */
     static void RegisterDevice(ObservableLocation*, IConnectorRegistry* registry,

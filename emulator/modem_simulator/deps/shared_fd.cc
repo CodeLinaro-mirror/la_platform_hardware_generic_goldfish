@@ -287,7 +287,7 @@ SharedFD SharedFD::SocketLocalClient(const std::string& name, bool /*is_abstract
     }
 
     namev.remove_prefix(kPrefix.size());
-    const auto port = goldfish::parsing::fromChars<int>(namev);
+    const auto port = goldfish::parsing::FromChars<int>(namev);
     if (!port) {
         return {};
     }
@@ -307,7 +307,7 @@ SharedFD SharedFD::SocketLocalServer() {
 bool SharedFD::Pipe(SharedFD* consumer, SharedFD* producer) {
 #ifdef _WIN32
     return SocketPair(0, 0, 0, consumer, producer);
-#else // _WIN32
+#else  // _WIN32
 
     int ret;
     int fds[2];
@@ -324,11 +324,11 @@ bool SharedFD::Pipe(SharedFD* consumer, SharedFD* producer) {
     *consumer = SharedFD(fds[0]);
     *producer = SharedFD(fds[1]);
     return true;
-#endif // _WIN32
+#endif  // _WIN32
 }
 
-bool SharedFD::SocketPair(const int domain, const int type, const int protocol,
-                          SharedFD* fd0, SharedFD* fd1) {
+bool SharedFD::SocketPair(const int domain, const int type, const int protocol, SharedFD* fd0,
+                          SharedFD* fd1) {
 #ifdef _WIN32
     (void)domain;
     (void)type;
@@ -413,21 +413,21 @@ std::string FileInstance::ChardevEndpoint() const {
 
     switch (addr.ss_family) {
     case AF_INET: {
-            const struct sockaddr_in* addr4 = reinterpret_cast<const struct sockaddr_in*>(&addr);
+        const struct sockaddr_in* addr4 = reinterpret_cast<const struct sockaddr_in*>(&addr);
 
-            char ip_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &addr4->sin_addr, ip_str, sizeof(ip_str));
-            return absl::StrFormat("port=%d,host=%s,ipv4=on", ntohs(addr4->sin_port), ip_str);
-        }
+        char ip_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr4->sin_addr, ip_str, sizeof(ip_str));
+        return absl::StrFormat("port=%d,host=%s,ipv4=on", ntohs(addr4->sin_port), ip_str);
+    }
 
     case AF_INET6: {
-            const struct sockaddr_in6* addr6 = reinterpret_cast<const struct sockaddr_in6*>(&addr);
+        const struct sockaddr_in6* addr6 = reinterpret_cast<const struct sockaddr_in6*>(&addr);
 
-            char ip_str[INET6_ADDRSTRLEN];
-            inet_ntop(AF_INET6, &addr6->sin6_addr, ip_str, sizeof(ip_str));
+        char ip_str[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &addr6->sin6_addr, ip_str, sizeof(ip_str));
 
-            return absl::StrFormat("port=%d,host=%s,ipv6=on", ntohs(addr6->sin6_port), ip_str);
-        }
+        return absl::StrFormat("port=%d,host=%s,ipv6=on", ntohs(addr6->sin6_port), ip_str);
+    }
     }
 
     return {};

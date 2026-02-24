@@ -58,26 +58,26 @@ struct TestGralloc : public IGrallocDetails {
         }
     };
 
-    ImageFormat getImageFormat(const AndroidPixelFormat apf) const override {
+    ImageFormat GetImageFormat(const AndroidPixelFormat apf) const override {
         switch (apf) {
-        case AndroidPixelFormat::RGBA_8888:
-            return ImageFormat::RGBA_8888;
+        case AndroidPixelFormat::kRgba8888:
+            return ImageFormat::kRgba8888;
 
-        case AndroidPixelFormat::YCBCR_420_888:
-            return ImageFormat::YUV420_NV12;
+        case AndroidPixelFormat::kYcbcr420888:
+            return ImageFormat::kYuV420NV12;
 
         default:
-            return ImageFormat::NONE;
+            return ImageFormat::kNone;
         }
     }
 
-    int transfer(const std::string_view handleStr, const ImageRef& img) const override {
+    int Transfer(const std::string_view handle_str, const ImageRef& img) const override {
         ImageTransfer transfer = {
-            .handle = std::string(handleStr),
-            .framebufferSize = img.getData().second,
-            .format = img.getFormat(),
-            .width = img.getSize().width,
-            .height = img.getSize().height,
+            .handle = std::string(handle_str),
+            .framebufferSize = img.GetData().second,
+            .format = img.GetFormat(),
+            .width = img.GetSize().width,
+            .height = img.GetSize().height,
         };
 
         mTransfers.push_back(std::move(transfer));
@@ -212,14 +212,14 @@ TEST_F(CameraDeviceTest, capture) {
         {
             .handle = "abc"s,
             .framebufferSize = 2,
-            .format = ImageFormat::RGBA_8888,
+            .format = ImageFormat::kRgba8888,
             .width = 640,
             .height = 480,
         },
         {
             .handle = "xyz"s,
             .framebufferSize = 1,
-            .format = ImageFormat::YUV420_NV12,
+            .format = ImageFormat::kYuV420NV12,
             .width = 320,
             .height = 240,
         },

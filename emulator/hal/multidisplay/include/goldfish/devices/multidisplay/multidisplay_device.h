@@ -30,7 +30,7 @@ namespace goldfish::devices::multidisplay {
 
 // Returns the color buffer handle for the given display, or 0 if not bound.
 // Thread-safe.
-uint32_t GetDisplayColorBuffer(uint32_t displayId);
+uint32_t GetDisplayColorBuffer(uint32_t display_id);
 void ReadDisplayColorBuffer(uint32_t colorbuffer, uint8_t* outptr);
 void SendToGuest(std::string message);
 void SendAddDisplay(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
@@ -40,33 +40,33 @@ void SendSetDisplay(uint32_t mode_id, uint32_t width, uint32_t height, uint32_t 
 
 class MultiDisplayDevice : public HalPlug, public std::enable_shared_from_this<MultiDisplayDevice> {
   public:
-    MultiDisplayDevice(async::EventLoop* clientLoop);
-    ~MultiDisplayDevice();
+    explicit MultiDisplayDevice(async::EventLoop* client_loop);
+    ~MultiDisplayDevice() override;
 
     // HalPlug overrides
-    void OnConnect();
-    void OnClose();
-    void OnReceive(std::string_view data);
+    void OnConnect() override;
+    void OnClose() override;
+    void OnReceive(std::string_view data) override;
 
     // Internal send method
     void SendInternal(std::string message);
 
-    void SendAddDisplayPacket(uint32_t displayId, uint32_t width, uint32_t height, uint32_t dpi,
+    void SendAddDisplayPacket(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
                               uint32_t flag);
 
     // Internal helper to retrieve CB safely
-    uint32_t GetColorBufferInternal(uint32_t displayId);
+    uint32_t GetColorBufferInternal(uint32_t display_id);
 
     // Internal helper to clear CB on delete
-    void RemoveColorBufferInternal(uint32_t displayId);
+    void RemoveColorBufferInternal(uint32_t display_id);
 
-    void AddDisplayInternal(uint32_t displayId, uint32_t width, uint32_t height, uint32_t dpi,
+    void AddDisplayInternal(uint32_t display_id, uint32_t width, uint32_t height, uint32_t dpi,
                             uint32_t flag);
 
     void ReadDisplayColorBufferInternal(uint32_t colorbuffer, uint8_t* outptr);
 
     // Static registration function
-    static void RegisterDevice(std::shared_ptr<MultiDisplayDevice> device,
+    static void RegisterDevice(const std::shared_ptr<MultiDisplayDevice>& device,
                                IConnectorRegistry* registry, async::EventLoop* client_loop,
                                async::EventLoop* qemu_loop);
 

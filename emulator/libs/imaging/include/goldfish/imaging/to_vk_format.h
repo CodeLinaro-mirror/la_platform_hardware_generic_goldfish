@@ -21,6 +21,6 @@
 
 namespace goldfish::imaging {
 
-VkFormat toVkFormat(ImageFormat);
+VkFormat ToVkFormat(ImageFormat);
 
 }  // namespace goldfish::imaging

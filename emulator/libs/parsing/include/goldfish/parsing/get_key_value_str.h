@@ -20,12 +20,12 @@
 namespace goldfish::parsing {
 
 /*
- * getKeyValueStr extracts the key value (specified by the `key` argument) from
+ * GetKeyValueStr extracts the key value (specified by the `key` argument) from
  * the text (specified by the `text` argument), e.g.:
  *
- * getKeyValueStr("key=value", "key") will return "value",
- * getKeyValueStr("key=value", "not_a_key") will return std::nullopt.
+ * GetKeyValueStr("key=value", "key") will return "value",
+ * GetKeyValueStr("key=value", "not_a_key") will return std::nullopt.
  */
-std::optional<std::string_view> getKeyValueStr(std::string_view text, std::string_view key);
+std::optional<std::string_view> GetKeyValueStr(std::string_view text, std::string_view key);
 
 }  // namespace goldfish::parsing

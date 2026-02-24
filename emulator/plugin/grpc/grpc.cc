@@ -135,7 +135,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         }
     }
 
-    avd_info::AvdUniverse& avdUniverse = goldfish::avd_info::getAvd();
+    avd_info::AvdUniverse& avdUniverse = goldfish::avd_info::GetAvd();
     auto service = ::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avdUniverse,
             IMultiDisplay::Instance(), goldfish::avd_info::getQemuEventLoop());
@@ -158,7 +158,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
                     IMultiDisplay::Instance());
     auto sensorServiceIncubating = std::make_shared<
             ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
-            avdUniverse.getSensorsPhysicalModel());
+            avdUniverse.GetSensorsPhysicalModel());
     builder.withService(serviceForwarder)
             .withService(uiControllerForwarder)
             .withService(screenRecorder)
@@ -171,17 +171,19 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         builder.withIdleTimeout(std::chrono::seconds(config->idle_timeout), eventLoop);
     }
 
-    const auto& avdprops = avdUniverse.props();
-    EmulatorProperties props{{"port.serial", std::to_string(avdprops.serial_number)},
-                             {"emulator.build", BUILD_ID},
-                             {"emulator.version", VERSION},
-                             {"port.adb", std::to_string(avdprops.adb_port)},
-                             {"avd.name", avdprops.avd_name},
-                             {"avd.id", avdprops.avd_id},
-                             {"avd.dir", avdprops.avd_content_path.string()},
-                             // TODO(jansene):
-                             {"cmdline", absl::StrCat("\"qemu-system-x86_64\" ", "\"@dummy\" ", (config->enable_embedded ? "\"-qt-hide-window\" ": ""), "\"-grpc-use-token\"")}
-                            };
+    const auto& avdprops = avdUniverse.Props();
+    EmulatorProperties props{
+        {"port.serial", std::to_string(avdprops.serial_number)},
+        {"emulator.build", BUILD_ID},
+        {"emulator.version", VERSION},
+        {"port.adb", std::to_string(avdprops.adb_port)},
+        {"avd.name", avdprops.avd_name},
+        {"avd.id", avdprops.avd_id},
+        {"avd.dir", avdprops.avd_content_path.string()},
+        // TODO(jansene):
+        {"cmdline", absl::StrCat("\"qemu-system-x86_64\" ", "\"@dummy\" ",
+                                 (config->enable_embedded ? "\"-qt-hide-window\" " : ""),
+                                 "\"-grpc-use-token\"")}};
 
     if (config->use_token) {
         const int of64Bytes = 64;

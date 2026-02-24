@@ -45,9 +45,9 @@ struct CameraDeviceBase : public CameraProtocolBase {
 
   private:
     int imageSink(const CameraImageProviderStreamCaptureInfo& sci, const void* framebufferPtr,
-                  const size_t framebufferSize) const;
+                  const size_t framebuffer_size) const;
     static int imageSinkStatic(void* that, const CameraImageProviderStreamCaptureInfo* sci,
-                               const void* framebufferPtr, const size_t framebufferSize);
+                               const void* framebufferPtr, const size_t framebuffer_size);
 
     void* const mImageProvider;
     const CameraImageProviderVtbl& mImageProviderVtbl;

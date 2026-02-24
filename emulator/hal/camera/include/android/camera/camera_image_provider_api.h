@@ -66,7 +66,7 @@ typedef struct CameraImageProviderStreamCaptureInfo {
 typedef int (*CameraImageProviderStreamCaptureSink)(void* sinkOpaque,
                                                     const CameraImageProviderStreamCaptureInfo* sci,
                                                     const void* framebuffer,
-                                                    size_t framebufferSize);
+                                                    size_t framebuffer_size);
 
 typedef struct CameraImageProviderVtbl {
     const char* (*getId)(const void* instance);

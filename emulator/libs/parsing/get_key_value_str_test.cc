@@ -16,45 +16,45 @@
 using namespace std::string_view_literals;
 using namespace goldfish::parsing;
 
-TEST(getKeyValueStr, positive) {
-    EXPECT_EQ(getKeyValueStr("empty="sv, "empty"sv), ""sv);
-    EXPECT_EQ(getKeyValueStr(" empty="sv, "empty"sv), ""sv);
-    EXPECT_EQ(getKeyValueStr("empty= "sv, "empty"sv), ""sv);
-    EXPECT_EQ(getKeyValueStr(" empty= "sv, "empty"sv), ""sv);
+TEST(GetKeyValueStr, positive) {
+    EXPECT_EQ(GetKeyValueStr("empty="sv, "empty"sv), ""sv);
+    EXPECT_EQ(GetKeyValueStr(" empty="sv, "empty"sv), ""sv);
+    EXPECT_EQ(GetKeyValueStr("empty= "sv, "empty"sv), ""sv);
+    EXPECT_EQ(GetKeyValueStr(" empty= "sv, "empty"sv), ""sv);
 
-    EXPECT_EQ(getKeyValueStr("one=v1"sv, "one"sv), "v1"sv);
-    EXPECT_EQ(getKeyValueStr(" one=v1"sv, "one"sv), "v1"sv);
-    EXPECT_EQ(getKeyValueStr("one=v1 "sv, "one"sv), "v1"sv);
-    EXPECT_EQ(getKeyValueStr(" one=v1 "sv, "one"sv), "v1"sv);
+    EXPECT_EQ(GetKeyValueStr("one=v1"sv, "one"sv), "v1"sv);
+    EXPECT_EQ(GetKeyValueStr(" one=v1"sv, "one"sv), "v1"sv);
+    EXPECT_EQ(GetKeyValueStr("one=v1 "sv, "one"sv), "v1"sv);
+    EXPECT_EQ(GetKeyValueStr(" one=v1 "sv, "one"sv), "v1"sv);
 
     constexpr std::string_view text = "one=v1 two=v2 three=v3 one=dup"sv;
 
-    EXPECT_EQ(getKeyValueStr(text, "one"sv), "v1"sv);
-    EXPECT_EQ(getKeyValueStr(text, "two"sv), "v2"sv);
-    EXPECT_EQ(getKeyValueStr(text, "three"sv), "v3"sv);
+    EXPECT_EQ(GetKeyValueStr(text, "one"sv), "v1"sv);
+    EXPECT_EQ(GetKeyValueStr(text, "two"sv), "v2"sv);
+    EXPECT_EQ(GetKeyValueStr(text, "three"sv), "v3"sv);
 }
 
-TEST(getKeyValueStr, negative) {
-    EXPECT_EQ(getKeyValueStr(""sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" "sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("  "sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("kawabunga"sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" kawabunga"sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("kawabunga "sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" kawabunga "sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("key"sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("keykey=foo"sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("keykey=foo "sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" keykey=foo"sv, "key"sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" keykey=foo "sv, "key"sv), std::nullopt);
+TEST(GetKeyValueStr, negative) {
+    EXPECT_EQ(GetKeyValueStr(""sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" "sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("  "sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("kawabunga"sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" kawabunga"sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("kawabunga "sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" kawabunga "sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("key"sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("keykey=foo"sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("keykey=foo "sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" keykey=foo"sv, "key"sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" keykey=foo "sv, "key"sv), std::nullopt);
 }
 
-TEST(getKeyValueStr, emptyKey) {
-    EXPECT_EQ(getKeyValueStr(""sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" "sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("  "sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("kawabunga"sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" kawabunga"sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr("kawabunga "sv, ""sv), std::nullopt);
-    EXPECT_EQ(getKeyValueStr(" kawabunga "sv, ""sv), std::nullopt);
+TEST(GetKeyValueStr, emptyKey) {
+    EXPECT_EQ(GetKeyValueStr(""sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" "sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("  "sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("kawabunga"sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" kawabunga"sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr("kawabunga "sv, ""sv), std::nullopt);
+    EXPECT_EQ(GetKeyValueStr(" kawabunga "sv, ""sv), std::nullopt);
 }

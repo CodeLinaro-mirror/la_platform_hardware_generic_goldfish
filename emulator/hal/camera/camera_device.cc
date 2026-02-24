@@ -29,8 +29,8 @@
 namespace goldfish::devices::camera {
 using namespace std::literals;
 
-using parsing::getKeyValueStr;
-using parsing::split2;
+using parsing::GetKeyValueStr;
+using parsing::Split2;
 
 CameraDevice::CameraDevice(SocketPtr socket, void* imageProvider,
                            const CameraImageProviderVtbl* vtbl, GrallocDetailsPtr grallocDetails)
@@ -52,7 +52,7 @@ void CameraDevice::configure(const std::string_view params) {
     using imaging::AndroidPixelFormat;
     using imaging::ImageFormat;
 
-    const std::optional<std::string_view> maybeStreams = getKeyValueStr(params, "streams"sv);
+    const std::optional<std::string_view> maybeStreams = GetKeyValueStr(params, "streams"sv);
     if (!maybeStreams) {
         sendResponse(false, "missing 'streams' parameter"sv);
         return;
@@ -80,7 +80,7 @@ void CameraDevice::configure(const std::string_view params) {
 
         const ImageFormat imageFormat =
                 getImageFormatFromAndroid(static_cast<AndroidPixelFormat>(aformat));
-        if (imageFormat == ImageFormat::NONE) {
+        if (imageFormat == ImageFormat::kNone) {
             sendResponse(false, "unsupported format"sv);
             return;
         }
@@ -117,7 +117,7 @@ void CameraDevice::configure(const std::string_view params) {
 }
 
 void CameraDevice::capture(const std::string_view params) {
-    const std::optional<std::string_view> maybeBufs = getKeyValueStr(params, "bufs"sv);
+    const std::optional<std::string_view> maybeBufs = GetKeyValueStr(params, "bufs"sv);
     if (!maybeBufs) {
         sendResponse(false, "missing 'bufs' parameter"sv);
         return;
@@ -128,7 +128,7 @@ void CameraDevice::capture(const std::string_view params) {
 
     Bufs bufs;
     for (const std::string_view biStr : absl::StrSplit(maybeBufs.value(), ',')) {
-        const auto [idStr, handleStr] = split2(biStr, ':');
+        const auto [idStr, handleStr] = Split2(biStr, ':');
 
         int id;
         const auto [end, ec] = std::from_chars(&*idStr.begin(), &*idStr.end(), id);

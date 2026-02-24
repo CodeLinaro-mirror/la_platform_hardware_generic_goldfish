@@ -20,64 +20,66 @@
 #include <thread>
 #include <vector>
 
-using namespace goldfish::display;
+using goldfish::display::PixmanFrameManager;
+using goldfish::display::PixmanImagePtr;
 
 class PixmanFrameManagerTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mManager = std::make_unique<PixmanFrameManager>();
-        mImage1 = PixmanImagePtr(
+        manager_ = std::make_unique<PixmanFrameManager>();
+        image1_ = PixmanImagePtr(
                 pixman_image_create_bits(PIXMAN_a8r8g8b8, 100, 100, nullptr, 100 * 4));
-        mImage2 = PixmanImagePtr(
+        image2_ = PixmanImagePtr(
                 pixman_image_create_bits(PIXMAN_a8r8g8b8, 200, 200, nullptr, 200 * 4));
     }
 
     void TearDown() override {
-        mImage1.reset();
-        mImage2.reset();
+        image1_.reset();
+        image2_.reset();
     }
 
-    std::unique_ptr<PixmanFrameManager> mManager;
-    PixmanImagePtr mImage1;
-    PixmanImagePtr mImage2;
+    std::unique_ptr<PixmanFrameManager> manager_;
+    PixmanImagePtr image1_;
+    PixmanImagePtr image2_;
 };
 
 TEST_F(PixmanFrameManagerTest, InitialImageIsNull) {
-    auto image = mManager->GetRenderableImage();
+    auto image = manager_->GetRenderableImage();
     EXPECT_EQ(image.get(), nullptr);
 }
 
 TEST_F(PixmanFrameManagerTest, UpdateAndGet) {
-    mManager->UpdateSourceImage(mImage1.get());
-    auto image = mManager->GetRenderableImage();
+    manager_->UpdateSourceImage(image1_.get());
+    auto image = manager_->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 100);
     EXPECT_EQ(pixman_image_get_height(image.get()), 100);
 }
 
 TEST_F(PixmanFrameManagerTest, Staging) {
-    mManager->UpdateSourceImage(mImage1.get());
+    manager_->UpdateSourceImage(image1_.get());
     // Staging image is not yet moved to current
-    auto image = mManager->GetRenderableImage();
+    auto image = manager_->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 100);
     EXPECT_EQ(pixman_image_get_height(image.get()), 100);
 
-    mManager->UpdateSourceImage(mImage2.get());
+    manager_->UpdateSourceImage(image2_.get());
     // Staging image is not yet moved to current
-    image = mManager->GetRenderableImage();
+    image = manager_->GetRenderableImage();
     ASSERT_NE(image.get(), nullptr);
     EXPECT_EQ(pixman_image_get_width(image.get()), 200);
     EXPECT_EQ(pixman_image_get_height(image.get()), 200);
 }
 
 TEST_F(PixmanFrameManagerTest, ConcurrentGet) {
-    mManager->UpdateSourceImage(mImage1.get());
+    manager_->UpdateSourceImage(image1_.get());
 
     std::vector<std::thread> threads;
+    threads.reserve(10);
     for (int i = 0; i < 10; ++i) {
         threads.emplace_back([this]() {
-            auto image = mManager->GetRenderableImage();
+            auto image = manager_->GetRenderableImage();
             ASSERT_NE(image.get(), nullptr);
             EXPECT_EQ(pixman_image_get_width(image.get()), 100);
         });
@@ -91,18 +93,19 @@ TEST_F(PixmanFrameManagerTest, ConcurrentGet) {
 TEST_F(PixmanFrameManagerTest, ConcurrentUpdateAndGet) {
     std::thread producer([this]() {
         for (int i = 0; i < 100; ++i) {
-            mManager->UpdateSourceImage(i % 2 == 0 ? mImage1.get() : mImage2.get());
+            manager_->UpdateSourceImage(i % 2 == 0 ? image1_.get() : image2_.get());
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
 
     std::vector<std::thread> consumers;
+    consumers.reserve(10);
     for (int i = 0; i < 10; ++i) {
         consumers.emplace_back([this]() {
             for (int j = 0; j < 10; ++j) {
-                auto image = mManager->GetRenderableImage();
+                auto image = manager_->GetRenderableImage();
                 if (image.get()) {
-                    int width = pixman_image_get_width(image.get());
+                    const int width = pixman_image_get_width(image.get());
                     EXPECT_TRUE(width == 100 || width == 200);
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));

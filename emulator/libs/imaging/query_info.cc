@@ -16,34 +16,34 @@
 
 namespace goldfish::imaging {
 
-size_t getStride(const ImageFormat fmt, const size_t width) {
+size_t GetStride(const ImageFormat fmt, const size_t width) {
     switch (fmt) {
-    case ImageFormat::RGBA_8888:
+    case ImageFormat::kRgba8888:
         return width * 4;
 
-    case ImageFormat::YUV420_3P:
-    case ImageFormat::YUV420_NV12:
-    case ImageFormat::NONE:
+    case ImageFormat::kYuV4203P:
+    case ImageFormat::kYuV420NV12:
+    case ImageFormat::kNone:
         break;
     }
 
     return 0;
 }
 
-size_t getStride(const ImageRef& img) {
-    return getStride(img.getFormat(), img.getSize().width);
+size_t GetStride(const ImageRef& img) {
+    return GetStride(img.GetFormat(), img.GetSize().width);
 }
 
-size_t getDataSize(const ImageFormat fmt, const size_t width, const size_t height) {
+size_t GetDataSize(const ImageFormat fmt, const size_t width, const size_t height) {
     switch (fmt) {
-    case ImageFormat::NONE:
+    case ImageFormat::kNone:
         break;
 
-    case ImageFormat::RGBA_8888:
+    case ImageFormat::kRgba8888:
         return width * height * 4;
 
-    case ImageFormat::YUV420_3P:
-    case ImageFormat::YUV420_NV12:
+    case ImageFormat::kYuV4203P:
+    case ImageFormat::kYuV420NV12:
         return width * height * 3 / 2;
     }
 

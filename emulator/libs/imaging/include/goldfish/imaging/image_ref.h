@@ -26,20 +26,20 @@ namespace goldfish::imaging {
 struct ImageRef {
     ImageRef() = default;
 
-    ImageRef(ImageFormat format, Rect<uint32_t> size, const void* data, size_t dataSize)
-            : mData(data), mDataSize(dataSize), mSize(size), mFormat(format) {}
+    ImageRef(ImageFormat format, Rect<uint32_t> size, const void* data, size_t data_size)
+            : data_(data), data_size_(data_size), size_(size), format_(format) {}
 
-    ImageFormat getFormat() const { return mFormat; }
+    ImageFormat GetFormat() const { return format_; }
 
-    const Rect<uint32_t>& getSize() const { return mSize; }
+    const Rect<uint32_t>& GetSize() const { return size_; }
 
-    std::pair<const void*, size_t> getData() const { return {mData, mDataSize}; }
+    std::pair<const void*, size_t> GetData() const { return {data_, data_size_}; }
 
   private:
-    const void* mData = nullptr;
-    size_t mDataSize = 0;
-    Rect<uint32_t> mSize;
-    ImageFormat mFormat = ImageFormat::NONE;
+    const void* data_ = nullptr;
+    size_t data_size_ = 0;
+    Rect<uint32_t> size_;
+    ImageFormat format_ = ImageFormat::kNone;
 };
 
 }  // namespace goldfish::imaging

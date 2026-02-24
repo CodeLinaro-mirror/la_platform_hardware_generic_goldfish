@@ -10,7 +10,7 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
-// limitations under the License.D
+// limitations under the License.
 #pragma once
 
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
@@ -25,8 +25,8 @@ namespace goldfish::display::test {
  */
 class FakeMultiDisplay : public IMultiDisplay {
   public:
-    FakeMultiDisplay(EventLoop* loop);
-    ~FakeMultiDisplay() = default;
+    explicit FakeMultiDisplay(EventLoop* loop);
+    ~FakeMultiDisplay() override = default;
 
     /**
      * @brief Returns the singleton Instance of FakeMultiDisplay.
@@ -44,9 +44,8 @@ class FakeMultiDisplay : public IMultiDisplay {
      * @return absl::StatusOr containing a DisplayPtr to the newly created
      *         ActiveFakePixmanDisplay on success, or an error absl::Status on failure.
      */
-    virtual absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width,
-                                                     uint32_t height, uint32_t dpi = 320,
-                                                     uint32_t flags = 1) override;
+    absl::StatusOr<DisplayPtr> CreateDisplay(DisplayId display_id, uint32_t width, uint32_t height,
+                                             uint32_t dpi, uint32_t flags) override;
 
     /**
      * @brief Returns the enabled state of FakeMultiDisplay.
@@ -80,18 +79,18 @@ class FakeMultiDisplay : public IMultiDisplay {
     std::vector<DisplayPtr> Displays() const override;
 
     template <typename T>
-    std::shared_ptr<T> getDisplay(absl::StatusOr<DisplayPtr> status) {
+    std::shared_ptr<T> GetDisplay(absl::StatusOr<DisplayPtr> status) {
         return std::static_pointer_cast<T>(status.value().lock());
     }
     /**
      * @brief Clears all displays, accept display 0.
      */
-    void clear();
+    void Clear();
 
   private:
-    std::unordered_map<uint8_t, SharedDisplay> mDisplays;
-    static FakeMultiDisplay* sInstance;
-    bool mEnabled;
+    std::unordered_map<uint8_t, SharedDisplay> displays_;
+    static FakeMultiDisplay* s_instance;
+    bool enabled_{true};
 };
 
 }  // namespace goldfish::display::test

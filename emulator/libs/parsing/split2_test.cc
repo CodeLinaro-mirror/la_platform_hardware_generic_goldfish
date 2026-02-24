@@ -22,10 +22,10 @@ using namespace goldfish::parsing;
 using ::testing::Pair;
 
 TEST(spli2, simple) {
-    EXPECT_THAT(split2(""sv, ' '), Pair(""sv, ""sv));
-    EXPECT_THAT(split2("one"sv, ' '), Pair("one"sv, ""sv));
-    EXPECT_THAT(split2("one "sv, ' '), Pair("one"sv, ""sv));
-    EXPECT_THAT(split2("one  "sv, ' '), Pair("one"sv, " "sv));
-    EXPECT_THAT(split2("one  two"sv, ' '), Pair("one"sv, " two"sv));
-    EXPECT_THAT(split2("one  two"sv, ' '), Pair("one"sv, " two"sv));
+    EXPECT_THAT(Split2(""sv, ' '), Pair(""sv, ""sv));
+    EXPECT_THAT(Split2("one"sv, ' '), Pair("one"sv, ""sv));
+    EXPECT_THAT(Split2("one "sv, ' '), Pair("one"sv, ""sv));
+    EXPECT_THAT(Split2("one  "sv, ' '), Pair("one"sv, " "sv));
+    EXPECT_THAT(Split2("one  two"sv, ' '), Pair("one"sv, " two"sv));
+    EXPECT_THAT(Split2("one  two"sv, ' '), Pair("one"sv, " two"sv));
 }

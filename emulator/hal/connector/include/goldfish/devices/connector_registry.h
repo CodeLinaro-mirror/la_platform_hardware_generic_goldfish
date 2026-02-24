@@ -1,4 +1,3 @@
-
 // Copyright 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,11 +98,13 @@ struct IConnectorRegistry {
      * @param qemu_loop The event loop which is tied to qemu.
      * @param factory The factory function for creating the device.
      */
-    virtual void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
-                                   async::EventLoop* qemu_loop, HalDeviceFactory factory) = 0;
+    virtual void RegisterHalDevice(
+            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
+            HalDeviceFactory factory) = 0;  // NOLINT(performance-unnecessary-value-param)
 
-    virtual void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
-                                       async::EventLoop* qemu_loop, HalDeviceFactory factory) = 0;
+    virtual void RegisterHalQemuDevice(
+            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
+            HalDeviceFactory factory) = 0;  // NOLINT(performance-unnecessary-value-param)
 
     IConnectorRegistry() = default;
     IConnectorRegistry(const IConnectorRegistry&) = delete;

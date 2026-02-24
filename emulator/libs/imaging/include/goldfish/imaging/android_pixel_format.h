@@ -15,13 +15,15 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace goldfish::imaging {
 
 // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/common/aidl/android/hardware/graphics/common/PixelFormat.aidl
-enum class AndroidPixelFormat {
-    UNSPECIFIED = 0,
-    RGBA_8888 = 0x1,
-    YCBCR_420_888 = 0x23,  // arbitrary YUV layout
+enum class AndroidPixelFormat : std::uint8_t {
+    kUnspecified = 0,
+    kRgba8888 = 0x1,
+    kYcbcr420888 = 0x23,  // arbitrary YUV layout
 };
 
 }  // namespace goldfish::imaging

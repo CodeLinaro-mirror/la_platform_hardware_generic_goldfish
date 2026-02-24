@@ -15,8 +15,8 @@
 
 using android::base::eventing::EventListener;
 
-using namespace goldfish::display;
-using namespace goldfish::display::test;
+using goldfish::display::PixmanImagePtr;
+using goldfish::display::test::PixmanImageGenerator;
 
 class PixmanImageGeneratorTest : public ::testing::Test {
   protected:
@@ -31,132 +31,136 @@ class ImageListener : public EventListener<PixmanImagePtr> {
 };
 
 TEST_F(PixmanImageGeneratorTest, ImageGenerationSequence) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     generator.AddListener(listener);
 
-    generator.start();
-    generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000));
-    generator.stop();
+    generator.Start();
+    generator.WaitForFramesWithTimeout(5, absl::Milliseconds(1000));
+    generator.Stop();
 
     ASSERT_GE(listener->images.size(), 3);  // Should have at least 3 images
 
     for (size_t i = 0; i < listener->images.size(); ++i) {
-        uint32_t expectedColor;
+        uint32_t expected_color = 0;
         switch (i % 3) {
         case 0:
-            expectedColor = 0xFFFF0000;  // Red
+            expected_color = 0xFFFF0000;  // kRed
             break;
         case 1:
-            expectedColor = 0xFF00FF00;  // Green
+            expected_color = 0xFF00FF00;  // kGreen
             break;
         case 2:
-            expectedColor = 0xFF0000FF;  // Blue
+            expected_color = 0xFF0000FF;  // kBlue
+            break;
+        default:
             break;
         }
 
-        uint32_t* pixels = (uint32_t*)pixman_image_get_data(listener->images[i].get());
-        bool allPixelsMatch = true;
+        auto* pixels = pixman_image_get_data(listener->images[i].get());
+        bool all_pixels_match = true;
         for (int j = 0; j < width * height; ++j) {
-            if (pixels[j] != expectedColor) {
-                allPixelsMatch = false;
+            if (pixels[j] != expected_color) {
+                all_pixels_match = false;
                 break;
             }
         }
-        ASSERT_TRUE(allPixelsMatch) << "Image " << i << " has incorrect color.";
+        ASSERT_TRUE(all_pixels_match) << "Image " << i << " has incorrect color.";
         ASSERT_EQ(pixman_image_get_width(listener->images[i].get()), width);
         ASSERT_EQ(pixman_image_get_height(listener->images[i].get()), height);
     }
 }
 
 TEST_F(PixmanImageGeneratorTest, FpsAccuracy) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     generator.AddListener(listener);
 
-    generator.start();
+    generator.Start();
     auto start = std::chrono::steady_clock::now();
-    generator.waitForFramesWithTimeout(10, absl::Milliseconds(2000));
+    generator.WaitForFramesWithTimeout(10, absl::Milliseconds(2000));
     auto end = std::chrono::steady_clock::now();
-    generator.stop();
+    generator.Stop();
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    double actualFps = (double)listener->images.size() / (elapsed.count() / 1000.0);
+    const double actual_fps = static_cast<double>(listener->images.size()) /
+                              (static_cast<double>(elapsed.count()) / 1000.0);
 
-    ASSERT_NEAR(actualFps, fps, 5.0);  // Allow some tolerance on our slow build bots.
+    ASSERT_NEAR(actual_fps, fps, 5.0);  // Allow some tolerance on our slow build bots.
 }
 
 TEST_F(PixmanImageGeneratorTest, StartStop) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     ;
     generator.AddListener(listener);
 
-    generator.start();
-    generator.waitForFramesWithTimeout(1, absl::Milliseconds(200));
-    generator.stop();
-    size_t imageCountAfterStop = listener->images.size();
+    generator.Start();
+    generator.WaitForFramesWithTimeout(1, absl::Milliseconds(200));
+    generator.Stop();
+    const size_t image_count_after_stop = listener->images.size();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_EQ(listener->images.size(), imageCountAfterStop);  // No new images after stop
+    ASSERT_EQ(listener->images.size(), image_count_after_stop);  // No new images after stop
 
-    generator.start();
-    generator.waitForFramesWithTimeout(imageCountAfterStop + 1, absl::Milliseconds(200));
-    generator.stop();
-    ASSERT_GT(listener->images.size(), imageCountAfterStop);  // New images after restart
+    generator.Start();
+    generator.WaitForFramesWithTimeout(static_cast<int>(image_count_after_stop + 1),
+                                       absl::Milliseconds(200));
+    generator.Stop();
+    ASSERT_GT(listener->images.size(), image_count_after_stop);  // New images after restart
 }
 
 TEST_F(PixmanImageGeneratorTest, EventFiring) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     generator.AddListener(listener);
 
-    generator.start();
-    generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    generator.stop();
+    generator.Start();
+    generator.WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    generator.Stop();
 
     ASSERT_GT(listener->images.size(), 0);  // At least one event should have been fired
 }
 
 TEST_F(PixmanImageGeneratorTest, Resize) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
     auto listener = std::make_shared<ImageListener>();
     generator.AddListener(listener);
 
-    generator.start();
-    generator.waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    generator.resize(200, 100);
-    generator.waitForFramesWithTimeout(4, absl::Milliseconds(500));
-    generator.stop();
+    generator.Start();
+    generator.WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    generator.Resize(200, 100);
+    generator.WaitForFramesWithTimeout(4, absl::Milliseconds(500));
+    generator.Stop();
 
     ASSERT_GT(listener->images.size(), 0);
-    auto lastImage = listener->images.back();
-    ASSERT_EQ(pixman_image_get_width(lastImage.get()), 200);
-    ASSERT_EQ(pixman_image_get_height(lastImage.get()), 100);
+    auto last_image = listener->images.back();
+    ASSERT_EQ(pixman_image_get_width(last_image.get()), 200);
+    ASSERT_EQ(pixman_image_get_height(last_image.get()), 100);
 }
 
 TEST_F(PixmanImageGeneratorTest, WaitForFrames) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
     PixmanImageGenerator generator(fps, width, height);
-    generator.start();
-    EXPECT_TRUE(generator.waitForFramesWithTimeout(5, absl::Milliseconds(1000)));
-    EXPECT_GE(generator.frameCount(), 5);
-    EXPECT_FALSE(generator.waitForFramesWithTimeout(100, absl::Milliseconds(100)));
-    generator.stop();
+    generator.Start();
+    EXPECT_TRUE(generator.WaitForFramesWithTimeout(5, absl::Milliseconds(1000)));
+    EXPECT_GE(generator.FrameCount(), 5);
+    EXPECT_FALSE(generator.WaitForFramesWithTimeout(100, absl::Milliseconds(100)));
+    generator.Stop();
 }

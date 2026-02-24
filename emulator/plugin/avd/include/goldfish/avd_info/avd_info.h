@@ -53,53 +53,53 @@ struct AvdProperties {
  * All AVD specific data should live here. This
  * explicitly describes the data lifetime and also
  * allows running several AVDs simultaneously
- * (in this case `getAvd()` should be adjusted to
+ * (in this case `GetAvd()` should be adjusted to
  * receive some form of an AVD id).
  *
  * The instance of this type is available between
  * the `avd_info_realize` and `avd_info_unrealize` events.
  */
 struct AvdUniverse {
-    const AvdProperties& props() const { return *mProps; }
+    const AvdProperties& Props() const { return *props_; }
 
-    avd_universe::battery::ObservableBattery& getBattery() { return mBattery; }
-    avd_universe::clipboard::ClipboardChannel& getClipboardChannel() { return mClipboardChannel; }
-    avd_universe::fingerprint::ObservableFingerprintSensor& getFingerprintSensor() {
-        return mFingerprintSensor;
+    avd_universe::battery::ObservableBattery& GetBattery() { return battery_; }
+    avd_universe::clipboard::ClipboardChannel& GetClipboardChannel() { return clipboard_channel_; }
+    avd_universe::fingerprint::ObservableFingerprintSensor& GetFingerprintSensor() {
+        return fingerprint_sensor_;
     }
-    avd_universe::grpc::GrpcNotificationEventSource& getGrpcNotificationChannel() {
-        return mGrpcNotificationEventSource;
+    avd_universe::grpc::GrpcNotificationEventSource& GetGrpcNotificationChannel() {
+        return grpc_notification_event_source_;
     }
-    avd_universe::guest_status::GuestStatus& getGuestStatus() { return mGuestStatus; }
-    avd_universe::gps::ObservableLocation& getLocation() { return mLocation; }
-    sensors::PhysicalModel& getSensorsPhysicalModel() { return mSensorsPhysicalModel; }
+    avd_universe::guest_status::GuestStatus& GetGuestStatus() { return guest_status_; }
+    avd_universe::gps::ObservableLocation& GetLocation() { return location_; }
+    sensors::PhysicalModel& GetSensorsPhysicalModel() { return sensors_physical_model_; }
 
-    void setActiveMultiDisplayDevice(
+    void SetActiveMultiDisplayDevice(
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
-    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> getActiveMultiDisplayDevice();
+    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> GetActiveMultiDisplayDevice();
 
-    AvdUniverse(std::unique_ptr<AvdProperties> props);
+    explicit AvdUniverse(std::unique_ptr<AvdProperties> props);
     AvdUniverse(const AvdUniverse&) = delete;
     AvdUniverse(AvdUniverse&&) = delete;
     AvdUniverse& operator=(const AvdUniverse&) = delete;
     AvdUniverse& operator=(AvdUniverse&&) = delete;
 
   private:
-    const std::unique_ptr<const AvdProperties> mProps;
+    const std::unique_ptr<const AvdProperties> props_;
 
-    mutable absl::Mutex mDeviceMutex;
-    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> mActiveMultiDisplayDevice
-            ABSL_GUARDED_BY(mDeviceMutex);
+    mutable absl::Mutex device_mutex_;
+    std::shared_ptr<devices::multidisplay::MultiDisplayDevice> active_multi_display_device_
+            ABSL_GUARDED_BY(device_mutex_);
 
-    avd_universe::battery::ObservableBattery mBattery;
-    avd_universe::clipboard::ClipboardChannel mClipboardChannel;
-    avd_universe::fingerprint::ObservableFingerprintSensor mFingerprintSensor;
-    avd_universe::grpc::GrpcNotificationEventSource mGrpcNotificationEventSource;
-    avd_universe::guest_status::GuestStatus mGuestStatus;
-    avd_universe::gps::ObservableLocation mLocation;
-    sensors::PhysicalModel mSensorsPhysicalModel;
+    avd_universe::battery::ObservableBattery battery_;
+    avd_universe::clipboard::ClipboardChannel clipboard_channel_;
+    avd_universe::fingerprint::ObservableFingerprintSensor fingerprint_sensor_;
+    avd_universe::grpc::GrpcNotificationEventSource grpc_notification_event_source_;
+    avd_universe::guest_status::GuestStatus guest_status_;
+    avd_universe::gps::ObservableLocation location_;
+    sensors::PhysicalModel sensors_physical_model_;
 };
 
-AvdUniverse& getAvd();
+AvdUniverse& GetAvd();
 
 }  // namespace goldfish::avd_info

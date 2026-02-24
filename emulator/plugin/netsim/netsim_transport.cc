@@ -63,7 +63,7 @@ void NetsimTransport::cancel() {
 
 absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     mKindName = ::netsim::common::ChipKind_Name(chip.kind());
-    auto& avdprops = goldfish::avd_info::getAvd().props();
+    auto& avdprops = goldfish::avd_info::GetAvd().Props();
 
     ::netsim::packet::PacketRequest initial_request;
     auto* initial_info = initial_request.mutable_initial_info();

@@ -17,15 +17,15 @@
 
 namespace goldfish::imaging {
 
-VkFormat toVkFormat(const ImageFormat fmt) {
+VkFormat ToVkFormat(const ImageFormat fmt) {
     switch (fmt) {
-    case ImageFormat::NONE:
+    case ImageFormat::kNone:
         break;
-    case ImageFormat::RGBA_8888:
+    case ImageFormat::kRgba8888:
         return VK_FORMAT_R8G8B8A8_UNORM;
-    case ImageFormat::YUV420_3P:
+    case ImageFormat::kYuV4203P:
         return VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM;
-    case ImageFormat::YUV420_NV12:
+    case ImageFormat::kYuV420NV12:
         return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
     }
 

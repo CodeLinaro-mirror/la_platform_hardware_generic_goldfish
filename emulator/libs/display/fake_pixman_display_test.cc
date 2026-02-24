@@ -28,107 +28,113 @@
 
 using android::base::eventing::EventListener;
 using goldfish::async::EventLoop;
-
-using namespace goldfish::display;
-using namespace goldfish::display::test;
+using goldfish::display::FrameInfo;
+using goldfish::display::FrameInfoCallbackSource;
+using goldfish::display::ImageRotation;
+using goldfish::display::PixelFormat;
+using goldfish::display::PixmanImagePtr;
+using goldfish::display::ResizeEvent;
+using goldfish::display::ResizeEventCallbackSource;
+using goldfish::display::test::ActiveFakePixmanDisplay;
+using goldfish::display::test::FakePixmanDisplay;
 
 class FakePixmanDisplayTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+        loop_ = ::goldfish::async::ThreadedEventLoop::Create(
                 ::goldfish::async::LibuvEventLoop::Create());
     }
 
-    void TearDown() override { mLoop.reset(); }
+    void TearDown() override { loop_.reset(); }
 
-    std::unique_ptr<EventLoop> mLoop;
+    std::unique_ptr<EventLoop> loop_;
 };
 
 TEST_F(FakePixmanDisplayTest, ActiveFakePixmanDisplayTest) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     // Start the generator
-    display->start();
+    display->Start();
 
     // Wait for a few frames
-    display->waitForFramesWithTimeout(5, absl::Milliseconds(1000));
+    display->WaitForFramesWithTimeout(5, absl::Milliseconds(1000));
 
     // Stop the generator
-    display->stop();
+    display->Stop();
 
     // Check if the display has been updated
-    ::pixman_image_t* currentImage = display->image().get();
-    ASSERT_NE(currentImage, nullptr);
-    ASSERT_EQ(pixman_image_get_width(currentImage), width);
-    ASSERT_EQ(pixman_image_get_height(currentImage), height);
+    ::pixman_image_t* current_image = display->Image().get();
+    ASSERT_NE(current_image, nullptr);
+    ASSERT_EQ(pixman_image_get_width(current_image), width);
+    ASSERT_EQ(pixman_image_get_height(current_image), height);
 
     // We should have received at least a few frames.
     ASSERT_GT(display->Seq().sequence_number, 2);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotRGBA8888) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     // Get the screenshot
-    size_t c_pixels = width * height * 4;
+    size_t c_pixels = static_cast<size_t>(width) * height * 4;
     std::vector<uint8_t> pixels(c_pixels);
     auto result = display->GetPixels(PixelFormat::kRgba8888, width, height,
                                      ImageRotation::kRotation0, pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
-    ASSERT_EQ(c_pixels, width * height * 4);
+    ASSERT_EQ(c_pixels, static_cast<size_t>(width) * height * 4);
 
     // Check if the screenshot has the correct data (at least one pixel)
-    uint32_t* pixelData = reinterpret_cast<uint32_t*>(pixels.data());
-    ASSERT_NE(pixelData[0], 0);
+    const auto* pixel_data = reinterpret_cast<const uint32_t*>(pixels.data());
+    ASSERT_NE(pixel_data[0], 0);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotRGB888) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     // Get the screenshot
-    size_t c_pixels = width * height * 3;
+    size_t c_pixels = static_cast<size_t>(width) * height * 3;
     std::vector<uint8_t> pixels(c_pixels);
     auto result = display->GetPixels(PixelFormat::kRgb888, width, height, ImageRotation::kRotation0,
                                      pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
 
     // Check if the screenshot has the correct size
-    ASSERT_EQ(c_pixels, width * height * 3);
+    ASSERT_EQ(c_pixels, static_cast<size_t>(width) * height * 3);
 
     // Check if the screenshot has the correct data (at least one pixel)
-    uint8_t* pixelData = reinterpret_cast<uint8_t*>(pixels.data());
+    const auto* pixel_data = reinterpret_cast<const uint8_t*>(pixels.data());
     // RGB, so we expect at least a R/G/B pixel.
-    ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2], 0);
+    ASSERT_NE(pixel_data[0] | pixel_data[1] | pixel_data[2], 0);
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     size_t c_pixels = 10;
     std::vector<uint8_t> pixels(c_pixels);
@@ -141,13 +147,13 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotBufferTooSmall) {
 }
 
 TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     // First call with a too small buffer
     size_t c_pixels = 10;
@@ -165,169 +171,174 @@ TEST_F(FakePixmanDisplayTest, GetScreenshotResizeBuffer) {
     result = display->GetPixels(PixelFormat::kRgba8888, width, height, ImageRotation::kRotation0,
                                 pixels.data(), &c_pixels);
     ASSERT_TRUE(result.ok());
-    ASSERT_EQ(c_pixels, width * height * 4);
+    ASSERT_EQ(c_pixels, static_cast<size_t>(width) * height * 4);
 
     // Check if the screenshot has the correct data (at least one blue pixel)
-    uint32_t* pixelData = reinterpret_cast<uint32_t*>(pixels.data());
-    ASSERT_NE(pixelData[0] | pixelData[1] | pixelData[2] | pixelData[3], 0);
+    const auto* pixel_data = reinterpret_cast<const uint32_t*>(pixels.data());
+    ASSERT_NE(pixel_data[0] | pixel_data[1] | pixel_data[2] | pixel_data[3], 0);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationPortraitSource) {
-    const int srcW = 100;
-    const int srcH = 200;
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationPortraitSource) {
+    const int src_w = 100;
+    const int src_h = 200;
 
     // 1. Create a Portrait source image (Black with one RED pixel at Top-Left 0,0)
-    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, srcW, srcH, nullptr, 0));
-    uint32_t* srcData = pixman_image_get_data(srcImage.get());
-    memset(srcData, 0, srcW * srcH * 4);
-    srcData[0] = 0xFFFF0000;  // Red (AARRGGBB)
+    const PixmanImagePtr src_image(
+            pixman_image_create_bits(PIXMAN_a8r8g8b8, src_w, src_h, nullptr, 0));
+    auto* src_data = pixman_image_get_data(src_image.get());
+    memset(src_data, 0, static_cast<size_t>(src_w) * src_h * 4);
+    src_data[0] = 0xFFFF0000;  // Red (AARRGGBB)
 
-    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+    auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, src_image.get());
 
-    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
-        size_t c_pixels = destW * destH * 4;
+    auto verify_pixel = [&](ImageRotation rot, int expected_x, int expected_y, int dest_w,
+                            int dest_h) {
+        size_t c_pixels = static_cast<size_t>(dest_w) * dest_h * 4;
         std::vector<uint8_t> buffer(c_pixels);
-        auto result = display->GetPixels(PixelFormat::kRgba8888, destW, destH, rot, buffer.data(),
+        auto result = display->GetPixels(PixelFormat::kRgba8888, dest_w, dest_h, rot, buffer.data(),
                                          &c_pixels);
         ASSERT_TRUE(result.ok()) << "Rotation " << static_cast<int>(rot) << " failed";
 
-        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
-        uint32_t color = pixels[expectedY * destW + expectedX];
+        const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
+        const uint32_t color = pixels[(static_cast<size_t>(expected_y) * dest_w) + expected_x];
         EXPECT_EQ(color, 0xFFFF0000)
                 << "Portrait Rotation " << static_cast<int>(rot)
-                << " failed: Expected red pixel at (" << expectedX << ", " << expectedY << ")";
+                << " failed: Expected red pixel at (" << expected_x << ", " << expected_y << ")";
     };
 
     // Note: Pixman rotation is counter-clockwise.
     // 0°: Red at (0, 0)
-    verifyPixel(ImageRotation::kRotation0, 0, 0, srcW, srcH);
+    verify_pixel(ImageRotation::kRotation0, 0, 0, src_w, src_h);
     // 90° CCW: Top-Left (0,0) moves to Bottom-Left (0, 99)
-    verifyPixel(ImageRotation::kRotation90, 0, 99, srcH, srcW);
+    verify_pixel(ImageRotation::kRotation90, 0, 99, src_h, src_w);
     // 180° CCW: Top-Left (0,0) moves to Bottom-Right (99, 199)
-    verifyPixel(ImageRotation::kRotation180, 99, 199, srcW, srcH);
+    verify_pixel(ImageRotation::kRotation180, 99, 199, src_w, src_h);
     // 270° CCW: Top-Left (0,0) moves to Top-Right (199, 0)
-    verifyPixel(ImageRotation::kRotation270, 199, 0, srcH, srcW);
+    verify_pixel(ImageRotation::kRotation270, 199, 0, src_h, src_w);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationLandscapeSource) {
-    const int srcW = 200;
-    const int srcH = 100;
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationLandscapeSource) {
+    const int src_w = 200;
+    const int src_h = 100;
 
     // Create a Landscape source image (Red pixel at Top-Left 0,0)
-    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, srcW, srcH, nullptr, 0));
-    uint32_t* srcData = pixman_image_get_data(srcImage.get());
-    memset(srcData, 0, srcW * srcH * 4);
-    srcData[0] = 0xFFFF0000;
+    const PixmanImagePtr src_image(
+            pixman_image_create_bits(PIXMAN_a8r8g8b8, src_w, src_h, nullptr, 0));
+    auto* src_data = pixman_image_get_data(src_image.get());
+    memset(src_data, 0, static_cast<size_t>(src_w) * src_h * 4);
+    src_data[0] = 0xFFFF0000;
 
-    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+    auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, src_image.get());
 
-    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY, int destW, int destH) {
-        size_t c_pixels = destW * destH * 4;
+    auto verify_pixel = [&](ImageRotation rot, int expected_x, int expected_y, int dest_w,
+                            int dest_h) {
+        size_t c_pixels = static_cast<size_t>(dest_w) * dest_h * 4;
         std::vector<uint8_t> buffer(c_pixels);
-        auto result = display->GetPixels(PixelFormat::kRgba8888, destW, destH, rot, buffer.data(),
+        auto result = display->GetPixels(PixelFormat::kRgba8888, dest_w, dest_h, rot, buffer.data(),
                                          &c_pixels);
         ASSERT_TRUE(result.ok());
-        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
-        EXPECT_EQ(pixels[expectedY * destW + expectedX], 0xFFFF0000)
+        const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
+        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * dest_w) + expected_x], 0xFFFF0000)
                 << "Landscape Rotation " << static_cast<int>(rot) << " failed";
     };
 
     // 0°: (0,0) -> (0,0)
-    verifyPixel(ImageRotation::kRotation0, 0, 0, srcW, srcH);
+    verify_pixel(ImageRotation::kRotation0, 0, 0, src_w, src_h);
     // 90° CCW: (0,0) -> (0, 199) of 100x200
-    verifyPixel(ImageRotation::kRotation90, 0, 199, srcH, srcW);
+    verify_pixel(ImageRotation::kRotation90, 0, 199, src_h, src_w);
     // 180° CCW: (0,0) -> (199, 99) of 200x100
-    verifyPixel(ImageRotation::kRotation180, 199, 99, srcW, srcH);
+    verify_pixel(ImageRotation::kRotation180, 199, 99, src_w, src_h);
     // 270° CCW: (0,0) -> (99, 0) of 100x200
-    verifyPixel(ImageRotation::kRotation270, 99, 0, srcH, srcW);
+    verify_pixel(ImageRotation::kRotation270, 99, 0, src_h, src_w);
 }
 
-TEST_F(FakePixmanDisplayTest, DISABLED_GetPixels_RotationSquareSource) {
+TEST_F(FakePixmanDisplayTest, DISABLED_GetPixelsRotationSquareSource) {
     const int size = 100;
 
     // Create a Square source image (Red pixel at Top-Left 0,0)
-    PixmanImagePtr srcImage(pixman_image_create_bits(PIXMAN_a8r8g8b8, size, size, nullptr, 0));
-    uint32_t* srcData = pixman_image_get_data(srcImage.get());
-    memset(srcData, 0, size * size * 4);
-    srcData[0] = 0xFFFF0000;
+    const PixmanImagePtr src_image(
+            pixman_image_create_bits(PIXMAN_a8r8g8b8, size, size, nullptr, 0));
+    auto* src_data = pixman_image_get_data(src_image.get());
+    memset(src_data, 0, static_cast<size_t>(size) * size * 4);
+    src_data[0] = 0xFFFF0000;
 
-    auto display = std::make_shared<FakePixmanDisplay>(mLoop.get(), 1, srcImage.get());
+    auto display = std::make_shared<FakePixmanDisplay>(loop_.get(), 1, src_image.get());
 
-    auto verifyPixel = [&](ImageRotation rot, int expectedX, int expectedY) {
-        size_t c_pixels = size * size * 4;
+    auto verify_pixel = [&](ImageRotation rot, int expected_x, int expected_y) {
+        size_t c_pixels = static_cast<size_t>(size) * size * 4;
         std::vector<uint8_t> buffer(c_pixels);
         auto result = display->GetPixels(PixelFormat::kRgba8888, size, size, rot, buffer.data(),
                                          &c_pixels);
         ASSERT_TRUE(result.ok());
-        uint32_t* pixels = reinterpret_cast<uint32_t*>(buffer.data());
-        EXPECT_EQ(pixels[expectedY * size + expectedX], 0xFFFF0000)
+        const auto* pixels = reinterpret_cast<const uint32_t*>(buffer.data());
+        EXPECT_EQ(pixels[(static_cast<size_t>(expected_y) * size) + expected_x], 0xFFFF0000)
                 << "Square Rotation " << static_cast<int>(rot) << " failed";
     };
 
-    verifyPixel(ImageRotation::kRotation0, 0, 0);
-    verifyPixel(ImageRotation::kRotation90, 0, 99);
-    verifyPixel(ImageRotation::kRotation180, 99, 99);
-    verifyPixel(ImageRotation::kRotation270, 99, 0);
+    verify_pixel(ImageRotation::kRotation0, 0, 0);
+    verify_pixel(ImageRotation::kRotation90, 0, 99);
+    verify_pixel(ImageRotation::kRotation180, 99, 99);
+    verify_pixel(ImageRotation::kRotation270, 99, 0);
 }
 
 TEST_F(FakePixmanDisplayTest, InitialImageIsBlue) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
 
     // Get the initial image
-    ::pixman_image_t* initialImage = display->image().get();
-    ASSERT_NE(initialImage, nullptr);
+    ::pixman_image_t* initial_image = display->Image().get();
+    ASSERT_NE(initial_image, nullptr);
 
     // Check the dimensions
-    ASSERT_EQ(pixman_image_get_width(initialImage), width);
-    ASSERT_EQ(pixman_image_get_height(initialImage), height);
+    ASSERT_EQ(pixman_image_get_width(initial_image), width);
+    ASSERT_EQ(pixman_image_get_height(initial_image), height);
 
     // Check if all pixels are blue
-    uint32_t* pixels = (uint32_t*)pixman_image_get_data(initialImage);
-    bool allPixelsBlue = true;
+    const auto* pixels = reinterpret_cast<const uint32_t*>(pixman_image_get_data(initial_image));
+    bool all_pixels_blue = true;
     for (int i = 0; i < width * height; ++i) {
         if (pixels[i] != 0xFF0000FF) {  // Blue
-            allPixelsBlue = false;
+            all_pixels_blue = false;
             break;
         }
     }
-    ASSERT_TRUE(allPixelsBlue) << "Not all pixels are blue.";
+    ASSERT_TRUE(all_pixels_blue) << "Not all pixels are blue.";
 }
 
 class TestListener : public EventListener<ResizeEvent> {
   public:
     void EventArrived(const ResizeEvent& event) override {
-        absl::MutexLock lock(&eventsMutex);
+        const absl::MutexLock lock(&events_mutex);
         events.push_back(event);
     }
-    absl::Mutex eventsMutex;
+    absl::Mutex events_mutex;
     std::vector<ResizeEvent> events;
 };
 
 TEST_F(FakePixmanDisplayTest, ResizeEvent) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
     auto listener = std::make_shared<TestListener>();
     display->ResizeEventCallbackSource::AddListener(listener);
 
     // Start the generator
-    display->start();
-    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    display->resize(200, 100);
-    display->waitForFramesWithTimeout(4, absl::Milliseconds(500));
-    display->stop();
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->Resize(200, 100);
+    display->WaitForFramesWithTimeout(4, absl::Milliseconds(500));
+    display->Stop();
 
-    absl::MutexLock lock(&listener->eventsMutex);
+    const absl::MutexLock lock(&listener->events_mutex);
     ASSERT_EQ(listener->events.size(), 1);
     EXPECT_EQ(listener->events[0].previous_width, 100);
     EXPECT_EQ(listener->events[0].previous_height, 50);
@@ -336,52 +347,52 @@ TEST_F(FakePixmanDisplayTest, ResizeEvent) {
 }
 
 TEST_F(FakePixmanDisplayTest, ResizeEventsAreOnTheEventLoop) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
 
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
     auto listener = std::make_shared<TestListener>();
 
-    auto callbackSource = static_cast<ResizeEventCallbackSource*>(display.get());
+    auto* callback_source = static_cast<ResizeEventCallbackSource*>(display.get());
     auto callback = android::base::eventing::MakeScopedCallback(
-            *callbackSource, [&](const ResizeEvent& event) {
-                ASSERT_TRUE(mLoop->IsOnLoopThread())
+            *callback_source, [&](const ResizeEvent& /*event*/) {
+                ASSERT_TRUE(loop_->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
             });
     // Start the generator
-    display->start();
-    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    display->resize(200, 100);
-    display->waitForFramesWithTimeout(4, absl::Milliseconds(500));
-    display->stop();
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->Resize(200, 100);
+    display->WaitForFramesWithTimeout(4, absl::Milliseconds(500));
+    display->Stop();
 }
 
 TEST_F(FakePixmanDisplayTest, FrameInfoEventsAreOnTheEventLoop) {
-    int fps = 10;
-    int width = 100;
-    int height = 50;
-    int id = 0;
+    const int fps = 10;
+    const int width = 100;
+    const int height = 50;
+    const int id = 0;
     std::atomic_int frames = 0;
     // Create an ActiveFakePixmanDisplay
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), id, fps, width, height);
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), id, fps, width, height);
     auto listener = std::make_shared<TestListener>();
 
     // Cast the source so our scopedCallback doesn't get confused (display has multiple event
     // sources)
-    auto callbackSource = static_cast<FrameInfoCallbackSource*>(display.get());
+    auto* callback_source = static_cast<FrameInfoCallbackSource*>(display.get());
     auto callback = android::base::eventing::MakeScopedCallback(
-            *callbackSource, [&](const FrameInfo& event) {
+            *callback_source, [&](const FrameInfo& /*event*/) {
                 frames++;
-                ASSERT_TRUE(mLoop->IsOnLoopThread())
+                ASSERT_TRUE(loop_->IsOnLoopThread())
                         << "Event should have been delivered on the event loop";
             });
     // Start the generator
-    display->start();
-    display->waitForFramesWithTimeout(2, absl::Milliseconds(500));
-    display->stop();
+    display->Start();
+    display->WaitForFramesWithTimeout(2, absl::Milliseconds(500));
+    display->Stop();
 
     // We delivered some frames to our callback, where we verified that it is on the event loop
     EXPECT_GT(frames, 0);

@@ -20,6 +20,6 @@
 
 namespace goldfish::parsing {
 
-std::pair<std::string_view, std::string_view> split2(std::string_view str, char sep);
+std::pair<std::string_view, std::string_view> Split2(std::string_view str, char sep);
 
 }  // namespace goldfish::parsing

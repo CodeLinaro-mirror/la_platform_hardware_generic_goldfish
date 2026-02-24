@@ -21,12 +21,12 @@
 
 namespace goldfish::devices::camera {
 
-using goldfish::parsing::split2;
+using goldfish::parsing::Split2;
 
 void QueryParser::recv(const void* data0, const size_t size, const QueryParser::Sink& sink) {
     constexpr auto process = [](const char* begin, const char* end, const Sink& sink) {
         if (end > begin) {
-            auto [query, params] = split2(std::string_view(begin, end - begin), ' ');
+            auto [query, params] = Split2(std::string_view(begin, end - begin), ' ');
             sink(query, params);
         }
     };

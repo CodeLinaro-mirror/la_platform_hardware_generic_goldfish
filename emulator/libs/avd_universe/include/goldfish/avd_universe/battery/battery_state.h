@@ -33,54 +33,54 @@ struct Battery {
      * @brief Battery charging status.
      */
     enum class Status : int8_t {
-        Unknown = 0,
-        Charging = 1,
-        Discharging = 2,
-        NotCharging = 3,
-        Full = 4,
+        kUnknown = 0,
+        kCharging = 1,
+        kDischarging = 2,
+        kNotCharging = 3,
+        kFull = 4,
     };
 
     /**
      * @brief Types of battery chargers.
      */
     enum class Charger : int8_t {
-        None = 0,
-        AC = 1,
-        USB = 2,
-        Wireless = 3,
+        kNone = 0,
+        kAc = 1,
+        kUsb = 2,
+        kWireless = 3,
     };
 
     /**
      * @brief Battery health states.
      */
     enum class Health : int8_t {
-        Good = 0,
-        Failed = 1,
-        Dead = 2,
-        Overvoltage = 3,
-        Overheated = 4,
+        kGood = 0,
+        kFailed = 1,
+        kDead = 2,
+        kOvervoltage = 3,
+        kOverheated = 4,
     };
 
     bool has_battery{true};
     bool is_present{true};
-    Charger charger{Charger::AC};
+    Charger charger{Charger::kAc};
     int32_t charge_level{100};
-    Health health{Health::Good};
-    Status status{Status::Charging};
+    Health health{Health::kGood};
+    Status status{Status::kCharging};
 
     template <typename Sink>
     friend void AbslStringify(Sink& sink, Status s) {
         switch (s) {
-        case Status::Charging:
+        case Status::kCharging:
             sink.Append("Charging");
             break;
-        case Status::Discharging:
+        case Status::kDischarging:
             sink.Append("Discharging");
             break;
-        case Status::NotCharging:
+        case Status::kNotCharging:
             sink.Append("NotCharging");
             break;
-        case Status::Full:
+        case Status::kFull:
             sink.Append("Full");
             break;
         default:
@@ -92,13 +92,13 @@ struct Battery {
     template <typename Sink>
     friend void AbslStringify(Sink& sink, Charger c) {
         switch (c) {
-        case Charger::AC:
+        case Charger::kAc:
             sink.Append("AC");
             break;
-        case Charger::USB:
+        case Charger::kUsb:
             sink.Append("USB");
             break;
-        case Charger::Wireless:
+        case Charger::kWireless:
             sink.Append("Wireless");
             break;
         default:
@@ -110,19 +110,19 @@ struct Battery {
     template <typename Sink>
     friend void AbslStringify(Sink& sink, Health h) {
         switch (h) {
-        case Health::Good:
+        case Health::kGood:
             sink.Append("Good");
             break;
-        case Health::Failed:
+        case Health::kFailed:
             sink.Append("Failed");
             break;
-        case Health::Dead:
+        case Health::kDead:
             sink.Append("Dead");
             break;
-        case Health::Overvoltage:
+        case Health::kOvervoltage:
             sink.Append("Overvoltage");
             break;
-        case Health::Overheated:
+        case Health::kOverheated:
             sink.Append("Overheated");
             break;
         default:

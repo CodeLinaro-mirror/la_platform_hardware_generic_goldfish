@@ -42,8 +42,8 @@ using goldfish::devices::cable::ErrorPlug;
 using goldfish::devices::cable::PlugPtr;
 using goldfish::devices::cable::SocketPtr;
 
-using goldfish::parsing::getKeyValueStr;
-using goldfish::parsing::split2;
+using goldfish::parsing::GetKeyValueStr;
+using goldfish::parsing::Split2;
 
 namespace {
 bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSource source,
@@ -60,7 +60,7 @@ bool addImageProviderInfo(CameraImageProviderRegistry& dst, const CameraImageSou
 
     case CameraImageSource::WEBCAM:
         //                                                                 skip "webcam" in `id`
-        if (const std::optional<size_t> maybeIndex = parsing::fromChars<size_t>(id.substr(6))) {
+        if (const std::optional<size_t> maybeIndex = parsing::FromChars<size_t>(id.substr(6))) {
             if (CameraImageProviderInfoCpp* const info = webcamRegistry[maybeIndex.value()]) {
                 info->setBackFacing(isBackFacing);
                 dst.add(std::move(*info));
@@ -109,14 +109,14 @@ err:
 
     constexpr std::string_view kParamName = "name"sv;
 
-    const std::optional<std::string_view> maybeIndexStr = getKeyValueStr(params, kParamName);
+    const std::optional<std::string_view> maybeIndexStr = GetKeyValueStr(params, kParamName);
     if (!maybeIndexStr) {
         VLOG(1) << "Can't find the '" << kParamName << "' in '" << params << "'.";
         goto err;
     }
 
     const std::string_view indexStr = std::move(maybeIndexStr.value());
-    const std::optional<size_t> maybeIndex = parsing::fromChars<size_t>(indexStr);
+    const std::optional<size_t> maybeIndex = parsing::FromChars<size_t>(indexStr);
     if (!maybeIndex) {
         VLOG(1) << "Can't parse the camera index from '" << indexStr << "'.";
         goto err;
@@ -145,10 +145,10 @@ err:
 
 void RegisterDevice(IConnectorRegistry* registry, std::string* emulatedCameraProp,
                     const android::goldfish::HardwareConfig& hw, GrallocProvider grallocProvider) {
-    const auto [frontCameraId, frontCameraParams] = split2(hw.hw_camera_front, ':');
+    const auto [frontCameraId, frontCameraParams] = Split2(hw.hw_camera_front, ':');
     CameraImageSource frontCameraSource = getCameraImageSourceFromName(frontCameraId);
 
-    const auto [backCameraId, backCameraParams] = split2(hw.hw_camera_back, ':');
+    const auto [backCameraId, backCameraParams] = Split2(hw.hw_camera_back, ':');
     CameraImageSource backCameraSource = getCameraImageSourceFromName(backCameraId);
 
     *emulatedCameraProp = getGuestEmulatedCameraProperty(frontCameraSource, backCameraSource);

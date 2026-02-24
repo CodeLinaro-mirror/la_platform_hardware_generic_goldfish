@@ -81,7 +81,7 @@ class FakeAsyncSocket : public AsyncSocket {
     MOCK_METHOD(void, SetOnCloseCallback, (OnCloseCallback cb), (override));
     MOCK_METHOD(void, SetOnConnectedCallback, (OnConnectCallback cb), (override));
 
-    MOCK_METHOD(absl::Status, Send, (const char* buffer, size_t bufferSize, OnSendCallback cb),
+    MOCK_METHOD(absl::Status, Send, (const char* buffer, size_t buffer_size, OnSendCallback cb),
                 (override));
     MOCK_METHOD(void, Close, (), (override));
     MOCK_METHOD(absl::Status, Connect, (), (override));
@@ -106,12 +106,12 @@ class FakeAsyncSocket : public AsyncSocket {
      * either via `SetOnReadCallbackNoFlowControl` or by direct assignment to
      * `read_cb_`.
      *
-     * @param data The data to deliver to the read callback.
+     * @param d The data to deliver to the read callback.
      */
-    void SimulateRead(std::string_view data) {
+    void SimulateRead(std::string_view d) {
         if (read_cb_)
             (void)event_loop_->Post(
-                    [d = std::string(data), this] { read_cb_(d, absl::OkStatus()); });
+                    [data = std::string(d), this] { read_cb_(data, absl::OkStatus()); });
     }
 
     /**

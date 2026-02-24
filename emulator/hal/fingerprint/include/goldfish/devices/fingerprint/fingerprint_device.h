@@ -50,7 +50,7 @@ class IFingerprintDevice : public HalPlug {
      * the qemud pipe.
      *
      * @param registry  The connector registry instance.
-     * @param clientLoop The event loop for client-side operations.
+     * @param client_loop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      */
     static void RegisterDevice(ObservableFingerprintSensor* sensor, IConnectorRegistry* registry,

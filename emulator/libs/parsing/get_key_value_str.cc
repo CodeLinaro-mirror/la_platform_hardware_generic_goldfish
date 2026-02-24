@@ -16,29 +16,30 @@
 
 namespace goldfish::parsing {
 
-std::optional<std::string_view> getKeyValueStr(const std::string_view text,
+std::optional<std::string_view> GetKeyValueStr(const std::string_view text,
                                                const std::string_view key) {
-    const size_t keySize = key.size();
-    if (!keySize) {
+    const size_t key_size = key.size();
+    if (!key_size) {
         return std::nullopt;
     }
 
-    const size_t textSize = text.size();
+    const size_t text_size = text.size();
 
     size_t i = 0;
-    while ((i = text.find(key, i)) != text.npos) {
-        const size_t keyEnd = i + keySize;
-        if (keyEnd >= textSize) {
+    while ((i = text.find(key, i)) != std::string_view::npos) {
+        const size_t key_end = i + key_size;
+        if (key_end >= text_size) {
             return std::nullopt;
-        } else if ((!i || (text[i - 1] == ' ')) && (text[keyEnd] == '=')) {
-            const size_t valueBegin = keyEnd + 1;
-            const size_t valueEnd = text.find(' ', valueBegin);
-
-            return (valueEnd == text.npos) ? text.substr(valueBegin)
-                                           : text.substr(valueBegin, valueEnd - valueBegin);
-        } else {
-            ++i;
         }
+        if ((!i || (text[i - 1] == ' ')) && (text[key_end] == '=')) {
+            const size_t value_begin = key_end + 1;
+            const size_t value_end = text.find(' ', value_begin);
+
+            return (value_end == std::string_view::npos)
+                           ? text.substr(value_begin)
+                           : text.substr(value_begin, value_end - value_begin);
+        }
+        ++i;
     }
 
     return std::nullopt;

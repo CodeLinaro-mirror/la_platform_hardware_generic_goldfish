@@ -20,29 +20,29 @@ namespace goldfish::avd_info {
 
 // Implementation of AvdUniverse constructor for unit tests.
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
-        : mProps(std::move(props)), mSensorsPhysicalModel(mProps->hw_config) {}
+        : props_(std::move(props)), sensors_physical_model_(props_->hw_config) {}
 
 // Minimal implementation of AvdUniverse for unit tests.
 struct FakeAvdUniverse : public AvdUniverse {
     FakeAvdUniverse() : AvdUniverse(std::make_unique<AvdProperties>()) {}
 };
 
-AvdUniverse& getAvd() {
+AvdUniverse& GetAvd() {
     static FakeAvdUniverse universe;
     return universe;
 }
 
 // These methods were merged into avd_info.cc, so we need fake impls here.
-void AvdUniverse::setActiveMultiDisplayDevice(
+void AvdUniverse::SetActiveMultiDisplayDevice(
         std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device) {
-    absl::MutexLock lock(&mDeviceMutex);
-    mActiveMultiDisplayDevice = device;
+    absl::MutexLock lock(&device_mutex_);
+    active_multi_display_device_ = device;
 }
 
 std::shared_ptr<devices::multidisplay::MultiDisplayDevice>
-AvdUniverse::getActiveMultiDisplayDevice() {
-    absl::MutexLock lock(&mDeviceMutex);
-    return mActiveMultiDisplayDevice;
+AvdUniverse::GetActiveMultiDisplayDevice() {
+    absl::MutexLock lock(&device_mutex_);
+    return active_multi_display_device_;
 }
 
 }  // namespace goldfish::avd_info

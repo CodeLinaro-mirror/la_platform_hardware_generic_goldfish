@@ -31,13 +31,13 @@ namespace {
 
 int BatteryStatusToQemu(Battery::Status status) {
     switch (status) {
-    case Battery::Status::Charging:
+    case Battery::Status::kCharging:
         return POWER_SUPPLY_STATUS_CHARGING;
-    case Battery::Status::Discharging:
+    case Battery::Status::kDischarging:
         return POWER_SUPPLY_STATUS_DISCHARGING;
-    case Battery::Status::NotCharging:
+    case Battery::Status::kNotCharging:
         return POWER_SUPPLY_STATUS_NOT_CHARGING;
-    case Battery::Status::Full:
+    case Battery::Status::kFull:
         return POWER_SUPPLY_STATUS_FULL;
     default:
         return POWER_SUPPLY_STATUS_UNKNOWN;
@@ -46,15 +46,15 @@ int BatteryStatusToQemu(Battery::Status status) {
 
 int BatteryHealthToQemu(Battery::Health health) {
     switch (health) {
-    case Battery::Health::Good:
+    case Battery::Health::kGood:
         return POWER_SUPPLY_HEALTH_GOOD;
-    case Battery::Health::Failed:
+    case Battery::Health::kFailed:
         return POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
-    case Battery::Health::Dead:
+    case Battery::Health::kDead:
         return POWER_SUPPLY_HEALTH_DEAD;
-    case Battery::Health::Overvoltage:
+    case Battery::Health::kOvervoltage:
         return POWER_SUPPLY_HEALTH_OVERVOLTAGE;
-    case Battery::Health::Overheated:
+    case Battery::Health::kOverheated:
         return POWER_SUPPLY_HEALTH_OVERHEAT;
     default:
         return POWER_SUPPLY_HEALTH_UNKNOWN;
@@ -64,30 +64,30 @@ int BatteryHealthToQemu(Battery::Health health) {
 Battery::Status QemuToBatteryStatus(int status) {
     switch (status) {
     case POWER_SUPPLY_STATUS_CHARGING:
-        return Battery::Status::Charging;
+        return Battery::Status::kCharging;
     case POWER_SUPPLY_STATUS_DISCHARGING:
-        return Battery::Status::Discharging;
+        return Battery::Status::kDischarging;
     case POWER_SUPPLY_STATUS_NOT_CHARGING:
-        return Battery::Status::NotCharging;
+        return Battery::Status::kNotCharging;
     case POWER_SUPPLY_STATUS_FULL:
-        return Battery::Status::Full;
+        return Battery::Status::kFull;
     default:
-        return Battery::Status::Unknown;
+        return Battery::Status::kUnknown;
     }
 }
 
 Battery::Health QemuToBatteryHealth(int health) {
     switch (health) {
     case POWER_SUPPLY_HEALTH_GOOD:
-        return Battery::Health::Good;
+        return Battery::Health::kGood;
     case POWER_SUPPLY_HEALTH_DEAD:
-        return Battery::Health::Dead;
+        return Battery::Health::kDead;
     case POWER_SUPPLY_HEALTH_OVERVOLTAGE:
-        return Battery::Health::Overvoltage;
+        return Battery::Health::kOvervoltage;
     case POWER_SUPPLY_HEALTH_OVERHEAT:
-        return Battery::Health::Overheated;
+        return Battery::Health::kOverheated;
     default:
-        return Battery::Health::Failed;
+        return Battery::Health::kFailed;
     }
 }
 
@@ -98,7 +98,8 @@ void ApplyStateToQemu(const Battery& state) {
     goldfish_battery_set_prop(0, POWER_SUPPLY_PROP_PRESENT, state.is_present);
 
     // Charger & Status
-    goldfish_battery_set_prop(1, POWER_SUPPLY_PROP_ONLINE, state.charger != Battery::Charger::None);
+    goldfish_battery_set_prop(1, POWER_SUPPLY_PROP_ONLINE,
+                              state.charger != Battery::Charger::kNone);
     goldfish_battery_set_prop(0, POWER_SUPPLY_PROP_STATUS, BatteryStatusToQemu(state.status));
 
     // Capacity
@@ -124,10 +125,10 @@ void RegisterBattery(ObservableBattery* observable_battery, bool is_present,
                 ApplyStateToQemu(Battery{
                     .has_battery = is_present,
                     .is_present = is_present,
-                    .charger = Battery::Charger::None,
+                    .charger = Battery::Charger::kNone,
                     .charge_level = 100,
-                    .health = Battery::Health::Good,
-                    .status = Battery::Status::Charging,
+                    .health = Battery::Health::kGood,
+                    .status = Battery::Status::kCharging,
                 });
             })
             .IgnoreError();

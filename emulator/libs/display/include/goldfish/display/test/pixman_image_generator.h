@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
@@ -26,7 +27,7 @@ namespace goldfish::display::test {
 
 using android::base::eventing::CallbackEventSource;
 
-enum class Color { Red, Green, Blue };
+enum class Color : std::uint8_t { kRed, kGreen, kBlue };
 
 /**
  * @brief Generates a sequence of red, green, and blue images at a specified frame rate.
@@ -48,12 +49,12 @@ class PixmanImageGenerator : public CallbackEventSource<PixmanImagePtr> {
     /**
      * @brief Starts the image generation process.
      */
-    void start();
+    void Start();
 
     /**
      * @brief Stops the image generation process.
      */
-    void stop();
+    void Stop();
 
     /**
      * @brief Resizes the generated images.
@@ -61,12 +62,12 @@ class PixmanImageGenerator : public CallbackEventSource<PixmanImagePtr> {
      * @param w The new width.
      * @param h The new height.
      */
-    void resize(int w, int h);
+    void Resize(int w, int h);
 
     /**
      * @brief Generates a pixman image with the specified color.
      */
-    PixmanImagePtr generateImage(Color color);
+    PixmanImagePtr GenerateImage(Color color);
 
     /**
      * @brief Waits for a specific number of frames to be generated with a timeout.
@@ -76,26 +77,26 @@ class PixmanImageGenerator : public CallbackEventSource<PixmanImagePtr> {
      * @return True if the desired number of frames were generated within the timeout, false
      * otherwise.
      */
-    bool waitForFramesWithTimeout(int n, absl::Duration timeout);
+    bool WaitForFramesWithTimeout(int n, absl::Duration timeout);
 
     /**
      * @brief Returns the number of frames that have been generated.
      *
      * @return The number of frames generated.
      */
-    int frameCount() const;
+    int FrameCount() const;
 
   private:
-    void generateImagesLoop();
+    void GenerateImagesLoop();
 
-    int mFps;
-    int mWidth ABSL_GUARDED_BY(mMutex);
-    int mHeight ABSL_GUARDED_BY(mMutex);
-    std::atomic_bool mRunning;
-    std::unique_ptr<std::thread> mThread;
-    mutable absl::Mutex mMutex;
-    int mFrameCount ABSL_GUARDED_BY(mMutex);
-    absl::CondVar mFrameCv;
+    int fps_;
+    int width_ ABSL_GUARDED_BY(mutex_);
+    int height_ ABSL_GUARDED_BY(mutex_);
+    std::atomic_bool running_;
+    std::unique_ptr<std::thread> thread_;
+    mutable absl::Mutex mutex_;
+    int frame_count_ ABSL_GUARDED_BY(mutex_) = 0;
+    absl::CondVar frame_cv_;
 };
 
 }  // namespace goldfish::display::test

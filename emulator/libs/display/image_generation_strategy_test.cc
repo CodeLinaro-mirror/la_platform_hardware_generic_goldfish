@@ -1,13 +1,13 @@
 // Copyright 2025 The Android Open Source Project
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the \"License\");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
+// distributed under the License is distributed on an \"AS IS\" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -20,20 +20,24 @@
 #include "goldfish/display/pixman_image_ptr.h"
 
 using goldfish::display::PixmanImagePtr;
-using namespace goldfish::display::test;
+using goldfish::display::test::ChessboardStrategy;
+using goldfish::display::test::Color;
+using goldfish::display::test::FillColorStrategy;
+using goldfish::display::test::LinearGradientStrategy;
+using goldfish::display::test::PixmanImageGenerator;
 
 // Test fixture for creating and managing a test pixman image.
 class StrategyTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mTestImage = PixmanImagePtr(pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kImageWidth,
-                                                                      kImageHeight, nullptr, 0));
-        ASSERT_NE(mTestImage, nullptr);
+        test_image_ = PixmanImagePtr(pixman_image_create_bits_no_clear(PIXMAN_a8r8g8b8, kImageWidth,
+                                                                       kImageHeight, nullptr, 0));
+        ASSERT_NE(test_image_, nullptr);
     }
 
-    void TearDown() override { mTestImage.reset(); }
+    void TearDown() override { test_image_.reset(); }
 
-    PixmanImagePtr mTestImage;
+    PixmanImagePtr test_image_;
     static constexpr int kImageWidth = 512;
     static constexpr int kImageHeight = 512;
 };
@@ -42,81 +46,81 @@ class StrategyTest : public ::testing::Test {
 // FillColorStrategy Tests
 //------------------------------------------------------------------------------
 
-TEST_F(StrategyTest, FillColorStrategy_GeneratesCorrectColors) {
+TEST_F(StrategyTest, FillColorStrategyGeneratesCorrectColors) {
     FillColorStrategy strategy;
 
-    // Frame 0 -> Red
-    strategy.generate(mTestImage.get(), 0);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 0));
-    EXPECT_EQ(pixman_image_get_data(mTestImage.get())[0], 0xffff0000);
+    // Frame 0 -> kRed
+    strategy.Generate(test_image_.get(), 0);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 0));
+    EXPECT_EQ(pixman_image_get_data(test_image_.get())[0], 0xffff0000);
 
-    // Frame 1 -> Green
-    strategy.generate(mTestImage.get(), 1);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 1));
-    EXPECT_EQ(pixman_image_get_data(mTestImage.get())[0], 0xff00ff00);
+    // Frame 1 -> kGreen
+    strategy.Generate(test_image_.get(), 1);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 1));
+    EXPECT_EQ(pixman_image_get_data(test_image_.get())[0], 0xff00ff00);
 
-    // Frame 2 -> Blue
-    strategy.generate(mTestImage.get(), 2);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 2));
-    EXPECT_EQ(pixman_image_get_data(mTestImage.get())[0], 0xff0000ff);
+    // Frame 2 -> kBlue
+    strategy.Generate(test_image_.get(), 2);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 2));
+    EXPECT_EQ(pixman_image_get_data(test_image_.get())[0], 0xff0000ff);
 }
 
-TEST_F(StrategyTest, FillColorStrategy_IsGeneratedByFailsForWrongFrame) {
+TEST_F(StrategyTest, FillColorStrategyIsGeneratedByFailsForWrongFrame) {
     FillColorStrategy strategy;
-    strategy.generate(mTestImage.get(), 0);                     // Generate Red image
-    EXPECT_FALSE(strategy.isGeneratedBy(mTestImage.get(), 1));  // Validate against Green
+    strategy.Generate(test_image_.get(), 0);                     // Generate kRed image
+    EXPECT_FALSE(strategy.IsGeneratedBy(test_image_.get(), 1));  // Validate against kGreen
 }
 
-TEST_F(StrategyTest, FillColorStrategy_IsGeneratedByFailsForWrongStrategy) {
-    FillColorStrategy colorStrategy;
-    ChessboardStrategy chessboardStrategy;
+TEST_F(StrategyTest, FillColorStrategyIsGeneratedByFailsForWrongStrategy) {
+    FillColorStrategy color_strategy;
+    ChessboardStrategy chessboard_strategy;
 
-    colorStrategy.generate(mTestImage.get(), 0);  // Generate Red image
-    EXPECT_FALSE(chessboardStrategy.isGeneratedBy(mTestImage.get(), 0));
+    color_strategy.Generate(test_image_.get(), 0);  // Generate kRed image
+    EXPECT_FALSE(chessboard_strategy.IsGeneratedBy(test_image_.get(), 0));
 }
 
 //------------------------------------------------------------------------------
 // ChessboardStrategy Tests
 //------------------------------------------------------------------------------
 
-TEST_F(StrategyTest, ChessboardStrategy_GeneratesCorrectPattern) {
+TEST_F(StrategyTest, ChessboardStrategyGeneratesCorrectPattern) {
     ChessboardStrategy strategy;
-    strategy.generate(mTestImage.get(), 0);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 0));  // Frame number doesn't matter
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 99));
+    strategy.Generate(test_image_.get(), 0);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 0));  // Frame number doesn't matter
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 99));
 }
 
-TEST_F(StrategyTest, ChessboardStrategy_IsGeneratedByFailsForWrongPattern) {
-    ChessboardStrategy chessboardStrategy;
-    FillColorStrategy colorStrategy;
-    colorStrategy.generate(mTestImage.get(), 0);  // Generate solid color image
-    EXPECT_FALSE(chessboardStrategy.isGeneratedBy(mTestImage.get(), 0));
+TEST_F(StrategyTest, ChessboardStrategyIsGeneratedByFailsForWrongPattern) {
+    ChessboardStrategy chessboard_strategy;
+    FillColorStrategy color_strategy;
+    color_strategy.Generate(test_image_.get(), 0);  // Generate solid color image
+    EXPECT_FALSE(chessboard_strategy.IsGeneratedBy(test_image_.get(), 0));
 }
 
 //------------------------------------------------------------------------------
 // LinearGradientStrategy Tests
 //------------------------------------------------------------------------------
 
-TEST_F(StrategyTest, LinearGradientStrategy_GeneratesCorrectGradients) {
+TEST_F(StrategyTest, LinearGradientStrategyGeneratesCorrectGradients) {
     LinearGradientStrategy strategy;
 
-    // Frame 0 -> Red Gradient
-    strategy.generate(mTestImage.get(), 0);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 0));
+    // Frame 0 -> kRed Gradient
+    strategy.Generate(test_image_.get(), 0);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 0));
 
-    // Frame 1 -> Green Gradient
-    strategy.generate(mTestImage.get(), 1);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 1));
+    // Frame 1 -> kGreen Gradient
+    strategy.Generate(test_image_.get(), 1);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 1));
 
-    // Frame 2 -> Blue Gradient
-    strategy.generate(mTestImage.get(), 2);
-    EXPECT_TRUE(strategy.isGeneratedBy(mTestImage.get(), 2));
+    // Frame 2 -> kBlue Gradient
+    strategy.Generate(test_image_.get(), 2);
+    EXPECT_TRUE(strategy.IsGeneratedBy(test_image_.get(), 2));
 }
 
-TEST_F(StrategyTest, LinearGradientStrategy_IsGeneratedByFailsForWrongGradient) {
+TEST_F(StrategyTest, LinearGradientStrategyIsGeneratedByFailsForWrongGradient) {
     LinearGradientStrategy strategy;
-    strategy.generate(mTestImage.get(), 0);                     // Generate red gradient
-    EXPECT_FALSE(strategy.isGeneratedBy(mTestImage.get(), 1));  // Validate against green
+    strategy.Generate(test_image_.get(), 0);                     // Generate red gradient
+    EXPECT_FALSE(strategy.IsGeneratedBy(test_image_.get(), 1));  // Validate against green
 }
 
 //------------------------------------------------------------------------------
@@ -128,11 +132,11 @@ TEST(PixmanImageGeneratorIntegrationTest, ConstructionAndGeneration) {
     constexpr int kImageHeight = 512;
     PixmanImageGenerator generator(60, kImageWidth, kImageHeight);
 
-    PixmanImagePtr image = generator.generateImage(Color::Red);
+    const PixmanImagePtr image = generator.GenerateImage(Color::kRed);
     ASSERT_TRUE(image);
 
     FillColorStrategy validator;
-    EXPECT_TRUE(validator.isGeneratedBy(image.get(), 0));  // 0 -> Red
+    EXPECT_TRUE(validator.IsGeneratedBy(image.get(), 0));  // 0 -> kRed
 }
 
 TEST(PixmanImageGeneratorIntegrationTest, GenerateAllColors) {
@@ -141,23 +145,23 @@ TEST(PixmanImageGeneratorIntegrationTest, GenerateAllColors) {
     PixmanImageGenerator generator(60, kImageWidth, kImageHeight);
 
     {
-        // Red
-        PixmanImagePtr image_red = generator.generateImage(Color::Red);
+        // kRed
+        const PixmanImagePtr image_red = generator.GenerateImage(Color::kRed);
         FillColorStrategy red_validator;
-        EXPECT_TRUE(red_validator.isGeneratedBy(image_red.get(), 0));
+        EXPECT_TRUE(red_validator.IsGeneratedBy(image_red.get(), 0));
     }
 
     {
-        // Green
-        PixmanImagePtr image_green = generator.generateImage(Color::Green);
+        // kGreen
+        const PixmanImagePtr image_green = generator.GenerateImage(Color::kGreen);
         FillColorStrategy green_validator;
-        EXPECT_TRUE(green_validator.isGeneratedBy(image_green.get(), 1));
+        EXPECT_TRUE(green_validator.IsGeneratedBy(image_green.get(), 1));
     }
 
     {
-        // Blue
-        PixmanImagePtr image_blue = generator.generateImage(Color::Blue);
+        // kBlue
+        const PixmanImagePtr image_blue = generator.GenerateImage(Color::kBlue);
         FillColorStrategy blue_validator;
-        EXPECT_TRUE(blue_validator.isGeneratedBy(image_blue.get(), 2));
+        EXPECT_TRUE(blue_validator.IsGeneratedBy(image_blue.get(), 2));
     }
 }

@@ -120,12 +120,12 @@ struct FakePixmanDisplay : public PixmanDisplay {
      * @param image The initial pixman image to display.
      */
     FakePixmanDisplay(EventLoop* loop, int id, ::pixman_image_t* image);
-    FakePixmanDisplay(EventLoop* loop, int id, PixmanImagePtr image);
+    FakePixmanDisplay(EventLoop* loop, int id, const PixmanImagePtr& image);
 
     /**
      * @brief Destroys the FakePixmanDisplay.
      */
-    ~FakePixmanDisplay() = default;
+    ~FakePixmanDisplay() override = default;
 
     /**
      * @brief Sends a simulated multi-touch event.
@@ -165,12 +165,12 @@ struct FakePixmanDisplay : public PixmanDisplay {
      *
      * @return A pointer to the current pixman image.
      */
-    PixmanImagePtr image() { return frame_manager_->GetRenderableImage(); }
+    PixmanImagePtr Image() { return frame_manager_->GetRenderableImage(); }
 
-    std::vector<FakeEvDevEvent> mEvdevs;       ///< A list of simulated evdev events.
-    std::vector<FakeMouseEvent> mMouseEvents;  ///< A list of simulated mouse events.
+    std::vector<FakeEvDevEvent> evdevs;        ///< A list of simulated evdev events.
+    std::vector<FakeMouseEvent> mouse_events;  ///< A list of simulated mouse events.
     std::vector<FakeMultiTouchEvent>
-            mMultiTouchEvents;  ///< A list of simulated multi-touch events.
+            multi_touch_events;  ///< A list of simulated multi-touch events.
 };
 
 /**
@@ -197,12 +197,12 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
     /**
      * @brief Starts the image generation process.
      */
-    void start();
+    void Start();
 
     /**
      * @brief Stops the image generation process.
      */
-    void stop();
+    void Stop();
 
     /**
      * @brief Resizes the generated images.
@@ -210,7 +210,7 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @param w The new width.
      * @param h The new height.
      */
-    void resize(int w, int h);
+    void Resize(int w, int h);
 
     /**
      * @brief Waits for a specific number of frames to be generated with a timeout.
@@ -220,7 +220,7 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @return True if the desired number of frames were generated within the timeout, false
      * otherwise.
      */
-    bool waitForFramesWithTimeout(int n, absl::Duration timeout);
+    bool WaitForFramesWithTimeout(int n, absl::Duration timeout);
 
     /**
      * @brief Creates a shared_ptr of ActiveFakePixmanDisplay.
@@ -231,7 +231,7 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
      * @param h The height of the generated images.
      * @return An ActiveFakePixmanDisplay object.
      */
-    static std::shared_ptr<ActiveFakePixmanDisplay> createShared(EventLoop* loop, int id, int fps,
+    static std::shared_ptr<ActiveFakePixmanDisplay> CreateShared(EventLoop* loop, int id, int fps,
                                                                  int w, int h);
 
   private:
@@ -244,6 +244,6 @@ class ActiveFakePixmanDisplay : public FakePixmanDisplay,
     ActiveFakePixmanDisplay(EventLoop* loop, int id,
                             std::unique_ptr<PixmanImageGenerator> generator);
 
-    std::unique_ptr<PixmanImageGenerator> mGenerator;
+    std::unique_ptr<PixmanImageGenerator> generator_;
 };
 }  // namespace goldfish::display::test

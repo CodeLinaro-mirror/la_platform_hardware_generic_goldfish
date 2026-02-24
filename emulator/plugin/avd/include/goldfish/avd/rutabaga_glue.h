@@ -16,15 +16,16 @@
 #pragma once
 
 #include <stdint.h>
-
+// NOLINTBEGIN
 struct rutabaga;
 
-struct rutabaga* rutabagaGetInstance();
+struct rutabaga* rutabagaGetInstance();  // NOLINT
 
-int32_t rutabagaImageTransfer(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
+int32_t rutabagaImageTransfer(struct rutabaga* instance, uint32_t resource_id, uint32_t width,
                               uint32_t height, uint32_t stride, const void* framebuffer,
-                              uint32_t framebufferSize);
+                              uint32_t framebuffer_size);
 
-int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resourceId, uint32_t width,
+int32_t rutabagaImageRead(struct rutabaga* instance, uint32_t resource_id, uint32_t width,
                           uint32_t height, uint32_t stride, void* framebuffer,
-                          uint32_t framebufferSize);
+                          uint32_t framebuffer_size);
+// NOLINTEND

@@ -32,7 +32,7 @@ extern "C" {
 #include "ui/console.h"
 #include "ui/surface.h"
 
-typedef struct VirtIOInputHID VirtIOInputHID;
+using VirtIOInputHID = struct VirtIOInputHID;
 }
 
 namespace goldfish::display {
@@ -47,10 +47,10 @@ class VirtualDisplay : public IDisplay {
 
     // --- Overrides for pure virtual methods from IDisplay ---
 
-    virtual std::pair<int, int> ResizeKeepAspectRatio(int desiredWidth, int desiredHeight) override;
-    virtual absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
+    std::pair<int, int> ResizeKeepAspectRatio(int desired_width, int desired_height) override;
+    absl::StatusOr<FrameInfo> GetPixels(PixelFormat fmt, int width, int height,
                                         ImageRotation rotation, uint8_t* pixel,
-                                        size_t* cPixels) const override;
+                                        size_t* c_pixels) const override;
 
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
 

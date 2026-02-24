@@ -52,15 +52,15 @@ class IClipboardDevice : public HalPlug {
      *
      * This function registers the clipboard device with the provided
      * `IConnectorRegistry` instance, making it available for connection
-     * through the qemud pipe. The `clientLoop` and `qemuLoop` manage the
+     * through the qemud pipe. The `client_loop` and `qemuLoop` manage the
      * asynchronous operations.
      *
      * @param channel The physical representation of the clipboard.
      * @param registry The `IConnectorRegistry` instance to register with.
-     * @param clientLoop The event loop for client-side operations.
+     * @param client_loop The event loop for client-side operations.
      * @param qemuLoop The event loop for QEMU-side operations.
      *
-     * @note The `clientLoop`, and `qemuLoop` objects are expected to
+     * @note The `client_loop`, and `qemuLoop` objects are expected to
      * remain valid for the lifetime of the registry. Their lifecycles should be
      * managed externally to ensure they outlive the registry.
      *

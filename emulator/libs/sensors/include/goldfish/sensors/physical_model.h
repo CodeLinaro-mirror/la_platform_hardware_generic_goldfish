@@ -217,7 +217,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Helper for setting overrides.
      */
     template <class T>
-    void setOverride(const AndroidSensor sensor, T* override_member_pointer, T override_value) {
+    void SetOverride(const AndroidSensor sensor, T* override_member_pointer, T override_value) {
         const auto sensor_index = static_cast<size_t>(sensor);
 
         PhysicalStateChanging();
@@ -233,7 +233,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Helper for getting current sensor values.
      */
     template <class T, class GETTER>
-    T getSensorValue(AndroidSensor sensor, const T* override_member_pointer,
+    T GetSensorValue(AndroidSensor sensor, const T* override_member_pointer,
                      const GETTER& physical_getter, size_t* measurement_id) const;
 
     void PhysicalStateChanging();    ///< Called when physical state begins changing

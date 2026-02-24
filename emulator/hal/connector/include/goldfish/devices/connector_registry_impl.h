@@ -1,4 +1,3 @@
-
 // Copyright 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,19 +85,22 @@ class ConnectorRegistry : public IConnectorRegistry {
 
     bool RegisterDevice(std::string_view name, DeviceFactory factory) override;
 
-    void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
-                           async::EventLoop* qemu_loop, HalDeviceFactory factory) override;
+    void RegisterHalDevice(
+            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
+            HalDeviceFactory factory) override;  // NOLINT(performance-unnecessary-value-param)
 
-    void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
-                               async::EventLoop* qemu_loop, HalDeviceFactory factory) override;
+    void RegisterHalQemuDevice(
+            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
+            HalDeviceFactory factory) override;  // NOLINT(performance-unnecessary-value-param)
 
   private:
     bool RegisterDeviceImpl(std::string_view prefix, std::string_view name, DeviceFactory factory);
 
     using DeviceRegistration = std::function<bool(std::string, DeviceFactory)>;
-    static void RegisterHalDeviceImpl(std::string name, async::EventLoop* client_loop,
-                                      async::EventLoop* qemu_loop, HalDeviceFactory factory,
-                                      const DeviceRegistration& register_fn);
+    static void RegisterHalDeviceImpl(
+            std::string name, async::EventLoop* client_loop, async::EventLoop* qemu_loop,
+            HalDeviceFactory factory,
+            const DeviceRegistration& register_fn);  // NOLINT(performance-unnecessary-value-param)
 
     const std::shared_ptr<PingTopic> ping_topic_;
     bool accepting_registries_ = true;

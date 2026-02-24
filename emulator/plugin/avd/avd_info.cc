@@ -95,7 +95,7 @@ struct AvdInfoDev {
 #define AVD_INFO_DEV(obj) OBJECT_CHECK(AvdInfoDev, (obj), TYPE_AVD)
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
-AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `getAvd` instead
+AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `GetAvd` instead
 std::unique_ptr<async::EventLoop> gQemuLoop;
 std::vector<VCpuEventLoop> gQemuCpuLoops;
 
@@ -110,25 +110,25 @@ AvdExtendedUniverse& getAvdImpl() {
 }  // namespace
 
 AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
-        : mProps(std::move(props)), mSensorsPhysicalModel(mProps->hw_config) {
-    mGuestStatus.reset.SetValue(
+        : props_(std::move(props)), sensors_physical_model_(props_->hw_config) {
+    guest_status_.reset.SetValue(
             absl::UnixEpoch() +
             absl::Milliseconds(android::base::System::Get()->GetProcessTimes().wall_clock_ms));
 }
 
-void AvdUniverse::setActiveMultiDisplayDevice(
+void AvdUniverse::SetActiveMultiDisplayDevice(
         std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device) {
-    absl::MutexLock lock(&mDeviceMutex);
-    mActiveMultiDisplayDevice = device;
+    absl::MutexLock lock(&device_mutex_);
+    active_multi_display_device_ = device;
 }
 
 std::shared_ptr<devices::multidisplay::MultiDisplayDevice>
-AvdUniverse::getActiveMultiDisplayDevice() {
-    absl::MutexLock lock(&mDeviceMutex);
-    return mActiveMultiDisplayDevice;
+AvdUniverse::GetActiveMultiDisplayDevice() {
+    absl::MutexLock lock(&device_mutex_);
+    return active_multi_display_device_;
 }
 
-AvdUniverse& getAvd() {
+AvdUniverse& GetAvd() {
     return getAvdImpl();
 }
 
@@ -210,7 +210,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     }
 
     auto avd_universe = *std::move(avd_universe_or);
-    const AvdProperties& avd_props = avd_universe->props();
+    const AvdProperties& avd_props = avd_universe->Props();
     avd_info->universe = avd_universe.get();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
@@ -231,29 +231,29 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     namespace DEVS = ::goldfish::devices;
 
-    DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe->getSensorsPhysicalModel(), registry,
+    DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe->GetSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, client_loop, gQemuLoop.get());
-    DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe->getClipboardChannel(),
+    DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe->GetClipboardChannel(),
                                                       registry, client_loop, gQemuLoop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
-            &avd_universe->getGuestStatus(), registry,
+            &avd_universe->GetGuestStatus(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, gQemuLoop.get(),
             avd_props.quit_after_boot_timeout_seconds);
-    DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe->getFingerprintSensor(),
+    DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe->GetFingerprintSensor(),
                                                           registry, client_loop, gQemuLoop.get());
-    DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe->getLocation(), registry, client_loop,
+    DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe->GetLocation(), registry, client_loop,
                                           gQemuLoop.get());
 
     auto multi_display_device =
             std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);
-    avd_universe->setActiveMultiDisplayDevice(multi_display_device);
+    avd_universe->SetActiveMultiDisplayDevice(multi_display_device);
     DEVS::multidisplay::MultiDisplayDevice::RegisterDevice(multi_display_device, registry,
                                                            client_loop, gQemuLoop.get());
 
     std::string emulatedCameraProp;
     DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
-                                 []() { return getGrallocImpl(); });
+                                 []() { return GetGrallocImpl(); });
 
     using namespace std::string_literals;
     if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
@@ -275,7 +275,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
 
     // Initialize the battery to a default state and register it.
-    DEVS::battery::RegisterBattery(&avd_universe->getBattery(), avd_props.hw_config.hw_battery,
+    DEVS::battery::RegisterBattery(&avd_universe->GetBattery(), avd_props.hw_config.hw_battery,
                                    gQemuLoop.get());
 
     gGlobalAvdUniverseInstance = avd_universe.release();

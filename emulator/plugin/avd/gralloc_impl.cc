@@ -28,44 +28,45 @@ using ::goldfish::devices::camera::IGrallocDetails;
 using ::goldfish::imaging::AndroidPixelFormat;
 using ::goldfish::imaging::ImageFormat;
 using ::goldfish::imaging::ImageRef;
-using ::goldfish::parsing::fromChars;
+using ::goldfish::parsing::FromChars;
 
 namespace {
 struct RutabagaImpl : public IGrallocDetails {
-    explicit RutabagaImpl(struct rutabaga* r) : mRutabaga(r) {}
+    explicit RutabagaImpl(struct rutabaga* r) : rutabaga(r) {}
 
-    ImageFormat getImageFormat(const AndroidPixelFormat apf) const override {
+    ImageFormat GetImageFormat(const AndroidPixelFormat apf) const override {
         switch (apf) {
-        case AndroidPixelFormat::RGBA_8888:
-            return ImageFormat::RGBA_8888;
+        case AndroidPixelFormat::kRgba8888:
+            return ImageFormat::kRgba8888;
 
-        case AndroidPixelFormat::YCBCR_420_888:
-            return ImageFormat::YUV420_NV12;
+        case AndroidPixelFormat::kYcbcr420888:
+            return ImageFormat::kYuV420NV12;
 
-        case AndroidPixelFormat::UNSPECIFIED:
+        case AndroidPixelFormat::kUnspecified:
             break;
         }
 
-        return ImageFormat::NONE;
+        return ImageFormat::kNone;
     }
 
-    int transfer(const std::string_view handleStr, const ImageRef& img) const override {
-        const std::optional<uint32_t> maybeResourceId = fromChars<uint32_t>(handleStr);
-        if (!maybeResourceId) {
+    int Transfer(const std::string_view handle_str, const ImageRef& img) const override {
+        const std::optional<uint32_t> maybe_resource_id = FromChars<uint32_t>(handle_str);
+        if (!maybe_resource_id) {
             return -1;
         }
 
-        const auto imgSize = img.getSize();
-        const auto imgData = img.getData();
-        return rutabagaImageTransfer(mRutabaga, maybeResourceId.value(), imgSize.width,
-                                     imgSize.height, getStride(img), imgData.first, imgData.second);
+        const auto img_size = img.GetSize();
+        const auto img_data = img.GetData();
+        return rutabagaImageTransfer(rutabaga, maybe_resource_id.value(), img_size.width,
+                                     img_size.height, GetStride(img), img_data.first,
+                                     img_data.second);
     }
 
-    struct rutabaga* mRutabaga;
+    struct rutabaga* rutabaga;
 };
 }  // namespace
 
-GrallocDetailsPtr getGrallocImpl() {
+GrallocDetailsPtr GetGrallocImpl() {
     struct rutabaga* r = rutabagaGetInstance();
     if (!r) {
         return nullptr;

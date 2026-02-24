@@ -22,60 +22,63 @@
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
 
-using namespace goldfish::display;
-using namespace goldfish::display::test;
+using goldfish::display::ImageRotation;
+using goldfish::display::PixelFormat;
+using goldfish::display::test::ActiveFakePixmanDisplay;
 
 class PixmanDisplayConcurrencyTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mLoop = ::goldfish::async::ThreadedEventLoop::Create(
+        loop_ = ::goldfish::async::ThreadedEventLoop::Create(
                 ::goldfish::async::LibuvEventLoop::Create());
     }
 
-    void TearDown() override { mLoop.reset(); }
+    void TearDown() override { loop_.reset(); }
 
-    std::unique_ptr<goldfish::async::EventLoop> mLoop;
+    std::unique_ptr<goldfish::async::EventLoop> loop_;
 };
 
 TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentGetPixelsDifferentScales) {
-    int width = 640;
-    int height = 480;
+    const int width = 640;
+    const int height = 480;
     // Use a high FPS to ensure constant updates
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), 0, 60, width, height);
-    display->start();
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), 0, 60, width, height);
+    display->Start();
 
     // Wait for at least one frame.
-    ASSERT_TRUE(display->waitForFramesWithTimeout(1, absl::Milliseconds(1000)));
+    ASSERT_TRUE(display->WaitForFramesWithTimeout(1, absl::Milliseconds(1000)));
 
-    const int kNumThreads = 8;
-    const int kNumIterations = 50;
+    const int k_num_threads = 8;
+    const int k_num_iterations = 50;
     std::vector<std::thread> threads;
-    std::atomic<int> successCount{0};
-    std::atomic<int> failureCount{0};
+    threads.reserve(k_num_threads);
+    std::atomic<int> success_count{0};
+    std::atomic<int> failure_count{0};
 
-    for (int i = 0; i < kNumThreads; ++i) {
-        threads.emplace_back([&display, i, &successCount, &failureCount]() {
+    for (int i = 0; i < k_num_threads; ++i) {
+        threads.emplace_back([&display, i, &success_count, &failure_count]() {
             // Each thread uses a different target size to force different scaling transforms
-            int targetWidth = 100 + i * 20;
-            int targetHeight = 100 + i * 20;
-            size_t c_pixels = targetWidth * targetHeight * 4;
+            const int target_width = 100 + (i * 20);
+            const int target_height = 100 + (i * 20);
+            const size_t c_pixels = static_cast<size_t>(target_width) * target_height * 4;
             std::vector<uint8_t> pixels(c_pixels);
 
-            for (int j = 0; j < kNumIterations; ++j) {
-                size_t currentCPixels = c_pixels;
-                auto result = display->GetPixels(PixelFormat::kRgba8888, targetWidth, targetHeight,
-                                                 ImageRotation::kRotation0, pixels.data(),
-                                                 &currentCPixels);
+            for (int j = 0; j < k_num_iterations; ++j) {
+                size_t current_c_pixels = c_pixels;
+                auto result = display->GetPixels(PixelFormat::kRgba8888, target_width,
+                                                 target_height, ImageRotation::kRotation0,
+                                                 pixels.data(), &current_c_pixels);
                 if (result.ok()) {
-                    successCount++;
+                    success_count++;
                     // Basic sanity check: make sure we got some data
-                    uint32_t* p = reinterpret_cast<uint32_t*>(pixels.data());
-                    if (p[0] == 0 && p[targetWidth * targetHeight - 1] == 0) {
+                    auto* p = reinterpret_cast<uint32_t*>(pixels.data());
+                    if (p[0] == 0 &&
+                        p[(static_cast<size_t>(target_width) * target_height) - 1] == 0) {
                         // This might happen if the generator produces black frames,
                         // but our generator produces Red, Green, Blue.
                     }
                 } else {
-                    failureCount++;
+                    failure_count++;
                 }
             }
         });
@@ -85,48 +88,49 @@ TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentGetPixelsDifferentScales
         t.join();
     }
 
-    display->stop();
+    display->Stop();
 
-    EXPECT_EQ(failureCount, 0);
-    EXPECT_EQ(successCount, kNumThreads * kNumIterations);
+    EXPECT_EQ(failure_count, 0);
+    EXPECT_EQ(success_count, k_num_threads * k_num_iterations);
 }
 
 TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentUpdateAndGetPixels) {
-    int width = 640;
-    int height = 480;
-    auto display = ActiveFakePixmanDisplay::createShared(mLoop.get(), 0, 100, width, height);
-    display->start();
+    const int width = 640;
+    const int height = 480;
+    auto display = ActiveFakePixmanDisplay::CreateShared(loop_.get(), 0, 100, width, height);
+    display->Start();
 
-    const int kNumGetPixelThreads = 4;
-    const int kNumResizeThreads = 2;
-    const int kNumIterations = 50;
+    const int k_num_get_pixel_threads = 4;
+    const int k_num_resize_threads = 2;
     std::vector<std::thread> threads;
+    threads.reserve(k_num_get_pixel_threads + k_num_resize_threads);
     std::atomic<bool> running{true};
 
     // Threads calling GetPixels
-    for (int i = 0; i < kNumGetPixelThreads; ++i) {
+    for (int i = 0; i < k_num_get_pixel_threads; ++i) {
         threads.emplace_back([&display, &running]() {
-            int targetWidth = 320;
-            int targetHeight = 240;
-            size_t c_pixels = targetWidth * targetHeight * 4;
+            const int target_width = 320;
+            const int target_height = 240;
+            const size_t c_pixels = static_cast<size_t>(target_width) * target_height * 4;
             std::vector<uint8_t> pixels(c_pixels);
 
             while (running) {
-                size_t currentCPixels = c_pixels;
-                display->GetPixels(PixelFormat::kRgba8888, targetWidth, targetHeight,
-                                   ImageRotation::kRotation0, pixels.data(), &currentCPixels);
+                size_t current_c_pixels = c_pixels;
+                (void)display->GetPixels(PixelFormat::kRgba8888, target_width, target_height,
+                                         ImageRotation::kRotation0, pixels.data(),
+                                         &current_c_pixels);
             }
         });
     }
 
     // Threads calling resize (which calls updateSourceImage)
-    for (int i = 0; i < kNumResizeThreads; ++i) {
-        threads.emplace_back([&display, &running, i]() {
-            int sizes[] = {320, 640, 800, 1024};
+    for (int i = 0; i < k_num_resize_threads; ++i) {
+        threads.emplace_back([&display, &running]() {
+            const int sizes[] = {320, 640, 800, 1024};
             int idx = 0;
             while (running) {
-                int s = sizes[idx % 4];
-                display->resize(s, s);
+                const int s = sizes[idx % 4];
+                display->Resize(s, s);
                 idx++;
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
@@ -140,5 +144,5 @@ TEST_F(PixmanDisplayConcurrencyTest, DISABLED_ConcurrentUpdateAndGetPixels) {
         t.join();
     }
 
-    display->stop();
+    display->Stop();
 }
