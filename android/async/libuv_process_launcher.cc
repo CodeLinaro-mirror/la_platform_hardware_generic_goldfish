@@ -55,7 +55,7 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         .stdio_count = 3,   .stdio = stdio,
     };
 
-    auto handle = std::make_unique<uv_process_t>();
+    auto handle = ProcessHandle(new uv_process_t{});
     handle->data = this;
     if (const int res = uv_spawn(uv_loop_, handle.get(), &options); res < 0) {
         return goldfish::async::UvErrToAbslStatus(res);

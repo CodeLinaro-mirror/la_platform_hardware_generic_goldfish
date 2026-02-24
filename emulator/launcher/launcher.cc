@@ -235,7 +235,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         LOG(INFO) << "Fishtank exited with status " << exit_status << ", signal " << term_signal;
         Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
         // TODO(whollins): Should we sigterm the emulator when the UI is closed?
-        CloseHandle(std::move(l.mFishtankProcess));
+        l.mFishtankProcess.reset();
     }
 
     void launch_fishtank() {
@@ -256,7 +256,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     static void netsimd_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
         LOG(INFO) << "Netsimd exited with status " << exit_status << ", signal " << term_signal;
         Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
-        CloseHandle(std::move(l.mNetsimdProcess));
+        l.mNetsimdProcess.reset();
     }
 
     void launch_netsimd(const WhenAllChardevEndpoints& chardevs) {
@@ -358,7 +358,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         LOG(INFO) << "emulator exited with status " << exit_status << ", signal " << term_signal;
         Launcher& l = static_cast<Launcher&>(GetLauncher(*req));
         l.mEmulatorExitStatus = exit_status;
-        CloseHandle(std::move(l.mEmulatorProcess));
+        l.mEmulatorProcess.reset();
 
         // Shutdown fishtank if it's running.
         if (auto* p = l.mFishtankProcess.get()) {
