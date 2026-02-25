@@ -276,6 +276,7 @@ msvc_dlls_needed = [
         name = "msvc_" + dll,
         srcs = "@toolchain_hub//cc/windows_clang:msvc_dlls_x64",
         subpath = dll,
+        target_compatible_with = ["@platforms//os:windows"],
     )
     for dll in msvc_dlls_needed
 ]
