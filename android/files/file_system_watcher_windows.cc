@@ -17,9 +17,12 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/log.h"
+#define WIN32_LEAN_AND_MEAN 1
+#include <windows.h>
 
-#include "aemu/base/synchronization/Event.h"
+#include "absl/log/log.h"
+#include "absl/synchronization/notification.h"
+
 #include "android/base/file/file.h"
 #include "android/base/file_system_watcher.h"
 #include "android/base/win32_unicode_string.h"
@@ -54,7 +57,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
         }
         std::thread watcher([this] { watchForChanges(); });
         mWatcherThread = std::move(watcher);
-        mStarted.wait();
+        started_.WaitForNotification();
         return mDirHandle != INVALID_HANDLE_VALUE;
     }
 
@@ -73,7 +76,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
                             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
-        mStarted.signal();
+        started_.Notify();
         if (mDirHandle == INVALID_HANDLE_VALUE) {
             return false;
         }
@@ -135,7 +138,7 @@ class ReadDirectoryChangesWin32 : public FileSystemWatcher {
     HANDLE mDirHandle;
     std::atomic_bool mRunning{false};
     std::thread mWatcherThread;
-    Event mStarted;
+    absl::Notification started_;
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(

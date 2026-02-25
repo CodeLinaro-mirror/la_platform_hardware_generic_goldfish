@@ -15,12 +15,11 @@
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
 
-#include "aemu/base/threads/Thread.h"
-
 #include "absl/log/log.h"
 
 #include <string>
 #include <string_view>
+#include <thread>
 
 #include <stddef.h>
 
@@ -48,13 +47,24 @@ namespace base {
 //
 // 4) Use view() to retrieve a view of the content.
 //
-class TestInputBufferSocketServerThread : public android::base::Thread {
+class TestInputBufferSocketServerThread {
 public:
     // Create new thread instance, try to bound to specific TCP |port|,
     // a value of 0 let the system choose a free IPv4 port, which can
     // later be retrieved with port().
     TestInputBufferSocketServerThread(int port = 0)
-        : Thread(), mSocket(android::base::socketTcp4LoopbackServer(port)) {}
+        : mSocket(android::base::socketTcp4LoopbackServer(port)) {}
+
+    void start() {
+        mThread = std::thread([this]() {
+            mResult = run();
+        });
+    }
+
+    intptr_t wait() {
+        mThread.join();
+        return mResult;
+    }
 
     // Returns true if port could be bound.
     bool valid() const { return mSocket.valid(); }
@@ -66,7 +76,7 @@ public:
     std::string_view view() const { return mString; }
 
     // Main function simply receives everything and stores it in a string.
-    virtual intptr_t main() override {
+    intptr_t run() {
         // Wait for a single connection.
         int fd = android::base::socketAcceptAny(mSocket.get());
         if (fd < 0) {
@@ -98,6 +108,8 @@ public:
 private:
     ScopedSocket mSocket;
     std::string mString;
+    std::thread mThread;
+    intptr_t mResult;
 };
 
 }  // namespace base

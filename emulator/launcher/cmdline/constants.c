@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARRAYLEN(x) (sizeof(x) / sizeof(x[0]))
+#include "goldfish/base/array_size.h"
 
 /* see http://en.wikipedia.org/wiki/List_of_device_bandwidths or a complete list */
 const AndroidNetworkSpeed android_network_speeds[] = {
@@ -26,7 +26,7 @@ const AndroidNetworkSpeed android_network_speeds[] = {
     ANDROID_NETWORK_LIST_MODES(DEFINE_NET_SPEED){"5g", "no limit", 0, 0},
     {"full", "no limit", 0, 0},
 };
-const size_t android_network_speeds_count = ARRAYLEN(android_network_speeds);
+const size_t android_network_speeds_count = ARRAY_SIZE(android_network_speeds);
 
 const char kAndroidNetworkDefaultSpeed[] = "full";
 
@@ -71,7 +71,7 @@ const AndroidNetworkLatency android_network_latencies[] = {
     ANDROID_NETWORK_LIST_MODES(DEFINE_NET_LATENCY){"5g", "no latency", 0, 0},
     {"none", "no latency", 0, 0},
 };
-const size_t android_network_latencies_count = ARRAYLEN(android_network_latencies);
+const size_t android_network_latencies_count = ARRAY_SIZE(android_network_latencies);
 
 const char kAndroidNetworkDefaultLatency[] = "none";
 

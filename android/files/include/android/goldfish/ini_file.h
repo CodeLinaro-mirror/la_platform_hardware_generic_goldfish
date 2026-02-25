@@ -23,8 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "aemu/base/Compiler.h"
-
 namespace android::goldfish {
 
 class IniFile {

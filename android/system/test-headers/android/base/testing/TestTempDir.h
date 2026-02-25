@@ -20,7 +20,6 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/Compiler.h"
 #include "android/base/file/file.h"
 
 #ifdef _WIN32
@@ -102,6 +101,11 @@ class TestTempDir {
         }
     }
 
+    TestTempDir(const TestTempDir&) = delete;
+    TestTempDir(TestTempDir&&) = delete;
+    TestTempDir& operator=(const TestTempDir&) = delete;
+    TestTempDir& operator=(TestTempDir&&) = delete;
+
     // Create the path of a directory entry under the temporary directory.
     fs::path makeSubPath(fs::path subpath) { return mPath / subpath.relative_path(); }
 
@@ -127,8 +131,6 @@ class TestTempDir {
     }
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(TestTempDir);
-
 #ifdef _WIN32
     fs::path getTempPath() {
         std::string result;

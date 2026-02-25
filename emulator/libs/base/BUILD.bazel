@@ -1,6 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "array_size",
+    hdrs = ["include/goldfish/base/array_size.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "base",
     hdrs = [
         "include/goldfish/base/intrusive_ptr.h",

@@ -21,16 +21,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "absl/memory/memory.h"
-
-#include "aemu/base/ArraySize.h"
 #include "android/base/testing/TestSystem.h"
 #include "android/base/testing/TestTempDir.h"
 
-namespace android {
-namespace base {
-
-using android::goldfish::IniFile;
+namespace android::goldfish {
 
 using std::endl;
 using std::numeric_limits;
@@ -44,7 +38,7 @@ namespace {
 class IniFileTest : public ::testing::Test {
   public:
     void SetUp() override {
-        mTempDir = absl::make_unique<TestTempDir>("inifiletest");
+        mTempDir = absl::make_unique<android::base::TestTempDir>("inifiletest");
         mIniFilePath = mTempDir->makeSubPath("test.ini").c_str();
         mIni = absl::make_unique<IniFile>(mIniFilePath);
     }
@@ -101,7 +95,7 @@ class IniFileTest : public ::testing::Test {
         }
     }
 
-    unique_ptr<TestTempDir> mTempDir;
+    unique_ptr<android::base::TestTempDir> mTempDir;
     fs::path mIniFilePath;
     unique_ptr<IniFile> mIni;
 };
@@ -240,14 +234,14 @@ TEST_F(IniFileTest, MakeValidValue) {
 }
 
 TEST_F(IniFileTest, environmentSubstitution) {
-    TestSystem ts("/");
+    android::base::TestSystem ts("/");
     ts.EnvSet("Hello", "World!");
     ts.EnvSet("Hallo", "Wereld!");
     ts.EnvSet("Gutentag", "Welt!");
     std::string UNKNOWN = "X_UNKNOWN_X";
 
-    EXPECT_EQ("", System::Get()->EnvGet(UNKNOWN));
-    EXPECT_EQ("World!", System::Get()->EnvGet("Hello"));
+    EXPECT_EQ("", android::base::System::Get()->EnvGet(UNKNOWN));
+    EXPECT_EQ("World!", android::base::System::Get()->EnvGet("Hello"));
 
     static const vector<string> fileData = {"TEST = %%TEST%%",
                                             string("FOO = %").append(UNKNOWN).append("%")};
@@ -268,14 +262,14 @@ TEST_F(IniFileTest, environmentSubstitution) {
     EXPECT_EQ("", mIni->GetString(NON, "%INVA%%LID_ENV_NAME%"));
 
     // Check that we can substitute all the environment variables.
-    for (const auto& env : System::Get()->EnvGetAll()) {
+    for (const auto& env : android::base::System::Get()->EnvGetAll()) {
         string name = env.substr(0, env.find_first_of('='));
 
         // Empty environment names??!
         if (name.empty()) continue;
 
         string escaped = string("%").append(name).append("%");
-        string value = System::Get()->EnvGet(name);
+        string value = android::base::System::Get()->EnvGet(name);
         EXPECT_EQ(value, mIni->GetString(NON, escaped));
 
         escaped = string("%%HELLO%% %").append(name).append("%");
@@ -288,14 +282,14 @@ TEST_F(IniFileTest, environmentSubstitution) {
     }
 
     // It should work with numbers too..
-    System::Get()->EnvSet(UNKNOWN, "15.5");
+    android::base::System::Get()->EnvSet(UNKNOWN, "15.5");
     EXPECT_EQ(15.5, mIni->GetDouble("FOO", -1.2));
-    System::Get()->EnvSet(UNKNOWN, "");
+    android::base::System::Get()->EnvSet(UNKNOWN, "");
 
-    System::Get()->EnvSet(UNKNOWN, "42");
+    android::base::System::Get()->EnvSet(UNKNOWN, "42");
     EXPECT_EQ(42, mIni->GetInt("FOO", 0));
 
-    System::Get()->EnvSet(UNKNOWN, "true");
+    android::base::System::Get()->EnvSet(UNKNOWN, "true");
     EXPECT_EQ(true, mIni->GetBool("FOO", false));
 }
 
@@ -558,9 +552,8 @@ key3=false
     EXPECT_EQ(1011, ini.GetInt64("key2", 1));
     EXPECT_FALSE(ini.GetBool("key3", true));
 
-    IniFile ini2(data, stringLiteralLength(data));
+    IniFile ini2(data, sizeof(data)-1);
     ASSERT_EQ(3, ini2.Size());
 }
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::goldfish

@@ -35,8 +35,7 @@ TEST(AdbHostServer, notify) {
     // Send a message to the server thread.
     EXPECT_TRUE(AdbHostServer::notify(emulatorPort, clientPort));
 
-    intptr_t buffer_size = 0;
-    EXPECT_TRUE(serverThread.wait(&buffer_size));
+    intptr_t buffer_size = serverThread.wait();
 
     // Verify message content.
     constexpr std::string_view kExpected = "0012host:emulator:7648";

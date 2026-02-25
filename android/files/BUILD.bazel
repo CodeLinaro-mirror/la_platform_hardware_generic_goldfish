@@ -15,6 +15,7 @@ cc_library(
     deps = [
         "//android/process",
         "//android/system",
+        "@abseil-cpp//absl/synchronization",
     ] + select({
         "@platforms//os:windows": ["//android/system:win32_utils"],
         "//conditions:default": [],
@@ -33,7 +34,6 @@ cc_test(
         "//android/system:test-headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/random",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -57,7 +57,6 @@ cc_test(
         "//android/system:googletest_main",
         "//android/system:test-headers",
         "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base",
     ],
 )
 

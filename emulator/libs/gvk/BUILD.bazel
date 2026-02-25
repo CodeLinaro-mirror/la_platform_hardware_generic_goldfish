@@ -32,10 +32,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/base:array_size",
         "//emulator/libs/debug",
         "//emulator/libs/os",
         "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base-headers",
         "@vulkan-headers//:vulkan_headers",
     ],
     alwayslink = True,

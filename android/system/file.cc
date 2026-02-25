@@ -30,6 +30,7 @@
 #include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"
+
 // NOLINTBEGIN
 namespace android::base::file {
 

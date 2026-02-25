@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -29,7 +30,6 @@
 #include "absl/time/time.h"
 
 #include "android/base/file/file.h"
-#include "android/base/system.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/base/testing/test_event.h"
@@ -390,7 +390,7 @@ TEST_F(JwkTokenAuthTest, deleted_jwks_is_rejected) {
     // the emulator activated a new keyset.
     auto json = readFile(discover_file);
     for (int i = 0; json != "" && i < 10; i++) {
-        base::System::Get()->SleepMs(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         json = readFile(discover_file);
     }
 

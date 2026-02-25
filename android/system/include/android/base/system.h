@@ -26,9 +26,7 @@
 #include <string_view>
 #include <vector>
 
-#include "aemu/base/Compiler.h"
 #include "aemu/base/CpuTime.h"
-#include "aemu/base/EnumFlags.h"
 #include "aemu/base/system/Memory.h"
 #include "android/base/storage_capacity.h"
 
@@ -93,7 +91,6 @@ class System {
         WallDuration wall_clock_ms;
     };
 
-  public:
     // Call this function to get the instance
     static System* Get();
 
@@ -102,6 +99,11 @@ class System {
 
     // Default destructor is empty but virtual.
     virtual ~System() = default;
+
+    System(const System&) = delete;
+    System(System&&) = delete;
+    System operator=(const System&) = delete;
+    System operator=(System&&) = delete;
 
     // Return the current OS type
     virtual OsType GetOsType() const = 0;
@@ -208,15 +210,6 @@ class System {
     // Returns the OS-specific high resolution timestamp.
     virtual WallDuration GetHighResTimeUs() const = 0;
 
-    // Sleep for |n| milliseconds
-    virtual void SleepMs(unsigned n) const = 0;
-
-    // Sleep for |n| microseconds
-    virtual void SleepUs(unsigned n) const = 0;
-
-    // Sleep to the specified WallDuration from getHighResTimeUs().
-    virtual void SleepToUs(WallDuration abs_time_us) const = 0;
-
     // Setup system specific handlers. For example on msvc you might
     // want to redirect parameter validation.
     virtual void ConfigureHost() const = 0;
@@ -252,9 +245,6 @@ class System {
     static std::vector<fs::path> ScanDirInternal(fs::path dir_path);
 
     static bool ReadSomeBytes(fs::path path, char* array, int pos, int size);
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(System);
 };
 
 }  // namespace base

@@ -20,7 +20,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 
-#include "aemu/base/threads/Thread.h"
 #include "android/base/system.h"
 #include "android/system/test-headers/android/base/testing/TestTempDir.h"
 
@@ -208,20 +207,6 @@ class TestSystem : public System {
         if (enable) {
             mUnixTimeLastQueried = hostSystem()->GetHighResTimeUs();
         }
-    }
-
-    void SleepMs(unsigned n) const override {
-        // Don't sleep in tests, use the static functions from Thread class
-        // if you need a delay (you don't!).
-        Thread::yield();  // Add a small delay to mimic the intended behavior.
-    }
-
-    void SleepUs(unsigned n) const override { SleepMs(n / 1000); }
-
-    void SleepToUs(WallDuration absTime) const override {
-        // Don't sleep in tests, use the static functions from Thread class
-        // if you need a delay (you don't!).
-        Thread::yield();  // Add a small delay to mimic the intended behavior.
     }
 
     void ConfigureHost() const override {}

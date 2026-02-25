@@ -12,8 +12,8 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/ArraySize.h"
 #include "android/utils/misc.h"
+#include "goldfish/base/array_size.h"
 #include "host-common/constants.h"
 
 const AndroidOptions* android_cmdLineOptions = NULL;

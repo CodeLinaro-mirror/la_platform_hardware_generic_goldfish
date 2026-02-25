@@ -24,8 +24,8 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 
-#include "aemu/base/StringFormat.h"
 #include "android/process/process.h"
 #include "aemu/base/sockets/ScopedSocket.h"
 #include "aemu/base/sockets/SocketUtils.h"
@@ -47,7 +47,7 @@ namespace goldfish {
 
 namespace fs = std::filesystem;
 using android::base::Process;
-static const char* location_format = "pid_%d.ini";
+constexpr const char* location_format = "pid_%d.ini";
 
 static bool canConnectToPort(int64_t port) {
     if (port == 0) {
@@ -227,7 +227,7 @@ void EmulatorAdvertisement::remove() const {
 
 fs::path EmulatorAdvertisement::location() const {
     auto pid = Process::Me()->pid();
-    std::string pidfile = android::base::StringFormat(location_format, pid);
+    std::string pidfile = absl::StrFormat(location_format, pid);
     return mSharedDirectory / pidfile;
 }
 

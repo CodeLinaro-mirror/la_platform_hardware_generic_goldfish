@@ -19,7 +19,6 @@
 #include <mutex>
 #include <vector>
 
-#include "aemu/base/EventNotificationSupport.h"  // for EventNotifi...
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/physics/physics.h"
 #include "goldfish/sensors/foldable.h"
@@ -28,9 +27,6 @@ namespace goldfish::sensors {
 
 class FoldableModel {
   public:
-    class PostureListener : public ::android::base::EventNotificationSupport<FoldablePostures> {
-        friend class FoldableModel;
-    };
     explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
     // called by physical model to set hinge angle.
@@ -58,14 +54,11 @@ class FoldableModel {
 
     static bool GetFoldedArea(int* x, int* y, int* w, int* h);
 
-    PostureListener* GetPostureListener() { return &posture_listener_; }
-
   private:
     void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
 
     FoldableState state_;
     std::vector<AnglesToPosture> angles_to_postures_;
-    PostureListener posture_listener_;
 };
 
 }  // namespace goldfish::sensors

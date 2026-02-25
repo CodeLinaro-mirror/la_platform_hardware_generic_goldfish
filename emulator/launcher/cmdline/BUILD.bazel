@@ -27,6 +27,8 @@ cc_library(
         "//android/logging:absl_c_bridge",
         "//android/system",
         "//emulator/launcher:config_dirs",
+        "//emulator/libs/base:array_size",
+        "@aemu//host-common:aemu-host-common-headers",
     ],
 )
 

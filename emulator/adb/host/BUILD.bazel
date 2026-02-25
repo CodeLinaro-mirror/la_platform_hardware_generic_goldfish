@@ -27,6 +27,5 @@ cc_test(
         ":host",
         "//android/system:googletest_main",
         "//android/system:test-headers",
-        "@aemu//base:aemu-base",
     ],
 )

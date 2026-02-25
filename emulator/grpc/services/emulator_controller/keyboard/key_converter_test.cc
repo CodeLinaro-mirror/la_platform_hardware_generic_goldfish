@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include "aemu/base/ArraySize.h"
 #include "android/emulation/control/keyboard/key_conversion.h"
 #include "emulator/grpc/services/emulator_controller/keyboard/dom_key.h"
 

@@ -17,7 +17,6 @@
 #include <memory>
 #include <string>
 
-#include "aemu/base/StringFormat.h"
 #include "aemu/base/files/ScopedRegKey.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
@@ -25,7 +24,6 @@
 namespace android {
 
 using base::ScopedRegKey;
-using base::StringAppendFormat;
 using base::Win32UnicodeString;
 using base::Win32Utils;
 

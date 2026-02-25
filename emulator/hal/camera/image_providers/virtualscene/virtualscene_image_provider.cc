@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#include "emulator/hal/camera/image_providers/virtualscene/VirtualsceneImageProvider.h"
+
 #define FAILURE_DEBUG_PREFIX "VirtualsceneImageProvider"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -22,8 +24,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/ArraySize.h"
-#include "emulator/hal/camera/image_providers/virtualscene/VirtualsceneImageProvider.h"
+#include "goldfish/base/array_size.h"
 #include "goldfish/debug.h"
 #include "goldfish/gvk/device_dispatch.h"
 #include "goldfish/gvk/goldfish/gvk/util/staging_buffers.h"

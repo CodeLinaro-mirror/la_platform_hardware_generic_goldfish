@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
@@ -57,7 +58,7 @@ static std::string readResponse(int fd, int bytesToRead) {
         auto ret = android::base::socketRecv(fd, (void*)&buffer[bytesRead], bytesToRead);
 
         if (ret == EAGAIN || ret == EWOULDBLOCK) {
-            System::Get()->SleepMs(500);
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             continue;
         }
 

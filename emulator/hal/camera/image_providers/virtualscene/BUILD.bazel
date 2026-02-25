@@ -7,18 +7,14 @@ cc_library(
         "virtualscene.cc",
         "virtualscene_image_provider.cc",
     ],
-    hdrs = [
-        "include/goldfish/camera_image_providers/virtualscene/virtualscene.h",
-    ],
-    includes = [
-        "include",
-    ],
+    hdrs = ["include/goldfish/camera_image_providers/virtualscene/virtualscene.h"],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/hal/camera:image_provider_api",
+        "//emulator/libs/base:array_size",
         "//emulator/libs/gvk",
         "@abseil-cpp//absl/log",
-        "@aemu//base:aemu-base-headers",
         "@gfxstream//third_party/glm",
         "@libyuv",
         "@tinyobjloader",
@@ -32,12 +28,7 @@ cc_test(
         "virtualscene_data.cc",
         "virtualscene_image_provider_test.cc",
     ],
-    data = [
-        "@goldfish_prebuilts_common//virtualscene/Toren1BD",
-    ],
-    includes = [
-        ".",
-    ],
+    data = ["@goldfish_prebuilts_common//virtualscene/Toren1BD"],
     visibility = ["//visibility:public"],
     deps = [
         ":virtualscene",

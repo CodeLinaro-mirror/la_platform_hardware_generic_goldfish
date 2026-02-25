@@ -77,10 +77,6 @@ bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
     return goldfish::sensors::FoldableModel::GetFoldedArea(x, y, w, h);
 }
 
-android::base::EventNotificationSupport<FoldablePostures>* PhysicalModel::GetPostureListener() {
-    return foldable_model_.GetPostureListener();
-}
-
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : foldable_model_(hw) {}
 
 SensorData PhysicalModel::GetSensorData(const AndroidSensor sensor_id) const {

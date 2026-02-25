@@ -22,7 +22,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/ArraySize.h"
+#include "goldfish/base/array_size.h"
 #include "goldfish/debug.h"
 #include "goldfish/gvk/util/build_device_queue_create_info.h"
 #include "goldfish/gvk/util/init_pfn.h"

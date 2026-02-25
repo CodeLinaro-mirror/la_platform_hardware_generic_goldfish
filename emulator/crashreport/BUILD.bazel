@@ -27,6 +27,7 @@ cc_library(
         "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base",
     ],
 )
 
@@ -50,9 +51,7 @@ cc_library(
     name = "crash_uploader",
     srcs = ["crash_uploader.cc"],
     hdrs = ["include/android/crashreport/crash_uploader.h"],
-    #defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
-    #local_defines = ["AEMU_CRASH_EXPORTS"],
     local_defines = CRASHURL_DEFINES,
     visibility = ["//emulator/crashreport:__subpackages__"],
     deps = [

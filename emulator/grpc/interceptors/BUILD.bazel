@@ -20,7 +20,6 @@ cc_library(
         "//android/async:async_api",
         "//android/process",
         "//android/system:clock",
-        "@aemu//base:aemu-base",
         "@grpc//:grpc++",
     ],
 )

@@ -23,8 +23,8 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/synchronization/notification.h"
 
-#include "aemu/base/synchronization/Event.h"
 #include "android/base/file/file.h"
 #include "android/base/file_system_watcher.h"
 
@@ -59,7 +59,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         }
         std::thread watcher([this] { WatchForChanges(); });
         watcher_thread_ = std::move(watcher);
-        started_.wait();
+        started_.WaitForNotification();
         return notify_fd_ != 0 && pipe_[0] != -1;
     }
 
@@ -87,14 +87,14 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         notify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
         if (notify_fd_ < 1) {
             notify_fd_ = 0;
-            started_.signal();
+            started_.Notify();
             return false;
         }
 
         int p[2];
         if (pipe(p) != 0 || (fcntl(p[0], F_SETFL, O_NONBLOCK) < 0)) {
             PLOG(ERROR) << "Unable to open pipe.";
-            started_.signal();
+            started_.Notify();
             return false;
         };
         pipe_[0] = p[0];
@@ -112,11 +112,11 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         if (fd == -1) {
             close(notify_fd_);
             notify_fd_ = 0;
-            started_.signal();
+            started_.Notify();
             return false;
         }
 
-        started_.signal();
+        started_.Notify();
         while (running_) {
             uint8_t buffer[kEventBuffer];
 
@@ -164,7 +164,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
     Path path_;
     std::atomic_bool running_{false};
     std::thread watcher_thread_;
-    Event started_;
+    absl::Notification started_;
     int notify_fd_{0};
     std::atomic_int pipe_[2] = {-1, -1};
 };

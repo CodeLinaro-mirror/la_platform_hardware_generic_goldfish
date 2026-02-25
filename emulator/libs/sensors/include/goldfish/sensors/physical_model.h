@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <mutex>
 
-#include "aemu/base/EventNotificationSupport.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/eventing/event_sources.h"
 #include "goldfish/physics/ambient_environment.h"
@@ -187,8 +186,6 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * @return true if area was retrieved successfully
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
-
-    android::base::EventNotificationSupport<FoldablePostures>* GetPostureListener();
 
   private:
     static size_t GetSensorValueSize(AndroidSensor);

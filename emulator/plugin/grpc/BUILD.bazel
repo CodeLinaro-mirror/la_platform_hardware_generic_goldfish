@@ -7,7 +7,7 @@ cc_library(
     deps = [
         "//android/files:ini_file",
         "//android/sockets",
-        "@aemu//base:aemu-base",
+        "@abseil-cpp//absl/strings",
     ],
 )
 

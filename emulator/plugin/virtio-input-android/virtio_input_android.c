@@ -14,7 +14,7 @@
 
 #include "goldfish/input/virtio_input_android.h"
 
-#include "emulator/plugin/virtio-input-android/virtio_input_android_internal.h"
+#include "virtio_input_android_internal.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -33,6 +33,7 @@
 // clang-format on
 
 #include "android/base/logging/abseil_log_bridge.h"
+#include "goldfish/base/array_size.h"
 
 #define DEBUG 0
 #if DEBUG

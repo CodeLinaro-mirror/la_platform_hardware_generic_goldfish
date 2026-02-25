@@ -22,8 +22,8 @@
 
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/notification.h"
 
-#include "aemu/base/synchronization/Event.h"
 #include "android/base/file/file.h"
 #include "android/base/file_system_watcher.h"
 
@@ -158,7 +158,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         }
         std::thread watcher([this] { WatchForChanges(); });
         watcher_thread_ = std::move(watcher);
-        started_.wait();
+        started_.WaitForNotification();
         return cf_run_loop_ != nullptr;
     }
 
@@ -168,7 +168,6 @@ class FileSystemWatcherFS : public FileSystemWatcher {
             if (cf_run_loop_) {
                 CFRunLoopStop(cf_run_loop_);
             }
-            started_.signal();
             watcher_thread_.join();
         }
     }
@@ -219,7 +218,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
                                             kFSEventStreamCreateFlagNoDefer);  // Get them ASAP
 
         if (!stream) {
-            started_.signal();
+            started_.Notify();
             return false;
         }
 
@@ -231,7 +230,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         CFRunLoopSourceContext source_ctx = {
             0, this, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, [](void* info) {
                 auto* self = static_cast<FileSystemWatcherFS*>(info);
-                self->started_.signal();
+                self->started_.Notify();
             }};
         auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
         if (source) {
@@ -243,7 +242,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
             LOG(WARNING) << "Failed to create CFRunLoop source, proceeding without it, you might "
                             "have missed some file events in: "
                          << path_;
-            started_.signal();
+            started_.Notify();
         }
 
         FSEventStreamScheduleWithRunLoop(stream, cf_run_loop_, kCFRunLoopDefaultMode);
@@ -261,7 +260,7 @@ class FileSystemWatcherFS : public FileSystemWatcher {
     Path path_;
     std::atomic_bool running_{false};
     std::thread watcher_thread_;
-    Event started_;
+    absl::Notification started_;
     CFRunLoopRef cf_run_loop_;
 };
 
