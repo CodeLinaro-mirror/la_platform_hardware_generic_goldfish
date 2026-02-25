@@ -67,7 +67,7 @@ struct Ticket {
 
     Ticket& operator=(Ticket&& rhs) {
         if (this != &rhs) {
-            Swap(*this, rhs);
+            swap(*this, rhs);
         }
         return *this;
     }
@@ -75,7 +75,7 @@ struct Ticket {
     bool IsSubscribed() const { return topic_.use_count() > 0; }
     void Unsubscribe();
 
-    static void Swap(Ticket& lhs, Ticket& rhs) {
+    friend void swap(Ticket& lhs, Ticket& rhs) {  // NOLINT(readability-identifier-naming)
         using std::swap;
         swap(lhs.topic_, rhs.topic_);
         swap(lhs.value_, rhs.value_);
