@@ -41,6 +41,15 @@ def _breakpad_symbols_impl(ctx):
     Returns:
         A `DefaultInfo` provider containing the generated symbol files.
     """
+    is_windows = ctx.target_platform_has_constraint(ctx.attr._target_windows[platform_common.ConstraintValueInfo])
+
+    # Windows symbol extraction (PE/PDB) requires the Microsoft DIA (Debug Interface Access) SDK,
+    # which is a COM-based API only available on Windows. We disable symbol extraction
+    # when targeting Windows if we are not running on a Windows execution environment
+    # (detected by the absence of the .exe extension on the dump_syms tool).
+    if is_windows and not ctx.executable._dump_syms.path.endswith(".exe"):
+        return DefaultInfo(files = depset())
+
     split_symbol_lookup = {}
     for binary in ctx.attr.binaries:
         if DebugSymbolsSetInfo in binary:
@@ -125,6 +134,7 @@ def _breakpad_symbols_impl(ctx):
 # Define the rule
 breakpad_symbols = rule(
     implementation = _breakpad_symbols_impl,
+    fragments = ["platform"],
     attrs = {
         "binaries": attr.label_list(
             allow_files = True,
