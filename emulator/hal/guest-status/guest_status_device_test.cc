@@ -22,6 +22,7 @@
 #include "android/base/testing/TestSystem.h"
 #include "goldfish/devices/test_connector_registry.h"
 #include "goldfish/async/testing/test_event_loop.h"
+#include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 
 namespace goldfish::devices::guest_status {
 
@@ -45,6 +46,11 @@ void qemu_register_reset(QEMUResetHandler* func, void* opaque) {
 }
 
 void qemu_unregister_reset(QEMUResetHandler* func, void* opaque) {}
+
+struct MockNotificationSource : public avd_universe::grpc::GrpcNotificationEventSource {
+    MOCK_METHOD(void, FireEvent, (const avd_universe::grpc::GrpcNotification& event), ());
+};
+
 }  // namespace
 
 class GuestStatusDeviceTest : public ::testing::Test {
@@ -52,7 +58,7 @@ class GuestStatusDeviceTest : public ::testing::Test {
         mClientLoop = TestEventLoop::create();
         mQemuLoop = TestEventLoop::create();
 
-        IGuestStatusDevice::RegisterDevice(&mGuestStatus, &registry,
+        IGuestStatusDevice::RegisterDevice(&mGuestStatus, &mNotificationSource, &registry,
                                            {qemu_register_reset, qemu_unregister_reset},
                                            mClientLoop.get(), mQemuLoop.get(), 0);
         device = registry.constructHalDevice<IGuestStatusDevice>();
@@ -71,6 +77,7 @@ class GuestStatusDeviceTest : public ::testing::Test {
 
   protected:
     GuestStatus mGuestStatus;
+    MockNotificationSource mNotificationSource;
     std::unique_ptr<TestEventLoop> mClientLoop;
     std::unique_ptr<TestEventLoop> mQemuLoop;
     TestConnectorRegistry registry;
@@ -134,6 +141,32 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
     EXPECT_THAT(mGuestStatus.bootcomplete.GetValue(), Eq(absl::UnixEpoch()));
 
     EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.reset.GetValue() - absl::UnixEpoch()), Eq(200));
+}
+
+TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {
+    TestSystem test("/");
+
+    test.setProcessTimes({
+        .user_ms = 1,
+        .system_ms = 10,
+        .wall_clock_ms = 1000,
+    });
+
+    // Reset marks the start of boot
+    sResetHandler(sOpaque);
+
+    test.setProcessTimes({
+        .user_ms = 2,
+        .system_ms = 20,
+        .wall_clock_ms = 5000,
+    });
+
+    EXPECT_CALL(mNotificationSource, FireEvent(::testing::Property(
+                                             &avd_universe::grpc::GrpcNotification::booted,
+                                             ::testing::Property(&android::emulation::control::BootCompletedNotification::time, Eq(4000)))))
+            .Times(1);
+
+    receive("bootcomplete\0"sv);
 }
 
 }  // namespace goldfish::devices::guest_status

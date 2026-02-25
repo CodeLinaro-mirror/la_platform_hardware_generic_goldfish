@@ -14,8 +14,10 @@
 
 #pragma once
 
+#include "absl/log/log.h"
 #include "android/emulation/control/grpc_event_stream_support.h"
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
+#include "notification_store.h"
 
 namespace android {
 namespace emulation {
@@ -26,11 +28,19 @@ using ::goldfish::avd_universe::grpc::GrpcNotificationEventSource;
 
 class NotificationStreamWriter : public UniqueEventStreamWriter<GrpcNotification> {
   public:
-    NotificationStreamWriter(GrpcNotificationEventSource* topic)
-            : UniqueEventStreamWriter<GrpcNotification>(topic) {}
+    NotificationStreamWriter(GrpcNotificationEventSource* topic, NotificationStore* store)
+            : UniqueEventStreamWriter<GrpcNotification>(topic) {
+        VLOG(1) << "notification stream created";
+        if (store) {
+            for (const auto& notification : store->GetLatest()) {
+                Write(notification);
+            }
+        }
+    }
 
     // Dispatch an event if it is actually there.
-    void EventArrived(GrpcNotification event) {
+    void EventArrived(const GrpcNotification &event) override {
+        VLOG(2) << "EVENT BEING SENT: " << event.ShortDebugString();
         UniqueEventStreamWriter<GrpcNotification>::EventArrived(std::move(event));
     }
 };

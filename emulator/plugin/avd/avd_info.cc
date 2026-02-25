@@ -238,7 +238,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe->GetClipboardChannel(),
                                                       registry, client_loop, gQemuLoop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
-            &avd_universe->GetGuestStatus(), registry,
+            &avd_universe->GetGuestStatus(), &avd_universe->GetGrpcNotificationChannel(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, gQemuLoop.get(),
             avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe->GetFingerprintSensor(),

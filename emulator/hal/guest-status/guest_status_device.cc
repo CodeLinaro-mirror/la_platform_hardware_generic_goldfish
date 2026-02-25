@@ -44,9 +44,11 @@ void emptyUnregisterEmulatorReset(EmulatorResetCallbacks::QEMUResetHandler*, voi
 class GuestStatusDevice : public IGuestStatusDevice,
                           public std::enable_shared_from_this<GuestStatusDevice> {
   public:
-    GuestStatusDevice(GuestStatus& guestStatus, const EmulatorResetCallbacks resetCallbacks,
-                      async::EventLoop* qemu_loop, const int quitAfterBootTimeoutSeconds)
+    GuestStatusDevice(GuestStatus& guestStatus, GrpcNotificationEventSource* notificationSource,
+                      const EmulatorResetCallbacks resetCallbacks, async::EventLoop* qemu_loop,
+                      const int quitAfterBootTimeoutSeconds)
             : mGuestStatus(guestStatus)
+            , mNotificationSource(notificationSource)
             , mQemuLoop(qemu_loop)
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds) {
         VLOG(1) << "GuestStatus device has been created";
@@ -135,8 +137,14 @@ class GuestStatusDevice : public IGuestStatusDevice,
     void onReceiveBootcomplete() {
         absl::Time now = wallClock();
         mGuestStatus.bootcomplete.SetValue(now);
-        notifyToolsBootcomplete(
-                size_t(absl::ToInt64Milliseconds(now - mGuestStatus.reset.GetValue())));
+        auto durationMs = size_t(absl::ToInt64Milliseconds(now - mGuestStatus.reset.GetValue()));
+        notifyToolsBootcomplete(durationMs);
+
+        if (mNotificationSource) {
+            goldfish::avd_universe::grpc::GrpcNotification notification;
+            notification.mutable_booted()->set_time(static_cast<int32_t>(durationMs));
+            mNotificationSource->FireEvent(notification);
+        }
 
         if (mQuitAfterBootTimeoutSeconds > 0) {
             LOG(WARNING) << "Shutting down guest due to boot complete";
@@ -163,6 +171,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
     }
 
     GuestStatus& mGuestStatus;
+    GrpcNotificationEventSource* const mNotificationSource;
     async::EventLoop* const mQemuLoop;
     EmulatorResetCallbacks::UnregisterEmulatorReset mUnregisterEmulatorReset;
     std::vector<char> mReceiveData;
@@ -170,15 +179,17 @@ class GuestStatusDevice : public IGuestStatusDevice,
     const int mQuitAfterBootTimeoutSeconds;
 };
 
-void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
+void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, GrpcNotificationEventSource* notificationSource,
+                                        IConnectorRegistry* registry,
                                         EmulatorResetCallbacks resetCallbacks,
                                         EventLoop* client_loop, EventLoop* qemu_loop,
                                         int quitAfterBootTimeoutSeconds) {
     registry->RegisterHalDevice(
             std::string(IGuestStatusDevice::serviceName), client_loop, qemu_loop,
-            [guestStatus, resetCallbacks, qemu_loop,
+            [guestStatus, notificationSource, resetCallbacks, qemu_loop,
              quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
-                return std::make_shared<GuestStatusDevice>(*guestStatus, resetCallbacks, qemu_loop,
+                return std::make_shared<GuestStatusDevice>(*guestStatus, notificationSource,
+                                                           resetCallbacks, qemu_loop,
                                                            quitAfterBootTimeoutSeconds);
             });
 }

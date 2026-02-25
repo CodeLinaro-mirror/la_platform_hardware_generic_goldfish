@@ -30,6 +30,7 @@
 #include "emulator/grpc/services/emulator_controller/server/display_service.h"
 #include "emulator/grpc/services/emulator_controller/server/gps_service.h"
 #include "emulator/grpc/services/emulator_controller/server/notification_stream_writer.h"
+#include "emulator/grpc/services/emulator_controller/server/notification_store.h"
 #include "emulator/grpc/services/emulator_controller/server/sensor_service.h"
 #include "emulator/grpc/services/emulator_controller/server/status_service.h"
 #include "emulator/grpc/services/emulator_controller/server/vm_service.h"
@@ -60,6 +61,7 @@ class EmulatorControllerImpl final
                            IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemu_loop)
             : mVmService(vm)
             , mGrpcNotificationChannel(avdUniverse->GetGrpcNotificationChannel())
+            , mNotificationStore(&mGrpcNotificationChannel)
             , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemu_loop))
             , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props().avd_api,
                              avdUniverse->Props().hw_config)
@@ -212,12 +214,13 @@ class EmulatorControllerImpl final
 
     ::grpc::ServerWriteReactor<Notification>* streamNotification(
             ::grpc::CallbackServerContext* /*context*/, const Empty* /*request*/) override {
-        return new NotificationStreamWriter(&mGrpcNotificationChannel);
+        return new NotificationStreamWriter(&mGrpcNotificationChannel, &mNotificationStore);
     }
 
   private:
     VmServiceImpl mVmService;
     GrpcNotificationEventSource& mGrpcNotificationChannel;
+    NotificationStore mNotificationStore;
     const std::unique_ptr<keyboard::IKeyEventSender> mKeyEventSender;
     StatusServiceImpl mStatusService;
     BatteryServiceImpl mBatteryService;

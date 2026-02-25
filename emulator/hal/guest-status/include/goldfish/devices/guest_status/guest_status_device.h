@@ -14,6 +14,7 @@
 #pragma once
 #include <string_view>
 
+#include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 #include "goldfish/devices/connector_registry.h"
 #include "goldfish/devices/emulator_reset.h"
@@ -21,6 +22,7 @@
 namespace goldfish::devices::guest_status {
 
 using goldfish::async::EventLoop;
+using goldfish::avd_universe::grpc::GrpcNotificationEventSource;
 using goldfish::avd_universe::guest_status::GuestStatus;
 using namespace std::string_view_literals;
 
@@ -31,8 +33,9 @@ class IGuestStatusDevice : public HalPlug {
   public:
     static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
 
-    static void RegisterDevice(GuestStatus* guestStatus, IConnectorRegistry* registry,
-                               EmulatorResetCallbacks resetCallbacks, EventLoop* client_loop,
-                               EventLoop* qemu_loop, int quitAfterBootTimeoutSeconds);
+    static void RegisterDevice(GuestStatus* guestStatus, GrpcNotificationEventSource* notificationSource,
+                               IConnectorRegistry* registry, EmulatorResetCallbacks resetCallbacks,
+                               EventLoop* client_loop, EventLoop* qemu_loop,
+                               int quitAfterBootTimeoutSeconds);
 };
 }  // namespace goldfish::devices::guest_status

@@ -12,6 +12,7 @@ cc_library(
         "//emulator/hal/common:emulator_reset",
         "//emulator/hal/connector:connector_registry",
         "//emulator/hal/connector:qemud",
+        "//emulator/libs/avd_universe:grpc_notification",
         "//emulator/libs/avd_universe:guest_status",
         "//emulator/libs/eventing",
         "//emulator/plugin/vminterface",
@@ -37,5 +38,6 @@ cc_test(
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
         "//emulator/plugin/vminterface:vminterface-test",
+        "@grpc//:grpc++",
     ],
 )

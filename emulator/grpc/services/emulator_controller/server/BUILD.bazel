@@ -14,6 +14,7 @@ cc_library(
         "emulator_service.cc",
         "gps_service.cc",
         "gps_service.h",
+        "notification_store.h",
         "notification_stream_writer.h",
         "sensor_service.cc",
         "sensor_service.h",
@@ -54,6 +55,7 @@ cc_test(
     name = "emulator-service_unittests",
     srcs = [
         "display_service_test.cc",
+        "notification_store_test.cc",
         "qemu_stubs.c",
         "sensor_service_incubating_test.cc",
         "sensor_service_test.cc",

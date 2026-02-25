@@ -22,7 +22,8 @@ using GrpcNotification = android::emulation::control::Notification;
 
 struct GrpcNotificationEventSource
         : public android::base::eventing::CallbackEventSource<GrpcNotification> {
-    void FireEvent(const GrpcNotification& event) {
+    virtual ~GrpcNotificationEventSource() = default;
+    virtual void FireEvent(const GrpcNotification& event) {
         android::base::eventing::CallbackEventSource<GrpcNotification>::FireEvent(event);
     }
 };
