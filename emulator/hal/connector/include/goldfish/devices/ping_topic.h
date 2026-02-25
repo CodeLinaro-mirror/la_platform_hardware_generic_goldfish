@@ -15,6 +15,6 @@
 
 namespace goldfish::devices {
 
-using PingTopic = broadcasting::Topic<void>;
+using PingTopic = broadcasting::Topic<>;
 
 }  // namespace goldfish::devices

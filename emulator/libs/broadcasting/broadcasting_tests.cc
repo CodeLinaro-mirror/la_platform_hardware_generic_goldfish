@@ -18,7 +18,7 @@
 namespace {
 using goldfish::broadcasting::Ticket;
 using IntegerTopic = goldfish::broadcasting::Topic<int>;
-using VoidTopic = goldfish::broadcasting::Topic<void>;
+using VoidTopic = goldfish::broadcasting::Topic<>;
 
 struct MySubscriber {
     std::optional<Ticket> notify(const int x) {
@@ -103,7 +103,7 @@ TEST(broadcasting, build_test_TakesArgsReturnsVoid) {
     ticket.Unsubscribe();
 }
 
-TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
+TEST(broadcasting, build_test_NoArgs) {
     struct NoArgsReturnsMaybeTicket {
         std::optional<Ticket> notify() { return std::nullopt; }
     };
@@ -112,15 +112,5 @@ TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
     NoArgsReturnsMaybeTicket subscriber;
     Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsMaybeTicket::notify);
     ticket.Unsubscribe();
-}
-
-TEST(broadcasting, build_test_NoArgsReturnsVoid) {
-    struct NoArgsReturnsVoid {
-        void notify() {}
-    };
-
-    auto voidTopic = VoidTopic::Create();
-    NoArgsReturnsVoid subscriber;
-    Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsVoid::notify);
-    ticket.Unsubscribe();
+    voidTopic->Broadcast();
 }
