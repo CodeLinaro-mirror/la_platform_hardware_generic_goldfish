@@ -1,51 +1,59 @@
 [env]
 # The root of our bazel workspace
 BAZEL_ROOT = "{{ config_root }}"
+ANDROID_HOME = "{% if env.ANDROID_HOME %}{{ env.ANDROID_HOME }}{% else %}$BAZEL_ROOT/prebuilts/android/android-sdk/{% if os() == 'linux' %}linux{% elif os() == 'macos' %}macosx{% else %}windows{% endif %}{% endif %}"
 '_'.path = [
-  "{{config_root}}/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
-  "{{config_root}}/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin",
+  "$BAZEL_ROOT/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
+  "$BAZEL_ROOT/prebuilts/clang/host/{% if os() == 'linux' %}linux-x86{% elif os() == 'macos' %}darwin-x86{% else %}windows-x86{% endif %}/{{ exec(command='jq -r .clang build/bazel/toolchains/tool_versions.json') }}/bin",
   "$ANDROID_HOME/platform-tools/",
 ]
 
+[settings]
+env_shell_expand = true
+
+[shell_alias]
+bzl = "echo 'cd $BAZEL_ROOT && bazel $@' | sh -s"
+
 [tasks.build]
 description = "Builds the emulator release"
-run = "cd $BAZEL_ROOT && bazel build @goldfish//emulator:release"
+run = "bazel build @goldfish//emulator:release"
 
 [tasks.test]
 description = "Runs all the emulator tests"
-run = "cd $BAZEL_ROOT && bazel test @goldfish//..."
+run = "bazel test @goldfish//..."
 
 [tasks.bcc]
 description = "Generate the compilation database"
-run = "cd $BAZEL_ROOT && bazel run @goldfish//development/tools:generate_bcc -- --workspace $BAZEL_ROOT"
+run = "bazel run @goldfish//development/tools:generate_bcc -- --workspace $BAZEL_ROOT"
 
 [tasks.tidy]
 description = "Generate the clang tidy report"
-run = "cd $BAZEL_ROOT && bazel build @goldfish//:clang_tidy_report"
-
+run = "bazel build @goldfish//:clang_tidy_report"
 
 [tasks.submit]
 description = "Upload the current branch for code review"
-run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y'"
+run = "repo upload . --cbr -y'"
+dir = "{{ cwd }}"
 
 [tasks.tidy_fix]
 description = "Apply fixes from the clang tidy report"
-run = "cd $BAZEL_ROOT && bazel run @goldfish//:clang_tidy_report"
+run = "bazel run @goldfish//:clang_tidy_report"
 
 [tasks.presubmit]
 description = "Upload the current branch for code review and mark it presubmit ready"
-run = "cd $MISE_ORIGINAL_CWD; repo upload . --cbr -y --label 'Presubmit-Ready+1'"
+run = "repo upload . --cbr -y --label 'Presubmit-Ready+1'"
+dir = "{{ cwd }}"
 
 [tasks.gum]
 description = "Update the latest commit if you are the owner"
-run = "cd $MISE_ORIGINAL_CWD; if [[ $(git show HEAD --author $USER) ]]; then git add --update .; git commit --amend ; else echo Not the owner of last commit!; fi"
+run = "if [[ $(git show HEAD --author $USER) ]]; then git add --update .; git commit --amend ; else echo Not the owner of last commit!; fi"
+dir = "{{ cwd }}"
 
 [tasks.fastbuild]
 description = "Fast C++-only verification build"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$BAZEL_ROOT"
 
 echo "Identifying non-C++ targets to exclude..."
 RAW_EXCLUSIONS=$(bazel query "(@goldfish//...) except kind('cc_.*', @goldfish//...)" 2>/dev/null)
