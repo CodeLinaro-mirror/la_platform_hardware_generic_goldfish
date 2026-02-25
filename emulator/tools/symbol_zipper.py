@@ -169,7 +169,7 @@ def main():
         "symbol_file",
         metavar="symbol",
         type=is_file,
-        nargs="+",
+        nargs="*",
         help="One or more Breakpad symbol files to process.",
     )
     parser.add_argument(
