@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "notification_test_tool",
+    srcs = ["notification_test_tool.cc"],
+    deps = [
+        "//emulator/grpc/client:emulator_grpc_client",
+        "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
