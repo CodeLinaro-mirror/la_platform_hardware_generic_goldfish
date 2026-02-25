@@ -305,6 +305,12 @@ LibuvEventLoopImpl::LibuvEventLoopImpl() {
         LOG(DFATAL) << "Failed to initialize uv_loop: " << uv_strerror(err);
     }
     uv_loop_handle_.data = this;
+
+    async_handle_.data = this;
+    uv_async_init(&uv_loop_handle_, &async_handle_, [](uv_async_t* handle) {
+        static_cast<LibuvEventLoopImpl*>(handle->data)->ProcessTasks();
+    });
+    async_handle_valid_.store(true);
 }
 
 LibuvEventLoopImpl::~LibuvEventLoopImpl() {
@@ -386,19 +392,10 @@ void LibuvEventLoopImpl::ProcessTasks() {
 absl::Status LibuvEventLoopImpl::Run() {
     thread_id_ = std::this_thread::get_id();
 
-    async_handle_.data = this;
-    uv_async_init(&uv_loop_handle_, &async_handle_, [](uv_async_t* handle) {
-        static_cast<LibuvEventLoopImpl*>(handle->data)->ProcessTasks();
-    });
-    async_handle_valid_.store(true);
-
-    // Post a task to our own queue. When this task executes, we can be
-    // certain that the event loop is actively processing events.
-    PostImmediatelyInternal([this]() { SetState(LooperStatusEvent::State::kRunning); });
-
+    SetState(LooperStatusEvent::State::kRunning);
     const int err = uv_run(&uv_loop_handle_, UV_RUN_DEFAULT);
-
     SetState(LooperStatusEvent::State::kFinished);
+
     auto status = UvErrToAbslStatus(err);
     if (!promise_set_.exchange(true)) {
         shutdown_complete_promise_.set_value(status);
