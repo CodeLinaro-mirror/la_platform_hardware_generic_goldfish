@@ -11,106 +11,94 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <vector>
 
 #include "goldfish/broadcasting/broadcasting.h"
 
+namespace goldfish::broadcasting {
 namespace {
-using goldfish::broadcasting::Ticket;
-using IntegerTopic = goldfish::broadcasting::Topic<int>;
-using VoidTopic = goldfish::broadcasting::Topic<>;
-
 struct MySubscriber {
-    std::optional<Ticket> notify(const int x) {
+    void notifyInt(const int x) {
         value = x;
-
-        if (wantMoreBroadcasts) {
-            return std::nullopt;
-        } else {
-            return std::move(ticket);
-        }
+        foreignCode();
     }
 
-    Ticket ticket;
+    void notifyNoArguments() {}
+
+    std::function<void()> foreignCode = []() {};
+    Subscription subscription;
     int value = 0;
-    bool wantMoreBroadcasts = true;
 };
 }  // namespace
 
 TEST(broadcasting, example) {
-    auto integerTopic = IntegerTopic::Create();
-    std::vector<MySubscriber> subscribers(5);
-
-    integerTopic->Broadcast(42);
-    for (MySubscriber& s : subscribers) {
-        EXPECT_EQ(s.value, 0);  // not subscribed yet
-        s.ticket = std::move(integerTopic->Subscribe(s, &MySubscriber::notify));
-        EXPECT_TRUE(s.ticket.IsSubscribed());  // now subscribed
+    auto integerTopic = Topic<int>::Create();
+    std::vector<std::shared_ptr<MySubscriber>> subscribers(5);
+    for (auto& s : subscribers) {
+        s = std::make_shared<MySubscriber>();
+        EXPECT_FALSE(s->subscription.IsSubscribed());
     }
 
-    integerTopic->Broadcast(42);
-    for (const MySubscriber& s : subscribers) {
-        EXPECT_EQ(s.value, 42);
+    // the `Broadcast` call goes nowhere because nobody is subscribed yet
+    EXPECT_EQ(integerTopic->Broadcast(42), 0);
+    for (const std::shared_ptr<MySubscriber>& s : subscribers) {
+        EXPECT_EQ(s->value, 0);
     }
 
-    // unsubscribe two
-    subscribers[0].ticket.Unsubscribe();
-    EXPECT_FALSE(subscribers[0].ticket.IsSubscribed());
-    subscribers[2].ticket.Unsubscribe();
-    EXPECT_FALSE(subscribers[2].ticket.IsSubscribed());
-
-    integerTopic->Broadcast(77);
-    EXPECT_EQ(subscribers[0].value, 42);  // unsubscribed above
-    EXPECT_EQ(subscribers[1].value, 77);
-    EXPECT_EQ(subscribers[2].value, 42);  // unsubscribed above
-    EXPECT_EQ(subscribers[3].value, 77);
-    EXPECT_EQ(subscribers[4].value, 77);
-
-    subscribers[3].wantMoreBroadcasts = false;
-    subscribers[4].wantMoreBroadcasts = false;
-
-    integerTopic->Broadcast(15);
-    EXPECT_EQ(subscribers[0].value, 42);
-    EXPECT_EQ(subscribers[1].value, 15);
-    EXPECT_EQ(subscribers[2].value, 42);
-    EXPECT_EQ(subscribers[3].value, 15);  // this broadcast is still received
-    EXPECT_EQ(subscribers[4].value, 15);  // this broadcast is still received
-
-    integerTopic->Broadcast(99);
-    EXPECT_EQ(subscribers[0].value, 42);
-    EXPECT_EQ(subscribers[1].value, 99);
-    EXPECT_EQ(subscribers[2].value, 42);
-    EXPECT_EQ(subscribers[3].value,
-              15);  // unsubscribed, see `wantMoreBroadcasts` above
-    EXPECT_EQ(subscribers[4].value,
-              15);  // unsubscribed, see `wantMoreBroadcasts` above
-
-    subscribers[1].ticket.Unsubscribe();  // all MUST explicitly unsubscribe
-
-    for (const MySubscriber& s : subscribers) {
-        EXPECT_FALSE(s.ticket.IsSubscribed());
+    for (const std::shared_ptr<MySubscriber>& s : subscribers) {
+        s->subscription = integerTopic->Subscribe(s, &MySubscriber::notifyInt);
+        EXPECT_TRUE(s->subscription.IsSubscribed());  // now subscribed
     }
+
+    EXPECT_EQ(integerTopic->Broadcast(42), 5);
+    for (const std::shared_ptr<MySubscriber>& s : subscribers) {
+        EXPECT_EQ(s->value, 42);
+    }
+
+    // unsubscribe two explicitly
+    subscribers[0]->subscription.Unsubscribe();
+    EXPECT_FALSE(subscribers[0]->subscription.IsSubscribed());
+    subscribers[2]->subscription.Unsubscribe();
+    EXPECT_FALSE(subscribers[2]->subscription.IsSubscribed());
+
+    EXPECT_EQ(integerTopic->Broadcast(77), 3);
+
+    EXPECT_EQ(subscribers[0]->value, 42);  // unsubscribed above
+    EXPECT_EQ(subscribers[1]->value, 77);
+    EXPECT_EQ(subscribers[2]->value, 42);  // unsubscribed above
+    EXPECT_EQ(subscribers[3]->value, 77);
+    EXPECT_EQ(subscribers[4]->value, 77);
+
+    subscribers[1].reset();  // ~Subscription unsubscribes
+    EXPECT_EQ(integerTopic->Broadcast(100), 2);
 }
 
-TEST(broadcasting, build_test_TakesArgsReturnsVoid) {
-    struct TakesArgsReturnsVoid {
-        void notify(const int x) {}
-    };
-
-    auto integerTopic = IntegerTopic::Create();
-    TakesArgsReturnsVoid subscriber;
-    Ticket ticket = integerTopic->Subscribe(subscriber, &TakesArgsReturnsVoid::notify);
-    ticket.Unsubscribe();
-}
-
-TEST(broadcasting, build_test_NoArgs) {
-    struct NoArgsReturnsMaybeTicket {
-        std::optional<Ticket> notify() { return std::nullopt; }
-    };
-
-    auto voidTopic = VoidTopic::Create();
-    NoArgsReturnsMaybeTicket subscriber;
-    Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsMaybeTicket::notify);
-    ticket.Unsubscribe();
+TEST(broadcasting, no_arguments_also_works) {
+    auto voidTopic = Topic<>::Create();
+    voidTopic->Subscribe(std::make_shared<MySubscriber>(), &MySubscriber::notifyNoArguments);
     voidTopic->Broadcast();
 }
+
+TEST(broadcasting, no_deadlock) {
+    const auto topic = Topic<int>::Create();
+    const auto subscriber = std::make_shared<MySubscriber>();
+    const auto lateSubscriber = std::make_shared<MySubscriber>();
+    Subscription lateSubscription;
+
+    subscriber->foreignCode = [topic, lateSubscriber, &lateSubscription]() {
+        lateSubscription = topic->Subscribe(lateSubscriber, &MySubscriber::notifyInt);
+    };
+
+    subscriber->subscription = topic->Subscribe(subscriber, &MySubscriber::notifyInt);
+
+    EXPECT_EQ(topic->Broadcast(42), 1);
+    EXPECT_EQ(subscriber->value, 42);
+    EXPECT_EQ(lateSubscriber->value, 0);
+
+    EXPECT_EQ(topic->Broadcast(77), 2);
+    EXPECT_EQ(subscriber->value, 77);
+    EXPECT_EQ(lateSubscriber->value, 77);
+}
+
+}  // namespace goldfish::broadcasting

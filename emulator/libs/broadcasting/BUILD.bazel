@@ -11,6 +11,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
     ],
 )

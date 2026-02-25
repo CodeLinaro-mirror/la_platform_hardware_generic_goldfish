@@ -11,61 +11,32 @@
  */
 
 #pragma once
-#include <cassert>
+#include <cstdint>
 #include <functional>
 #include <memory>
-#include <optional>
-#include <unordered_map>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+
+// See broadcasting_unittests.cpp for examples.
+// NOTE: to avoid deadlocks `Topic::Broadcast` copies all alive subscriptions.
 
 namespace goldfish::broadcasting {
 
-/* See broadcasting_unittests.cpp for examples.
- *
- * `Topic<Args...>` a class to send broadcasts that take arguments
- * `Args...` to subscribers. Please note that `Args...` can be
- * `void` (see `Topic<void>` below) which means "no arguments".
- *
- * `Ticket` - represent a subscription handle. All subscriptions
- * MUST be explicily unsubscribed via `Ticket::unsubscribe()`,
- * see `~Ticket()`. Please note you CANNOT unsubscribe in your
- * class destructor (because a broadcast can arrive up to the
- * `Ticket::unsubscribe()` call).
- *
- * Callback:
- * 1. std::function<std::optional<Ticket>(Args...)>, it is taken
- *    by value and stored inside the `Topic` instance until you
- *    unsubscribe by calling`Ticket::unsubscribe()` explicitly
- *    or by returning `Ticket` from the callback. It is up to you
- *    how to manage the lifetimes of objects which your function
- *    depends on.
- * 2. The `Topic` class provides the `subscribe` call
- *    (see `Topic::subscribe`) to build the callback above from
- *    `T &` and a pointer to T's method. The same lifetime rules
- *    apply.
- *
- * Subscribing:
- * 1. Gives you a ticket to unsubscribe.
- * 2. Subscribing multiple times with the same arguments will create
- *    multiple subscriptions with different tickets.
- */
-
 struct TopicBase;
-template <class Callback>
-struct TopicBaseTpl;
 template <class... Args>
-struct Topic;
+class Topic;
 
-struct Ticket {
-    ~Ticket() { assert(!IsSubscribed()); }
+struct Subscription {
+    ~Subscription() { Unsubscribe(); }
 
-    Ticket() = default;
+    Subscription() = default;
+    Subscription(Subscription&& rhs)
+            : topic_(std::move(rhs.topic_)), id_(std::exchange(rhs.id_, 0)) {}
 
-    Ticket(Ticket&& rhs) : Ticket(std::move(rhs.topic_), rhs.value_) {}
-
-    Ticket& operator=(Ticket&& rhs) {
+    Subscription& operator=(Subscription&& rhs) {
         if (this != &rhs) {
             swap(*this, rhs);
         }
@@ -75,128 +46,135 @@ struct Ticket {
     bool IsSubscribed() const { return topic_.use_count() > 0; }
     void Unsubscribe();
 
-    friend void swap(Ticket& lhs, Ticket& rhs) {  // NOLINT(readability-identifier-naming)
+    friend void swap(Subscription& lhs,  // NOLINT(readability-identifier-naming)
+                     Subscription& rhs) {
         using std::swap;
         swap(lhs.topic_, rhs.topic_);
-        swap(lhs.value_, rhs.value_);
+        swap(lhs.id_, rhs.id_);
     }
 
-    Ticket(const Ticket&) = delete;
-    Ticket& operator=(const Ticket&) = delete;
+    Subscription(const Subscription&) = delete;
+    Subscription& operator=(const Subscription&) = delete;
 
   private:
     friend TopicBase;
-    template <class Callback>
-    friend struct TopicBaseTpl;
     template <class... Args>
-    friend struct Topic;
+    friend class Topic;
+    using ID = uint64_t;
 
-    using value_t = unsigned;
-
-    Ticket(std::weak_ptr<TopicBase> topic, const value_t value)
-            : topic_(std::move(topic)), value_(value) {}
-
-    void Release() { topic_.reset(); }
+    Subscription(std::weak_ptr<TopicBase> topic, const ID id) : topic_(std::move(topic)), id_(id) {
+        DCHECK(id_ > 0);
+    }
 
     std::weak_ptr<TopicBase> topic_;
-    value_t value_ = 0;
+    ID id_ = 0;
 };
 
 struct TopicBase : std::enable_shared_from_this<TopicBase> {
     virtual ~TopicBase() = default;
 
   private:
-    friend Ticket;
-    virtual void UnsubscribeImpl(Ticket::value_t) = 0;
+    friend Subscription;
+    virtual void Unsubscribe(Subscription::ID) = 0;
 };
 
-inline void Ticket::Unsubscribe() {
-    const auto pinned = topic_.lock();
-    if (pinned) {
-        pinned->UnsubscribeImpl(value_);
-        Release();
+inline void Subscription::Unsubscribe() {
+    if (const auto pinned = topic_.lock()) {
+        DCHECK(id_ > 0);
+        pinned->Unsubscribe(id_);
+        topic_.reset();
+        id_ = 0;
     }
 }
 
-template <class Callback>
-struct TopicBaseTpl : public TopicBase {
-    Ticket Subscribe(Callback callback) {
-        const absl::MutexLock lock(mutex_);
-        while (true) {
-            const Ticket::value_t ticket = ++last_ticket_;
-            const auto result = subscriptions_.insert({ticket, {}});
-            if (result.second) {
-                result.first->second = std::move(callback);
-                return Ticket(shared_from_this(), ticket);
-            }
-        }
-    }
-
-    TopicBaseTpl(const TopicBaseTpl&) = delete;
-    TopicBaseTpl(TopicBaseTpl&&) = delete;
-    TopicBaseTpl& operator=(const TopicBaseTpl&) = delete;
-    TopicBaseTpl& operator=(TopicBaseTpl&&) = delete;
-
-  protected:
-    TopicBaseTpl() = default;
-
-    std::unordered_map<Ticket::value_t, Callback> subscriptions_ ABSL_GUARDED_BY(mutex_);
-    Ticket::value_t last_ticket_ ABSL_GUARDED_BY(mutex_) = {};
-    absl::Mutex mutex_;
-
-  private:
-    void UnsubscribeImpl(const Ticket::value_t ticket) override {
-        const absl::MutexLock lock(mutex_);
-        subscriptions_.erase(ticket);
-    }
-};
-
 template <class... Args>
-struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
-  private:
+class Topic : public TopicBase {
     struct Private {};
 
   public:
-    using Callback = std::function<std::optional<Ticket>(Args...)>;
-    using TopicT = TopicBaseTpl<Callback>;
-    using TopicT::mutex_;
-    using TopicT::Subscribe;
-    using TopicT::subscriptions_;
-
     explicit Topic(Private) {}
 
     static std::shared_ptr<Topic> Create() { return std::make_shared<Topic>(Private()); }
 
-    template <class T>
-    Ticket Subscribe(T& object, std::optional<Ticket> (T::* const method)(Args...)) {
-        return Subscribe([&object, method](Args... args) {
-            return (object.*method)(std::forward<Args>(args)...);
+    template <typename S>
+    Subscription Subscribe(const std::shared_ptr<S>& subscriber, void (S::*method)(Args...)) {
+        return SubscribeImpl(subscriber, [method](void* subscriber, auto&&... args) {
+            return (static_cast<S*>(subscriber)->*method)(std::forward<decltype(args)>(args)...);
         });
     }
 
-    template <class T>
-    Ticket Subscribe(T& object, void (T::* const method)(Args...)) {
-        return Subscribe([&object, method](Args... args) {
-            (object.*method)(std::forward<Args>(args)...);
-            return std::nullopt;
-        });
+    size_t Broadcast(Args... args) {
+        const auto live_subscriptions = CopyLiveSubscriptions();
+        for (const auto& s : live_subscriptions) {
+            s.trampoline(s.subscriber.get(), std::forward<decltype(args)>(args)...);
+        }
+        return live_subscriptions.size();
     }
 
-    void Broadcast(Args... args) {
+    Topic(const Topic&) = delete;
+    Topic(Topic&&) = delete;
+    Topic& operator=(const Topic&) = delete;
+    Topic& operator=(Topic&&) = delete;
+
+  private:
+    using Trampoline = std::function<void(void*, Args...)>;
+
+    struct LiveSubscriptionEntry {
+        std::shared_ptr<void> subscriber;
+        Trampoline trampoline;
+    };
+
+    std::vector<LiveSubscriptionEntry> CopyLiveSubscriptions() {
+        std::vector<LiveSubscriptionEntry> live_subscriptions;
+
         const absl::MutexLock lock(mutex_);
+        live_subscriptions.reserve(subscriptions_.size());
+
         auto i = subscriptions_.begin();
         while (i != subscriptions_.end()) {
-            std::optional<Ticket> result = (i->second)(std::forward<Args>(args)...);
-            if (result.has_value()) {
-                assert(result->topic_.lock().get() == this);
-                assert(result->value_ == i->first);
-                result->Release();
-                i = subscriptions_.erase(i);
-            } else {
+            if (auto live_subscriber = i->second.subscriber.lock()) {
+                live_subscriptions.push_back({
+                    .subscriber = std::move(live_subscriber),
+                    .trampoline = i->second.trampoline,
+                });
+
                 ++i;
+            } else {
+                subscriptions_.erase(i++);
             }
         }
+
+        return live_subscriptions;
     }
+
+    struct SubscriptionEntry {
+        std::weak_ptr<void> subscriber;
+        Trampoline trampoline;
+    };
+
+    Subscription SubscribeImpl(const std::shared_ptr<void>& subscriber, Trampoline trampoline) {
+        const absl::MutexLock lock(mutex_);
+        const auto subscription_id = ++last_subscription_id_;
+        const bool inserted = subscriptions_
+                                      .insert({subscription_id,
+                                               {
+                                                   .subscriber = subscriber,
+                                                   .trampoline = std::move(trampoline),
+                                               }})
+                                      .second;
+        DCHECK(inserted);
+        return Subscription(shared_from_this(), subscription_id);
+    }
+
+    void Unsubscribe(const Subscription::ID subscription_id) override {
+        const absl::MutexLock lock(mutex_);
+        const size_t erased_num = subscriptions_.erase(subscription_id);
+        DCHECK(erased_num == 1);
+    }
+
+    absl::flat_hash_map<Subscription::ID, SubscriptionEntry> subscriptions_ ABSL_GUARDED_BY(mutex_);
+    Subscription::ID last_subscription_id_ ABSL_GUARDED_BY(mutex_) = 0;
+    absl::Mutex mutex_;
 };
 
 }  // namespace goldfish::broadcasting
