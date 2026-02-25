@@ -38,7 +38,7 @@ struct MySubscriber {
 }  // namespace
 
 TEST(broadcasting, example) {
-    auto integerTopic = std::make_shared<IntegerTopic>();
+    auto integerTopic = IntegerTopic::Create();
     std::vector<MySubscriber> subscribers(5);
 
     integerTopic->Broadcast(42);
@@ -97,7 +97,7 @@ TEST(broadcasting, build_test_TakesArgsReturnsVoid) {
         void notify(const int x) {}
     };
 
-    auto integerTopic = std::make_shared<IntegerTopic>();
+    auto integerTopic = IntegerTopic::Create();
     TakesArgsReturnsVoid subscriber;
     Ticket ticket = integerTopic->Subscribe(subscriber, &TakesArgsReturnsVoid::notify);
     ticket.Unsubscribe();
@@ -108,7 +108,7 @@ TEST(broadcasting, build_test_NoArgsReturnsMaybeTicket) {
         std::optional<Ticket> notify() { return std::nullopt; }
     };
 
-    auto voidTopic = std::make_shared<VoidTopic>();
+    auto voidTopic = VoidTopic::Create();
     NoArgsReturnsMaybeTicket subscriber;
     Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsMaybeTicket::notify);
     ticket.Unsubscribe();
@@ -119,7 +119,7 @@ TEST(broadcasting, build_test_NoArgsReturnsVoid) {
         void notify() {}
     };
 
-    auto voidTopic = std::make_shared<VoidTopic>();
+    auto voidTopic = VoidTopic::Create();
     NoArgsReturnsVoid subscriber;
     Ticket ticket = voidTopic->Subscribe(subscriber, &NoArgsReturnsVoid::notify);
     ticket.Unsubscribe();

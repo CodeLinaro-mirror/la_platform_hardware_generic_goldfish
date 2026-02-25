@@ -31,7 +31,7 @@ namespace goldfish::devices {
 using cable::PlugPtr;
 using cable::SocketPtr;
 
-ConnectorRegistry::ConnectorRegistry() : ConnectorRegistry(std::make_shared<PingTopic>()) {}
+ConnectorRegistry::ConnectorRegistry() : ConnectorRegistry(PingTopic::Create()) {}
 
 ConnectorRegistry::ConnectorRegistry(std::shared_ptr<PingTopic> ping_topic)
         : ping_topic_(std::move(ping_topic)) {}

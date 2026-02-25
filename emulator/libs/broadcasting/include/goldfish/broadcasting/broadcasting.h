@@ -152,11 +152,19 @@ struct TopicBaseTpl : public TopicBase {
 
 template <class... Args>
 struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>> {
+  private:
+    struct Private {};
+
+  public:
     using Callback = std::function<std::optional<Ticket>(Args...)>;
     using TopicT = TopicBaseTpl<Callback>;
     using TopicT::mutex_;
     using TopicT::Subscribe;
     using TopicT::subscriptions_;
+
+    explicit Topic(Private) {}
+
+    static std::shared_ptr<Topic> Create() { return std::make_shared<Topic>(Private()); }
 
     template <class T>
     Ticket Subscribe(T& object, std::optional<Ticket> (T::* const method)(Args...)) {
@@ -192,11 +200,19 @@ struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>
 
 template <>
 struct Topic<void> : public TopicBaseTpl<std::function<std::optional<Ticket>()>> {
+  private:
+    struct Private {};
+
+  public:
     using Callback = std::function<std::optional<Ticket>(void)>;
     using TopicT = TopicBaseTpl<Callback>;
     using TopicT::mutex_;
     using TopicT::Subscribe;
     using TopicT::subscriptions_;
+
+    explicit Topic(Private) {}
+
+    static std::shared_ptr<Topic> Create() { return std::make_shared<Topic>(Private()); }
 
     template <class T>
     Ticket Subscribe(T& object, std::optional<Ticket> (T::* const method)()) {
