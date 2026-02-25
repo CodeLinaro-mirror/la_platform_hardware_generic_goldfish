@@ -41,11 +41,10 @@ using crashpad::CrashReportDatabase;
 
 namespace android::crashreport {
 
-#ifdef NDEBUG
-constexpr char kCrashUrl[] = "https://clients2.google.com/cr/report";
-#else
-constexpr char kCrashUrl[] = "https://clients2.google.com/cr/staging_report";
+#ifndef CRASHURL
+#error "You must define CRASHURL to be the URL you want to upload crash reports to."
 #endif
+constexpr char kCrashUrl[] = CRASHURL;
 
 class CrashSystemImpl : public CrashSystem {
   public:

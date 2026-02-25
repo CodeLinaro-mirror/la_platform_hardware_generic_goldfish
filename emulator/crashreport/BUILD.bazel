@@ -1,6 +1,22 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
+config_setting(
+    name = "opt",
+    values = {"compilation_mode": "opt"},
+)
+
+# Select crash report upload URL based on build type. Staging URL is used by default,
+# and production URL is used for release (opt) builds.
+CRASHURL_DEFINES = select({
+    ":opt": [
+        'CRASHURL=\\"https://clients2.google.com/cr/report\\"',
+    ],
+    "//conditions:default": [
+        'CRASHURL=\\"https://clients2.google.com/cr/staging_report\\"',
+    ],
+})
+
 cc_library(
     name = "hang_detector",
     srcs = ["hang_detector.cc"],
@@ -37,6 +53,7 @@ cc_library(
     #defines = ["AEMU_CRASH_SHARED"],
     includes = ["include"],
     #local_defines = ["AEMU_CRASH_EXPORTS"],
+    local_defines = CRASHURL_DEFINES,
     visibility = ["//emulator/crashreport:__subpackages__"],
     deps = [
         "@crashpad//client",
@@ -72,6 +89,7 @@ cc_library(
     hdrs = ["include/android/crashreport/crash_system.h"],
     data = ["@crashpad//handler:crashpad_handler"],
     includes = ["include"],
+    local_defines = CRASHURL_DEFINES,
     visibility = ["//visibility:public"],
     deps = [
         ":crash_reporter",
