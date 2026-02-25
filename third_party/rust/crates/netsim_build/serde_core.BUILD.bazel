@@ -21,20 +21,24 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "serde_core",
     srcs = [
+        "out/private.rs",
         "src/crate_root.rs",
         "src/format.rs",
-        "src/macros.rs",
         "src/lib.rs",
-        "out/private.rs",
-    ] + glob(["src/de/*.rs", "src/private/*.rs", "src/ser/*.rs"]),
-    data = ["out/private.rs"],
+        "src/macros.rs",
+    ] + glob([
+        "src/de/*.rs",
+        "src/private/*.rs",
+        "src/ser/*.rs",
+    ]),
+    crate_features = [
+        "rc",
+        "result",
+        "std",
+    ],
     crate_name = "serde_core",
+    crate_root = "src/lib.rs",
+    data = ["out/private.rs"],
     edition = "2021",
     rustc_env = {"OUT_DIR": "../out"},
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"rc\"",
-        "--cfg=feature=\"result\"",
-        "--cfg=feature=\"std\"",
-    ],
 )

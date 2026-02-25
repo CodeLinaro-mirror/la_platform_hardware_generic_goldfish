@@ -19,11 +19,19 @@ load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
 
-copy_file(name = "copy_protobuf_build_out", src = "out/version.rs", out = "version.rs", allow_symlink = True)
+copy_file(
+    name = "copy_protobuf_build_out",
+    src = "out/version.rs",
+    out = "version.rs",
+    allow_symlink = True,
+)
 
 rust_library(
     name = "protobuf-rust",
     srcs = glob(["src/**/*.rs"]) + [":copy_protobuf_build_out"],
+    crate_features = [
+        "bytes",
+    ],
     crate_name = "protobuf",
     edition = "2021",
     rustc_env = {"OUT_DIR": ".."},
@@ -32,8 +40,5 @@ rust_library(
         "@once_cell",
         "@protobuf-support",
         "@thiserror",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"bytes\"",
     ],
 )

@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "aho-corasick",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "perf-literal",
+        "std",
+    ],
     crate_name = "aho_corasick",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@memchr",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"perf-literal\"",
-        "--cfg=feature=\"std\"",
     ],
 )

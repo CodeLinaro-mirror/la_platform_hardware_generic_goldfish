@@ -22,8 +22,8 @@ rust_library(
     name = "protobuf-support",
     srcs = glob(["**/*.rs"]),
     crate_name = "protobuf_support",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@thiserror",
     ],

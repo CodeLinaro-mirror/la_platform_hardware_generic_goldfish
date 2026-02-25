@@ -21,14 +21,14 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "ppv-lite86",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "ppv_lite86",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@zerocopy",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
     ],
 )

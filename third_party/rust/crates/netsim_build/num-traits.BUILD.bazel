@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "num-traits",
     srcs = glob(["**/*.rs"]),
-    crate_name = "num_traits",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "default",
+        "std",
     ],
+    crate_name = "num_traits",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

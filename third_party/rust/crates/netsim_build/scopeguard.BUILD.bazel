@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "scopeguard",
     srcs = glob(["**/*.rs"]),
-    crate_name = "scopeguard",
-    edition = "2015",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"use_std\"",
+    crate_features = [
+        "default",
+        "use_std",
     ],
+    crate_name = "scopeguard",
+    crate_root = "src/lib.rs",
+    edition = "2015",
 )

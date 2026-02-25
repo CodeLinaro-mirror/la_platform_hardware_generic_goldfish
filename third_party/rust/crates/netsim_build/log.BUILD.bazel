@@ -21,48 +21,48 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "log",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "std",
+    ],
     crate_name = "log",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@android_log-sys",
         "@once_cell",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"std\"",
     ],
 )
 
 rust_library(
     name = "log_rust_max_level_info",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "max_level_info",
+        "release_max_level_info",
+        "std",
+    ],
     crate_name = "log",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@android_log-sys",
         "@once_cell",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"max_level_info\"",
-        "--cfg=feature=\"release_max_level_info\"",
-        "--cfg=feature=\"std\"",
     ],
 )
 
 rust_library(
     name = "log_rust_max_level_off",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "max_level_off",
+        "release_max_level_off",
+        "std",
+    ],
     crate_name = "log",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@android_log-sys",
         "@once_cell",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"max_level_off\"",
-        "--cfg=feature=\"release_max_level_off\"",
-        "--cfg=feature=\"std\"",
     ],
 )

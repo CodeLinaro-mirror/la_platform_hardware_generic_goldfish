@@ -14,6 +14,7 @@
 
 """pdl_compiler bazel build rule"""
 
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
 
@@ -138,9 +139,16 @@ genrule(
 rust_library(
     name = "pdl-compiler",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "serde",
+    ],
     crate_name = "pdl_compiler",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
+    proc_macro_deps = [
+        "@pest_derive",
+    ],
     deps = [
         "@argh",
         "@codespan-reporting",
@@ -153,21 +161,21 @@ rust_library(
         "@serde_json",
         "@syn",
     ],
-    proc_macro_deps = [
-        "@pest_derive",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"serde\"",
-    ],
 )
 
 rust_binary(
     name = "pdlc",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "serde",
+    ],
     crate_name = "pdlc",
-    edition = "2021",
     crate_root = "src/main.rs",
+    edition = "2021",
+    proc_macro_deps = [
+        "@pest_derive",
+    ],
     deps = [
         ":pdl-compiler",
         "@argh",
@@ -181,18 +189,10 @@ rust_binary(
         "@serde_json",
         "@syn",
     ],
-    proc_macro_deps = [
-        "@pest_derive",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"serde\"",
-    ],
 )
 
 py_binary(
     name = "pdl_cxx_generator",
-    main = "scripts/generate_cxx_backend.py",
     srcs = [
         "scripts/generate_cxx_backend.py",
         "scripts/pdl/ast.py",
@@ -200,6 +200,7 @@ py_binary(
         "scripts/pdl/utils.py",
     ],
     imports = ["scripts"],
+    main = "scripts/generate_cxx_backend.py",
 )
 
 cc_library(

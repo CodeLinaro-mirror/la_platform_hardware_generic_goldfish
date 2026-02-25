@@ -21,17 +21,17 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "chrono",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "now",
+        "serde",
+        "std",
+    ],
     crate_name = "chrono",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@num-traits",
         "@serde",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"alloc\"",
-        "--cfg=feature=\"now\"",
-        "--cfg=feature=\"serde\"",
-        "--cfg=feature=\"std\"",
     ],
 )

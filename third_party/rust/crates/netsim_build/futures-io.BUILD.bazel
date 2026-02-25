@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "futures-io",
     srcs = glob(["**/*.rs"]),
-    crate_name = "futures_io",
-    edition = "2018",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "default",
+        "std",
     ],
+    crate_name = "futures_io",
+    crate_root = "src/lib.rs",
+    edition = "2018",
 )

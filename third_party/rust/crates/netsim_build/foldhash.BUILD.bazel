@@ -21,11 +21,11 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "foldhash",
     srcs = glob(["**/*.rs"]),
-    crate_name = "foldhash",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "default",
+        "std",
     ],
+    crate_name = "foldhash",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

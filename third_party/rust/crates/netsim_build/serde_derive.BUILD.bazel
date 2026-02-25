@@ -21,18 +21,18 @@ package(default_visibility = ["//visibility:public"])
 rust_proc_macro(
     name = "serde_derive",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+    ],
     crate_name = "serde_derive",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
+    rustc_env = {
+        "CARGO_PKG_VERSION_PATCH": "228",
+    },
     deps = [
         "@proc-macro2",
         "@quote",
         "@syn",
     ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-    ],
-    rustc_env = {
-        "CARGO_PKG_VERSION_PATCH": "228",
-    },
 )

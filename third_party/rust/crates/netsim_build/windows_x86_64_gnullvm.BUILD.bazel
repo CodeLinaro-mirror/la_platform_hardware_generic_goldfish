@@ -22,6 +22,6 @@ rust_library(
     name = "windows_x86_64_gnullvm",
     srcs = glob(["**/*.rs"]),
     crate_name = "windows_x86_64_gnullvm",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
 )

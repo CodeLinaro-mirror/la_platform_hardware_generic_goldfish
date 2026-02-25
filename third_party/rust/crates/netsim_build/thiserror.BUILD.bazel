@@ -21,14 +21,14 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "thiserror",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "thiserror",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     proc_macro_deps = [
         "@thiserror-impl",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
     ],
 )

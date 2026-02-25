@@ -22,8 +22,8 @@ rust_proc_macro(
     name = "num-derive",
     srcs = glob(["**/*.rs"]),
     crate_name = "num_derive",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@proc-macro2",
         "@quote",

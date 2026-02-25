@@ -21,38 +21,42 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "serde_json",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "serde_json",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=fast_arithmetic=\"64\"",
+    ],
     deps = [
         "@itoa",
         "@memchr",
         "@ryu",
         "@serde_core",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=fast_arithmetic=\"64\"",
     ],
 )
 
 rust_library(
     name = "serde_json_arbitrary_precision",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "arbitrary_precision",
+        "default",
+        "std",
+    ],
     crate_name = "serde_json",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=fast_arithmetic=\"64\"",
+    ],
     deps = [
         "@itoa",
         "@memchr",
         "@ryu",
         "@serde_core",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"arbitrary_precision\"",
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=fast_arithmetic=\"64\"",
     ],
 )

@@ -22,12 +22,12 @@ rust_library(
     name = "argh",
     srcs = glob(["**/*.rs"]),
     crate_name = "argh",
-    edition = "2018",
     crate_root = "src/lib.rs",
-    deps = [
-        "@argh_shared",
-    ],
+    edition = "2018",
     proc_macro_deps = [
         "@argh_derive",
+    ],
+    deps = [
+        "@argh_shared",
     ],
 )

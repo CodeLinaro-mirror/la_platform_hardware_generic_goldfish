@@ -21,22 +21,22 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "clap_builder",
     srcs = glob(["**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_features = [
+        "env",
+        "error-context",
+        "help",
+        "std",
+        "string",
+        "suggestions",
+        "usage",
+    ],
     crate_name = "clap_builder",
-    edition = "2021",
-    compile_data = glob(["README.md"]),
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@anstyle",
         "@clap_lex",
         "@strsim",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"env\"",
-        "--cfg=feature=\"error-context\"",
-        "--cfg=feature=\"help\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=feature=\"string\"",
-        "--cfg=feature=\"suggestions\"",
-        "--cfg=feature=\"usage\"",
     ],
 )

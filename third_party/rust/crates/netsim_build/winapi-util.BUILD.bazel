@@ -21,17 +21,19 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "winapi-util",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "Win32_System_Console",
+    ],
     crate_name = "winapi_util",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
+    rustc_flags = [
+        #"--cfg=feature=\"Win32_Foundation\"",
+        #"--cfg=feature=\"Win32_Storage_FileSystem\"",
+        #"--cfg=feature=\"Win32_System_SystemInformation\"",
+    ],
     deps = select({
         "@bazel_tools//src/conditions:windows": ["@windows-sys"],
         "//conditions:default": [],
     }),
-    rustc_flags = [
-        #"--cfg=feature=\"Win32_Foundation\"",
-        #"--cfg=feature=\"Win32_Storage_FileSystem\"",
-        "--cfg=feature=\"Win32_System_Console\"",
-        #"--cfg=feature=\"Win32_System_SystemInformation\"",
-    ],
 )

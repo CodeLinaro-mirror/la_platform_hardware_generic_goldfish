@@ -22,6 +22,6 @@ rust_library(
     name = "windows-link",
     srcs = glob(["**/*.rs"]),
     crate_name = "windows_link",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
 )

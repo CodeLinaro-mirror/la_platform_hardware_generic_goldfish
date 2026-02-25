@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "num-bigint",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "num_bigint",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@num-integer",
         "@num-traits",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
     ],
 )

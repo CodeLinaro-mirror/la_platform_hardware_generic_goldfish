@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "parking_lot",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "arc_lock",
+        "default",
+    ],
     crate_name = "parking_lot",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@lock_api",
         "@parking_lot_core",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"arc_lock\"",
-        "--cfg=feature=\"default\"",
     ],
 )

@@ -21,18 +21,18 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "pest_generator",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "std",
+    ],
     crate_name = "pest_generator",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@pest",
         "@pest_meta",
         "@proc-macro2",
         "@quote",
         "@syn",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
     ],
 )

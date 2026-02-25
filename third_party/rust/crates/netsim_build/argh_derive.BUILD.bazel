@@ -22,8 +22,8 @@ rust_proc_macro(
     name = "argh_derive",
     srcs = glob(["**/*.rs"]),
     crate_name = "argh_derive",
-    edition = "2018",
     crate_root = "src/lib.rs",
+    edition = "2018",
     deps = [
         "@argh_shared",
         "@proc-macro2",

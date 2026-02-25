@@ -21,17 +21,17 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "zerocopy",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "alloc",
+        "derive",
+        "simd",
+        "std",
+        "zerocopy-derive",
+    ],
     crate_name = "zerocopy",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     proc_macro_deps = [
         "@zerocopy-derive",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"alloc\"",
-        "--cfg=feature=\"derive\"",
-        "--cfg=feature=\"simd\"",
-        "--cfg=feature=\"std\"",
-        "--cfg=feature=\"zerocopy-derive\"",
     ],
 )

@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "getrandom",
     srcs = glob(["**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_features = [
+        "std",
+    ],
     crate_name = "getrandom",
-    edition = "2021",
-    compile_data = glob(["README.md"]),
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@cfg-if",
         "@libc",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"std\"",
     ],
 )

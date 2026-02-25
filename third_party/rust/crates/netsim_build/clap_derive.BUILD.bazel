@@ -21,17 +21,17 @@ package(default_visibility = ["//visibility:public"])
 rust_proc_macro(
     name = "clap_derive",
     srcs = glob(["**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_features = [
+        "default",
+    ],
     crate_name = "clap_derive",
-    edition = "2021",
-    compile_data = glob(["README.md"]),
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@heck",
         "@proc-macro2",
         "@quote",
         "@syn",
-    ],
-    rustc_flags = [
-        "--cfg=feature=\"default\"",
     ],
 )

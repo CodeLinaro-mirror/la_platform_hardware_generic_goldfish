@@ -22,8 +22,8 @@ rust_library(
     name = "signal-hook-registry",
     srcs = glob(["**/*.rs"]),
     crate_name = "signal_hook_registry",
-    edition = "2015",
     crate_root = "src/lib.rs",
+    edition = "2015",
     deps = [
         "@errno",
         "@libc",

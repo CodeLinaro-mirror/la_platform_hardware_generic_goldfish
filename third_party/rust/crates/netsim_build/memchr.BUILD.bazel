@@ -21,12 +21,12 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "memchr",
     srcs = glob(["**/*.rs"]),
-    crate_name = "memchr",
-    edition = "2021",
-    crate_root = "src/lib.rs",
-    rustc_flags = [
-        "--cfg=feature=\"alloc\"",
-        "--cfg=feature=\"default\"",
-        "--cfg=feature=\"std\"",
+    crate_features = [
+        "alloc",
+        "default",
+        "std",
     ],
+    crate_name = "memchr",
+    crate_root = "src/lib.rs",
+    edition = "2021",
 )

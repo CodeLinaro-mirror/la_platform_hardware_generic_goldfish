@@ -21,16 +21,16 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "socket2",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "all",
+    ],
     crate_name = "socket2",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@libc",
     ] + select({
         "@bazel_tools//src/conditions:windows": ["@windows-sys"],
         "//conditions:default": [],
     }),
-    rustc_flags = [
-        "--cfg=feature=\"all\"",
-    ],
 )

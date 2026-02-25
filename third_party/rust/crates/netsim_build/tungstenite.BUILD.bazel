@@ -22,8 +22,8 @@ rust_library(
     name = "tungstenite",
     srcs = glob(["**/*.rs"]),
     crate_name = "tungstenite",
-    edition = "2021",
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@bytes",
         "@log",

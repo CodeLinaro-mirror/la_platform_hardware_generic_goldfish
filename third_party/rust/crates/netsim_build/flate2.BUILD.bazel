@@ -21,15 +21,15 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "flate2",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "any_impl",
+        "any_zlib",
+        "libz-rs-sys",
+        "zlib-rs",
+    ],
     crate_name = "flate2",
     crate_root = "src/lib.rs",
     edition = "2018",
-    rustc_flags = [
-        "--cfg=feature=\"any_impl\"",
-        "--cfg=feature=\"any_zlib\"",
-        "--cfg=feature=\"libz-rs-sys\"",
-        "--cfg=feature=\"zlib-rs\"",
-    ],
     deps = [
         "@crc32fast",
         "@zlib-rs",

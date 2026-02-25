@@ -22,6 +22,6 @@ rust_library(
     name = "strsim",
     srcs = glob(["**/*.rs"]),
     crate_name = "strsim",
-    edition = "2015",
     crate_root = "src/lib.rs",
+    edition = "2015",
 )

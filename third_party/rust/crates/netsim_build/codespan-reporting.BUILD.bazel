@@ -21,10 +21,14 @@ package(default_visibility = ["//visibility:public"])
 rust_library(
     name = "codespan-reporting",
     srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "termcolor",
+        "std",
+    ],
     crate_name = "codespan_reporting",
-    edition = "2021",
-    crate_features = ["default", "termcolor", "std"],
     crate_root = "src/lib.rs",
+    edition = "2021",
     deps = [
         "@termcolor",
         "@unicode-width",
