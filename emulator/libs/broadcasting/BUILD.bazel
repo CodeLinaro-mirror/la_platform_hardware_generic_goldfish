@@ -10,6 +10,9 @@ cc_library(
     visibility = [
         "//visibility:public",
     ],
+    deps = [
+        "@abseil-cpp//absl/synchronization",
+    ],
 )
 
 cc_test(

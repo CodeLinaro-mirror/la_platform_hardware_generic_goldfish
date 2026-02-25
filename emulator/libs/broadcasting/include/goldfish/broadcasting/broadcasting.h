@@ -14,10 +14,11 @@
 #include <cassert>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <utility>
+
+#include "absl/synchronization/mutex.h"
 
 namespace goldfish::broadcasting {
 
@@ -120,7 +121,7 @@ inline void Ticket::Unsubscribe() {
 template <class Callback>
 struct TopicBaseTpl : public TopicBase {
     Ticket Subscribe(Callback callback) {
-        const std::lock_guard<std::mutex> guard(mutex_);
+        const absl::MutexLock lock(mutex_);
         while (true) {
             const Ticket::value_t ticket = ++last_ticket_;
             const auto result = subscriptions_.insert({ticket, {}});
@@ -139,13 +140,13 @@ struct TopicBaseTpl : public TopicBase {
   protected:
     TopicBaseTpl() = default;
 
-    std::unordered_map<Ticket::value_t, Callback> subscriptions_;
-    Ticket::value_t last_ticket_ = {};
-    std::mutex mutex_;
+    std::unordered_map<Ticket::value_t, Callback> subscriptions_ ABSL_GUARDED_BY(mutex_);
+    Ticket::value_t last_ticket_ ABSL_GUARDED_BY(mutex_) = {};
+    absl::Mutex mutex_;
 
   private:
     void UnsubscribeImpl(const Ticket::value_t ticket) override {
-        const std::lock_guard<std::mutex> guard(mutex_);
+        const absl::MutexLock lock(mutex_);
         subscriptions_.erase(ticket);
     }
 };
@@ -182,7 +183,7 @@ struct Topic : public TopicBaseTpl<std::function<std::optional<Ticket>(Args...)>
     }
 
     void Broadcast(Args... args) {
-        std::lock_guard<std::mutex> guard(mutex_);
+        const absl::MutexLock lock(mutex_);
         auto i = subscriptions_.begin();
         while (i != subscriptions_.end()) {
             std::optional<Ticket> result = (i->second)(std::forward<Args>(args)...);
