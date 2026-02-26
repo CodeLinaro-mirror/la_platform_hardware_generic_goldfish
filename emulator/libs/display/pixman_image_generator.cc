@@ -67,13 +67,13 @@ void PixmanImageGenerator::Stop() {
 }
 
 void PixmanImageGenerator::Resize(int w, int h) {
-    const absl::MutexLock lock(&mutex_);
+    const absl::MutexLock lock(mutex_);
     width_ = w;
     height_ = h;
 }
 
 PixmanImagePtr PixmanImageGenerator::GenerateImage(Color color) {
-    const absl::MutexLock lock(&mutex_);
+    const absl::MutexLock lock(mutex_);
     auto* pixels = new uint32_t[static_cast<size_t>(width_) * height_];
     const uint32_t color_value = GetColorValue(color);
     for (int i = 0; i < width_ * height_; ++i) {
@@ -89,7 +89,7 @@ PixmanImagePtr PixmanImageGenerator::GenerateImage(Color color) {
 }
 
 bool PixmanImageGenerator::WaitForFramesWithTimeout(int n, absl::Duration timeout) {
-    const absl::MutexLock lock(&mutex_);
+    const absl::MutexLock lock(mutex_);
     while (frame_count_ < n) {
         if (frame_cv_.WaitWithTimeout(&mutex_, timeout)) {
             return false;
@@ -99,7 +99,7 @@ bool PixmanImageGenerator::WaitForFramesWithTimeout(int n, absl::Duration timeou
 }
 
 int PixmanImageGenerator::FrameCount() const {
-    const absl::MutexLock lock(&mutex_);
+    const absl::MutexLock lock(mutex_);
     return frame_count_;
 }
 
@@ -111,7 +111,7 @@ void PixmanImageGenerator::GenerateImagesLoop() {
 
         Color color;
         {
-            const absl::MutexLock lock(&mutex_);
+            const absl::MutexLock lock(mutex_);
             switch (frame_count_ % 3) {
             case 0:
                 color = Color::kRed;
@@ -131,7 +131,7 @@ void PixmanImageGenerator::GenerateImagesLoop() {
         FireEvent(GenerateImage(color));
 
         {
-            const absl::MutexLock lock(&mutex_);
+            const absl::MutexLock lock(mutex_);
             frame_count_++;
             frame_cv_.SignalAll();
         }
