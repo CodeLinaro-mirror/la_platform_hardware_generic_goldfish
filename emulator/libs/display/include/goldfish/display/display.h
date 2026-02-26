@@ -190,7 +190,9 @@ class IDisplay : public FrameInfoCallbackSource,
 
     // True if a frame there is a frame that is newer than last_sequence_number before timneout.
     bool WaitForFrame(absl::Duration timeout, uint64_t last_sequence_number) const {
-        auto next_frame = [&]() { return seq_.sequence_number > last_sequence_number; };
+        auto next_frame = [&]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(seq_access_) {
+            return seq_.sequence_number > last_sequence_number;
+        };
         const absl::MutexLock lock(seq_access_);
         seq_access_.AwaitWithTimeout(absl::Condition(&next_frame), timeout);
         return seq_.sequence_number > last_sequence_number;
