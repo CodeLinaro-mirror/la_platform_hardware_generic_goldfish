@@ -124,8 +124,7 @@ class IDisplay : public FrameInfoCallbackSource,
                  public ResizeEventCallbackSource,
                  public std::enable_shared_from_this<IDisplay> {
   public:
-    explicit IDisplay(EventLoop* loop)
-            : FrameInfoCallbackSource(loop), ResizeEventCallbackSource(loop), seq_(0) {}
+    explicit IDisplay(EventLoop* loop) : IDisplay(loop, 0, 0, 0) {}
     virtual ~IDisplay() = default;
 
     /**
@@ -297,16 +296,14 @@ class IDisplay : public FrameInfoCallbackSource,
             : FrameInfoCallbackSource(loop)
             , ResizeEventCallbackSource(loop)
             , display_id_(id)
-            , dimensions_({.width = width, .height = height})
-            , seq_(0) {}
+            , dimensions_({.width = width, .height = height}) {}
 
-    uint8_t display_id_;
-
-    FrameInfo seq_ ABSL_GUARDED_BY(seq_access_);
+    FrameInfo seq_ ABSL_GUARDED_BY(seq_access_){0};
     mutable absl::Mutex seq_access_;
 
     uint32_t dpi_{0};
     uint32_t flags_{0};
+    const uint8_t display_id_;
     bool active_{true};
 
   private:
