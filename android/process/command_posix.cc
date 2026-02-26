@@ -222,9 +222,11 @@ class PosixProcess : public ObservableProcess {
     ~PosixProcess() override {
         if (actions_) {
             posix_spawn_file_actions_destroy(actions_);
+            delete actions_;
         }
         if (attr_) {
             posix_spawnattr_destroy(attr_);
+            delete attr_;
         }
         if (!daemon_) PosixProcess::Terminate();
     }
@@ -304,13 +306,23 @@ class PosixProcess : public ObservableProcess {
             return std::nullopt;
         }
 
+        attr_ = new posix_spawnattr_t;
+        if (posix_spawnattr_init(attr_)) {
+            DD("Unable to initialize spawnattr..");
+            delete attr_;
+            attr_ = nullptr;
+            return std::nullopt;
+        }
+#ifdef __APPLE__
+        // Do not inherit any custom exception handlers; reset them to the system default
+        // This will ensure that if the child process crashes, it will not be intercepted
+        // by crashpad.
+        if (posix_spawnattr_setexceptionports_np(attr_, EXC_MASK_ALL, MACH_PORT_NULL, 0, 0)) {
+            DD("Failed to request exception ports.");
+        }
+#endif
         DD("%s to inheriting handles..", inherit_ ? "yes" : "no");
         if (!inherit_) {
-            attr_ = new posix_spawnattr_t;
-            if (posix_spawnattr_init(attr_)) {
-                DD("Unable to initialize spawnattr..");
-                return std::nullopt;
-            }
 #ifdef __APPLE__
             if (posix_spawnattr_setflags(attr_, POSIX_SPAWN_CLOEXEC_DEFAULT)) {
                 DD("Failed to request CLOEXEC.");
