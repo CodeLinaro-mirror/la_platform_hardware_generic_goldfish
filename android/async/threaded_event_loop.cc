@@ -20,7 +20,6 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
 #ifdef _WIN32
@@ -39,8 +38,6 @@
 #include "goldfish/async/libuv_event_loop.h"
 
 namespace goldfish::async {
-
-constexpr absl::Duration kMaxStartTimeout = absl::Milliseconds(100);
 
 class ThreadedEventLoopImpl : public ThreadedEventLoop {
   public:
@@ -160,23 +157,14 @@ std::unique_ptr<ThreadedEventLoop> ThreadedEventLoop::Create(
     }
 
     auto loop = std::make_unique<ThreadedEventLoopImpl>(std::move(to_run));
-    absl::Notification is_running;
-    auto wait_for_run = android::base::eventing::MakeScopedCallback(
-            *(loop->Loop()), [&is_running](const LooperStatusEvent& event) {
-                VLOG(1) << "Eventloop state transitioned to " << event;
-                if (event.state == LooperStatusEvent::State::kRunning) {
-                    is_running.Notify();
-                }
-            });
-
     if (auto status = loop->Start(); !status.ok()) {
         LOG(WARNING) << "Failed to start inner loop due to: " << status;
         return nullptr;
     }
 
     VLOG(1) << "Waiting until the thread is truly running";
-    if (!is_running.WaitForNotificationWithTimeout(kMaxStartTimeout)) {
-        LOG(WARNING) << "Eventloop state did not transition to running within " << kMaxStartTimeout;
+    if (auto s = loop->PostAndWait([]() {}); !s.ok()) {
+        LOG(WARNING) << "Eventloop state did not transition to running: " << s;
         return nullptr;
     }
 
