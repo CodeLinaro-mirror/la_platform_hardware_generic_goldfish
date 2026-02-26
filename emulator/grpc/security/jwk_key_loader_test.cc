@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdio>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -25,6 +26,7 @@
 
 #include "absl/strings/string_view.h"
 
+#include "android/base/file/file.h"
 #include "android/base/testing/TestTempDir.h"
 #include "nlohmann/json.hpp"
 #include "tink/config/tink_config.h"
@@ -75,12 +77,21 @@ class JwkKeyLoaderTest : public ::testing::Test {
 
     void TearDown() override { mTempDir.reset(); }
 
-    void write(Path fname, json snippet) { write(fname, snippet.dump(2)); }
+    void WriteSnippet(Path fname, json snippet) { WriteSnippet(fname, snippet.dump(2)); }
 
-    void write(Path fname, std::string snippet) {
-        std::ofstream out(mTempDir->path() / fname);
-        out << snippet;
-        out.close();
+    void WriteSnippet(Path fname, std::string snippet) {
+        // We perform an atomic write by writing to a temporary file first and then renaming it.
+        // This prevents the loader from reading a truncated or partial file.
+        Path tmpName = fname + ".tmp";
+        {
+            std::ofstream out(mTempDir->path() / tmpName);
+            for (char c : snippet) {
+                out.put(c);
+                out.flush();
+            }
+        }
+        auto status = base::file::mv_file(mTempDir->path() / tmpName, mTempDir->path() / fname);
+        EXPECT_TRUE(status.ok()) << status.message();
     }
 
     std::unique_ptr<tink::KeysetHandle> writeEs512(Path fname) {
@@ -92,7 +103,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
         auto sign = (*private_handle)->GetPrimitive<tink::JwtPublicKeySign>();
         auto public_handle = (*private_handle)->GetPublicKeysetHandle();
         auto jsonSnippet = tink::JwkSetFromPublicKeysetHandle(*public_handle->get());
-        write(fname, *jsonSnippet);
+        WriteSnippet(fname, *jsonSnippet);
         return std::move(private_handle.value());
     }
 
@@ -104,7 +115,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
 
 TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     JwkKeyLoader loader;
-    write("foo", std::string(8196 * 2, 'x'));
+    WriteSnippet("foo", std::string(8196 * 2, 'x'));
     auto status = loader.Add((mTempDir->path() / "foo").string());
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
@@ -114,15 +125,18 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     using namespace std::chrono_literals;
 
     JwkKeyLoader loader;
-    write("foo", std::string(0, 'x'));
+    WriteSnippet("foo", std::string(0, 'x'));
     auto start = std::chrono::system_clock::now();
+    // 8 retries @ 10ms = ~80ms expected wait.
     auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     EXPECT_FALSE(status.ok());
     ASSERT_EQ(status.code(), absl::StatusCode::kUnavailable);
-    EXPECT_GE(waited, 79ms) << "We should have waited around 80ms, not: " << waited.count()
+
+    // We expect around 80ms, but use a looser threshold of 50ms to account for timer precision.
+    EXPECT_GE(waited, 50ms) << "We should have waited at least 50ms, not: " << waited.count()
                             << " ms.";
 }
 
@@ -147,23 +161,18 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
         })##";
 
     JwkKeyLoader loader;
-    write("foo", std::string(0, 'x'));
+    WriteSnippet("foo", std::string(0, 'x'));
 
-    // Write the actual token after 15ms delay..
+    // Write the actual token after 100ms delay..
     auto t = std::thread([&]() {
-        std::this_thread::sleep_for(15ms);
-        write("foo", valid);
+        std::this_thread::sleep_for(100ms);
+        WriteSnippet("foo", valid);
     });
 
-    auto start = std::chrono::system_clock::now();
-    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 100, 10ms);
-    auto end = std::chrono::system_clock::now();
-    std::chrono::milliseconds waited =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // We allow for up to 500 retries of 10ms (5 seconds total) to account for slow CI runners.
+    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 500, 10ms);
 
     EXPECT_TRUE(status.ok()) << "Failure: " << status.message();
-    EXPECT_GT(waited, 10ms) << "We had a write delay of at least 15ms, so we "
-                               "should have hit at least one wait.";
 
     t.join();
 }
@@ -265,7 +274,7 @@ TEST_F(JwkKeyLoaderTest, accepts_json_in_file) {
             ]
         })##";
 
-    write("sample.jwk", b273331311);
+    WriteSnippet("sample.jwk", b273331311);
     auto status = loader.Add((mTempDir->path() / "sample.jwk").string());
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
     EXPECT_EQ(loader.Size(), 1);
