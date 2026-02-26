@@ -146,7 +146,7 @@ class IDisplay : public FrameInfoCallbackSource,
      * @return The display dimensions (Dimensions).
      */
     Dimensions GetDimensions() const {
-        const absl::MutexLock lock(&dimension_mutex_);
+        const absl::MutexLock lock(dimension_mutex_);
         return dimensions_;
     }
 
@@ -184,14 +184,14 @@ class IDisplay : public FrameInfoCallbackSource,
      * @return The frame information (FrameInfo).
      */
     FrameInfo Seq() const {
-        const absl::MutexLock lock(&seq_access_);
+        const absl::MutexLock lock(seq_access_);
         return seq_;
     }
 
     // True if a frame there is a frame that is newer than last_sequence_number before timneout.
     bool WaitForFrame(absl::Duration timeout, uint64_t last_sequence_number) const {
         auto next_frame = [&]() { return seq_.sequence_number > last_sequence_number; };
-        const absl::MutexLock lock(&seq_access_);
+        const absl::MutexLock lock(seq_access_);
         seq_access_.AwaitWithTimeout(absl::Condition(&next_frame), timeout);
         return seq_.sequence_number > last_sequence_number;
     }
@@ -258,7 +258,7 @@ class IDisplay : public FrameInfoCallbackSource,
 
   protected:
     void SetDimensions(Dimensions dim) {
-        const absl::MutexLock lock(&dimension_mutex_);
+        const absl::MutexLock lock(dimension_mutex_);
         dimensions_ = dim;
     }
 
@@ -285,7 +285,7 @@ class IDisplay : public FrameInfoCallbackSource,
     LogicalFit CalculateLogicalFit(int desired_width, int desired_height) const;
 
     void FrameReceived() {
-        const absl::MutexLock lock(&seq_access_);
+        const absl::MutexLock lock(seq_access_);
         seq_ = FrameInfo(seq_.sequence_number + 1);
         FrameInfoCallbackSource::FireEvent(seq_);
     }

@@ -85,7 +85,7 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
 }
 
 void QemuDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
-    const absl::MutexLock lock(&send_lock_);
+    const absl::MutexLock lock(send_lock_);
     const Dimensions dims = GetDimensions();
     VLOG(1) << *this << ", SendMultiTouchEvent(" << static_cast<int>(slot) << ", " << x << ", " << y
             << ", " << static_cast<int>(type) << ")";
@@ -97,7 +97,7 @@ void QemuDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType
 }
 
 void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
-    const absl::MutexLock lock(&send_lock_);
+    const absl::MutexLock lock(send_lock_);
     const Dimensions dims = GetDimensions();
     VLOG(2) << *this << ", SendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
     qemu_loop_
@@ -115,7 +115,7 @@ void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
 }
 
 void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
-    const absl::MutexLock lock(&send_lock_);
+    const absl::MutexLock lock(send_lock_);
     VLOG(1) << *this << ", SendEvDevEvent(" << type << ", " << code << ", " << value << ")";
     qemu_loop_
             ->Post([vhid = vhid_, type, code, value] {

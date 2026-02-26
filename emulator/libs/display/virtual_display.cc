@@ -190,7 +190,7 @@ void VirtualDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchT
 }
 
 void VirtualDisplay::SendMouseEvent(int x, int y, int button_mask) {
-    const absl::MutexLock lock(&send_lock_);
+    const absl::MutexLock lock(send_lock_);
     if (!vhid_) return;
 
     const int width = static_cast<int>(GetDimensions().width);
@@ -249,7 +249,7 @@ void VirtualDisplay::SendMouseEvent(int x, int y, int button_mask) {
 }
 
 void VirtualDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
-    const absl::MutexLock lock(&send_lock_);
+    const absl::MutexLock lock(send_lock_);
     qemu_loop_
             ->Post([vhid = vhid_, type, code, value] {
                 virtio_input_send_evdev(vhid, type, code, value);

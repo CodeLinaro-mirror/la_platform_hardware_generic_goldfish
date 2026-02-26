@@ -49,7 +49,7 @@ class TestDisplay : public IDisplay {
     void SendMouseEvent(int /*x*/, int /*y*/, int /*button_mask*/) override {}
     void SendEvDevEvent(uint16_t /*type*/, uint16_t /*code*/, uint32_t /*value*/) override {}
     void SetSeq(uint64_t seq) {
-        const absl::MutexLock lock(&seq_access_);
+        const absl::MutexLock lock(seq_access_);
         seq_.sequence_number = seq;
     }
 

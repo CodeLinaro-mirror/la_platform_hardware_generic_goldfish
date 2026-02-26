@@ -41,7 +41,7 @@ size_t CalculateHash(::pixman_image_t* image) {
 namespace goldfish::display {
 
 void PixmanFrameManager::UpdateSurface() {
-    const absl::MutexLock lock(&display_access_);
+    const absl::MutexLock lock(display_access_);
     auto height = pixman_image_get_height(current_image_.get());
     memcpy(pixman_image_get_data(current_image_.get()), src_bits_,
            static_cast<size_t>(height) * stride_);
@@ -75,7 +75,7 @@ void PixmanFrameManager::UpdateSourceImage(::pixman_image_t* image) {
     const PixmanImagePtr new_image(
             pixman_image_create_bits(format, width, height, nullptr, stride));
     // Lock and swap the pointer. This is very fast.
-    const absl::MutexLock lock(&display_access_);
+    const absl::MutexLock lock(display_access_);
     // when only the content changes, we need to
     // preserve the continuity of frame by copying
     // over the current content to the next frame;
@@ -101,7 +101,7 @@ void PixmanFrameManager::UpdateSourceImage(::pixman_image_t* image) {
 }
 
 PixmanImagePtr PixmanFrameManager::GetRenderableImage() {
-    const absl::MutexLock lock(&display_access_);
+    const absl::MutexLock lock(display_access_);
     return current_image_;
 }
 
