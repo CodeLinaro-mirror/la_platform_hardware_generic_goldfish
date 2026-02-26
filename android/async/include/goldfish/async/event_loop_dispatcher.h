@@ -62,7 +62,7 @@ class EventLoopDispatcher {
         if (loop_->IsOnLoopThread()) {
             dispatch_work();
         } else {
-            loop_->Post(std::move(dispatch_work));
+            loop_->Post(std::move(dispatch_work)).IgnoreError();
         }
     }
 
