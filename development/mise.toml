@@ -32,7 +32,7 @@ run = "bazel build @goldfish//:clang_tidy_report"
 
 [tasks.submit]
 description = "Upload the current branch for code review"
-run = "repo upload . --cbr -y'"
+run = "repo upload . --cbr -y"
 dir = "{{ cwd }}"
 
 [tasks.tidy_fix]
@@ -65,5 +65,5 @@ echo "Excluding $COUNT non-C++ targets from the build graph."
 EXCLUSIONS=$(echo "$RAW_EXCLUSIONS" | sed 's/^/-/')
 
 # Build the whole repo (@goldfish//...) minus the excluded targets
-bazel build -c fastbuild --noshow_progress -- @goldfish//... $EXCLUSIONS
+bazel build --noshow_progress -- @goldfish//... $EXCLUSIONS
 """
