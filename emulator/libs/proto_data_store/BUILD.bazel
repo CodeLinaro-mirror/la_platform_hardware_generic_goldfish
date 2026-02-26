@@ -1,0 +1,93 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "raw_circular_log",
+    srcs = [
+        "raw_circular_log.cc",
+    ],
+    hdrs = [
+        "include/goldfish/raw_circular_log.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
+    name = "proto_data_store",
+    srcs = [
+        "circular_message_log.cc",
+    ],
+    hdrs = [
+        "include/goldfish/circular_message_log.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":raw_circular_log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+        "@goldfish//emulator/libs/debug",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "raw_circular_log_tests",
+    size = "small",
+    srcs = [
+        "raw_circular_log_test.cc",
+    ],
+    deps = [
+        ":raw_circular_log",
+        "//android/status_macros",
+        "//android/status_macros:status_matcher_macros",
+        "//android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+cc_test(
+    name = "proto_data_store_tests",
+    size = "small",
+    srcs = [
+        "proto_data_store_tests.cc",
+    ],
+    deps = [
+        ":proto_data_store",
+        "//android/status_macros",
+        "//android/status_macros:status_matcher_macros",
+        "//android/system:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+    ],
+)
+
+cc_binary(
+    name = "proto_data_store_perf",
+    srcs = [
+        "proto_data_store_perf.cc",
+    ],
+    tags = ["benchmark"],
+    deps = [
+        ":proto_data_store",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@google_benchmark//:benchmark",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":proto_data_store_perf",
+        ":proto_data_store",
+        ":raw_circular_log",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
