@@ -369,7 +369,7 @@ absl::Status LibuvEventLoopImpl::PostDelayed(Task task, std::chrono::millisecond
 void LibuvEventLoopImpl::PostImmediatelyInternal(Task task) {
     // We allow tasks to be queued before the loop has been started.
     {
-        const absl::MutexLock lock(&task_mutex_);
+        const absl::MutexLock lock(task_mutex_);
         task_queue_.push(std::move(task));
     }
     if (uv_async_t* uv_async = GetAsync()) {
@@ -380,7 +380,7 @@ void LibuvEventLoopImpl::PostImmediatelyInternal(Task task) {
 void LibuvEventLoopImpl::ProcessTasks() {
     std::queue<Task> tasks;
     {
-        const absl::MutexLock lock(&task_mutex_);
+        const absl::MutexLock lock(task_mutex_);
         tasks.swap(task_queue_);
     }
     while (!tasks.empty()) {
