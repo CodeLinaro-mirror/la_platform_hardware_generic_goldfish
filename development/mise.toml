@@ -67,3 +67,35 @@ EXCLUSIONS=$(echo "$RAW_EXCLUSIONS" | sed 's/^/-/')
 # Build the whole repo (@goldfish//...) minus the excluded targets
 bazel build --noshow_progress -- @goldfish//... $EXCLUSIONS
 """
+
+[tasks.create-fasttest-exclusions]
+description = "Creates the list of targets to exclude from the fasttest task"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Note: this is rather expensive to calculate dynamically,
+# so we save it to a file.
+bazel query  -k 'rdeps(@goldfish//..., @breakpad//:dump_syms) union rdeps(@goldfish//..., @rules_pkg//pkg/private/zip:build_zip)' | sort > hardware/generic/goldfish/development/fasttest_exclusions.txt || true
+"""
+
+[tasks.fasttest]
+description = "Fast testing, that excludes zip and symbol targets"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+EXCLUSIONS_FILE="hardware/generic/goldfish/development/fasttest_exclusions.txt"
+if [[ ! -f "$EXCLUSIONS_FILE" ]]; then
+    echo "Exclusions file not found: $EXCLUSIONS_FILE. Running create-fasttest-exclusions first..."
+    mise run create-fasttest-exclusions
+fi
+
+RAW_EXCLUSIONS=$(cat "$EXCLUSIONS_FILE")
+COUNT=$(echo "$RAW_EXCLUSIONS" | grep -c . || echo 0)
+echo "Excluding $COUNT targets from the test graph."
+
+# Use sed to prefix each target with a '-' so Bazel subtracts it
+EXCLUSIONS=$(echo "$RAW_EXCLUSIONS" | sed 's/^/-/')
+bazel test -- @goldfish//... $EXCLUSIONS
+"""

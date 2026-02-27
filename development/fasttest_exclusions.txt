@@ -1,0 +1,16 @@
+@breakpad//:dump_syms
+@goldfish//emulator/crashreport/tool:bazel_crashreport
+@goldfish//emulator/launcher:boot_tests
+@goldfish//emulator/launcher:can_boot_with_minigbm_2x_zip
+@goldfish//emulator/launcher:can_boot_with_minigbm_zip
+@goldfish//emulator/launcher:can_launch_kernel_with_minigbm_zip
+@goldfish//emulator/launcher:emulator_produces_pixels_zip
+@goldfish//emulator:package_goldfish_native_symbols
+@goldfish//emulator:package_goldfish_symbols
+@goldfish//emulator:package_goldfish_symbols_extract
+@goldfish//emulator:release
+@goldfish//emulator:release_build_test
+@goldfish//emulator:release_build_test_0__deps
+@goldfish//emulator:release_unstripped
+@goldfish//emulator/tests:release_zip_test
+@rules_pkg//pkg/private/zip:build_zip
