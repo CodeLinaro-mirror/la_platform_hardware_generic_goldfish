@@ -446,7 +446,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 void list_avds(const ResolvedInputPaths& resolved_paths, bool verbose, char* sysdir_override) {
     auto avds = Avd::List(resolved_paths.avd_directory);
     for (const auto& name : avds) {
-        auto a = Avd::FromName(resolved_paths, name, sysdir_override ? sysdir_override : "");
+        auto a = Avd::FromName(resolved_paths, name, false, sysdir_override ? sysdir_override : "");
         if (!a.status().ok()) {
             std::cout << name << "is not valid: " << a.status().message();
         } else {
