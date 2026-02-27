@@ -14,8 +14,8 @@
 #include <signal.h>
 #include <string.h>
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 #include "android/base/testing/needs_winsock.h"
 
 namespace android {

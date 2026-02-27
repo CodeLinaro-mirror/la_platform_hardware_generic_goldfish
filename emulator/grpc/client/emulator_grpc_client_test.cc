@@ -31,8 +31,8 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 #include "emulator_controller.grpc.pb.h"
 
 using android::emulation::control::BlockingEmulatorGrpcClient;

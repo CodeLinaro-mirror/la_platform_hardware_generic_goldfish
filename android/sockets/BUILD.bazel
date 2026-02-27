@@ -2,7 +2,15 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
     name = "sockets",
-    srcs = ["socket_utils.cc"],
+    srcs = [
+        "SocketErrors.h",
+        "Winsock.h",
+        "socket_utils.cc",
+    ],
+    hdrs = [
+        "include/android/sockets/scoped_socket.h",
+        "include/android/sockets/socket_utils.h",
+    ],
     copts = select({
         "@platforms//os:windows": [
             "-Wno-microsoft-goto",

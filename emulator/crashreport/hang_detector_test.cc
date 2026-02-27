@@ -21,10 +21,10 @@
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 
-#include "aemu/base/Debug.h"
 #include "android/base/abseil_clock.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "debug.h"
 
 namespace android::crashreport {
 

@@ -31,8 +31,8 @@
 #include "absl/log/log.h"
 #include "google/protobuf/android/control/interceptor/logging_interceptor.h"
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 #include "android/base/file/file.h"
 #include "android/control/interceptor/idle_interceptor.h"
 #include "android/emulation/control/allow_list.h"

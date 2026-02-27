@@ -27,8 +27,8 @@
 #include "absl/strings/str_format.h"
 
 #include "android/process/process.h"
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 #include "android/base/file/file.h"
 #include "android/goldfish/ini_file.h"
 #include "emulator_advertisement.h"

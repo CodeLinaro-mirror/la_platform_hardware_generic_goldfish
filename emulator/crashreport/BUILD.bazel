@@ -18,16 +18,23 @@ CRASHURL_DEFINES = select({
 })
 
 cc_library(
+    name = "debug",
+    srcs = ["debug.cc"],
+    hdrs = ["debug.h"],
+    deps = ["//emulator/libs/base:array_size"],
+)
+
+cc_library(
     name = "hang_detector",
     srcs = ["hang_detector.cc"],
     hdrs = ["include/android/crashreport/hang_detector.h"],
     includes = ["include"],
     deps = [
+        ":debug",
         "//android/async:async_api",
         "//android/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -36,6 +43,7 @@ cc_test(
     size = "small",
     srcs = ["hang_detector_test.cc"],
     deps = [
+        ":debug",
         ":hang_detector",
         "//android/async:async_testing",
         "//android/async:libuv_event_loop",

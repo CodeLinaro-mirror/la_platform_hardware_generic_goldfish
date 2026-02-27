@@ -22,9 +22,9 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
-#include "aemu/base/Debug.h"
 #include "android/base/clock.h"
 #include "goldfish/async/event_loop.h"
+#include "debug.h"
 
 namespace android::crashreport {
 

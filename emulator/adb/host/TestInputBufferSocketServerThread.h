@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketUtils.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
 
 #include "absl/log/log.h"
 

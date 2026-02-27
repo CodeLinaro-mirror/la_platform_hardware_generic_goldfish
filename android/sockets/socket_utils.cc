@@ -8,19 +8,20 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+#include "android/sockets/socket_utils.h"
+
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "aemu/base/EnumFlags.h"
 #include "aemu/base/msvc.h"
-#include "aemu/base/sockets/ScopedSocket.h"
-#include "aemu/base/sockets/SocketErrors.h"
-#include "aemu/base/sockets/SocketUtils.h"
+
+#include "android/sockets/scoped_socket.h"
 #include "android/base/no_sigalarm.h"
 
+#include "SocketErrors.h"
 #ifdef _WIN32
-#include "aemu/base/sockets/Winsock.h"
+#include "Winsock.h"
 #else
 #include <fcntl.h>
 #include <netdb.h>
