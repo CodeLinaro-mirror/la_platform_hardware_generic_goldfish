@@ -44,9 +44,9 @@ Status ServiceForwarderImpl::listForwardingRules(ServerContext* /*context*/,
     return Status::OK;
 }
 
-std::optional<Endpoint> ServiceForwarderImpl::GetEndpoint(const std::string& serviceUri) const {
+std::optional<Endpoint> ServiceForwarderImpl::GetEndpoint(const std::string& service_uri) const {
     const absl::MutexLock lock(&mutex_);
-    const auto it = rules_.find(serviceUri);
+    const auto it = rules_.find(service_uri);
     if (it != rules_.end()) {
         return it->second;
     }

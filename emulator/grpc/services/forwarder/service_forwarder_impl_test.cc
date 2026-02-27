@@ -21,7 +21,6 @@
 
 namespace android::emulation::forwarding {
 
-using ::testing::IsEmpty;
 using ::testing::SizeIs;
 
 class ServiceForwarderImplTest : public ::testing::Test {
@@ -34,12 +33,12 @@ TEST_F(ServiceForwarderImplTest, RegisterAndRetrieveEndpoint) {
     rule.set_service_uri("my.service.uri");
     rule.mutable_endpoint()->set_target("localhost:1234");
 
-    grpc::Status status = forwarder_.registerForwarder(nullptr, &rule, nullptr);
+    const grpc::Status status = forwarder_.registerForwarder(nullptr, &rule, nullptr);
     EXPECT_TRUE(status.ok());
 
     auto endpoint = forwarder_.GetEndpoint("my.service.uri");
     ASSERT_TRUE(endpoint.has_value());
-    EXPECT_EQ(endpoint->target(), "localhost:1234");
+    EXPECT_EQ(endpoint->target(), "localhost:1234");  // NOLINT(bugprone-unchecked-optional-access)
 }
 
 TEST_F(ServiceForwarderImplTest, GetEndpointNotFound) {
@@ -62,7 +61,7 @@ TEST_F(ServiceForwarderImplTest, OverrideForwarder) {
 
     auto endpoint = forwarder_.GetEndpoint("my.service.uri");
     ASSERT_TRUE(endpoint.has_value());
-    EXPECT_EQ(endpoint->target(), "localhost:5678");
+    EXPECT_EQ(endpoint->target(), "localhost:5678");  // NOLINT(bugprone-unchecked-optional-access)
 }
 
 TEST_F(ServiceForwarderImplTest, ListForwardingRules) {
@@ -77,7 +76,7 @@ TEST_F(ServiceForwarderImplTest, ListForwardingRules) {
     forwarder_.registerForwarder(nullptr, &rule2, nullptr);
 
     ForwardingRuleList response;
-    grpc::Status status = forwarder_.listForwardingRules(nullptr, nullptr, &response);
+    const grpc::Status status = forwarder_.listForwardingRules(nullptr, nullptr, &response);
     EXPECT_TRUE(status.ok());
 
     EXPECT_THAT(response.rules(), SizeIs(2));
