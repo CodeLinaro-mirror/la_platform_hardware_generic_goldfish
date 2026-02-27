@@ -20,119 +20,119 @@
 
 namespace android::emulation::control {
 TEST(AbslStatusTranslateTest, OkStatus) {
-    absl::Status abslStatus = absl::OkStatus();
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_TRUE(grpcStatus.ok());
+    const absl::Status absl_status = absl::OkStatus();
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_TRUE(grpc_status.ok());
 }
 
 TEST(AbslStatusTranslateTest, CancelledStatus) {
-    absl::Status abslStatus = absl::CancelledError();
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::CANCELLED);
+    const absl::Status absl_status = absl::CancelledError();
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::CANCELLED);
 }
 
 TEST(AbslStatusTranslateTest, InvalidArgumentStatus) {
-    absl::Status abslStatus = absl::InvalidArgumentError("invalid argument");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
-    EXPECT_EQ(grpcStatus.error_message(), "invalid argument");
+    const absl::Status absl_status = absl::InvalidArgumentError("invalid argument");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
+    EXPECT_EQ(grpc_status.error_message(), "invalid argument");
 }
 
 TEST(AbslStatusTranslateTest, DeadlineExceededStatus) {
-    absl::Status abslStatus = absl::DeadlineExceededError("deadline exceeded");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::DEADLINE_EXCEEDED);
-    EXPECT_EQ(grpcStatus.error_message(), "deadline exceeded");
+    const absl::Status absl_status = absl::DeadlineExceededError("deadline exceeded");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::DEADLINE_EXCEEDED);
+    EXPECT_EQ(grpc_status.error_message(), "deadline exceeded");
 }
 
 TEST(AbslStatusTranslateTest, NotFoundStatus) {
-    absl::Status abslStatus = absl::NotFoundError("not found");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::NOT_FOUND);
-    EXPECT_EQ(grpcStatus.error_message(), "not found");
+    const absl::Status absl_status = absl::NotFoundError("not found");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::NOT_FOUND);
+    EXPECT_EQ(grpc_status.error_message(), "not found");
 }
 
 TEST(AbslStatusTranslateTest, AlreadyExistsStatus) {
-    absl::Status abslStatus = absl::AlreadyExistsError("already exists");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::ALREADY_EXISTS);
-    EXPECT_EQ(grpcStatus.error_message(), "already exists");
+    const absl::Status absl_status = absl::AlreadyExistsError("already exists");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+    EXPECT_EQ(grpc_status.error_message(), "already exists");
 }
 
 TEST(AbslStatusTranslateTest, PermissionDeniedStatus) {
-    absl::Status abslStatus = absl::PermissionDeniedError("permission denied");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::PERMISSION_DENIED);
-    EXPECT_EQ(grpcStatus.error_message(), "permission denied");
+    const absl::Status absl_status = absl::PermissionDeniedError("permission denied");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::PERMISSION_DENIED);
+    EXPECT_EQ(grpc_status.error_message(), "permission denied");
 }
 
 TEST(AbslStatusTranslateTest, ResourceExhaustedStatus) {
-    absl::Status abslStatus = absl::ResourceExhaustedError("resource exhausted");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::RESOURCE_EXHAUSTED);
-    EXPECT_EQ(grpcStatus.error_message(), "resource exhausted");
+    const absl::Status absl_status = absl::ResourceExhaustedError("resource exhausted");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::RESOURCE_EXHAUSTED);
+    EXPECT_EQ(grpc_status.error_message(), "resource exhausted");
 }
 
 TEST(AbslStatusTranslateTest, FailedPreconditionStatus) {
-    absl::Status abslStatus = absl::FailedPreconditionError("failed precondition");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::FAILED_PRECONDITION);
-    EXPECT_EQ(grpcStatus.error_message(), "failed precondition");
+    const absl::Status absl_status = absl::FailedPreconditionError("failed precondition");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::FAILED_PRECONDITION);
+    EXPECT_EQ(grpc_status.error_message(), "failed precondition");
 }
 
 TEST(AbslStatusTranslateTest, AbortedStatus) {
-    absl::Status abslStatus = absl::AbortedError("aborted");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::ABORTED);
-    EXPECT_EQ(grpcStatus.error_message(), "aborted");
+    const absl::Status absl_status = absl::AbortedError("aborted");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::ABORTED);
+    EXPECT_EQ(grpc_status.error_message(), "aborted");
 }
 
 TEST(AbslStatusTranslateTest, OutOfRangeStatus) {
-    absl::Status abslStatus = absl::OutOfRangeError("out of range");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::OUT_OF_RANGE);
-    EXPECT_EQ(grpcStatus.error_message(), "out of range");
+    const absl::Status absl_status = absl::OutOfRangeError("out of range");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
+    EXPECT_EQ(grpc_status.error_message(), "out of range");
 }
 
 TEST(AbslStatusTranslateTest, UnimplementedStatus) {
-    absl::Status abslStatus = absl::UnimplementedError("unimplemented");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::UNIMPLEMENTED);
-    EXPECT_EQ(grpcStatus.error_message(), "unimplemented");
+    const absl::Status absl_status = absl::UnimplementedError("unimplemented");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::UNIMPLEMENTED);
+    EXPECT_EQ(grpc_status.error_message(), "unimplemented");
 }
 
 TEST(AbslStatusTranslateTest, InternalStatus) {
-    absl::Status abslStatus = absl::InternalError("internal");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::INTERNAL);
-    EXPECT_EQ(grpcStatus.error_message(), "internal");
+    const absl::Status absl_status = absl::InternalError("internal");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::INTERNAL);
+    EXPECT_EQ(grpc_status.error_message(), "internal");
 }
 
 TEST(AbslStatusTranslateTest, UnavailableStatus) {
-    absl::Status abslStatus = absl::UnavailableError("unavailable");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::UNAVAILABLE);
-    EXPECT_EQ(grpcStatus.error_message(), "unavailable");
+    const absl::Status absl_status = absl::UnavailableError("unavailable");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::UNAVAILABLE);
+    EXPECT_EQ(grpc_status.error_message(), "unavailable");
 }
 
 TEST(AbslStatusTranslateTest, DataLossStatus) {
-    absl::Status abslStatus = absl::DataLossError("data loss");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::DATA_LOSS);
-    EXPECT_EQ(grpcStatus.error_message(), "data loss");
+    const absl::Status absl_status = absl::DataLossError("data loss");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::DATA_LOSS);
+    EXPECT_EQ(grpc_status.error_message(), "data loss");
 }
 
 TEST(AbslStatusTranslateTest, UnauthenticatedStatus) {
-    absl::Status abslStatus = absl::UnauthenticatedError("unauthenticated");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::UNAUTHENTICATED);
-    EXPECT_EQ(grpcStatus.error_message(), "unauthenticated");
+    const absl::Status absl_status = absl::UnauthenticatedError("unauthenticated");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::UNAUTHENTICATED);
+    EXPECT_EQ(grpc_status.error_message(), "unauthenticated");
 }
 
 TEST(AbslStatusTranslateTest, UnknownStatus) {
-    absl::Status abslStatus = absl::UnknownError("unknown");
-    grpc::Status grpcStatus = abslStatusToGrpcStatus(abslStatus);
-    EXPECT_EQ(grpcStatus.error_code(), grpc::StatusCode::UNKNOWN);
-    EXPECT_EQ(grpcStatus.error_message(), "unknown");
+    const absl::Status absl_status = absl::UnknownError("unknown");
+    const grpc::Status grpc_status = AbslStatusToGrpcStatus(absl_status);
+    EXPECT_EQ(grpc_status.error_code(), grpc::StatusCode::UNKNOWN);
+    EXPECT_EQ(grpc_status.error_message(), "unknown");
 }
 }  // namespace android::emulation::control

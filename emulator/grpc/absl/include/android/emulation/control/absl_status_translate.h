@@ -32,5 +32,5 @@ namespace android::emulation::control {
  * @return The equivalent `grpc::Status` object. If the input status is OK,
  *         returns a grpc::Status::OK.
  */
-grpc::Status abslStatusToGrpcStatus(const absl::Status& absl_status);
+grpc::Status AbslStatusToGrpcStatus(const absl::Status& absl_status);
 }  // namespace android::emulation::control

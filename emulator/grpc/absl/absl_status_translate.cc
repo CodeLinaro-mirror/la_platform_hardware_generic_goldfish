@@ -14,7 +14,7 @@
 #include "android/emulation/control/absl_status_translate.h"
 
 namespace android::emulation::control {
-grpc::Status abslStatusToGrpcStatus(const absl::Status& absl_status) {
+grpc::Status AbslStatusToGrpcStatus(const absl::Status& absl_status) {
     if (absl_status.ok()) {
         return grpc::Status::OK;
     }
@@ -71,6 +71,6 @@ grpc::Status abslStatusToGrpcStatus(const absl::Status& absl_status) {
         // Add more mappings as needed...
     }
 
-    return ::grpc::Status(grpc_code, std::string(absl_status.message()));
+    return {grpc_code, std::string(absl_status.message())};
 }
 }  // namespace android::emulation::control

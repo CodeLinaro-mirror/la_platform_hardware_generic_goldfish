@@ -7,7 +7,7 @@
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
-| `abslStatusToGrpcStatus` | `:translate` | `.../absl_status_translate.h` | Helper to map `absl::Status` to `grpc::Status`. |
+| `AbslStatusToGrpcStatus` | `:translate` | `.../absl_status_translate.h` | Helper to map `absl::Status` to `grpc::Status`. |
 
 ## Critical Infrastructure
 * **Interoperability:** Used by gRPC service implementations to return errors consistent with internal emulator logic (which heavily uses Abseil).

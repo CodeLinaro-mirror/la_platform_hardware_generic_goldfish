@@ -135,17 +135,17 @@ class EmulatorControllerImpl final
     }
 
     Status sendMouse(ServerContext* context, const MouseEvent* request, Empty* /*reply*/) override {
-        return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
+        return AbslStatusToGrpcStatus(mInputEventSender.Send(*request));
     }
 
     Status sendTouch(ServerContext* context, const TouchEvent* request, Empty* /*reply*/) override {
-        return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
+        return AbslStatusToGrpcStatus(mInputEventSender.Send(*request));
     }
 
     ::grpc::ServerReadReactor<WheelEvent>* injectWheel(::grpc::CallbackServerContext* /*context*/,
                                                        Empty* /*response*/) override {
         return new SimpleServerLambdaReader<WheelEvent>([this](auto request) {
-            return abslStatusToGrpcStatus(mInputEventSender.Send(*request));
+            return AbslStatusToGrpcStatus(mInputEventSender.Send(*request));
         });
     }
 
@@ -172,7 +172,7 @@ class EmulatorControllerImpl final
                         status = absl::InvalidArgumentError(
                                 "Unknown event, is the emulator out of date?.");
                     }
-                    return abslStatusToGrpcStatus(status);
+                    return AbslStatusToGrpcStatus(status);
                 });
         // Note that the event reader will delete itself on completion of
         // the request.
