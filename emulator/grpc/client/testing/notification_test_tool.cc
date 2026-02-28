@@ -1,3 +1,5 @@
+#include <google/protobuf/empty.pb.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -5,19 +7,18 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+
 #include "android/emulation/control/emulator_grpc_client.h"
 #include "emulator_controller.grpc.pb.h"
 #include "emulator_controller.pb.h"
 
-#include <google/protobuf/empty.pb.h>
-
-using google::protobuf::Empty;
-using android::emulation::control::EmulatorGrpcClientBuilder;
-using android::emulation::control::Endpoint;
 using android::emulation::control::BlockingEmulatorGrpcClient;
 using android::emulation::control::ConnectionState;
-using android::emulation::control::Notification;
 using android::emulation::control::EmulatorController;
+using android::emulation::control::EmulatorGrpcClientBuilder;
+using android::emulation::control::Endpoint;
+using android::emulation::control::Notification;
+using google::protobuf::Empty;
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -31,9 +32,7 @@ int main(int argc, char** argv) {
     Endpoint endpoint;
     endpoint.set_target(target);
 
-    auto client_or_status = EmulatorGrpcClientBuilder()
-            .WithEndpoint(endpoint)
-            .BuildBlocking();
+    auto client_or_status = EmulatorGrpcClientBuilder().WithEndpoint(endpoint).BuildBlocking();
 
     if (!client_or_status.ok()) {
         std::cerr << "Failed to build client: " << client_or_status.status() << std::endl;
@@ -56,7 +55,7 @@ int main(int argc, char** argv) {
 
     auto stub = std::move(*stub_or_status);
     auto context_or_status = client->NewContext();
-     if (!context_or_status.ok()) {
+    if (!context_or_status.ok()) {
         std::cerr << "Failed to create context: " << context_or_status.status() << std::endl;
         return 1;
     }
