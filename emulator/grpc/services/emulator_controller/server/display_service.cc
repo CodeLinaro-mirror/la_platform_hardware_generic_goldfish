@@ -119,7 +119,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     auto screen = mMultiDisplay.GetDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();
-        return abslStatusToGrpcStatus(screen.status());
+        return AbslStatusToGrpcStatus(screen.status());
     }
     auto display = screen->lock();
     if (!display) {
@@ -128,7 +128,7 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
     auto allocator = createAllocator(*request, *display);
     if (!allocator.ok()) {
-        return abslStatusToGrpcStatus(allocator.status());
+        return AbslStatusToGrpcStatus(allocator.status());
     }
 
     DeviceSkinRotationCallbackSource deviceSkinRotationCallbackSource;
@@ -197,7 +197,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     auto screen = mMultiDisplay.GetDisplay(request->display());
     if (!screen.ok()) {
         LOG(INFO) << "Unable to retrieve display: " << screen.status();
-        return abslStatusToGrpcStatus(screen.status());
+        return AbslStatusToGrpcStatus(screen.status());
     }
     auto display = screen->lock();
     if (!display) {
@@ -206,7 +206,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 
     auto allocator = createAllocator(*request, *display);
     if (!allocator.ok()) {
-        return abslStatusToGrpcStatus(allocator.status());
+        return AbslStatusToGrpcStatus(allocator.status());
     }
     return getScreenshot(context, request, reply, *allocator);
 }
@@ -324,12 +324,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
 
     auto allocated_pixels = allocator(reply, c_pixels);
     if (!allocated_pixels.ok()) {
-        return abslStatusToGrpcStatus(allocated_pixels.status());
+        return AbslStatusToGrpcStatus(allocated_pixels.status());
     }
     seq = display->GetPixels(format, newWidth, newHeight, rotation, *allocated_pixels, &c_pixels);
 
     if (!seq.status().ok()) {
-        return abslStatusToGrpcStatus(seq.status());
+        return AbslStatusToGrpcStatus(seq.status());
     }
 
     // Make sure studio does not get confused, as the pixels required for png < image size..
