@@ -35,13 +35,20 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
     if (recorder_) {
         return Status(grpc::StatusCode::ALREADY_EXISTS, "Recording already in progress.");
     }
-    // 1. Validate Input
+
+    // 1. Prepare and apply defaults
+    RecordingInfo configured_request = *request;
+    if (configured_request.fps() == 0) configured_request.set_fps(24);
+    if (configured_request.bit_rate() == 0) configured_request.set_bit_rate(2000000);  // 2Mbps
+    if (configured_request.time_limit() == 0) configured_request.set_time_limit(180);
+
+    // 2. Validate Input
     std::string error_msg;
-    if (!ValidateRecordingParams(request, error_msg)) {
+    if (!ValidateRecordingParams(&configured_request, error_msg)) {
         return Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
     }
 
-    auto screen = display_.GetDisplay(request->display());
+    auto screen = display_.GetDisplay(configured_request.display());
     if (!screen.ok()) {
         LOG(WARNING) << "Unable to retrieve display: " << screen.status();
         return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
@@ -53,8 +60,8 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
 
     auto dims = display->GetDimensions();
 
-    // 2. Check if already recording to this file
-    auto it = recordings_.find(request->file_name());
+    // 3. Check if already recording to this file
+    auto it = recordings_.find(configured_request.file_name());
     if (it != recordings_.end()) {
         auto& existing = it->second;
         if (existing.state() == RecordingInfo::RECORDER_STATE_RECORDING) {
@@ -63,37 +70,40 @@ Status ScreenRecordingServiceImpl::StartRecording(ServerContext* context,
         }
     }
 
-    // 3. Update State
-    const int kFps = request->fps();
-    const int kBitRate = request->bit_rate();  // midium quality
-    const int kSeconds = request->time_limit();
-    constexpr int kDefaultSeconds = 180;
+    // 4. Start the Recorder
+    const int kFps = configured_request.fps();
+    const int kBitRate = configured_request.bit_rate();
+    const int kSeconds = configured_request.time_limit();
 
     // We just ignore the width and height from request
     const int width2 = dims.width;
     const int height2 = dims.height;
-    recorder_.reset(new ::goldfish::display::VideoRecorder(width2, height2, kFps, kBitRate,
-                kSeconds > 0 ? kSeconds:kDefaultSeconds));
-    const char* kFileName = request->file_name().c_str();
+    recorder_.reset(
+            new ::goldfish::display::VideoRecorder(width2, height2, kFps, kBitRate, kSeconds));
+    const char* kFileName = configured_request.file_name().c_str();
     auto frame_generator = [display, width2, height2](uint8_t* pixels, int w, int h, int frameIndex,
                                                       double time) {
         auto format2 = ::goldfish::display::PixelFormat::kRgb888;
         auto rotation2 = ::goldfish::display::ImageRotation::kRotation0;
-        size_t c_pixels = width2 * height2 * 3;
+        size_t c_pixels = static_cast<size_t>(width2) * height2 * 3;
         auto seq = display->GetPixels(format2, width2, height2, rotation2, pixels, &c_pixels);
     };
-    recorder_->Start(kFileName, frame_generator);
+    if (!recorder_->Start(kFileName, frame_generator)) {
+        recorder_.reset();
+        return Status(grpc::StatusCode::INTERNAL,
+                      "Failed to start recording. Check logs for details.");
+    }
 
-    RecordingInfo new_recording = *request;
-    new_recording.set_state(RecordingInfo::RECORDER_STATE_RECORDING);
+    // 5. Update State
+    configured_request.set_state(RecordingInfo::RECORDER_STATE_RECORDING);
 
     // Store it
-    recordings_[request->file_name()] = new_recording;
+    recordings_[configured_request.file_name()] = configured_request;
 
-    // 4. Prepare Response
-    *response = new_recording;
+    // 6. Prepare Response
+    *response = configured_request;
 
-    LOG(INFO) << "Started recording: " << request->file_name() << std::endl;
+    LOG(INFO) << "Started recording: " << configured_request.file_name() << std::endl;
     return Status::OK;
 }
 
@@ -164,12 +174,16 @@ bool ScreenRecordingServiceImpl::ValidateRecordingParams(const RecordingInfo* in
         return false;
     }
 
+    // Check FPS range
+    if (info->fps() < 1 || info->fps() > 60) {
+        error_msg = "FPS must be between 1 and 60";
+        return false;
+    }
+
     // Check Bitrate (100k - 25M)
-    if (info->bit_rate() != 0) {  // 0 implies default
-        if (info->bit_rate() < 100000 || info->bit_rate() > 25000000) {
-            error_msg = "Bitrate must be between 100,000 and 25,000,000";
-            return false;
-        }
+    if (info->bit_rate() < 100000 || info->bit_rate() > 25000000) {
+        error_msg = "Bitrate must be between 100,000 and 25,000,000";
+        return false;
     }
 
     return true;

@@ -73,6 +73,12 @@ bool VideoRecorder::IsRunning() const {
 }
 
 void VideoRecorder::GenerationLoop() {
+    if (fps_ <= 0) {
+        LOG(ERROR) << "[Recorder] Invalid FPS: " << fps_;
+        running_ = false;
+        return;
+    }
+
     // Pre-allocate buffer to avoid allocation inside the loop
     std::vector<uint8_t> frame_buffer(static_cast<size_t>(width_) * height_ * 3);
 

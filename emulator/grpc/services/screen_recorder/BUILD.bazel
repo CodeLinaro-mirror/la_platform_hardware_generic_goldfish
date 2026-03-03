@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -16,5 +17,16 @@ cc_library(
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
         "@goldfish//emulator/libs/display:video_recorder",
         "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "screen_recording_impl_test",
+    srcs = ["screen_recording_impl_test.cc"],
+    deps = [
+        ":screen_recorder",
+        "@goldfish//android/async:libuv_event_loop",
+        "@goldfish//android/system:googletest_main",
+        "@goldfish//emulator/libs/display:test-display",
     ],
 )
