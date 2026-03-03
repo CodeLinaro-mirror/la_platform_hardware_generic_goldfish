@@ -17,12 +17,57 @@
 #include <memory>
 #include <vector>
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+#include <mach/task.h>
+#endif
+
 #include "absl/log/log.h"
 
 #include "goldfish/async/launch_config.h"
 #include "goldfish/async/uv_to_absl.h"
 
 namespace goldfish::async {
+
+#ifdef __APPLE__
+namespace {
+class ScopedDisableExceptionPorts {
+  public:
+    ScopedDisableExceptionPorts() {
+        // Load current state..
+        const kern_return_t kr = task_get_exception_ports(mach_task_self(), EXC_MASK_ALL, masks_,
+                                                          &count_, ports_, behaviors_, flavors_);
+        if (kr == KERN_SUCCESS) {
+            // Disable all exception ports, crashpad will not be able to detect if a crash happens
+            // after this point.
+            if (task_set_exception_ports(mach_task_self(), EXC_MASK_ALL, MACH_PORT_NULL, 0, 0) ==
+                KERN_SUCCESS) {
+                active_ = true;
+            }
+        }
+    }
+
+    ~ScopedDisableExceptionPorts() {
+        if (active_) {
+            // Reactivate the ports, crash handling is back!
+            for (unsigned int i = 0; i < count_; ++i) {
+                task_set_exception_ports(mach_task_self(), masks_[i], ports_[i], behaviors_[i],
+                                         flavors_[i]);
+            }
+        }
+    }
+
+  private:
+    bool active_ = false;
+    static constexpr unsigned int kMaxExceptionPorts = 32;
+    mach_msg_type_number_t count_ = kMaxExceptionPorts;
+    exception_mask_t masks_[kMaxExceptionPorts];
+    mach_port_t ports_[kMaxExceptionPorts];
+    exception_behavior_t behaviors_[kMaxExceptionPorts];
+    thread_state_flavor_t flavors_[kMaxExceptionPorts];
+};
+}  // namespace
+#endif
 
 absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         const LaunchConfig& config, uv_exit_cb exit_cb) {
@@ -58,6 +103,14 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
 
     auto handle = ProcessHandle(new uv_process_t{});
     handle->data = this;
+
+#ifdef __APPLE__
+    // uv_spawn will automatically inherit our exception ports, which means that crashpad
+    // will start tracking the child, which can result in some odd corner cases we want
+    // to avoid like b/333628462
+    // Note: we will not detect crashes until disable_ports leaves the scope.
+    const ScopedDisableExceptionPorts disable_ports;
+#endif
     if (const int res = uv_spawn(uv_loop_, handle.get(), &options); res < 0) {
         return goldfish::async::UvErrToAbslStatus(res);
     }
