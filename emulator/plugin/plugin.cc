@@ -40,6 +40,7 @@
 #include "goldfish/input/virtio_input_android.h"
 #include "goldfish/net/virtio_wifi.h"
 #include "goldfish/netsim/netsim_chardev.h"
+#include "goldfish/netsim/netsim_connection.h"
 #include "goldfish/netsim/netsim_netdev.h"
 #include "goldfish/tools/aemu_version.h"
 #include "goldfish/vsock/vsock_low_level.h"
@@ -152,6 +153,7 @@ extern "C" void GF_REGISTER_TYPES_FUNC(void) {
     virtio_input_android_register_types();
     goldfish::grpc::grpc_register_types();
     virtio_wifi_register_types();
+    goldfish::netsim::netsim_connection_register_types();
     goldfish::netsim::netsim_netdev_register_types();
     goldfish::netsim::netsim_chardev_register_types();
     VLOG(1) << "Exit GF_REGISTER_TYPES";

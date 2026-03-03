@@ -138,25 +138,25 @@ absl::Status Emulator::addDevices() {
     // addDevice<NetworkDevice>("0a.0");
 
     if (!o.no_netsim) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-device",
+            absl::StrCat("netsim-connection,id=netsim,grpc_endpoint=", chardev_endpoints().netsim),
+        });
+
         if (!o.no_wifi) {
             addDevice<WifiDevice>("0b.0");
         }
         // The name of these vport devices should be used by
-        // http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp It should lookup the actual
-        // port number and set the property "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
-        // /dev/vport8p3 for bt (4th port)
-        // TODO(b/450338546): this isn't currently working and instead there is a hack in a-info.cpp
-        // to workaround.
+        // http://ac/device/generic/goldfish/qemu-props/vport_parser.cpp
+        // It should lookup the actual port number and set the property
+        // "vendor.qemu.vport.<name>" to "/dev/vport8p<N>"
+        // e.g. /dev/vport8p3 for bt (4th port)
         addDevice<ParameterList>(std::initializer_list<std::string>{
-            "-chardev",
-            absl::StrCat("netsim-uwb,id=uwb,host=", chardev_endpoints().netsim),
-            "-device",
-            "virtconsole,chardev=uwb,name=uwb",
+            "-chardev", "netsim-uwb,id=uwb",
+            "-device", "virtconsole,chardev=uwb,name=uwb",
 
-            "-chardev",
-            absl::StrCat("netsim-bt,id=bluetooth,host=", chardev_endpoints().netsim),
-            "-device",
-            "virtserialport,chardev=bluetooth,name=bluetooth",
+            "-chardev", "netsim-bt,id=bluetooth",
+            "-device", "virtserialport,chardev=bluetooth,name=bluetooth",
         });
     }
 

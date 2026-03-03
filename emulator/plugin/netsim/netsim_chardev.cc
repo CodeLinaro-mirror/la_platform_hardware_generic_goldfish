@@ -22,16 +22,18 @@ extern "C" {
 #include "qemu/osdep.h"
 #include "chardev/char.h"
 #include "qapi/error.h"
+#include "qapi/visitor.h"
 #include "qemu/error-report.h"
 #include "qemu/option.h"
+#include "qom/object.h"
 // IWYU pragma: end_keep
 // clang-format on
 }
 
 #undef send
 #include "android/grpc/utils/enum_translate.h"
-#include "emulator/plugin/netsim/NetsimTransport.h"
-#include "emulator/plugin/netsim/h4_parser.h"
+#include "netsim_transport.h"
+#include "h4_parser.h"
 
 namespace goldfish::netsim {
 
@@ -230,7 +232,6 @@ struct NetsimChardevState {
 
 struct NetsimChardev {
     Chardev parent_class;
-    char* grpc_endpoint;
     NetsimChardevState* state;
 };
 
@@ -291,15 +292,7 @@ void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened,
     VLOG(1) << "Realizing netsim chardev: " << chr->label;
 
     NetsimChardev* nc = NETSIM_CHARDEV(chr);
-    // HACK: We have hijacked the logfile field to store our endpoint.
-    nc->grpc_endpoint = backend->u.null.data->logfile;
-    if (!nc->grpc_endpoint) {
-        error_setg(errp, "grpc_endpoint attribute is not set");
-        return;
-    }
-
     nc->state->transport = std::make_unique<NetsimTransport>(
-            nc->grpc_endpoint,
             [chr, protocol = nc->state->protocol.get()](::netsim::packet::PacketResponse* packet) {
                 protocol->netsim_to_guest_packet(chr, packet);
                 // Try to receive next packet immediately.
@@ -312,26 +305,15 @@ void netsim_chardev_open(Chardev* chr, ChardevBackend* backend, bool* be_opened,
     // to Netsimd at that point (netsim_chardev_set_fe_open).
 }
 
-void netsim_chardev_parse(QemuOpts* opts, ChardevBackend* backend, Error** errp) {
-    VLOG(1) << "NETSIM: parse";
-    // HACK: We have hijacked the "host" parameter to pass our endpoint.
-    char* grpc_endpoint = qemu_opt_get_del(opts, "host");
-
-    // HACK: We have hijacked the logfile field to store our endpoint.
-    ChardevCommon* ccom = g_new0(ChardevCommon, 1);
-    ccom->logfile = grpc_endpoint;
-    backend->u.null.data = ccom;
-}
-
 void netsim_chardev_bt_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM UWB init";
+    VLOG(1) << "NETSIM BT init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     nc->state = new NetsimChardevState;
     nc->state->protocol = std::make_unique<BtProtocol>(&nc->state->parser_packet_queue);
 }
 
 void netsim_chardev_uwb_instance_init(Object* obj) {
-    VLOG(1) << "NETSIM BT init";
+    VLOG(1) << "NETSIM UWB init";
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
     nc->state = new NetsimChardevState;
     nc->state->protocol = std::make_unique<UwbProtocol>(&nc->state->parser_packet_queue);
@@ -340,9 +322,6 @@ void netsim_chardev_uwb_instance_init(Object* obj) {
 void netsim_chardev_instance_finalize(Object* obj) {
     NetsimChardev* nc = NETSIM_CHARDEV(obj);
 
-    // Note that we don't currently have to free grpc_endpoint as it is still "owned" by
-    // ChardevCommon. g_free(nc->grpc_endpoint);
-
     // This calls NetsimTransport's destructor, which calls cancel and await
     nc->state->transport.reset();
     delete nc->state;
@@ -350,7 +329,6 @@ void netsim_chardev_instance_finalize(Object* obj) {
 
 void netsim_chardev_class_init(ObjectClass* oc, void* data) {
     ChardevClass* cc = CHARDEV_CLASS(oc);
-    cc->parse = netsim_chardev_parse;
     cc->open = netsim_chardev_open;
     cc->chr_write = netsim_chardev_write;
     cc->chr_set_fe_open = netsim_chardev_set_fe_open;

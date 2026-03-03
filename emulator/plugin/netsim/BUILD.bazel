@@ -1,18 +1,35 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
-    name = "netsim_transport",
-    srcs = ["netsim_transport.cc"],
-    hdrs = ["NetsimTransport.h"],
+    name = "netsim_connection",
+    srcs = ["netsim_connection.cc"],
+    hdrs = [
+        "include/goldfish/netsim/netsim_connection.h",
+        "netsim_connection_internal.h",
+    ],
+    includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/grpc/client:emulator_grpc_client",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "netsim_transport",
+    srcs = ["netsim_transport.cc"],
+    hdrs = ["netsim_transport.h"],
+    deps = [
+        ":netsim_connection",
         "//emulator/grpc/client:emulator_grpc_client",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",
         "@grpc//:grpc++",
         "@netsim//:netsimd_cc_grpc",
-        "@qemu//:qemu-headers",
     ],
 )
 

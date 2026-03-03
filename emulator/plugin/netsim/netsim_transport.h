@@ -23,10 +23,6 @@
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
 
-namespace android::emulation::control {
-class BlockingEmulatorGrpcClient;
-}
-
 namespace goldfish::netsim {
 
 // Convert a protobuf bytes field into std::unique_ptr<vec<uint8_t>>.
@@ -40,7 +36,7 @@ class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketR
   public:
     using RecvCallback = std::function<bool(::netsim::packet::PacketResponse* packet)>;
 
-    NetsimTransport(std::string endpoint, RecvCallback recv_cb);
+    NetsimTransport(RecvCallback recv_cb);
     ~NetsimTransport() override;
 
     absl::Status initialize(::netsim::startup::Chip chip);
@@ -58,12 +54,10 @@ class NetsimTransport : public grpc::ClientBidiReactor<::netsim::packet::PacketR
     void OnWriteDone(bool ok) override;
     void NextWrite_locked();
 
-    std::string mEndpoint;
     RecvCallback mRecvCb;
 
     std::string mKindName;
 
-    std::unique_ptr<android::emulation::control::BlockingEmulatorGrpcClient> mGrpcClient;
     std::unique_ptr<::netsim::packet::PacketStreamer::Stub> mPacketStreamerStub;
 
     std::unique_ptr<grpc::ClientContext> mStreamPacketsContext;

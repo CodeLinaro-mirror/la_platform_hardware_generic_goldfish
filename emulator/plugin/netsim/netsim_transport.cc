@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "netsim_transport.h"
+
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/support/status.h>
 
@@ -25,24 +27,20 @@
 
 #include "android/status/status_macros.h"
 #include "android/emulation/control/emulator_grpc_client.h"
-#include "emulator/plugin/netsim/NetsimTransport.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/tools/aemu_version.h"
 #include "netsim/packet_streamer.grpc.pb.h"
 #include "netsim/packet_streamer.pb.h"
+#include "netsim_connection_internal.h"
 
 namespace goldfish::netsim {
-namespace {
-const absl::Duration kConnectionDeadline = absl::Seconds(15);
-}  // namespace
 
 std::unique_ptr<std::vector<uint8_t>> ToUniqueVec(std::string* bytes_field) {
     return std::make_unique<std::vector<uint8_t>>(std::make_move_iterator(bytes_field->begin()),
                                                   std::make_move_iterator(bytes_field->end()));
 }
 
-NetsimTransport::NetsimTransport(std::string endpoint, RecvCallback recv_cb)
-        : mEndpoint(std::move(endpoint)), mRecvCb(std::move(recv_cb)) {}
+NetsimTransport::NetsimTransport(RecvCallback recv_cb) : mRecvCb(std::move(recv_cb)) {}
 
 NetsimTransport::~NetsimTransport() {
     cancel();
@@ -55,9 +53,6 @@ void NetsimTransport::cancel() {
     } else {
         // We'll never be notified if the context was never created.
         mDone.Notify();
-    }
-    if (mGrpcClient) {
-        mGrpcClient->Disconnect();
     }
 }
 
@@ -77,28 +72,18 @@ absl::Status NetsimTransport::initialize(::netsim::startup::Chip chip) {
     device_info->set_variant(avdprops.build_flavour);
     device_info->set_arch(avdprops.avd_abi);
 
-    VLOG(1) << "Netsim Transport " << mEndpoint
-            << " - creating gRPC channel to netsimd endpoint: " << mEndpoint;
-    android::emulation::control::Endpoint endpoint_config;
-    endpoint_config.set_target(mEndpoint);
+    // Hold the ptr until we're done initialising, after that the stub has access to the channel.
+    ASSIGN_OR_RETURN(std::shared_ptr<android::emulation::control::EmulatorGrpcClientBase> grpc_client, get_connected_netsim_grpc_client());
 
-    ASSIGN_OR_RETURN(mGrpcClient,
-                     android::emulation::control::EmulatorGrpcClientBuilder()
-                             .WithEndpoint(endpoint_config)
-                             // TODO(whollins): re-add interceptiors e.g.
-                             //.WithInterceptor(std::make_unique<MetricsInterceptorFactory>());
-                             .BuildBlocking());
-    // TODO(whollins): Consider changing to non-blocking.
-    RETURN_IF_ERROR(mGrpcClient->Connect(kConnectionDeadline));
-    ASSIGN_OR_RETURN(mPacketStreamerStub, mGrpcClient->Stub<::netsim::packet::PacketStreamer>());
+    ASSIGN_OR_RETURN(mPacketStreamerStub, grpc_client->Stub<::netsim::packet::PacketStreamer>());
 
-    ASSIGN_OR_RETURN(mStreamPacketsContext, mGrpcClient->NewContext());
+    ASSIGN_OR_RETURN(mStreamPacketsContext, grpc_client->NewContext());
     mPacketStreamerStub->async()->StreamPackets(mStreamPacketsContext.get(), this);
     StartCall();
     send(initial_request);
     next_recv();
 
-    LOG(INFO) << "Netsim Transport " << mKindName << " - successfully initialized";
+    LOG(INFO) << "Netsim Transport: " << mKindName << " - successfully initialized";
     return absl::OkStatus();
 }
 
@@ -148,7 +133,7 @@ void NetsimTransport::OnReadDone(bool ok) {
         }
     } else {
         // Reading finished
-        VLOG(1) << "Netsim Transport " << mKindName << " - reading terminated";
+        VLOG(1) << "Netsim Transport: " << mKindName << " - reading terminated";
         std::lock_guard<std::mutex> lock(mReadlock);
         mReadDone = true;
     }
@@ -156,10 +141,10 @@ void NetsimTransport::OnReadDone(bool ok) {
 
 void NetsimTransport::OnDone(const grpc::Status& s) {
     if (s.error_code() == grpc::StatusCode::CANCELLED) {
-        LOG(INFO) << "Netsim Transport " << mKindName << " - connection to "
+        LOG(INFO) << "Netsim Transport: " << mKindName << " - connection to "
                   << mStreamPacketsContext->peer() << " was cancelled";
     } else {
-        LOG(WARNING) << "Netsim Transport " << mKindName << " - connection to "
+        LOG(WARNING) << "Netsim Transport: " << mKindName << " - connection to "
                      << mStreamPacketsContext->peer() << " is gone due to " << s.error_message();
     }
     mDone.Notify();

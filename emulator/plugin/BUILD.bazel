@@ -30,6 +30,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//emulator/plugin/grpc",
             "//emulator/plugin/netsim:netsim-chardev",
             "//emulator/plugin/netsim:netsim-netdev",
+            "//emulator/plugin/netsim:netsim_connection",
             "//emulator/plugin/virtio-input-android",
             "//emulator/plugin/virtio-wifi",
             "//emulator/plugin/vminterface:vm_ops",

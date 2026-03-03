@@ -34,7 +34,7 @@ extern "C" {
 
 #undef send
 
-#include "emulator/plugin/netsim/NetsimTransport.h"
+#include "netsim_transport.h"
 #include "goldfish/network/generic_netlink_message.h"
 
 #define __packed
@@ -49,7 +49,6 @@ namespace {
 
 struct NetsimNetdev {
     DeviceClass parent_class;
-    char* grpc_endpoint;
 };
 
 #define TYPE_NETSIM_NETDEV "netsim-netdev"
@@ -153,11 +152,6 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
     VLOG(1) << "Realizing netsim netdev: " << dev->id;
 
     NetsimNetdev* netsim_netdev = NETSIM_NETDEV(dev);
-    if (!netsim_netdev->grpc_endpoint) {
-        error_setg(errp, "grpc_endpoint attribute is not set");
-        return;
-    }
-
     NetClientState* nc;
     nc = qemu_find_netdev(dev->id);
     if (nc != nullptr) {
@@ -173,7 +167,7 @@ void netsim_netdev_realize(DeviceState* dev, Error** errp) {
 
     s->netsim = new NetsimState;
     s->netsim->transport = std::make_unique<NetsimTransport>(
-            netsim_netdev->grpc_endpoint, [nc](::netsim::packet::PacketResponse* packet) {
+            [nc](::netsim::packet::PacketResponse* packet) {
                 if (packet->has_packet()) {
                     return netsim_netdev_send(nc, ToUniqueVec(packet->mutable_packet()));
                 } else {
@@ -202,31 +196,9 @@ void netsim_netdev_unrealize(DeviceState* dev) {
         return;
     }
     qemu_del_net_client(nc);
-
-    NetsimNetdev* netsim_netdev = NETSIM_NETDEV(dev);
-    g_free(netsim_netdev->grpc_endpoint);
-}
-
-void netsim_netdev_set_grpc_endpoint(Object* obj, Visitor* v, const char* name, void* opaque,
-                                     Error** errp) {
-    NetsimNetdev* netsim_netdev = NETSIM_NETDEV(obj);
-
-    char* grpc_endpoint;
-    if (!visit_type_str(v, name, &grpc_endpoint, errp)) {
-        error_setg(errp, "failed to parse grpc_endpoint string");
-        return;
-    }
-
-    VLOG(1) << "grpc_endpoint = " << grpc_endpoint;
-
-    netsim_netdev->grpc_endpoint = grpc_endpoint;
 }
 
 void netsim_netdev_class_init(ObjectClass* oc, void* data) {
-    // TODO(whollins): Consider taking the discovery file directly.
-    object_class_property_add(oc, "grpc_endpoint", "str", nullptr, netsim_netdev_set_grpc_endpoint,
-                              nullptr, nullptr);
-
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = netsim_netdev_realize;
     dc->unrealize = netsim_netdev_unrealize;
