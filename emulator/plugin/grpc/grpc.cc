@@ -77,6 +77,7 @@ struct GrpcConfig {
     fs::path tls_ca;
     fs::path allowlist;
     fs::path discovery_path;
+    fs::path launcher_dir;
     bool enable_logging{false};
     bool enable_embedded{false};
     bool use_token{false};
@@ -180,6 +181,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         {"avd.name", avdprops.avd_name},
         {"avd.id", avdprops.avd_id},
         {"avd.dir", avdprops.avd_content_path.string()},
+        {"launcher.dir", config->launcher_dir.string()},
         // TODO(jansene):
         {"cmdline", absl::StrCat("\"qemu-system-x86_64\" ", "\"@dummy\" ",
                                  (config->enable_embedded ? "\"-qt-hide-window\" " : ""),
@@ -303,6 +305,11 @@ void grpc_set_discovery_dir(Object* obj, const char* value, Error** errp) {
     grpc_device->config->discovery_path = value;
 }
 
+void grpc_set_launcher_dir(Object* obj, const char* value, Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    grpc_device->config->launcher_dir = value;
+}
+
 void grpc_set_enable_logging(Object* obj, bool v, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config->enable_logging = v;
@@ -363,6 +370,7 @@ void grpc_class_init(ObjectClass* oc, void* data) {
                                           "a valid token for every grpc call.");
 
     object_class_property_add_str(oc, "discovery_dir", NULL, grpc_set_discovery_dir);
+    object_class_property_add_str(oc, "launcher_dir", NULL, grpc_set_launcher_dir);
 
     object_class_property_add_bool(oc, "logging", NULL, grpc_set_enable_logging);
     object_class_property_add_bool(oc, "embedded", NULL, grpc_set_enable_embedded);

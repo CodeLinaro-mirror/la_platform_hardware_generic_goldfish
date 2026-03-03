@@ -65,7 +65,8 @@ std::vector<std::string> GrpcDevice::getQemuParameters(const EmulatorConfig& emu
         {"port", absl::StrCat(mPort)},
         {"token", "true"},
         {"allowlist", allowlist.string()},
-        {"discovery_dir", emulator.paths().discovery_directory.string()}};
+        {"discovery_dir", emulator.paths().discovery_directory.string()},
+        {"launcher_dir", emulator.paths().launcher_directory.string()}};
     params.emplace_back(std::pair{"logging", emulator.opts().verbose_grpc ? "true" : "false"});
     params.emplace_back(std::pair{"embedded", emulator.opts().qt_hide_window ? "true" : "false"});
 
