@@ -132,7 +132,7 @@ TestEventLoopImpl::TestEventLoopImpl() : mNow(std::chrono::steady_clock::now()) 
 
 TestEventLoopImpl::~TestEventLoopImpl() {
     if (GetState() != LooperStatusEvent::State::kShuttingDown) {
-        ShutdownAndWait();
+        ShutdownAndWait().IgnoreError();
     }
     mStop = true;
     mCv.notify_one();

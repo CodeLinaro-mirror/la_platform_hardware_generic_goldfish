@@ -105,15 +105,17 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     void OnFlowControlEvent(const bool enable_reading) override {
         auto weak_self = std::weak_ptr<LibuvSocket>(shared_from_this());
-        event_loop_->Post([enable_reading, weak_self = std::move(weak_self)]() {
-            if (const auto self = weak_self.lock()) {
-                if (enable_reading) {
-                    self->StartReading();
-                } else {
-                    uv_read_stop(self->GetUvSocketStream());
-                }
-            }
-        });
+        event_loop_
+                ->Post([enable_reading, weak_self = std::move(weak_self)]() {
+                    if (const auto self = weak_self.lock()) {
+                        if (enable_reading) {
+                            self->StartReading();
+                        } else {
+                            uv_read_stop(self->GetUvSocketStream());
+                        }
+                    }
+                })
+                .IgnoreError();
     }
 
     void SetOnCloseCallback(OnCloseCallback cb) override {

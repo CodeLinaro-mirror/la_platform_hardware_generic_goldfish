@@ -15,6 +15,7 @@
 #include "goldfish/async/libuv_process_launcher.h"
 
 #include <memory>
+#include <vector>
 
 #include "absl/log/log.h"
 
@@ -40,19 +41,19 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     // Flush the streams to try to reduce interleaved logs from the different processes.
     std::cout << std::flush;
     std::cerr << std::flush;
-    char* args[config.args.size() + 2];
-    args[0] = const_cast<char*>(exe.c_str());
-    for (size_t i = 0; i < config.args.size(); ++i) {
-        args[i + 1] = const_cast<char*>(config.args[i].c_str());
+    std::vector<char*> args;
+    args.push_back(const_cast<char*>(exe.c_str()));
+    for (const auto& arg : config.args) {
+        args.push_back(const_cast<char*>(arg.c_str()));
     }
-    args[config.args.size() + 1] = nullptr;
+    args.push_back(nullptr);
 
     const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
-        .exit_cb = exit_cb, .file = exe.c_str(),
-        .args = args,       .flags = config.daemon ? UV_PROCESS_DETACHED : 0U,
-        .stdio_count = 3,   .stdio = stdio,
+        .exit_cb = exit_cb,  .file = exe.c_str(),
+        .args = args.data(), .flags = config.daemon ? UV_PROCESS_DETACHED : 0U,
+        .stdio_count = 3,    .stdio = stdio,
     };
 
     auto handle = ProcessHandle(new uv_process_t{});
