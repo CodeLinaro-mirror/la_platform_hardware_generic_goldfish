@@ -139,7 +139,7 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
     const Avd& avd = emulator.avd();
     return {"-device", getDeviceParam(avd, id(), addr()), "-blockdev",
             absl::StrCat("driver=raw,node-name=", id(),
-                         ",read-only=on,driver=file,filename=", mImagePath.string())};
+                         ",read-only=on,file.driver=file,file.filename=", mImagePath.string())};
 }
 
 absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
