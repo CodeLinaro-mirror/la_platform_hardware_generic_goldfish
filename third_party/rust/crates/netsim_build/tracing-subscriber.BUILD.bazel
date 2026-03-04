@@ -23,7 +23,6 @@ rust_library(
     srcs = glob(["**/*.rs"]),
     crate_features = [
         "alloc",
-        "ansi",
         "default",
         "env-filter",
         "fmt",
@@ -37,7 +36,6 @@ rust_library(
     edition = "2018",
     deps = [
         "@matchers",
-        "@nu-ansi-term",
         "@once_cell",
         "@regex-automata",
         "@sharded-slab",
