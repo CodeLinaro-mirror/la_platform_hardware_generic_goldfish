@@ -156,7 +156,6 @@ def _lrc_impl(module_ctx):
         "mockall_derive",
         "named-lock",
         "nom",
-        "nu-ansi-term",
         "num_cpus",
         "num-bigint",
         "num-derive",
