@@ -12,52 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #pragma once
+
 #include <grpcpp/grpcpp.h>
 
-namespace android {
-namespace control {
-namespace interceptor {
+#include <cstdint>
+
+#include "grpc_diagnostic.pb.h"
+
+#include "goldfish/circular_message_log.h"
+
+namespace android::control::interceptor {
 
 using grpc::experimental::ClientRpcInfo;
 using grpc::experimental::Interceptor;
 using grpc::experimental::InterceptorBatchMethods;
 using grpc::experimental::ServerRpcInfo;
 
-// A BreadcrumbInterceptor will create breadcrumbs crash annotations for the
-// gRPC calls that are being made. They basically provide you some insight on
-// what is going on in the gRPC stack. If crashes happen during a gRPC call
-// it might give you an idea of which call was active.
-//
-// We basically track 2 things:
-//
-// the grpc tag will track active calls.
-// on the individual thread we will track the status of the call.
-//
-// The crumbs will have the following format:
-//
-// [phase][crc32][timestamp]
-//
-// Which will be base64 encoded. They can be decoded by the
-// `android/scripts/gen-grpc-sql.py` script. For example:
-//
-// python android/scripts/gen-grpc-sql.py android/grpc/services
-// -decode  'annotation_objects["2410469"] = PLxafuJ0o3NlAAAAAA=='
-// ('Incoming server call',
-// '/android.emulation.control.EmulatorController/sendMouse',
-// datetime.datetime(2023, 12, 8, 15, 15))
+/**
+ * @brief Intercepts gRPC calls to record structured diagnostic breadcrumbs.
+ *
+ * BreadcrumbInterceptor captures the lifecycle of an RPC (Start, Finish,
+ * Message exchange, etc.) and stores it as structured binary Protobuf
+ * in a circular buffer. This buffer is backed by a Crashpad Annotation,
+ * ensuring it is preserved in minidumps.
+ */
 class BreadcrumbInterceptor : public grpc::experimental::Interceptor {
   public:
-    explicit BreadcrumbInterceptor(ClientRpcInfo* info);
-    explicit BreadcrumbInterceptor(ServerRpcInfo* info);
+    explicit BreadcrumbInterceptor(const ClientRpcInfo* info);
+    explicit BreadcrumbInterceptor(const ServerRpcInfo* info);
     ~BreadcrumbInterceptor() override;
 
     void Intercept(InterceptorBatchMethods* methods) override;
 
+    /** @brief Returns the log instance for testing purposes. */
+    static goldfish::proto_data_store::ProtoCircularLog<
+            ::android::control::interceptor::GrpcBreadcrumb>*
+    GetLogForTesting();
+
   private:
-    std::uint32_t mCrc;
+    uint32_t call_id_;
+    uint32_t method_hash_;
 };
 
-// The factory class that needs to be registered with the gRPC server/client.
+/**
+ * @brief Factory for creating BreadcrumbInterceptors.
+ */
 class BreadcrumbInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface,
                                      public grpc::experimental::ClientInterceptorFactoryInterface {
   public:
@@ -66,6 +65,5 @@ class BreadcrumbInterceptorFactory : public grpc::experimental::ServerIntercepto
     Interceptor* CreateServerInterceptor(ServerRpcInfo* info) override;
     Interceptor* CreateClientInterceptor(ClientRpcInfo* info) override;
 };
-}  // namespace interceptor
-}  // namespace control
-}  // namespace android
+
+}  // namespace android::control::interceptor

@@ -14,11 +14,11 @@
 ## Critical Infrastructure
 * **Observability:** `LoggingInterceptor` generates `InvocationRecord` structs. `StdOutLoggingInterceptorFactory` provides a default implementation that writes to `LOG(INFO)`.
 * **Lifecycle:** `IdleInterceptor` uses a `goldfish::async::EventLoop::Timer` to periodically check if any RPCs were active. If the "Termination Time" is exceeded, it triggers an orderly shutdown.
-* **Diagnostics:** `BreadcrumbInterceptor` encodes the active gRPC method and its phase into a CRC-checksummed, base64 string. These are stored in the crash reporter's breadcrumb buffer to help debug crashes occurring during RPC execution.
+* **Diagnostics:** `BreadcrumbInterceptor` records RPC lifecycle events (Start, Phase, Message, Status) into a high-performance `ProtoCircularLog<GrpcBreadcrumb>`. This log is backed by a `BinaryAnnotation`, ensuring structured forensic data is captured directly in Crashpad minidumps.
 
 ## Dependencies
-* **Core:** `//android/async` (EventLoop), `//emulator/libs/debug`.
-* **External:** `@grpc//:grpc++`.
+* **Core:** `//android/async` (EventLoop), `//emulator/libs/debug`, `//emulator/libs/proto_data_store` (`ProtoCircularLog`).
+* **External:** `@grpc//:grpc++`, `@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto`.
 
 ## Threading Model
-* **Thread Safe:** Interceptors are invoked by the gRPC stack on its completion queue threads. The `IdleInterceptor` uses atomic counters to track active requests across threads.
+* **Thread Safe:** Interceptors are invoked by the gRPC stack on its completion queue threads. The `BreadcrumbInterceptor` uses a mutex-protected circular buffer to ensure thread-safe logging with minimal contention. The `IdleInterceptor` uses atomic counters to track active requests across threads.

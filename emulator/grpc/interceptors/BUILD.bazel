@@ -6,6 +6,7 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "interceptors",
     srcs = [
+        "breadcrumb_interceptor.cc",
         "idle_interceptor.cc",
         "logging_interceptor.cc",
     ],
@@ -20,7 +21,14 @@ cc_library(
         "//android/async:async_api",
         "//android/process",
         "//android/system:clock",
+        "//emulator/crashreport:breadcrumb",
+        "@abseil-cpp//absl/time",
+        "@aemu//base:aemu-base",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@goldfish//emulator/crashreport:crash_reporter",
+        "@goldfish//emulator/libs/proto_data_store",
         "@grpc//:grpc++",
+        "@zlib",
     ],
 )
 
@@ -30,6 +38,7 @@ cc_test(
         select({
             "@platforms//os:windows": [],
             "//conditions:default": [
+                "breadcrumb_interceptor_test.cc",
                 "logging_interceptor_test.cc",
             ],
         }),
@@ -39,7 +48,8 @@ cc_test(
         "//android/async:async_testing",
         "//android/system:googletest_main",
         "//android/system:test-headers",
-        "//emulator/grpc/services/emulator_controller:emulator_controller_cc_proto",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@googletest//:gtest",
     ],
 )
