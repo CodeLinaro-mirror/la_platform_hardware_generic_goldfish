@@ -51,7 +51,7 @@ TEST(RoDrive, Basic_x86) {
                     testing::Eq("-device"), testing::Eq("virtio-blk-pci,addr=03.0,drive=system"),
                     testing::Eq("-blockdev"),
                     testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
-                                             "driver=file,filename=",
+                                             "file.driver=file,file.filename=",
                                              image_file.string()))));
 }
 
@@ -75,7 +75,7 @@ TEST(RoDrive, Basic_arm64) {
                         testing::Eq("-device"), testing::Eq("virtio-blk-device,drive=system"),
                         testing::Eq("-blockdev"),
                         testing::Eq(absl::StrCat("driver=raw,node-name=system,read-only=on,"
-                                                 "driver=file,filename=",
+                                                 "file.driver=file,file.filename=",
                                                  image_file.string()))));
 }
 
