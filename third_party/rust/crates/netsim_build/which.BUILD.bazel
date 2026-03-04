@@ -10,5 +10,8 @@ rust_library(
     deps = [
         "@either",
         "@libc",
-    ],
+    ] + select({
+        "@bazel_tools//src/conditions:windows": ["@once_cell"],
+        "//conditions:default": [],
+    }),
 )
