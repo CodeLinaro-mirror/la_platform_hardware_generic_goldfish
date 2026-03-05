@@ -358,24 +358,16 @@ static const VMStateInfo vmstate_info_virtio_vsock_impl = {
     .put = &vmstate_info_virtio_vsock_impl_save,
 };
 
-/*
- * b/445476051: it must be initialized at runtime because &vmstate_info_foo
- * is a runtime value on Windows.
- */
-static VMStateDescription vmstate_virtio_vsock;
+static VMStateField virtio_vsock_vmstate_fields[4];
+static VMStateDescription vmstate_virtio_vsock = {
+    .name = TYPE_VIRTIO_VSOCK,
+    .minimum_version_id = 0,
+    .version_id = 0,
+    .fields = virtio_vsock_vmstate_fields,
+};
 
 static void virtio_vsock_class_init(ObjectClass* klass, void* data) {
     DEBUG_MSG("klass=%p data=%p", klass, data);
-
-    vmstate_virtio_vsock = (VMStateDescription){
-        .name = TYPE_VIRTIO_VSOCK,
-        .minimum_version_id = 0,
-        .version_id = 0,
-        .fields = (VMStateField[]){VMSTATE_VIRTIO_DEVICE, VMSTATE_UINT64(guest_cid, VirtIOVSock),
-                                   VMSTATE_POINTER(impl, VirtIOVSock, 0,
-                                                   vmstate_info_virtio_vsock_impl, void*),
-                                   VMSTATE_END_OF_LIST()},
-    };
 
     DeviceClass* dc = DEVICE_CLASS(klass);
     dc->vmsd = &vmstate_virtio_vsock;
@@ -453,6 +445,17 @@ static const VirtioPCIDeviceTypeInfo virtio_vsock_pci_typeinfo = {
 };
 
 void vsock_low_level_register_types(void) {
+    /*
+     * b/445476051: VMStateField must be initialized at runtime because it refers
+     * (through VMSTATE_xyz) to QEMU symbols (in a different binary) and on Windows
+     * their addresses are runtime values.
+     */
+    virtio_vsock_vmstate_fields[0] = (VMStateField)VMSTATE_VIRTIO_DEVICE;
+    virtio_vsock_vmstate_fields[1] = (VMStateField)VMSTATE_UINT64(guest_cid, VirtIOVSock);
+    virtio_vsock_vmstate_fields[2] = (VMStateField)VMSTATE_POINTER(
+            impl, VirtIOVSock, 0, vmstate_info_virtio_vsock_impl, void*);
+    virtio_vsock_vmstate_fields[3] = (VMStateField)VMSTATE_END_OF_LIST();
+
     DEBUG_MSG("registering %s and %s", TYPE_VIRTIO_VSOCK, TYPE_VIRTIO_VSOCK_PCI_GENERIC);
     type_register_static(&virtio_vsock_typeinfo);
     virtio_pci_types_register(&virtio_vsock_pci_typeinfo);

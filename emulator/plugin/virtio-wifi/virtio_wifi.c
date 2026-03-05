@@ -94,11 +94,12 @@ static const SaveVMHandlers virtio_wifi_vmhandlers = {
     .load_state = virtio_wifi_state_load,
 };
 
+static VMStateField virtio_wifi_vmstate_fields[2];
 static const VMStateDescription virtio_wifi_vmstate = {
     .name = TYPE_VIRTIO_WIFI,
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]){VMSTATE_VIRTIO_DEVICE, VMSTATE_END_OF_LIST()},
+    .fields = virtio_wifi_vmstate_fields,
 };
 
 static bool virtio_wifi_started(VirtIOWifi* wifi, uint8_t status) {
@@ -656,6 +657,14 @@ static const VirtioPCIDeviceTypeInfo virtio_wifi_pci_info = {
 };
 
 void virtio_wifi_register_types(void) {
+    /*
+     * b/445476051: VMStateField must be initialized at runtime because it refers
+     * (through VMSTATE_xyz) to QEMU symbols (in a different binary) and on Windows
+     * their addresses are runtime values.
+     */
+    virtio_wifi_vmstate_fields[0] = (VMStateField)VMSTATE_VIRTIO_DEVICE;
+    virtio_wifi_vmstate_fields[1] = (VMStateField)VMSTATE_END_OF_LIST();
+
     type_register_static(&virtio_wifi_info);
     virtio_pci_types_register(&virtio_wifi_pci_info);
 }
