@@ -4,10 +4,12 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "parsing",
     srcs = [
+        "arg_stream.cc",
         "get_key_value_str.cc",
         "split2.cc",
     ],
     hdrs = [
+        "include/goldfish/parsing/arg_stream.h",
         "include/goldfish/parsing/from_chars.h",
         "include/goldfish/parsing/get_key_value_str.h",
         "include/goldfish/parsing/split2.h",
@@ -17,6 +19,10 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -25,6 +31,7 @@ cc_test(
     name = "parsing_unittests",
     size = "small",
     srcs = [
+        "arg_stream_test.cc",
         "get_key_value_str_test.cc",
         "split2_test.cc",
     ],
