@@ -188,13 +188,6 @@ uint32_t dom_to_evdev(DomCode key);
  */
 uint32_t keycode_to_evdev(uint32_t from, KeyCodeType source);
 
-/**
- * @brief Converts a QEMU keycode to an evdev keycode.
- *
- * @param qcode The QEMU keycode to convert.
- * @return The corresponding evdev keycode.
- */
-uint32_t qcode_to_evdev(QKeyCode qcode);
 }  // namespace keyboard
 }  // namespace control
 }  // namespace emulation

@@ -94,19 +94,11 @@ static const SkinKeyEntry cmap[] = {
 };
 
 QKeyCode evdev_to_qcode(uint32_t evdev) {
-    if (evdev >= qemu_input_map_linux_to_qcode_len) {
-        VLOG(1) << "evdev: " << std::hex << evdev << std::dec << " is out of range ("
-                << qemu_input_map_linux_to_qcode_len << ")";
-        return (QKeyCode)0;
+    auto qkc = static_cast<QKeyCode>(qemu_input_linux_to_qcode(evdev));
+    if (qkc == Q_KEY_CODE_UNMAPPED) {
+        VLOG(1) << "unmapped evdev: " << std::hex << evdev << std::dec;
     }
-    return (QKeyCode)qemu_input_map_linux_to_qcode[evdev];
-}
-
-uint32_t qcode_to_evdev(QKeyCode qcode) {
-    if (qcode >= qemu_input_map_qcode_to_linux_len) {
-        return 0;
-    }
-    return (uint32_t)qemu_input_map_qcode_to_linux[qcode];
+    return qkc;
 }
 
 std::vector<QemuKeyEvent> ascii_to_qcode(unsigned short unicode, bool down) {
