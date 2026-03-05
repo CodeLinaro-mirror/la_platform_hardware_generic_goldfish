@@ -60,7 +60,11 @@ class ScopedAsyncResource {
     ScopedAsyncResource& operator=(ScopedAsyncResource&& other) noexcept {
         if (this != &other) {
             if (resource_ && loop_) {
-                loop_->PostAndWait([res = std::move(resource_)]() { res->Close(); });
+                if (loop_->IsOnLoopThread()) {
+                    resource_->Close();
+                } else {
+                    loop_->PostAndWait([res = std::move(resource_)]() { res->Close(); });
+                }
             }
             resource_ = std::move(other.resource_);
             loop_ = other.loop_;

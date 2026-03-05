@@ -188,6 +188,19 @@ cc_test(
 )
 
 cc_test(
+    name = "scoped_async_resource_test",
+    srcs = ["scoped_async_resource_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async_api",
+        ":async_testing",
+        ":libuv_event_loop",
+        ":threaded_event_loop",
+        "//android/system:googletest_main",
+    ],
+)
+
+cc_test(
     name = "event_loop_dispatcher_test",
     size = "medium",
     srcs = ["event_loop_dispatcher_test.cc"],

@@ -16,6 +16,8 @@
 #include "gmock/gmock.h"
 
 #include "goldfish/async/async_socket.h"
+#include "goldfish/async/async_socket_factory.h"
+#include "goldfish/async/async_socket_server.h"
 
 namespace goldfish::async::testing {
 
