@@ -349,30 +349,18 @@ static void goldfish_battery_realize(DeviceState* dev, Error** errp) {
     sBatteryIsRealized = 1;
 }
 
-/*
- * b/445476051: it must be initialized at runtime because &vmstate_info_foo
- * is a runtime value on Windows.
- */
-static VMStateDescription goldfish_battery_vmsd;
-
 /* update this each time you update the battery_state struct */
 #define BATTERY_STATE_SAVE_VERSION 1
 
-static void goldfish_battery_class_init(ObjectClass* klass, void* data) {
-    goldfish_battery_vmsd = (VMStateDescription){
-        .name = "goldfish_battery",
-        .version_id = BATTERY_STATE_SAVE_VERSION,
-        .minimum_version_id = BATTERY_STATE_SAVE_VERSION,
-        .fields = (VMStateField[]){VMSTATE_UINT32(int_status, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(int_enable, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(ac_online, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(status, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(health, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(present, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(capacity, struct goldfish_battery_state),
-                                   VMSTATE_UINT32(hw_has_battery, struct goldfish_battery_state),
-                                   VMSTATE_END_OF_LIST()}};
+static VMStateField battery_vmsd_fields[9];
+static VMStateDescription goldfish_battery_vmsd = {
+    .name = "goldfish_battery",
+    .version_id = BATTERY_STATE_SAVE_VERSION,
+    .minimum_version_id = BATTERY_STATE_SAVE_VERSION,
+    .fields = battery_vmsd_fields,
+};
 
+static void goldfish_battery_class_init(ObjectClass* klass, void* data) {
     DeviceClass* dc = DEVICE_CLASS(klass);
 
     dc->realize = goldfish_battery_realize;
@@ -388,5 +376,23 @@ static const TypeInfo goldfish_battery_info = {
 };
 
 void goldfish_battery_register_types(void) {
+    /*
+     * b/445476051: VMStateField must be initialized at runtime because it refers
+     * (through VMSTATE_xyz) to QEMU symbols (in a different binary) and on Windows
+     * their addresses are runtime values.
+     */
+    battery_vmsd_fields[0] =
+            (VMStateField)VMSTATE_UINT32(int_status, struct goldfish_battery_state);
+    battery_vmsd_fields[1] =
+            (VMStateField)VMSTATE_UINT32(int_enable, struct goldfish_battery_state);
+    battery_vmsd_fields[2] = (VMStateField)VMSTATE_UINT32(ac_online, struct goldfish_battery_state);
+    battery_vmsd_fields[3] = (VMStateField)VMSTATE_UINT32(status, struct goldfish_battery_state);
+    battery_vmsd_fields[4] = (VMStateField)VMSTATE_UINT32(health, struct goldfish_battery_state);
+    battery_vmsd_fields[5] = (VMStateField)VMSTATE_UINT32(present, struct goldfish_battery_state);
+    battery_vmsd_fields[6] = (VMStateField)VMSTATE_UINT32(capacity, struct goldfish_battery_state);
+    battery_vmsd_fields[7] =
+            (VMStateField)VMSTATE_UINT32(hw_has_battery, struct goldfish_battery_state);
+    battery_vmsd_fields[8] = (VMStateField)VMSTATE_END_OF_LIST();
+
     type_register_static(&goldfish_battery_info);
 }
