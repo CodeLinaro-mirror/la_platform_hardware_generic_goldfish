@@ -80,7 +80,7 @@ class QemuVmOperations : public VmOperations {
      */
     void Shutdown() override {
         ScopedVmLock lock;
-        vm_shutdown();
+        qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
     }
 
     /**

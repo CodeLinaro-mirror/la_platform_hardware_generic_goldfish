@@ -85,7 +85,11 @@ TEST_F(QemuVmOperationsTest, Shutdown) {
     vmOps->Shutdown();
     ASSERT_EQ(mTestVmLock->mLockCount, 1);
     ASSERT_EQ(mTestVmLock->mUnlockCount, 1);
-    ASSERT_EQ(runstate_get(), RUN_STATE_SHUTDOWN);
+
+    // Note: qemu_system_shutdown_request is asynchronous in QEMU.
+    // The mock implementation only records the shutdown cause and does not
+    // simulate an immediate transition to RUN_STATE_SHUTDOWN.
+    ASSERT_EQ(mock_shutdown_cause_get(), SHUTDOWN_CAUSE_HOST_UI);
 }
 
 TEST_F(QemuVmOperationsTest, Pause) {
