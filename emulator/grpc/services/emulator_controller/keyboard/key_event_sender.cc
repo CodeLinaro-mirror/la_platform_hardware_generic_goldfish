@@ -250,6 +250,9 @@ class KeyEventSenderImpl : public IKeyEventSender {
                      const KeyboardEvent::KeyEventType eventType) {
         KeyCodeType type = static_cast<KeyCodeType>(codeType);
         QKeyCode qcode = keycode_to_qcode(code, type);
+        if (qcode >= Q_KEY_CODE__MAX) {
+            LOG(FATAL) << "Invalid QKeyCode - too big: " << qcode;
+        }
         if (eventType == KeyboardEvent::keydown || eventType == KeyboardEvent::keypress) {
             mQemuLoop->Post([qcode, kbd = mKbd] {
                 QemuKeyEvent keyEvent{qcode, true};
