@@ -26,8 +26,8 @@
 #include <string_view>
 #include <vector>
 
-#include "aemu/base/CpuTime.h"
-#include "aemu/base/system/Memory.h"
+#include "android/base/cpu_time.h"
+#include "android/base/memory.h"
 #include "android/base/storage_capacity.h"
 
 #ifdef _WIN32
