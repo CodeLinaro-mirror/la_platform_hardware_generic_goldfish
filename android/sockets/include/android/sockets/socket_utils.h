@@ -14,10 +14,6 @@
 
 #pragma once
 
-#ifdef _MSC_VER
-#include "aemu/base/msvc.h"
-#endif
-
 #include <sys/types.h>
 
 namespace android {

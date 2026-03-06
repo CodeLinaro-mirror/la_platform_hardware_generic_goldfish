@@ -52,7 +52,6 @@
 #include <windows.h>
 #include <winioctl.h>
 
-#include "aemu/base/files/ScopedFileHandle.h"
 #include "aemu/base/files/ScopedRegKey.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
@@ -90,18 +89,21 @@ CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionKey;
 #include <sys/statvfs.h>
 #include <sys/times.h>
 #include <sys/wait.h>
-#include <time.h>
+#include <ctime>
 #endif
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#ifdef _MSC_VER
-#include "aemu/base/msvc.h"
-#include "dirent.h"
 
+#ifdef _MSC_VER
+#include "dirent.h"
+extern "C" {
+#include <sys/time.h>
+#include <unistd.h>
+}
 #else
 #include <sys/time.h>
 #include <unistd.h>
