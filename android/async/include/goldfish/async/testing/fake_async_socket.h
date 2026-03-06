@@ -69,22 +69,24 @@ class FakeAsyncSocket : public AsyncSocket {
   public:
     FakeAsyncSocket() {
         ON_CALL(*this, SetOnReadCallbackNoFlowControl(::testing::_))
-                .WillByDefault([this](OnReadCallback cb) { read_cb_ = std::move(cb); });
-        ON_CALL(*this, SetOnCloseCallback(::testing::_)).WillByDefault([this](OnCloseCallback cb) {
-            close_cb_ = std::move(cb);
-        });
+                .WillByDefault([this](OnReadCallback on_read) { read_cb_ = std::move(on_read); });
+        ON_CALL(*this, SetOnCloseCallback(::testing::_))
+                .WillByDefault(
+                        [this](OnCloseCallback on_close) { close_cb_ = std::move(on_close); });
         ON_CALL(*this, SetOnConnectedCallback(::testing::_))
-                .WillByDefault([this](OnConnectCallback cb) { connected_cb_ = std::move(cb); });
+                .WillByDefault([this](OnConnectCallback on_connected) {
+                    connected_cb_ = std::move(on_connected);
+                });
         ON_CALL(*this, GetLoop()).WillByDefault([this]() { return event_loop_; });
     }
 
-    MOCK_METHOD(void, SetOnReadCallbackNoFlowControl, (OnReadCallback cb), (override));
+    MOCK_METHOD(void, SetOnReadCallbackNoFlowControl, (OnReadCallback on_read), (override));
     MOCK_METHOD(void, OnFlowControlEvent, (bool enableReading), (override));
-    MOCK_METHOD(void, SetOnCloseCallback, (OnCloseCallback cb), (override));
-    MOCK_METHOD(void, SetOnConnectedCallback, (OnConnectCallback cb), (override));
+    MOCK_METHOD(void, SetOnCloseCallback, (OnCloseCallback on_close), (override));
+    MOCK_METHOD(void, SetOnConnectedCallback, (OnConnectCallback on_connected), (override));
 
-    MOCK_METHOD(absl::Status, Send, (const char* buffer, size_t buffer_size, OnSendCallback cb),
-                (override));
+    MOCK_METHOD(absl::Status, Send,
+                (const char* buffer, size_t buffer_size, OnSendCallback on_send), (override));
     MOCK_METHOD(void, Close, (), (override));
     MOCK_METHOD(absl::Status, Connect, (), (override));
     MOCK_METHOD(bool, Connected, (), (const, override));

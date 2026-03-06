@@ -50,7 +50,7 @@ class AsyncSocketFactory {
      *
      * @param loop The EventLoop to associate with the server.
      * @param endpoint The resolved network endpoint to bind to.
-     * @param connectCallback The callback that will be invoked for each new
+     * @param connect_callback The callback that will be invoked for each new
      *                        incoming connection.
      * @return std::shared_ptr<AsyncSocketServer> A new AsyncSocketServer
      *                                            instance, or nullptr if the
@@ -84,7 +84,7 @@ std::shared_ptr<AsyncSocket> CreateSocketFromHostname(AsyncSocketFactory& factor
  * @param factory The factory to use for creating the server.
  * @param loop The EventLoop to associate with the server.
  * @param hostname The hostname to bind to.
- * @param connectCallback The callback for new connections.
+ * @param connect_callback The callback for new connections.
  * @return std::shared_ptr<AsyncSocketServer> A new server, or nullptr on
  * failure.
  */

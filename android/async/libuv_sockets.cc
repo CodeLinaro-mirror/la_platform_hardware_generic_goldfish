@@ -68,10 +68,10 @@ void CrashIfUvFailed(const int uv_result, const char* const what) {
 struct WriteReqT {
     uv_write_t req;
     uv_buf_t buf;
-    AsyncSocket::OnSendCallback cb;
+    AsyncSocket::OnSendCallback on_send;
 
     static WriteReqT* Create(const char* buffer_data, size_t buffer_size,
-                             AsyncSocket::OnSendCallback cb) {
+                             AsyncSocket::OnSendCallback on_send) {
         const size_t total_size = sizeof(WriteReqT) + buffer_size;
         void* raw_memory = malloc(total_size);  // NOLINT
         DCHECK(raw_memory) << "Ran out of memory while creating packet";
@@ -80,7 +80,7 @@ struct WriteReqT {
         memcpy(write_buffer, buffer_data, buffer_size);
 
         write_req->buf = uv_buf_init(write_buffer, buffer_size);
-        write_req->cb = std::move(cb);
+        write_req->on_send = std::move(on_send);
 
         return write_req;
     }
@@ -98,9 +98,9 @@ struct WriteReqT {
 class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<LibuvSocket> {
   public:
     // --- Configuration Methods ---
-    void SetOnReadCallbackNoFlowControl(OnReadCallback cb) override {
+    void SetOnReadCallbackNoFlowControl(OnReadCallback on_read) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        on_read_ = std::move(cb);
+        on_read_ = std::move(on_read);
     }
 
     void OnFlowControlEvent(const bool enable_reading) override {
@@ -118,18 +118,18 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
                 .IgnoreError();
     }
 
-    void SetOnCloseCallback(OnCloseCallback cb) override {
+    void SetOnCloseCallback(OnCloseCallback on_close) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        on_close_ = std::move(cb);
+        on_close_ = std::move(on_close);
     }
 
-    void SetOnConnectedCallback(OnConnectCallback cb) override {
+    void SetOnConnectedCallback(OnConnectCallback on_connected) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        on_connected_ = std::move(cb);
+        on_connected_ = std::move(on_connected);
     }
 
     // --- I/O Methods ---
-    absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback cb) override {
+    absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback on_send) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "buffer_sizelled on loop thread";
 
         uv_stream_t* stream = GetUvSocketStream();
@@ -137,12 +137,13 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
             return UvErrToAbslStatus(UV_ENOTCONN);
         }
 
-        auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(cb));
+        auto* write_req = WriteReqT::Create(buffer, buffer_size, std::move(on_send));
         uv_write(&write_req->req, stream, &write_req->buf, 1, [](uv_write_t* req, int s) {
             auto* w = reinterpret_cast<WriteReqT*>(req);
-            w->cb(UvErrToAbslStatus(s));
+            w->on_send(UvErrToAbslStatus(s));
             WriteReqT::Destroy(w);
         });
+
         return absl::OkStatus();
     }
 
@@ -464,10 +465,10 @@ class UnLibuvSocket : public LibuvSocket {
 
 class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_this<LibuvServer> {
   public:
-    LibuvServer(EventLoop* loop, ConnectCallback cb)
+    LibuvServer(EventLoop* loop, ConnectCallback connect_callback)
             : event_loop_(loop)
             , loop_(static_cast<uv_loop_t*>(loop->GetRawLoop()))
-            , connect_callback_(std::move(cb)) {
+            , connect_callback_(std::move(connect_callback)) {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be constructed on loop thread";
     }
 
@@ -489,9 +490,9 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
         }
     }
 
-    void SetOnCloseCallback(AsyncSocket::OnCloseCallback cb) {
+    void SetOnCloseCallback(AsyncSocket::OnCloseCallback close_callback) {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
-        on_close_ = std::move(cb);
+        on_close_ = std::move(close_callback);
     }
 
     EventLoop* GetLoop() const override { return event_loop_; }
@@ -551,7 +552,8 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
 
 class TcpLibuvServer : public LibuvServer {
   public:
-    TcpLibuvServer(EventLoop* loop, ConnectCallback cb) : LibuvServer(loop, std::move(cb)) {
+    TcpLibuvServer(EventLoop* loop, ConnectCallback connect_callback)
+            : LibuvServer(loop, std::move(connect_callback)) {
         CrashIfUvFailed(uv_tcp_init(loop_, &server_stream_), "uv_tcp_init");
         server_stream_.data = this;
     }
@@ -562,10 +564,10 @@ class TcpLibuvServer : public LibuvServer {
 
     // Factory to create a LibuvServer. Returns nullptr on failure.
     static std::shared_ptr<LibuvServer> Create(EventLoop* loop, const Endpoint& endpoint,
-                                               ConnectCallback cb) {
+                                               ConnectCallback connect_callback) {
         DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
 
-        auto server = std::make_shared<TcpLibuvServer>(loop, std::move(cb));
+        auto server = std::make_shared<TcpLibuvServer>(loop, std::move(connect_callback));
         if (server->BindAndListen(endpoint)) {
             return server;
         }
@@ -623,7 +625,8 @@ class TcpLibuvServer : public LibuvServer {
 
 class UnLibuvServer : public LibuvServer {
   public:
-    UnLibuvServer(EventLoop* loop, ConnectCallback cb) : LibuvServer(loop, std::move(cb)) {
+    UnLibuvServer(EventLoop* loop, ConnectCallback connect_callback)
+            : LibuvServer(loop, std::move(connect_callback)) {
         CrashIfUvFailed(uv_pipe_init(loop_, &server_stream_, 0), "uv_pipe_init");
         server_stream_.data = this;
     }
@@ -634,10 +637,10 @@ class UnLibuvServer : public LibuvServer {
 
     // Factory to create a LibuvServer. Returns nullptr on failure.
     static std::shared_ptr<LibuvServer> Create(EventLoop* loop, const UnEndpoint& endpoint,
-                                               ConnectCallback cb) {
+                                               ConnectCallback connect_callback) {
         DCHECK(loop->IsOnLoopThread()) << "Factory must be used on loop thread";
 
-        auto server = std::make_shared<UnLibuvServer>(loop, std::move(cb));
+        auto server = std::make_shared<UnLibuvServer>(loop, std::move(connect_callback));
         if (server->BindAndListen(endpoint)) {
             return server;
         }

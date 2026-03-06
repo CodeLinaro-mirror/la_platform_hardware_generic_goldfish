@@ -153,7 +153,7 @@ class AsyncSocket {
      * @param cb The function to call with incoming data or a read error.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void SetOnReadCallbackNoFlowControl(OnReadCallback cb) = 0;
+    virtual void SetOnReadCallbackNoFlowControl(OnReadCallback on_read) = 0;
 
     virtual void OnFlowControlEvent(bool enable_reading) = 0;
 
@@ -164,10 +164,10 @@ class AsyncSocket {
      * after a close operation, initiated by `close()` or a fatal error, has
      * completed.
      *
-     * @param cb The function to call upon closure.
+     * @param on_close The function to call upon closure.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void SetOnCloseCallback(OnCloseCallback cb) = 0;
+    virtual void SetOnCloseCallback(OnCloseCallback on_close) = 0;
 
     /**
      * @brief Sets the callback for a connection attempt.
@@ -175,10 +175,10 @@ class AsyncSocket {
      * The provided callback will be executed on the socket's event loop thread
      * with a status indicating the success or failure of the connection attempt.
      *
-     * @param cb The function to call with the connection result.
+     * @param on_connected The function to call with the connection result.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual void SetOnConnectedCallback(OnConnectCallback cb) = 0;
+    virtual void SetOnConnectedCallback(OnConnectCallback on_connected) = 0;
 
     /**
      * @brief Asynchronously sends a buffer of data over the socket.
@@ -187,13 +187,13 @@ class AsyncSocket {
      *
      * @param buffer A pointer to the data to be sent.
      * @param buffer_size The number of bytes to send from the buffer.
-     * @param cb The callback to be invoked upon completion of the send. This
+     * @param on_send The callback to be invoked upon completion of the send. This
      * callback will be executed on the socket's event loop thread.
      * @return absl::OkStatus() if the send was successfully queued, or an
      * error status on immediate failure.
      * @warning This method must be called from the socket's event loop thread.
      */
-    virtual absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback cb) = 0;
+    virtual absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback on_send) = 0;
 
     /**
      * @brief A convenience overload for send that performs a "fire-and-forget"
