@@ -30,4 +30,15 @@ int android_createEmptyExt4Image(fs::path dstFilePath, uint64_t size, const char
     return ret;
 }
 
+int android_createExt4ImageFromDir(fs::path dstFilePath, fs::path srcDirectory, uint64_t size,
+                                   const char* mountpoint) {
+    int ret = ::make_ext4fs_from_dir(dstFilePath.string().c_str(), srcDirectory.string().c_str(),
+                                     size, mountpoint, -1);
+    if (ret < 0) {
+        LOG(ERROR) << "Failed to create ext4 image at: " << dstFilePath << " from src "
+                   << srcDirectory;
+    }
+    return ret;
+}
+
 }  // namespace android::filesystems

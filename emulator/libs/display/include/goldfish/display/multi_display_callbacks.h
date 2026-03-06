@@ -21,12 +21,15 @@ __BEGIN_DECLS
 // NOLINTBEGIN
 struct DisplayChangeListener;
 struct DisplaySurface;
+struct QemuConsole;
 
 void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, int y, int w, int h);
 
 void grpc_dpy_gfz_refresh(struct DisplayChangeListener* dcl);
 
 void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl, struct DisplaySurface* new_surface);
+
+void grpc_dpy_gfx_update_ui_info(struct QemuConsole* con);
 // NOLINTEND
 
 __END_DECLS

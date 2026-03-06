@@ -16,10 +16,13 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <memory>
+
 #include "absl/functional/any_invocable.h"
 
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/eventing/with_callbacks.h"
 #include "goldfish/sensors/physical_model.h"
 namespace android {
 namespace emulation {
@@ -35,8 +38,7 @@ using grpc::Status;
 class DisplayServiceImpl : public EmulatorController::Service {
   public:
     DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
-                       ::goldfish::sensors::PhysicalModel* pm)
-            : mMultiDisplay(*display), mPhysicalModel(*pm) {}
+                       ::goldfish::sensors::PhysicalModel* pm);
 
     Status streamScreenshot(ServerContext* context, const ImageFormat* request,
                             grpc::ServerWriter<Image>* writer) override;
@@ -47,6 +49,8 @@ class DisplayServiceImpl : public EmulatorController::Service {
                                     DisplayConfigurations* reply) override;
     Status setDisplayConfigurations(ServerContext* context, const DisplayConfigurations* request,
                                     DisplayConfigurations* reply) override;
+
+    static Posture::PostureValue ToProtoPosture(::goldfish::sensors::FoldablePostures posture);
 
   private:
     static Status getDisplayConfigurations(const ::goldfish::display::IMultiDisplay& multiDisplay,
@@ -80,8 +84,18 @@ class DisplayServiceImpl : public EmulatorController::Service {
     Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply,
                          MemoryAllocator& allocator);
 
+    Status getActiveDisplay(uint32_t displayId,
+                            std::shared_ptr<::goldfish::display::IDisplay>& display);
+
+    void fireDisplayConfigurationsChanged();
+
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
+
+    using PostureSubscription = std::unique_ptr<android::base::RaiiEventListener<
+            android::base::EventNotificationSupport<::goldfish::sensors::FoldablePostures>,
+            ::goldfish::sensors::FoldablePostures>>;
+    PostureSubscription mPostureSubscription;
 };
 
 }  // namespace control

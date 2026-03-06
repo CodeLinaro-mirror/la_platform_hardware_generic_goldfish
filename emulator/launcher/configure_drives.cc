@@ -39,6 +39,20 @@ DiskConfig diskConfig(const Avd& avd, std::string_view id, std::string_view pci_
     };
 }
 
+DiskConfig diskConfig(const Avd& avd, std::string_view id, std::string_view pci_address,
+                      bool is_writable, std::optional<fs::path> system_image,
+                      std::optional<fs::path> src_dir, fs::path user_image, uint64_t size_bytes) {
+    return {
+        .id = std::string(id),
+        .pci_address = std::string(pci_address),
+        .is_writable = is_writable,
+        .system_image_path_ro = system_image,
+        .src_directory_path = src_dir,
+        .user_image_path = user_image,
+        .size_bytes = size_bytes,
+    };
+}
+
 absl::StatusOr<fs::path> getSystemImage(const Avd& avd, Avd::ImageType sys_image_type,
                                         char* flag_override) {
     fs::path p;
@@ -127,7 +141,7 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
     // function won't create it. This function might remove the qcow2 file so that it can be
     // recreated.
     RETURN_IF_ERROR(
-            prepareUserDataBaseImage(init_data, user_data, data_size, !avd.Hw().hw_arc));
+            prepareUserDataBaseImage(avd, init_data, user_data, data_size, !avd.Hw().hw_arc));
 
     return std::vector<DiskConfig>{
         // Currently this must be the first drive on ARM to match the androidboot.boot_devices
@@ -137,7 +151,8 @@ absl::StatusOr<std::vector<DiskConfig>> getDiskConfigs(const Avd& avd, const And
         // Encryption must be second for ARM - to have path
         // "/dev/block/platform/a003c00.virtio_mmio/by-name/metadata".
         diskConfig(avd, "encrypt", "06.0", true, encrypt, user_encrypt, 0),
-        diskConfig(avd, "userdata", "05.0", true, std::nullopt, user_data, data_size),
+        diskConfig(avd, "userdata", "05.0", true, std::nullopt, getUserSrcDirectory(avd), user_data,
+                   data_size),
         diskConfig(avd, "vendor", "07.0", rw_sys, vendor, user_vendor, 0),
         diskConfig(avd, "cache", "04.0", true, std::nullopt, user_cache, cache_size),
 #ifdef __x86_64__

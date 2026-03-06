@@ -90,6 +90,7 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
     std::string emulatorCircularProp = "androidboot.emulator.circular";
     std::string autoRotateProp = "androidboot.qemu.autorotate";
     std::string qemuExternalDisplays = "androidboot.qemu.external.displays";
+    std::string qemuDisplayConfigs0 = "androidboot.qemu.display.0.configs";
     std::string qemuRadioDataInterfaceName = "androidboot.qemu.radio.data_interface_name";
 
     std::vector<std::pair<std::string, std::string>> params;
@@ -245,21 +246,16 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
         params.push_back({deviceStateProp, deviceState});
     }
 
-    //   if (fc::isEnabled(fc::SupportPixelFold)) {
-    //     if (android_foldable_hinge_configured() &&
-    //         android_foldable_is_pixel_fold()) {
-    //       int width{0}, height{0};
-    //       width = hw.hw_displayRegion_0_1_width;
-    //       height = hw.hw_displayRegion_0_1_height;
-    //       dinfo("Configuring second built-in display with width %d and "
-    //             "height %d for pixel_fold device",
-    //             width, height);
-    //       std::string display_list =
-    //           absl::StrFormat("1,%d,%d,%d,0", width, height,
-    //           hw.hw_lcd_density);
-    //       params.push_back({qemuExternalDisplays, display_list});
-    //     }
-    //   }
+    if (hw.hw_sensor_hinge) {
+        int width{0}, height{0};
+        width = hw.hw_displayRegion_0_1_width;
+        height = hw.hw_displayRegion_0_1_height;
+        std::string display_list =
+                absl::StrFormat("1,%d,%d,%d,0", width, height, hw.hw_lcd_density);
+        LOG(INFO) << "sending guest external displays: " << display_list;
+        params.push_back({qemuExternalDisplays, display_list});
+    }
+
     //   if (resizableEnabled()) {
     //     params.push_back({qemuDisplaySettingsXmlProp, "resizable"});
     //   }

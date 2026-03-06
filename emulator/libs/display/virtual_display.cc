@@ -21,6 +21,7 @@
 #include "absl/log/log.h"
 
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/input_handler.h"
 
 extern "C" {
 // clang-format off
@@ -36,52 +37,6 @@ extern "C" {
 }
 
 namespace goldfish::display {
-
-namespace {
-
-// Event Types
-constexpr int kEvSyn = 0x00;
-constexpr int kEvKey = 0x01;
-constexpr int kEvRel = 0x02;
-constexpr int kEvAbs = 0x03;
-
-// Synchronization Events
-constexpr int kSynReport = 0x00;
-
-// Absolute Axes (Standard)
-constexpr int kAbsX = 0x00;
-constexpr int kAbsY = 0x01;
-constexpr int kAbsZ = 0x02;
-
-// Absolute Axes (Multi-Touch)
-constexpr int kAbsMtSlot = 0x2f;         // 47
-constexpr int kAbsMtTouchMajor = 0x30;   // 48
-constexpr int kAbsMtTouchMinor = 0x31;   // 49
-constexpr int kAbsMtWidthMajor = 0x32;   // 50
-constexpr int kAbsMtWidthMinor = 0x33;   // 51
-constexpr int kAbsMtOrientation = 0x34;  // 52
-constexpr int kAbsMtPositionX = 0x35;    // 53
-constexpr int kAbsMtPositionY = 0x36;    // 54
-constexpr int kAbsMtToolType = 0x37;     // 55
-constexpr int kAbsMtBlobId = 0x38;       // 56
-constexpr int kAbsMtTrackingId = 0x39;   // 57
-constexpr int kAbsMtPressure = 0x3a;     // 58
-
-// Mouse Buttons
-constexpr int kBtnLeft = 0x110;    // 272
-constexpr int kBtnRight = 0x111;   // 273
-constexpr int kBtnMiddle = 0x112;  // 274
-constexpr int kBtnSide = 0x113;    // 275
-constexpr int kBtnExtra = 0x114;   // 276
-
-// Touch Buttons
-constexpr int kBtnTouch = 0x14a;       // 330
-constexpr int kBtnToolFinger = 0x145;  // 325
-
-// ID for "No Finger" (Tracking ID -1)
-constexpr int kMtTrackingIdNone = -1;
-
-}  // namespace
 
 VirtualDisplay::VirtualDisplay(EventLoop* loop, EventLoop* qloop, uint8_t id, uint32_t width,
                                uint32_t height, uint32_t dpi, uint32_t flags)
@@ -183,7 +138,17 @@ absl::StatusOr<FrameInfo> VirtualDisplay::GetPixels(PixelFormat fmt, int width, 
 }
 
 void VirtualDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
-    // TODO
+    const absl::MutexLock lock(send_lock_);
+    if (!vhid_) return;
+
+    const Dimensions dims = GetDimensions();
+
+    qemu_loop_
+            ->Post([vhid = vhid_, slot, x, y, type, dims]() {
+                InputHandler::SendMultiTouchEvent(vhid, slot, x, y, type, dims);
+            })
+            .IgnoreError();
+
     VLOG(2) << "[VirtualDisplay " << static_cast<int>(Id()) << "] MultiTouch -> "
             << "Slot: " << static_cast<int>(slot) << ", X: " << x << ", Y: " << y
             << ", Type: " << static_cast<int>(type) << "\n";
@@ -193,52 +158,11 @@ void VirtualDisplay::SendMouseEvent(int x, int y, int button_mask) {
     const absl::MutexLock lock(send_lock_);
     if (!vhid_) return;
 
-    const int width = static_cast<int>(GetDimensions().width);
-    const int height = static_cast<int>(GetDimensions().height);
-    VirtIOInputHID* vhid = vhid_;  // Copy the pointer to use inside the lambda
-
-    auto last_bmask = last_bmask_;
+    const Dimensions dims = GetDimensions();
 
     qemu_loop_
-            ->Post([this, vhid = vhid_, x, y, button_mask]() {
-                // 1. Scale Coordinates (0..Width -> 0..32767)
-                const int width = static_cast<int>(GetDimensions().width);
-                const int height = static_cast<int>(GetDimensions().height);
-                int abs_x = static_cast<int>(static_cast<int64_t>(x) * 0x7FFF /
-                                             (width != 0 ? width : 1));
-                int abs_y = static_cast<int>(static_cast<int64_t>(y) * 0x7FFF /
-                                             (height != 0 ? height : 1));
-
-                // Clamp
-                abs_x = std::clamp(abs_x, 0, 0x7FFF);
-                abs_y = std::clamp(abs_y, 0, 0x7FFF);
-
-                const bool is_down = (button_mask & 0x01) != 0;  // Left Click
-
-                // Always select Slot 0 (Primary Finger)
-                virtio_input_send_evdev(vhid, kEvAbs, kAbsMtSlot, 0);
-
-                if (is_down) {
-                    // Start tracking (ID 0)
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtTrackingId, 0);
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtPressure, 0x400);  // 1024
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtTouchMajor, 0x500);
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtTouchMinor, 0x500);
-
-                    // We send this on every frame where button is down, even if just moving
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtPositionX, abs_x);
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtPositionY, abs_y);
-
-                    // Commit
-                    virtio_input_send_evdev(vhid, kEvSyn, kSynReport, 0);
-
-                } else {
-                    // TOUCH UP ---
-                    // Only send this ONCE when the button is released
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtPressure, 0);
-                    virtio_input_send_evdev(vhid, kEvAbs, kAbsMtTrackingId, kMtTrackingIdNone);
-                    virtio_input_send_evdev(vhid, kEvSyn, kSynReport, 0);
-                }
+            ->Post([vhid = vhid_, x, y, button_mask, dims]() {
+                InputHandler::SendMouseEvent(vhid, x, y, button_mask, dims);
             })
             .IgnoreError();
 

@@ -52,11 +52,28 @@ class RwDrive : public PciDevice {
             , mQcow2Image(qcow2_image)
             , mSizeBytes(size_bytes) {}
 
+    explicit RwDrive(std::string id, std::string addr, std::optional<fs::path> src_path,
+                     std::optional<fs::path> src_directory, fs::path dst_image,
+                     fs::path qcow2_image, uint64_t size_bytes)
+            : PciDevice(id, addr)
+            , mSourcePath(src_path)
+            , mSourceDirectory(src_directory)
+            , mDestinationImage(dst_image)
+            , mQcow2Image(qcow2_image)
+            , mSizeBytes(size_bytes) {}
+
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   protected:
     std::optional<fs::path> mSourcePath;
+    // for data partition with extra init data,
+    // such as display settings xml, most for foldable
+    // it is different from mSourcePath, which is ext4 already
+    // here it is just a data folder with some extra files
+    // usually located at <avd.name>.avd/data, or some tmp
+    // folder
+    std::optional<fs::path> mSourceDirectory;
     fs::path mDestinationImage;
     fs::path mQcow2Image;
     uint64_t mSizeBytes;

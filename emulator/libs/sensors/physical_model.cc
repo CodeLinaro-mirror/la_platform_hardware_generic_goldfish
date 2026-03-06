@@ -69,12 +69,12 @@ FoldableState PhysicalModel::GetFoldableState() const {
 
 bool PhysicalModel::FoldableIsFolded() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return goldfish::sensors::FoldableModel::IsFolded();
+    return foldable_model_.IsFolded();
 }
 
 bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return goldfish::sensors::FoldableModel::GetFoldedArea(x, y, w, h);
+    return FoldableModel::GetFoldedArea(x, y, w, h);
 }
 
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : foldable_model_(hw) {}
@@ -331,43 +331,64 @@ void PhysicalModel::setTargetInternalHumidity(float percentage, PhysicalInterpol
 
 void PhysicalModel::setTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetHingeAngle(0, degrees, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        foldable_model_.SetHingeAngle(0, degrees, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetHingeAngle(1, degrees, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        foldable_model_.SetHingeAngle(1, degrees, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetHingeAngle(2, degrees, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        foldable_model_.SetHingeAngle(2, degrees, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalPosture(float posture, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetPosture(posture, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        foldable_model_.SetPosture(posture, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetRollable(0, percentage, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        FoldableModel::SetRollable(0, percentage, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalRollable1(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetRollable(1, percentage, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        FoldableModel::SetRollable(1, percentage, mode);
+    }
     TargetStateChanged();
 }
 
 void PhysicalModel::setTargetInternalRollable2(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
-    goldfish::sensors::FoldableModel::SetRollable(2, percentage, mode, mutex_);
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        FoldableModel::SetRollable(2, percentage, mode);
+    }
     TargetStateChanged();
 }
 

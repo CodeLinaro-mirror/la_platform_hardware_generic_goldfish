@@ -28,6 +28,7 @@
 #include "absl/synchronization/mutex.h"
 
 #include "emulator/libs/display/QemuDisplay.h"
+#include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/display.h"
 #include "goldfish/display/multi_display_callbacks.h"
 #include "goldfish/display/virtual_display.h"
@@ -89,7 +90,12 @@ class MultiDisplayImpl : public IMultiDisplay {
                     absl::StrFormat("Display with id %d already exists.", id));
         }
 
+        auto dims = display->GetDimensions();
+
         VLOG(1) << "Created display: " << *display;
+        if (id != 0) {
+            display->SetActive(false);
+        }
         FireEvent(DisplayEvent{DisplayEvent::AddedEvent{display}});
         return display;
     }
@@ -191,21 +197,23 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
     auto* multi_display = static_cast<MultiDisplayImpl*>(IMultiDisplay::Instance());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
-        LOG(INFO) << "grpc_dpy_gfx_update: Console is NULL, using default";
         con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
     auto device = multi_display->GetDisplayWeak(index);
     if (!device.ok()) {
-        LOG_EVERY_N(ERROR, 60) << "Unable to find a display to handle gfx changes: "
-                               << device.status();
+        LOG(ERROR) << "Unable to find a display to handle gfx changes: " << device.status();
         return;
     }
 
     if (auto display = device->lock()) {
+        auto dims = display->GetDimensions();
+
+        if (std::cmp_not_equal(w, dims.width) || std::cmp_not_equal(h, dims.height)) {
+            return;
+        }
+
         display->UpdateSurface(x, y, w, h);
-    } else {
-        LOG_EVERY_N(ERROR, 60) << "Display with " << index << " is no longer active.";
     }
 }
 
@@ -218,20 +226,53 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
     auto* multi_display = static_cast<MultiDisplayImpl*>(IMultiDisplay::Instance());
     QemuConsole* con = dcl->con;
     if (con == nullptr) {
-        LOG(INFO) << "grpc_dpy_gfx_switch: Console is NULL, using default";
         // TODO(whollins): maybe use qemu_console_lookup_by_device_name("gpu0", head, err);
         con = qemu_console_lookup_default();
     }
     auto index = qemu_console_get_index(con);
     auto device = multi_display->GetDisplayWeak(index);
     if (absl::IsNotFound(device.status())) {
-        auto status = multi_display->CreateDisplayFromQemu(con, new_surface, index);
-        LOG(INFO) << "Display creation state: " << status.status();
+        DisplaySurface* surface = new_surface;
+        bool created_surface = false;
+        if (index == 1) {
+            const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+            if (hw.hw_sensor_hinge) {
+                surface = qemu_create_displaysurface(hw.hw_displayRegion_0_1_width,
+                                                     hw.hw_displayRegion_0_1_height);
+                created_surface = true;
+            }
+        }
+        auto status = multi_display->CreateDisplayFromQemu(con, surface, index);
+        if (status.ok() && created_surface) {
+            static_cast<QemuDisplay*>(status.value().lock().get())->SetOwnedSurface(surface);
+        }
         return;
     }
 
     if (auto display = device->lock()) {
-        display->UpdateSourceImage(new_surface->image);
+        if (new_surface) {
+            auto dims = display->GetDimensions();
+            if (std::cmp_not_equal(surface_width(new_surface), dims.width) ||
+                std::cmp_not_equal(surface_height(new_surface), dims.height)) {
+                return;
+            }
+            display->SetOwnedSurface(nullptr);
+        }
+        display->UpdateSourceImage(new_surface ? new_surface->image : nullptr);
+    }
+}
+
+extern "C" void grpc_dpy_gfx_update_ui_info(QemuConsole* con) {
+    auto index = qemu_console_get_index(con);
+    if (index == 1) {
+        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+        if (hw.hw_sensor_hinge) {
+            QemuUIInfo info = {
+                .width = static_cast<uint32_t>(hw.hw_displayRegion_0_1_width),
+                .height = static_cast<uint32_t>(hw.hw_displayRegion_0_1_height),
+            };
+            dpy_set_ui_info(con, &info, false);
+        }
     }
 }
 

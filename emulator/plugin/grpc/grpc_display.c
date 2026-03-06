@@ -32,7 +32,6 @@ static const DisplayChangeListenerOps k_dcl_ops = {
 static QLIST_HEAD(, DisplayChangeListener) s_dcls = QLIST_HEAD_INITIALIZER(DisplayChangeListener);
 
 static void android_display_init(struct DisplayState* ds, struct DisplayOptions* o) {
-    DisplayChangeListener* last_dcl = NULL;
     for (int idx = 0;; idx++) {
         QemuConsole* con = qemu_console_lookup_by_index(idx);
         if (!con) {
@@ -50,16 +49,9 @@ static void android_display_init(struct DisplayState* ds, struct DisplayOptions*
         dcl->con = con;
         dcl->ops = &k_dcl_ops;
 
-        // Note we expect our gRPC handler to do figure out
-        // console --> display mapping.
-        register_displaychangelistener(dcl);
+        grpc_dpy_gfx_update_ui_info(con);
 
-        if (last_dcl) {
-            QLIST_INSERT_AFTER(last_dcl, dcl, next);
-        } else {
-            QLIST_INSERT_HEAD(&s_dcls, dcl, next);
-        }
-        last_dcl = dcl;
+        register_displaychangelistener(dcl);
     }
 }
 

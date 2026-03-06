@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 
@@ -19,6 +20,7 @@
 
 #include "emulator/libs/display/NullDisplay.h"
 #include "emulator/libs/display/QemuDisplay.h"
+#include "goldfish/display/input_handler.h"
 
 extern "C" {
 // clang-format off
@@ -72,9 +74,17 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
         LOG(FATAL) << "Display: " << index << " has nullptr console";
     }
 
+    // note, the input 1 to 5 are taken by virtual displays
+    // and external display offset starts from 6, so we need
+    // to add 5 to account for the offset
+    constexpr int kExternalDisplayInputOffset = 5;
     const char* gpu = "gpu0";
     // Head will normally be 0 if this is the default console.
-    const uint32_t head = qemu_console_get_head(console_);
+    uint32_t head = qemu_console_get_head(console_);
+    if (head == 0) {
+    } else {
+        head += kExternalDisplayInputOffset;
+    }
     VirtioDeviceInfo device_info{.display = gpu, .head = head};
     Object* objs = object_resolve_path_component(object_get_root(), "machine");
     if (!object_child_foreach_recursive(objs, ::find_virtio_device, &device_info)) {
@@ -84,33 +94,58 @@ QemuDisplay::QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con
     vhid_ = device_info.vhid;
 }
 
+QemuDisplay::~QemuDisplay() {
+    if (owned_surface_) {
+        qemu_free_displaysurface(owned_surface_);
+    }
+}
+
 void QemuDisplay::SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) {
     const absl::MutexLock lock(send_lock_);
     const Dimensions dims = GetDimensions();
     VLOG(1) << *this << ", SendMultiTouchEvent(" << static_cast<int>(slot) << ", " << x << ", " << y
             << ", " << static_cast<int>(type) << ")";
-    Error* error_warn;
-    auto ttype = TranslateTouchType(type);
-    console_handle_touch_event(console_, touch_slots_, slot, static_cast<int>(dims.width),
-                               static_cast<int>(dims.height), x, y, ttype, &error_warn);
-    warn_report_err(error_warn);
+
+    if (Id() > 0 && vhid_) {
+        qemu_loop_
+                ->Post([vhid = vhid_, slot, x, y, type, dims]() {
+                    InputHandler::SendMultiTouchEvent(vhid, slot, x, y, type, dims);
+                })
+                .IgnoreError();
+    } else {
+        Error* error_warn;
+        auto ttype = TranslateTouchType(type);
+        console_handle_touch_event(console_, touch_slots_, slot, static_cast<int>(dims.width),
+                                   static_cast<int>(dims.height), x, y, ttype, &error_warn);
+        warn_report_err(error_warn);
+    }
 }
 
 void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
     const absl::MutexLock lock(send_lock_);
     const Dimensions dims = GetDimensions();
     VLOG(2) << *this << ", SendMouseEvent(" << x << ", " << y << ", " << button_mask << ")";
-    qemu_loop_
-            ->Post([con = console_, x, y, w = static_cast<int>(dims.width),
-                    h = static_cast<int>(dims.height), last = mlast_bmask_, mask = button_mask] {
-                if (last != mask) {
-                    qemu_input_update_buttons(con, bmap, last, mask);
-                }
-                qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, w);
-                qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, h);
-                qemu_input_event_sync();
-            })
-            .IgnoreError();
+
+    if (Id() > 0 && vhid_) {
+        qemu_loop_
+                ->Post([vhid = vhid_, x, y, button_mask, dims]() {
+                    InputHandler::SendMouseEvent(vhid, x, y, button_mask, dims);
+                })
+                .IgnoreError();
+    } else {
+        qemu_loop_
+                ->Post([con = console_, x, y, iw = static_cast<int>(dims.width),
+                        ih = static_cast<int>(dims.height), last = mlast_bmask_,
+                        mask = button_mask] {
+                    if (last != mask) {
+                        qemu_input_update_buttons(con, bmap, last, mask);
+                    }
+                    qemu_input_queue_abs(con, INPUT_AXIS_X, x, 0, iw);
+                    qemu_input_queue_abs(con, INPUT_AXIS_Y, y, 0, ih);
+                    qemu_input_event_sync();
+                })
+                .IgnoreError();
+    }
     mlast_bmask_ = button_mask;
 }
 
@@ -122,6 +157,13 @@ void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {
                 virtio_input_send_evdev(vhid, type, code, value);
             })
             .IgnoreError();
+}
+
+void QemuDisplay::SetOwnedSurface(DisplaySurface* surface) {
+    if (owned_surface_) {
+        qemu_free_displaysurface(owned_surface_);
+    }
+    owned_surface_ = surface;
 }
 
 }  // namespace goldfish::display
