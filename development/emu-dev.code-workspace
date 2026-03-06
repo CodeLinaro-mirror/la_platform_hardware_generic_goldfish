@@ -37,6 +37,7 @@
 		"[cpp]": {
 			"editor.defaultFormatter": "xaver.clang-format"
 		},
+		"bazel.buildifierFixOnFormat": true,
 		"C_Cpp.clang_format_fallbackStyle": "Google",
 		"C_Cpp.codeAnalysis.clangTidy.enabled": true,
 		"C_Cpp.codeAnalysis.clangTidy.path": "clang-tidy",
@@ -55,6 +56,8 @@
 			"tools": false
 		},
 		"mesonbuild.selectRootDir": false,
+		"mise.configureExtensionsUseSymLinks": true,
+		"mise.updateOpenTerminalsEnvAutomatically": true,
 		"workbench.colorTheme": "Quiet Light",
 		"files.eol": "\n" // Windows should not introduce CRLF.
 	}

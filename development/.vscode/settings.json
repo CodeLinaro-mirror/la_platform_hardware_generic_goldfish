@@ -13,5 +13,14 @@
         "Fixes:",
         "Bug:"
     ],
-    "commit-message-formatter.collapseMultipleEmptyLines": true
+    "commit-message-formatter.collapseMultipleEmptyLines": true,
+    "files.eol": "\n", // Windows should not introduce CRLF.
+    "files.exclude": {
+        ".cache": true,
+        ".repo": true,
+        "**/.cache": true,
+        "**/.DS_Store": true, // this is a default value
+        "**/.git": true, // this is a default value
+        "**/bazel-*": true,
+    },
 }
