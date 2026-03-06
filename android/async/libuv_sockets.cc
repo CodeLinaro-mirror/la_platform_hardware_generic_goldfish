@@ -231,21 +231,20 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     void Accept(uv_stream_t* server_stream, uv_stream_t* socket_stream) {
         DCHECK(event_loop_->IsOnLoopThread());
 
-        auto result = uv_accept(server_stream, socket_stream);
-        VLOG(1) << "accept: " << UvErrToAbslStatus(result);
-        if (result == 0) {
-            is_connected_ = true;
-
-            auto ep = GetMyEndpoint();
-            if (ep.ok()) {
-                endpoint_ = *std::move(ep);
-            } else {
-                LOG(WARNING) << "Could not retrieve remote address for the accepted connection: "
-                             << ep.status();
-            }
-        } else {
-            LOG(WARNING) << "Failed to accept incoming connection: " << uv_strerror(result);
+        const auto result = uv_accept(server_stream, socket_stream);
+        if (result != 0) {
+            LOG(WARNING) << "Could not accept incoming connection request: " << uv_strerror(result);
             uv_close(reinterpret_cast<uv_handle_t*>(socket_stream), nullptr);
+            return;
+        }
+
+        is_connected_ = true;
+        if (auto ep = GetMyEndpoint(); ep.ok()) {
+            VLOG(1) << "Accepted connection from: " << goldfish::network::ToString(*ep);
+            endpoint_ = *std::move(ep);
+        } else {
+            LOG(WARNING) << "Could not retrieve remote address for the accepted connection: "
+                         << ep.status();
         }
     }
 
