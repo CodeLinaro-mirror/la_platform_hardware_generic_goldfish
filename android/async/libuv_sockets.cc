@@ -62,7 +62,8 @@ void UvIsClosingChecked(const uv_stream_t* stream) {
 }
 
 void CrashIfUvFailed(const int uv_result, const char* const what) {
-    CHECK(!uv_result) << what << " failed with " << uv_strerror(uv_result);
+    CHECK(!uv_result) << "Fatal error: " << what
+                      << " failed with error: " << uv_strerror(uv_result);
 }
 
 struct WriteReqT {
@@ -237,11 +238,10 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
             auto ep = GetMyEndpoint();
             if (ep.ok()) {
-                if (ep.ok()) {
-                    endpoint_ = *std::move(ep);
-                } else {
-                    LOG(WARNING) << "Failed to get endpoint: " << ep.status();
-                }
+                endpoint_ = *std::move(ep);
+            } else {
+                LOG(WARNING) << "Could not retrieve remote address for the accepted connection: "
+                             << ep.status();
             }
         } else {
             LOG(WARNING) << "Failed to accept incoming connection: " << uv_strerror(result);
@@ -346,7 +346,8 @@ class TcpLibuvSocket : public LibuvSocket {
                     delete req;
                 });
         if (connect_res) {
-            LOG(ERROR) << "uv_tcp_connect failed: " << uv_strerror(connect_res);
+            LOG(ERROR) << "Failed to establish TCP connection to " << ToString(endpoint_) << ": "
+                       << uv_strerror(connect_res);
             delete self_ptr;
             delete connect_req;
             return UvErrToAbslStatus(connect_res);
@@ -361,7 +362,7 @@ class TcpLibuvSocket : public LibuvSocket {
         const int peer_result = uv_tcp_getpeername(
                 &socket_stream_, reinterpret_cast<struct sockaddr*>(&addr), &namelen);
         if (peer_result != 0) {
-            LOG(WARNING) << "Failed to get peer name: " << uv_strerror(peer_result);
+            LOG(WARNING) << "Could not retrieve remote peer address: " << uv_strerror(peer_result);
             return UvErrToAbslStatus(peer_result);
         }
 
@@ -376,8 +377,8 @@ class TcpLibuvSocket : public LibuvSocket {
   private:
     TcpLibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
             : LibuvSocket(loop, std::move(endpoint), is_incoming) {
-        CrashIfUvFailed(uv_tcp_init(loop_, &socket_stream_), "uv_tcp_init");
-        CrashIfUvFailed(uv_tcp_nodelay(&socket_stream_, 1), "uv_tcp_nodelay");
+        CrashIfUvFailed(uv_tcp_init(loop_, &socket_stream_), "Initializing TCP socket");
+        CrashIfUvFailed(uv_tcp_nodelay(&socket_stream_, 1), "Setting TCP_NODELAY");
         socket_stream_.data = this;
     }
 
@@ -422,7 +423,8 @@ class UnLibuvSocket : public LibuvSocket {
                     delete req;
                 });
         if (connect_res) {
-            LOG(ERROR) << "uv_tcp_connect failed: " << uv_strerror(connect_res);
+            LOG(ERROR) << "Failed to establish connection to Unix domain socket "
+                       << ToString(endpoint_) << ": " << uv_strerror(connect_res);
             delete self_ptr;
             delete connect_req;
             return UvErrToAbslStatus(connect_res);
@@ -456,7 +458,7 @@ class UnLibuvSocket : public LibuvSocket {
   private:
     UnLibuvSocket(EventLoop* loop, Endpoint endpoint, const bool is_incoming)
             : LibuvSocket(loop, std::move(endpoint), is_incoming) {
-        CrashIfUvFailed(uv_pipe_init(loop_, &socket_stream_, 0), "uv_pipe_init");
+        CrashIfUvFailed(uv_pipe_init(loop_, &socket_stream_, 0), "Initializing unix domain socket");
         socket_stream_.data = this;
     }
 
@@ -523,13 +525,13 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
     bool StartListening(uv_stream_t* server, const Endpoint& endpoint) {
         const int listen_res = uv_listen(server, 128, [](uv_stream_t* s, int status) {
             if (status < 0) {
-                LOG(WARNING) << "Listen error: " << uv_strerror(status);
+                LOG(WARNING) << "Error while listening for connections: " << uv_strerror(status);
                 return;
             }
             static_cast<LibuvServer*>(s->data)->OnNewConnection(s);
         });
         if (listen_res) {
-            LOG(ERROR) << "Failed to listen on " << ToString(endpoint) << ": "
+            LOG(ERROR) << "Could not start listening on " << ToString(endpoint) << ": "
                        << uv_strerror(listen_res);
             return false;
         }
@@ -554,7 +556,7 @@ class TcpLibuvServer : public LibuvServer {
   public:
     TcpLibuvServer(EventLoop* loop, ConnectCallback connect_callback)
             : LibuvServer(loop, std::move(connect_callback)) {
-        CrashIfUvFailed(uv_tcp_init(loop_, &server_stream_), "uv_tcp_init");
+        CrashIfUvFailed(uv_tcp_init(loop_, &server_stream_), "Initializing TCP server socket");
         server_stream_.data = this;
     }
 
@@ -594,13 +596,14 @@ class TcpLibuvServer : public LibuvServer {
         int len = sizeof(addr);
         if (const int getsockname_result = uv_tcp_getsockname(
                     &server_stream_, reinterpret_cast<struct sockaddr*>(&addr), &len)) {
-            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            LOG(WARNING) << "Could not retrieve local server address: "
+                         << uv_strerror(getsockname_result);
             return {};
         }
 
         auto ep = network::ToEndpoint(*reinterpret_cast<struct sockaddr*>(&addr));
         if (!ep.ok()) {
-            LOG(ERROR) << "Could not get the server endpoint";
+            LOG(ERROR) << "Could not parse the server endpoint address.";
             return {};
         }
 
@@ -612,7 +615,8 @@ class TcpLibuvServer : public LibuvServer {
         const int res =
                 uv_tcp_bind(&server_stream_, reinterpret_cast<const struct sockaddr*>(&addr), 0);
         if (res) {
-            LOG(ERROR) << "Failed to bind to " << ToString(endpoint) << ": " << uv_strerror(res);
+            LOG(ERROR) << "Could not bind server to address " << ToString(endpoint) << ": "
+                       << uv_strerror(res);
             return false;
         }
 
@@ -627,7 +631,8 @@ class UnLibuvServer : public LibuvServer {
   public:
     UnLibuvServer(EventLoop* loop, ConnectCallback connect_callback)
             : LibuvServer(loop, std::move(connect_callback)) {
-        CrashIfUvFailed(uv_pipe_init(loop_, &server_stream_, 0), "uv_pipe_init");
+        CrashIfUvFailed(uv_pipe_init(loop_, &server_stream_, 0),
+                        "Initializing unix domain socket server");
         server_stream_.data = this;
     }
 
@@ -667,7 +672,8 @@ class UnLibuvServer : public LibuvServer {
         std::string name(1, '?');
         int getsockname_result = uv_pipe_getsockname(&server_stream_, name.data(), &namelen);
         if (getsockname_result && (getsockname_result != UV_ENOBUFS)) {
-            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            LOG(WARNING) << "Could not retrieve local socket address: "
+                         << uv_strerror(getsockname_result);
             return UnEndpoint::MakeEmpty();
         }
 
@@ -678,7 +684,8 @@ class UnLibuvServer : public LibuvServer {
         name.resize(namelen);
         getsockname_result = uv_pipe_getsockname(&server_stream_, name.data(), &namelen);
         if (getsockname_result) {
-            LOG(WARNING) << "getsockname error: " << uv_strerror(getsockname_result);
+            LOG(WARNING) << "Could not retrieve local socket address: "
+                         << uv_strerror(getsockname_result);
             return UnEndpoint::MakeEmpty();
         }
 
@@ -693,7 +700,8 @@ class UnLibuvServer : public LibuvServer {
         const int res = uv_pipe_bind2(&server_stream_, endpoint.Address().data(),
                                       endpoint.Address().size(), UV_PIPE_NO_TRUNCATE);
         if (res) {
-            LOG(ERROR) << "Failed to bind to " << ToString(endpoint) << ": " << uv_strerror(res);
+            LOG(ERROR) << "Could not bind server to address " << ToString(endpoint) << ": "
+                       << uv_strerror(res);
             return false;
         }
 
