@@ -320,9 +320,9 @@ class TcpLibuvSocket : public LibuvSocket {
         UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&socket_stream_));
     }
 
-    uv_stream_t* GetUvSocketStreamImpl() { return reinterpret_cast<uv_stream_t*>(&socket_stream_); }
-
-    uv_stream_t* GetUvSocketStream() override { return GetUvSocketStreamImpl(); }
+    uv_stream_t* GetUvSocketStream() override {
+        return reinterpret_cast<uv_stream_t*>(&socket_stream_);
+    }
 
   protected:
     absl::Status Connect() override {
@@ -395,9 +395,9 @@ class UnLibuvSocket : public LibuvSocket {
         UvIsClosingChecked(reinterpret_cast<uv_stream_t*>(&socket_stream_));
     }
 
-    uv_stream_t* GetUvSocketStreamImpl() { return reinterpret_cast<uv_stream_t*>(&socket_stream_); }
-
-    uv_stream_t* GetUvSocketStream() override { return GetUvSocketStreamImpl(); }
+    uv_stream_t* GetUvSocketStream() override {
+        return reinterpret_cast<uv_stream_t*>(&socket_stream_);
+    }
 
   protected:
     absl::Status Connect() override {
@@ -583,7 +583,7 @@ class TcpLibuvServer : public LibuvServer {
     std::shared_ptr<LibuvSocket> OnNewConnectionImpl(uv_stream_t* server,
                                                      EventLoop* loop) override {
         auto client = std::make_shared<TcpLibuvSocket>(loop);
-        client->Accept(server, client->GetUvSocketStreamImpl());
+        client->Accept(server, client->GetUvSocketStream());
         return client;
     }
 
@@ -656,7 +656,7 @@ class UnLibuvServer : public LibuvServer {
     std::shared_ptr<LibuvSocket> OnNewConnectionImpl(uv_stream_t* server,
                                                      EventLoop* loop) override {
         auto client = std::make_shared<UnLibuvSocket>(loop);
-        client->Accept(server, client->GetUvSocketStreamImpl());
+        client->Accept(server, client->GetUvSocketStream());
         return client;
     }
 
