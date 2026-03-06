@@ -34,26 +34,31 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     const AndroidOptions& opts = emulator.opts();
 
     std::string renderer_features = opts.renderer_features ? opts.renderer_features : "";
+    bool needs_gles = true;
     if (!opts.no_guest_angle) {
         if (!renderer_features.empty()) {
             renderer_features.append(";");
         }
         renderer_features.append("GuestVulkanOnly:enabled");
-    }
-    if (!opts.no_vulkan_composition) {
-        if (!renderer_features.empty()) {
-            renderer_features.append(";");
+
+        // VulkanNativeSwapchain composition should only be enabled with GuestVulkanOnly
+        if (!opts.no_vulkan_composition) {
+            renderer_features.append(";VulkanNativeSwapchain:enabled");
+            needs_gles = false;
         }
-        renderer_features.append("VulkanNativeSwapchain:enabled");
     }
 
-    return {"-device",
-            absl::StrJoin({"virtio-gpu-rutabaga", absl::StrCat("id=", mGpuName), "hostmem=256M",
-                           "gfxstream-vulkan=on", "x-gfxstream-gles=on", "x-gfxstream-composer=on",
-                           absl::StrCat("renderer_features=", renderer_features),
-                           absl::StrCat("xres=", hw.hw_lcd_width),
-                           absl::StrCat("yres=", hw.hw_lcd_height)},
-                          ",")};
+    std::string gfxstream_backends = "gfxstream-vulkan=on";
+    if (needs_gles) {
+        gfxstream_backends.append(",x-gfxstream-gles=on");
+    }
+
+    return {"-device", absl::StrJoin({"virtio-gpu-rutabaga", absl::StrCat("id=", mGpuName),
+                                      "hostmem=256M", gfxstream_backends, "x-gfxstream-composer=on",
+                                      absl::StrCat("renderer_features=", renderer_features),
+                                      absl::StrCat("xres=", hw.hw_lcd_width),
+                                      absl::StrCat("yres=", hw.hw_lcd_height)},
+                                     ",")};
 }
 
 }  // namespace android::goldfish
