@@ -222,6 +222,10 @@ class System {
 
     // Returns the wallclock (high res time us) user, and system time spent
     // in the current thread.
+    virtual CpuTime GetCpuTime() const = 0;
+
+    // Returns the wallclock (high res time us) user, and system time spent
+    // in the current thread.
     static CpuTime cpuTime();  // NOLINT
 
     // Static version that sets or queries host environment variables

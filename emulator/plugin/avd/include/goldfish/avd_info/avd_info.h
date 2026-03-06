@@ -48,6 +48,7 @@ struct AvdProperties {
     int32_t quit_after_boot_timeout_seconds{0};
     ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
     ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
+    std::filesystem::path dump_perf_stat_path;
 
     android::goldfish::HardwareConfig hw_config;
 };

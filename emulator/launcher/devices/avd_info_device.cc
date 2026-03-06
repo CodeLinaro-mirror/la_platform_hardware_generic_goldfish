@@ -62,6 +62,11 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         {"build_flavour", emulator.avd().BuildFlavour()},
     };
 
+    if (char* perf_stat = emulator.opts().perf_stat) {
+        fs::path perf_stat_path(perf_stat);
+        params.emplace_back("dump_perf_stat_path", perf_stat_path.string());
+    }
+
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);
     });
@@ -76,6 +81,7 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     }
 
     AppendMetricsConfigString(&mAvdParams, emulator.metrics_config());
+
 
     return absl::OkStatus();
 }

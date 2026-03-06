@@ -765,6 +765,8 @@ class HostSystem : public System {
 
     WallDuration GetHighResTimeUs() const override { return kTickCount.getUs(); }
 
+    CpuTime GetCpuTime() const override { return System::cpuTime(); }
+
 #ifdef _MSC_VER
     static void msvcInvalidParameterHandler(const wchar_t* expression, const wchar_t* function,
                                             const wchar_t* file, unsigned int line,

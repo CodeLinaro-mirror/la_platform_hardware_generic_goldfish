@@ -176,6 +176,10 @@ class TestSystem : public System {
 
     void SetProcessTimes(const Times& times) { times_ = times; }
 
+    CpuTime GetCpuTime() const override { return cpu_time_; }
+
+    void SetCpuTime(const CpuTime& cpu_time) { cpu_time_ = cpu_time; }
+
     // TODO remove.
     fs::path GetTempDir() const override { return "/tmp"; }
 
@@ -221,6 +225,7 @@ class TestSystem : public System {
     std::vector<std::string> env_pairs_;
     System* prev_system_;
     Times times_;
+    android::base::CpuTime cpu_time_{};
     mutable Duration unix_time_{};
     mutable WallDuration unix_time_last_queried_ = 0;
     bool unix_time_live_ = false;
