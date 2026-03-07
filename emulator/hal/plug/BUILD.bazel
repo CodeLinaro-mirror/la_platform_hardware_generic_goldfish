@@ -41,8 +41,8 @@ cc_library(
     includes = ["include"],
     deps = [
         ":hal_plug",
-        "//android/async:async_api",
         "//emulator/hal/connector:cable",
+        "//emulator/libs/async:async_api",
     ],
 )
 
@@ -54,8 +54,8 @@ cc_library(
     deps = [
         ":hal_plug",
         ":marshalling_hal_socket",
-        "//android/async:async_api",
         "//emulator/hal/connector:cable",
+        "//emulator/libs/async:async_api",
     ],
 )
 
@@ -95,11 +95,11 @@ cc_test(
         ":hal_plug_factory",
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
-        "//android/async:async_testing",
-        "//android/async:libuv_event_loop",
-        "//android/async:threaded_event_loop",
         "//android/system:googletest_main",
         "//emulator/hal/connector:connector_registry_impl",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/synchronization",
     ],

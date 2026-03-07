@@ -28,7 +28,7 @@
 #include <string.h>
 
 #include "allocate.h"
-#include "android/ext4_utils/uuid.h"
+#include "uuid.h"
 #include "contents.h"
 #include "ext4_utils.h"
 #include "wipe.h"

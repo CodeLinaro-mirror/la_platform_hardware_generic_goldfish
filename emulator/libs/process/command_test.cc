@@ -64,7 +64,7 @@ class FakeOverseer : public NullOverseer {
 #endif
 
 std::string sleep_exe() {
-    return Bazel::RunfilesPath(absl::StrCat("goldfish+/android/process/sleep_emu", EXE));
+    return Bazel::RunfilesPath(absl::StrCat("goldfish+/emulator/libs/process/sleep_emu", EXE));
 }
 
 // You can always make your own fake commands..

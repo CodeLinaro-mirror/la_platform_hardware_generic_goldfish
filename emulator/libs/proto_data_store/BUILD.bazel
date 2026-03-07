@@ -46,9 +46,9 @@ cc_test(
     ],
     deps = [
         ":raw_circular_log",
-        "//android/status_macros",
-        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
+        "//emulator/libs/status_macros",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -61,9 +61,9 @@ cc_test(
     ],
     deps = [
         ":proto_data_store",
-        "//android/status_macros",
-        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
+        "//emulator/libs/status_macros",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "@abseil-cpp//absl/status:status_matchers",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
     ],

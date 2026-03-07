@@ -4,19 +4,19 @@ load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_report")
 # bazel query -k 'kind("cc_test", @goldfish//...)' |  grep -v 'win' | sed 's/.*/    "&",/' | pbcopy
 #
 TESTS = [
-    "@goldfish//android/async:async_testing_unittests",
-    "@goldfish//android/async:event_loop_dispatcher_test",
-    "@goldfish//android/async:eventloop_unittests",
-    "@goldfish//android/async:libuv_signal_handlers_test",
-    "@goldfish//android/async:sockets_unittests",
-    "@goldfish//android/cpu:cpu_unittests",
+    "@goldfish//emulator/libs/async:async_testing_unittests",
+    "@goldfish//emulator/libs/async:event_loop_dispatcher_test",
+    "@goldfish//emulator/libs/async:eventloop_unittests",
+    "@goldfish//emulator/libs/async:libuv_signal_handlers_test",
+    "@goldfish//emulator/libs/async:sockets_unittests",
+    "@goldfish//emulator/libs/cpu:cpu_unittests",
     "@goldfish//android/files:file_system_watcher_test",
     "@goldfish//android/files:ini_file",
-    "@goldfish//android/logging:color_log_sink_test",
-    "@goldfish//android/memory:memory_unittests",
+    "@goldfish//emulator/libs/logging:color_log_sink_test",
+    "@goldfish//emulator/libs/memory:memory_unittests",
     "@goldfish//android/network:network_unittests",
-    "@goldfish//android/process:process_unittests",
-    "@goldfish//android/sockets:sockets_unittests",
+    "@goldfish//emulator/libs/process:process_unittests",
+    "@goldfish//emulator/libs/sockets:sockets_unittests",
     "@goldfish//android/system:system-unittests",
     "@goldfish//emulator/adb/host:host_unittests",
     "@goldfish//emulator/adb/logger:logger_unittests",
@@ -80,8 +80,8 @@ TESTS = [
 
 # We have a set of test binaries used here and there
 PERF_TESTS = [
-    "//android/async:sockets_perf",
-    "//android/logging:log_bridge_perf",
+    "//emulator/libs/async:sockets_perf",
+    "//emulator/libs/logging:log_bridge_perf",
     "//android/system:clock_perf",
 ]
 

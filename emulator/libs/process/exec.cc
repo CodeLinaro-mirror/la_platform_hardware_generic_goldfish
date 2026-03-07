@@ -8,7 +8,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-#include "android/process/exec.h"
+#include "exec.h"
 
 #include <vector>
 

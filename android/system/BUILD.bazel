@@ -61,7 +61,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":eintr_wrapper",
-        "//android/status_macros",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
@@ -111,7 +111,7 @@ cc_library(
         ":clock",
         ":eintr_wrapper",
         ":file",
-        "//android/process",
+        "//emulator/libs/process",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/log",

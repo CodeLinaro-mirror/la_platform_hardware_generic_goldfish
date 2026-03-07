@@ -51,8 +51,8 @@ cc_library(
     deps = [
         ":PingTopic",
         ":cable",
-        "//android/async:async_api",
         "//emulator/hal/plug:hal_plug",
+        "//emulator/libs/async:async_api",
     ],
 )
 
@@ -107,7 +107,7 @@ cc_library(
     ],
     deps = [
         ":cable",
-        "//android/async:async_api",
+        "//emulator/libs/async:async_api",
     ],
 )
 
@@ -126,10 +126,10 @@ cc_library(
     deps = [
         ":connector_registry",
         ":devices",
-        "//android/async:async_api",
         "//emulator/hal/plug:hal_plug_factory",
         "//emulator/hal/plug:hal_plug_to_i_plug_adapter",
         "//emulator/hal/plug:marshalling_hal_socket",
+        "//emulator/libs/async:async_api",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -147,10 +147,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":connector_registry_impl",
-        "//android/async:libuv_event_loop",
-        "//android/async:threaded_event_loop",
         "//android/system:googletest_main",
         "//emulator/hal/plug:fake_vsock",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
     ],
 )
 
@@ -167,10 +167,10 @@ cc_test(
     deps = [
         ":connection_awaiter",
         ":devices",
-        "//android/async:async_testing",
-        "//android/sockets",
         "//android/system:googletest_main",
         "//emulator/libs/archive:DequeArchive",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/sockets",
     ],
 )
 
@@ -192,7 +192,7 @@ cc_library(
         ":connection_awaiter",
         ":connector_registry_impl",
         ":devices",
-        "//android/async:async_testing",
+        "//emulator/libs/async:async_testing",
     ],
     alwayslink = True,
 )

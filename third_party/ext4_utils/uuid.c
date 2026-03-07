@@ -22,7 +22,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include "android/ext4_utils/uuid.h"
+#include "uuid.h"
 #include "ext4_utils.h"
 #include "sha1.h"
 

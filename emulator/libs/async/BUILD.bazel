@@ -112,7 +112,7 @@ cc_library(
     hdrs = ["test/fake_qemu_callbacks.h"],
     includes = ["test"],
     visibility = [
-        "//android/async:__pkg__",
+        "//emulator/libs/async:__pkg__",
         "//emulator/plugin/vsock_goldfish:__pkg__",
     ],
     deps = [
@@ -141,9 +141,9 @@ cc_test(
         ":libuv_event_loop",
         ":qemu_event_loop",
         ":threaded_event_loop",
-        "//android/async:fake_qemu_callbacks",
         "//android/system",
         "//android/system:googletest_main",
+        "//emulator/libs/async:fake_qemu_callbacks",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

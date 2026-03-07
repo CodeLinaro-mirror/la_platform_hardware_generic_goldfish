@@ -13,9 +13,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/process",
         "//android/system",
         "//emulator/libs/base",
+        "//emulator/libs/process",
         "@abseil-cpp//absl/synchronization",
     ] + select({
         "@platforms//os:windows": ["//android/system:win32_utils"],

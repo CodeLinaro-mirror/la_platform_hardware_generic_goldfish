@@ -31,7 +31,7 @@
 #include "android/base/scoped_file_handle.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/process/command.h"
-#include "android/process/exec.h"
+#include "exec.h"
 
 #define DEBUG 0
 

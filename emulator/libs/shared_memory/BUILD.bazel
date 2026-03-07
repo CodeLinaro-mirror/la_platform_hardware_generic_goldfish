@@ -57,9 +57,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":shared_memory",
-        "//android/process",
         "//android/system",
         "//android/system:googletest_main",
+        "//emulator/libs/process",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],

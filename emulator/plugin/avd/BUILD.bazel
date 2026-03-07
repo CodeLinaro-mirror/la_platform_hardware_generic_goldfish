@@ -61,8 +61,8 @@ cc_library(
         "//visibility:public",
     ],
     deps = [
-        "//android/async:libuv_event_loop",
-        "//android/async:threaded_event_loop",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
     ],
 )
 
@@ -109,9 +109,6 @@ cc_library(
         ":gralloc_impl",
         ":info",
         ":vcpu_event_loop",
-        "//android/async:async_api",
-        "//android/async:libuv_event_loop",
-        "//android/async:qemu_event_loop",
         "//emulator/adb/host",
         "//emulator/adb/logger",
         "//emulator/crashreport:crash_reporter",
@@ -126,6 +123,9 @@ cc_library(
         "//emulator/hal/multidisplay",
         "//emulator/hal/sensors",
         "//emulator/hal/unix_pipe",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/display",
         "//emulator/plugin/battery",
         "//emulator/plugin/system:qemu_clock",

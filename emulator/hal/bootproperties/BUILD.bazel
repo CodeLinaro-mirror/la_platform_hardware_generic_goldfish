@@ -11,10 +11,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/status_macros",
         "//emulator/hal/connector:connector_registry",
         "//emulator/hal/connector:qemud",
         "//emulator/hal/plug:hal_plug",
+        "//emulator/libs/status_macros",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
@@ -29,10 +29,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":bootproperties",
-        "//android/status_macros:status_matcher_macros",
         "//android/system:googletest_main",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
+        "//emulator/libs/status_macros:status_matcher_macros",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

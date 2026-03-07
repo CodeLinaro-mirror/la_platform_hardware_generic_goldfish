@@ -19,7 +19,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 
-#include "android/async/test/fake_qemu_callbacks.h"
+#include "test/fake_qemu_callbacks.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"

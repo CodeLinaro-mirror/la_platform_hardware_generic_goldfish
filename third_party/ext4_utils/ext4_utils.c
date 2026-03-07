@@ -24,7 +24,7 @@
 #include <sys/types.h>
 
 #include "allocate.h"
-#include "android/ext4_utils/uuid.h"
+#include "uuid.h"
 #include "extent.h"
 #include "indirect.h"
 

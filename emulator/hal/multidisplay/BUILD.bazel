@@ -11,12 +11,12 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/async:async_api",
         "//android/system",
         "//emulator/hal/common:emulator_reset",
         "//emulator/hal/connector:cable",
         "//emulator/hal/connector:connector_registry",
         "//emulator/hal/connector:qemud",
+        "//emulator/libs/async:async_api",
         "//emulator/libs/eventing",
         "//emulator/plugin/avd:gralloc_impl",
         "//emulator/plugin/avd:info",

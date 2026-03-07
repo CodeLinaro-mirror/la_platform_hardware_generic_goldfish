@@ -10,7 +10,7 @@
 ** GNU General Public License for more details.
 */
 
-#include "android/cpu/windows_installer.h"
+#include "windows_installer.h"
 
 #include <windows.h>
 

@@ -24,10 +24,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl_c_bridge",
         "//android/system",
         "//emulator/launcher:config_dirs",
         "//emulator/libs/base:array_size",
+        "//emulator/libs/logging:absl_c_bridge",
         "@aemu//host-common:aemu-host-common-headers",
     ],
 )

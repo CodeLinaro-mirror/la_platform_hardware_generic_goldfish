@@ -28,7 +28,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl_c_bridge",
+        "//emulator/libs/logging:absl_c_bridge",
         "@qemu//:qemu-headers",
     ],
 )

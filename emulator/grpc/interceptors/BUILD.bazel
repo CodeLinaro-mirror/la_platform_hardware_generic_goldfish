@@ -18,10 +18,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/async:async_api",
-        "//android/process",
         "//android/system:clock",
         "//emulator/crashreport:breadcrumb",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/process",
         "@abseil-cpp//absl/time",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@goldfish//emulator/crashreport:crash_reporter",
@@ -44,9 +44,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":interceptors",
-        "//android/async:async_testing",
         "//android/system:googletest_main",
         "//android/system:test-headers",
+        "//emulator/libs/async:async_testing",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
         "@googletest//:gtest",

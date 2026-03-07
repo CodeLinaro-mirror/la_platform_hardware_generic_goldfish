@@ -6,7 +6,7 @@ cc_library(
     hdrs = ["emulator_advertisement.h"],
     deps = [
         "//android/files:ini_file",
-        "//android/sockets",
+        "//emulator/libs/sockets",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -23,7 +23,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator_advertisement",
-        "//android/async:qemu_event_loop",
         "//emulator/config:hardware_config",
         "//emulator/grpc/event-stream",
         "//emulator/grpc/services-stack",
@@ -31,6 +30,7 @@ cc_library(
         "//emulator/grpc/services/forwarder:service_forwarder",
         "//emulator/grpc/services/forwarder:ui_controller_forwarder",
         "//emulator/grpc/services/screen_recorder",
+        "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/display",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",

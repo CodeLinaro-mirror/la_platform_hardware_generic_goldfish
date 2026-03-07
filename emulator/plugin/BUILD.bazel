@@ -22,8 +22,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
             "//conditions:default": None,
         }),
         deps = [
-            "//android/logging:color_log_sink",
             "//emulator/crashreport:crash_reporter",
+            "//emulator/libs/logging:color_log_sink",
             "//emulator/plugin/adb-vsock",
             "//emulator/plugin/avd:impl",
             "//emulator/plugin/battery",

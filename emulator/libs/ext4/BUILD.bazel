@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "filesystems",
+    name = "ext4",
     srcs = [
         "ext4_resize.cc",
         "ext4_utils.cc",
@@ -13,9 +13,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/ext4_utils",
-        "//android/process",
         "//android/system",
+        "//emulator/libs/process",
+        "//third_party/ext4_utils",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:absl_log",
     ],

@@ -12,7 +12,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/async:async_api",
+        "//emulator/libs/async:async_api",
         "//emulator/libs/base",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
@@ -32,8 +32,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":primary_display",
-        "//android/async:async_api",
         "//emulator/hal/multidisplay",
+        "//emulator/libs/async:async_api",
         "//emulator/libs/base",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
@@ -69,9 +69,9 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":base",
-        "//android/logging:absl_c_bridge",
         "//emulator/libs/base",
         "//emulator/libs/fps_calculator",
+        "//emulator/libs/logging:absl_c_bridge",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
@@ -99,8 +99,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":base",
-        "//android/logging:absl_c_bridge",
         "//emulator/libs/base",
+        "//emulator/libs/logging:absl_c_bridge",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
@@ -149,9 +149,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":test-display",
-        "//android/async:libuv_event_loop",
-        "//android/async:threaded_event_loop",
         "//android/system:googletest_main",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
     ],
 )
 

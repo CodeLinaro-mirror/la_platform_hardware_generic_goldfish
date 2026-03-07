@@ -9,11 +9,11 @@ cc_library(
     includes = ["include"],
     visibility = ["//emulator/plugin/grpc:__subpackages__"],
     deps = [
-        "//android/sockets",
         "//emulator/adb/secrets",
         "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//emulator/grpc/interceptors",
         "//emulator/grpc/security",
         "//emulator/grpc/services/emulator_controller/server:emulator-service",
+        "//emulator/libs/sockets",
     ],
 )

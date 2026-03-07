@@ -30,7 +30,7 @@
 #include "absl/time/time.h"
 
 extern "C" {
-#include "android/logging/test/android/base/logging/abseil_log_c_test.h"
+#include "test/android/base/logging/abseil_log_c_test.h"
 }
 
 namespace {

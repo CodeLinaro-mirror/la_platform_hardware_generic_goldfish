@@ -30,8 +30,8 @@
 #include "android/base/eintr_wrapper.h"
 #include "android/base/file/file.h"
 #include "android/process/command.h"
-#include "android/process/exec.h"
 #include "android/process/process.h"
+#include "exec.h"
 
 #define DEBUG 0
 

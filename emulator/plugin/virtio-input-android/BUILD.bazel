@@ -10,8 +10,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/logging:absl_c_bridge",
         "//emulator/libs/base:array_size",
+        "//emulator/libs/logging:absl_c_bridge",
         "@pixman//:pixman-1",
         "@qemu//:qemu-headers",
     ],

@@ -50,11 +50,11 @@
 #include "android/base/scoped_file_handle.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
-#include "android/cpu/windows_installer.h"
+#include "windows_installer.h"
 #endif
 
 #ifdef __APPLE__
-#include "android/cpu/apple_cpu_accelerator.h"
+#include "apple_cpu_accelerator.h"
 #endif
 
 #include <array>
