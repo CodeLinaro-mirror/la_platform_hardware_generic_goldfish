@@ -24,7 +24,7 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/emulation/control/emulator_service.h"
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/control/incubating/sensor_service_incubating.h"

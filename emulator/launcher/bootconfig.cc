@@ -24,7 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/status/status_macros.h"
 
 namespace goldfish::bootconfig {

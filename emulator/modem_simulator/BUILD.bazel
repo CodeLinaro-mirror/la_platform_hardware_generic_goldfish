@@ -60,7 +60,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":modem_simulator_internal",
-        "//android/system:file",
+        "//emulator/libs/file",
         "@abseil-cpp//absl/synchronization",
     ],
 )

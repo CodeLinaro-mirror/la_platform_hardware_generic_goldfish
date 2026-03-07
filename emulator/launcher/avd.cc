@@ -34,7 +34,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"

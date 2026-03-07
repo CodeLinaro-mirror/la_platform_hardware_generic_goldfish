@@ -22,7 +22,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/notification.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 
 #include "common/libs/fs/shared_buf.h"
 #include "common/libs/fs/shared_fd.h"

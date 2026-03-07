@@ -21,7 +21,7 @@
 
 #include "android/status/status_macros.h"
 #include "android/base/bazel_info.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/config_dirs.h"
 #include "goldfish/async/uv_to_absl.h"

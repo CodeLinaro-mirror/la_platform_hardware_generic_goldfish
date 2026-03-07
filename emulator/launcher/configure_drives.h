@@ -18,7 +18,7 @@
 #include "absl/status/statusor.h"
 
 #include "android/status/status_macros.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
 #include "devices/disk_drive.h"

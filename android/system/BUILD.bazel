@@ -46,28 +46,6 @@ cc_library(
     deps = ["//emulator/libs/base"],
 )
 
-cc_library(
-    name = "file",
-    srcs = [
-        "file.cc",
-        "storage_capacity.cc",
-    ],
-    hdrs = [
-        "include/android/base/file/file.h",
-        "include/android/base/storage_capacity.h",
-    ],
-    includes = ["include"],
-    tags = ["no-tidy"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":eintr_wrapper",
-        "//emulator/libs/status_macros",
-        "@abseil-cpp//absl/algorithm:container",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status:statusor",
-    ],
-)
-
 objc_library(
     name = "system-darwin",
     srcs = ["system-native-mac.mm"],
@@ -110,7 +88,7 @@ cc_library(
     deps = [
         ":clock",
         ":eintr_wrapper",
-        ":file",
+        "//emulator/libs/file",
         "//emulator/libs/process",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base",
@@ -159,8 +137,6 @@ cc_test(
     name = "system-unittests",
     srcs = [
         "bazel_info_test.cc",
-        "file_test.cc",
-        "storage_capacity_test.cc",
         "system_test.cc",
     ],
     data = ["test/android/base/bazel/info.txt"],
@@ -247,7 +223,6 @@ cc_binary(
 clang_tidy_test(
     name = "tidy",
     targets = [
-        ":file",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )

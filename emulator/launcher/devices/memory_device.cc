@@ -22,8 +22,8 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/file/file.h"
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/file.h"
+#include "goldfish/file/storage_capacity.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"

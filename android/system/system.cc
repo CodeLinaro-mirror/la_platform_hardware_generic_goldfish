@@ -38,7 +38,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/base/c_str_wrapper.h"
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/storage_capacity.h"
 #include "android/process/command.h"
 
 #ifdef _WIN32
@@ -130,7 +130,7 @@ extern "C" {
 extern "C" char** environ;
 #endif
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 
 namespace android {
 namespace base {

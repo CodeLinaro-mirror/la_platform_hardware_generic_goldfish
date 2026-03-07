@@ -29,7 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/emulation/control/basic_token_auth.h"
 #include "android/base/testing/TestTempDir.h"
 #include "android/base/testing/test_event.h"

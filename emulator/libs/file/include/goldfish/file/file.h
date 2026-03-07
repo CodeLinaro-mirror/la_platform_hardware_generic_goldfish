@@ -19,7 +19,7 @@
 
 #include "absl/status/status.h"
 
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/storage_capacity.h"
 
 namespace fs = std::filesystem;
 

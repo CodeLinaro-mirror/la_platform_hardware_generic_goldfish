@@ -6,7 +6,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
 #include "devices/disk_drive.h"

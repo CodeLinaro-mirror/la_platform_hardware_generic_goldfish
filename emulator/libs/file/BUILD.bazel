@@ -1,0 +1,44 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "file",
+    srcs = [
+        "file.cc",
+        "storage_capacity.cc",
+    ],
+    hdrs = [
+        "include/goldfish/file/file.h",
+        "include/goldfish/file/storage_capacity.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//android/system:eintr_wrapper",
+        "//emulator/libs/status_macros",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "file_test",
+    srcs = [
+        "file_test.cc",
+        "storage_capacity_test.cc",
+    ],
+    deps = [
+        ":file",
+        "//android/system:googletest_main",
+        "//android/system:test-headers",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [":file"],
+    tidy_config_file = "//:clang_tidy_config",
+)

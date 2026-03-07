@@ -41,7 +41,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "goldfish/base/unique_handle.h"
 #include "x86_cpuid.h"

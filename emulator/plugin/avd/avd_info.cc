@@ -22,7 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "android/base/qemu_clock.h"
 #include "android/base/system.h"

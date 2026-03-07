@@ -27,7 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "tink/jwt/jwk_set_converter.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"

@@ -19,7 +19,7 @@
 
 #include "absl/log/log.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/system.h"
 
 namespace android::goldfish {

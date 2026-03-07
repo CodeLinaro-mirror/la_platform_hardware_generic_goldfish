@@ -28,7 +28,7 @@
 
 #include "android/base/cpu_time.h"
 #include "android/base/memory.h"
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/storage_capacity.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN

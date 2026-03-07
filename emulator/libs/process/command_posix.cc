@@ -28,7 +28,7 @@
 #include "absl/log/log.h"
 
 #include "android/base/eintr_wrapper.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/process/command.h"
 #include "android/process/process.h"
 #include "exec.h"

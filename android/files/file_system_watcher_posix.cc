@@ -25,7 +25,7 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/notification.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/base/file_system_watcher.h"
 
 #define DEBUG 0

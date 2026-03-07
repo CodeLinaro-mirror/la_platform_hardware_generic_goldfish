@@ -24,7 +24,7 @@
 #include "absl/strings/str_join.h"
 
 #include "android/base/bazel_info.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 
 using android::base::Bazel;
 

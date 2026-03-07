@@ -33,7 +33,7 @@
 
 #include "android/sockets/scoped_socket.h"
 #include "android/sockets/socket_utils.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/control/interceptor/idle_interceptor.h"
 #include "android/emulation/control/allow_list.h"
 #include "android/emulation/control/basic_token_auth.h"

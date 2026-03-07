@@ -35,7 +35,7 @@ cc_library(
         ],
         "//conditions:default": [],
     }) + [
-        "//android/system:file",
+        "//emulator/libs/file",
         "//emulator/libs/stream",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",

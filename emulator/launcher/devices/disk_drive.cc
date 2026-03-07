@@ -27,7 +27,7 @@
 
 #include "android/process/command.h"
 #include "android/status/status_macros.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"

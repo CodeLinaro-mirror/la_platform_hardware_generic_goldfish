@@ -16,7 +16,7 @@
 
 #include <string>
 
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/storage_capacity.h"
 #include "android/goldfish/ini_file.h"
 
 namespace android::goldfish {

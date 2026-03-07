@@ -42,7 +42,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/goldfish/avd.h"
 
 #ifdef _WIN32

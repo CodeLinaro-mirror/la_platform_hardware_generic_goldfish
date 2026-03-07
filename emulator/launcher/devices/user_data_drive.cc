@@ -23,8 +23,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/base/file/file.h"
-#include "android/base/storage_capacity.h"
+#include "goldfish/file/file.h"
+#include "goldfish/file/storage_capacity.h"
 #include "android/filesystems/ext4_resize.h"
 #include "android/filesystems/ext4_utils.h"
 #include "android/goldfish/avd.h"

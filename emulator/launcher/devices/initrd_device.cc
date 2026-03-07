@@ -27,7 +27,7 @@
 #include "absl/strings/str_replace.h"
 
 #include "android/status/status_macros.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "emulator/launcher/bootconfig.h"

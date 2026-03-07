@@ -26,7 +26,7 @@
 #include "absl/strings/str_split.h"
 
 #include "android/status/status_macros.h"
-#include "android/base/file/file.h"
+#include "goldfish/file/file.h"
 #include "android/cmdline_definitions.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
