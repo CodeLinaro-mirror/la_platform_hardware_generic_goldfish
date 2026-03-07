@@ -51,6 +51,8 @@ cc_library(
     hdrs = [
         "include/android/base/bazel_info.h",
         "include/android/base/c_str_wrapper.h",
+        "include/android/base/cpu_time.h",
+        "include/android/base/memory.h",
         "include/android/base/no_sigalarm.h",
         "include/android/base/system.h",
         "include/android/utils/compiler.h",

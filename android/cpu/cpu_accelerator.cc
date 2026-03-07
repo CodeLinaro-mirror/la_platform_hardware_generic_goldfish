@@ -39,7 +39,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
-#include "aemu/base/files/ScopedFd.h"
 #include "android/base/file/file.h"
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
@@ -297,8 +296,31 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
         return ANDROID_CPU_ACCELERATION_DEV_PERMISSION;
     }
 
+    class ScopedFd {
+    public:
+        explicit ScopedFd(int fd) : fd_(fd) {}
+        ~ScopedFd() { close(); }
+
+        ScopedFd(const ScopedFd&) = delete;
+        ScopedFd(ScopedFd&&) = delete;
+        ScopedFd& operator=(const ScopedFd&) = delete;
+        ScopedFd& operator=(ScopedFd&&) = delete;
+
+        bool valid() const { return fd_ >= 0; }
+        int get() const { return fd_; }
+        void close() {
+            if (fd_ != -1) {
+                ::close(fd_);
+                fd_ = -1;
+            }
+        }
+
+    private:
+        int fd_;
+    };
+
     // Open the file.
-    base::ScopedFd fd(TEMP_FAILURE_RETRY(open(kvm_device, O_RDWR)));
+    ScopedFd fd(TEMP_FAILURE_RETRY(open(kvm_device, O_RDWR)));
     if (!fd.valid()) {
         absl::StrAppendFormat(status, "Could not open %s : %s", kvm_device, strerror(errno));
         return ANDROID_CPU_ACCELERATION_DEV_OPEN_FAILED;

@@ -14,7 +14,6 @@
 #include "absl/log/log.h"
 
 #include "aemu/base/EintrWrapper.h"
-#include "aemu/base/msvc.h"
 
 #include "android/sockets/scoped_socket.h"
 #include "android/base/no_sigalarm.h"
@@ -534,6 +533,14 @@ void socketSetBlocking(int socket) {
 void socketSetNoDelay(int socket) {
     socketSetOption(socket, IPPROTO_TCP, TCP_NODELAY, 1);
 }
+
+namespace {
+#ifndef __linux__
+enum {
+    SOCK_CLOEXEC = 0,
+};
+#endif
+} // namespace
 
 static int socketCreateTcpFor(int domain) {
     errno = 0;
