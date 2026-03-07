@@ -17,7 +17,7 @@ TESTS = [
     "@goldfish//android/network:network_unittests",
     "@goldfish//emulator/libs/process:process_unittests",
     "@goldfish//emulator/libs/sockets:sockets_unittests",
-    "@goldfish//android/system:system-unittests",
+    "@goldfish//emulator/libs/system:system-unittests",
     "@goldfish//emulator/adb/host:host_unittests",
     "@goldfish//emulator/adb/logger:logger_unittests",
     "@goldfish//emulator/adb/secrets:secrets_unittests",
@@ -82,7 +82,7 @@ TESTS = [
 PERF_TESTS = [
     "//emulator/libs/async:sockets_perf",
     "//emulator/libs/logging:log_bridge_perf",
-    "//android/system:clock_perf",
+    "//emulator/libs/system:clock_perf",
 ]
 
 # Index qemu

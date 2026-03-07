@@ -40,8 +40,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":physical_model",
-        "//android/system:googletest_main",
         "//emulator/config:fake_hardware_config",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

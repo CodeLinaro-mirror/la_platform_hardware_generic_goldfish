@@ -147,10 +147,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":connector_registry_impl",
-        "//android/system:googletest_main",
         "//emulator/hal/plug:fake_vsock",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -167,10 +167,10 @@ cc_test(
     deps = [
         ":connection_awaiter",
         ":devices",
-        "//android/system:googletest_main",
         "//emulator/libs/archive:DequeArchive",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/sockets",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

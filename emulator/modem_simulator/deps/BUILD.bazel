@@ -29,6 +29,6 @@ cc_test(
     ],
     deps = [
         ":deps",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )

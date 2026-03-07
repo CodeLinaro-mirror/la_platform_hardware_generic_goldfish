@@ -24,10 +24,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system",
         "//emulator/launcher:config_dirs",
         "//emulator/libs/base:array_size",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/system",
         "@aemu//host-common:aemu-host-common-headers",
     ],
 )
@@ -43,7 +43,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":cmdline",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )

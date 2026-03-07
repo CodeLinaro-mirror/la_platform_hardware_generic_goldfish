@@ -88,8 +88,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":vminterface-test",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

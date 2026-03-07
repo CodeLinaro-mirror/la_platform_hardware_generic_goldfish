@@ -60,7 +60,7 @@ cc_test(
     deps = [
         ":keyconversion",
         ":test_qemu_input_stub",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )

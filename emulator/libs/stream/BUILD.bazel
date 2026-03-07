@@ -24,7 +24,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":stream",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

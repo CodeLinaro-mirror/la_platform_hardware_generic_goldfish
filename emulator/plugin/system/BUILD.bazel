@@ -7,7 +7,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system:clock",
+        "//emulator/libs/system:clock",
         "@qemu//:qemu-headers",
     ],
 )

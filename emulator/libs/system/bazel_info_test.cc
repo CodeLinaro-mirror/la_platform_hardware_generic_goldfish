@@ -28,13 +28,13 @@ TEST(bazel_info, InBazel) {
 }
 
 TEST(bazel_info, can_get_data_file) {
-    EXPECT_FALSE(Bazel::RunfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt")
+    EXPECT_FALSE(Bazel::RunfilesPath("goldfish+/emulator/libs/system/testdata/info.txt")
                          .empty());
 }
 
 TEST(bazel_info, can_read_data_file) {
     std::string path =
-            Bazel::RunfilesPath("goldfish+/android/system/test/android/base/bazel/info.txt");
+            Bazel::RunfilesPath("goldfish+/emulator/libs/system/testdata/info.txt");
     std::ifstream file(path);
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     EXPECT_EQ(content, "Hello World!");

@@ -7,7 +7,6 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system",
         "//emulator/config:device_type",
         "//emulator/config:hardware_config",
         "//emulator/hal/connector:connector_registry",
@@ -16,6 +15,7 @@ cc_library(
         "//emulator/libs/eventing",
         "//emulator/libs/physics",
         "//emulator/libs/sensors:physical_model",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -32,10 +32,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":sensors",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/config:fake_hardware_config",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )

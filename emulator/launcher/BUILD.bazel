@@ -30,7 +30,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//emulator/launcher:__subpackages__"],
     deps = [
-        "//android/system",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
     ],
 )
@@ -46,9 +46,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":config_dirs",
-        "//android/system",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -61,8 +61,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":config_dirs",
-        "//android/system",
         "//emulator/libs/async:uv_to_absl",
+        "//emulator/libs/system:bazel_info",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@libuv",
@@ -98,10 +98,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":avd",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/libs/status_macros",
         "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -138,8 +138,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":logging",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/strings",
     ],
 )
@@ -149,7 +149,7 @@ cc_library(
     srcs = ["bootconfig.cc"],
     hdrs = ["bootconfig.h"],
     visibility = ["//visibility:public"],
-    deps = ["//android/system"],
+    deps = ["//emulator/libs/system"],
 )
 
 cc_test(
@@ -158,8 +158,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":bootconfig",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -183,9 +183,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":configure_drives",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/launcher/devices:mock_avd",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
     ],
@@ -203,7 +203,6 @@ cc_library(
         ":configure_drives",
         ":emulator_config",
         ":input_paths",
-        "//android/system",
         "//emulator/launcher/cmdline",
         "//emulator/launcher/devices:adb_device",
         "//emulator/launcher/devices:audio_device",
@@ -220,6 +219,7 @@ cc_library(
         "//emulator/launcher/devices:parameter_list",
         "//emulator/launcher/devices:wifi_device",
         "//emulator/libs/async:launch_config",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -431,7 +431,6 @@ cc_binary(
         ":input_paths",
         ":logging",
         ":netsimd",
-        "//android/system",
         "//emulator/adb/secrets",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
@@ -440,6 +439,8 @@ cc_binary(
         "//emulator/libs/async:libuv_signal_handlers",
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/cpu",
+        "//emulator/libs/system",
+        "//emulator/libs/system:bazel_info",
         "//emulator/modem_simulator",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/debugging:failure_signal_handler",

@@ -36,7 +36,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
 
-#include "android/base/bazel_info.h"
 #include "android/base/c_str_wrapper.h"
 #include "goldfish/file/storage_capacity.h"
 #include "android/process/command.h"

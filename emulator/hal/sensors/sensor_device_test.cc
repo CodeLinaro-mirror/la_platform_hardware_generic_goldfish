@@ -18,7 +18,7 @@
 
 #include "absl/strings/str_format.h"
 
-#include "android/base/system/TestClock.h"
+#include "android/base/testing/TestClock.h"
 #include "android/base/testing/TestSystem.h"
 #include "emulator/config/test/android/goldfish/fake_hardware_config.h"
 #include "goldfish/devices/test_connector_registry.h"

@@ -16,9 +16,9 @@ cc_library(
         "minidump_processor.h",
     ],
     deps = [
-        "//android/system",
         "//emulator/crashreport:crash_system",
         "//emulator/crashreport:crash_uploader",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/time",
@@ -35,6 +35,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":tool_lib",
+        "//emulator/libs/system:bazel_info",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",

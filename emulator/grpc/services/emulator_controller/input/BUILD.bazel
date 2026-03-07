@@ -37,11 +37,11 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":input",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/grpc/event-stream",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/display:test-display",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "//emulator/plugin/avd:info-fake",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",

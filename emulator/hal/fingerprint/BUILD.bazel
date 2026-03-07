@@ -31,10 +31,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":fingerprint",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/hal/connector:test-helpers",
         "//emulator/hal/plug:fake_vsock",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

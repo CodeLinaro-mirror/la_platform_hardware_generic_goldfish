@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "googletest_main",
+    testonly = True,
+    srcs = ["gtest_main.cc"],
+    implementation_deps = ["//emulator/libs/system:bazel_info"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:flags",
+        "@abseil-cpp//absl/log:initialize",
+        "@googletest//:gtest",
+    ],
+)

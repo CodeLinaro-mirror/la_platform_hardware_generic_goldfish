@@ -13,12 +13,12 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system",
         "//emulator/libs/base",
         "//emulator/libs/process",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/synchronization",
     ] + select({
-        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
         "//conditions:default": [],
     }),
 )
@@ -30,10 +30,10 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":file_system_watcher",
-        "//android/system",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
         "//emulator/libs/base",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/random",
     ],
@@ -45,7 +45,7 @@ cc_library(
     hdrs = ["include/android/goldfish/ini_file.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//android/system"],
+    deps = ["//emulator/libs/system"],
 )
 
 cc_test(
@@ -55,9 +55,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":ini_file",
-        "//android/system",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/log",
     ],
 )

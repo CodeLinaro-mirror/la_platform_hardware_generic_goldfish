@@ -15,8 +15,8 @@ cc_library(
     tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system:eintr_wrapper",
         "//emulator/libs/status_macros",
+        "//emulator/libs/system:eintr_wrapper",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
@@ -31,8 +31,8 @@ cc_test(
     ],
     deps = [
         ":file",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

@@ -24,12 +24,13 @@
 #include "android/base/system.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 using ::bazel::tools::cpp::runfiles::Runfiles;
 
+namespace {
 std::vector<std::string> g_argv;
+}  // namespace
 
 bool Bazel::s_not_in_bazel{false};
 
@@ -87,5 +88,5 @@ void Bazel::StoreCommandLineArgs(int argc, char** argv) {
         g_argv.push_back(argv[i]);
     }
 }
-}  // namespace base
-}  // namespace android
+
+}  // namespace android::base

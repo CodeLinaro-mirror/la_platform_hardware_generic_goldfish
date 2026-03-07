@@ -7,8 +7,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system",
         "//emulator/libs/sockets",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -24,7 +24,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":host",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )

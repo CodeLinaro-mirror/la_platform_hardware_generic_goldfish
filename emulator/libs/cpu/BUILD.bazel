@@ -27,16 +27,16 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system",
         "//emulator/libs/base",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
     ] + select({
         "@platforms//os:windows": [
-            "//android/system:scoped_file_handle",
-            "//android/system:scoped_reg_key",
-            "//android/system:win32_utils",
+            "//emulator/libs/windows:scoped_file_handle",
+            "//emulator/libs/windows:scoped_reg_key",
+            "//emulator/libs/windows:win32_utils",
         ],
         "//conditions:default": [],
     }),
@@ -55,7 +55,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":cpu",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )
