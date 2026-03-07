@@ -1,6 +1,6 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test", "objc_library")
 
 cc_library(
     name = "clock",
@@ -50,6 +50,20 @@ cc_library(
     ],
 )
 
+objc_library(
+    name = "system-darwin",
+    srcs = ["system-native-mac.mm"],
+    copts = ["-std=c++20"],
+    sdk_frameworks = [
+        "IOKit",
+        "AppKit",
+    ],
+    target_compatible_with = [
+        "@platforms//os:macos",
+    ],
+    alwayslink = True,
+)
+
 cc_library(
     name = "system",
     srcs = [
@@ -85,12 +99,15 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:aemu-base",
+        "@aemu//base:aemu-base-headers",
         "@bazel_tools//tools/cpp/runfiles",
     ] + select({
         "@platforms//os:windows": [
             ":win32_utils",
             "@glib//glib/dirent",
+        ],
+        "@platforms//os:macos": [
+            ":system-darwin",
         ],
         "//conditions:default": [],
     }),
