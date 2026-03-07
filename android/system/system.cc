@@ -52,7 +52,7 @@
 #include <windows.h>
 #include <winioctl.h>
 
-#include "aemu/base/files/ScopedRegKey.h"
+#include "android/base/scoped_reg_key.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
 // IWYU pragma: end_keep
@@ -339,7 +339,6 @@ class HostSystem : public System {
             return lastSuccessfulValue;
         }
 #ifdef _WIN32
-        using android::base::ScopedRegKey;
         HKEY hkey = 0;
         LONG result =
                 RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",

@@ -28,12 +28,16 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//android/system",
+        "//emulator/libs/base",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:aemu-base",
     ] + select({
-        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "@platforms//os:windows": [
+            "//android/system:scoped_file_handle",
+            "//android/system:scoped_reg_key",
+            "//android/system:win32_utils",
+        ],
         "//conditions:default": [],
     }),
 )

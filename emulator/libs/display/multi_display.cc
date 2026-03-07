@@ -14,8 +14,6 @@
 
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 
-#include <misc.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>

@@ -29,6 +29,24 @@ cc_library(
 )
 
 cc_library(
+    name = "scoped_file_handle",
+    hdrs = ["include/android/base/scoped_file_handle.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/base"],
+)
+
+cc_library(
+    name = "scoped_reg_key",
+    hdrs = ["include/android/base/scoped_reg_key.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/base"],
+)
+
+cc_library(
     name = "file",
     srcs = [
         "file.cc",
@@ -99,11 +117,12 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
-        "@aemu//base:aemu-base-headers",
         "@bazel_tools//tools/cpp/runfiles",
     ] + select({
         "@platforms//os:windows": [
+            ":scoped_reg_key",
             ":win32_utils",
+            "@aemu//windows:compat",
             "@glib//glib/dirent",
         ],
         "@platforms//os:macos": [
