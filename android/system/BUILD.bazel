@@ -21,6 +21,14 @@ cc_library(
 )
 
 cc_library(
+    name = "eintr_wrapper",
+    hdrs = ["include/android/base/eintr_wrapper.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/log"],
+)
+
+cc_library(
     name = "file",
     srcs = [
         "file.cc",
@@ -34,11 +42,11 @@ cc_library(
     tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
+        ":eintr_wrapper",
         "//android/status_macros",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
-        "@aemu//base:aemu-base",
     ],
 )
 
@@ -69,6 +77,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":clock",
+        ":eintr_wrapper",
         ":file",
         "//android/process",
         "@abseil-cpp//absl/algorithm:container",
@@ -76,6 +85,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
+        "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
     ] + select({
         "@platforms//os:windows": [
@@ -105,7 +115,6 @@ cc_library(
         ":system",
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )

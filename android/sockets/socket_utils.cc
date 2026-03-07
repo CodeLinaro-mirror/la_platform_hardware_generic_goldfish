@@ -13,7 +13,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-#include "aemu/base/EintrWrapper.h"
+#include "android/base/eintr_wrapper.h"
 
 #include "android/sockets/scoped_socket.h"
 #include "android/base/no_sigalarm.h"

@@ -23,7 +23,6 @@ cc_library(
         "//android/system:clock",
         "//emulator/crashreport:breadcrumb",
         "@abseil-cpp//absl/time",
-        "@aemu//base:aemu-base",
         "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
         "@goldfish//emulator/crashreport:crash_reporter",
         "@goldfish//emulator/libs/proto_data_store",

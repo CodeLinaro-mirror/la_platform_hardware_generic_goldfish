@@ -26,7 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
-#include "aemu/base/EintrWrapper.h"
+#include "android/base/eintr_wrapper.h"
 #include "android/status/status_macros.h"
 #include "android/base/file/file.h"
 #include "android/base/storage_capacity.h"

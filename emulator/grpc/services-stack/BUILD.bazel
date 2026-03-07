@@ -15,6 +15,5 @@ cc_library(
         "//emulator/grpc/interceptors",
         "//emulator/grpc/security",
         "//emulator/grpc/services/emulator_controller/server:emulator-service",
-        "@aemu//base:aemu-base",
     ],
 )
