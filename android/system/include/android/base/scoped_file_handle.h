@@ -21,8 +21,6 @@
 #define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
 
-#include "goldfish/base/unique_handle.h"
-
 namespace android::base {
 
 class ScopedFileHandle {
