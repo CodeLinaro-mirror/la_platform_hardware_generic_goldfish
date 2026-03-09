@@ -260,11 +260,11 @@ struct GoldfishVirtioVsockDevice {
         }
     }
 
-    struct virtio_vsock_hdr preparePacketHeaderLocked(const uint32_t srcPort,
-                                                      const uint32_t dstPort,
-                                                      const enum virtio_vsock_op op,
-                                                      const uint32_t hostFwdCnt,
-                                                      const uint32_t len) const {
+    static struct virtio_vsock_hdr preparePacketHeader(const uint32_t srcPort,
+                                                       const uint32_t dstPort,
+                                                       const enum virtio_vsock_op op,
+                                                       const uint32_t hostFwdCnt,
+                                                       const uint32_t len) {
         constexpr uint32_t kHostBufAllocSize = 64 * 1024;
 
         // the rest of fields are set in virtio_vsock_send_packet_host_to_guest
@@ -280,11 +280,10 @@ struct GoldfishVirtioVsockDevice {
         return hdr;
     }
 
-    struct virtio_vsock_hdr preparePacketHeaderLocked(const VsockStream& stream,
-                                                      const enum virtio_vsock_op op,
-                                                      const uint32_t len) const {
-        return preparePacketHeaderLocked(stream.hostPort, stream.guestPort, op, stream.hostFwdCnt,
-                                         len);
+    static struct virtio_vsock_hdr preparePacketHeader(const VsockStream& stream,
+                                                       const enum virtio_vsock_op op,
+                                                       const uint32_t len) {
+        return preparePacketHeader(stream.hostPort, stream.guestPort, op, stream.hostFwdCnt, len);
     }
 
     void queueOrphanPacketLocked(const struct virtio_vsock_hdr& hdr) {
@@ -292,13 +291,12 @@ struct GoldfishVirtioVsockDevice {
     }
 
     void queueOrphanPacketLocked(const VsockStream& stream, const enum virtio_vsock_op op) {
-        queueOrphanPacketLocked(preparePacketHeaderLocked(stream, op, 0));
+        queueOrphanPacketLocked(preparePacketHeader(stream, op, 0));
     }
 
     void queueOrphanPacketLocked(const struct virtio_vsock_hdr& request,
                                  const enum virtio_vsock_op op) {
-        queueOrphanPacketLocked(
-                preparePacketHeaderLocked(request.dst_port, request.src_port, op, 0, 0));
+        queueOrphanPacketLocked(preparePacketHeader(request.dst_port, request.src_port, op, 0, 0));
     }
 
     void clearLocked() {
@@ -484,7 +482,7 @@ struct GoldfishVirtioVsockDevice {
 
                 for (const auto op : ops) {
                     if (sendOpMask & (1U << op)) {
-                        auto hdr = preparePacketHeaderLocked(stream, op, 0);
+                        auto hdr = preparePacketHeader(stream, op, 0);
                         sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr,
                                                                         nullptr);
                         if (VirtIOVSockSendNeedNotify(sendResult)) {
@@ -509,7 +507,7 @@ struct GoldfishVirtioVsockDevice {
                 }
 
                 const size_t sendSize = std::min(chunkSize, guestAvailSize);
-                auto hdr = preparePacketHeaderLocked(stream, VIRTIO_VSOCK_OP_RW, sendSize);
+                auto hdr = preparePacketHeader(stream, VIRTIO_VSOCK_OP_RW, sendSize);
                 sendResult = (*NOT_NULL(sendPacketHostToGuest))(NOT_NULL(mQemuDev), &hdr, data);
 
                 const size_t sentSize = VirtIOVSockSentSize(sendResult);
@@ -663,8 +661,8 @@ struct GoldfishVirtioVsockDevice {
             } else {
                 // this stream does not support loading from
                 // a snapshot, send RST to the guest
-                queueOrphanPacketLocked(preparePacketHeaderLocked(
-                        hostPort, guestPort, VIRTIO_VSOCK_OP_RST, hostFwdCnt, 0));
+                queueOrphanPacketLocked(preparePacketHeader(hostPort, guestPort,
+                                                            VIRTIO_VSOCK_OP_RST, hostFwdCnt, 0));
                 needNotify = true;
             }
         }
