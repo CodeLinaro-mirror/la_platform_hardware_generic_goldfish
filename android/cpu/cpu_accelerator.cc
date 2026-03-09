@@ -9,6 +9,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#include "android/cpu/cpu_accelerator.h"
+
 #define CPU_ACCELERATOR_PRIVATE
 
 #ifdef _WIN32
@@ -41,11 +43,11 @@
 
 #include "android/base/file/file.h"
 #include "android/base/system.h"
-#include "android/cpu/cpu_accelerator.h"
+#include "goldfish/base/unique_handle.h"
 #include "x86_cpuid.h"
 
 #ifdef _WIN32
-#include "aemu/base/files/ScopedFileHandle.h"
+#include "android/base/scoped_file_handle.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
 #include "android/cpu/windows_installer.h"
@@ -296,32 +298,16 @@ AndroidCpuAcceleration ProbeKVM(std::string* status) {
         return ANDROID_CPU_ACCELERATION_DEV_PERMISSION;
     }
 
-    class ScopedFd {
-    public:
-        explicit ScopedFd(int fd) : fd_(fd) {}
-        ~ScopedFd() { close(); }
-
-        ScopedFd(const ScopedFd&) = delete;
-        ScopedFd(ScopedFd&&) = delete;
-        ScopedFd& operator=(const ScopedFd&) = delete;
-        ScopedFd& operator=(ScopedFd&&) = delete;
-
-        bool valid() const { return fd_ >= 0; }
-        int get() const { return fd_; }
-        void close() {
-            if (fd_ != -1) {
-                ::close(fd_);
-                fd_ = -1;
-            }
+    struct FdDeleter {
+        void operator()(int fd) const {
+            ::close(fd);
         }
-
-    private:
-        int fd_;
     };
+    using ScopedFd = goldfish::base::UniqueHandle<int, -1, FdDeleter>;
 
     // Open the file.
     ScopedFd fd(TEMP_FAILURE_RETRY(open(kvm_device, O_RDWR)));
-    if (!fd.valid()) {
+    if (!fd.ok()) {
         absl::StrAppendFormat(status, "Could not open %s : %s", kvm_device, strerror(errno));
         return ANDROID_CPU_ACCELERATION_DEV_OPEN_FAILED;
     }
@@ -443,10 +429,10 @@ AndroidCpuAcceleration ProbeAEHD(std::string* status) {
 
     base::ScopedFileHandle aehd(CreateFileA("\\\\.\\AEHD", GENERIC_READ | GENERIC_WRITE, 0, NULL,
                                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
-    if (aehd.valid()) goto success;
+    if (aehd.ok()) goto success;
     base::ScopedFileHandle gvm(CreateFileA("\\\\.\\gvm", GENERIC_READ | GENERIC_WRITE, 0, NULL,
                                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
-    if (!aehd.valid() && !gvm.valid()) {
+    if (!aehd.ok() && !gvm.ok()) {
         DWORD err = GetLastError();
         if (err == ERROR_FILE_NOT_FOUND) {
             status->assign(
@@ -468,7 +454,7 @@ success:
     int version;
 
     DWORD dSize = 0;
-    BOOL ret = DeviceIoControl(aehd.valid() ? aehd.get() : gvm.get(), AEHD_GET_API_VERSION, NULL, 0,
+    BOOL ret = DeviceIoControl(aehd.ok() ? aehd.get() : gvm.get(), AEHD_GET_API_VERSION, NULL, 0,
                                &version, sizeof(version), &dSize, (LPOVERLAPPED)NULL);
     if (!ret) {
         DWORD err = GetLastError();

@@ -17,7 +17,7 @@
 #include <memory>
 #include <string>
 
-#include "aemu/base/files/ScopedRegKey.h"
+#include "android/base/scoped_reg_key.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/base/win32_utils.h"
 

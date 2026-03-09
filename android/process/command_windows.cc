@@ -28,7 +28,7 @@
 
 #include "absl/log/log.h"
 
-#include "aemu/base/files/ScopedFileHandle.h"
+#include "android/base/scoped_file_handle.h"
 #include "android/base/win32_unicode_string.h"
 #include "android/process/command.h"
 #include "android/process/exec.h"
@@ -629,7 +629,7 @@ Command::ProcessFactory Command::s_process_factory = [](const CommandArguments& 
 std::unique_ptr<Process> Process::FromPid(Pid pid) {
     ScopedFileHandle process_handle(OpenProcess(
             PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
-    if (process_handle.valid()) {
+    if (process_handle.ok()) {
         return std::make_unique<WinProcess>(process_handle.release());
     }
     return nullptr;
