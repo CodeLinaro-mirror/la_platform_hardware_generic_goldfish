@@ -26,6 +26,7 @@
 
 #include "android/base/file/file.h"
 #include "android/base/file_system_watcher.h"
+#include "goldfish/base/unique_handle.h"
 
 namespace android::base {
 
@@ -34,6 +35,33 @@ namespace {
 struct FSEventFlagsWrapper {
     FSEventStreamEventFlags flags;
 };
+
+struct CFTypeDeleter {
+    struct Empty {};
+    CFTypeDeleter() = default;
+    CFTypeDeleter(Empty) {}
+    void operator()(CFTypeRef ref) const {
+        if (ref) CFRelease(ref);
+    }
+};
+
+template <typename T>
+using UniqueCFType = goldfish::base::UniqueHandle<T, nullptr, CFTypeDeleter>;
+
+struct FSEventStreamDeleter {
+    struct Empty {};
+    FSEventStreamDeleter() = default;
+    FSEventStreamDeleter(Empty) {}
+    void operator()(FSEventStreamRef stream) const {
+        if (stream) {
+            FSEventStreamInvalidate(stream);
+            FSEventStreamRelease(stream);
+        }
+    }
+};
+
+using UniqueFSEventStream =
+        goldfish::base::UniqueHandle<FSEventStreamRef, nullptr, FSEventStreamDeleter>;
 
 bool IsCreatedEvent(FSEventStreamEventFlags flags) {
     return flags & kFSEventStreamEventFlagItemCreated;
@@ -204,18 +232,18 @@ class FileSystemWatcherFS : public FileSystemWatcher {
     }
 
     bool WatchForChanges() {
-        cf_run_loop_ = nullptr;
-        const auto* dir =
-                CFStringCreateWithCString(nullptr, path_.string().c_str(), kCFStringEncodingUTF8);
-        const auto* paths_to_watch = CFArrayCreate(nullptr, reinterpret_cast<const void**>(&dir), 1,
-                                                   &kCFTypeArrayCallBacks);
+        UniqueCFType<CFStringRef> dir(
+                CFStringCreateWithCString(nullptr, path_.string().c_str(), kCFStringEncodingUTF8));
+        CFStringRef dir_ptr = dir.get();
+        UniqueCFType<CFArrayRef> paths_to_watch(CFArrayCreate(
+                nullptr, reinterpret_cast<const void**>(&dir_ptr), 1, &kCFTypeArrayCallBacks));
 
         FSEventStreamContext stream_ctx = {0, this, nullptr, nullptr, nullptr};
-        auto* stream =
+        UniqueFSEventStream stream(
                 FSEventStreamCreate(nullptr, &FileSystemWatcherFS::WatcherCb, &stream_ctx,
-                                    paths_to_watch, kFSEventStreamEventIdSinceNow, 0,
-                                    kFSEventStreamCreateFlagFileEvents |  // Get file-level events
-                                            kFSEventStreamCreateFlagNoDefer);  // Get them ASAP
+                                    paths_to_watch.get(), kFSEventStreamEventIdSinceNow, 0,
+                                    kFSEventStreamCreateFlagFileEvents  // Get file-level events
+                                            | kFSEventStreamCreateFlagNoDefer));  // Get them ASAP
 
         if (!stream) {
             started_.Notify();
@@ -245,14 +273,12 @@ class FileSystemWatcherFS : public FileSystemWatcher {
             started_.Notify();
         }
 
-        FSEventStreamScheduleWithRunLoop(stream, cf_run_loop_, kCFRunLoopDefaultMode);
-        FSEventStreamStart(stream);
+        FSEventStreamScheduleWithRunLoop(stream.get(), cf_run_loop_, kCFRunLoopDefaultMode);
+        FSEventStreamStart(stream.get());
 
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
 
-        FSEventStreamStop(stream);
-        FSEventStreamInvalidate(stream);
-        FSEventStreamRelease(stream);
+        FSEventStreamStop(stream.get());
 
         return true;
     }
