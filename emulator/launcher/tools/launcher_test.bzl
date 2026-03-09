@@ -10,7 +10,7 @@ def create_launch_emulator_test(name, target_log_line = None, timeout_seconds = 
     architecture (ARM64 for macOS, x86_64 for others) and includes the necessary
     system images.
 
-    Note that tests will use the tag: `exclusive-if-local` this will force the test to be run
+    Note that tests will use the tag: `resources:exclusive_test:1` this will force the test to be run
     in the "exclusive" mode if it is executed locally, but will run the test in parallel if it's
     executed remotely.
 
@@ -43,9 +43,15 @@ def _create_launch_emulator_test(name, args, goldfish_dep):
         name = name,
         size = "medium",
         timeout = "moderate",
-        # These tests are marked as manual so that they aren't included when using //...
-        # Instead they must be explicitly named (including as part of a test_suite).
-        tags = ["manual", "exclusive-if-local", "requires-network"],
+        tags = [
+            # These tests are marked as manual so that they aren't included when using //...
+            # Instead they must be explicitly named (including as part of a test_suite).
+            "manual",
+            # "exclusive-if-local" fails to parallelize on RBE
+            # https://github.com/bazelbuild/bazel/issues/17834
+            "resources:qemu_instances:1",
+            "requires-network",
+        ],
         args = select({
             "@platforms//os:macos": [
                 "--abi",
