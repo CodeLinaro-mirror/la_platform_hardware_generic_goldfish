@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "absl/synchronization/mutex.h"
@@ -53,6 +54,12 @@ class PixmanFrameManager {
      * @return A PixmanImagePtr to the current frame.
      */
     PixmanImagePtr GetRenderableImage();
+
+    /**
+     * @brief Executes a function while holding the display access lock.
+     * @param f Function to execute.
+     */
+    void WithRenderableImage(const std::function<void(::pixman_image_t*)>& f);
 
     void UpdateSurface();
 

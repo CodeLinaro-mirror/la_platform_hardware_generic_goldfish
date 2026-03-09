@@ -105,4 +105,9 @@ PixmanImagePtr PixmanFrameManager::GetRenderableImage() {
     return current_image_;
 }
 
+void PixmanFrameManager::WithRenderableImage(const std::function<void(::pixman_image_t*)>& f) {
+    const absl::MutexLock lock(&display_access_);
+    f(current_image_.get());
+}
+
 }  // namespace goldfish::display

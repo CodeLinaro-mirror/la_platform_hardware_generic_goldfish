@@ -45,7 +45,9 @@ cc_library(
     srcs = [
         "NullDisplay.h",
         "QemuDisplay.h",
+        "imaging.cc",
         "imulti_display_impl.cc",
+        "input_handler.cc",
         "pixman_display.cc",
         "pixman_frame_manager.cc",
         "qemu_display.cc",
@@ -55,6 +57,8 @@ cc_library(
     ],
     hdrs = [
         "include/goldfish/display/QemuMultidisplay/multi_display.h",
+        "include/goldfish/display/imaging.h",
+        "include/goldfish/display/input_handler.h",
         "include/goldfish/display/multi_display_callbacks.h",
         "include/goldfish/display/pixman_display.h",
         "include/goldfish/display/pixman_frame_manager.h",
@@ -137,6 +141,7 @@ cc_test(
         "fake_multi_display_test.cc",
         "fake_pixman_display_test.cc",
         "image_generation_strategy_test.cc",
+        "imaging_test.cc",
         "pixman_display_concurrency_test.cc",
         "pixman_frame_manager_test.cc",
         "pixman_image_generator_test.cc",

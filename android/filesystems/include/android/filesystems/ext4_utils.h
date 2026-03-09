@@ -24,4 +24,6 @@ namespace fs = std::filesystem;
 // Returns 0 on success, or -errno on failure.
 int android_createEmptyExt4Image(fs::path filePath, uint64_t size, const char* mountpoint);
 
+int android_createExt4ImageFromDir(fs::path filePath, fs::path srcDir, uint64_t size,
+                                   const char* mountpoint);
 }  // namespace android::filesystems

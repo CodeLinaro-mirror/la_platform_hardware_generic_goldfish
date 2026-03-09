@@ -32,6 +32,12 @@ class MockDeviceContainer {
                  const std::optional<fs::path>& system_image_path_ro,
                  const fs::path& user_image_path, const fs::path& qcow2, uint64_t size_bytes));
 
+    MOCK_METHOD(void, addRwDrive,
+                (const std::string& id, const std::string& pci_address,
+                 const std::optional<fs::path>& system_image_path_ro,
+                 const std::optional<fs::path>& src_directory_path, const fs::path& user_image_path,
+                 const fs::path& qcow2, uint64_t size_bytes));
+
     MOCK_METHOD(void, addRoDrive,
                 (const std::string& id, const std::string& pci_address, const fs::path& image));
 

@@ -251,6 +251,12 @@ class IDisplay : public FrameInfoCallbackSource,
     // True if it is active (i.e. connected)
     virtual bool Active() const { return active_; }
 
+    /**
+     * @brief Sets the active status of the display.
+     * @param active True to activate, false to deactivate.
+     */
+    virtual void SetActive(bool active) { active_ = active; }
+
     template <typename Sink>
     friend void AbslStringify(Sink& sink, const IDisplay* display) {
         absl::Format(&sink, "%s", display ? "<none>" : display->String());

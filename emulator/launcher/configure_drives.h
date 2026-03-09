@@ -33,6 +33,7 @@ struct DiskConfig {
     bool is_writable;
 
     std::optional<fs::path> system_image_path_ro;
+    std::optional<fs::path> src_directory_path;
     fs::path user_image_path;
 
     uint64_t size_bytes;
@@ -51,8 +52,14 @@ absl::Status addDrives(T& emulator) {
         // And why do we copy the images for encryption_key (and system and vendor in writable)?
         if (dc.is_writable) {
             auto qcow2 = fs::path(dc.user_image_path).concat(".qcow2");
-            emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
-                                                 dc.user_image_path, qcow2, dc.size_bytes);
+            if (dc.src_directory_path) {
+                emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
+                                                     dc.src_directory_path, dc.user_image_path,
+                                                     qcow2, dc.size_bytes);
+            } else {
+                emulator.template addDevice<RwDrive>(dc.id, dc.pci_address, dc.system_image_path_ro,
+                                                     dc.user_image_path, qcow2, dc.size_bytes);
+            }
         } else {
             fs::path image;
             if (base::file::exists(dc.user_image_path)) {

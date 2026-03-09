@@ -752,4 +752,21 @@ TEST_F(DisplayServiceTest, GetScreenshotMmapTooSmall) {
     EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
 }
 
+TEST(DisplayServiceTest_ToProtoPosture, ConvertsPostures) {
+    using ::goldfish::sensors::FoldablePostures;
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kClosed),
+              Posture::POSTURE_CLOSED);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kHalfOpened),
+              Posture::POSTURE_HALF_OPENED);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kOpened),
+              Posture::POSTURE_OPENED);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kFlipped),
+              Posture::POSTURE_FLIPPED);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kTent), Posture::POSTURE_TENT);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(FoldablePostures::kPostureMax),
+              Posture::POSTURE_MAX);
+    EXPECT_EQ(DisplayServiceImpl::ToProtoPosture(static_cast<FoldablePostures>(99)),
+              Posture::POSTURE_UNKNOWN);
+}
+
 }  // namespace android::emulation::control

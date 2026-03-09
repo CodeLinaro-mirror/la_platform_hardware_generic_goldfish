@@ -171,6 +171,10 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     FoldableState GetFoldableState() const;
 
+    FoldableModel::PostureListener& GetPostureListener() {
+        return foldable_model_.GetPostureListener();
+    }
+
     /**
      * @brief Checks if the foldable device is currently folded.
      * @return true if device is folded, false otherwise

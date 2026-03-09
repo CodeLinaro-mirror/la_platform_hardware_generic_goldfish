@@ -120,3 +120,20 @@ void console_handle_touch_event(QemuConsole* con,
     (void)type;
     (void)errp;
 }
+
+void qemu_free_displaysurface(DisplaySurface* surface) {
+    (void)surface;
+}
+
+DisplaySurface* qemu_create_displaysurface(int width, int height) {
+    (void)width;
+    (void)height;
+    return NULL;
+}
+
+int dpy_set_ui_info(QemuConsole* con, QemuUIInfo* info, bool delay) {
+    (void)con;
+    (void)info;
+    (void)delay;
+    return 0;
+}

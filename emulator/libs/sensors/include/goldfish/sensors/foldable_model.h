@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include <mutex>
 #include <vector>
 
+#include "aemu/base/EventNotificationSupport.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/physics/physics.h"
 #include "goldfish/sensors/foldable.h"
@@ -27,19 +27,20 @@ namespace goldfish::sensors {
 
 class FoldableModel {
   public:
+    class PostureListener : public ::android::base::EventNotificationSupport<FoldablePostures> {
+      public:
+        void FireEvent(FoldablePostures posture) { this->fireEvent(posture); }
+        friend class FoldableModel;
+    };
     explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
     // called by physical model to set hinge angle.
-    // mutex passed from physical model
-    static void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode,
-                              std::recursive_mutex& mutex);
+    void SetHingeAngle(uint32_t hinge_index, float degrees, PhysicalInterpolation mode);
 
     // called by physical model to set hinge posture.
-    // mutex passed from physical model
-    static void SetPosture(float posture, PhysicalInterpolation mode, std::recursive_mutex& mutex);
+    void SetPosture(float posture, PhysicalInterpolation mode);
 
-    static void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode,
-                            std::recursive_mutex& mutex);
+    static void SetRollable(uint32_t index, float percentage, PhysicalInterpolation mode);
 
     float GetHingeAngle(uint32_t hinge_index, ParameterValueType parameter_value_type =
                                                       ParameterValueType::kCurrent) const;
@@ -50,15 +51,19 @@ class FoldableModel {
 
     FoldableState GetFoldableState() const { return state_; }  // structure copy
 
-    static bool IsFolded();
+    bool IsFolded() const;
 
     static bool GetFoldedArea(int* x, int* y, int* w, int* h);
 
+    PostureListener& GetPostureListener() { return posture_listener_; }
+
   private:
     void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
+    void InitFoldableHinge(const android::goldfish::HardwareConfig& hw);
 
     FoldableState state_;
     std::vector<AnglesToPosture> angles_to_postures_;
+    PostureListener posture_listener_;
 };
 
 }  // namespace goldfish::sensors

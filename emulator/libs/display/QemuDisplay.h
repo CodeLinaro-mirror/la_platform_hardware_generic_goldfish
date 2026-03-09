@@ -33,9 +33,12 @@ class QemuDisplay : public PixmanDisplay {
   public:
     QemuDisplay(EventLoop* loop, EventLoop* qemu_loop, QemuConsole* con, DisplaySurface* ds,
                 int index);
+    ~QemuDisplay() override;
     void SendMultiTouchEvent(uint8_t slot, int x, int y, MultiTouchType type) override;
     void SendMouseEvent(int x, int y, int button_mask) override;
     void SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) override;
+
+    void SetOwnedSurface(DisplaySurface* surface);
 
   private:
     template <typename Sink>
@@ -46,6 +49,7 @@ class QemuDisplay : public PixmanDisplay {
     int mlast_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
     absl::Mutex send_lock_;
+    DisplaySurface* owned_surface_{nullptr};
 };
 
 template <typename Sink>

@@ -21,9 +21,13 @@
 
 namespace android::goldfish {
 
+class Avd;
+
 namespace fs = std::filesystem;
 
-absl::Status prepareUserDataBaseImage(fs::path init_data, fs::path user_data, uint64_t data_size,
-                                      bool resize);
+absl::Status prepareUserDataBaseImage(const Avd& avd, const fs::path& init_data,
+                                      const fs::path& user_data, uint64_t data_size, bool resize);
+
+std::optional<fs::path> getUserSrcDirectory(const Avd& avd);
 
 }  // namespace android::goldfish

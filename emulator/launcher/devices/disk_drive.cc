@@ -49,7 +49,20 @@ std::string getDeviceParam(const Avd& avd, std::string_view diskId, std::string_
     }
 }
 
-absl::Status createExt4Image(fs::path destination, StorageCapacity size, std::string mount_point) {
+absl::Status createExt4Image(fs::path destination, fs::path srcDir, StorageCapacity size,
+                             std::string mount_point) {
+    if (android::filesystems::android_createExt4ImageFromDir(destination, srcDir, size.Bytes(),
+                                                             mount_point.c_str()) == 0) {
+        return absl::OkStatus();
+    }
+
+    return absl::InternalError(
+            absl::StrFormat("Failed to create an Ext4 image from %s in '%s' of size %d bytes",
+                            destination.string(), srcDir.string(), size.Bytes()));
+}
+
+absl::Status createEmptyExt4Image(fs::path destination, StorageCapacity size,
+                                  std::string mount_point) {
     if (android::filesystems::android_createEmptyExt4Image(destination, size.Bytes(),
                                                            mount_point.c_str()) == 0) {
         return absl::OkStatus();
@@ -143,9 +156,17 @@ std::vector<std::string> RoDrive::getQemuParameters(const EmulatorConfig& emulat
 }
 
 absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
+    LOG(INFO) << "Preparing drive: " << mDestinationImage << " for " << id();
     if (!base::file::exists(mDestinationImage)) {
         base::file::rm(mQcow2Image).IgnoreError();
-        if (mSourcePath) {
+        if (mSourceDirectory) {
+            LOG(INFO) << "Preparing non empty drive: " << mDestinationImage
+                      << " from src directory " << *mSourceDirectory;
+            RETURN_IF_ERROR(
+                    createExt4Image(mDestinationImage, *mSourceDirectory, mSizeBytes, id()));
+        } else if (mSourcePath) {
+            LOG(INFO) << "Preparing drive: " << mDestinationImage << " from src file"
+                      << *mSourcePath;
             base::file::cp_file(*mSourcePath, mDestinationImage, /*overwrite=*/true).IgnoreError();
 
             if (!base::file::exists(mDestinationImage)) {
@@ -154,8 +175,10 @@ absl::Status RwDrive::initialize(const EmulatorConfig& emulator) {
             }
         } else {
             LOG(INFO) << "Preparing empty drive: " << mDestinationImage;
-            RETURN_IF_ERROR(createExt4Image(mDestinationImage, mSizeBytes, id()));
+            RETURN_IF_ERROR(createEmptyExt4Image(mDestinationImage, mSizeBytes, id()));
         }
+    } else {
+        LOG(INFO) << "skip Preparing drive: " << mDestinationImage << " for " << id();
     }
 
     if (!base::file::exists(mQcow2Image)) {
