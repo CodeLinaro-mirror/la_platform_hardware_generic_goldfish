@@ -48,6 +48,7 @@ cc_library(
         "//emulator/libs/archive:QEMUFileArchive",
         "//emulator/libs/debug",
         "//emulator/libs/eventing",
+        "//emulator/libs/synchronization",
         "//emulator/plugin/avd:impl",
         "@qemu//:qemu-headers",
     ],
