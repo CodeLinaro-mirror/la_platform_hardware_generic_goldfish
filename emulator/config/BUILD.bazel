@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 py_binary(
@@ -19,12 +19,23 @@ cc_library(
     name = "hardware_config",
     srcs = [
         "hardware_config.cc",
+        "memory_config.cc",
         ":hw-config-gen",
     ],
-    hdrs = ["include/android/goldfish/hardware_config.h"],
+    hdrs = [
+        "include/android/goldfish/hardware_config.h",
+        "include/android/goldfish/memory_config.h",
+    ],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//android/files:ini_file"],
+    deps = [
+        "//android/files:ini_file",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@aemu//base:aemu-base-headers",
+        "@aemu//host-common:aemu-host-common-headers",
+    ],
 )
 
 cc_library(
@@ -41,4 +52,14 @@ cc_library(
     hdrs = ["include/android/goldfish/device_type.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "memory_config_test",
+    srcs = ["memory_config_test.cc"],
+    deps = [
+        ":hardware_config",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
 )

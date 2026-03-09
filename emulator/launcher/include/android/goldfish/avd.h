@@ -193,6 +193,16 @@ class Avd {
     virtual std::string DisplayName() const = 0;
 
     virtual std::string SkinName() const = 0;
+
+    /**
+     * @brief Finalizes the AVD configuration before emulator launch.
+     *
+     * This method applies any last-minute configuration changes, such as
+     * enforcing minimum RAM requirements or applying command-line overrides.
+     *
+     * @return absl::Status indicating success or failure.
+     */
+    virtual absl::Status Finalize() = 0;
     /**
      * @brief Retrieves the filename associated with the given AVD image type.
      *
@@ -251,6 +261,7 @@ class FileBackedAvd : public Avd {
     int ApiLevel() const override;
     std::string Dessert() const override;
     std::string ApiDescription() const override;
+    absl::Status Finalize() override;
     fs::path GetConfigIniPath() const override { return config_->GetBackingFile(); }
     std::string DisplayName() const override {
         return config_->GetString("avd.ini.displayname", Name());
