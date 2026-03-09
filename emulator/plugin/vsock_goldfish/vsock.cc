@@ -301,8 +301,7 @@ struct GoldfishVirtioVsockDevice {
                 preparePacketHeaderLocked(request.dst_port, request.src_port, op, 0, 0));
     }
 
-    void clear() {
-        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+    void clearLocked() {
         for (const VsockStream& stream : mStreams) {
             if (stream.plug) {
                 stream.plug->OnUnplug().release();
@@ -313,6 +312,11 @@ struct GoldfishVirtioVsockDevice {
         mHostEvents.clear();
         mOrphanPackets.clear();
         mSrcPortAllocator.Reset();
+    }
+
+    void clear() {
+        const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        clearLocked();
     }
 
     void realize(void* const dev, const GoldfishVirtIOVSockDevAPI* const devApi) {
@@ -604,12 +608,13 @@ struct GoldfishVirtioVsockDevice {
         }
 
         const std::lock_guard<std::recursive_mutex> lock(mStateMutex);
+        clearLocked();
+
         r = mSrcPortAllocator.LoadFromSnapshot(reader);
         if (r) {
             return r;
         }
 
-        mOrphanPackets.clear();
         for (size_t n = GetUnsigned(reader); n > 0; --n) {
             decltype(mOrphanPackets)::value_type packet;
 
@@ -623,7 +628,6 @@ struct GoldfishVirtioVsockDevice {
         }
 
         bool needNotify = false;
-        mStreams.clear();
         for (size_t n = GetUnsigned(reader); n > 0; --n) {
             const uint32_t guestPort = GetUnsigned(reader);
             const uint32_t hostPort = GetUnsigned(reader);
