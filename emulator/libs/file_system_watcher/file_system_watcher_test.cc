@@ -1,101 +1,83 @@
+/* Copyright 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "android/base/file_system_watcher.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <chrono>
-#include <cstddef>
-#include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <memory>
-#include <optional>
+#include <string>
 #include <thread>
-#include <tuple>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 #include "goldfish/file/file.h"
 
 namespace android::base {
 
-using ::testing::Contains;
-using ::testing::Field;
-using ::testing::IsEmpty;
-using ::testing::Property;
-
-using namespace std::chrono_literals;
-
-// A struct to hold the results of a file system watch event. Using a struct
-
-// is cleaner than a tuple for use with Google Mock matchers like `Field`.
+using namespace ::testing;
+namespace fs = std::filesystem;
 
 struct WatchResult {
     FileSystemWatcher::WatcherChangeType type;
-
     std::string path;
 };
 
-// TestEventHandler is a helper class that manages the state and synchronization
-
-// for the FileSystemWatcher tests. It collects events in a thread-safe manner.
-
 class TestEventHandler {
   public:
-    explicit TestEventHandler(fs::path expected_path) : mExpectedPath(std::move(expected_path)) {}
+    TestEventHandler(fs::path expected_path) : mExpectedPath(std::move(expected_path)) {}
 
-    // The callback function passed to the FileSystemWatcher.
-    void operator()(FileSystemWatcher::WatcherChangeType change, const fs::path& path) {
-        // Only store events for the specific file we're testing and resolve symlinks etc.
-        // Compare string paths directly.
-        bool paths_match = (path == mExpectedPath);
-        if (!paths_match) {
-            std::error_code ec1, ec2;
-            auto p1 = std::filesystem::weakly_canonical(mExpectedPath, ec1);
-            auto p2 = std::filesystem::weakly_canonical(path, ec2);
-            if (!ec1 && !ec2 && p1 == p2) {
-                paths_match = true;
-            }
-        }
-
-        if (paths_match) {
-            absl::MutexLock lock(mMutex);
-            mChanges.push_back({change, path.string()});
-        }
+    void operator()(FileSystemWatcher::WatcherChangeType type,
+                    const FileSystemWatcher::Path& path) {
+        absl::MutexLock lock(mMutex);
+        mResults.push_back({type, path.string()});
     }
 
-    // Waits for a notification and returns the captured changes.
     std::vector<WatchResult> waitForChange(absl::Duration timeout) {
         absl::MutexLock lock(mMutex);
-        auto has_changes = [this]() { return !mChanges.empty(); };
-        mMutex.AwaitWithTimeout(absl::Condition(&has_changes), timeout);
-
-        std::vector<WatchResult> result;
-        std::swap(result, mChanges);
-        return result;
+        auto condition = [this]() { return !mResults.empty(); };
+        if (mMutex.AwaitWithTimeout(absl::Condition(&condition), timeout)) {
+            return std::exchange(mResults, {});
+        }
+        return {};
     }
 
     void reset() {
         absl::MutexLock lock(mMutex);
-        mChanges.clear();
+        mResults.clear();
     }
 
   private:
     fs::path mExpectedPath;
     absl::Mutex mMutex;
-    std::vector<WatchResult> mChanges;
+    std::vector<WatchResult> mResults;
 };
 
 class FileSystemWatcherTest : public ::testing::Test {
-  protected:
+  public:
     static std::string RandomSafeString(size_t size) {
         absl::BitGen bitgen;
-        constexpr std::string_view kCharset =
+        static constexpr absl::string_view kCharset =
                 "0123456789"
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 "abcdefghijklmnopqrstuvwxyz";
@@ -110,9 +92,18 @@ class FileSystemWatcherTest : public ::testing::Test {
     }
 
     void SetUp() override {
-        // Create a unique temporary directory for each test, mainly so we can run tests in
-        // parallel. i.e. bazel test @goldfish//android/files:file_system_watcher_test
-        // --runs_per_test=50
+        // Create a watchdog to detect hangs.
+        mTestDone = std::make_unique<absl::Notification>();
+        mWatchdog = std::thread([this]() {
+            if (!mTestDone->WaitForNotificationWithTimeout(absl::Seconds(10))) {
+                const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+                fprintf(stderr, "FATAL: Test timed out after 10 seconds. Possible hang in %s.%s\n",
+                        info->test_suite_name(), info->name());
+                std::abort();
+            }
+        });
+
+        // Create a unique temporary directory for each test
         do {
             mTempDir = std::filesystem::temp_directory_path() / "fs_watcher_test" /
                        RandomSafeString(15);
@@ -122,6 +113,13 @@ class FileSystemWatcherTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        if (mTestDone) {
+            mTestDone->Notify();
+        }
+        if (mWatchdog.joinable()) {
+            mWatchdog.join();
+        }
+
         if (mWatcher) {
             mWatcher->Stop();
         }
@@ -131,10 +129,12 @@ class FileSystemWatcherTest : public ::testing::Test {
     }
 
     void createDir(const std::string& name) {
-        android::base::file::mkdir(name, 0755).IgnoreError();
+        android::base::file::mkdir(mTempDir / name, 0755).IgnoreError();
     }
 
-    void deleteDir(const std::string& name) { android::base::file::rm(name).IgnoreError(); }
+    void deleteDir(const std::string& name) {
+        android::base::file::rm(mTempDir / name).IgnoreError();
+    }
 
     void createFile(const std::string& name) {
         std::ofstream ofs(mTempDir / name);
@@ -159,19 +159,6 @@ class FileSystemWatcherTest : public ::testing::Test {
         android::base::file::rm(mTempDir / name).IgnoreError();
     }
 
-    /**
-     * @brief Waits for a specific file system event to occur within a timeout.
-     *
-     * This helper continuously polls the TestEventHandler for new events and checks
-     * each one against the provided predicate. This is necessary because file system
-     * events can be delivered in multiple batches or contain noise.
-     *
-     * @tparam Predicate A callable type with signature bool(const WatchResult&).
-     * @param handler The event handler collecting file system events.
-     * @param pred The condition to match the desired event.
-     * @param timeout The maximum duration to wait for the event.
-     * @return true if an event matching the predicate was found, false otherwise.
-     */
     template <typename Predicate>
     bool WaitForEvent(std::shared_ptr<TestEventHandler> handler, Predicate pred,
                       absl::Duration timeout) {
@@ -189,6 +176,8 @@ class FileSystemWatcherTest : public ::testing::Test {
 
     std::unique_ptr<FileSystemWatcher> mWatcher;
     fs::path mTempDir;
+    std::unique_ptr<absl::Notification> mTestDone;
+    std::thread mWatchdog;
 };
 
 TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
@@ -211,21 +200,27 @@ TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
     EXPECT_TRUE(event_found);
 }
 
+TEST_F(FileSystemWatcherTest, StartStopStressTest) {
+    for (int i = 0; i < 100; ++i) {
+        mWatcher = FileSystemWatcher::GetFileSystemWatcher(mTempDir, [](auto, auto) {});
+        ASSERT_NE(mWatcher, nullptr);
+        ASSERT_TRUE(mWatcher->Start());
+        mWatcher->Stop();
+    }
+}
+
 TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     auto expected_path = mTempDir / "test_file2.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    // First, create the file and wait for the initial events to clear.
     createFile("test_file2.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
 
-    // Wait for creation to settle
     WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
     handler->reset();
 
-    // Now, delete the file and check for the deletion event.
     deleteFile("test_file2.txt");
 
     bool event_found = WaitForEvent(
@@ -242,13 +237,11 @@ TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
     auto expected_path = mTempDir / "test_file3.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    // First, create the file and set up the watcher.
     createFile("test_file3.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
 
-    // Now, modify the file and wait for the "Changed" event.
     modifyFile("test_file3.txt");
 
     bool event_found = WaitForEvent(
@@ -265,7 +258,6 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
     auto expected_path = mTempDir / "test_file4.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    // First, create the file and set up the watcher.
     createFile("test_file4.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
@@ -274,7 +266,6 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
     WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
     handler->reset();
 
-    // Now, modify the file and wait for the "Changed" event.
     appendFile("test_file4.txt");
 
     bool event_found = WaitForEvent(
@@ -297,8 +288,8 @@ TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
 
     createFile("test_file4.txt");
 
-    // We expect a timeout because the watcher is stopped.
     auto changes = handler->waitForChange(absl::Seconds(1));
     EXPECT_THAT(changes, IsEmpty());
 }
+
 }  // namespace android::base

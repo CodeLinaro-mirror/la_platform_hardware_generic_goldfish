@@ -15,6 +15,7 @@ cc_library(
     deps = [
         "//emulator/libs/base",
         "//emulator/libs/file",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
     ] + select({
         "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
@@ -29,6 +30,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":file_system_watcher",
+        "//emulator/libs/base",
         "//emulator/libs/file",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/log",
