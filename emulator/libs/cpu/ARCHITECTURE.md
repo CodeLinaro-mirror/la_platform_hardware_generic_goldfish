@@ -21,7 +21,7 @@
 * **CPU Info:** Uses `CPUID` instruction (on x86) or system calls (on ARM/macOS) to determine CPU features.
 
 ## Dependencies
-* **System:** `//android/system`.
+* **System:** `//emulator/libs/system`.
 * **Base:** `@aemu//base:aemu-base`.
 
 ## Threading Model

@@ -23,7 +23,7 @@
 
 ## Dependencies
 * **Core:** `@jsoncpp`, `@tinyxml2` (Configuration loading).
-* **System:** `//android/system`.
+* **System:** `//emulator/libs/system`.
 
 ## Threading Model
 * **Monitor Thread:** `ChannelMonitor` runs a dedicated thread for non-blocking I/O on communication channels.

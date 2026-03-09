@@ -20,7 +20,7 @@
 
 ## Dependencies
 * **Core:** `@abseil-cpp` (Mutex, Status, Time).
-* **Goldfish:** `//emulator/libs/base` (UniqueHandle), `//emulator/libs/fps_calculator`, `//android/async`.
+* **Goldfish:** `//emulator/libs/base` (UniqueHandle), `//emulator/libs/fps_calculator`, `//emulator/libs/async`.
 * **External:** `@pixman`, `@libpng`.
 
 ## Threading Model

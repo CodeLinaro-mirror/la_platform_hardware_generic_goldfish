@@ -16,7 +16,7 @@
 
 ## Dependencies
 * **Upstream:** `@abseil-cpp//absl/time` (Time primitives).
-* **Internal:** `//android/system:clock` (Time source).
+* **Internal:** `//emulator/libs/system:clock` (Time source).
 
 ## Threading Model
 * **Not Thread Safe:** The `FpsCalculator` class is **not** thread-safe.

@@ -18,7 +18,7 @@
 
 ## Dependencies
 * **Core:** `//emulator/hal/plug`.
-* **Async:** `//android/async:libuv_sockets` (Host-side I/O).
+* **Async:** `//emulator/libs/async:libuv_sockets` (Host-side I/O).
 
 ## Threading Model
 * **Thread Safe:** Inherits `HalPlug`. Callbacks serialized on `EventLoop`.

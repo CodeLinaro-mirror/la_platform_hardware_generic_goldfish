@@ -14,7 +14,7 @@
 * **Port Discovery:** `getClientPort` determines the ADB server port, checking environment variables (`ANDROID_ADB_SERVER_PORT`).
 
 ## Dependencies
-* **System:** `//android/sockets` (Socket connection to ADB server).
+* **System:** `//emulator/libs/sockets` (Socket connection to ADB server).
 * **Base:** `@aemu//base:aemu-base`.
 
 ## Threading Model

@@ -22,7 +22,7 @@
 * **Core:** `//emulator/libs/avd_universe` (State definitions).
 * **HALs:** Depends on *every* HAL library to register them.
 * **Config:** `//emulator/config:hardware_config`.
-* **Async:** `//android/async:qemu_event_loop`.
+* **Async:** `//emulator/libs/async:qemu_event_loop`.
 
 ## Threading Model
 * **Main Thread:** `realize` runs on the QEMU main thread. It establishes the `QemuEventLoop` which wraps the QEMU AioContext, allowing thread-safe interaction from other threads via `Post`.

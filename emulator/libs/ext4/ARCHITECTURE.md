@@ -16,7 +16,7 @@
 
 ## Dependencies
 * **External Tools:** Requires `resize2fs` and `mke2fs` tools to be available in the environment or bundle.
-* **System:** `//android/system`, `//android/process`.
+* **System:** `//emulator/libs/system`, `//emulator/libs/process`.
 
 ## Threading Model
 * **Thread Safe:** Functions are stateless wrapper calls.

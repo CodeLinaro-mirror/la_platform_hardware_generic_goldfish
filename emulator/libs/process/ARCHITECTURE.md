@@ -17,7 +17,7 @@
 * **Platform Abstraction:** Hides differences between POSIX (`fork`/`exec`) and Windows (`CreateProcess`).
 
 ## Dependencies
-* **System:** `//android/system`.
+* **System:** `//emulator/libs/system`.
 * **Base:** `@abseil-cpp`.
 
 ## Threading Model

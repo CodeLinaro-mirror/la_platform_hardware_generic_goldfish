@@ -17,8 +17,8 @@
 * **Persistence:** `HardwareConfig::Load/Write` handles the transformation between the standard `config.ini` format and the emulator's runtime state.
 
 ## Dependencies
-* **Filesystem:** `//android/files:ini_file`.
-* **System:** `//android/system` (for OS-specific path logic).
+* **Filesystem:** `//emulator/libs/files:ini_file`.
+* **System:** `//emulator/libs/system` (for OS-specific path logic).
 * **Base:** `@aemu//base:aemu-base`.
 
 ## Threading Model

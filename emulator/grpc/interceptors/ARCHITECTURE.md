@@ -17,7 +17,7 @@
 * **Diagnostics:** `BreadcrumbInterceptor` records RPC lifecycle events (Start, Phase, Message, Status) into a high-performance `ProtoCircularLog<GrpcBreadcrumb>`. This log is backed by a `BinaryAnnotation`, ensuring structured forensic data is captured directly in Crashpad minidumps.
 
 ## Dependencies
-* **Core:** `//android/async` (EventLoop), `//emulator/libs/debug`, `//emulator/libs/proto_data_store` (`ProtoCircularLog`).
+* **Core:** `//emulator/libs/async` (EventLoop), `//emulator/libs/debug`, `//emulator/libs/proto_data_store` (`ProtoCircularLog`).
 * **External:** `@grpc//:grpc++`, `@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto`.
 
 ## Threading Model

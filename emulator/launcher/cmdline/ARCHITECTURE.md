@@ -16,7 +16,7 @@
 * **Port Parsing:** Includes logic (`android_parse_port_option`) to handle console/adb port assignments and validation.
 
 ## Dependencies
-* **System:** `//android/system` (OS-specifics).
+* **System:** `//emulator/libs/system` (OS-specifics).
 * **Config:** `//emulator/config` (Defaults for paths).
 
 ## Threading Model

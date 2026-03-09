@@ -20,7 +20,7 @@
 ## Dependencies
 * **Core:** `@grpc//:grpc++`, `@abseil-cpp`.
 * **Protos:** `@aemu//protos/client:grpc_endpoint_description_proto`.
-* **Utilities:** `//android/files:ini_file` (for discovery).
+* **Utilities:** `//emulator/libs/files:ini_file` (for discovery).
 
 ## Threading Model
 * **Blocking Client:** No internal threads. All operations (Connect, Disconnect) block the caller.

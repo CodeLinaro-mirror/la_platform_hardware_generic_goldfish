@@ -7,12 +7,12 @@
 ## Integration Guide
 | Class / Interface | Bazel Target | Header Path | Description |
 | :--- | :--- | :--- | :--- |
-| `AsyncSocket` | `@goldfish//android/async:async_api` | `include/goldfish/async/async_socket.h` | Abstract interface for async sockets. |
-| `EventLoop` | `@goldfish//android/async:async_api` | `include/goldfish/async/event_loop.h` | Abstract interface for the event loop. |
-| `LibuvEventLoop` | `@goldfish//android/async:libuv_event_loop` | `include/goldfish/async/libuv_event_loop.h` | libuv-backed EventLoop implementation. |
-| `QemuEventLoop` | `@goldfish//android/async:qemu_event_loop` | `include/goldfish/async/qemu_event_loop.h` | QEMU main-loop backed EventLoop adapter. |
-| `ThreadedEventLoop` | `@goldfish//android/async:threaded_event_loop` | `include/goldfish/async/threaded_event_loop.h` | Helper running an EventLoop in a dedicated thread. |
-| `AsyncSocketFactory` | `@goldfish//android/async:async_api` | `include/goldfish/async/async_socket_factory.h` | Factory interface for creating sockets. |
+| `AsyncSocket` | `//emulator/libs/async:async_api` | `include/goldfish/async/async_socket.h` | Abstract interface for async sockets. |
+| `EventLoop` | `//emulator/libs/async:async_api` | `include/goldfish/async/event_loop.h` | Abstract interface for the event loop. |
+| `LibuvEventLoop` | `//emulator/libs/async:libuv_event_loop` | `include/goldfish/async/libuv_event_loop.h` | libuv-backed EventLoop implementation. |
+| `QemuEventLoop` | `//emulator/libs/async:qemu_event_loop` | `include/goldfish/async/qemu_event_loop.h` | QEMU main-loop backed EventLoop adapter. |
+| `ThreadedEventLoop` | `//emulator/libs/async:threaded_event_loop` | `include/goldfish/async/threaded_event_loop.h` | Helper running an EventLoop in a dedicated thread. |
+| `AsyncSocketFactory` | `//emulator/libs/async:async_api` | `include/goldfish/async/async_socket_factory.h` | Factory interface for creating sockets. |
 
 ## Critical Infrastructure
 | File | Responsibility |
