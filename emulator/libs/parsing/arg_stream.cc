@@ -84,7 +84,7 @@ ArgStream::ParseResult ArgStream::ParseEntry() const {
             for (; new_index < line_.size() && absl::ascii_isspace(line_[new_index]); new_index++) {
                 // Skip space, to maintain our invariant.
             }
-            return {.index = new_index, .value = value};
+            return {.index = new_index, .value = std::move(value)};
         }
 
         // Handle the case where a quote starts in the middle
@@ -103,7 +103,7 @@ ArgStream::ParseResult ArgStream::ParseEntry() const {
     }
 
     // End of string..
-    return {.index = new_index, .value = value};
+    return {.index = new_index, .value = std::move(value)};
 }
 
 void ArgStream::Consume() {
@@ -117,7 +117,8 @@ void ArgStream::Clear() {
 }
 
 std::string ArgStream::Next() {
-    auto value = Peek();
+    (void)Peek();
+    auto value = std::move(peeked_.value);
     Consume();
     return value;
 }
