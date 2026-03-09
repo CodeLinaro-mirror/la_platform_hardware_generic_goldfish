@@ -28,7 +28,7 @@
 | **proto_data_store** | Atomic, fixed-size circular storage for Protobuf messages. | [Architecture](proto_data_store/ARCHITECTURE.md) |
 | **archive** | Serialization (`IReader`/`IWriter`) with VarInt encoding. | [Architecture](archive/ARCHITECTURE.md) |
 | **UniqueIdAllocator** | ID generation and recycling. | [Architecture](UniqueIdAllocator/ARCHITECTURE.md) |
-| **parsing** | String splitting and key-value parsing. | [Architecture](parsing/ARCHITECTURE.md) |
+| **parsing** | String splitting, key-value parsing, and type-safe argument streams (`ArgStream`). | [Architecture](parsing/ARCHITECTURE.md) |
 
 ### Graphics & Display
 | Library | Description | Documentation |
