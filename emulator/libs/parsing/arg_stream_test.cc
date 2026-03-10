@@ -58,12 +58,13 @@ TEST(ArgStreamTest, NextInt) {
 }
 
 TEST(ArgStreamTest, NextDouble) {
-    ArgStream args("3.14 invalid");
+    ArgStream args("3.14 -0.001 1e6 2.5e-3 invalid");
 
-    // Success case
-    auto val = args.NextDouble();
-    ASSERT_TRUE(val.ok());
-    EXPECT_DOUBLE_EQ(*val, 3.14);
+    // Success cases
+    EXPECT_DOUBLE_EQ(*args.NextDouble(), 3.14);
+    EXPECT_DOUBLE_EQ(*args.NextDouble(), -0.001);
+    EXPECT_DOUBLE_EQ(*args.NextDouble(), 1000000.0);
+    EXPECT_DOUBLE_EQ(*args.NextDouble(), 0.0025);
 
     // Failure case: should NOT consume
     auto err = args.NextDouble();
@@ -72,7 +73,9 @@ TEST(ArgStreamTest, NextDouble) {
 }
 
 TEST(ArgStreamTest, NextBool) {
-    ArgStream args("on off true false 1 0 True False invalid");
+    ArgStream args("on off true false 1 0 True False ON OFF invalid");
+    EXPECT_TRUE(*args.NextBool());
+    EXPECT_FALSE(*args.NextBool());
     EXPECT_TRUE(*args.NextBool());
     EXPECT_FALSE(*args.NextBool());
     EXPECT_TRUE(*args.NextBool());
@@ -153,6 +156,43 @@ TEST(ArgStreamTest, UnterminatedQuotedString) {
     ArgStream args(R"("abc)");
     EXPECT_EQ(args.Next(), "abc");
     EXPECT_TRUE(args.Empty());
+}
+
+TEST(ArgStreamTest, LineMethod) {
+    std::string input = "  cmd  arg1   arg2  ";
+    ArgStream args(input);
+
+    // Should return original string
+    EXPECT_EQ(args.Line(), input);
+
+    // Should still return original string after consumption
+    args.Next();
+    EXPECT_EQ(args.Line(), input);
+
+    args.Next();
+    args.Next();
+    EXPECT_TRUE(args.Empty());
+    EXPECT_EQ(args.Line(), input);
+}
+
+TEST(ArgStreamTest, LongLine) {
+    std::string long_arg(5000, 'a');
+    ArgStream args("cmd " + long_arg);
+    EXPECT_EQ(args.Next(), "cmd");
+    EXPECT_EQ(args.Next(), long_arg);
+}
+
+TEST(ArgStreamTest, ManySmallArguments) {
+    std::string input;
+    for (int i = 0; i < 1000; ++i) {
+        input += std::to_string(i) + " ";
+    }
+    ArgStream args(input);
+    for (int i = 0; i < 1000; ++i) {
+        auto val = args.NextInt();
+        ASSERT_TRUE(val.ok()) << "Failed at " << i;
+        EXPECT_EQ(*val, i);
+    }
 }
 
 TEST(ArgStreamTest, EscapedBackslash) {
