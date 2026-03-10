@@ -66,6 +66,27 @@ class AsyncSocketServer {
      */
     using ConnectCallback = std::function<bool(std::shared_ptr<AsyncSocket> socket)>;
 
+    /**
+     * @brief Callback invoked to determine which EventLoop should own a new connection.
+     *
+     * This allows a server to dispatch incoming connections to different threads
+     * (e.g., a "thread-per-connection" or "fixed-size-pool" model).
+     *
+     * @param remote The endpoint of the incoming client.
+     * @return The EventLoop pointer that should own the new socket.
+     *         Return `nullptr` to keep the connection on the server's loop.
+     *
+     * @note **Backend Compatibility:** Handoff is only supported between loops
+     * derived from the same factory. For example, a `LibuvAsyncSocketFactory`
+     * can only hand off connections to other `LibuvEventLoop` instances.
+     * Attempting to hand off to a different backend (e.g., Libuv to Qemu)
+     * is undefined behavior.
+     *
+     * @note **Threading Model:** If handoff occurs, the `ConnectCallback` provided
+     * to `CreateServer` will be executed on the **target loop's** thread.
+     */
+    using LoopProvider = std::function<EventLoop*(const network::Endpoint& remote)>;
+
     virtual ~AsyncSocketServer() = default;
 
     /**
