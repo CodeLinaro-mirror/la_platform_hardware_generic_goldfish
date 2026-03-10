@@ -33,7 +33,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":goldfish_vsock_hdrs",
-        "//android/network",
         "//emulator/hal/connector:cable",
         "//emulator/hal/connector:connection_awaiter",
         "//emulator/hal/guest-status",
@@ -48,6 +47,7 @@ cc_library(
         "//emulator/libs/debug",
         "//emulator/libs/eventing",
         "//emulator/libs/logging:absl_c_bridge",
+        "//emulator/libs/network",
         "//emulator/libs/synchronization",
         "//emulator/plugin/avd:impl",
         "@qemu//:qemu-headers",

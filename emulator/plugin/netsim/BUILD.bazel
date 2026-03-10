@@ -41,7 +41,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":netsim_transport",
-        "//emulator/libs/network",
+        "//emulator/libs/network:generic_netlink_message",
         "@abseil-cpp//absl/log",
         "@qemu//:qemu-headers",
     ],

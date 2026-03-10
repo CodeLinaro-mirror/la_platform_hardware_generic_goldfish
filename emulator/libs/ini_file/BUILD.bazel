@@ -1,0 +1,31 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "ini_file",
+    srcs = ["ini_file.cc"],
+    hdrs = ["include/android/goldfish/ini_file.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/system"],
+)
+
+cc_test(
+    name = "ini_file_test",
+    size = "medium",
+    srcs = ["ini_file_test.cc"],
+    deps = [
+        ":ini_file",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/log",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":ini_file",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

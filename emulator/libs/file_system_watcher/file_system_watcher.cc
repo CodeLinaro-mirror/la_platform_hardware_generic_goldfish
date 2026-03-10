@@ -14,8 +14,6 @@
 #include <string>
 #include <vector>
 
-#include "android/base/system.h"
-
 namespace android::base {
 
 using Path = std::filesystem::path;

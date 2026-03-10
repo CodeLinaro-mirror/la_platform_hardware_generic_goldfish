@@ -8,10 +8,10 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/network",
         "//emulator/hal/connector:connector_registry",
         "//emulator/hal/plug:hal_plug",
         "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/network",
     ],
     alwayslink = True,
 )
