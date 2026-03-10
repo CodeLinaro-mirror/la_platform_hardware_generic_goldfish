@@ -48,6 +48,7 @@
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/vsock/clear.h"
+#include "host-common/constants.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -64,8 +65,6 @@ extern "C" {
 #undef shutdown
 // IWYU pragma: end_keep
 // clang-format on
-
-#define CORE_HARDWARE_INI "hardware-qemu.ini"
 
 namespace goldfish::avd_info {
 
