@@ -79,8 +79,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":modem_simulator_internal",
-        "//android/system",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
     ],
 )

@@ -25,6 +25,6 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":videofile",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )

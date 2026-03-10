@@ -28,7 +28,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":SocketBuffer",
-        "//android/system:googletest_main",
         "//emulator/libs/archive:DequeArchive",
+        "//emulator/libs/test:googletest_main",
     ],
 )

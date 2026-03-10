@@ -25,8 +25,8 @@ cc_test(
     srcs = ["screen_recording_impl_test.cc"],
     deps = [
         ":screen_recorder",
-        "@goldfish//android/system:googletest_main",
         "@goldfish//emulator/libs/async:libuv_event_loop",
         "@goldfish//emulator/libs/display:test-display",
+        "@goldfish//emulator/libs/test:googletest_main",
     ],
 )

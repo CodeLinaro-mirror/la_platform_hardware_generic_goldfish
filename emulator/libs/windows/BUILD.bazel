@@ -1,0 +1,57 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "scoped_file_handle",
+    hdrs = ["include/android/base/scoped_file_handle.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/base"],
+)
+
+cc_library(
+    name = "scoped_reg_key",
+    hdrs = ["include/android/base/scoped_reg_key.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/base"],
+)
+
+cc_library(
+    name = "win32_utils",
+    srcs = [
+        "win32_unicode_string.cc",
+        "win32_utils.cc",
+    ],
+    hdrs = [
+        "include/android/base/win32_unicode_string.h",
+        "include/android/base/win32_utils.h",
+    ],
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Shell32.lib",
+            "-DEFAULTLIB:User32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/strings:str_format"],
+)
+
+cc_test(
+    name = "win32_utils_test",
+    srcs = [
+        "win32_unicode_string_test.cc",
+        "win32_utils_test.cc",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":win32_utils",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)

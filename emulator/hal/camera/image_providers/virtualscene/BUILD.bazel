@@ -32,7 +32,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":virtualscene",
-        "//android/system",
-        "//android/system:googletest_main",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
     ],
 )

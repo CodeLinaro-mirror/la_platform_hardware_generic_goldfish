@@ -68,7 +68,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
     ] + select({
-        "@platforms//os:windows": ["//android/system:win32_utils"],
+        "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
         "//conditions:default": [],
     }),
 )
@@ -141,9 +141,9 @@ cc_test(
         ":libuv_event_loop",
         ":qemu_event_loop",
         ":threaded_event_loop",
-        "//android/system",
-        "//android/system:googletest_main",
         "//emulator/libs/async:fake_qemu_callbacks",
+        "//emulator/libs/system",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -181,8 +181,8 @@ cc_test(
     deps = [
         ":libuv_sockets",
         "//android/network",
-        "//android/system:googletest_main",
-        "//android/system:test-headers",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -196,7 +196,7 @@ cc_test(
         ":async_testing",
         ":libuv_event_loop",
         ":threaded_event_loop",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -207,8 +207,8 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":libuv_event_loop",
-        "//android/system:googletest_main",
         "//emulator/libs/eventing",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -251,7 +251,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":async_testing",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -299,7 +299,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":libuv_signal_handlers",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )
@@ -312,7 +312,7 @@ cc_test(
         ":async_testing",
         ":libuv_event_loop",
         ":threaded_event_loop",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
     ],
 )

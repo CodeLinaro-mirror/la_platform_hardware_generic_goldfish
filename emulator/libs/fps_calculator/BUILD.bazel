@@ -10,7 +10,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//android/system:clock",
+        "//emulator/libs/system:clock",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -21,6 +21,6 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":fps_calculator",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )

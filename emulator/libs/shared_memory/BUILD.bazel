@@ -23,9 +23,7 @@ cc_library(
         "//visibility:public",
     ],
     deps = select({
-        "@platforms//os:windows": [
-            "//android/system:win32_utils",
-        ],
+        "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
         "//conditions:default": [],
     }) + [
         "@abseil-cpp//absl/log",
@@ -57,9 +55,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":shared_memory",
-        "//android/system",
-        "//android/system:googletest_main",
         "//emulator/libs/process",
+        "//emulator/libs/system:bazel_info",
+        "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],

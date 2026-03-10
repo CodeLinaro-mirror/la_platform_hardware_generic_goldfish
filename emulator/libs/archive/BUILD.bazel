@@ -21,7 +21,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":zigzag",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
@@ -69,7 +69,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":DequeArchive",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

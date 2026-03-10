@@ -21,7 +21,7 @@
 #include "absl/strings/match.h"
 
 #include "android/base/system.h"
-#include "android/system/test-headers/android/base/testing/TestTempDir.h"
+#include "TestTempDir.h"
 
 namespace android {
 namespace base {

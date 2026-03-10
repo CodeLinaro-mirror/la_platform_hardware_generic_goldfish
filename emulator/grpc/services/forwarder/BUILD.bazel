@@ -40,7 +40,7 @@ cc_test(
     srcs = ["service_forwarder_impl_test.cc"],
     deps = [
         ":service_forwarder",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
         "@grpc//:grpc++",
     ],
 )
@@ -51,7 +51,7 @@ cc_test(
     deps = [
         ":service_forwarder",
         ":ui_controller_forwarder",
-        "//android/system:googletest_main",
+        "//emulator/libs/test:googletest_main",
         "@grpc//:grpc++",
     ],
 )

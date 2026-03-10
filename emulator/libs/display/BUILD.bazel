@@ -149,9 +149,9 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":test-display",
-        "//android/system:googletest_main",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 

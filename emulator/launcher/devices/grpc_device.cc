@@ -23,10 +23,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
-#include "android/base/bazel_info.h"
 #include "goldfish/file/file.h"
-
-using android::base::Bazel;
 
 namespace android::goldfish {
 
