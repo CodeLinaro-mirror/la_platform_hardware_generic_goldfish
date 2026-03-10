@@ -17,7 +17,7 @@
 
 ## Dependencies
 * **Core:** `@abseil-cpp//absl/status`.
-* **System:** `//android/system:win32_utils` (Windows only).
+* **System:** `//emulator/libs/system:win32_utils` (Windows only).
 
 ## Threading Model
 * **Thread Safe:** Creating objects is thread-safe. Accessing the mapped memory is subject to normal race conditions and requires synchronization if shared between threads/processes.

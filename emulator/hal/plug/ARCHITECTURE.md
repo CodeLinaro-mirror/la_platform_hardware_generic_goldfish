@@ -19,7 +19,7 @@
     *   `HalPlugFactory`: Boilerplate for connecting the Plug to the underlying `cable` and `vsock` machinery.
 
 ## Dependencies
-* **Core:** `//android/async` (EventLoop), `@abseil-cpp`.
+* **Core:** `//emulator/libs/async` (EventLoop), `@abseil-cpp`.
 * **Infrastructure:** `//emulator/hal/connector` (Cable/Socket abstractions), `//emulator/plugin/vsock_goldfish`.
 
 ## Threading Model

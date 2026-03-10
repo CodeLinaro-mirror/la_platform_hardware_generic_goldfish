@@ -14,7 +14,7 @@
 
 ## Dependencies
 * **Upstream:** `@qemu` (`qemu/timer.h`).
-* **Internal:** `//android/system:clock` (Interface definition).
+* **Internal:** `//emulator/libs/system:clock` (Interface definition).
 
 ## Threading Model
 * **Thread Safe:** `qemu_clock_get_ns` is generally thread-safe in QEMU.

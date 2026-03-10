@@ -22,7 +22,7 @@
 ## Dependencies
 * **Core:** `//emulator/grpc/async`.
 * **External:** `@tink_cc` (Crypto), `@nlohmann_json`, `@re2`.
-* **Filesystem:** `//android/files:file_system_watcher`.
+* **Filesystem:** `//emulator/libs/file_system_watcher`.
 
 ## Threading Model
 * **Thread Safe:** `JwtTokenAuth` uses a mutex to protect the active `KeysetHandle` during updates from the directory observer. Verification is thread-safe.

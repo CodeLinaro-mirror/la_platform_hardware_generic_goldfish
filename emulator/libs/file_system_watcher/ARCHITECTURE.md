@@ -20,8 +20,8 @@
     *   **Threading:** Starts a dedicated thread per watcher instance to handle blocking OS calls.
 
 ## Dependencies
-* **System:** `//android/system` (OS calls).
-* **Process:** `//android/process` (Thread management for watcher).
+* **System:** `//emulator/libs/system` (OS calls).
+* **Process:** `//emulator/libs/process` (Thread management for watcher).
 
 ## Threading Model
 * **IniFile:** Not thread-safe.

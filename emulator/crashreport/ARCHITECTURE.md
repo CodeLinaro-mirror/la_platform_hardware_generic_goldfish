@@ -22,7 +22,7 @@
 
 ## Dependencies
 * **Upstream:** `@crashpad` (Core engine), `@abseil-cpp`.
-* **Internal:** `//android/async` (For loop monitoring), `//android/system`.
+* **Internal:** `//emulator/libs/async` (For loop monitoring), `//emulator/libs/system`.
 
 ## Threading Model
 * **CrashSystem:** Initialization happens on the main thread. Uploads are spawned in detached threads.

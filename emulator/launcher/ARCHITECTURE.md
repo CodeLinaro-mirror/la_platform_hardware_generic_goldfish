@@ -27,7 +27,7 @@
 
 ## Dependencies
 * **Core:** `//emulator/cmdline`, `//emulator/config`.
-* **Async:** `//android/async` (Event loop, process launching).
+* **Async:** `//emulator/libs/async` (Event loop, process launching).
 * **Crash:** `//emulator/crashreport`.
 * **Plugins:** Links against all emulator plugins to ensure they are available to QEMU.
 

@@ -15,7 +15,7 @@
 * **SocketPair:** Implements `socketpair` for Windows using a temporary TCP connection on the loopback interface (since Windows lacks native unix domain sockets for `select`).
 
 ## Dependencies
-* **System:** `//android/system`.
+* **System:** `//emulator/libs/system`.
 * **Base:** `@aemu//base:aemu-base` (for `EintrWrapper` etc).
 
 ## Threading Model
