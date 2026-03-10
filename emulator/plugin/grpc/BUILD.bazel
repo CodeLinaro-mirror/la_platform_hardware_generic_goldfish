@@ -23,7 +23,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator_advertisement",
-        "//emulator/config:hardware_config",
         "//emulator/grpc/event-stream",
         "//emulator/grpc/services-stack",
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
@@ -32,6 +31,7 @@ cc_library(
         "//emulator/grpc/services/screen_recorder",
         "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/display",
+        "//emulator/libs/hardware_config",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/status",

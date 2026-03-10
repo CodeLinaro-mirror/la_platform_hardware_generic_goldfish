@@ -21,7 +21,7 @@
 #include <thread>
 #include <vector>
 
-#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
+#include "android/goldfish/fake_hardware_config.h"
 #include "sensor_service.grpc.pb.h"
 
 namespace android {

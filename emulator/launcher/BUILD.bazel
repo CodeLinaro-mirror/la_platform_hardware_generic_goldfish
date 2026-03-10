@@ -83,12 +83,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":input_paths",
-        "//emulator/config:device_type",
-        "//emulator/config:hardware_config",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/hardware_config:device_type",
+        "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
-        "@aemu//host-common:aemu-host-common-headers",
     ],
 )
 

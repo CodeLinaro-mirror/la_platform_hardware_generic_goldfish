@@ -20,8 +20,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/config:hardware_config",
         "//emulator/libs/eventing",
+        "//emulator/libs/hardware_config",
         "//emulator/libs/physics",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -40,7 +40,7 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":physical_model",
-        "//emulator/config:fake_hardware_config",
+        "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/test:googletest_main",
     ],
 )

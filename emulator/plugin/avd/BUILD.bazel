@@ -7,9 +7,9 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/config:device_type",
-        "//emulator/config:hardware_config",
         "//emulator/libs/avd_universe",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/hardware_config:device_type",
         "//emulator/libs/sensors:physical_model",
     ],
 )
