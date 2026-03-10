@@ -195,4 +195,21 @@ TEST(Avd, wipe_data) {
     }
 }
 
+TEST(Avd, finalize_saves_config) {
+    TestSystem sys("/home", "/");
+    TestTempDir* tmp = sys.getTempRoot();
+    auto paths = setupPaths(tmp);
+    auto avd_dir = createTestAvd(paths, "android-30");
+
+    ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
+
+    auto hw_path = avd_dir / "hardware-qemu.ini";
+    EXPECT_TRUE(base::file::exists(hw_path));
+
+    auto hw_config = std::make_unique<IniFile>(hw_path);
+    ASSERT_TRUE(hw_config->Read());
+    EXPECT_EQ(hw_config->GetInt("hw.ramSize", 0), 2048);
+    EXPECT_GE(hw_config->GetInt("vm.heapSize", 0), 16);
+}
+
 }  // namespace android::goldfish::avd

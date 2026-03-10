@@ -38,6 +38,8 @@
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
+#include "android/goldfish/memory_config.h"
+#include "android/status/status_macros.h"
 #include "avd_keys.h"
 #include "host-common/constants.h"
 
@@ -242,6 +244,17 @@ std::string FileBackedAvd::ApiDescription() const {
     return GetFullApiName(ApiLevel());
 }
 
+absl::Status FileBackedAvd::Finalize() {
+    RETURN_IF_ERROR(MemoryConfig::FinalizeRamAndHeapSize(hw_cfg_, ApiLevel()));
+
+    // save to CORE_HARDWARE_INI as well, embedded ui needs it
+    auto hw_path = GetContentPath() / CORE_HARDWARE_INI;
+    auto hw_config = std::make_unique<IniFile>(hw_path);
+    hw_cfg_.Write(hw_config.get());
+    hw_config->WriteDiscardingEmpty();
+    return absl::OkStatus();
+}
+
 bool FileBackedAvd::LoadBuildProps() {
     auto buildprop = GetSystemImageFilePath(Avd::ImageType::BUILDPROP);
     if (!buildprop.ok()) {
@@ -344,13 +357,6 @@ FileBackedAvd::FileBackedAvd(std::string name, std::unique_ptr<IniFile> config, 
     }
 
     hw_cfg_.ApplyDefaults(GetSdkPath(), GetAvdPath());
-
-    // save to CORE_HARDWARE_INI as well, embedded ui needs it
-    {
-        auto hw_config = std::make_unique<IniFile>(hw_path);
-        hw_cfg_.Write(hw_config.get());
-        hw_config->WriteDiscardingEmpty();
-    }
 }
 
 // static
@@ -459,8 +465,15 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
         }
     }
 
-    return FileBackedAvd::Parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
-                                std::move(content_path), sysdir_override);
+    auto avd_res =
+            FileBackedAvd::Parse(name, config_ini_path, paths.sdk_directory, paths.avd_directory,
+                                 std::move(content_path), sysdir_override);
+    if (!avd_res.ok()) {
+        return avd_res.status();
+    }
+    auto avd = std::move(*avd_res);
+    RETURN_IF_ERROR(avd->Finalize());
+    return avd;
 }
 
 // static
