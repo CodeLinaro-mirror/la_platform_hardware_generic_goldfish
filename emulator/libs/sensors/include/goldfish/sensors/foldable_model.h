@@ -18,20 +18,17 @@
 
 #include <vector>
 
-#include "aemu/base/EventNotificationSupport.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/physics/physics.h"
 #include "goldfish/sensors/foldable.h"
+#include "goldfish/eventing/observable_value.h"
 
 namespace goldfish::sensors {
 
 class FoldableModel {
   public:
-    class PostureListener : public ::android::base::EventNotificationSupport<FoldablePostures> {
-      public:
-        void FireEvent(FoldablePostures posture) { this->fireEvent(posture); }
-        friend class FoldableModel;
-    };
+    using ObservablePosture = eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
+
     explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
     // called by physical model to set hinge angle.
@@ -55,7 +52,7 @@ class FoldableModel {
 
     static bool GetFoldedArea(int* x, int* y, int* w, int* h);
 
-    PostureListener& GetPostureListener() { return posture_listener_; }
+    ObservablePosture& GetPostureListener() { return posture_listener_; }
 
   private:
     void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
@@ -63,7 +60,7 @@ class FoldableModel {
 
     FoldableState state_;
     std::vector<AnglesToPosture> angles_to_postures_;
-    PostureListener posture_listener_;
+    ObservablePosture posture_listener_;
 };
 
 }  // namespace goldfish::sensors
