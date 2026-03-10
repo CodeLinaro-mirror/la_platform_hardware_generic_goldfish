@@ -25,11 +25,11 @@ cc_library(
     hdrs = ["include/android/emulation/control/emulator_grpc_client.h"],
     includes = ["include"],
     deps = [
-        "//android/files:ini_file",
         "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
         "//emulator/grpc/security",
         "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//emulator/libs/eventing",
+        "//emulator/libs/ini_file",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",

@@ -35,8 +35,8 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
-        "//android/files:file_system_watcher",
         "//emulator/grpc/async",
+        "//emulator/libs/file_system_watcher",
         "//emulator/libs/system",
         "@grpc//:grpc++",
         "@nlohmann_json//:singleheader-json",

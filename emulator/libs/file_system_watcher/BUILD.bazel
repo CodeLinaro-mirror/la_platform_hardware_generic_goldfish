@@ -14,8 +14,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/base",
-        "//emulator/libs/process",
-        "//emulator/libs/system",
+        "//emulator/libs/file",
         "@abseil-cpp//absl/synchronization",
     ] + select({
         "@platforms//os:windows": ["//emulator/libs/windows:win32_utils"],
@@ -30,43 +29,15 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":file_system_watcher",
-        "//emulator/libs/base",
-        "//emulator/libs/system",
-        "//emulator/libs/system:test-headers",
+        "//emulator/libs/file",
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/random",
     ],
 )
 
-cc_library(
-    name = "ini_file",
-    srcs = ["ini_file.cc"],
-    hdrs = ["include/android/goldfish/ini_file.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = ["//emulator/libs/system"],
-)
-
-cc_test(
-    name = "ini_file_test",
-    size = "medium",
-    srcs = ["ini_file_test.cc"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":ini_file",
-        "//emulator/libs/system",
-        "//emulator/libs/system:test-headers",
-        "//emulator/libs/test:googletest_main",
-        "@abseil-cpp//absl/log",
-    ],
-)
-
 clang_tidy_test(
     name = "tidy",
-    targets = [
-        ":file_system_watcher",
-        ":ini_file",
-    ],
+    targets = [":file_system_watcher"],
     tidy_config_file = "//:clang_tidy_config",
 )
