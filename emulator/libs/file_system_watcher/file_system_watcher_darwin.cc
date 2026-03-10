@@ -20,13 +20,14 @@
 #include <string>
 #include <thread>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/notification.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/file_system_watcher.h"
 #include "goldfish/base/unique_handle.h"
+#include "goldfish/file/file.h"
 
 namespace android::base {
 
@@ -39,7 +40,7 @@ struct FSEventFlagsWrapper {
 struct CFTypeDeleter {
     struct Empty {};
     CFTypeDeleter() = default;
-    CFTypeDeleter(Empty) {}
+    explicit CFTypeDeleter(Empty) {}
     void operator()(CFTypeRef ref) const {
         if (ref) CFRelease(ref);
     }
@@ -51,7 +52,7 @@ using UniqueCFType = goldfish::base::UniqueHandle<T, nullptr, CFTypeDeleter>;
 struct FSEventStreamDeleter {
     struct Empty {};
     FSEventStreamDeleter() = default;
-    FSEventStreamDeleter(Empty) {}
+    explicit FSEventStreamDeleter(Empty) {}
     void operator()(FSEventStreamRef stream) const {
         if (stream) {
             FSEventStreamInvalidate(stream);
@@ -174,48 +175,80 @@ using Path = FileSystemWatcher::Path;
 // api.
 class FileSystemWatcherFS : public FileSystemWatcher {
   public:
+    enum class State : std::uint8_t {
+        kIdle,      ///< No thread is running. Initial and final state.
+        kStarting,  ///< Start() was called, thread is spawning and setting up resources.
+        kRunning,   ///< Background thread is actively in the CFRunLoop.
+        kStopping   ///< Stop() was called, thread is signaled to exit.
+    };
+
     FileSystemWatcherFS(Path path, FileSystemWatcherCallback on_change_callback)
             : FileSystemWatcher(std::move(on_change_callback)), path_(std::move(path)) {}
 
     ~FileSystemWatcherFS() override { Stop(); }
 
     bool Start() override {
-        bool expected = false;
-        if (!running_.compare_exchange_strong(expected, true)) {
+        const absl::MutexLock lock(mu_);
+        if (state_ != State::kIdle) {
             return false;
         }
-        std::thread watcher([this] { WatchForChanges(); });
-        watcher_thread_ = std::move(watcher);
-        started_.WaitForNotification();
-        return cf_run_loop_ != nullptr;
+
+        state_ = State::kStarting;
+        cf_run_loop_ = nullptr;
+        CHECK(!watcher_thread_.joinable()) << "A watcher thread is active.";
+        watcher_thread_ = std::thread([this] { WatchForChanges(); });
+
+        // Wait for the thread to move out of the starting state.
+        if (!mu_.AwaitWithTimeout(absl::Condition(this, &FileSystemWatcherFS::IsNotStarting),
+                                  absl::Milliseconds(500))) {
+            LOG(WARNING) << "Timed out waiting for FileSystemWatcher to start for " << path_
+                         << ". You might not receive file change notifications for this directory.";
+        }
+
+        return state_ == State::kRunning;
     }
 
     void Stop() override {
-        bool expected = true;
-        if (running_.compare_exchange_strong(expected, false)) {
-            if (cf_run_loop_) {
+        std::thread thread_to_join;
+        {
+            const absl::MutexLock lock(mu_);
+            if (state_ == State::kIdle) {
+                return;
+            }
+
+            // Signal the thread to stop.
+            // Note that State::kRunning -> cf_run_loop_
+            CHECK(state_ != State::kRunning || cf_run_loop_ != nullptr)
+                    << "cf_run_loop_ cannot be NULL when state_ == kRunning";
+            if (state_ == State::kRunning) {
                 CFRunLoopStop(cf_run_loop_);
             }
-            watcher_thread_.join();
+            state_ = State::kStopping;
+            thread_to_join = std::move(watcher_thread_);
+        }
+
+        if (thread_to_join.joinable()) {
+            thread_to_join.join();
         }
     }
 
   private:
+    bool IsNotStarting() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ != State::kStarting; }
+
     static void WatcherCb(ConstFSEventStreamRef, void* client_call_back_info, size_t num_events,
                           void* event_paths, const FSEventStreamEventFlags event_flags[],
                           const FSEventStreamEventId*) {
         auto* watcher = static_cast<FileSystemWatcherFS*>(client_call_back_info);
-        // Only process events if the watcher is still considered running.
-        if (!watcher->running_.load()) {
-            return;
+        {
+            const absl::MutexLock lock(watcher->mu_);
+            if (watcher->state_ != State::kRunning) {
+                return;
+            }
         }
 
         char** paths = static_cast<char**>(event_paths);
-
         for (size_t i = 0; i < num_events; i++) {
-            if (!paths[i]) {
-                continue;
-            }
+            if (!paths[i]) continue;
             const std::string path = paths[i];
             const FSEventStreamEventFlags flags = event_flags[i];
 
@@ -231,63 +264,78 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         }
     }
 
-    bool WatchForChanges() {
-        UniqueCFType<CFStringRef> dir(
+    void Finish() {
+        const absl::MutexLock lock(mu_);
+        cf_run_loop_ = nullptr;
+        state_ = State::kIdle;
+    }
+
+    void WatchForChanges() {
+        const UniqueCFType<CFStringRef> dir(
                 CFStringCreateWithCString(nullptr, path_.string().c_str(), kCFStringEncodingUTF8));
         CFStringRef dir_ptr = dir.get();
-        UniqueCFType<CFArrayRef> paths_to_watch(CFArrayCreate(
+        const UniqueCFType<CFArrayRef> paths_to_watch(CFArrayCreate(
                 nullptr, reinterpret_cast<const void**>(&dir_ptr), 1, &kCFTypeArrayCallBacks));
 
         FSEventStreamContext stream_ctx = {0, this, nullptr, nullptr, nullptr};
-        UniqueFSEventStream stream(
+        const UniqueFSEventStream stream(
                 FSEventStreamCreate(nullptr, &FileSystemWatcherFS::WatcherCb, &stream_ctx,
                                     paths_to_watch.get(), kFSEventStreamEventIdSinceNow, 0,
                                     kFSEventStreamCreateFlagFileEvents  // Get file-level events
                                             | kFSEventStreamCreateFlagNoDefer));  // Get them ASAP
 
         if (!stream) {
-            started_.Notify();
-            return false;
+            Finish();
+            return;
         }
 
-        cf_run_loop_ = CFRunLoopGetCurrent();
+        CFRunLoopRef run_loop = nullptr;
+        {
+            const absl::MutexLock lock(mu_);
+            // If Stop() was called immediately, exit before entering the loop.
+            if (state_ == State::kStopping) {
+                Finish();
+                return;
+            }
+            cf_run_loop_ = CFRunLoopGetCurrent();
+            run_loop = cf_run_loop_;
+        }
 
-        // Create a source to signal when the run loop starts.
-        // This schedules a source that immediately signals itself, so that we can be sure
-        // the run loop is running before returning from Start().
+        // Setup the run loop source to signal that we are fully operational.
         CFRunLoopSourceContext source_ctx = {
             0, this, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, [](void* info) {
                 auto* self = static_cast<FileSystemWatcherFS*>(info);
-                self->started_.Notify();
+                const absl::MutexLock lock(self->mu_);
+                if (self->state_ == State::kStarting) {
+                    self->state_ = State::kRunning;
+                }
             }};
+
         auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
         if (source) {
-            CFRunLoopAddSource(cf_run_loop_, source, kCFRunLoopDefaultMode);
+            CFRunLoopAddSource(run_loop, source, kCFRunLoopDefaultMode);
             CFRunLoopSourceSignal(source);
-            CFRunLoopWakeUp(cf_run_loop_);
+            CFRunLoopWakeUp(run_loop);
             CFRelease(source);
         } else {
-            LOG(WARNING) << "Failed to create CFRunLoop source, proceeding without it, you might "
-                            "have missed some file events in: "
-                         << path_;
-            started_.Notify();
+            const absl::MutexLock lock(mu_);
+            state_ = State::kRunning;
         }
 
-        FSEventStreamScheduleWithRunLoop(stream.get(), cf_run_loop_, kCFRunLoopDefaultMode);
+        FSEventStreamScheduleWithRunLoop(stream.get(), run_loop, kCFRunLoopDefaultMode);
         FSEventStreamStart(stream.get());
 
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
 
         FSEventStreamStop(stream.get());
-
-        return true;
+        Finish();
     }
 
-    Path path_;
-    std::atomic_bool running_{false};
-    std::thread watcher_thread_;
-    absl::Notification started_;
-    CFRunLoopRef cf_run_loop_;
+    const Path path_;
+    absl::Mutex mu_;
+    State state_ ABSL_GUARDED_BY(mu_) = State::kIdle;
+    std::thread watcher_thread_ ABSL_GUARDED_BY(mu_);
+    CFRunLoopRef cf_run_loop_ ABSL_GUARDED_BY(mu_) = nullptr;
 };
 
 std::unique_ptr<FileSystemWatcher> FileSystemWatcher::GetFileSystemWatcher(
