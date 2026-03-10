@@ -107,6 +107,11 @@ class ArgStream {
     std::string_view Remaining() const;
 
     /**
+     * @brief Returns the original full command line string.
+     */
+    const std::string& Line() const { return line_; }
+
+    /**
      * @brief Consumes the next argument and parses it as an integer.
      *
      * @return The parsed integer on success, or an error status if parsing fails.
