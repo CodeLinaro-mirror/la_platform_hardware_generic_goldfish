@@ -24,8 +24,8 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
-#include "goldfish/file/file.h"
 #include "android/emulation/control/emulator_service.h"
+#include "android/emulation/control/incubating/modem_service.h"
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
 #include "android/emulation/forwarding/service_forwarder_impl.h"
@@ -41,6 +41,7 @@
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/file/file.h"
 #include "goldfish/tools/aemu_version.h"
 
 // clang-format off
@@ -160,10 +161,13 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto sensorServiceIncubating = std::make_shared<
             ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
             avdUniverse.GetSensorsPhysicalModel());
+    auto modemService =
+            std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>();
     builder.withService(serviceForwarder)
             .withService(uiControllerForwarder)
             .withService(screenRecorder)
-            .withService(sensorServiceIncubating);
+            .withService(sensorServiceIncubating)
+            .withService(modemService);
 
     if (config->idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << config->idle_timeout

@@ -14,6 +14,7 @@ cc_library(
         "emulator_service.cc",
         "gps_service.cc",
         "gps_service.h",
+        "modem_service.cc",
         "notification_store.h",
         "notification_stream_writer.h",
         "sensor_service.cc",
@@ -27,6 +28,7 @@ cc_library(
     hdrs = [
         "include/android/emulation/control/display_change_listener.h",
         "include/android/emulation/control/emulator_service.h",
+        "include/android/emulation/control/incubating/modem_service.h",
         "include/android/emulation/control/incubating/sensor_service_incubating.h",
     ],
     includes = [
@@ -47,6 +49,7 @@ cc_library(
         "//emulator/plugin/avd:info",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
         "@aemu//protos/services/incubating/sensor:sensor_service_cc_grpc",
     ],
 )
@@ -55,6 +58,7 @@ cc_test(
     name = "emulator-service_unittests",
     srcs = [
         "display_service_test.cc",
+        "modem_service_test.cc",
         "notification_store_test.cc",
         "qemu_stubs.c",
         "sensor_service_incubating_test.cc",
