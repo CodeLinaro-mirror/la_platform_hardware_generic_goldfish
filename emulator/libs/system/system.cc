@@ -447,16 +447,36 @@ class HostSystem : public System {
         if (!lastSuccessfulValue.empty()) {
             return lastSuccessfulValue;
         }
+        // /etc/os-release is more reliable on modern linux.
+        std::ifstream os_release("/etc/os-release");
+        if (os_release.is_open()) {
+            std::string line;
+            while (std::getline(os_release, line)) {
+                if (absl::StartsWith(line, "PRETTY_NAME=")) {
+                    std::string_view value = line;
+                    value.remove_prefix(12);
+                    if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') ||
+                                              (value.front() == '\'' && value.back() == '\''))) {
+                        value.remove_prefix(1);
+                        value.remove_suffix(1);
+                    }
+                    lastSuccessfulValue = std::string(value);
+                    return lastSuccessfulValue;
+                }
+            }
+        }
+        // Fallback to the lsb_release command (requires lsb-release package)
         std::basic_stringbuf<char> std_out;
         auto proc =
                 Command::Create({"lsb_release", "-d"}).RedirectStdoutToUnsafe(&std_out).Execute();
 
-        if (proc->WaitFor(std::chrono::seconds(1)) != std::future_status::ready) {
-            return "Unknown OS";
+        if (proc->WaitFor(std::chrono::seconds(1)) == std::future_status::ready) {
+            auto contents = proc->Out()->AsString();
+            lastSuccessfulValue =
+                    absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
+            return lastSuccessfulValue;
         }
-        auto contents = proc->Out()->AsString();
-        lastSuccessfulValue = absl::StripAsciiWhitespace(contents.substr(12, contents.size() - 12));
-        return lastSuccessfulValue;
+        return "Unknown OS";
 #else
 #error getOsName(): unsupported OS;
 #endif
