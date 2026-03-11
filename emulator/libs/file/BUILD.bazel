@@ -6,26 +6,44 @@ cc_library(
     srcs = [
         "file.cc",
         "storage_capacity.cc",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["file_atomic_win.cc"],
+        "//conditions:default": ["file_atomic_posix.cc"],
+    }),
     hdrs = [
         "include/goldfish/file/file.h",
+        "include/goldfish/file/file_atomic.h",
         "include/goldfish/file/storage_capacity.h",
     ],
     includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": ["-DEFAULTLIB:advapi32.lib"],
+        "//conditions:default": [],
+    }),
     tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/base",
         "//emulator/libs/status_macros",
         "//emulator/libs/system:eintr_wrapper",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
-    ],
+        "@abseil-cpp//absl/strings",
+    ] + select({
+        "@platforms//os:windows": [
+            "//emulator/libs/windows:scoped_file_handle",
+            "//emulator/libs/windows:win32_security",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(
     name = "file_test",
     srcs = [
+        "file_atomic_test.cc",
         "file_test.cc",
         "storage_capacity_test.cc",
     ],
