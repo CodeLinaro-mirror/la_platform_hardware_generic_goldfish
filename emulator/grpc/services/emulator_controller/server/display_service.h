@@ -24,6 +24,7 @@
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/eventing/with_callbacks.h"
 #include "goldfish/sensors/physical_model.h"
+
 namespace android {
 namespace emulation {
 namespace control {
@@ -92,10 +93,7 @@ class DisplayServiceImpl : public EmulatorController::Service {
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 
-    using PostureSubscription = std::unique_ptr<android::base::RaiiEventListener<
-            android::base::EventNotificationSupport<::goldfish::sensors::FoldablePostures>,
-            ::goldfish::sensors::FoldablePostures>>;
-    PostureSubscription mPostureSubscription;
+    ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle mPostureSubscription;
 };
 
 }  // namespace control

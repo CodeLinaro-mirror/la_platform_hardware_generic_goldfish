@@ -171,7 +171,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     FoldableState GetFoldableState() const;
 
-    FoldableModel::PostureListener& GetPostureListener() {
+    FoldableModel::ObservablePosture& GetPostureListener() {
         return foldable_model_.GetPostureListener();
     }
 

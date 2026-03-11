@@ -264,7 +264,7 @@ void FoldableModel::SetHingeAngle(uint32_t hinge_index, float degree,
 
         if (new_posture != state_.current_posture) {
             state_.current_posture = new_posture;
-            posture_listener_.FireEvent(state_.current_posture);
+            posture_listener_.SetValue(state_.current_posture);
         }
     }
 }
@@ -282,7 +282,7 @@ void FoldableModel::SetPosture(float posture, PhysicalInterpolation /*mode*/) {
 
     if (new_posture != state_.current_posture) {
         state_.current_posture = new_posture;
-        posture_listener_.FireEvent(state_.current_posture);
+        posture_listener_.SetValue(state_.current_posture);
     }
 }
 

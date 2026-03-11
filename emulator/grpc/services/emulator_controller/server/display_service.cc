@@ -62,9 +62,7 @@ using DeviceSkinRotationCallbackSource =
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
                                        ::goldfish::sensors::PhysicalModel* pm)
         : mMultiDisplay(*display), mPhysicalModel(*pm) {
-    mPostureSubscription = std::make_unique<android::base::RaiiEventListener<
-            android::base::EventNotificationSupport<FoldablePostures>, FoldablePostures>>(
-            &mPhysicalModel.GetPostureListener(), [this](const FoldablePostures posture) {
+    mPostureSubscription = MakeScopedCallback(mPhysicalModel.GetPostureListener(), [this](const FoldablePostures &posture) {
                 bool isClosed = (posture == FoldablePostures::kClosed);
 
                 // Display 0: active when NOT closed
@@ -90,7 +88,7 @@ DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* displ
                 Notification event;
                 event.mutable_posture()->set_value(ToProtoPosture(posture));
                 ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
-            });
+    });
 }
 
 Posture::PostureValue DisplayServiceImpl::ToProtoPosture(FoldablePostures posture) {
