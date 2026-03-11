@@ -19,7 +19,6 @@ cc_library(
     deps = ["@zlib"] + select({
         "@platforms//os:windows": [
             "//third_party/windows/mman",
-            "@aemu//base:aemu-base",
             "@aemu//windows:compat",
         ],
         "//conditions:default": [],
