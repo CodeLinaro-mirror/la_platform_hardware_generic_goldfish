@@ -1,0 +1,12 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "host-common",
+    hdrs = [
+        "include/host-common/constants.h",
+        "include/host-common/hw-lcd.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+)

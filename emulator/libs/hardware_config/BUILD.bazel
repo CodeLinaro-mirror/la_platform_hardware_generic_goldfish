@@ -6,7 +6,6 @@ py_binary(
     srcs = ["tools/gen-hw-config.py"],
 )
 
-# TODO(jansene): Port to host-common.
 genrule(
     name = "hw-config-gen",
     srcs = ["data/hardware-properties.ini"],
@@ -29,12 +28,11 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//emulator/libs/host-common",
         "//emulator/libs/ini_file",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
-        "@aemu//base:aemu-base-headers",
-        "@aemu//host-common:aemu-host-common-headers",
     ],
 )
 

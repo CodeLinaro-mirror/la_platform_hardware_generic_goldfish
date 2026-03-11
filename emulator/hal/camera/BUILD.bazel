@@ -58,7 +58,6 @@ cc_library(
     deps = [
         ":gralloc_details",
         ":image_provider_api",
-        "//emulator/config:hardware_config",
         "//emulator/hal/camera/image_providers/imagefile",
         "//emulator/hal/camera/image_providers/videofile",
         "//emulator/hal/camera/image_providers/virtualscene",
@@ -66,6 +65,7 @@ cc_library(
         "//emulator/hal/connector:PingTopic",
         "//emulator/hal/connector:cable",
         "//emulator/hal/connector:connector_registry",
+        "//emulator/libs/hardware_config",
         "//emulator/libs/parsing",
         "@abseil-cpp//absl/log",
     ],

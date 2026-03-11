@@ -19,10 +19,10 @@
 
 #include "absl/container/flat_hash_map.h"
 
-#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
+#include "android/goldfish/fake_hardware_config.h"
 #include "emulator/grpc/services/emulator_controller/server/test/GrpcServiceTest.h"
-#include "emulator/libs/display/include/goldfish/display/test/fake_multi_display.h"
-#include "emulator/libs/display/include/goldfish/display/test/fake_pixman_display.h"
+#include "goldfish/display/test/fake_multi_display.h"
+#include "goldfish/display/test/fake_pixman_display.h"
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"

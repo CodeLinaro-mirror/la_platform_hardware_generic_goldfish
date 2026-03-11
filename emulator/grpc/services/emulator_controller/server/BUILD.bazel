@@ -34,7 +34,6 @@ cc_library(
         "src",
     ],
     deps = [
-        "//emulator/config:hardware_config",
         "//emulator/grpc/absl:translate",
         "//emulator/grpc/async",
         "//emulator/grpc/event-stream",
@@ -43,6 +42,7 @@ cc_library(
         "//emulator/grpc/services/emulator_controller/keyboard",
         "//emulator/libs/async:async_api",
         "//emulator/libs/fps_calculator",
+        "//emulator/libs/hardware_config",
         "//emulator/libs/shared_memory",
         "//emulator/plugin/avd:info",
         "//emulator/plugin/vminterface",
@@ -65,11 +65,11 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":emulator-service",
-        "//emulator/config:fake_hardware_config",
         "//emulator/grpc/services/emulator_controller/keyboard:test_qemu_input_stub",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:threaded_event_loop",
         "//emulator/libs/display:test-display",
+        "//emulator/libs/hardware_config:fake_hardware_config",
         "//emulator/libs/process",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/avd:info-fake",

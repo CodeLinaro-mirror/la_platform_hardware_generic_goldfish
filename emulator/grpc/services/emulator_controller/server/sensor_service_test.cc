@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
+#include "android/goldfish/fake_hardware_config.h"
 #include "emulator/grpc/services/emulator_controller/server/test/GrpcServiceTest.h"
 #include "emulator_controller.grpc.pb.h"
 

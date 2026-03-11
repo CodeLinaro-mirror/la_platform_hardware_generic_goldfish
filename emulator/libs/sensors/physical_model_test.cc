@@ -21,7 +21,7 @@
 #include <memory>
 
 #include "android/goldfish/hardware_config.h"
-#include "emulator/config/test/android/goldfish/fake_hardware_config.h"
+#include "android/goldfish/fake_hardware_config.h"
 #include "goldfish/eventing/event_sources.h"
 
 namespace goldfish::sensors {
