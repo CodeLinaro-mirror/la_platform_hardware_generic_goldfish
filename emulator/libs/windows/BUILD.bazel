@@ -10,6 +10,15 @@ cc_library(
 )
 
 cc_library(
+    name = "scoped_local_mem",
+    hdrs = ["include/android/base/scoped_local_mem.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/base"],
+)
+
+cc_library(
     name = "scoped_reg_key",
     hdrs = ["include/android/base/scoped_reg_key.h"],
     includes = ["include"],
@@ -38,7 +47,26 @@ cc_library(
     }),
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
-    deps = ["@abseil-cpp//absl/strings:str_format"],
+    deps = [
+        ":scoped_file_handle",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "win32_security",
+    srcs = ["win32_security.cc"],
+    hdrs = ["include/android/base/win32_security.h"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":scoped_file_handle",
+        ":scoped_local_mem",
+        ":win32_utils",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
 )
 
 cc_test(
@@ -51,6 +79,18 @@ cc_test(
     visibility = ["//visibility:public"],
     deps = [
         ":win32_utils",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_test(
+    name = "win32_security_test",
+    srcs = ["win32_security_test.cc"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":win32_security",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],
