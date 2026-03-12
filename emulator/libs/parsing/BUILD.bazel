@@ -12,6 +12,7 @@ cc_library(
         "include/goldfish/parsing/arg_stream.h",
         "include/goldfish/parsing/from_chars.h",
         "include/goldfish/parsing/get_key_value_str.h",
+        "include/goldfish/parsing/parameter_binder.h",
         "include/goldfish/parsing/split2.h",
     ],
     includes = ["include"],
@@ -33,6 +34,7 @@ cc_test(
     srcs = [
         "arg_stream_test.cc",
         "get_key_value_str_test.cc",
+        "parameter_binder_test.cc",
         "split2_test.cc",
     ],
     visibility = ["//visibility:public"],
