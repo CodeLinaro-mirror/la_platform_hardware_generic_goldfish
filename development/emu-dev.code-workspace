@@ -35,7 +35,7 @@
 	],
 	"settings": {
 		"[cpp]": {
-			"editor.defaultFormatter": "xaver.clang-format"
+			"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
 		},
 		"C_Cpp.clang_format_fallbackStyle": "Google",
 		"C_Cpp.codeAnalysis.clangTidy.enabled": true,
