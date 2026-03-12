@@ -166,18 +166,21 @@ absl::StatusOr<double> ArgStream::NextDouble() {
 
 absl::StatusOr<bool> ArgStream::NextBool() {
     const auto s = Peek();
-    if (absl::EqualsIgnoreCase(s, "on") || absl::EqualsIgnoreCase(s, "true") || s == "1") {
+    if (absl::EqualsIgnoreCase(s, "on") || absl::EqualsIgnoreCase(s, "true") ||
+        absl::EqualsIgnoreCase(s, "yes") || s == "1") {
         Consume();
         return true;
     }
-    if (absl::EqualsIgnoreCase(s, "off") || absl::EqualsIgnoreCase(s, "false") || s == "0") {
+    if (absl::EqualsIgnoreCase(s, "off") || absl::EqualsIgnoreCase(s, "false") ||
+        absl::EqualsIgnoreCase(s, "no") || s == "0") {
         Consume();
         return false;
     }
-    return absl::InvalidArgumentError(absl::StrCat(
-            "Invalid value: Expected a boolean (e.g., 'on', 'off', 'true', 'false', '1', '0'), "
-            "but received '",
-            s, "'."));
+    return absl::InvalidArgumentError(
+            absl::StrCat("Invalid value: Expected a boolean (e.g., 'on', 'off', 'true', 'false', "
+                         "'yes', 'no', '1', '0'), "
+                         "but received '",
+                         s, "'."));
 }
 
 }  // namespace goldfish::parsing

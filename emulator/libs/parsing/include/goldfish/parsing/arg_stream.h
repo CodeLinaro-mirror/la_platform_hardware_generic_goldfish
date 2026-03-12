@@ -129,8 +129,8 @@ class ArgStream {
      * @brief Consumes the next argument and parses it as a boolean.
      *
      * Accepts the following values (case-insensitive):
-     * - True: "on", "true", "1"
-     * - False: "off", "false", "0"
+     * - True: "on", "true", "yes", "1"
+     * - False: "off", "false", "no", "0"
      *
      * @return The parsed boolean on success, or an error status if parsing fails.
      */

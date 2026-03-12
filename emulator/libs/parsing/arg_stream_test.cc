@@ -73,7 +73,13 @@ TEST(ArgStreamTest, NextDouble) {
 }
 
 TEST(ArgStreamTest, NextBool) {
-    ArgStream args("on off true false 1 0 True False ON OFF invalid");
+    ArgStream args("on off true false yes no 1 0 True False Yes No ON OFF YES NO invalid");
+    EXPECT_TRUE(*args.NextBool());
+    EXPECT_FALSE(*args.NextBool());
+    EXPECT_TRUE(*args.NextBool());
+    EXPECT_FALSE(*args.NextBool());
+    EXPECT_TRUE(*args.NextBool());
+    EXPECT_FALSE(*args.NextBool());
     EXPECT_TRUE(*args.NextBool());
     EXPECT_FALSE(*args.NextBool());
     EXPECT_TRUE(*args.NextBool());
