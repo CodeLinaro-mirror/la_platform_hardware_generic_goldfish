@@ -28,6 +28,7 @@ struct ModemSimulatorService {
     virtual ~ModemSimulatorService() = default;
 
     virtual std::string ChardevEndpoint() const = 0;
+    virtual int HostId() const = 0;
 
     static std::shared_ptr<ModemSimulatorService> Create(const Avd& avd);
 };

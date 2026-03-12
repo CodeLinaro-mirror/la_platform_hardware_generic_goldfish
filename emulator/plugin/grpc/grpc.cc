@@ -84,6 +84,7 @@ struct GrpcConfig {
     bool use_token{false};
     int idle_timeout{0};
     int port{0};
+    int modem_simulator_port{0};
 
     std::unique_ptr<EmulatorControllerService> grpc_service;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
@@ -161,13 +162,20 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     auto sensorServiceIncubating = std::make_shared<
             ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
             avdUniverse.GetSensorsPhysicalModel());
-    auto modemService =
-            std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>();
+
     builder.withService(serviceForwarder)
             .withService(uiControllerForwarder)
             .withService(screenRecorder)
-            .withService(sensorServiceIncubating)
-            .withService(modemService);
+            .withService(sensorServiceIncubating);
+
+    if (config->modem_simulator_port > 0) {
+        auto modemService =
+                std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>(
+                        config->modem_simulator_port);
+        builder.withService(modemService);
+    } else {
+        LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    }
 
     if (config->idle_timeout > 0) {
         LOG(INFO) << "Terminating emulator if no activity after " << config->idle_timeout
@@ -299,6 +307,18 @@ void grpc_set_idle_timeout(Object* obj, Visitor* v, const char* name, void* opaq
     grpc_device->config->idle_timeout = value;
 }
 
+void grpc_set_modem_simulator_port(Object* obj, Visitor* v, const char* name, void* opaque,
+                                   Error** errp) {
+    GrpcDev* grpc_device = GRPC_DEV(obj);
+    uint32_t value;
+
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
+    }
+
+    grpc_device->config->modem_simulator_port = value;
+}
+
 void grpc_set_enable_token(Object* obj, bool v, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config->use_token = v;
@@ -367,6 +387,11 @@ void grpc_class_init(ObjectClass* oc, void* data) {
             oc, "idle_timeout",
             "Shutdown the emulator after idle_timeout seconds of inactivity from the "
             "gRPC endpoint.");
+
+    object_class_property_add(oc, "modem_simulator_port", "int", NULL,
+                              grpc_set_modem_simulator_port, NULL, NULL);
+    object_class_property_set_description(oc, "modem_simulator_port",
+                                          "The port to connect to the modem simulator service.");
 
     object_class_property_add_bool(oc, "token", NULL, grpc_set_enable_token);
     object_class_property_set_description(oc, "token",

@@ -46,6 +46,7 @@ cc_library(
         "//emulator/libs/fps_calculator",
         "//emulator/libs/hardware_config",
         "//emulator/libs/shared_memory",
+        "//emulator/libs/sockets",
         "//emulator/plugin/avd:info",
         "//emulator/plugin/vminterface",
         "@abseil-cpp//absl/container:flat_hash_map",

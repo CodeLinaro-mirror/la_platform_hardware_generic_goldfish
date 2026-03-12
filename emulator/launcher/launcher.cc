@@ -23,12 +23,11 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 
-#include "android/status/status_macros.h"
 #include "android/base/bazel_info.h"
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_system.h"
@@ -36,6 +35,7 @@
 #include "android/goldfish/emulator_config.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
+#include "android/status/status_macros.h"
 #include "emulator.h"
 #include "fishtank.h"
 #include "goldfish/async/async_socket_server.h"
@@ -44,6 +44,7 @@
 #include "goldfish/async/libuv_signal_handlers.h"
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/when_all.h"
+#include "goldfish/file/file.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
@@ -136,6 +137,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         if (modem_simulator_service_) {
             chardevs->MutableResults().modem_simulator =
                     modem_simulator_service_->ChardevEndpoint();
+            chardevs->MutableResults().modem_simulator_host_id = modem_simulator_service_->HostId();
         }
     }
 

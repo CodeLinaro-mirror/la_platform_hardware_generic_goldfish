@@ -56,6 +56,30 @@ namespace fs = std::filesystem;
 
 namespace {
 
+/**
+ * See `int cuttlefish::modem::DeviceConfig::host_id()`. For AF_INETx
+ * sockets this is the server socket port, for AF_UNIX sockets (if we
+ * decide to support them), this is the number after the "modem_simulator"
+ * in the socket name.
+ */
+int GetHostId(const SharedFD& server) {
+    struct sockaddr_storage addr;
+    socklen_t addlen;
+    if (!server->Endpoint(&addr, &addlen)) {
+        return -1;
+    }
+
+    switch (addr.ss_family) {
+    case AF_INET:
+        return ntohs(reinterpret_cast<const struct sockaddr_in*>(&addr)->sin_port);
+
+    case AF_INET6:
+        return ntohs(reinterpret_cast<const struct sockaddr_in6*>(&addr)->sin6_port);
+    }
+
+    return -1;
+}
+
 struct ModemSimulatorServiceImpl : public ModemSimulatorService {
     ModemSimulatorServiceImpl(SharedFD host_fd, SharedFD guest_fd,
                               std::shared_ptr<ModemSimulator> modem_simulator)
@@ -72,6 +96,7 @@ struct ModemSimulatorServiceImpl : public ModemSimulatorService {
     }
 
     std::string ChardevEndpoint() const override { return guest_fd_->ChardevEndpoint(); }
+    int HostId() const override { return GetHostId(host_fd_); }
 
   private:
     void HostProcessingLoop() {
@@ -121,30 +146,6 @@ struct ModemSimulatorServiceImpl : public ModemSimulatorService {
     std::thread host_processor_;
     std::thread guest_processor_;
 };
-
-/**
-  * See `int cuttlefish::modem::DeviceConfig::host_id()`. For AF_INETx
-  * sockets this is the server socket port, for AF_UNIX sockets (if we
-  * decide to support them), this is the number after the "modem_simulator"
-  * in the socket name.
-  */
-int GetHostId(const SharedFD& server) {
-    struct sockaddr_storage addr;
-    socklen_t addlen;
-    if (!server->Endpoint(&addr, &addlen)) {
-        return -1;
-    }
-
-    switch (addr.ss_family) {
-    case AF_INET:
-        return ntohs(reinterpret_cast<const struct sockaddr_in*>(&addr)->sin_port);
-
-    case AF_INET6:
-        return ntohs(reinterpret_cast<const struct sockaddr_in6*>(&addr)->sin6_port);
-    }
-
-    return -1;
-}
 
 void CopyIfMissing(const fs::path& modem_avd_dir, const char* dst_filename,
                    const fs::path& src_path) {

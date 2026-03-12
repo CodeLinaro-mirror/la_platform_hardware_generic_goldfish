@@ -15,13 +15,45 @@
 
 #include <gtest/gtest.h>
 
+#include "android/sockets/socket_utils.h"
+
 namespace android {
 namespace emulation {
 namespace control {
 namespace incubating {
 
+TEST(ModemServiceTest, ConnectToSimulatorSendsRegistration) {
+    int server_fd = android::base::socketTcp4LoopbackServer(0);
+    ASSERT_GE(server_fd, 0);
+
+    int port = android::base::socketGetPort(server_fd);
+    ASSERT_GT(port, 0);
+
+    ModemServiceImpl service(port);
+    auto client_fd = service.ConnectToSimulator();
+    ASSERT_TRUE(client_fd.valid());
+    int client_fd_raw = client_fd.get();
+    ASSERT_GE(client_fd_raw, 0);
+
+    int conn_fd = android::base::socketAcceptAny(server_fd);
+    ASSERT_GE(conn_fd, 0);
+
+    char buf[5] = {0};
+    ssize_t read_bytes = android::base::socketRecv(conn_fd, buf, 4);
+    EXPECT_EQ(read_bytes, 4);
+    EXPECT_STREQ(buf, "REM0");
+
+    android::base::socketClose(conn_fd);
+    android::base::socketClose(server_fd);
+}
+
+TEST(ModemServiceTest, ConstructorChecksInvalidPort) {
+    EXPECT_DEATH(ModemServiceImpl(0), "Invalid modem simulator port: 0");
+    EXPECT_DEATH(ModemServiceImpl(-1), "Invalid modem simulator port: -1");
+}
+
 TEST(ModemServiceTest, MethodsReturnUnimplemented) {
-    ModemServiceImpl service;
+    ModemServiceImpl service(1234);
     ::grpc::ServerContext context;
 
     auto checkUnimplemented = [](const ::grpc::Status& status) {

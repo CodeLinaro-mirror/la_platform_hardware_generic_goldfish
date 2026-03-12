@@ -13,10 +13,46 @@
 // limitations under the License.
 #include "android/emulation/control/incubating/modem_service.h"
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+
+#include "android/sockets/socket_utils.h"
+
 namespace android {
 namespace emulation {
 namespace control {
 namespace incubating {
+
+ModemServiceImpl::ModemServiceImpl(int modem_simulator_port)
+        : simulator_port_(modem_simulator_port) {
+    CHECK(simulator_port_ > 0) << "Invalid modem simulator port: " << simulator_port_;
+}
+
+android::base::ScopedSocket ModemServiceImpl::ConnectToSimulator() const {
+    // Try IPv4 first
+    android::base::ScopedSocket fd(android::base::socketTcp4LoopbackClient(simulator_port_));
+
+    // If IPv4 fails, try IPv6
+    if (!fd.valid()) {
+        VLOG(1) << "IPv4 connection failed, trying IPv6 for port " << simulator_port_;
+        fd.reset(android::base::socketTcp6LoopbackClient(simulator_port_));
+    }
+
+    if (!fd.valid()) {
+        LOG(ERROR) << "Failed to connect to modem simulator on port " << simulator_port_
+                   << " (tried IPv4 and IPv6)";
+        return {};
+    }
+
+    // Send the "REM0" registration sequence to attach as a remote client
+    if (!android::base::socketSendAll(fd.get(), "REM0", 4)) {
+        LOG(ERROR) << "Failed to send REM0 handshake to modem simulator";
+        return {};
+    }
+
+    VLOG(1) << "Successfully connected to modem simulator on port " << simulator_port_;
+    return fd;
+}
 
 ::grpc::Status ModemServiceImpl::setCellInfo(::grpc::ServerContext* /*context*/,
                                              const CellInfo* /*request*/, CellInfo* /*response*/) {

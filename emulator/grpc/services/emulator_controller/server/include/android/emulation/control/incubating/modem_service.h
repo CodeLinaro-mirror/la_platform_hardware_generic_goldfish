@@ -15,6 +15,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include "android/sockets/scoped_socket.h"
 #include "modem_service.grpc.pb.h"
 
 namespace android {
@@ -24,8 +25,12 @@ namespace incubating {
 
 class ModemServiceImpl final : public Modem::Service {
   public:
-    ModemServiceImpl() = default;
+    explicit ModemServiceImpl(int modem_simulator_port = 0);
     ~ModemServiceImpl() override = default;
+
+    // Connects to the Modem Simulator and returns the file descriptor.
+    // The caller takes ownership of the file descriptor.
+    android::base::ScopedSocket ConnectToSimulator() const;
 
     ::grpc::Status setCellInfo(::grpc::ServerContext* context, const CellInfo* request,
                                CellInfo* response) override;
@@ -49,6 +54,9 @@ class ModemServiceImpl final : public Modem::Service {
     ::grpc::Status receivePhoneEvents(::grpc::ServerContext* context,
                                       const ::google::protobuf::Empty* request,
                                       ::grpc::ServerWriter<PhoneEvent>* writer) override;
+
+  private:
+    int simulator_port_;
 };
 
 }  // namespace incubating
