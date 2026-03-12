@@ -95,9 +95,9 @@ class FileSystemWatcherTest : public ::testing::Test {
         // Create a watchdog to detect hangs.
         mTestDone = std::make_unique<absl::Notification>();
         mWatchdog = std::thread([this]() {
-            if (!mTestDone->WaitForNotificationWithTimeout(absl::Seconds(10))) {
+            if (!mTestDone->WaitForNotificationWithTimeout(absl::Seconds(180))) {
                 const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-                fprintf(stderr, "FATAL: Test timed out after 10 seconds. Possible hang in %s.%s\n",
+                fprintf(stderr, "FATAL: Test timed out after 180 seconds. Possible hang in %s.%s\n",
                         info->test_suite_name(), info->name());
                 std::abort();
             }

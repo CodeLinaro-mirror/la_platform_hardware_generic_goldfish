@@ -21,36 +21,44 @@
 #define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
 
+#include "goldfish/base/unique_handle.h"
+
 namespace android::base {
 
-class ScopedFileHandle {
-public:
-    explicit ScopedFileHandle(HANDLE handle) : handle_(handle) {}
-    ~ScopedFileHandle() { close(); }
-    ScopedFileHandle(const ScopedFileHandle&) = delete;
-    ScopedFileHandle(ScopedFileHandle&& other) = delete;
-    ScopedFileHandle& operator=(const ScopedFileHandle&) = delete;
-    ScopedFileHandle& operator=(ScopedFileHandle&& other) = delete;
-
-    bool ok() const { return handle_ != INVALID_HANDLE_VALUE; }
-
-    HANDLE get() const { return handle_; }
-
-    HANDLE release() {
-        HANDLE h = handle_;
-        handle_ = INVALID_HANDLE_VALUE;
-        return h;
-    }
-
-    void close() {
-        if (handle_ != INVALID_HANDLE_VALUE) {
-            ::CloseHandle(handle_);
-            handle_ = INVALID_HANDLE_VALUE;
+namespace internal {
+struct WinHandleDeleter {
+    struct Empty {};
+    WinHandleDeleter() = default;
+    explicit WinHandleDeleter(Empty) {}
+    void operator()(HANDLE handle) const {
+        if (handle != INVALID_HANDLE_VALUE && handle != nullptr) {
+            ::CloseHandle(handle);
         }
     }
-
-private:
-    HANDLE handle_;
 };
+}  // namespace internal
+
+/**
+ * @brief RAII wrapper for Windows HANDLEs closed via CloseHandle().
+ *
+ * This class normalizes both nullptr and INVALID_HANDLE_VALUE to nullptr,
+ * providing move semantics and consistent 'if (handle)' checks.
+ */
+class ScopedFileHandle
+    : public goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter> {
+    using Super = goldfish::base::UniqueHandle<HANDLE, nullptr, internal::WinHandleDeleter>;
+
+public:
+    ScopedFileHandle() : Super() {}
+
+    explicit ScopedFileHandle(HANDLE handle)
+        : Super(handle == INVALID_HANDLE_VALUE ? nullptr : handle) {}
+
+    // Maintain backward compatibility for any old .ok() or .close() calls
+    bool ok() const { return Super::ok(); }
+    void close() { reset(); }
+};
+
+using ScopedEventHandle = ScopedFileHandle;
 
 }  // namespace android::base
