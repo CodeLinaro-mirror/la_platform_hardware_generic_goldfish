@@ -1,0 +1,46 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "telnet_auth",
+    srcs = ["telnet_auth.cc"],
+    hdrs = ["telnet_auth.h"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:advapi32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@tink_cc//tink:tink_cc",
+    ],
+)
+
+cc_test(
+    name = "telnet_auth_test",
+    srcs = ["telnet_auth_test.cc"],
+    deps = [
+        ":telnet_auth",
+        "//emulator/libs/system",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":telnet_auth",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
