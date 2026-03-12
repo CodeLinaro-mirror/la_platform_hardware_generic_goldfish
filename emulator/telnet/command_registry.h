@@ -170,7 +170,7 @@ class CommandRegistryBuilder {
          */
         template <typename F>
         NodeBuilder& On(std::string name, std::string abstract, F&& handler) {
-            return On(std::move(name), abstract, "", std::forward<F>(handler));
+            return On(std::move(name), std::move(abstract), "", std::forward<F>(handler));
         }
 
         /**

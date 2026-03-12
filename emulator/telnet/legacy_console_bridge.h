@@ -1,0 +1,68 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#pragma once
+
+#include <filesystem>
+#include <memory>
+#include <string>
+
+#include "absl/status/statusor.h"
+
+#include "android/emulation/control/emulator_grpc_client.h"
+#include "command_registry.h"
+#include "line_command_handler.h"
+
+namespace goldfish::telnet {
+
+/**
+ * @brief A bridge that maps legacy Telnet console commands to modern gRPC service calls.
+ *
+ * This class reimplements the legacy Telnet console functionality by using
+ * gRPC to communicate with the emulator backend. It uses a `CommandRegistry`
+ * to define the command hierarchy and dispatch logic.
+ */
+class LegacyConsoleBridge : public LineCommandHandler {
+  public:
+    /**
+     * @brief Context for legacy console command handlers.
+     */
+    struct ConsoleContext : public LineCommandHandler::Context {
+        explicit ConsoleContext(
+                std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client)
+                : client(std::move(client)) {}
+
+        std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client;
+    };
+
+    /**
+     * @brief Constructs the bridge with a gRPC client and the path to the auth token.
+     *
+     * @param client The gRPC client used to make calls to the emulator services.
+     * @param token_path Path to the file containing the console authentication token.
+     */
+    LegacyConsoleBridge(
+            std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client,
+            std::filesystem::path token_path);
+
+    // LineCommandHandler implementation
+    absl::StatusOr<std::string> operator()(std::string line, Context& ctx) override;
+    std::string WelcomeMessage(const Context& ctx) const override;
+
+  private:
+    std::shared_ptr<android::emulation::control::BlockingEmulatorGrpcClient> client_;
+    std::filesystem::path token_path_;
+    std::unique_ptr<CommandRegistry> registry_;
+};
+
+}  // namespace goldfish::telnet
