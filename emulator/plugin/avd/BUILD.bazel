@@ -127,6 +127,7 @@ cc_library(
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/display",
+        "//emulator/libs/host-common",
         "//emulator/plugin/battery",
         "//emulator/plugin/system:qemu_clock",
         "@abseil-cpp//absl/log",
