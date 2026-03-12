@@ -26,6 +26,29 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "line_command_handler",
+    hdrs = ["line_command_handler.h"],
+    deps = [
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "command_registry",
+    srcs = ["command_registry.cc"],
+    hdrs = ["command_registry.h"],
+    deps = [
+        ":line_command_handler",
+        "//emulator/libs/parsing",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
 cc_test(
     name = "telnet_auth_test",
     srcs = ["telnet_auth_test.cc"],
@@ -37,10 +60,22 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "command_registry_test",
+    srcs = ["command_registry_test.cc"],
+    deps = [
+        ":command_registry",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
 clang_tidy_test(
     name = "tidy",
     targets = [
         ":telnet_auth",
+        ":line_command_handler",
+        ":command_registry",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
