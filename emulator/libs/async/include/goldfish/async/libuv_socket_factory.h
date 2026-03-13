@@ -22,11 +22,14 @@ namespace goldfish::async {
 
 class LibuvAsyncSocketFactory : public AsyncSocketFactory {
   public:
+    using AsyncSocketFactory::CreateServer;
+
     std::shared_ptr<AsyncSocket> CreateSocket(EventLoop* loop,
                                               const network::Endpoint& endpoint) override;
 
     std::shared_ptr<AsyncSocketServer> CreateServer(
             EventLoop* loop, const network::Endpoint& endpoint,
-            AsyncSocketServer::ConnectCallback connect_callback) override;
+            AsyncSocketServer::ConnectCallback connect_callback,
+            AsyncSocketServer::LoopProvider loop_provider) override;
 };
 }  // namespace goldfish::async

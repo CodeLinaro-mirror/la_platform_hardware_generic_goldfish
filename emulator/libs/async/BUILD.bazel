@@ -158,6 +158,7 @@ cc_library(
         ":async_api",
         ":libuv_event_loop",
         ":uv_to_absl",
+        "//emulator/libs/base",
         "//emulator/libs/cpp",
         "//emulator/libs/network",
         "@abseil-cpp//absl/log",
@@ -330,4 +331,20 @@ clang_tidy_test(
         ":uv_to_absl",
     ],
     tidy_config_file = "//:clang_tidy_config",
+)
+
+cc_test(
+    name = "loop_handoff_test",
+    size = "small",
+    srcs = ["test/loop_handoff_test.cc"],
+    copts = ["-Wno-unused-result"],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libuv_sockets",
+        ":threaded_event_loop",
+        "//emulator/libs/network",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
 )

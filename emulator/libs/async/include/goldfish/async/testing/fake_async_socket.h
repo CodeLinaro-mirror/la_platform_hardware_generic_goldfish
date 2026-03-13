@@ -189,8 +189,11 @@ class FakeAsyncSocket : public AsyncSocket {
  */
 class MockAsyncSocketFactory : public AsyncSocketFactory {
   public:
+    using AsyncSocketFactory::CreateServer;
+
     MOCK_METHOD(std::shared_ptr<AsyncSocketServer>, CreateServer,
-                (EventLoop*, const network::Endpoint&, AsyncSocketServer::ConnectCallback),
+                (EventLoop*, const network::Endpoint&, AsyncSocketServer::ConnectCallback,
+                 AsyncSocketServer::LoopProvider),
                 (override));
     MOCK_METHOD(std::shared_ptr<AsyncSocket>, CreateSocket, (EventLoop*, const network::Endpoint&),
                 (override));
