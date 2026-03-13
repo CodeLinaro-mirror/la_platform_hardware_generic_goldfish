@@ -15,9 +15,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <cstring>
-#include <filesystem>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -71,32 +72,50 @@ absl::Status WriteToFd(int fd, std::string_view content, const fs::path& path) {
 }  // namespace
 
 absl::Status CreatePrivateFileExclusive(const fs::path& path, std::string_view content) noexcept {
-    // Direct open with O_EXCL ensures atomicity and failure if the file already exists.
-    ScopedFd fd(open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_BINARY, 0600));
+    // Generate a unique temporary file path cleanly in the same directory.
+    std::string tmp_name_template = absl::StrCat(path.string(), ".tmp.XXXXXX");
+
+    // Open with 0600 permissions and close-on-exec flag, tmp_name_template is modified in place.
+    ScopedFd fd(mkostemp(tmp_name_template.data(), O_CLOEXEC));
     if (!fd.ok()) {
-        if (errno == EEXIST) {
+        return absl::InternalError(absl::StrCat("Failed to write to '", path.string(),
+                                                "'. We couldn't create a temporary file in '",
+                                                path.parent_path().string(),
+                                                "' (error: ", strerror(errno),
+                                                "). Please check if you have write permissions "
+                                                "and enough disk space."));
+    }
+
+    // Setup cleanup to remove the temporary file.
+    // We use hard links so we can always remove it.
+    absl::Cleanup remove_tmp_file = [tmp_name_template] {
+        if (auto s = rm(tmp_name_template); !s.ok()) {
+            LOG(WARNING) << "Failed to remove temporary file '" << tmp_name_template
+                         << "': " << s.message()
+                         << ". You might have to manually remove it to reclaim space.";
+        }
+    };
+
+    auto status = WriteToFd(fd.get(), content, tmp_name_template);
+    if (!status.ok()) {
+        return status;
+    }
+
+    // We are going to create a hardlink, which means that path will point
+    // to the same (refcounted) inode as tmp_name_template, if path already points to something
+    // this will fail. Since it is a hardlink we can safely remove tmp_name_template, as it
+    // will merely decrease the refcount.
+    if (link(tmp_name_template.c_str(), path.c_str()) != 0) {
+        int err = errno;
+        if (err == EEXIST) {
             return absl::AlreadyExistsError(absl::StrCat(
                     "The file '", path.string(),
                     "' already exists and cannot be overwritten for security reasons."));
         }
-        if (errno == EACCES) {
-            return absl::PermissionDeniedError(
-                    absl::StrCat("Permission denied when creating '", path.string(),
-                                 "'. Ensure you have write permissions for the parent directory."));
-        }
-        return absl::InternalError(absl::StrCat("Failed to create '", path.string(),
-                                                "'. System error: ", strerror(errno), "."));
-    }
-
-    auto status = WriteToFd(fd.get(), content, path);
-    if (!status.ok()) {
-        // If writing failed, we try remove the partially written file.
-        fd.reset();
-        if (auto s = rm(path); !s.ok()) {
-            LOG(WARNING) << "Failed to clean up partially written file" << path << ", due to: " << s
-                         << ". You might have to manually remove this file.";
-        }
-        return status;
+        return absl::InternalError(absl::StrCat("Failed to finalize creation of '", path.string(),
+                                                "' (error: ", strerror(err),
+                                                "). Check permissions or if another process is "
+                                                "modifying this directory."));
     }
 
     return absl::OkStatus();
