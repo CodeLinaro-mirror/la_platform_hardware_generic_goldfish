@@ -81,11 +81,11 @@ using ArgStream = goldfish::parsing::ArgStream;
  * @endcode
  */
 class CommandRegistry : public LineCommandHandler {
+  private:
+    struct Passkey {};
+
   public:
-    class Passkey {
-        friend class CommandRegistryBuilder;
-        Passkey() = default;
-    };
+    friend class CommandRegistryBuilder;
 
     ~CommandRegistry() override = default;
 
