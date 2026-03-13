@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "uuid",
+    srcs = ["uuid.cc"],
+    hdrs = ["include/goldfish/metrics/uuid.h"],
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:Rpcrt4.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@libuuid"],
+    }),
+)
+
+cc_test(
+    name = "uuid_test",
+    srcs = ["uuid_test.cc"],
+    deps = [
+        ":uuid",
+        "//emulator/libs/status_macros:status_matcher_macros",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
