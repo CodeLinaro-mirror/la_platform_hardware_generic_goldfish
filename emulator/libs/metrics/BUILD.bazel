@@ -1,4 +1,16 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        # TODO(whollins): Figure out why these don't work.
+        #":uuid",
+        #":metrics_reporter",
+        #":text_metrics_writer",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)
 
 cc_library(
     name = "uuid",
@@ -27,5 +39,84 @@ cc_test(
         ":uuid",
         "//emulator/libs/status_macros:status_matcher_macros",
         "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "metrics_writer",
+    hdrs = ["include/goldfish/metrics/metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["@studio_stats//:studio_stats_cc_proto"],
+)
+
+cc_library(
+    name = "metrics_reporter",
+    srcs = ["metrics_reporter.cc"],
+    hdrs = ["include/goldfish/metrics/metrics_reporter.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_writer",
+        ":uuid",
+        "//emulator/libs/system",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@studio_stats//:studio_stats_cc_proto",
+    ],
+)
+
+alias(
+    name = "metrics",
+    actual = ":metrics_reporter",
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "metrics_reporter_test",
+    srcs = ["metrics_reporter_test.cc"],
+    deps = [
+        ":metrics_reporter",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "configure_metrics_writer",
+    hdrs = ["include/goldfish/metrics/configure_metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_reporter",
+        ":metrics_writer",
+        ":text_metrics_writer",
+        "//emulator/libs/file",
+    ],
+)
+
+cc_library(
+    name = "text_metrics_writer",
+    srcs = ["text_metrics_writer.cc"],
+    hdrs = ["include/goldfish/metrics/text_metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_writer",
+        "@abseil-cpp//absl/log",
+        "@protobuf",
+    ],
+)
+
+cc_test(
+    name = "text_metrics_writer_test",
+    srcs = ["text_metrics_writer_test.cc"],
+    deps = [
+        ":text_metrics_writer",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/base:log_severity",
+        "@abseil-cpp//absl/log:globals",
     ],
 )
