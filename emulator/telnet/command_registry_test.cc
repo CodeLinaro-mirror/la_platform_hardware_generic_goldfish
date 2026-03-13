@@ -152,4 +152,58 @@ TEST_F(CommandRegistryTest, CustomContextExtensibility) {
     EXPECT_EQ(*res, "custom_id");
 }
 
+TEST_F(CommandRegistryTest, RootLevelOnMethod) {
+    builder_->On("root", "abstract", [](LineCommandHandler::Context&) { return "ok"; }).Safe();
+    auto registry = Build();
+    LineCommandHandler::Context ctx;
+    auto res = (*registry)("root", ctx);
+    ASSERT_TRUE(res.ok());
+    EXPECT_EQ(*res, "ok");
+}
+
+TEST_F(CommandRegistryTest, AbstractVsDescription) {
+    const std::string kDetailedHelp = "Line 1\r\nLine 2\r\nLine 3";
+    builder_->Command("detailed", "summary", kDetailedHelp)
+            .Safe()
+            .Handler([](LineCommandHandler::Context&, ArgStream&) -> absl::StatusOr<std::string> {
+                return "done";
+            });
+
+    auto registry = Build();
+    LineCommandHandler::Context ctx;
+
+    // Verbose root help should show abstract
+    auto res = (*registry)("help-verbose", ctx);
+    ASSERT_TRUE(res.ok());
+    EXPECT_TRUE(res->find("detailed         summary") != std::string::npos);
+    EXPECT_TRUE(res->find(kDetailedHelp) == std::string::npos);
+
+    // Command specific help should show description
+    res = (*registry)("help detailed", ctx);
+    ASSERT_TRUE(res.ok());
+    EXPECT_TRUE(res->find(kDetailedHelp) != std::string::npos);
+}
+
+TEST_F(CommandRegistryTest, SubCommandAbstractVsDescription) {
+    const std::string kDetailedSubHelp = "Detailed Sub Help";
+    auto cmd = builder_->Command("parent", "parent summary");
+    cmd.Safe();
+    cmd.On("child", "child summary", kDetailedSubHelp,
+           [](LineCommandHandler::Context&) -> absl::StatusOr<std::string> { return "ok"; });
+
+    auto registry = Build();
+    LineCommandHandler::Context ctx;
+
+    // Help for parent should show child abstract
+    auto res = (*registry)("help parent", ctx);
+    ASSERT_TRUE(res.ok());
+    EXPECT_TRUE(res->find("child summary") != std::string::npos);
+    EXPECT_TRUE(res->find(kDetailedSubHelp) == std::string::npos);
+
+    // Help for child should show child description
+    res = (*registry)("help parent child", ctx);
+    ASSERT_TRUE(res.ok());
+    EXPECT_TRUE(res->find(kDetailedSubHelp) != std::string::npos);
+}
+
 }  // namespace goldfish::telnet
