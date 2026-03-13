@@ -295,7 +295,7 @@ absl::StatusOr<std::string> InvokeFromStream(F&& func, Context& ctx, ArgStream& 
      * error encountered during parsing.
      */
     absl::Status s;
-    bool all_ok = ((s = std::get<Is>(parsed_args).status()).ok() && ...);
+    const bool all_ok = ((s = std::get<Is>(parsed_args).status()).ok() && ...);
     if (!all_ok) {
         return s;
     }
