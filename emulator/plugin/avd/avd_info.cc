@@ -231,7 +231,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     avd_universe.metrics_reporter =
             std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
     ::goldfish::metrics::ConfigureMetricsWriter(*avd_universe.metrics_reporter,
-                                                avd_props.metrics_writer_config);
+                                                avd_props.metrics_writer_config, *client_loop);
     // PING every 5 minutes.
     using namespace std::chrono_literals;
     avd_universe.metrics_ping_timer = client_loop->ScheduleRepeating(
@@ -429,6 +429,10 @@ void avd_info_set_metrics_file_path(Object* obj, const char* value, Error** errp
     AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.file_path = value;
 }
 
+void avd_info_set_metrics_spool_dir(Object* obj, const char* value, Error** errp) {
+    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.studio_spool_dir = value;
+}
+
 void avd_info_set_dump_perf_stat_path(Object* obj, const char* value, Error** errp) {
     fs::path path(value);
     if (!android::base::file::is_dir(path.parent_path())) {
@@ -470,6 +474,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add(oc, "metrics_writer", "int", nullptr, avd_info_set_metrics_writer,
                               nullptr, nullptr);
     object_class_property_add_str(oc, "metrics_file_path", nullptr, avd_info_set_metrics_file_path);
+    object_class_property_add_str(oc, "metrics_spool_dir", nullptr, avd_info_set_metrics_spool_dir);
     object_class_property_add_str(oc, "dump_perf_stat_path", nullptr,
                                   avd_info_set_dump_perf_stat_path);
 

@@ -18,9 +18,11 @@
 #include <fstream>
 #include <iostream>
 
+#include "goldfish/async/event_loop.h"
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
+#include "goldfish/metrics/studio_file_metrics_writer.h"
 #include "goldfish/metrics/text_metrics_writer.h"
 
 namespace goldfish::metrics {
@@ -30,9 +32,11 @@ enum class MetricsWriterType : uint32_t { kNone, kConsole, kFile, kStudio, kPlay
 struct MetricsWriterConfig {
     MetricsWriterType type;
     fs::path file_path;
+    fs::path studio_spool_dir;
 };
 
-inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfig config) {
+inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfig config,
+                                   goldfish::async::EventLoop& event_loop) {
     switch (config.type) {
         using enum MetricsWriterType;
     case kConsole:
@@ -43,7 +47,8 @@ inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfi
                 std::make_unique<std::ofstream>(config.file_path)));
         break;
     case kStudio:
-        // TODO
+        reporter.SetWriter(std::make_unique<::goldfish::metrics::StudioFileMetricsWriter>(
+                config.studio_spool_dir, reporter.session_id(), event_loop));
         break;
     case kPlaystore:
         // TODO
