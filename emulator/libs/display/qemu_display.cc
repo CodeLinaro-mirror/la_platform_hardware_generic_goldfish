@@ -135,7 +135,7 @@ void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
     } else {
         qemu_loop_
                 ->Post([con = console_, x, y, iw = static_cast<int>(dims.width),
-                        ih = static_cast<int>(dims.height), last = mlast_bmask_,
+                        ih = static_cast<int>(dims.height), last = last_bmask_,
                         mask = button_mask] {
                     if (last != mask) {
                         qemu_input_update_buttons(con, bmap, last, mask);
@@ -146,7 +146,7 @@ void QemuDisplay::SendMouseEvent(int x, int y, int button_mask) {
                 })
                 .IgnoreError();
     }
-    mlast_bmask_ = button_mask;
+    last_bmask_ = button_mask;
 }
 
 void QemuDisplay::SendEvDevEvent(uint16_t type, uint16_t code, uint32_t value) {

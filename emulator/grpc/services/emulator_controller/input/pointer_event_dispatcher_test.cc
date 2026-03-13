@@ -17,10 +17,10 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <ostream>
 #include <thread>
 
 #include "absl/time/time.h"
-#include "gmock/gmock.h"
 
 #include "android/emulation/control/slot_registry.h"
 #include "emulator/libs/display/include/goldfish/display/test/mock_display.h"

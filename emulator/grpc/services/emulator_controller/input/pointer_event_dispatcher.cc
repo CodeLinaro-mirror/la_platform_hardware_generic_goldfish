@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "android/emulation/control/internal/pointer_event_dispatcher.h"
 
+#include <vector>
+
 #include "absl/log/log.h"
 
 #include "standard-headers/linux/input-event-codes.h"
@@ -56,7 +58,7 @@ MultiTouchEvent MultiTouchEvent::FromProto(const ::android::emulation::control::
 
 // C++ struct representation of PenEvent
 PenTouchEvent PenTouchEvent::FromProto(const ::android::emulation::control::PenEvent& proto) {
-    constexpr uint32_t kPenid = 0x0a;
+    constexpr uint32_t kPenId = 0x0a;
     PenTouchEvent event;
     for (const auto& proto_pen : proto.events()) {
         Pen pen;
@@ -64,7 +66,7 @@ PenTouchEvent PenTouchEvent::FromProto(const ::android::emulation::control::PenE
         pen.rubber_pointer = proto_pen.rubber_pointer();
         pen.x = proto_pen.location().x();
         pen.y = proto_pen.location().y();
-        pen.identifier = kPenid;
+        pen.identifier = kPenId;
         pen.pressure = proto_pen.location().pressure();
         pen.touch_major = proto_pen.location().touch_major();
         pen.touch_minor = proto_pen.location().touch_minor();

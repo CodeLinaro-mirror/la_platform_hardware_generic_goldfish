@@ -19,10 +19,15 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
 #include "goldfish/async/event_loop_dispatcher.h"
+
+extern "C" {
+struct QemuConsole;
+}
 
 namespace goldfish::display {
 
@@ -257,14 +262,8 @@ class IDisplay : public FrameInfoCallbackSource,
      */
     virtual void SetActive(bool active) { active_ = active; }
 
-    template <typename Sink>
-    friend void AbslStringify(Sink& sink, const IDisplay* display) {
-        absl::Format(&sink, "%s", display ? "<none>" : display->String());
-    }
+    virtual QemuConsole* GetConsole() const { return nullptr; }
 
-    static SharedDisplay GetNullDisplay();
-
-  protected:
     void SetDimensions(Dimensions dim) {
         const absl::MutexLock lock(dimension_mutex_);
         dimensions_ = dim;
@@ -274,6 +273,14 @@ class IDisplay : public FrameInfoCallbackSource,
         SetDimensions({.width = width, .height = height});
     }
 
+    template <typename Sink>
+    friend void AbslStringify(Sink& sink, const IDisplay* display) {
+        absl::Format(&sink, "%s", display ? display->String().c_str() : "<none>");
+    }
+
+    static SharedDisplay GetNullDisplay();
+
+  protected:
     struct LogicalFit {
         int width;
         int height;

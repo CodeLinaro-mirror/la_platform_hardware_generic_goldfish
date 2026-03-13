@@ -13,6 +13,7 @@
 // limitations under the License.
 #pragma once
 
+#include <bitset>
 #include <cstdint>
 #include <vector>
 
@@ -49,7 +50,7 @@ class SlotRegistry {
      *                       Defaults to kTouchExpireAfter120S (120 seconds).
      */
     explicit SlotRegistry(absl::Duration slot_expiration = kTouchExpireAfter120S)
-            : slot_expiration_(slot_expiration) {};
+            : slot_expiration_(slot_expiration) {}
 
     /**
      * @brief Acquires a free slot for a given touch identifier.

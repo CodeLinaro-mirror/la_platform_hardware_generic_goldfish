@@ -13,7 +13,9 @@
 // limitations under the License.
 #include "android/emulation/control/slot_registry.h"
 
+#include <cassert>
 #include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
 

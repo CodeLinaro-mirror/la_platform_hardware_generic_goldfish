@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <vector>
 
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/eventing/event_sources.h"
@@ -120,7 +121,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Target state setters and parameter getters
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    void setTarget##z(w value, PhysicalInterpolation mode);
+    void SetTarget##z(w value, PhysicalInterpolation mode);
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
@@ -129,7 +130,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Gets current target state of the modeled object.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    w getParameter##z(ParameterValueType parameter_value_type) const;
+    w GetParameter##z(ParameterValueType parameter_value_type) const;
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
@@ -137,7 +138,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Sensor override methods
      */
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void override##z(v override_value);
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) void Override##z(v override_value);
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
@@ -145,7 +146,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Getters for all sensor values.
      * Can be called from any thread.
      */
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v get##z(size_t* measurement_id) const;
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v Get##z(size_t* measurement_id) const;
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 
@@ -191,6 +192,8 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      */
     bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
 
+    const std::vector<FoldableModel::ResizableConfig>& GetResizableConfigs() const;
+
   private:
     static size_t GetSensorValueSize(AndroidSensor);
     size_t GetSensorDataImpl(AndroidSensor, float* out, size_t count) const;
@@ -202,7 +205,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
      * Can be called from any thread.
      */
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w) \
-    void setTargetInternal##z(w value, PhysicalInterpolation mode);
+    void SetTargetInternal##z(w value, PhysicalInterpolation mode);
 
     GOLDFISH_PHYSICAL_PARAMETERS_LIST
 #undef GOLDFISH_PHYSICAL_PARAMETER_DEF
@@ -210,7 +213,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     /*
      * Getters for non-overridden physical sensor values.
      */
-#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v getPhysical##z() const;
+#define GOLDFISH_SENSOR_DEF(x, y, z, v, w) v GetPhysical##z() const;
     GOLDFISH_SENSORS_LIST
 #undef GOLDFISH_SENSOR_DEF
 

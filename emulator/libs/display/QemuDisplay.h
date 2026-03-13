@@ -40,13 +40,15 @@ class QemuDisplay : public PixmanDisplay {
 
     void SetOwnedSurface(DisplaySurface* surface);
 
+    QemuConsole* GetConsole() const override { return console_; }
+
   private:
     template <typename Sink>
     friend void AbslStringify(Sink&, const QemuDisplay&);
     QemuConsole* console_;
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_;
-    int mlast_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
+    int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
     struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
     absl::Mutex send_lock_;
     DisplaySurface* owned_surface_{nullptr};

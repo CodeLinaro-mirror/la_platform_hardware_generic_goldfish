@@ -20,6 +20,8 @@
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "grpcpp/grpcpp.h"
 
@@ -27,6 +29,9 @@
 #include "android/emulation/control/absl_status_translate.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/avd_info/avd_info.h"
+#include "goldfish/devices/multidisplay/multidisplay_device.h"
+#include "goldfish/display/multi_display_callbacks.h"
+#include "goldfish/display/pixman_display.h"
 #include "goldfish/eventing/multi_event_source_waiter.h"
 #include "goldfish/eventing/observable_value.h"
 #include "goldfish/fps_calculator.h"
@@ -61,9 +66,32 @@ using DeviceSkinRotationCallbackSource =
 
 DisplayServiceImpl::DisplayServiceImpl(::goldfish::display::IMultiDisplay* display,
                                        ::goldfish::sensors::PhysicalModel* pm)
-        : mMultiDisplay(*display), mPhysicalModel(*pm) {
+        : mMultiDisplay(*display)
+        , mPhysicalModel(*pm)
+        , mIsClosed(mPhysicalModel.GetFoldableState().current_posture ==
+                    FoldablePostures::kClosed) {
+    const auto& resizable_configs = mPhysicalModel.GetResizableConfigs();
+    if (!resizable_configs.empty()) {
+        auto screen = mMultiDisplay.GetDisplay(0);
+        if (screen.ok()) {
+            if (auto d0 = screen->lock()) {
+                auto dims = d0->GetDimensions();
+                for (const auto& rc : resizable_configs) {
+                    if (rc.width == dims.width && rc.height == dims.height) {
+                        mCurrentDisplayMode = static_cast<DisplayModeValue>(rc.id);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     mPostureSubscription = MakeScopedCallback(mPhysicalModel.GetPostureListener(), [this](const FoldablePostures &posture) {
                 bool isClosed = (posture == FoldablePostures::kClosed);
+                {
+                    absl::MutexLock lock(&mIsClosedMutex);
+                    mIsClosed = isClosed;
+                }
 
                 // Display 0: active when NOT closed
                 auto res0 = mMultiDisplay.GetDisplay(0);
@@ -169,10 +197,12 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool lastFrameWasEmpty = reply.format().width() == 0;
     int frame = 0;
 
-    std::shared_ptr<IDisplay> display;
-    if (auto status = getActiveDisplay(request->display(), display); !status.ok()) {
-        return status;
+    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+    if (!res.ok()) {
+        return AbslStatusToGrpcStatus(res.status());
     }
+    auto display = *res;
 
     auto allocator = createAllocator(*request, *display);
     if (!allocator.ok()) {
@@ -191,6 +221,24 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
     MultiEventSourceWaiter frameOrSensorEvent;
     frameOrSensorEvent.Listen<FrameInfoCallbackSource>(display.get());
+
+    std::shared_ptr<IDisplay> d0, d1;
+    if (hw.hw_sensor_hinge) {
+        auto s0 = mMultiDisplay.GetDisplay(0);
+        auto s1 = mMultiDisplay.GetDisplay(1);
+        if (s0.ok()) {
+            d0 = s0->lock();
+            if (d0 && d0.get() != display.get()) {
+                frameOrSensorEvent.Listen<FrameInfoCallbackSource>(d0.get());
+            }
+        }
+        if (s1.ok()) {
+            d1 = s1->lock();
+            if (d1 && d1.get() != display.get()) {
+                frameOrSensorEvent.Listen<FrameInfoCallbackSource>(d1.get());
+            }
+        }
+    }
     frameOrSensorEvent.Listen<DeviceSkinRotationCallbackSource>(&deviceSkinRotationCallbackSource);
 
     // TODO(jansene): Bring back metrics.
@@ -251,10 +299,12 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
 
 Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageFormat* request,
                                          Image* reply) {
-    std::shared_ptr<IDisplay> display;
-    if (auto status = getActiveDisplay(request->display(), display); !status.ok()) {
-        return status;
+    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+    if (!res.ok()) {
+        return AbslStatusToGrpcStatus(res.status());
     }
+    auto display = *res;
 
     auto allocator = createAllocator(*request, *display);
     if (!allocator.ok()) {
@@ -304,10 +354,12 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
                                          Image* reply, MemoryAllocator& allocator) {
     bool needs_side_channel =
             request->has_transport() && request->transport().channel() == ImageTransport::MMAP;
-    std::shared_ptr<IDisplay> display;
-    if (auto status = getActiveDisplay(request->display(), display); !status.ok()) {
-        return status;
+    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+    if (!res.ok()) {
+        return AbslStatusToGrpcStatus(res.status());
     }
+    auto display = *res;
 
     const DeviceRotation deviceRotation = mPhysicalModel.GetDeviceRotation();
     auto dims = display->GetDimensions();
@@ -408,32 +460,26 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     reply->set_timestampus(absl::ToUnixMicros(seq->timestamp));
     reply->set_seq(seq->sequence_number);
 
-    VLOG(2) << "Produced frame: " << outFormat->ShortDebugString();
-    return Status::OK;
-}
-
-Status DisplayServiceImpl::getActiveDisplay(uint32_t displayId,
-                                            std::shared_ptr<IDisplay>& display) {
-    auto screen = mMultiDisplay.GetDisplay(displayId);
-    if (!screen.ok()) {
-        return AbslStatusToGrpcStatus(screen.status());
-    }
-    display = screen->lock();
-    if (!display) {
-        return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
+    if (!hw.hw_resizable_configs.empty()) {
+        reply->mutable_format()->set_displaymode(mCurrentDisplayMode);
     }
 
-    // studio always request display 0, even when folded
-    // just use the display 1 for foldable
-    if (!display->Active() && displayId == 0) {
-        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-        if (hw.hw_sensor_hinge) {
-            screen = mMultiDisplay.GetDisplay(1);
-            display = screen->lock();
+    if (hw.hw_sensor_hinge) {
+        if (mIsClosed) {
+            int fx, fy, fw, fh;
+            if (mPhysicalModel.GetFoldedArea(&fx, &fy, &fw, &fh)) {
+                auto foldedDisplay = outFormat->mutable_foldeddisplay();
+                foldedDisplay->set_width(fw);
+                foldedDisplay->set_height(fh);
+                foldedDisplay->set_xoffset(fx);
+                foldedDisplay->set_yoffset(fy);
+            }
         } else {
-            return Status(grpc::StatusCode::UNAVAILABLE, "Display is no longer active.");
+            reply->mutable_format()->clear_foldeddisplay();
         }
     }
+
+    VLOG(2) << "Produced frame: " << outFormat->ShortDebugString();
     return Status::OK;
 }
 
@@ -526,6 +572,108 @@ Status DisplayServiceImpl::setDisplayConfigurations(ServerContext* context,
     // We call getDisplayConfigurations again to get the verified updated state
     // to send back to the client.
     getDisplayConfigurations(context, nullptr, reply);
+    fireDisplayConfigurationsChanged();
+
+    return Status::OK;
+}
+
+Status DisplayServiceImpl::getDisplayMode(ServerContext* context, const Empty* request,
+                                          DisplayMode* reply) {
+    if (mPhysicalModel.GetResizableConfigs().empty()) {
+        return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
+    }
+
+    reply->set_value(mCurrentDisplayMode);
+    return Status::OK;
+}
+
+Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayMode* request,
+                                          Empty* reply) {
+    const auto& resizable_configs = mPhysicalModel.GetResizableConfigs();
+    if (resizable_configs.empty()) {
+        return Status(grpc::StatusCode::FAILED_PRECONDITION, "AVD is not resizable.");
+    }
+
+    bool found = false;
+    uint32_t target_w = 0, target_h = 0;
+    uint32_t target_dpi = 0;
+
+    for (const auto& rc : resizable_configs) {
+        if (rc.id == static_cast<uint32_t>(request->value())) {
+            target_w = rc.width;
+            target_h = rc.height;
+            target_dpi = rc.dpi;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        return Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid display mode.");
+    }
+
+    if (request->value() != FOLDABLE) {
+        bool isClosed = false;
+        {
+            absl::MutexLock lock(&mIsClosedMutex);
+            isClosed = mIsClosed;
+        }
+        if (isClosed) {
+            uint64_t start_sequence = 0;
+            auto s0 = mMultiDisplay.GetDisplay(0);
+            if (s0.ok()) {
+                if (auto d0 = s0->lock()) {
+                    start_sequence = d0->Seq().sequence_number;
+                }
+            }
+
+            mPhysicalModel.SetTargetPosture(static_cast<float>(FoldablePostures::kOpened),
+                                            PhysicalInterpolation::kStep);
+
+            struct WaitArgs {
+                DisplayServiceImpl* self;
+                uint64_t start_seq;
+            };
+            WaitArgs args = {this, start_sequence};
+            absl::MutexLock lock(&mIsClosedMutex);
+            absl::Time start = absl::Now();
+            while (!mIsClosedMutex.AwaitWithTimeout(
+                    absl::Condition(
+                            +[](WaitArgs* a) {
+                                auto s0 = a->self->mMultiDisplay.GetDisplay(0);
+                                if (!s0.ok()) return false;
+                                auto d0 = s0->lock();
+                                if (!d0) return false;
+                                return d0->Seq().sequence_number > a->start_seq;
+                            },
+                            &args),
+                    absl::Milliseconds(100))) {
+            }
+        }
+    }
+
+    auto screen = mMultiDisplay.GetDisplay(0);
+    if (!screen.ok()) {
+        return AbslStatusToGrpcStatus(screen.status());
+    }
+
+    if (auto display = screen->lock()) {
+        if (target_dpi == 0) {
+            target_dpi = display->Dpi();
+        }
+        display->SetDimensions(target_w, target_h);
+        if (auto con = display->GetConsole()) {
+            grpc_dpy_gfx_update_ui_info(con, target_w, target_h);
+        }
+
+        uint32_t total_modes = static_cast<uint32_t>(resizable_configs.size());
+        uint32_t requested_mode_id = static_cast<uint32_t>(request->value());
+        uint32_t guest_mode_id = total_modes - 1 - requested_mode_id;
+        ::goldfish::devices::multidisplay::SendSetDisplay(guest_mode_id, target_w, target_h,
+                                                          target_dpi, display->Flags());
+    }
+
+    mCurrentDisplayMode = request->value();
     fireDisplayConfigurationsChanged();
 
     return Status::OK;
