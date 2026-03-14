@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/string_view.h"
@@ -204,7 +205,6 @@ class FileSystemWatcherFS : public FileSystemWatcher {
             LOG(FATAL) << "Timed out waiting for FileSystemWatcher to start for " << path_
                        << ". You might not receive file change notifications for this directory.";
         }
-
         return state_ == State::kRunning;
     }
 
@@ -212,28 +212,38 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         std::thread thread_to_join;
         {
             const absl::MutexLock lock(mu_);
-            if (state_ == State::kIdle) {
+            if (state_ == State::kIdle || state_ == State::kStopping) {
                 return;
             }
 
             // Signal the thread to stop.
             // Note that State::kRunning -> cf_run_loop_
-            CHECK(state_ != State::kRunning || cf_run_loop_ != nullptr)
-                    << "cf_run_loop_ cannot be NULL when state_ == kRunning";
-            if (state_ == State::kRunning) {
-                CFRunLoopStop(cf_run_loop_);
-            }
+            CHECK(state_ == State::kRunning) << "Start was called, yet we are not running?";
+            CHECK(watcher_thread_.joinable()) << "Watcher thread is not joinable.";
+            CFRunLoopStop(cf_run_loop_);
             state_ = State::kStopping;
             thread_to_join = std::move(watcher_thread_);
         }
 
+        // Allow thread to exit without holding the lock
         if (thread_to_join.joinable()) {
             thread_to_join.join();
         }
     }
 
   private:
-    bool IsNotStarting() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) { return state_ != State::kStarting; }
+    bool IsNotStarting() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+        return state_ != State::kStarting;
+    }
+
+    static void NotifyRunning(void* info) {
+        auto* self = static_cast<FileSystemWatcherFS*>(info);
+        const absl::MutexLock lock(self->mu_);
+        VLOG(1) << "Filesystem watcher is active";
+        CHECK(self->state_ == State::kStarting)
+                << "We should be in the starting state when this callback is happening";
+        self->state_ = State::kRunning;
+    }
 
     static void WatcherCb(ConstFSEventStreamRef, void* client_call_back_info, size_t num_events,
                           void* event_paths, const FSEventStreamEventFlags event_flags[],
@@ -264,13 +274,14 @@ class FileSystemWatcherFS : public FileSystemWatcher {
         }
     }
 
-    void Finish() {
-        const absl::MutexLock lock(mu_);
-        cf_run_loop_ = nullptr;
-        state_ = State::kIdle;
-    }
-
     void WatchForChanges() {
+        const absl::Cleanup back_to_idle = [this] {
+            const absl::MutexLock lock(mu_);
+            cf_run_loop_ = nullptr;
+            state_ = State::kIdle;
+        };
+
+        // Setup file event stream.
         const UniqueCFType<CFStringRef> dir(
                 CFStringCreateWithCString(nullptr, path_.string().c_str(), kCFStringEncodingUTF8));
         CFStringRef dir_ptr = dir.get();
@@ -284,51 +295,33 @@ class FileSystemWatcherFS : public FileSystemWatcher {
                                     kFSEventStreamCreateFlagFileEvents  // Get file-level events
                                             | kFSEventStreamCreateFlagNoDefer));  // Get them ASAP
 
-        if (!stream) {
-            Finish();
-            return;
-        }
+        if (!stream) return;
 
-        CFRunLoopRef run_loop = nullptr;
+        // Setup run loop source to signal that we are fully operational.
         {
             const absl::MutexLock lock(mu_);
-            // If Stop() was called immediately, exit before entering the loop.
-            if (state_ == State::kStopping) {
-                Finish();
-                return;
-            }
             cf_run_loop_ = CFRunLoopGetCurrent();
-            run_loop = cf_run_loop_;
+            CFRunLoopSourceContext source_ctx = {0,       this,    nullptr, nullptr, nullptr,
+                                                 nullptr, nullptr, nullptr, nullptr, NotifyRunning};
+
+            auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
+            if (source) {
+                // Guaranteed to run once the runloop is active.
+                CFRunLoopAddSource(cf_run_loop_, source, kCFRunLoopDefaultMode);
+                CFRunLoopSourceSignal(source);
+                CFRunLoopWakeUp(cf_run_loop_);
+                CFRelease(source);
+            } else {
+                // note, you might miss events between now and when CFRunLoopRun() is called.
+                state_ = State::kRunning;
+            }
+
+            FSEventStreamScheduleWithRunLoop(stream.get(), cf_run_loop_, kCFRunLoopDefaultMode);
+            FSEventStreamStart(stream.get());
         }
-
-        // Setup the run loop source to signal that we are fully operational.
-        CFRunLoopSourceContext source_ctx = {
-            0, this, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, [](void* info) {
-                auto* self = static_cast<FileSystemWatcherFS*>(info);
-                const absl::MutexLock lock(self->mu_);
-                if (self->state_ == State::kStarting) {
-                    self->state_ = State::kRunning;
-                }
-            }};
-
-        auto* source = CFRunLoopSourceCreate(nullptr, 0, &source_ctx);
-        if (source) {
-            CFRunLoopAddSource(run_loop, source, kCFRunLoopDefaultMode);
-            CFRunLoopSourceSignal(source);
-            CFRunLoopWakeUp(run_loop);
-            CFRelease(source);
-        } else {
-            const absl::MutexLock lock(mu_);
-            state_ = State::kRunning;
-        }
-
-        FSEventStreamScheduleWithRunLoop(stream.get(), run_loop, kCFRunLoopDefaultMode);
-        FSEventStreamStart(stream.get());
 
         CFRunLoopRun();  // Waits until we cancel it (by calling CFRunLoopStop).
-
         FSEventStreamStop(stream.get());
-        Finish();
     }
 
     const Path path_;

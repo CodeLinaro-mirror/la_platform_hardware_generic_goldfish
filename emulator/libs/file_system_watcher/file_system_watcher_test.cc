@@ -41,6 +41,29 @@ namespace fs = std::filesystem;
 struct WatchResult {
     FileSystemWatcher::WatcherChangeType type;
     std::string path;
+
+    bool operator==(const WatchResult& other) const {
+        return type == other.type && path == other.path;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const WatchResult& result) {
+        os << "{type=";
+        switch (result.type) {
+        case FileSystemWatcher::WatcherChangeType::kCreated:
+            os << "Created";
+            break;
+        case FileSystemWatcher::WatcherChangeType::kChanged:
+            os << "Changed";
+            break;
+        case FileSystemWatcher::WatcherChangeType::kDeleted:
+            os << "Deleted";
+            break;
+        default:
+            os << static_cast<int>(result.type);
+            break;
+        }
+        return os << ", path=" << result.path << "}";
+    }
 };
 
 class TestEventHandler {
@@ -285,6 +308,9 @@ TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
     mWatcher->Stop();
+
+    // Clear any spurious events from setting up the test environment.
+    handler->reset();
 
     createFile("test_file4.txt");
 
