@@ -261,6 +261,16 @@ absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite) n
     return absl::OkStatus();
 }
 
+absl::Status cp_recursive(const fs::path& from, const fs::path& to, bool overwrite) noexcept {
+    fs::copy_options opt =
+            overwrite ? fs::copy_options::overwrite_existing : fs::copy_options::none;
+    if (std::error_code ec; fs::copy(from, to, opt | std::filesystem::copy_options::recursive, ec), ec) {
+        return absl::InternalError(absl::StrCat("Failed to copy recursively: ", from.string(), "->",
+                                                to.string(), " - ", ec.message()));
+    }
+    return absl::OkStatus();
+}
+
 absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept {
     std::error_code ec;
     if (fs::rename(from, to, ec); !ec) {

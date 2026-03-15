@@ -56,6 +56,7 @@ absl::Status rm(const fs::path& path) noexcept;
 absl::Status rm_recursive(const fs::path& path) noexcept;
 
 absl::Status cp_file(const fs::path& from, const fs::path& to, bool overwrite = false) noexcept;
+absl::Status cp_recursive(const fs::path& from, const fs::path& to, bool overwrite = false) noexcept;
 
 absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept;
 

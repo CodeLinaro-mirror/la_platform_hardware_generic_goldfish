@@ -17,6 +17,9 @@
 #include "absl/strings/str_replace.h"
 
 #include "android/base/bazel_info.h"
+#include "android/base/testing/TestTempDir.h"
+
+#include "goldfish/file/file.h"
 
 #include <gtest/gtest.h>
 #include <stdlib.h>
@@ -39,9 +42,10 @@ class ModemServiceTest : public ::testing::Test {
   static void SetUpTestSuite() {
     {
       const char* kBazelPath = "goldfish+/emulator/modem_simulator/files/iccprofile_for_sim0.xml";
-      const std::filesystem::path data_path =
-          std::filesystem::path(android::base::Bazel::RunfilesPath(kBazelPath)).parent_path();
-      cuttlefish::modem::DeviceConfig::SetBasePath(data_path);
+      const fs::path data_path = std::filesystem::path(android::base::Bazel::RunfilesPath(kBazelPath)).parent_path();
+      const fs::path copy_path = tmp_config_dir_.Path() / "files";
+      ASSERT_TRUE(android::base::file::cp_recursive(data_path, copy_path).ok());
+      cuttlefish::modem::DeviceConfig::SetBasePath(copy_path);
     }
 
     cuttlefish::SharedFD ril_shared_fd, modem_shared_fd;
@@ -190,6 +194,7 @@ class ModemServiceTest : public ::testing::Test {
       "NO DIALTONE",
   };
 
+  static android::base::TestTempDir tmp_config_dir_;
   static Client* ril_side_;
   static Client* modem_side_;
   static ModemSimulator* modem_simulator_;
@@ -198,6 +203,7 @@ class ModemServiceTest : public ::testing::Test {
   std::string command_prefix_;
 };
 
+android::base::TestTempDir ModemServiceTest::tmp_config_dir_{"modem_simulator"};
 ModemSimulator* ModemServiceTest::modem_simulator_ = nullptr;
 Client* ModemServiceTest::ril_side_ = nullptr;
 Client* ModemServiceTest::modem_side_ = nullptr;
