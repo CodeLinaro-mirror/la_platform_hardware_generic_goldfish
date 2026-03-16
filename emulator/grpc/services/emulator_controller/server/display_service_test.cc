@@ -15,7 +15,16 @@
 
 #include <chrono>
 #include <memory>
+#include <sstream>
+#include <string_view>
+#include <thread>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "absl/container/flat_hash_map.h"
 
@@ -70,6 +79,25 @@ class DisplayServiceTest : public GrcpServiceTest {
         auto display = screen->lock();
         ASSERT_TRUE(display);
         reinterpret_cast<ActiveFakePixmanDisplay*>(display.get())->Start();
+    }
+
+    static std::string getTempSharedMemoryName(std::string_view prefix) {
+        auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
+        std::stringstream ss;
+        ss << std::this_thread::get_id();
+#ifdef _WIN32
+        auto pid = GetCurrentProcessId();
+#else
+        auto pid = getpid();
+#endif
+        std::error_code ec;
+        auto path = (std::filesystem::temp_directory_path(ec) /
+                absl::StrFormat("%s_%d_%s_%ld", prefix, pid, ss.str(), ts))
+                .string();
+        if (ec) {
+            LOG(ERROR) << "Failed to get temp directory path: " << ec.message() << " expect mayhem and failures.";
+        }
+        return path;
     }
 
     EmulatorController::Service* getService() override { return mDisplayService.get(); }
@@ -568,12 +596,9 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
     }
 }
 
-TEST_F(DisplayServiceTest, GetScreenshotMmap) {
+TEST_F(DisplayServiceTest, GetScreenshotRGBA8888Mmap) {
     // Create a shared memory region.
-    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
-    std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%ld", ts))
-                    .string();
+    std::string name = getTempSharedMemoryName("test_mmap");
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
     ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
@@ -605,10 +630,7 @@ TEST_F(DisplayServiceTest, GetScreenshotMmap) {
 
 TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
     // Create a shared memory region.
-    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
-    std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_mmap_%ld", ts))
-                    .string();
+    std::string name = getTempSharedMemoryName("test_mmap");
 
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
@@ -646,7 +668,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotMmap) {
 TEST_F(DisplayServiceTest, StreamScreenshotMmapResourceExhausted) {
     // Create a shared memory region that is too small for the screenshot but large enough to map
     // (e.g. 4KB).
-    std::string name = (std::filesystem::temp_directory_path() / "test_stream_mmap_small").string();
+    std::string name = getTempSharedMemoryName("test_stream_mmap_small");
     size_t size = 4096;  // One page, but too small for 100*50*4 = 20000 bytes
     SharedMemory mem(name, size);
     ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
@@ -692,10 +714,7 @@ TEST_F(DisplayServiceTest, GetScreenshotPNG) {
 }
 
 TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
-    auto ts = absl::ToUnixMillis(base::IClock::RealtimeNow());
-    std::string name =
-            (std::filesystem::temp_directory_path() / absl::StrFormat("test_png_mmap_%ld", ts))
-                    .string();
+    std::string name = getTempSharedMemoryName("test_png_mmap");
     size_t size = 100 * 50 * 4;
     SharedMemory mem(name, size);
     ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
@@ -734,7 +753,7 @@ TEST_F(DisplayServiceTest, GetScreenshotMmapInvalidHandle) {
 }
 
 TEST_F(DisplayServiceTest, GetScreenshotMmapTooSmall) {
-    std::string name = (std::filesystem::temp_directory_path() / "test_mmap_too_small").string();
+    std::string name = getTempSharedMemoryName("test_mmap_too_small");
     size_t size = 10;
     SharedMemory mem(name, size);
     ASSERT_TRUE(mem.Create(std::filesystem::perms::owner_read | std::filesystem::perms::owner_write)
