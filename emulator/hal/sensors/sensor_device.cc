@@ -43,7 +43,6 @@
 
 namespace goldfish::devices::sensor {
 
-using goldfish::physics::SkinRotation;
 using goldfish::sensors::AndroidSensor;
 using goldfish::sensors::PhysicalModel;
 using goldfish::sensors::PhysicalParameter;
@@ -80,7 +79,7 @@ struct Sensor {
  * a decimal point, but that would not be parsed correctly
  * within the guest.
  */
-void _sanitizeSensorString(char* string, int maxlen) {
+void SanitizeSensorString(char* string, int maxlen) {
     for (int i = 0; i < maxlen && string[i] != '\0'; i++) {
         if (string[i] == ',') {
             string[i] = '.';
@@ -88,7 +87,7 @@ void _sanitizeSensorString(char* string, int maxlen) {
     }
 }
 
-const char* getSensorWireName(const AndroidSensor sensor_id) {
+const char* GetSensorWireName(const AndroidSensor sensor_id) {
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w) \
     case AndroidSensor::x:                 \
         return w;
@@ -104,8 +103,8 @@ const char* getSensorWireName(const AndroidSensor sensor_id) {
     LOG(FATAL) << "Unexpected sensor_id: " << static_cast<int>(sensor_id);
 }
 
-SerializedSensor serializeSensorData(const AndroidSensor sensor_id, const SensorData& d) {
-    const char* name = getSensorWireName(sensor_id);
+SerializedSensor SerializeSensorData(const AndroidSensor sensor_id, const SensorData& d) {
+    const char* name = GetSensorWireName(sensor_id);
 
     SerializedSensor serialized;
 
@@ -113,21 +112,21 @@ SerializedSensor serializeSensorData(const AndroidSensor sensor_id, const Sensor
     case 1:
         serialized.length = ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%zu",
                                        name, d.value[0], d.measurement_id);
-        _sanitizeSensorString(serialized.value, serialized.length);
+        SanitizeSensorString(serialized.value, serialized.length);
         return serialized;
 
     case 3:
         serialized.length =
                 ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%g:%g:%zu", name,
                            d.value[0], d.value[1], d.value[2], d.measurement_id);
-        _sanitizeSensorString(serialized.value, serialized.length);
+        SanitizeSensorString(serialized.value, serialized.length);
         return serialized;
 
     case 4:
         serialized.length =
                 ::snprintf(serialized.value, sizeof(serialized.value), "%s:%g:%g:%g:%g:%zu", name,
                            d.value[0], d.value[1], d.value[2], d.value[3], d.measurement_id);
-        _sanitizeSensorString(serialized.value, serialized.length);
+        SanitizeSensorString(serialized.value, serialized.length);
         return serialized;
 
     default:
@@ -140,117 +139,118 @@ SerializedSensor serializeSensorData(const AndroidSensor sensor_id, const Sensor
 class SensorDevice : public ISensorDevice {
   public:
     SensorDevice(PhysicalModel* pm, android::goldfish::DeviceType avd_type, int avd_api,
-                 const android::goldfish::HardwareConfig& hw, EventLoop* eventLoop,
+                 const android::goldfish::HardwareConfig& hw, EventLoop* event_loop,
                  ::android::base::IClock* clock)
-            : mPhysicalModel(pm)
-            , mLoop(eventLoop)
-            , mClock(clock)
-            , mQemudParser([this](const void* data, size_t size) {
-                return handleMessage(std::string_view(static_cast<const char*>(data), size));
+            : physical_model_(pm)
+            , loop_(event_loop)
+            , clock_(clock)
+            , qemud_parser_([this](const void* data, size_t size) {
+                return HandleMessage(std::string_view(static_cast<const char*>(data), size));
             }) {
         // Initialize sensors based on AVD configuration
         if (hw.hw_accelerometer) {
-            mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::ACCELERATION)].enabled = true;
         }
         if (hw.hw_accelerometer_uncalibrated) {
-            mSensors[static_cast<size_t>(AndroidSensor::ACCELERATION_UNCALIBRATED)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::ACCELERATION_UNCALIBRATED)].enabled = true;
         }
         if (hw.hw_gyroscope) {
-            mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::GYROSCOPE)].enabled = true;
         }
         if (hw.hw_sensors_proximity) {
-            mSensors[static_cast<size_t>(AndroidSensor::PROXIMITY)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::PROXIMITY)].enabled = true;
         }
         if (hw.hw_sensors_magnetic_field) {
-            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD)].enabled = true;
         }
         if (hw.hw_sensors_magnetic_field_uncalibrated) {
-            mSensors[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled =
+            sensors_[static_cast<size_t>(AndroidSensor::MAGNETIC_FIELD_UNCALIBRATED)].enabled =
                     true;
         }
         if (hw.hw_sensors_gyroscope_uncalibrated) {
-            mSensors[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::GYROSCOPE_UNCALIBRATED)].enabled = true;
         }
         if (hw.hw_sensors_orientation) {
-            mSensors[static_cast<size_t>(AndroidSensor::ORIENTATION)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::ORIENTATION)].enabled = true;
         }
         if (hw.hw_sensors_temperature) {
-            mSensors[static_cast<size_t>(AndroidSensor::TEMPERATURE)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::TEMPERATURE)].enabled = true;
         }
         if (hw.hw_sensors_light) {
-            mSensors[static_cast<size_t>(AndroidSensor::LIGHT)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::LIGHT)].enabled = true;
         }
         if (hw.hw_sensors_pressure) {
-            mSensors[static_cast<size_t>(AndroidSensor::PRESSURE)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::PRESSURE)].enabled = true;
         }
         if (hw.hw_sensors_humidity) {
-            mSensors[static_cast<size_t>(AndroidSensor::HUMIDITY)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::HUMIDITY)].enabled = true;
         }
         if (hw.hw_sensors_rgbclight) {
-            mSensors[static_cast<size_t>(AndroidSensor::RGBC_LIGHT)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::RGBC_LIGHT)].enabled = true;
         }
         if (hw.hw_sensor_hinge) {
-            mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE0)].enabled = true;
+            sensors_[static_cast<size_t>(AndroidSensor::HINGE_ANGLE0)].enabled = true;
             switch (hw.hw_sensor_hinge_count) {
             case 3:
-                mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
+                sensors_[static_cast<size_t>(AndroidSensor::HINGE_ANGLE2)].enabled = true;
             case 2:
-                mSensors[static_cast<size_t>(AndroidSensor::HINGE_ANGLE1)].enabled = true;
+                sensors_[static_cast<size_t>(AndroidSensor::HINGE_ANGLE1)].enabled = true;
             default:;
             }
         }
 
-        bool modernWearDevice = avd_type == android::goldfish::DeviceType::kWear && avd_api >= 28;
+        const bool modern_wear_device =
+                avd_type == android::goldfish::DeviceType::kWear && avd_api >= 28;
 
-        if (hw.hw_sensors_heart_rate || modernWearDevice) {
-            mSensors[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
+        if (hw.hw_sensors_heart_rate || modern_wear_device) {
+            sensors_[static_cast<size_t>(AndroidSensor::HEART_RATE)].enabled = true;
         }
 
-        if (hw.hw_sensors_wrist_tilt || modernWearDevice) {
-            mSensors[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
+        if (hw.hw_sensors_wrist_tilt || modern_wear_device) {
+            sensors_[static_cast<size_t>(AndroidSensor::WRIST_TILT)].enabled = true;
         }
 
         /*
-         * TODO: move `setPhysicalParameterValue` elsewhere so we are not overriding
+         * TODO: move `SetPhysicalParameterValue` elsewhere so we are not overriding
          * the universe in the code which provides sensor values for the guest side.
          */
 
-        const float kPressure = 1013.25F;  // One "standard atmosphere"
-        setPhysicalParameterValue(PhysicalParameter::PRESSURE, &kPressure, 1u,
+        constexpr float kPressure = 1013.25F;  // One "standard atmosphere"
+        SetPhysicalParameterValue(PhysicalParameter::PRESSURE, &kPressure, 1U,
                                   PhysicalInterpolation::kSmooth);
 
-        const float kProximity = 1.F;
-        setPhysicalParameterValue(PhysicalParameter::PROXIMITY, &kProximity, 1u,
+        constexpr float kProximity = 1.F;
+        SetPhysicalParameterValue(PhysicalParameter::PROXIMITY, &kProximity, 1U,
                                   PhysicalInterpolation::kStep);
 
-        mEnabledMask = 0;
+        enabled_mask_ = 0;
         for (size_t nn = 0; nn < static_cast<size_t>(AndroidSensor::MAX_SENSORS); nn++) {
-            if (mSensors[nn].enabled) {
-                mEnabledMask |= (1 << nn);
+            if (sensors_[nn].enabled) {
+                enabled_mask_ |= (1 << nn);
             }
         }
     }
 
-    ~SensorDevice() override {}
+    ~SensorDevice() override = default;
 
     void OnClose() override {
         VLOG(1) << "Bye bye! Sensors shutting down";
-        mTimer->Cancel();
+        timer_->Cancel();
 
         // Make sure we don't get destroyed while a timer is active.
         // By posting with a self reference we guarantee that we remain alive
         // until the timer has completed been cleaned up (b/443556478)
-        mLoop->Post([this] { mSelf.reset(); }).IgnoreError();
+        loop_->Post([this] { self_.reset(); }).IgnoreError();
     }
 
     void OnConnect() override {
         VLOG(1) << "Starting sensor ticks" << *this;
-        this->mSelf = shared_from_this();
+        this->self_ = shared_from_this();
         // Note, the timer will be scheduled after the guest requests it.
-        mTimer = mLoop->CreateTimer([this] { tick(); });
+        timer_ = loop_->CreateTimer([this] { Tick(); });
     };
 
-    void send(std::string_view msg) {
+    void Send(std::string_view msg) {
         auto encoded = qemud::EncodeQemudPacket(msg);
         VLOG(2) << "Sending " << encoded;
         Socket()->Send(encoded);
@@ -283,7 +283,7 @@ class SensorDevice : public ISensorDevice {
      *   blocking read that happens in a different thread. This ping-pong makes
      *   the code in the HAL module very simple.
      *
-     * - each timer tick, this code sends sensor reports in the following
+     * - each timer Tick, this code sends sensor reports in the following
      *   format (each line corresponds to a different line sent to the module):
      *
      *      acceleration:<x>:<y>:<z>
@@ -304,40 +304,39 @@ class SensorDevice : public ISensorDevice {
      *   offset).
      */
     void OnReceive(std::string_view data) override {
-        mQemudParser.OnReceive(data.data(), data.size());
+        qemud_parser_.OnReceive(data.data(), data.size());
     }
 
-    bool handleMessage(std::string_view msg) {
-        DCHECK(mTimer)
+    bool HandleMessage(std::string_view msg) {
+        DCHECK(timer_)
                 << "onReceive must have been called before onConnected was called, this "
                    "means we are operating on an unconnected socket, and the guest will not "
                    "receive the expected response! Logcat will likely show a crashed sensor hal.";
 
         VLOG(2) << "Received message from sensor HAL: " << msg;
         if (msg == "list-sensors") {
-            std::string response = std::to_string(mEnabledMask);
-            send(response);
+            const std::string response = std::to_string(enabled_mask_);
+            Send(response);
             return true;
         }
 
         if (msg == "wake") {
-            send("wake");
+            Send("wake");
             return true;
         }
 
         if (absl::ConsumePrefix(&msg, "set-delay:")) {
             int32_t delay_ms;
             if (absl::SimpleAtoi(msg, &delay_ms)) {
-                mDelay = absl::Milliseconds(delay_ms);
-                if (mEnabledMask != 0) {
-                    // Trigger a tick to apply the new delay immediately.
-                    tick();
+                delay_ = absl::Milliseconds(delay_ms);
+                if (enabled_mask_ != 0) {
+                    // Trigger a Tick to apply the new delay immediately.
+                    Tick();
                 }
                 return true;
-            } else {
-                VLOG(1) << "Ignoring 'set-delay' command with invalid delay value: '" << msg << "'";
-                return true;
             }
+            VLOG(1) << "Ignoring 'set-delay' command with invalid delay value: '" << msg << "'";
+            return true;
         }
 
         if (absl::ConsumePrefix(&msg, "set:")) {
@@ -348,40 +347,39 @@ class SensorDevice : public ISensorDevice {
                 return true;
             }
 
-            int id = sensorIdFromName(parts[0]);
+            const int id = SensorIdFromName(parts[0]);
             if (id < 0 || id >= static_cast<int>(AndroidSensor::MAX_SENSORS)) {
                 VLOG(1) << "Ignoring 'set' command for unknown sensor: '" << parts[0] << "'";
                 return true;
             }
 
-            if (!mSensors[id].enabled) {
+            if (!sensors_[id].enabled) {
                 VLOG(1) << "Ignoring 'set' command for sensor '" << parts[0]
                         << "' which is not enabled by AVD configuration.";
                 return true;
             }
 
-            bool enabled = (parts[1] == "1");
+            const bool enabled = (parts[1] == "1");
             if (enabled) {
-                mEnabledMask |= (1 << id);
+                enabled_mask_ |= (1 << id);
             } else {
-                mEnabledMask &= ~(1 << id);
+                enabled_mask_ &= ~(1 << id);
             }
 
-            // Trigger a tick to apply the new mask configuration immediately.
-            tick();
+            // Trigger a Tick to apply the new mask configuration immediately.
+            Tick();
             return true;
         }
 
         if (absl::ConsumePrefix(&msg, "time:")) {
             int64_t guest_time_ns;
             if (absl::SimpleAtoi(msg, &guest_time_ns)) {
-                auto now = mClock->Now(::android::base::ClockType::kVirtual);
-                mTimeOffset = absl::FromUnixNanos(guest_time_ns) - now;
-                return true;
-            } else {
-                VLOG(1) << "Ignoring 'time' command with invalid timestamp value: '" << msg << "'";
+                auto now = clock_->Now(::android::base::ClockType::kVirtual);
+                time_offset_ = absl::FromUnixNanos(guest_time_ns) - now;
                 return true;
             }
+            VLOG(1) << "Ignoring 'time' command with invalid timestamp value: '" << msg << "'";
+            return true;
         }
 
         VLOG(1) << "Ignoring unknown command from sensor HAL: " << msg;
@@ -395,7 +393,7 @@ class SensorDevice : public ISensorDevice {
 
   private:
     // Helper functions to get sensor/parameter ID from name
-    int sensorIdFromName(std::string_view name) const {
+    static int SensorIdFromName(std::string_view name) {
         for (int i = 0; i < static_cast<int>(AndroidSensor::MAX_SENSORS); i++) {
             if (kSensors[i].name == name) {
                 return i;
@@ -404,39 +402,39 @@ class SensorDevice : public ISensorDevice {
         return -1;
     }
 
-    void setPhysicalParameterValue(PhysicalParameter parameter, const float* val,
+    void SetPhysicalParameterValue(PhysicalParameter parameter, const float* val,
                                    const size_t count, PhysicalInterpolation interpolation_mode) {
-        mPhysicalModel->SetPhysicalParameterValue(parameter, val, count, interpolation_mode);
+        physical_model_->SetPhysicalParameterValue(parameter, val, count, interpolation_mode);
     }
 
-    bool enabled(int sensorId) { return (mEnabledMask & (1 << sensorId)) != 0; }
+    bool Enabled(size_t sensor_id) const { return (enabled_mask_ & (1U << sensor_id)) != 0; }
 
-    void tick() {
+    void Tick() {
         // Grab the guest time before sending any sensor data:
         // the android.hardware CTS requires sync times to be no greater than the
         // time of the sensor event arrival. Since the CTS enforces this property,
         // other code may also rely on it.
-        DCHECK(mLoop->IsOnLoopThread()) << "Tick must be called from the event loop!";
-        const auto now = mClock->Now(::android::base::ClockType::kVirtual);
-        mPhysicalModel->SetCurrentTime(absl::ToUnixNanos(now));
+        DCHECK(loop_->IsOnLoopThread()) << "Tick must be called from the event loop!";
+        const auto now = clock_->Now(::android::base::ClockType::kVirtual);
+        physical_model_->SetCurrentTime(absl::ToUnixNanos(now));
         for (size_t sensor_id = 0; sensor_id < static_cast<size_t>(AndroidSensor::MAX_SENSORS);
              ++sensor_id) {
-            if (!enabled(sensor_id)) {
+            if (!Enabled(sensor_id)) {
                 continue;
             }
 
             const SensorData d =
-                    mPhysicalModel->GetSensorData(static_cast<AndroidSensor>(sensor_id));
-            Sensor& s = mSensors[sensor_id];
+                    physical_model_->GetSensorData(static_cast<AndroidSensor>(sensor_id));
+            Sensor& s = sensors_[sensor_id];
 
-            s.serialized = serializeSensorData(static_cast<AndroidSensor>(sensor_id), d);
-            send(std::string_view(s.serialized.value, s.serialized.length));
+            s.serialized = SerializeSensorData(static_cast<AndroidSensor>(sensor_id), d);
+            Send(std::string_view(s.serialized.value, s.serialized.length));
         }
 
-        send(absl::StrFormat("guest-sync:%d", absl::ToUnixNanos(now + mTimeOffset)));
-        send(absl::StrFormat("sync:%d", absl::ToUnixMicros(now)));
+        Send(absl::StrFormat("guest-sync:%d", absl::ToUnixNanos(now + time_offset_)));
+        Send(absl::StrFormat("sync:%d", absl::ToUnixMicros(now)));
 
-        if (mEnabledMask == 0) return;
+        if (enabled_mask_ == 0) return;
 
         // Rearm the timer to fire a little bit early, so we can sustain the
         // requested frequency. Also make sure we have at least a minimal delay,
@@ -445,33 +443,33 @@ class SensorDevice : public ISensorDevice {
         // Note: While there is some overhead in this code, it is signifcantly less
         //  than 1ms. Just delay by exactly (delay_ms) below to keep the actual rate
         //  as close to the desired rate as possible.
-        // Note2: Let's cap the minimal tick interval to 10ms, to make sure:
+        // Note2: Let's cap the minimal Tick interval to 10ms, to make sure:
         // - We never overload the main QEMU loop.
         // - Some CTS hardware test cases require a limit on the maximum update
         // rate,
         //   which has been known to be in the low 100's of Hz.
-        mDelay = std::clamp(mDelay, absl::Milliseconds(10), absl::Hours(1));
+        delay_ = std::clamp(delay_, absl::Milliseconds(10), absl::Hours(1));
 
-        DCHECK(mSelf) << "Self reference should have been set, otherwise we are scheduling a "
-                         "callback where we can disappear from (i.e. tick could be called with "
+        DCHECK(self_) << "Self reference should have been set, otherwise we are scheduling a "
+                         "callback where we can disappear from (i.e. Tick could be called with "
                          "this == nullptr)!";
-        mTimer->Schedule(absl::ToChronoMilliseconds(mDelay), absl::ToChronoMilliseconds(mDelay));
+        timer_->Schedule(absl::ToChronoMilliseconds(delay_), absl::ToChronoMilliseconds(delay_));
     }
 
-    PhysicalModel* const mPhysicalModel;
-    EventLoop* const mLoop;
-    ::android::base::IClock* const mClock;
-    qemud::Parser mQemudParser;
-    std::shared_ptr<EventLoop::Timer> mTimer;
-    absl::Duration mTimeOffset;
-    absl::Duration mDelay{absl::Milliseconds(800)};
+    PhysicalModel* const physical_model_;
+    EventLoop* const loop_;
+    ::android::base::IClock* const clock_;
+    qemud::Parser qemud_parser_;
+    std::shared_ptr<EventLoop::Timer> timer_;
+    absl::Duration time_offset_;
+    absl::Duration delay_{absl::Milliseconds(800)};
 
     // We are having callbacks in a timer, we want to make sure we never
     // delete ourselves.
-    std::shared_ptr<ISensorDevice> mSelf;
+    std::shared_ptr<ISensorDevice> self_;
 
-    Sensor mSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
-    uint32_t mEnabledMask{0};
+    Sensor sensors_[static_cast<size_t>(AndroidSensor::MAX_SENSORS)];
+    uint32_t enabled_mask_{0};
 
     // Sensor and Physical Parameter information arrays
     static constexpr SensorInfo kSensors[static_cast<size_t>(AndroidSensor::MAX_SENSORS)] = {
@@ -487,7 +485,7 @@ void ISensorDevice::RegisterDevice(PhysicalModel* pm, IConnectorRegistry* regist
                                    EventLoop* client_loop, EventLoop* qemu_loop,
                                    ::android::base::IClock* clock) {
     registry->RegisterHalQemuDevice(
-            std::string(ISensorDevice::serviceName), client_loop, qemu_loop,
+            std::string(ISensorDevice::kServiceName), client_loop, qemu_loop,
             [pm, avd_type, avd_api, &hw, client_loop, clock](std::string_view /*args*/) {
                 return std::make_shared<SensorDevice>(pm, avd_type, avd_api, hw, client_loop,
                                                       clock);

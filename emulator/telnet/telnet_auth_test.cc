@@ -24,10 +24,10 @@ class TelnetAuthTest : public ::testing::Test {
   protected:
     void SetUp() override {
         // Create a temporary home directory for testing
-        test_home_ = tmpdir_.path() / "test_home_auth";
+        test_home_ = tmpdir_.Path() / "test_home_auth";
         auto status = android::base::file::mkdir_recursive(test_home_, 0700);
         ASSERT_TRUE(status.ok()) << "Failed to create test home directory: " << status.message();
-        test_system_.setHomeDirectory(test_home_);
+        test_system_.SetHomeDirectory(test_home_);
         token_path_ = test_home_ / ".emulator_console_auth_token";
     }
 

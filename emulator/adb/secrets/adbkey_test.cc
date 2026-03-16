@@ -61,9 +61,9 @@ Uauxw86jrPSgjbiRB8FyvTo=
 class AdbKeyTest : public ::testing::Test {
   public:
     AdbKeyTest() {
-        mTestDir = mTestSystem.getTempRoot();
-        mTestDir->makeSubDir(".android");
-        mTestSystem.setHomeDirectory(mTestDir->path());
+        mTestDir = mTestSystem.GetTempRoot();
+        mTestDir->MakeSubDir(".android");
+        mTestSystem.SetHomeDirectory(mTestDir->Path());
     }
 
     ~AdbKeyTest() {}
@@ -74,17 +74,17 @@ class AdbKeyTest : public ::testing::Test {
 };
 
 TEST_F(AdbKeyTest, key_does_not_exist) {
-    EXPECT_EQ("", getPrivateAdbKeyPath(mTestDir->path() / ".android"));
+    EXPECT_EQ("", getPrivateAdbKeyPath(mTestDir->Path() / ".android"));
 }
 
 TEST_F(AdbKeyTest, find_keys_in_default_path) {
-    mTestDir->makeSubFile(".android/adbkey");
-    EXPECT_NE("", getPrivateAdbKeyPath(mTestDir->path() / ".android"));
+    mTestDir->MakeSubFile(".android/adbkey");
+    EXPECT_NE("", getPrivateAdbKeyPath(mTestDir->Path() / ".android"));
 }
 
 TEST_F(AdbKeyTest, generate_writes_a_key) {
     const char* tstKey = "adbsamplekey";
-    auto keyFile = mTestDir->path() / ".android" / tstKey;
+    auto keyFile = mTestDir->Path() / ".android" / tstKey;
     EXPECT_FALSE(android::base::file::exists(keyFile));
     EXPECT_TRUE(internal::TestOnly_adb_auth_keygen(keyFile));
     EXPECT_TRUE(android::base::file::exists(keyFile));
@@ -93,7 +93,7 @@ TEST_F(AdbKeyTest, generate_writes_a_key) {
 TEST_F(AdbKeyTest, can_create_pub_from_generated_priv) {
     const char* tstKey = "adbsamplekey2";
     std::string pubkey;
-    auto keyFile = mTestDir->path() / ".android" / tstKey;
+    auto keyFile = mTestDir->Path() / ".android" / tstKey;
     EXPECT_TRUE(internal::TestOnly_adb_auth_keygen(keyFile));
     EXPECT_TRUE(pubkey_from_privkey(keyFile, &pubkey));
     EXPECT_NE("", pubkey);

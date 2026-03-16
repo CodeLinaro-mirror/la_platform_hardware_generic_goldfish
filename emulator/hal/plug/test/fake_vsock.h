@@ -23,7 +23,7 @@ namespace goldfish::vsock {
 using FakeListenFn = std::function<bool(uint32_t, HostPortListener)>;
 using FakeConnectFn = std::function<devices::cable::SocketPtr(uint32_t, devices::cable::PlugPtr)>;
 
-void set_fake_listen_fn(FakeListenFn fn);
-void set_fake_connect_fn(FakeConnectFn fn);
+void SetFakeListenFn(FakeListenFn fn);
+void SetFakeConnectFn(FakeConnectFn fn);
 
 }  // namespace goldfish::vsock

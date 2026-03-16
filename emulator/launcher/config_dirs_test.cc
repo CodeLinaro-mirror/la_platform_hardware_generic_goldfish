@@ -35,23 +35,23 @@ TEST(ConfigDirs, getUserDirectoryDefault) {
 
 TEST(ConfigDirs, getUserDirectoryWithAndroidSdkHome) {
     TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_SDK_HOME", (sys.getTempRoot()->path() / "android-sdk").string());
+    sys.EnvSet("ANDROID_SDK_HOME", (sys.GetTempRoot()->Path() / "android-sdk").string());
     EXPECT_THAT(ConfigDirs::GetUserDirectory().string(), testing::EndsWith("android-sdk"));
 
-    sys.getTempRoot()->makeSubDir(fs::path("android-sdk"));
-    sys.getTempRoot()->makeSubDir(fs::path("android-sdk") / ".android");
+    sys.GetTempRoot()->MakeSubDir(fs::path("android-sdk"));
+    sys.GetTempRoot()->MakeSubDir(fs::path("android-sdk") / ".android");
     EXPECT_THAT(ConfigDirs::GetUserDirectory().string(),
                 testing::EndsWith(fs::path("android-sdk/.android").make_preferred().string()));
 }
 
 TEST(ConfigDirs, getUserDirectoryWithAndroidSdkHomeAndPrefsRoot) {
     TestSystem sys("bin", "myhome");
-    sys.EnvSet("ANDROID_SDK_HOME", (sys.getTempRoot()->path() / "android-sdk").string());
-    sys.EnvSet("ANDROID_SDK_HOME", (sys.getTempRoot()->path() / "android-sdk-new").string());
+    sys.EnvSet("ANDROID_SDK_HOME", (sys.GetTempRoot()->Path() / "android-sdk").string());
+    sys.EnvSet("ANDROID_SDK_HOME", (sys.GetTempRoot()->Path() / "android-sdk-new").string());
     EXPECT_THAT(ConfigDirs::GetUserDirectory().string(), testing::EndsWith("android-sdk-new"));
 
-    sys.getTempRoot()->makeSubDir(fs::path("android-sdk-new"));
-    sys.getTempRoot()->makeSubDir(fs::path("android-sdk-new") / ".android");
+    sys.GetTempRoot()->MakeSubDir(fs::path("android-sdk-new"));
+    sys.GetTempRoot()->MakeSubDir(fs::path("android-sdk-new") / ".android");
     EXPECT_THAT(ConfigDirs::GetUserDirectory().string(),
                 testing::EndsWith(fs::path("android-sdk-new/.android").make_preferred().string()));
 }
@@ -66,18 +66,18 @@ TEST(ConfigDirs, getUserDirectoryWithAndroidEmulatorHome) {
 
 TEST(ConfigDirs, getSdkRootDirectory) {
     TestSystem sys("", "myhome");
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk") / "platform-tools"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk") / "platforms"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk") / "platform-tools"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk") / "platforms"));
 
-    fs::path launcher_dir = sys.getTempRoot()->path();
+    fs::path launcher_dir = sys.GetTempRoot()->Path();
 
-    sys.EnvSet("ANDROID_SDK_ROOT", (sys.getTempRoot()->path() / "Sdk").string());
+    sys.EnvSet("ANDROID_SDK_ROOT", (sys.GetTempRoot()->Path() / "Sdk").string());
     EXPECT_THAT(ConfigDirs::GetSdkRootDirectory(launcher_dir, true).string(),
                 testing::EndsWith("Sdk"));
 
     sys.EnvSet("ANDROID_SDK_ROOT",
-               absl::StrCat("\"", (sys.getTempRoot()->path() / "Sdk").string(), "\""));
+               absl::StrCat("\"", (sys.GetTempRoot()->Path() / "Sdk").string(), "\""));
     EXPECT_THAT(ConfigDirs::GetSdkRootDirectory(launcher_dir, true).string(),
                 testing::EndsWith("Sdk"));
 
@@ -85,42 +85,42 @@ TEST(ConfigDirs, getSdkRootDirectory) {
     EXPECT_THAT(ConfigDirs::GetSdkRootDirectory(launcher_dir, true).string(),
                 Not(testing::EndsWith("Sdk")));
 
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk2")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk2") / "platform-tools"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Sdk2") / "platforms"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk2")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk2") / "platform-tools"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Sdk2") / "platforms"));
 
     // ANDROID_HOME should take precedence over ANDROID_SDK_ROOT
-    sys.EnvSet("ANDROID_HOME", (sys.getTempRoot()->path() / "Sdk2").string());
+    sys.EnvSet("ANDROID_HOME", (sys.GetTempRoot()->Path() / "Sdk2").string());
     EXPECT_THAT(ConfigDirs::GetSdkRootDirectory(launcher_dir, true).string(),
                 testing::EndsWith("Sdk2"));
 
     // Bad ANDROID_HOME falls back to ANDROID_SDK_ROOT
-    sys.EnvSet("ANDROID_HOME", (sys.getTempRoot()->path() / "bogus").string());
-    sys.EnvSet("ANDROID_SDK_ROOT", (sys.getTempRoot()->path() / "Sdk").string());
+    sys.EnvSet("ANDROID_HOME", (sys.GetTempRoot()->Path() / "bogus").string());
+    sys.EnvSet("ANDROID_SDK_ROOT", (sys.GetTempRoot()->Path() / "Sdk").string());
     EXPECT_THAT(ConfigDirs::GetSdkRootDirectory(launcher_dir, true).string(),
                 testing::EndsWith("Sdk"));
 }
 
 TEST(ConfigDirs, getAvdRootDirectory) {
     TestSystem sys("", "myhome");
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_1")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_1") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_1") / ".android" / "avd"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_2")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_2") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_2") / ".android" / "avd"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_3")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_3") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_3") / ".android" / "avd"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_4")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_4") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_4") / ".android" / "avd"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_5")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_5") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_5") / ".android" / "avd"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_6")));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_6") / ".android"));
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("Area_6") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_1")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_1") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_1") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_2")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_2") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_2") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_3")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_3") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_3") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_4")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_4") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_4") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_5")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_5") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_5") / ".android" / "avd"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_6")));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_6") / ".android"));
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("Area_6") / ".android" / "avd"));
 
     // Order of precedence is
     //   ANDROID_AVD_HOME
@@ -131,33 +131,33 @@ TEST(ConfigDirs, getAvdRootDirectory) {
     //   ANDROID_EMULATOR_HOME
 
     sys.EnvSet("ANDROID_AVD_HOME",
-               (sys.getTempRoot()->path() / "Area_1/.android/avd").make_preferred().string());
-    sys.EnvSet("ANDROID_PREFS_ROOT", (sys.getTempRoot()->path() / "Area_2").string());
-    sys.EnvSet("ANDROID_SDK_HOME", (sys.getTempRoot()->path() / "Area_3").string());
-    sys.EnvSet("TEST_TMPDIR", (sys.getTempRoot()->path() / "Area_4").string());
-    sys.EnvSet("USER_HOME", (sys.getTempRoot()->path() / "Area_5").string());
+               (sys.GetTempRoot()->Path() / "Area_1/.android/avd").make_preferred().string());
+    sys.EnvSet("ANDROID_PREFS_ROOT", (sys.GetTempRoot()->Path() / "Area_2").string());
+    sys.EnvSet("ANDROID_SDK_HOME", (sys.GetTempRoot()->Path() / "Area_3").string());
+    sys.EnvSet("TEST_TMPDIR", (sys.GetTempRoot()->Path() / "Area_4").string());
+    sys.EnvSet("USER_HOME", (sys.GetTempRoot()->Path() / "Area_5").string());
     sys.EnvSet("ANDROID_EMULATOR_HOME",
-               (sys.getTempRoot()->path() / "Area_6/.android").make_preferred().string());
+               (sys.GetTempRoot()->Path() / "Area_6/.android").make_preferred().string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_1/.android/avd").make_preferred().string()));
 
-    sys.EnvSet("ANDROID_AVD_HOME", (sys.getTempRoot()->path() / "bogus").string());
+    sys.EnvSet("ANDROID_AVD_HOME", (sys.GetTempRoot()->Path() / "bogus").string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_2/.android/avd").make_preferred().string()));
 
-    sys.EnvSet("ANDROID_PREFS_ROOT", (sys.getTempRoot()->path() / "bogus").string());
+    sys.EnvSet("ANDROID_PREFS_ROOT", (sys.GetTempRoot()->Path() / "bogus").string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_3/.android/avd").make_preferred().string()));
 
-    sys.EnvSet("ANDROID_SDK_HOME", (sys.getTempRoot()->path() / "bogus").string());
+    sys.EnvSet("ANDROID_SDK_HOME", (sys.GetTempRoot()->Path() / "bogus").string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_4/.android/avd").make_preferred().string()));
 
-    sys.EnvSet("TEST_TMPDIR", (sys.getTempRoot()->path() / "bogus").string());
+    sys.EnvSet("TEST_TMPDIR", (sys.GetTempRoot()->Path() / "bogus").string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_5/.android/avd").make_preferred().string()));
 
-    sys.EnvSet("USER_HOME", (sys.getTempRoot()->path() / "bogus").string());
+    sys.EnvSet("USER_HOME", (sys.GetTempRoot()->Path() / "bogus").string());
     EXPECT_THAT(ConfigDirs::GetAvdRootDirectory().string(),
                 testing::EndsWith(fs::path("Area_6/.android/avd").make_preferred().string()));
 }
@@ -167,8 +167,8 @@ class ConfigDirsTest : public testing::TestWithParam<bool> {};
 TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
     TestSystem sys("", "myhome");
 
-    ASSERT_TRUE(sys.getTempRoot()->makeSubDir(fs::path("runtime")));
-    fs::path base = sys.getTempRoot()->path() / "runtime";
+    ASSERT_TRUE(sys.GetTempRoot()->MakeSubDir(fs::path("runtime")));
+    fs::path base = sys.GetTempRoot()->Path() / "runtime";
 
 #if defined(_WIN32)
     base = base / "Temp";
@@ -178,21 +178,24 @@ TEST_P(ConfigDirsTest, getDiscoveryDirectory) {
 
     auto want = base / "avd" / "running";
     if (GetParam()) {
-        ASSERT_TRUE(android::base::file::mkdir_recursive(sys.getTempRoot()->path() / want, 0755).ok())
+        ASSERT_TRUE(
+                android::base::file::mkdir_recursive(sys.GetTempRoot()->Path() / want, 0755).ok())
                 << "creating: " << want;
         // Make sure that unreadable dir can be fixed.
         android::base::file::chmod(want, 0055).IgnoreError();
     }
 
-    sys.EnvSet("LOCALAPPDATA", (sys.getTempRoot()->path() / "runtime").string());
-    sys.EnvSet("XDG_RUNTIME_DIR", (sys.getTempRoot()->path() / "runtime").string());
-    sys.EnvSet("HOME", (sys.getTempRoot()->path() / "runtime").string());
+    sys.EnvSet("LOCALAPPDATA", (sys.GetTempRoot()->Path() / "runtime").string());
+    sys.EnvSet("XDG_RUNTIME_DIR", (sys.GetTempRoot()->Path() / "runtime").string());
+    sys.EnvSet("HOME", (sys.GetTempRoot()->Path() / "runtime").string());
 
     auto got = ConfigDirs::GetDiscoveryDirectory();
     EXPECT_THAT(got.string(), testing::EndsWith(want.string()));
     EXPECT_TRUE(android::base::file::exists(got));
     // On Windows this will return 0777 (instead of 0755) as there's only one read-only bit.
-    EXPECT_THAT(android::base::file::mode(got), absl_testing::IsOkAndHolds(::testing::Truly([] (unsigned mode) { return mode & 0700 == 0700; })));
+    EXPECT_THAT(android::base::file::mode(got),
+                absl_testing::IsOkAndHolds(
+                        ::testing::Truly([](unsigned mode) { return (mode & 0700) == 0700; })));
 }
 
 INSTANTIATE_TEST_SUITE_P(DiscoveryDirectory, ConfigDirsTest, testing::Values(true, false));

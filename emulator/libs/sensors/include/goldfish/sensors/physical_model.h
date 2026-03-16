@@ -87,7 +87,7 @@ class PhysicalModel : public CallbackEventSource<PhysicalModelChangeEvent> {
     static constexpr size_t kNumSensors = static_cast<size_t>(AndroidSensor::MAX_SENSORS);
 
     explicit PhysicalModel(const android::goldfish::HardwareConfig& hw);
-    ~PhysicalModel() = default;
+    virtual ~PhysicalModel() = default;
 
     SensorData GetSensorData(AndroidSensor) const;
     void SetSensorValue(AndroidSensor, const SensorValue&);

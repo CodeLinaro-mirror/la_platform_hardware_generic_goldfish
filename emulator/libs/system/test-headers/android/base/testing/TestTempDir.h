@@ -42,16 +42,15 @@
 #include <string>
 
 namespace fs = std::filesystem;
-namespace android {
-namespace base {
+namespace android::base {
 
 // A class used to model a temporary directory used during testing.
 // Usage is simple:
 //
 //      {
 //        TestTempDir myDir("my_test");   // creates new temp directory.
-//        ASSERT_TRUE(myDir.path());      // NULL if error during creation.
-//        ... write files into directory path myDir->path()
+//        ASSERT_TRUE(myDir.Path());      // NULL if error during creation.
+//        ... write files into directory Path myDir->Path()
 //        ... do your test
 //      }   // destructor removes temp directory and all files under it.
 
@@ -59,45 +58,46 @@ class TestTempDir {
   public:
     // Create new instance. This also tries to create a new temporary
     // directory. |debugPrefix| is an optional name prefix and can be empty.
-    TestTempDir(std::string_view debugName) {
+    explicit TestTempDir(std::string_view debug_name) {
         // TODO use System::getTempDir() instead of getTempPath()
-        mPath = getTempPath() / generate_random_string();
-        if (!debugName.empty()) {
-            mPath /= debugName;
+        path = GetTempPath() / GenerateRandomString();
+        if (!debug_name.empty()) {
+            path /= debug_name;
         }
 
-        // mPath is always absolute
-        if (auto res = base::file::make_absolute(mPath); res.ok()) {
-            mPath = *res;
+        // path is always absolute
+        if (auto res = base::file::make_absolute(path); res.ok()) {
+            path = *res;
         } else {
-            LOG(FATAL) << "Failed to make absolute path for " << mPath << " due to: " << res.status();
+            LOG(FATAL) << "Failed to make absolute Path for " << path
+                       << " due to: " << res.status();
         }
 
-        if (base::file::exists(mPath)) {
-            if (auto s = base::file::rm_recursive(mPath); !s.ok()) {
-                LOG(FATAL) << "Failed to remove old test directory: " << mPath << " due to: " << s;
+        if (base::file::exists(path)) {
+            if (auto s = base::file::rm_recursive(path); !s.ok()) {
+                LOG(FATAL) << "Failed to remove old test directory: " << path << " due to: " << s;
             }
         }
 
         // Attempt to create the temporary directory
-        if (auto s = base::file::mkdir_recursive(mPath, 0755); !s.ok()) {
-            LOG(FATAL) << "Failed to create " << mPath << " due to: " << s;
+        if (auto s = base::file::mkdir_recursive(path, 0755); !s.ok()) {
+            LOG(FATAL) << "Failed to create " << path << " due to: " << s;
         }
     }
 
-    // Return the path to the temporary directory, or NULL if it could not
+    // Return the Path to the temporary directory, or NULL if it could not
     // be created for some reason.
-    fs::path path() const { return mPath; }
+    fs::path Path() const { return path; }
 
-    // Return the path as a string. It will be empty if the directory could
+    // Return the Path as a string. It will be empty if the directory could
     // not be created for some reason.
-    const std::string pathString() const { return mPath.string(); }
+    std::string PathString() const { return path.string(); }
 
     // Destroy instance, and removes the temporary directory and all files
     // inside it.
     ~TestTempDir() {
-        if (!mPath.empty()) {
-            base::file::rm_recursive(mPath).IgnoreError();
+        if (!path.empty()) {
+            base::file::rm_recursive(path).IgnoreError();
         }
     }
 
@@ -106,46 +106,46 @@ class TestTempDir {
     TestTempDir& operator=(const TestTempDir&) = delete;
     TestTempDir& operator=(TestTempDir&&) = delete;
 
-    // Create the path of a directory entry under the temporary directory.
-    fs::path makeSubPath(fs::path subpath) { return mPath / subpath.relative_path(); }
+    // Create the Path of a directory entry under the temporary directory.
+    fs::path MakeSubPath(const fs::path& subpath) const { return path / subpath.relative_path(); }
 
     // Create an empty directory under the temporary directory.
-    bool makeSubDir(fs::path subdir) {
-        fs::path path = makeSubPath(subdir);
+    bool MakeSubDir(const fs::path& subdir) const {
+        const fs::path path = MakeSubPath(subdir);
         if (auto s = base::file::mkdir_recursive(path, 0755); !s.ok()) {
             LOG(ERROR) << "Can't create " << path << " - " << s;
             return false;
         }
         if (!base::file::exists(path)) {
-            LOG(WARNING) << "Created path (" << path << ") does not exist";
+            LOG(WARNING) << "Created Path (" << path << ") does not exist";
         }
         VLOG(1) << "Created " << path;
         return true;
     }
 
     // Create an empty file under the temporary directory.
-    bool makeSubFile(std::string_view file) {
-        fs::path path = makeSubPath(file);
-        std::ofstream f(path);
+    bool MakeSubFile(std::string_view file) const {
+        const fs::path path = MakeSubPath(file);
+        const std::ofstream f(path);
         return true;
     }
 
   private:
 #ifdef _WIN32
-    fs::path getTempPath() {
+    static fs::path GetTempPath() {
         std::string result;
-        DWORD len = GetTempPathA(0, NULL);
+        DWORD len = ::GetTempPathA(0, NULL);
         if (!len) {
             LOG(FATAL) << "Can't find temporary path!";
         }
         result.resize(static_cast<size_t>(len));
-        GetTempPathA(len, &result[0]);
+        ::GetTempPathA(len, &result[0]);
         // The length returned by GetTempPath() is sometimes too large.
         result.resize(::strlen(result.c_str()));
         return fs::path(result);
     }
 #else  // !_WIN32
-    fs::path getTempPath() {
+    static fs::path GetTempPath() {
         fs::path result;
         // Only check TMPDIR if we're not root.
         if (getuid() != 0 && getgid() != 0) {
@@ -170,7 +170,7 @@ class TestTempDir {
 #endif  // !_WIN32
 
   public:
-    static std::string generate_random_string(int length = 8) {
+    static std::string GenerateRandomString(int length = 8) {
         // Define allowed characters
         const std::string allowed_chars =
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -178,7 +178,7 @@ class TestTempDir {
         // Set up a high-quality random number generator
         std::random_device rd;   // Used to obtain a seed for the random engine
         std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-        std::uniform_int_distribution<> distrib(0, allowed_chars.size() - 1);
+        std::uniform_int_distribution<> distrib(0, static_cast<int>(allowed_chars.size()) - 1);
 
         // Generate the random string
         std::string random_str;
@@ -190,8 +190,7 @@ class TestTempDir {
         return random_str;
     }
 
-    fs::path mPath;
+    fs::path path;
 };
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

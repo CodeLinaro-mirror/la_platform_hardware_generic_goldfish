@@ -24,23 +24,19 @@
 #include "android/base/testing/test_file_util.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
-namespace android {
-namespace base {
-namespace internal {
+namespace android::base::internal {
 
 using ::bazel::tools::cpp::runfiles::Runfiles;
 namespace fs = std::filesystem;
 
-fs::path runfilesPath(fs::path path) {
+fs::path RunfilesPath(const fs::path& path) {
     std::string error;
     std::unique_ptr<Runfiles> runfiles(Runfiles::CreateForTest(&error));
     if (runfiles == nullptr) {
         LOG(FATAL) << "Unable to determine runfile path: " << error;
     }
 
-    return fs::path(runfiles->Rlocation(path.string()));
+    return {runfiles->Rlocation(path.string())};
 }
 
-}  // namespace internal
-}  // namespace base
-}  // namespace android
+}  // namespace android::base::internal

@@ -1,5 +1,4 @@
 
-
 // Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,7 +42,7 @@ struct TestDevice : public IPlug {
             , mIsQemud(isQemud)
             , mArgs(std::string(args.begin(), args.end())) {}
 
-    static constexpr std::string_view serviceName = "TestDevice"sv;
+    static constexpr std::string_view kServiceName = "TestDevice"sv;
 
     SocketPtr OnUnplug() override { return std::move(mSocket); }
 
@@ -96,7 +95,7 @@ struct TestHalDevice : public devices::HalPlug {
     std::future<bool> closed() { return mClosedPromise.get_future(); }
 
     void close() { Socket()->Close(); }
-    static constexpr std::string_view serviceName = "TestHalDevice"sv;
+    static constexpr std::string_view kServiceName = "TestHalDevice"sv;
 
   private:
     std::promise<bool> mConnectedPromise;
@@ -125,7 +124,7 @@ class ConnectorRegistryTest : public ::testing::Test {
     ConnectorRegistryTest() {}
 
     void SetUp() override {
-        vsock::set_fake_listen_fn(fake_vsock_listen);
+        vsock::SetFakeListenFn(fake_vsock_listen);
         listenCalled = false;
         gListenCalled = false;
         gTestSocket = nullptr;

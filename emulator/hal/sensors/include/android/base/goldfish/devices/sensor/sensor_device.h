@@ -34,10 +34,10 @@ using namespace std::string_view_literals;
 // A Qemud based sensor emulator.
 class ISensorDevice : public HalPlug, public std::enable_shared_from_this<ISensorDevice> {
   public:
-    ~ISensorDevice() override {}
+    ~ISensorDevice() override = default;
 
     // Name under which you should register this in qemud
-    static constexpr std::string_view serviceName = "sensors"sv;
+    static constexpr std::string_view kServiceName = "sensors"sv;
 
     /**
      * @brief Registers the sensor device with the connector registry.

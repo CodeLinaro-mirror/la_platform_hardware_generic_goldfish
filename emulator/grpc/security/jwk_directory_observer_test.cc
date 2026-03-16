@@ -59,7 +59,7 @@ class JwkDirectoryObserverTest : public ::testing::Test {
         status = tink::JwtSignatureRegister();
         EXPECT_TRUE(status.ok());
         mTempDir = std::make_unique<TestTempDir>(
-                absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
+                absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")
@@ -81,7 +81,7 @@ class JwkDirectoryObserverTest : public ::testing::Test {
     void write(fs::path fname, json snippet) { write(fname, snippet.dump(2)); }
 
     void write(fs::path fname, std::string snippet) {
-        std::ofstream out(mTempDir->path() / fname);
+        std::ofstream out(mTempDir->Path() / fname);
         out << snippet;
         out.close();
     }
@@ -156,7 +156,7 @@ std::string ES256_snippet = R"(
 std::string ES256_PRIV = "9PPR4aq2V71P5QD_TJvPsM_edjcSOSkPEK1X3aasJHw";
 
 TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this](auto keyset) {
         // No keys found
         EXPECT_TRUE(keyset == nullptr);
         mTestEv.Signal();
@@ -166,7 +166,7 @@ TEST_F(JwkDirectoryObserverTest, no_jwks_results_in_event) {
 
 TEST_F(JwkDirectoryObserverTest, finds_jwks) {
     write("sample.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this](auto keyset) {
         EXPECT_EQ(keyset, nullptr);
         mTestEv.Signal();
     });
@@ -176,7 +176,7 @@ TEST_F(JwkDirectoryObserverTest, finds_jwks) {
 TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", RS256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this](auto keyset) {
         EXPECT_EQ(keyset, nullptr);
         mTestEv.Signal();
     });
@@ -186,7 +186,7 @@ TEST_F(JwkDirectoryObserverTest, duplicates_do_not_fail) {
 TEST_F(JwkDirectoryObserverTest, merging_multiple) {
     write("sample.jwk", RS256_snippet);
     write("sample2.jwk", ES256_snippet);
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this](auto keyset) {
         EXPECT_NE(keyset, nullptr);
         mTestEv.Signal();
     });
@@ -200,7 +200,7 @@ TEST_F(JwkDirectoryObserverTest, create_and_validate) {
     ASSERT_THAT(token, absl_testing::IsOk());
 
     // Our observer found the public key, and hence can validate the token.
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this, token](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this, token](auto keyset) {
         ASSERT_NE(keyset, nullptr);
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
         ASSERT_THAT(verify, absl_testing::IsOk());
@@ -226,7 +226,7 @@ TEST_F(JwkDirectoryObserverTest, create_multi_and_validate) {
     auto token = (*sign)->SignAndEncode(*mSampleJwt);
 
     // Our observer found the public key, and hence can validate the token.
-    JwkDirectoryObserver observer(mTempDir->path().string(), [this, token](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [this, token](auto keyset) {
         ASSERT_NE(keyset, nullptr);
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
         ASSERT_THAT(verify, absl_testing::IsOk());
@@ -252,7 +252,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     enum TokenState { VALID_JWK_EXISTS, VALID_JWK_DELETED };
     std::atomic<TokenState> state = VALID_JWK_EXISTS;
     // Our observer found the public key, and hence can validate the token.
-    JwkDirectoryObserver observer(mTempDir->path().string(), [&](auto keyset) {
+    JwkDirectoryObserver observer(mTempDir->Path().string(), [&](auto keyset) {
         ASSERT_NE(keyset, nullptr);
         auto verify = keyset->template GetPrimitive<tink::JwtPublicKeyVerify>();
         ASSERT_THAT(verify, absl_testing::IsOk());
@@ -278,7 +278,7 @@ TEST_F(JwkDirectoryObserverTest, create_validate_and_delete) {
     // the token.
     // Note, we might get multiple events.
     state = VALID_JWK_DELETED;
-    auto todelete = mTempDir->path() / "valid.jwk";
+    auto todelete = mTempDir->Path() / "valid.jwk";
     base::file::rm(todelete).IgnoreError();
     mTestEv.Wait();
 }

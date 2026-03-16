@@ -16,24 +16,24 @@ namespace android::base {
 
 TEST(File, pathIsDir) {
     TestTempDir tempDir("path_opts");
-    EXPECT_FALSE(file::is_dir(tempDir.path() / "foo"));
-    EXPECT_FALSE(file::is_dir(tempDir.path() / "foo/"));
+    EXPECT_FALSE(file::is_dir(tempDir.Path() / "foo"));
+    EXPECT_FALSE(file::is_dir(tempDir.Path() / "foo/"));
 #ifdef _WIN32
-    EXPECT_FALSE(file::is_dir(tempDir.path() / "foo\\"));
+    EXPECT_FALSE(file::is_dir(tempDir.Path() / "foo\\"));
 #endif
 
-    EXPECT_TRUE(tempDir.makeSubDir("foo"));
+    EXPECT_TRUE(tempDir.MakeSubDir("foo"));
 
-    EXPECT_TRUE(file::is_dir(tempDir.path() / "foo"));
-    EXPECT_TRUE(file::is_dir(tempDir.path() / "foo/"));
+    EXPECT_TRUE(file::is_dir(tempDir.Path() / "foo"));
+    EXPECT_TRUE(file::is_dir(tempDir.Path() / "foo/"));
 #ifdef _WIN32
-    EXPECT_TRUE(file::is_dir(tempDir.path() / "foo\\"));
+    EXPECT_TRUE(file::is_dir(tempDir.Path() / "foo\\"));
 #endif
 }
 
 TEST(File, pathOperations) {
     TestTempDir tempDir("path_opts");
-    auto fooPath = tempDir.path() / "foo";
+    auto fooPath = tempDir.Path() / "foo";
 
     EXPECT_FALSE(file::exists(fooPath));
     EXPECT_FALSE(file::is_file(fooPath));
@@ -43,7 +43,7 @@ TEST(File, pathOperations) {
     EXPECT_FALSE(file::can_exec(fooPath));
     EXPECT_THAT(file::file_size(fooPath), absl_testing::StatusIs(absl::StatusCode::kInternal));
 
-    EXPECT_OK(file::touch(tempDir.path() / "foo"));
+    EXPECT_OK(file::touch(tempDir.Path() / "foo"));
 
     EXPECT_TRUE(file::exists(fooPath));
     EXPECT_TRUE(file::is_file(fooPath));
@@ -129,10 +129,10 @@ TEST(File, scandDirEntries) {
 
     TestTempDir myDir("scanDirEntries");
     for (size_t n = 0; n < kCount; ++n) {
-        file::touch(myDir.path() / kInput[n]).IgnoreError();
+        file::touch(myDir.Path() / kInput[n]).IgnoreError();
     }
 
-    auto entries = file::scan_dir(myDir.path());
+    auto entries = file::scan_dir(myDir.Path());
 
     ASSERT_EQ(kCount, entries.size());
     for (size_t n = 0; n < kCount; ++n) {
@@ -147,14 +147,14 @@ TEST(File, scanDirEntriesWithFullPaths) {
 
     TestTempDir myDir("scanDirEntriesFull");
     for (size_t n = 0; n < kCount; ++n) {
-        file::touch(myDir.path() / kInput[n]).IgnoreError();
+        file::touch(myDir.Path() / kInput[n]).IgnoreError();
     }
 
-    auto entries = file::scan_dir(myDir.path(), true);
+    auto entries = file::scan_dir(myDir.Path(), true);
 
     ASSERT_EQ(kCount, entries.size());
     for (size_t n = 0; n < kCount; ++n) {
-        std::string expected(myDir.path().string());
+        std::string expected(myDir.Path().string());
         expected += fs::path::preferred_separator;
         expected += kExpected[n];
         EXPECT_STREQ(expected.c_str(), entries[n].string().c_str()) << "#" << n;
@@ -163,9 +163,9 @@ TEST(File, scanDirEntriesWithFullPaths) {
 
 TEST(File, copyIfMissing) {
     const android::base::TestTempDir tmpdir("CopyIfMissing");
-    const fs::path existing = tmpdir.path() / "existing";
-    const fs::path missing = tmpdir.path() / "missing";
-    const fs::path src = tmpdir.path() / "src";
+    const fs::path existing = tmpdir.Path() / "existing";
+    const fs::path missing = tmpdir.Path() / "missing";
+    const fs::path src = tmpdir.Path() / "src";
 
     {
         std::ofstream f(existing);

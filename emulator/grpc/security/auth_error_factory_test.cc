@@ -90,7 +90,7 @@ class AuthErrorsTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
 
         mTempDir = std::make_unique<TestTempDir>(
-                absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
+                absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")
@@ -108,7 +108,7 @@ class AuthErrorsTest : public ::testing::Test {
     void write(Path fname, json snippet) { write(fname, snippet.dump(2)); }
 
     void write(Path fname, std::string snippet) {
-        std::ofstream out(mTempDir->path() / fname);
+        std::ofstream out(mTempDir->Path() / fname);
         out << snippet;
         out.close();
     }

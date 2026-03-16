@@ -31,7 +31,7 @@ using namespace std::string_view_literals;
  */
 class IGuestStatusDevice : public HalPlug {
   public:
-    static constexpr std::string_view serviceName = "QemuMiscPipe"sv;
+    static constexpr std::string_view kServiceName = "QemuMiscPipe"sv;
 
     static void RegisterDevice(GuestStatus* guestStatus, GrpcNotificationEventSource* notificationSource,
                                IConnectorRegistry* registry, EmulatorResetCallbacks resetCallbacks,

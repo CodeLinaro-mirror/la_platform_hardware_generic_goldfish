@@ -46,7 +46,7 @@ class AsyncSocketTest : public ::testing::Test {
         event_loop_ = LibuvEventLoop::Create();
         raw_event_loop_ = event_loop_.get();
         factory_ = std::make_unique<LibuvAsyncSocketFactory>();
-        loop_thread_ = std::thread([this] { (void)raw_event_loop_->Run(); });
+        loop_thread_ = std::thread([this] { raw_event_loop_->Run().IgnoreError(); });
         // Wait for the loop to actually start.
         while (raw_event_loop_->GetState() != LooperStatusEvent::State::kRunning) {
             std::this_thread::sleep_for(10ms);
@@ -119,17 +119,20 @@ TEST_F(AsyncSocketTest, ConnectAndClose) {
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
-            LOG(INFO) << err;
-            socket.SetOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
-        });
-        client->SetOnCloseCallback([&] {
-            LOG(INFO) << "Client is closed";
-            client_closed_promise.set_value();
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
+                    LOG(INFO) << err;
+                    socket.SetOnReadCallbackNoFlowControl(
+                            [](std::string_view data, absl::Status err) {});
+                });
+                client->SetOnCloseCallback([&] {
+                    LOG(INFO) << "Client is closed";
+                    client_closed_promise.set_value();
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(connected_future);
     RunUntil(client_closed_future);
@@ -168,19 +171,22 @@ TEST_F(AsyncSocketTest, ClientCanSendData) {
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnCloseCallback([&] { closed_promise.set_value(); });
-        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            ASSERT_EQ(&socket, client.get());
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnCloseCallback([&] { closed_promise.set_value(); });
+                client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+                    ASSERT_EQ(&socket, client.get());
 
-            client->SetOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
+                    client->SetOnReadCallbackNoFlowControl(
+                            [](std::string_view data, absl::Status err) {});
 
-            ASSERT_THAT(client->Send(sent_message.data(), sent_message.size(),
-                                     [&](auto) { client->Close(); }),
-                        IsOk());
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+                    ASSERT_THAT(client->Send(sent_message.data(), sent_message.size(),
+                                             [&](auto) { client->Close(); }),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(received_future);
     EXPECT_EQ(received_future.get(), sent_message);
@@ -217,21 +223,25 @@ TEST_F(AsyncSocketTest, EchoTest) {
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
-            echo_promise.set_value(std::string(data));
-        });
-        client->SetOnConnectedCallback([&original_message, &echo_promise](AsyncSocket& socket,
-                                                                          absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl(
-                    [&echo_promise](std::string_view data, absl::Status err) {
-                        echo_promise.set_value(std::string(data));
-                    });
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnReadCallbackNoFlowControl(
+                        [&](std::string_view data, absl::Status err) {
+                            echo_promise.set_value(std::string(data));
+                        });
+                client->SetOnConnectedCallback([&original_message, &echo_promise](
+                                                       AsyncSocket& socket, absl::Status err) {
+                    socket.SetOnReadCallbackNoFlowControl(
+                            [&echo_promise](std::string_view data, absl::Status err) {
+                                echo_promise.set_value(std::string(data));
+                            });
 
-            ASSERT_THAT(socket.Send(original_message.data(), original_message.size()), IsOk());
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+                    ASSERT_THAT(socket.Send(original_message.data(), original_message.size()),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(echo_future);
     EXPECT_EQ(echo_future.get(), original_message);
@@ -243,7 +253,7 @@ TEST_F(AsyncSocketTest, EchoTest_un) {
             absl::StrFormat("\\\\.\\pipe\\EchoTest_un_%d", GetCurrentProcessId()));
 #else
     android::base::TestTempDir tmpdir("EchoTest_un");
-    const std::filesystem::path un_path = tmpdir.makeSubPath("sock");
+    const std::filesystem::path un_path = tmpdir.MakeSubPath("sock");
     ASSERT_LT(un_path.string().size(), 108)
             << "AF_UNIX has a limit (108) on the path size, the test path (" << un_path << ") is "
             << un_path.string().size();
@@ -280,21 +290,25 @@ TEST_F(AsyncSocketTest, EchoTest_un) {
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {
-            echo_promise.set_value(std::string(data));
-        });
-        client->SetOnConnectedCallback([&original_message, &echo_promise](AsyncSocket& socket,
-                                                                          absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl(
-                    [&echo_promise](std::string_view data, absl::Status err) {
-                        echo_promise.set_value(std::string(data));
-                    });
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnReadCallbackNoFlowControl(
+                        [&](std::string_view data, absl::Status err) {
+                            echo_promise.set_value(std::string(data));
+                        });
+                client->SetOnConnectedCallback([&original_message, &echo_promise](
+                                                       AsyncSocket& socket, absl::Status err) {
+                    socket.SetOnReadCallbackNoFlowControl(
+                            [&echo_promise](std::string_view data, absl::Status err) {
+                                echo_promise.set_value(std::string(data));
+                            });
 
-            ASSERT_THAT(socket.Send(original_message.data(), original_message.size()), IsOk());
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+                    ASSERT_THAT(socket.Send(original_message.data(), original_message.size()),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(echo_future);
     EXPECT_EQ(echo_future.get(), original_message);
@@ -335,18 +349,21 @@ TEST_F(AsyncSocketTest, LargeDataTransfer) {
             [&, endpoint] { return factory_->CreateSocket(raw_event_loop_, endpoint); }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            ASSERT_EQ(&socket, client.get());
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+                    ASSERT_EQ(&socket, client.get());
 
-            client->SetOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
+                    client->SetOnReadCallbackNoFlowControl(
+                            [](std::string_view data, absl::Status err) {});
 
-            ASSERT_THAT(client->Send(large_message.data(), large_message.size(),
-                                     [&](auto) { client->Close(); }),
-                        IsOk());
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+                    ASSERT_THAT(client->Send(large_message.data(), large_message.size(),
+                                             [&](auto) { client->Close(); }),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     // Our build servers are under pretty heavy load running all the tests
     // and The qemu message pump is very slow, so we give it extra time.
@@ -387,13 +404,16 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
 
     std::vector<std::thread> threads;
     absl::Notification connected;
-    raw_event_loop_->Post([&]() {
-        client->SetOnConnectedCallback([&connected](AsyncSocket& socket, absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
-            connected.Notify();
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([&connected](AsyncSocket& socket, absl::Status err) {
+                    socket.SetOnReadCallbackNoFlowControl(
+                            [](std::string_view data, absl::Status err) {});
+                    connected.Notify();
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     connected.WaitForNotification();
 
@@ -403,12 +423,15 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     for (; i < num_threads; ++i) {
         threads.emplace_back([&]() {
             absl::Notification bytes_away;
-            raw_event_loop_->Post([&]() {
-                VLOG(1) << "Sending data from thread: " << i;
-                ASSERT_THAT(client->Send(message_per_thread.data(), message_per_thread.size(),
-                                         [&](auto) { bytes_away.Notify(); }),
-                            IsOk());
-            });
+            raw_event_loop_
+                    ->Post([&]() {
+                        VLOG(1) << "Sending data from thread: " << i;
+                        ASSERT_THAT(
+                                client->Send(message_per_thread.data(), message_per_thread.size(),
+                                             [&](auto) { bytes_away.Notify(); }),
+                                IsOk());
+                    })
+                    .IgnoreError();
             bytes_away.WaitForNotificationWithTimeout(absl::Milliseconds(100));
         });
     }
@@ -420,7 +443,7 @@ TEST_F(AsyncSocketTest, MultiThreadedSendIsSafe) {
     // We still need to close the client to trigger the server's OnCloseCallback
     // which fulfills the promise for this test. The Scoped wrapper will also
     // post a close, but that's harmless (close is idempotent).
-    raw_event_loop_->Post([&] { client->Close(); });
+    raw_event_loop_->Post([&] { client->Close(); }).IgnoreError();
 
     RunUntil(received_size_future);
     EXPECT_EQ(received_size_future.get(), num_threads * message_per_thread.size());
@@ -456,17 +479,20 @@ TEST_F(AsyncSocketTest, ConnectAndCloseWithHostname) {
     }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl([](std::string_view data, absl::Status err) {});
-            LOG(INFO) << err;
-        });
-        client->SetOnCloseCallback([&] {
-            LOG(INFO) << "Client is closed";
-            client_closed_promise.set_value();
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([](AsyncSocket& socket, absl::Status err) {
+                    socket.SetOnReadCallbackNoFlowControl(
+                            [](std::string_view data, absl::Status err) {});
+                    LOG(INFO) << err;
+                });
+                client->SetOnCloseCallback([&] {
+                    LOG(INFO) << "Client is closed";
+                    client_closed_promise.set_value();
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(connected_future);
     RunUntil(client_closed_future);
@@ -526,19 +552,22 @@ TEST_F(AsyncSocketTest, EchoTestWithHostname) {
     }));
     ASSERT_NE(client, nullptr);
 
-    raw_event_loop_->Post([&]() {
-        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            ASSERT_EQ(&socket, client.get());
+    raw_event_loop_
+            ->Post([&]() {
+                client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+                    ASSERT_EQ(&socket, client.get());
 
-            client->SetOnReadCallbackNoFlowControl(
-                    [&echo_promise](std::string_view data, absl::Status err) {
-                        echo_promise.set_value(std::string(data));
-                    });
+                    client->SetOnReadCallbackNoFlowControl(
+                            [&echo_promise](std::string_view data, absl::Status err) {
+                                echo_promise.set_value(std::string(data));
+                            });
 
-            ASSERT_THAT(client->Send(original_message.data(), original_message.size()), IsOk());
-        });
-        ASSERT_THAT(client->Connect(), IsOk());
-    });
+                    ASSERT_THAT(client->Send(original_message.data(), original_message.size()),
+                                IsOk());
+                });
+                ASSERT_THAT(client->Connect(), IsOk());
+            })
+            .IgnoreError();
 
     RunUntil(echo_future);
     EXPECT_EQ(echo_future.get(), original_message);

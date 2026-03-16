@@ -40,7 +40,7 @@ TEST(Machine, Basic_x86) {
     // by every test:
     //     base::TestSystem sys("");
     //     base::TestTempDir* tmp = sys.getTempRoot();
-    //     ASSERT_TRUE(tmp->makeSubFile("qemu-system-x86_64_signed"));
+    //     ASSERT_TRUE(tmp->MakeSubFile("qemu-system-x86_64_signed"));
 
     auto launcher_path = std::filesystem::temp_directory_path();
 

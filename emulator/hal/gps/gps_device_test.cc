@@ -33,12 +33,12 @@ using ::testing::MatchesRegex;
 
 class GpsDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
 
         IGpsDevice::RegisterDevice(&location, &registry, mClientLoop.get(), mQemuLoop.get());
-        device = registry.constructHalDevice<IGpsDevice>();
-        test_socket = registry.halSocket();
+        device = registry.ConstructHalDevice<IGpsDevice>();
+        test_socket = registry.HalSocket();
     }
 
   public:

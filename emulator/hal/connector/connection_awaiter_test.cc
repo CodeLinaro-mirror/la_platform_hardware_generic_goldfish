@@ -68,9 +68,9 @@ class NullPlug : public IPlug {
     SocketPtr OnUnplug() override { return nullptr; };
 };
 
-SocketPtr fakeConnection(async::EventLoop* eventLoop, PlugPtr plug) {
+SocketPtr fakeConnection(async::EventLoop* event_loop, PlugPtr plug) {
     auto ptr = SocketPtr(new TestSocket(plug));
-    (void)eventLoop->Post(
+    (void)event_loop->Post(
             [socket = ptr.get()]() { static_cast<TestSocket*>(socket)->fakeConnected(); });
     return ptr;
 }
@@ -78,29 +78,29 @@ SocketPtr fakeConnection(async::EventLoop* eventLoop, PlugPtr plug) {
 using namespace std::chrono_literals;
 
 TEST(ConnectionAwaiter, make_fake_connection) {
-    auto eventLoop = TestEventLoop::create();
+    auto event_loop = TestEventLoop::Create();
     auto plug = std::make_shared<NullPlug>();
-    auto socket = fakeConnection(eventLoop.get(), plug);
+    auto socket = fakeConnection(event_loop.get(), plug);
 }
 
 TEST(ConnectionAwaiter, fires_on_connect) {
     bool connected = false;
-    auto eventLoop = TestEventLoop::create();
-    auto ready = ConnectionAwaiter::retryUntilConnected(
-            eventLoop.get(), [&](auto plug) { return fakeConnection(eventLoop.get(), plug); },
+    auto event_loop = TestEventLoop::Create();
+    auto ready = ConnectionAwaiter::RetryUntilConnected(
+            event_loop.get(), [&](auto plug) { return fakeConnection(event_loop.get(), plug); },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    eventLoop->advanceClock(10ms);
-    eventLoop->runAll();
+    event_loop->AdvanceClock(10ms);
+    event_loop->RunAll();
     EXPECT_TRUE(connected);
 }
 
 TEST(ConnectionAwaiter, tries_to_connect_multiple_times) {
     bool connected = false;
     int invocation = 0;
-    auto eventLoop = TestEventLoop::create();
-    auto ready = ConnectionAwaiter::retryUntilConnected(
-            eventLoop.get(),
+    auto event_loop = TestEventLoop::Create();
+    auto ready = ConnectionAwaiter::RetryUntilConnected(
+            event_loop.get(),
             [&](auto plug) {
                 invocation++;
                 VLOG(1) << "Connection attempt: " << invocation;
@@ -108,10 +108,10 @@ TEST(ConnectionAwaiter, tries_to_connect_multiple_times) {
             },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
-    eventLoop->advanceClock(10ms);
-    eventLoop->advanceClock(10ms);
-    eventLoop->advanceClock(10ms);
-    eventLoop->advanceClock(10ms);
+    event_loop->AdvanceClock(10ms);
+    event_loop->AdvanceClock(10ms);
+    event_loop->AdvanceClock(10ms);
+    event_loop->AdvanceClock(10ms);
     EXPECT_FALSE(connected);
     EXPECT_EQ(invocation, 4);
 }
@@ -119,22 +119,22 @@ TEST(ConnectionAwaiter, tries_to_connect_multiple_times) {
 TEST(ConnectionAwaiter, stop_calling_after_connect) {
     bool connected = false;
     int invocation = 0;
-    auto eventLoop = TestEventLoop::create();
-    auto ready = ConnectionAwaiter::retryUntilConnected(
-            eventLoop.get(),
+    auto event_loop = TestEventLoop::Create();
+    auto ready = ConnectionAwaiter::RetryUntilConnected(
+            event_loop.get(),
             [&](auto plug) {
                 // On the third invocation we will connect.
                 invocation++;
                 if (invocation == 3) {
-                    return fakeConnection(eventLoop.get(), plug);
+                    return fakeConnection(event_loop.get(), plug);
                 }
                 return SocketPtr(new TestSocket(plug));
             },
             [&](SocketPtr sock) { connected = true; }, 10ms);
 
     for (int i = 0; i < 4; i++) {
-        eventLoop->advanceClock(10ms);
-        eventLoop->runAll();
+        event_loop->AdvanceClock(10ms);
+        event_loop->RunAll();
     }
 
     EXPECT_TRUE(connected);

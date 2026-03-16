@@ -22,11 +22,11 @@ class SocketBenchmark : public ::benchmark::Fixture {
     void SetUp(const ::benchmark::State& state) override {
         factory_ = std::make_unique<LibuvAsyncSocketFactory>();
         loop_ = LibuvEventLoop::Create();
-        loop_thread_ = std::thread([&]() { loop_->Run(); });
+        loop_thread_ = std::thread([&]() { loop_->Run().IgnoreError(); });
     }
 
     void TearDown(const ::benchmark::State& state) override {
-        loop_->ShutdownAndWait();
+        loop_->ShutdownAndWait().IgnoreError();
         if (loop_thread_.joinable()) {
             loop_thread_.join();
         }
@@ -51,7 +51,7 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
         return factory_->CreateServer(loop_.get(), endpoint, [&](auto socket) {
             socket->SetOnReadCallbackNoFlowControl(
                     [s = socket](std::string_view data, auto status) {
-                        if (status.ok()) s->Send(data.data(), data.size());
+                        if (status.ok()) s->Send(data.data(), data.size()).IgnoreError();
                     });
             // Let the test own the connection's lifetime.
             return true;
@@ -65,23 +65,27 @@ BENCHMARK_F(SocketBenchmark, PingPong)(benchmark::State& state) {
     // Connect and wait for it to be established before starting the benchmark.
     absl::Notification connect_notification;
     loop_->Post([&]() {
-        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
-            connect_notification.Notify();
-        });
-        client->Connect();
-    });
+             client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+                 socket.SetOnReadCallbackNoFlowControl(
+                         [&](std::string_view data, absl::Status err) {});
+                 connect_notification.Notify();
+             });
+             client->Connect().IgnoreError();
+         }).IgnoreError();
     connect_notification.WaitForNotification();
 
     for (const auto& _ : state) {
         state.PauseTiming();
         absl::Notification pong_notification;
         loop_->Post([&]() {
-            client->SetOnReadCallbackNoFlowControl([&](auto, auto) { pong_notification.Notify(); });
-        });
+                 client->SetOnReadCallbackNoFlowControl(
+                         [&](auto, auto) { pong_notification.Notify(); });
+             }).IgnoreError();
         state.ResumeTiming();
 
-        loop_->Post([&]() { client->Send(test_message.c_str(), test_message.size()); });
+        loop_->Post([&]() {
+                 client->Send(test_message.c_str(), test_message.size()).IgnoreError();
+             }).IgnoreError();
 
         pong_notification.WaitForNotification();
     }
@@ -108,12 +112,13 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
 
     absl::Notification connected_notification;
     loop_->Post([&]() {
-        client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
-            socket.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status err) {});
-            connected_notification.Notify();
-        });
-        client->Connect();
-    });
+             client->SetOnConnectedCallback([&](AsyncSocket& socket, absl::Status err) {
+                 socket.SetOnReadCallbackNoFlowControl(
+                         [&](std::string_view data, absl::Status err) {});
+                 connected_notification.Notify();
+             });
+             client->Connect().IgnoreError();
+         }).IgnoreError();
     connected_notification.WaitForNotification();
 
     for (const auto& _ : state) {

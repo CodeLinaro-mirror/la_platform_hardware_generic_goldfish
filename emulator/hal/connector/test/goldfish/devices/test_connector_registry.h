@@ -21,8 +21,7 @@
 #include "goldfish/devices/internal/hal_plug.h"
 #include "goldfish/devices/ping_topic.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using cable::PlugPtr;
 using cable::SocketPtr;
@@ -102,50 +101,49 @@ struct TestHalSocket : public HalSocket {
  */
 class TestConnectorRegistry : public ConnectorRegistry {
   public:
-    TestConnectorRegistry() {}
-    ~TestConnectorRegistry() = default;
+    TestConnectorRegistry() = default;
+    ~TestConnectorRegistry() override = default;
 
-    bool RegisterQemuDevice(std::string_view name, DeviceFactory factory) override {
-        mFactory = std::move(factory);
+    bool RegisterQemuDevice(std::string_view /*name*/, DeviceFactory factory) override {
+        factory_ = std::move(factory);
         return true;
     }
 
-    bool RegisterDevice(std::string_view name, DeviceFactory factory) override {
-        mFactory = std::move(factory);
+    bool RegisterDevice(std::string_view /*name*/, DeviceFactory factory) override {
+        factory_ = std::move(factory);
         return true;
     }
 
-    void RegisterHalDevice(std::string name, async::EventLoop* client_loop,
-                           async::EventLoop* qemu_loop, HalDeviceFactory factory) override {
-        mHalFactory = factory;
+    void RegisterHalDevice(std::string /*name*/, async::EventLoop* /*client_loop*/,
+                           async::EventLoop* /*qemu_loop*/, HalDeviceFactory factory) override {
+        hal_factory_ = std::move(factory);
     }
 
-    void RegisterHalQemuDevice(std::string name, async::EventLoop* client_loop,
-                               async::EventLoop* qemu_loop, HalDeviceFactory factory) override {
-        mHalFactory = factory;
+    void RegisterHalQemuDevice(std::string /*name*/, async::EventLoop* /*client_loop*/,
+                               async::EventLoop* /*qemu_loop*/, HalDeviceFactory factory) override {
+        hal_factory_ = std::move(factory);
     }
 
     template <typename T>
-    T* constructHalDevice(std::string_view args = {}) {
-        mHalSocket = std::make_shared<TestHalSocket>();
-        mHalPlug = mHalFactory(args);
-        HalPlugTesting::EstablishConnection(mHalPlug.get(), mHalSocket);
-        // registerInternal(std::string(T::serviceName), mHalPlug);  b/448934377
-        return reinterpret_cast<T*>(mHalPlug.get());
+    T* ConstructHalDevice(std::string_view args = {}) {
+        hal_socket_ = std::make_shared<TestHalSocket>();
+        hal_plug_ = hal_factory_(args);
+        HalPlugTesting::EstablishConnection(hal_plug_.get(), hal_socket_);
+        // registerInternal(std::string(T::kServiceName), hal_plug_);  b/448934377
+        return reinterpret_cast<T*>(hal_plug_.get());
     }
 
-    TestHalSocket* halSocket() { return mHalSocket.get(); }
-    PlugPtr getPlug() { return mPlug; }
+    TestHalSocket* HalSocket() { return hal_socket_.get(); }
+    PlugPtr GetPlug() { return plug_; }
 
   private:
-    DeviceFactory mFactory;
-    HalDeviceFactory mHalFactory;
+    DeviceFactory factory_;
+    HalDeviceFactory hal_factory_;
 
-    PlugPtr mPlug;
+    PlugPtr plug_;
 
-    std::shared_ptr<TestHalSocket> mHalSocket;
-    std::shared_ptr<HalPlug> mHalPlug;
+    std::shared_ptr<TestHalSocket> hal_socket_;
+    std::shared_ptr<HalPlug> hal_plug_;
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

@@ -22,8 +22,8 @@ using goldfish::physics::BodyModel;
 
 TEST(BodyModel, DefaultParameters) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
 
     BodyModel bodyModel;
 
@@ -39,8 +39,8 @@ TEST(BodyModel, DefaultParameters) {
 
 TEST(BodyModel, SetHeartRate) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     BodyModel bodyModel;
     bodyModel.SetHeartRate(100.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(100.f, bodyModel.GetHeartRate());

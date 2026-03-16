@@ -32,7 +32,7 @@ TEST(CrashDetectorsTest, timeoutProperly) {
     TestSystem testSys("foo");
     TimedHangDetector t(15, new AlwaysCrash());
     EXPECT_FALSE(t.Check());
-    testSys.setUnixTimeUs(1000000);
+    testSys.SetUnixTimeUs(1000000);
     EXPECT_TRUE(t.Check());
 }
 

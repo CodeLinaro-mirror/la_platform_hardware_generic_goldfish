@@ -44,13 +44,13 @@ class TestEventLoopImpl : public TestEventLoop {
     std::shared_ptr<Timer> CreateTimer(Task task) override;
 
     // TestEventLoop Interface
-    void runAll() override;
-    bool runOne() override;
-    size_t runMany(size_t count) override;
-    void advanceClock(std::chrono::milliseconds duration) override;
-    size_t taskCount() const override;
+    void RunAll() override;
+    bool RunOne() override;
+    size_t RunMany(size_t count) override;
+    void AdvanceClock(std::chrono::milliseconds duration) override;
+    size_t TaskCount() const override;
 
-    void reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer,
+    void Reschedule(std::shared_ptr<TestEventLoopImpl::TestTimer> timer,
                     std::chrono::milliseconds new_delay, std::chrono::milliseconds new_interval);
 
   private:
@@ -71,61 +71,61 @@ class TestEventLoopImpl : public TestEventLoop {
     class TestTimer : public Timer, public std::enable_shared_from_this<TestTimer> {
       public:
         TestTimer(TestEventLoopImpl* loop, Task task)
-                : mLoop(loop), mPendingTask(std::make_shared<Task>(std::move(task))) {}
+                : loop_(loop), pending_task_(std::make_shared<Task>(std::move(task))) {}
         ~TestTimer() override { Cancel(); }
-        void Cancel() override { mCancelled = true; }
-        bool isCancelled() const { return mCancelled; }
-        std::shared_ptr<Task> task() { return mPendingTask; }
+        void Cancel() override { cancelled_ = true; }
+        bool IsCancelled() const { return cancelled_; }
+        std::shared_ptr<Task> task() { return pending_task_; }  // NOLINT
         void Schedule(std::chrono::milliseconds new_delay,
                       std::chrono::milliseconds new_interval) override {
-            mLoop->reschedule(shared_from_this(), new_delay, new_interval);
+            loop_->Reschedule(shared_from_this(), new_delay, new_interval);
         }
 
       private:
-        std::atomic_bool mCancelled{false};
-        TestEventLoopImpl* mLoop;
-        std::shared_ptr<Task> mPendingTask;
+        std::atomic_bool cancelled_{false};
+        TestEventLoopImpl* loop_;
+        std::shared_ptr<Task> pending_task_;
     };
 
-    enum class Command : uint8_t { None, RunOne, RunMany, AdvanceTime };
+    enum class Command : uint8_t { kNone, kRunOne, kRunMany, kAdvanceTime };
 
-    void loop();
-    bool runOneUnlocked();
-    void advanceClockUnlocked(std::chrono::milliseconds duration);
+    void Loop();
+    bool RunOneUnlocked();
+    void AdvanceClockUnlocked(std::chrono::milliseconds duration);
 
-    std::thread mThread;
-    std::thread::id mThreadId;
-    std::atomic<bool> mStop{false};
-    mutable std::mutex mMutex;
-    std::condition_variable mCv;
-    std::condition_variable mCmdCv;
+    std::thread thread_;
+    std::thread::id thread_id_;
+    std::atomic<bool> stop_{false};
+    mutable std::mutex mutex_;
+    std::condition_variable cv_;
+    std::condition_variable cmd_cv_;
 
     // post queue
-    std::deque<Task> mTasks;
+    std::deque<Task> tasks_;
 
     // scheduled things
-    std::vector<ScheduledTask> mScheduledTasks;
-    std::chrono::steady_clock::time_point mNow;
-    Command mCommand = Command::None;
-    std::chrono::milliseconds mTimeAdvance{0};
-    size_t mRunCount = 0;
-    size_t mTasksActuallyRun = 0;
+    std::vector<ScheduledTask> scheduled_tasks_;
+    std::chrono::steady_clock::time_point now_;
+    Command command_ = Command::kNone;
+    std::chrono::milliseconds time_advance_{0};
+    size_t run_count_ = 0;
+    size_t tasks_actually_run_ = 0;
 };
 
 // --- Factory Function ---
-std::unique_ptr<TestEventLoop> TestEventLoop::create() {
+std::unique_ptr<TestEventLoop> TestEventLoop::Create() {
     return std::make_unique<TestEventLoopImpl>();
 }
 
 // --- TestEventLoopImpl Implementation ---
-TestEventLoopImpl::TestEventLoopImpl() : mNow(std::chrono::steady_clock::now()) {
+TestEventLoopImpl::TestEventLoopImpl() : now_(std::chrono::steady_clock::now()) {
     std::promise<void> thread_started_promise;
     auto thread_started_future = thread_started_promise.get_future();
-    mThread = std::thread([this, &thread_started_promise]() {
-        mThreadId = std::this_thread::get_id();
+    thread_ = std::thread([this, &thread_started_promise]() {
+        thread_id_ = std::this_thread::get_id();
         SetState(LooperStatusEvent::State::kRunning);
         thread_started_promise.set_value();
-        loop();
+        Loop();
     });
     thread_started_future.wait();
 }
@@ -134,10 +134,10 @@ TestEventLoopImpl::~TestEventLoopImpl() {
     if (GetState() != LooperStatusEvent::State::kShuttingDown) {
         ShutdownAndWait().IgnoreError();
     }
-    mStop = true;
-    mCv.notify_one();
-    if (mThread.joinable()) {
-        mThread.join();
+    stop_ = true;
+    cv_.notify_one();
+    if (thread_.joinable()) {
+        thread_.join();
     }
 }
 
@@ -145,15 +145,15 @@ std::future<absl::Status> TestEventLoopImpl::Shutdown() {
     SetState(LooperStatusEvent::State::kShuttingDown);
     std::promise<absl::Status> promise;
     promise.set_value(absl::OkStatus());
-    std::lock_guard<std::mutex> lock(mMutex);
-    mTasks.clear();
-    mScheduledTasks.clear();
+    const std::lock_guard<std::mutex> lock(mutex_);
+    tasks_.clear();
+    scheduled_tasks_.clear();
 
     return promise.get_future();
 }
 
 bool TestEventLoopImpl::IsOnLoopThread() const {
-    return std::this_thread::get_id() == mThreadId;
+    return std::this_thread::get_id() == thread_id_;
 }
 
 absl::Status TestEventLoopImpl::PostImmediately(Task task) {
@@ -161,8 +161,8 @@ absl::Status TestEventLoopImpl::PostImmediately(Task task) {
         LOG(ERROR) << "Loop is shutting down.";
         return absl::UnavailableError("test loop is shutting down");
     }
-    std::lock_guard<std::mutex> lock(mMutex);
-    mTasks.emplace_back(std::move(task));
+    const std::lock_guard<std::mutex> lock(mutex_);
+    tasks_.emplace_back(std::move(task));
     return absl::OkStatus();
 }
 
@@ -176,144 +176,143 @@ absl::Status TestEventLoopImpl::PostDelayed(Task task, std::chrono::milliseconds
     return absl::OkStatus();
 }
 
-size_t TestEventLoopImpl::taskCount() const {
-    std::lock_guard<std::mutex> lock(mMutex);
-    return mTasks.size();
+size_t TestEventLoopImpl::TaskCount() const {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return tasks_.size();
 }
 
 std::shared_ptr<EventLoop::Timer> TestEventLoopImpl::CreateTimer(Task task) {
     return std::make_shared<TestTimer>(this, std::move(task));
 }
 
-void TestEventLoopImpl::reschedule(std::shared_ptr<TestTimer> timer,
+void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
                                    std::chrono::milliseconds new_delay,
                                    std::chrono::milliseconds new_interval) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    auto it = std::find_if(mScheduledTasks.begin(), mScheduledTasks.end(),
-                           [&](const ScheduledTask& task) {
-                               auto handle = task.handle.lock();
-                               return handle && handle.get() == timer.get();
-                           });
+    const std::lock_guard<std::mutex> lock(mutex_);
+    auto it = std::ranges::find_if(scheduled_tasks_, [&](const ScheduledTask& task) {
+        auto handle = task.handle.lock();
+        return handle && handle.get() == timer.get();
+    });
 
-    if (it != mScheduledTasks.end()) {
-        it->execution_time = mNow + new_delay;
+    if (it != scheduled_tasks_.end()) {
+        it->execution_time = now_ + new_delay;
         it->interval = new_interval;
-        std::make_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+        std::ranges::make_heap(scheduled_tasks_, std::greater<>{});
     } else {
-        mScheduledTasks.push_back({mNow + new_delay, new_interval, timer->task(), timer});
-        std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+        scheduled_tasks_.push_back({now_ + new_delay, new_interval, timer->task(), timer});
+        std::ranges::push_heap(scheduled_tasks_, std::greater<>{});
     }
 }
 
-void TestEventLoopImpl::runAll() {
-    runMany(std::numeric_limits<size_t>::max());
+void TestEventLoopImpl::RunAll() {
+    RunMany(std::numeric_limits<size_t>::max());
 }
 
-bool TestEventLoopImpl::runOne() {
-    std::unique_lock<std::mutex> lock(mMutex);
-    mCommand = Command::RunOne;
-    mTasksActuallyRun = 0;
-    mCv.notify_one();
-    mCmdCv.wait(lock, [this] { return mCommand == Command::None; });
-    return mTasksActuallyRun > 0;
+bool TestEventLoopImpl::RunOne() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    command_ = Command::kRunOne;
+    tasks_actually_run_ = 0;
+    cv_.notify_one();
+    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
+    return tasks_actually_run_ > 0;
 }
 
-size_t TestEventLoopImpl::runMany(size_t count) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    mCommand = Command::RunMany;
-    mRunCount = count;
-    mTasksActuallyRun = 0;
-    mCv.notify_one();
-    mCmdCv.wait(lock, [this] { return mCommand == Command::None; });
-    return mTasksActuallyRun;
+size_t TestEventLoopImpl::RunMany(size_t count) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    command_ = Command::kRunMany;
+    run_count_ = count;
+    tasks_actually_run_ = 0;
+    cv_.notify_one();
+    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
+    return tasks_actually_run_;
 }
 
-void TestEventLoopImpl::advanceClock(std::chrono::milliseconds duration) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    mCommand = Command::AdvanceTime;
-    mTimeAdvance = duration;
-    mCv.notify_one();
-    mCmdCv.wait(lock, [this] { return mCommand == Command::None; });
+void TestEventLoopImpl::AdvanceClock(std::chrono::milliseconds duration) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    command_ = Command::kAdvanceTime;
+    time_advance_ = duration;
+    cv_.notify_one();
+    cmd_cv_.wait(lock, [this] { return command_ == Command::kNone; });
 }
 
-void TestEventLoopImpl::loop() {
-    std::unique_lock<std::mutex> lock(mMutex);
-    while (!mStop) {
-        mCv.wait(lock, [this] { return mCommand != Command::None || mStop; });
-        if (mStop) break;
+void TestEventLoopImpl::Loop() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (!stop_) {
+        cv_.wait(lock, [this] { return command_ != Command::kNone || stop_; });
+        if (stop_) break;
 
         // Note, we have the mutex here.
-        switch (mCommand) {
-        case Command::RunOne:
-            mTasksActuallyRun = runOneUnlocked() ? 1 : 0;
+        switch (command_) {
+        case Command::kRunOne:
+            tasks_actually_run_ = RunOneUnlocked() ? 1 : 0;
             break;
-        case Command::RunMany:
-            for (size_t i = 0; i < mRunCount; ++i) {
-                if (runOneUnlocked()) {
-                    mTasksActuallyRun++;
+        case Command::kRunMany:
+            for (size_t i = 0; i < run_count_; ++i) {
+                if (RunOneUnlocked()) {
+                    tasks_actually_run_++;
                 } else {
                     break;  // No more tasks to run
                 }
             }
             break;
-        case Command::AdvanceTime:
-            advanceClockUnlocked(mTimeAdvance);
+        case Command::kAdvanceTime:
+            AdvanceClockUnlocked(time_advance_);
             break;
-        case Command::None:
+        case Command::kNone:
             break;
         }
 
-        mCommand = Command::None;
-        mCmdCv.notify_one();
+        command_ = Command::kNone;
+        cmd_cv_.notify_one();
     }
     SetState(LooperStatusEvent::State::kFinished);
 }
 
-bool TestEventLoopImpl::runOneUnlocked() {
+bool TestEventLoopImpl::RunOneUnlocked() {
     // we have the mutex here.
-    if (mTasks.empty()) {
+    if (tasks_.empty()) {
         return false;
     }
-    Task task_to_run = std::move(mTasks.front());
-    mTasks.pop_front();
-    mMutex.unlock();
+    Task task_to_run = std::move(tasks_.front());
+    tasks_.pop_front();
+    mutex_.unlock();
     {
         // without lock so tasks can schedule more tasks etc..
         Task task_to_run_scoped(std::move(task_to_run));
         task_to_run_scoped();
         // ~Task for the original task is called here
     }
-    mMutex.lock();
+    mutex_.lock();
     return true;
 }
 
-void TestEventLoopImpl::advanceClockUnlocked(std::chrono::milliseconds duration) {
-    mNow += duration;
+void TestEventLoopImpl::AdvanceClockUnlocked(std::chrono::milliseconds duration) {
+    now_ += duration;
     std::vector<ScheduledTask> tasks_to_run;
 
     // Pop all tasks from the heap that are ready to go
-    while (!mScheduledTasks.empty() && mScheduledTasks.front().execution_time <= mNow) {
-        std::pop_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
-        tasks_to_run.push_back(std::move(mScheduledTasks.back()));
-        mScheduledTasks.pop_back();
+    while (!scheduled_tasks_.empty() && scheduled_tasks_.front().execution_time <= now_) {
+        std::ranges::pop_heap(scheduled_tasks_, std::greater<>{});
+        tasks_to_run.push_back(std::move(scheduled_tasks_.back()));
+        scheduled_tasks_.pop_back();
     }
 
     for (auto& task : tasks_to_run) {
         auto handle = task.handle.lock();
-        if (!handle || handle->isCancelled()) {
+        if (!handle || handle->IsCancelled()) {
             continue;
         }
 
         // Run the task without a lock.
-        mMutex.unlock();
+        mutex_.unlock();
         (*task.task)();
-        mMutex.lock();
+        mutex_.lock();
 
-        // reschedule task if needed.
+        // Reschedule task if needed.
         if (task.interval > std::chrono::milliseconds(0)) {
             task.execution_time += task.interval;
-            mScheduledTasks.push_back(std::move(task));
-            std::push_heap(mScheduledTasks.begin(), mScheduledTasks.end(), std::greater<>{});
+            scheduled_tasks_.push_back(std::move(task));
+            std::ranges::push_heap(scheduled_tasks_, std::greater<>{});
         }
     }
 }

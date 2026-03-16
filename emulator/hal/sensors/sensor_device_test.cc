@@ -27,17 +27,13 @@
 
 namespace goldfish::devices::sensor {
 
-using android::base::TestSystem;
 using async::testing::TestEventLoop;
-using ::goldfish::physics::Rotation;
-using ::goldfish::physics::SkinRotation;
-using ::goldfish::sensors::AndroidSensor;
-using ::testing::_;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 
-int countOccurrences(const std::string& text, const std::string& target) {
+namespace {
+int CountOccurrences(const std::string& text, const std::string& target) {
     int count = 0;
     std::string::size_type pos = 0;
 
@@ -48,84 +44,85 @@ int countOccurrences(const std::string& text, const std::string& target) {
 
     return count;
 }
+}  // namespace
 
 class SensorDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mHw = android::goldfish::FakeHardwareConfig::GetHwConfig();
-        mPhysicalModel = std::make_unique<PhysicalModel>(mHw);
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        hw_ = android::goldfish::FakeHardwareConfig::GetHwConfig();
+        physical_model_ = std::make_unique<PhysicalModel>(hw_);
+        client_loop_ = TestEventLoop::Create();
+        qemu_loop_ = TestEventLoop::Create();
 
-        ISensorDevice::RegisterDevice(mPhysicalModel.get(), &registry,
+        ISensorDevice::RegisterDevice(physical_model_.get(), &registry_,
                                       /*avd_type=*/android::goldfish::DeviceType::kPhone,
-                                      /*avd_api=*/30, mHw, mClientLoop.get(), mQemuLoop.get(),
-                                      &mClock);
-        device = registry.constructHalDevice<ISensorDevice>();
-        test_socket = registry.halSocket();
-        clear();
-        device->OnConnect();
+                                      /*avd_api=*/30, hw_, client_loop_.get(), qemu_loop_.get(),
+                                      &clock_);
+        device_ = registry_.ConstructHalDevice<ISensorDevice>();
+        test_socket_ = registry_.HalSocket();
+        Clear();
+        device_->OnConnect();
     }
 
   public:
-    void receive(std::string_view msg) {
-        (void)mClientLoop->Post([&, this] { device->OnReceive(qemud::EncodeQemudPacket(msg)); });
-        mClientLoop->runAll();
+    void Receive(std::string_view msg) {
+        (void)client_loop_->Post([&, this] { device_->OnReceive(qemud::EncodeQemudPacket(msg)); });
+        client_loop_->RunAll();
     }
-    void clear() { test_socket->storage.clear(); }
+    void Clear() { test_socket_->storage.clear(); }
 
   protected:
-    android::goldfish::HardwareConfig mHw;
-    std::unique_ptr<PhysicalModel> mPhysicalModel;
-    std::unique_ptr<TestEventLoop> mClientLoop;
-    std::unique_ptr<TestEventLoop> mQemuLoop;
-    TestConnectorRegistry registry;
-    android::base::TestClock mClock;
-    ISensorDevice* device;
-    TestHalSocket* test_socket;
+    android::goldfish::HardwareConfig hw_;
+    std::unique_ptr<PhysicalModel> physical_model_;
+    std::unique_ptr<TestEventLoop> client_loop_;
+    std::unique_ptr<TestEventLoop> qemu_loop_;
+    TestConnectorRegistry registry_;
+    android::base::TestClock clock_;
+    ISensorDevice* device_;
+    TestHalSocket* test_socket_;
 };
 
 TEST_F(SensorDeviceTest, canCreateDevice) {
-    EXPECT_NE(device, nullptr);
+    EXPECT_NE(device_, nullptr);
 }
 
 TEST_F(SensorDeviceTest, canListSensors) {
-    receive("list-sensors");
-    EXPECT_THAT(test_socket->storage, Eq("0006133119"));
+    Receive("list-sensors");
+    EXPECT_THAT(test_socket_->storage, Eq("0006133119"));
 }
 
 TEST_F(SensorDeviceTest, canSetSensors) {
-    receive("set:acceleration:0");
-    receive("set:gyroscope:0");
-    clear();
+    Receive("set:acceleration:0");
+    Receive("set:gyroscope:0");
+    Clear();
 
     // The active set should have changed.
-    receive("list-sensors");
-    EXPECT_THAT(test_socket->storage, Eq("0006133116"));
+    Receive("list-sensors");
+    EXPECT_THAT(test_socket_->storage, Eq("0006133116"));
 }
 
 TEST_F(SensorDeviceTest, setDelayCausesATick) {
-    mClock.set_time(absl::FromUnixNanos(1234567890));
-    receive("set-delay:10");
+    clock_.SetTime(absl::FromUnixNanos(1234567890));
+    Receive("set-delay:10");
     // The looper keeps ticking so just check for the first few digits.
-    EXPECT_THAT(test_socket->storage, HasSubstr("0015guest-sync:1234"));
+    EXPECT_THAT(test_socket_->storage, HasSubstr("0015guest-sync:1234"));
 }
 
 TEST_F(SensorDeviceTest, setTimeOffset) {
-    mClock.set_time(absl::FromUnixNanos(1234567890));
-    receive("time:100");
-    receive("set-delay:1");
-    EXPECT_THAT(test_socket->storage, HasSubstr("000Eguest-sync:10"));
+    clock_.SetTime(absl::FromUnixNanos(1234567890));
+    Receive("time:100");
+    Receive("set-delay:1");
+    EXPECT_THAT(test_socket_->storage, HasSubstr("000Eguest-sync:10"));
 }
 
 TEST_F(SensorDeviceTest, timeKeepsOnRolling) {
-    mClock.set_time(absl::FromUnixNanos(1234567890));
-    receive("set-delay:1");
-    clear();
-    EXPECT_THAT(test_socket->storage, Eq(""));
-    for (int i = 0; i < 11; i++) mClientLoop->advanceClock(std::chrono::milliseconds(10));
+    clock_.SetTime(absl::FromUnixNanos(1234567890));
+    Receive("set-delay:1");
+    Clear();
+    EXPECT_THAT(test_socket_->storage, Eq(""));
+    for (int i = 0; i < 11; i++) client_loop_->AdvanceClock(std::chrono::milliseconds(10));
 
     // We should see a sync several times.
-    EXPECT_THAT(countOccurrences(test_socket->storage, "guest-sync:"), Gt(10));
+    EXPECT_THAT(CountOccurrences(test_socket_->storage, "guest-sync:"), Gt(10));
 }
 
 }  // namespace goldfish::devices::sensor

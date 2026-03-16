@@ -50,7 +50,7 @@ class UnixPipeTest : public ::testing::Test {
     void SetUp() override {
         client_loop_ = LibuvEventLoop::Create();
         client_loop_thread_ = std::thread([this] { (void)client_loop_->Run(); });
-        qemu_loop_ = TestEventLoop::create();
+        qemu_loop_ = TestEventLoop::Create();
         IUnixPipe::RegisterDevice(&registry_, client_loop_.get(), qemu_loop_.get());
     }
 
@@ -100,7 +100,7 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
                                               GetCurrentProcessId()));
 #else
     android::base::TestTempDir tmpdir("UnixPipeTest");
-    const std::filesystem::path un_path = tmpdir.makeSubPath("echo_over_host_side");
+    const std::filesystem::path un_path = tmpdir.MakeSubPath("echo_over_host_side");
 #endif
 
     const auto endpoint = Endpoint(*UnEndpoint::Create(un_path));
@@ -125,10 +125,10 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
     ASSERT_NE(server, nullptr);
 
     IUnixPipe* device = PostAndWait([this, &endpoint] {
-        return registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
+        return registry_.ConstructHalDevice<IUnixPipe>(ToString(endpoint));
     });
     ASSERT_NE(device, nullptr);
-    TestHalSocket* device_socket = registry_.halSocket();
+    TestHalSocket* device_socket = registry_.HalSocket();
     ASSERT_NE(device_socket, nullptr);
 
     absl::Mutex device_updated;
@@ -165,7 +165,7 @@ TEST_F(UnixPipeTest, close_on_host) {
             absl::StrFormat("\\\\.\\pipe\\UnixPipeTest_%d", GetCurrentProcessId()));
 #else
     android::base::TestTempDir tmpdir("UnixPipeTest");
-    const std::filesystem::path un_path = tmpdir.makeSubPath("close_on_host");
+    const std::filesystem::path un_path = tmpdir.MakeSubPath("close_on_host");
 #endif
 
     const auto endpoint = Endpoint(*UnEndpoint::Create(un_path));
@@ -195,9 +195,9 @@ TEST_F(UnixPipeTest, close_on_host) {
     }));
     ASSERT_NE(server, nullptr);
 
-    IUnixPipe* device = registry_.constructHalDevice<IUnixPipe>(ToString(endpoint));
+    IUnixPipe* device = registry_.ConstructHalDevice<IUnixPipe>(ToString(endpoint));
     ASSERT_NE(device, nullptr);
-    TestHalSocket* device_socket = registry_.halSocket();
+    TestHalSocket* device_socket = registry_.HalSocket();
     ASSERT_NE(device_socket, nullptr);
 
     std::string rx_total;

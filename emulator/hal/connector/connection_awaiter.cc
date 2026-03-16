@@ -20,8 +20,7 @@
 
 #include "goldfish/devices/cable/cable.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using cable::IPlug;
 using cable::PlugPtr;
@@ -29,62 +28,63 @@ using cable::SocketPtr;
 namespace async = goldfish::async;
 
 ConnectionAwaiter::~ConnectionAwaiter() {
-    std::lock_guard<std::mutex> lock(mConnectionMutex);
-    if (mConnectionRetryTask) {
+    const std::lock_guard<std::mutex> lock(connection_mutex_);
+    if (connection_retry_task_) {
         VLOG(1) << "Cancelling task";
-        mConnectionRetryTask->Cancel();
+        connection_retry_task_->Cancel();
     }
 }
 
 void ConnectionAwaiter::OnConnect() {
-    std::lock_guard<std::mutex> lock(mConnectionMutex);
-    VLOG(1) << "Received onConnect: " << (mIsConnected ? "already connected" : "not connected yet");
-    if (mIsConnected) {
+    const std::lock_guard<std::mutex> lock(connection_mutex_);
+    VLOG(1) << "Received onConnect: "
+            << (is_connected_ ? "already connected" : "not connected yet");
+    if (is_connected_) {
         return;
     }
-    mIsConnected = true;
-    if (mConnectionRetryTask) {
-        mConnectionRetryTask->Cancel();
-        mConnectionRetryTask.reset();
+    is_connected_ = true;
+    if (connection_retry_task_) {
+        connection_retry_task_->Cancel();
+        connection_retry_task_.reset();
     }
-    mOnConnected(std::move(mSocket));
-    mSocket = nullptr;
+    on_connected_(std::move(socket_));
+    socket_ = nullptr;
 }
 
-bool ConnectionAwaiter::OnReceive(const void* data, size_t size) {
+bool ConnectionAwaiter::OnReceive(const void* /*data*/, size_t /*size*/) {
     return false;
-};
+}
 
 SocketPtr ConnectionAwaiter::OnUnplug() {
-    std::lock_guard<std::mutex> lock(mConnectionMutex);
-    return std::move(mSocket);
+    const std::lock_guard<std::mutex> lock(connection_mutex_);
+    return std::move(socket_);
 }
 
-std::shared_ptr<ConnectionAwaiter> ConnectionAwaiter::retryUntilConnected(
-        async::EventLoop* eventLoop, CreateConnection createConnection,
-        ConnectionCallback onConnected, std::chrono::milliseconds interval) {
-    return std::make_shared<ConnectionAwaiter>(eventLoop, std::move(createConnection),
-                                               std::move(onConnected), interval, Private());
+std::shared_ptr<ConnectionAwaiter> ConnectionAwaiter::RetryUntilConnected(
+        async::EventLoop* event_loop, CreateConnection create_connection,
+        ConnectionCallback on_connected, std::chrono::milliseconds interval) {
+    return std::make_shared<ConnectionAwaiter>(event_loop, std::move(create_connection),
+                                               std::move(on_connected), interval, Private());
 }
 
-ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
-                                     ConnectionCallback onConnected,
+ConnectionAwaiter::ConnectionAwaiter(async::EventLoop* event_loop,
+                                     CreateConnection create_connection,
+                                     ConnectionCallback on_connected,
                                      std::chrono::milliseconds interval, Private)
-        : mCreateConnection(std::move(createConnection)), mOnConnected(std::move(onConnected)) {
+        : create_connection_(std::move(create_connection)), on_connected_(std::move(on_connected)) {
     VLOG(1) << "Scheduling retry task with interval: " << interval;
-    mConnectionRetryTask =
-            eventLoop->ScheduleRepeating([this]() { attemptConnection(); }, interval, interval);
+    connection_retry_task_ =
+            event_loop->ScheduleRepeating([this]() { AttemptConnection(); }, interval, interval);
 }
 
-bool ConnectionAwaiter::attemptConnection() {
-    std::lock_guard<std::mutex> lock(mConnectionMutex);
+bool ConnectionAwaiter::AttemptConnection() {
+    const std::lock_guard<std::mutex> lock(connection_mutex_);
     VLOG(2) << "attempting a connection: "
-            << (mIsConnected ? "already connected" : "not connected");
-    if (mIsConnected) {
+            << (is_connected_ ? "already connected" : "not connected");
+    if (is_connected_) {
         return false;
     }
-    mSocket = mCreateConnection(this->shared_from_this());
+    socket_ = create_connection_(this->shared_from_this());
     return true;
 }
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

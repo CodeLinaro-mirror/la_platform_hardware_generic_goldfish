@@ -33,7 +33,7 @@ struct CameraDeviceBase : public CameraProtocolBase {
 
     ~CameraDeviceBase() override;
 
-    static constexpr std::string_view serviceName = "camera"sv;
+    static constexpr std::string_view kServiceName = "camera"sv;
 
   protected:
     bool startCapturingImpl(const CameraImageProviderStreamConfig* streams,

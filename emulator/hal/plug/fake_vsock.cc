@@ -15,29 +15,32 @@
  */
 #include "emulator/hal/plug/test/fake_vsock.h"
 
+#include <utility>
+
 #include "goldfish/vsock/connect.h"
 #include "goldfish/vsock/listen.h"
 
 // This file provides a fake implementation of the vsock::listen function to
 // satisfy the linker for unit tests that depend on ConnectorRegistry.
 namespace goldfish::vsock {
+namespace {
+FakeListenFn g_fake_listen_fn = [](uint32_t, const HostPortListener&) { return true; };
+FakeConnectFn g_fake_connect_fn = [](uint32_t, const devices::cable::PlugPtr&) { return nullptr; };
+}  // namespace
 
-static FakeListenFn gFakeListenFn = [](uint32_t, HostPortListener) { return true; };
-static FakeConnectFn gFakeConnectFn = [](uint32_t, devices::cable::PlugPtr) { return nullptr; };
-
-void set_fake_listen_fn(FakeListenFn fn) {
-    gFakeListenFn = fn;
+void SetFakeListenFn(FakeListenFn fn) {
+    g_fake_listen_fn = std::move(fn);
 }
-void set_fake_connect_fn(FakeConnectFn fn) {
-    gFakeConnectFn = fn;
+void SetFakeConnectFn(FakeConnectFn fn) {
+    g_fake_connect_fn = std::move(fn);
 }
 
 bool Listen(uint32_t port, HostPortListener listener) {
-    return gFakeListenFn(port, listener);
+    return g_fake_listen_fn(port, std::move(listener));
 }
 
-devices::cable::SocketPtr Connect(uint32_t guestPort, devices::cable::PlugPtr plug) {
-    return gFakeConnectFn(guestPort, plug);
+devices::cable::SocketPtr Connect(uint32_t guest_port, devices::cable::PlugPtr plug) {
+    return g_fake_connect_fn(guest_port, std::move(plug));
 }
 
 }  // namespace goldfish::vsock

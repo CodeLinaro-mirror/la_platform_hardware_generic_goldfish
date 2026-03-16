@@ -19,12 +19,12 @@
 
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 
-#include "android/base/system.h"
 #include "TestTempDir.h"
+#include "android/base/system.h"
 
-namespace android {
-namespace base {
+namespace android::base {
 
 namespace fs = std::filesystem;
 
@@ -42,9 +42,9 @@ namespace fs = std::filesystem;
 // Path resolution is done as follows:
 //   - Relative paths are resolved starting from current directory
 //     which by default is: "/home"
-//   - The construction of this object does not create the appDataDir
+//   - The construction of this object does not create the app_data_dir
 //     or home dir. If you need these directories to exist you will
-//     have to create them as follows: getTempRoot()->makeSubDir("home").
+//     have to create them as follows: GetTempRoot()->MakeSubDir("home").
 //   - Path resolution can result in switching / into \ when running under
 //      Win32. If you are doing anything with paths
 //     it is best to include "android/utils/path.h" and use the PATH_SEP
@@ -55,37 +55,33 @@ class TestSystem : public System {
     using System::GetEnvironmentVariable;
     using System::SetEnvironmentVariable;
 
-    explicit TestSystem(fs::path ignored, fs::path homeDir = "/home", fs::path appDataDir = "")
-            : mHomeDir(homeDir)
-            , mAppDataDir(appDataDir)
-            , mIsRemoteSession(false)
-            , mRemoteSessionType()
-            , mTempDir(std::make_unique<TestTempDir>("TestSystem"))
-            , mEnvPairs()
-            , mPrevSystem(System::SetForTesting(this))
-            , mTimes()
-            , mShellOpaque(nullptr)
-            , mUnixTime() {}
+    explicit TestSystem(const fs::path& /*ignored*/, fs::path home_dir = "/home",
+                        fs::path app_data_dir = "")
+            : home_dir_(std::move(home_dir))
+            , app_data_dir_(std::move(app_data_dir))
+            , temp_dir_(std::make_unique<TestTempDir>("TestSystem"))
+            , prev_system_(System::SetForTesting(this))
+            , times_() {}
 
-    ~TestSystem() override { System::SetForTesting(mPrevSystem); }
+    ~TestSystem() override { System::SetForTesting(prev_system_); }
 
-    const fs::path GetHomeDirectory() const override { return mHomeDir; }
+    const fs::path GetHomeDirectory() const override { return home_dir_; }
 
-    void setHomeDirectory(const fs::path& homeDir) { mHomeDir = homeDir; }
+    void SetHomeDirectory(const fs::path& home_dir) { home_dir_ = home_dir; }
 
-    const fs::path GetAppDataDirectory() const override { return mAppDataDir; }
+    const fs::path GetAppDataDirectory() const override { return app_data_dir_; }
 
-    void setAppDataDirectory(std::string_view appDataDir) { mAppDataDir = appDataDir; }
+    void SetAppDataDirectory(std::string_view app_data_dir) { app_data_dir_ = app_data_dir; }
 
-    OsType GetOsType() const override { return mOsType; }
+    OsType GetOsType() const override { return os_type_; }
 
-    std::string GetOsName() override { return mOsName; }
+    std::string GetOsName() override { return os_name_; }
 
     std::string GetMajorOsVersion() const override { return "0.0"; }
 
-    int GetCpuCoreCount() const override { return mCoreCount; }
+    int GetCpuCoreCount() const override { return core_count_; }
 
-    void setCpuCoreCount(int count) { mCoreCount = count; }
+    void SetCpuCoreCount(int count) { core_count_ = count; }
 
     MemUsage GetMemUsage() const override {
         MemUsage res;
@@ -98,24 +94,24 @@ class TestSystem : public System {
         return res;
     }
 
-    void setOsType(OsType type) { mOsType = type; }
+    void SetOsType(OsType type) { os_type_ = type; }
 
     std::string EnvGet(std::string_view varname) const override {
-        for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
-            const fs::path name = mEnvPairs[n];
+        for (size_t n = 0; n < env_pairs_.size(); n += 2) {
+            const fs::path name = env_pairs_[n];
             if (name == varname) {
-                return mEnvPairs[n + 1];
+                return env_pairs_[n + 1];
             }
         }
-        return std::string();
+        return {};
     }
 
     std::vector<std::string> EnvGetAll() const override {
         std::vector<std::string> res;
-        for (size_t i = 0; i < mEnvPairs.size(); i += 2) {
-            const std::string name = mEnvPairs[i];
-            const std::string val = mEnvPairs[i + 1];
-            res.push_back(name + "=" + val);
+        for (size_t i = 0; i < env_pairs_.size(); i += 2) {
+            const std::string& name = env_pairs_[i];
+            const std::string& val = env_pairs_[i + 1];
+            res.push_back(absl::StrCat(name, "=", val));
         }
         return res;
     }
@@ -123,8 +119,8 @@ class TestSystem : public System {
     void EnvSet(const std::string& varname, const std::string& varvalue) override {
         // First, find if the name is in the array.
         int index = -1;
-        for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
-            if (mEnvPairs[n] == varname) {
+        for (size_t n = 0; n < env_pairs_.size(); n += 2) {
+            if (env_pairs_[n] == varname) {
                 index = static_cast<int>(n);
                 break;
             }
@@ -132,23 +128,23 @@ class TestSystem : public System {
         if (varvalue.empty()) {
             // Remove definition, if any.
             if (index >= 0) {
-                mEnvPairs.erase(mEnvPairs.begin() + index, mEnvPairs.begin() + index + 2);
+                env_pairs_.erase(env_pairs_.begin() + index, env_pairs_.begin() + index + 2);
             }
         } else {
             if (index >= 0) {
                 // Replacement.
-                mEnvPairs[index + 1] = varvalue;
+                env_pairs_[index + 1] = varvalue;
             } else {
                 // Addition.
-                mEnvPairs.emplace_back(varname);
-                mEnvPairs.emplace_back(varvalue);
+                env_pairs_.emplace_back(varname);
+                env_pairs_.emplace_back(varvalue);
             }
         }
     }
 
     bool EnvTest(std::string_view varname) const override {
-        for (size_t n = 0; n < mEnvPairs.size(); n += 2) {
-            const fs::path name = mEnvPairs[n];
+        for (size_t n = 0; n < env_pairs_.size(); n += 2) {
+            const fs::path name = env_pairs_[n];
             if (name == varname) {
                 return true;
             }
@@ -156,29 +152,29 @@ class TestSystem : public System {
         return false;
     }
 
-    TestTempDir* getTempRoot() const { return mTempDir.get(); }
+    TestTempDir* GetTempRoot() const { return temp_dir_.get(); }
 
-    bool IsRemoteSession(std::string* sessionType) const override {
-        if (!mIsRemoteSession) {
+    bool IsRemoteSession(std::string* session_type) const override {
+        if (!is_remote_session_) {
             return false;
         }
-        *sessionType = mRemoteSessionType;
+        *session_type = remote_session_type_;
         return true;
     }
 
-    // Force the remote session type. If |sessionType| is nullptr or empty,
-    // this sets the session as local. Otherwise, |*sessionType| must be
+    // Force the remote session type. If |session_type| is nullptr or empty,
+    // this sets the session as local. Otherwise, |*session_type| must be
     // a session type.
-    void setRemoteSessionType(std::string_view sessionType) {
-        mIsRemoteSession = !sessionType.empty();
-        if (mIsRemoteSession) {
-            mRemoteSessionType = sessionType;
+    void SetRemoteSessionType(std::string_view session_type) {
+        is_remote_session_ = !session_type.empty();
+        if (is_remote_session_) {
+            remote_session_type_ = session_type;
         }
     }
 
-    Times GetProcessTimes() const override { return mTimes; }
+    Times GetProcessTimes() const override { return times_; }
 
-    void setProcessTimes(const Times& times) { mTimes = times; }
+    void SetProcessTimes(const Times& times) { times_ = times; }
 
     // TODO remove.
     fs::path GetTempDir() const override { return "/tmp"; }
@@ -187,51 +183,51 @@ class TestSystem : public System {
 
     time_t GetUnixTime() const override { return GetUnixTimeUs() / 1000000; }
 
-    Duration GetUnixTimeUs() const override { return GetHighResTimeUs(); }
+    Duration GetUnixTimeUs() const override { return static_cast<Duration>(GetHighResTimeUs()); }
 
     WallDuration GetHighResTimeUs() const override {
-        if (mUnixTimeLive) {
+        if (unix_time_live_) {
             auto now = hostSystem()->GetHighResTimeUs();
-            mUnixTime += now - mUnixTimeLastQueried;
-            mUnixTimeLastQueried = now;
+            unix_time_ += static_cast<Duration>(now - unix_time_last_queried_);
+            unix_time_last_queried_ = now;
         }
-        return mUnixTime;
+        return static_cast<WallDuration>(unix_time_);
     }
 
-    void setUnixTime(time_t time) { setUnixTimeUs(time * 1000000LL); }
+    void SetUnixTime(time_t time) { SetUnixTimeUs(time * 1000000LL); }
 
-    void setUnixTimeUs(Duration time) { mUnixTimeLastQueried = mUnixTime = time; }
+    void SetUnixTimeUs(Duration time) {
+        unix_time_ = time;
+        unix_time_last_queried_ = hostSystem()->GetHighResTimeUs();
+    }
 
-    void setLiveUnixTime(bool enable) {
-        mUnixTimeLive = enable;
+    void SetLiveUnixTime(bool enable) {
+        unix_time_live_ = enable;
         if (enable) {
-            mUnixTimeLastQueried = hostSystem()->GetHighResTimeUs();
+            unix_time_last_queried_ = hostSystem()->GetHighResTimeUs();
         }
     }
 
     void ConfigureHost() const override {}
 
-    System* host() { return hostSystem(); }
+    static System* Host() { return hostSystem(); }
 
   private:
-    fs::path mHomeDir;
-    fs::path mAppDataDir;
-    bool mIsRemoteSession;
-    std::string mRemoteSessionType;
-    std::unique_ptr<TestTempDir> mTempDir;
-    std::vector<std::string> mEnvPairs;
-    System* mPrevSystem;
-    Times mTimes;
-    void* mShellOpaque;
-    mutable Duration mUnixTime;
-    mutable Duration mUnixTimeLastQueried = 0;
-    bool mUnixTimeLive = false;
-    OsType mOsType = OsType::kWindows;
-    std::string mOsName;
-    bool mUnderWine = false;
-    int mCoreCount = 4;
-    std::optional<std::string> mWhich;
+    fs::path home_dir_;
+    fs::path app_data_dir_;
+    bool is_remote_session_ = false;
+    std::string remote_session_type_;
+    std::unique_ptr<TestTempDir> temp_dir_;
+    std::vector<std::string> env_pairs_;
+    System* prev_system_;
+    Times times_;
+    mutable Duration unix_time_{};
+    mutable WallDuration unix_time_last_queried_ = 0;
+    bool unix_time_live_ = false;
+    OsType os_type_ = OsType::kWindows;
+    std::string os_name_;
+    int core_count_ = 4;
+    std::optional<std::string> which_;
 };
 
-}  // namespace base
-}  // namespace android
+}  // namespace android::base

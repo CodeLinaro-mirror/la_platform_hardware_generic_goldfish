@@ -1,3 +1,4 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
@@ -38,4 +39,13 @@ cc_test(
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        "sensors",
+        "sensors_unittests",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
 )

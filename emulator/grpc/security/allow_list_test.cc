@@ -130,7 +130,7 @@ TEST(AllowListTest, can_parse_default_list) {
     std::filesystem::path emu_access = std::filesystem::path(
             "goldfish+/emulator/grpc/security/src/android/"
             "emulation/control/secure/emulator_access.json");
-    auto path = android::base::internal::runfilesPath(emu_access);
+    auto path = android::base::internal::RunfilesPath(emu_access);
 
     auto file = std::ifstream(path);
     ASSERT_TRUE(file.good());

@@ -25,26 +25,26 @@ namespace android::base {
  */
 class TestClock : public IClock {
   public:
-    absl::Time Now(ClockType type) const override {
+    absl::Time Now(ClockType /*type*/) const override {
         // In a test environment, we don't need to distinguish between
         // different clock types. We just return the time that has been set.
-        return mCurrentTime;
+        return current_time_;
     }
 
     /**
      * @brief Sets the current time of the mock clock.
      * @param new_time The new time to set.
      */
-    void set_time(absl::Time new_time) { mCurrentTime = new_time; }
+    void SetTime(absl::Time new_time) { current_time_ = new_time; }
 
     /**
      * @brief Advances the clock by a specified duration.
      * @param duration The duration to advance the clock by.
      */
-    void advance(absl::Duration duration) { mCurrentTime += duration; }
+    void Advance(absl::Duration duration) { current_time_ += duration; }
 
   private:
-    absl::Time mCurrentTime;
+    absl::Time current_time_;
 };
 
 }  // namespace android::base

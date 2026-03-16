@@ -15,13 +15,9 @@
 #include <filesystem>
 #include <string>
 
-namespace android {
-namespace base {
-namespace internal {
+namespace android::base::internal {
 
 // Returns the path of the specified file in the runfiles directory.
-std::filesystem::path runfilesPath(std::filesystem::path path);
+std::filesystem::path RunfilesPath(const std::filesystem::path& path);
 
-}  // namespace internal
-}  // namespace base
-}  // namespace android
+}  // namespace android::base::internal

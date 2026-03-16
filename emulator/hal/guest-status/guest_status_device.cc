@@ -53,7 +53,7 @@ class GuestStatusDevice : public IGuestStatusDevice,
             , mQuitAfterBootTimeoutSeconds(quitAfterBootTimeoutSeconds) {
         VLOG(1) << "GuestStatus device has been created";
         if (resetCallbacks.do_register) {
-            DCHECK(resetCallbacks.do_unregister);
+            DCHECK(resetCallbacks.do_register);
             resetCallbacks.do_register(GuestStatusDevice::QEMUResetHandler, this);
             mUnregisterEmulatorReset = resetCallbacks.do_unregister;
         } else {
@@ -185,7 +185,7 @@ void IGuestStatusDevice::RegisterDevice(GuestStatus* guestStatus, GrpcNotificati
                                         EventLoop* client_loop, EventLoop* qemu_loop,
                                         int quitAfterBootTimeoutSeconds) {
     registry->RegisterHalDevice(
-            std::string(IGuestStatusDevice::serviceName), client_loop, qemu_loop,
+            std::string(IGuestStatusDevice::kServiceName), client_loop, qemu_loop,
             [guestStatus, notificationSource, resetCallbacks, qemu_loop,
              quitAfterBootTimeoutSeconds](std::string_view /*args*/) {
                 return std::make_shared<GuestStatusDevice>(*guestStatus, notificationSource,
