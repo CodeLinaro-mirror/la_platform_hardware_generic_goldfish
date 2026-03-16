@@ -58,14 +58,18 @@ const CommandRegistry::Entry* CommandRegistry::FindChild(
 // Finds an existing child or creates a new one with the given name and description.
 CommandRegistry::Entry* CommandRegistryBuilder::GetOrCreateChild(
         std::vector<std::unique_ptr<CommandRegistry::Entry>>& children, std::string name,
-        std::string description) {
+        std::string abstract, std::string description) {
     for (const auto& child : children) {
         if (CommandRegistry::Matches(*child, name)) {
+            if (!abstract.empty()) child->abstract = std::move(abstract);
+            if (!description.empty()) child->description = std::move(description);
             return child.get();
         }
     }
-    children.push_back(std::make_unique<CommandRegistry::Entry>(CommandRegistry::Entry{
-        .name = std::move(name), .description = std::move(description)}));
+    children.push_back(std::make_unique<CommandRegistry::Entry>(
+            CommandRegistry::Entry{.name = std::move(name),
+                                   .abstract = std::move(abstract),
+                                   .description = std::move(description)}));
     return children.back().get();
 }
 
@@ -85,16 +89,22 @@ CommandRegistryBuilder::NodeBuilder& CommandRegistryBuilder::NodeBuilder::Handle
 }
 
 CommandRegistryBuilder::NodeBuilder& CommandRegistryBuilder::NodeBuilder::OnInternal(
-        std::string name, std::string description, CommandRegistry::CommandHandler handler) {
-    Sub(std::move(name), std::move(description)).Handler(std::move(handler));
+        std::string name, std::string abstract, std::string description,
+        CommandRegistry::CommandHandler handler) {
+    Sub(std::move(name), std::move(abstract), std::move(description)).Handler(std::move(handler));
     return *this;
 }
 
+CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::NodeBuilder::Sub(std::string name,
+                                                                             std::string abstract) {
+    return Sub(std::move(name), std::move(abstract), "");
+}
+
 CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::NodeBuilder::Sub(
-        std::string name, std::string description) {
+        std::string name, std::string abstract, std::string description) {
     CHECK(!name.empty()) << "Sub-command name cannot be empty.";
     CommandRegistry::Entry* child = CommandRegistryBuilder::GetOrCreateChild(
-            entry_->children, std::move(name), std::move(description));
+            entry_->children, std::move(name), std::move(abstract), std::move(description));
     if (entry_->is_safe) {
         child->is_safe = true;
     }
@@ -107,9 +117,15 @@ CommandRegistryBuilder::CommandRegistryBuilder(std::filesystem::path token_path)
         : token_path_(std::move(token_path)) {}
 
 CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::Command(std::string name,
+                                                                    std::string abstract) {
+    return Command(std::move(name), std::move(abstract), "");
+}
+
+CommandRegistryBuilder::NodeBuilder CommandRegistryBuilder::Command(std::string name,
+                                                                    std::string abstract,
                                                                     std::string description) {
-    CommandRegistry::Entry* entry =
-            GetOrCreateChild(root_commands_, std::move(name), std::move(description));
+    CommandRegistry::Entry* entry = GetOrCreateChild(root_commands_, std::move(name),
+                                                     std::move(abstract), std::move(description));
     return NodeBuilder{entry};
 }
 
@@ -126,13 +142,13 @@ CommandRegistry::CommandRegistry(Passkey, std::filesystem::path token_path,
     // Register built-in help commands at the beginning to match old behavior.
     auto help_verbose = std::make_unique<Entry>(Entry{
         .name = "help-verbose",
-        .description = "print a list of commands with descriptions",
+        .abstract = "print a list of commands with descriptions",
         .handler = [this](Context& ctx, ArgStream& args) { return ShowHelp(args, ctx, true); },
         .is_safe = true});
 
     auto help = std::make_unique<Entry>(Entry{
         .name = "help|h|?",
-        .description = "print a list of commands",
+        .abstract = "print a list of commands",
         .handler = [this](Context& ctx, ArgStream& args) { return ShowHelp(args, ctx, false); },
         .is_safe = true});
 
@@ -204,7 +220,7 @@ std::string CommandRegistry::ShowRootHelp(const Context& ctx, bool verbose) cons
         if (cmd->is_safe || ctx.authenticated) {
             if (verbose) {
                 absl::StrAppend(&help,
-                                absl::StrFormat("    %-16s %s\r\n", cmd->name, cmd->description));
+                                absl::StrFormat("    %-16s %s\r\n", cmd->name, cmd->abstract));
             } else {
                 absl::StrAppend(&help, "    ", cmd->name, "\r\n");
             }
@@ -247,7 +263,12 @@ absl::StatusOr<std::string> CommandRegistry::ShowSubcommandHelp(ArgStream& args,
 // Formats the help message for a specific command node and its subcommands.
 std::string CommandRegistry::GetSubCommandsHelp(const Entry& entry, std::string_view path,
                                                 const Context& ctx, bool verbose) {
-    std::string help = absl::StrCat(path, "\r\n", entry.description, "\r\n");
+    std::string help;
+    if (!entry.description.empty()) {
+        help = absl::StrCat(entry.description, "\r\n");
+    } else {
+        help = absl::StrCat(path, "\r\n", entry.abstract, "\r\n");
+    }
 
     bool has_subs = false;
     for (const auto& child : entry.children) {
@@ -260,7 +281,7 @@ std::string CommandRegistry::GetSubCommandsHelp(const Entry& entry, std::string_
                     path.empty() ? child->name : absl::StrCat(path, " ", child->name);
             if (verbose) {
                 absl::StrAppend(&help,
-                                absl::StrFormat("    %-20s %s\r\n", full_name, child->description));
+                                absl::StrFormat("    %-20s %s\r\n", full_name, child->abstract));
             } else {
                 absl::StrAppend(&help, "    ", full_name, "\r\n");
             }

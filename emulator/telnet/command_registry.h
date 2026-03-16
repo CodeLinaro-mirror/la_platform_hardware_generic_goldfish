@@ -64,6 +64,7 @@ using ArgStream = goldfish::parsing::ArgStream;
  *   // 3. Command with typed and optional parameters
  *   builder.Command("set-location", "Set device coordinates")
  *          .On("gps", "set lat and optional lon",
+ *              "'geo fix <lon> <lat>': set the coordinates",
  *              [](LineCommandHandler::Context&, double lat, std::optional<double> lon) {
  *                  return absl::StrCat("Lat: ", lat, " Lon: ", lon.value_or(0.0));
  *              });
@@ -101,7 +102,8 @@ class CommandRegistry : public LineCommandHandler {
      */
     struct Entry {
         std::string name;         ///< Invocation name(s), e.g., "quit|exit".
-        std::string description;  ///< Help text.
+        std::string abstract;     ///< Short description for help listings.
+        std::string description;  ///< Detailed help text for 'help <cmd>'.
         CommandHandler handler;   ///< Optional execution logic.
         bool is_safe = false;     ///< True if executable while unauthenticated.
         std::vector<std::unique_ptr<Entry>> children;  ///< Nested sub-commands.
@@ -162,12 +164,31 @@ class CommandRegistryBuilder {
          * `bool`, `std::string`, and `std::optional<T>`.
          *
          * @param name The name of the command (can include '|' for aliases).
-         * @param description Help text for this command.
+         * @param abstract Short description for parent help listings.
          * @param handler The callable logic to execute.
          * @return Reference to this NodeBuilder for chaining.
          */
         template <typename F>
-        NodeBuilder& On(std::string name, std::string description, F&& handler) {
+        NodeBuilder& On(std::string name, std::string abstract, F&& handler) {
+            return On(std::move(name), abstract, "", std::forward<F>(handler));
+        }
+
+        /**
+         * @brief Registers a sub-command with automatic parsing and detailed help.
+         *
+         * The handler's signature determines which arguments are extracted
+         * from the input stream. Supported types include `int`, `double`,
+         * `bool`, `std::string`, and `std::optional<T>`.
+         *
+         * @param name The name of the command.
+         * @param abstract Short description for parent help listings.
+         * @param description Detailed help text for 'help <this-command>'.
+         * @param handler The callable logic to execute.
+         * @return Reference to this NodeBuilder for chaining.
+         */
+        template <typename F>
+        NodeBuilder& On(std::string name, std::string abstract, std::string description,
+                        F&& handler) {
             using CtxType = typename parsing::FunctionTraits<std::decay_t<F>>::ContextType;
             auto wrapped = [func = std::forward<F>(handler)](
                                    LineCommandHandler::Context& ctx,
@@ -175,21 +196,31 @@ class CommandRegistryBuilder {
                 return parsing::BindAndInvoke(std::forward<decltype(func)>(func),
                                               static_cast<CtxType&>(ctx), args);
             };
-            return OnInternal(std::move(name), std::move(description), std::move(wrapped));
+            return OnInternal(std::move(name), std::move(abstract), std::move(description),
+                              std::move(wrapped));
         }
 
         /**
          * @brief Creates or focuses on a sub-command group.
-         * @param name The name of the sub-command group (aliases can be separated by '|').
-         * @param description Help text for this group.
+         * @param name The name of the sub-command group.
+         * @param abstract Short description for parent help listings.
          * @return A NodeBuilder focused on the sub-command node.
          */
-        NodeBuilder Sub(std::string name, std::string description);
+        NodeBuilder Sub(std::string name, std::string abstract);
+
+        /**
+         * @brief Creates or focuses on a sub-command group with detailed help.
+         * @param name The name of the sub-command group.
+         * @param abstract Short description for parent help listings.
+         * @param description Detailed help text for 'help <this-group>'.
+         * @return A NodeBuilder focused on the sub-command node.
+         */
+        NodeBuilder Sub(std::string name, std::string abstract, std::string description);
 
       private:
         friend class CommandRegistryBuilder;
         explicit NodeBuilder(CommandRegistry::Entry* entry);
-        NodeBuilder& OnInternal(std::string name, std::string description,
+        NodeBuilder& OnInternal(std::string name, std::string abstract, std::string description,
                                 CommandRegistry::CommandHandler handler);
 
         CommandRegistry::Entry* entry_;
@@ -197,11 +228,59 @@ class CommandRegistryBuilder {
 
     /**
      * @brief Starts the definition of a root-level command.
+     *
      * @param name The name of the command (aliases can be separated by '|').
-     * @param description A brief description for help listings.
+     * @param abstract A brief description for root help listings.
      * @return A NodeBuilder focused on the root command node.
      */
-    NodeBuilder Command(std::string name, std::string description);
+    NodeBuilder Command(std::string name, std::string abstract);
+
+    /**
+     * @brief Starts the definition of a root-level command with detailed help.
+     *
+     * @param name The name of the command (aliases can be separated by '|').
+     * @param abstract A brief description for root help listings.
+     * @param description Detailed help text for 'help <command>'.
+     * @return A NodeBuilder focused on the root command node.
+     */
+    NodeBuilder Command(std::string name, std::string abstract, std::string description);
+
+    /**
+     * @brief Registers a root-level command with automatic argument parsing.
+     *
+     * @param name The name of the command (aliases can be separated by '|').
+     * @param abstract Short description for root help listings.
+     * @param handler The callable logic to execute.
+     * @return A NodeBuilder focused on the registered command.
+     */
+    template <typename F>
+    NodeBuilder On(std::string name, std::string abstract, F&& handler) {
+        return On(std::move(name), std::move(abstract), "", std::forward<F>(handler));
+    }
+
+    /**
+     * @brief Registers a root-level command with automatic parsing and detailed help.
+     *
+     * @param name The name of the command (aliases can be separated by '|').
+     * @param abstract Short description for root help listings.
+     * @param description Detailed help text.
+     * @param handler The callable logic to execute.
+     * @return A NodeBuilder focused on the registered command.
+     */
+    template <typename F>
+    NodeBuilder On(std::string name, std::string abstract, std::string description, F&& handler) {
+        using CtxType = typename parsing::FunctionTraits<std::decay_t<F>>::ContextType;
+        CommandRegistry::CommandHandler wrapped =
+                [func = std::forward<F>(handler)](
+                        LineCommandHandler::Context& ctx,
+                        ArgStream& args) mutable -> absl::StatusOr<std::string> {
+            return parsing::BindAndInvoke(std::forward<decltype(func)>(func),
+                                          static_cast<CtxType&>(ctx), args);
+        };
+
+        return Command(std::move(name), std::move(abstract), std::move(description))
+                .Handler(std::move(wrapped));
+    }
 
     /**
      * @brief Finalizes the command tree and returns a CommandRegistry.
@@ -214,7 +293,7 @@ class CommandRegistryBuilder {
   private:
     static CommandRegistry::Entry* GetOrCreateChild(
             std::vector<std::unique_ptr<CommandRegistry::Entry>>& children, std::string name,
-            std::string description);
+            std::string abstract, std::string description);
 
     std::filesystem::path token_path_;
     std::vector<std::unique_ptr<CommandRegistry::Entry>> root_commands_;
