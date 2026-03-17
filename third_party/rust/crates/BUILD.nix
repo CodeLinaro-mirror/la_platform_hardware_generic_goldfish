@@ -1,5 +1,4 @@
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(
@@ -10,16 +9,9 @@ package(
 license(
     name = "license",
     license_kinds = [
-        ":SPDX-license-identifier-MIT",
+        "@rules_license//licenses/spdx:MIT",
     ],
-    license_text = "LICENSE",
     visibility = [":__subpackages__"],
-)
-
-license_kind(
-    name = "SPDX-license-identifier-MIT",
-    conditions = ["notice"],
-    url = "",
 )
 
 rust_library(
