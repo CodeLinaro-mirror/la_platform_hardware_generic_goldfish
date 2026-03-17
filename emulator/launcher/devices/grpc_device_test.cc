@@ -64,8 +64,8 @@ TEST(Grpc, DefaultAllowlist) {
 
 TEST(Grpc, CustomAllowlist) {
     android::base::TestTempDir tmp_dir("Grpc_CustomAllowList");
-    std::string allowlist_path = tmp_dir.path().append("allowlist.json").string();
-    EXPECT_TRUE(tmp_dir.makeSubFile("allowlist.json"));
+    std::string allowlist_path = tmp_dir.Path().append("allowlist.json").string();
+    EXPECT_TRUE(tmp_dir.MakeSubFile("allowlist.json"));
     // AndroidOptions requires a non-const char*.
     std::vector<char> allowlist_vec(allowlist_path.begin(), allowlist_path.end());
     allowlist_vec.push_back('\0');

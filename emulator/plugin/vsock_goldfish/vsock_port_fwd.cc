@@ -197,7 +197,7 @@ class VSockProxyImpl : public VSockProxy {
             , mClientLoop(goldfish::async::globalEventLoop())
             , mBootcompleteTime(bootcompleteTime) {
         using namespace std::chrono_literals;
-        mConnectionAwaiter = ConnectionAwaiter::retryUntilConnected(
+        mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
                 mQemuLoop,
                 [&](auto plug) {
                     if (isBootCompleted()) {

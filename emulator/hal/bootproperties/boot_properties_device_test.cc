@@ -115,8 +115,8 @@ TEST(BootPropertyStringTest, LengthLimit) {
 
 class BootPropertiesDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
 
         IBootPropertiesDevice::Properties props;
         registerWithProps(props);
@@ -125,8 +125,8 @@ class BootPropertiesDeviceTest : public ::testing::Test {
   public:
     void registerWithProps(IBootPropertiesDevice::Properties props) {
         IBootPropertiesDevice::RegisterDevice(&registry, props, mClientLoop.get(), mQemuLoop.get());
-        device = registry.constructHalDevice<IBootPropertiesDevice>();
-        test_socket = registry.halSocket();
+        device = registry.ConstructHalDevice<IBootPropertiesDevice>();
+        test_socket = registry.HalSocket();
         clear();
         device->OnConnect();
     }

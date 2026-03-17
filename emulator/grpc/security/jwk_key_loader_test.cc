@@ -62,7 +62,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
         EXPECT_TRUE(status.ok());
 
         mTempDir = std::make_unique<TestTempDir>(
-                absl::StrCat("watcher_test", TestTempDir::generate_random_string()));
+                absl::StrCat("watcher_test", TestTempDir::GenerateRandomString()));
 
         mSampleJwt = tink::RawJwtBuilder()
                              .SetIssuer("JwkDirectoryObserverTest")
@@ -84,13 +84,13 @@ class JwkKeyLoaderTest : public ::testing::Test {
         // This prevents the loader from reading a truncated or partial file.
         Path tmpName = fname + ".tmp";
         {
-            std::ofstream out(mTempDir->path() / tmpName);
+            std::ofstream out(mTempDir->Path() / tmpName);
             for (char c : snippet) {
                 out.put(c);
                 out.flush();
             }
         }
-        auto status = base::file::mv_file(mTempDir->path() / tmpName, mTempDir->path() / fname);
+        auto status = base::file::mv_file(mTempDir->Path() / tmpName, mTempDir->Path() / fname);
         EXPECT_TRUE(status.ok()) << status.message();
     }
 
@@ -116,7 +116,7 @@ class JwkKeyLoaderTest : public ::testing::Test {
 TEST_F(JwkKeyLoaderTest, refuses_large_files) {
     JwkKeyLoader loader;
     WriteSnippet("foo", std::string(8196 * 2, 'x'));
-    auto status = loader.Add((mTempDir->path() / "foo").string());
+    auto status = loader.Add((mTempDir->Path() / "foo").string());
     EXPECT_FALSE(status.ok());
     ASSERT_THAT(status.message(), ContainsSubstr("which is over our max of"));
 }
@@ -128,7 +128,7 @@ TEST_F(JwkKeyLoaderTest, will_bail_on_retries_with_empty) {
     WriteSnippet("foo", std::string(0, 'x'));
     auto start = std::chrono::system_clock::now();
     // 8 retries @ 10ms = ~80ms expected wait.
-    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 8, 10ms);
+    auto status = loader.AddWithRetryForEmpty((mTempDir->Path() / "foo").string(), 8, 10ms);
     auto end = std::chrono::system_clock::now();
     std::chrono::milliseconds waited =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -170,7 +170,7 @@ TEST_F(JwkKeyLoaderTest, eventually_detects_written_file) {
     });
 
     // We allow for up to 500 retries of 10ms (5 seconds total) to account for slow CI runners.
-    auto status = loader.AddWithRetryForEmpty((mTempDir->path() / "foo").string(), 500, 10ms);
+    auto status = loader.AddWithRetryForEmpty((mTempDir->Path() / "foo").string(), 500, 10ms);
 
     EXPECT_TRUE(status.ok()) << "Failure: " << status.message();
 
@@ -275,7 +275,7 @@ TEST_F(JwkKeyLoaderTest, accepts_json_in_file) {
         })##";
 
     WriteSnippet("sample.jwk", b273331311);
-    auto status = loader.Add((mTempDir->path() / "sample.jwk").string());
+    auto status = loader.Add((mTempDir->Path() / "sample.jwk").string());
     EXPECT_TRUE(status.ok()) << "Failed: " << status.message();
     EXPECT_EQ(loader.Size(), 1);
 

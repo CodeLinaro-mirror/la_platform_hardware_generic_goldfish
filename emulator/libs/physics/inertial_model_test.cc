@@ -106,8 +106,8 @@ TEST(InertialModel, ConvergeToPosition) {
 
 TEST(InertialModel, AtRestRotationalVelocity) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     InertialModel inertialModel;
     EXPECT_EQ(glm::vec3(0.0f, 0.0f, 0.0f), inertialModel.GetRotationalVelocity());
 }
@@ -120,7 +120,7 @@ TEST(InertialModel, ZeroAcceleration) {
     glm::vec3 targetPosition(2.0f, 3.0f, 4.0f);
     // at 1 second we move the target to (2, 3, 4)
     inertialModel.SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
-    mTestSystem.setUnixTime(2);
+    mTestSystem.SetUnixTime(2);
     // at 2 seconds the target is still at (2, 3, 4);
     inertialModel.SetTargetPosition(targetPosition, PhysicalInterpolation::kStep);
     // the acceleration is expected to be close to zero at this point.
@@ -181,7 +181,7 @@ TEST(InertialModel, InstantaneousRotation) {
 
     glm::quat startRotation(glm::vec3(0.f, 0.f, 0.f));
     inertialModel.SetTargetRotation(startRotation, PhysicalInterpolation::kStep);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetUnixTime(1);
     glm::quat newRotation(glm::vec3(-1.0f, 0.0f, 0.0f));
     inertialModel.SetTargetRotation(newRotation, PhysicalInterpolation::kStep);
     glm::vec3 currentGyro(inertialModel.GetRotationalVelocity());

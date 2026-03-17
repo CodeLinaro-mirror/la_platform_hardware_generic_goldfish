@@ -70,7 +70,7 @@ TEST(System, granularity) {
     auto start = System::Get()->GetUnixTimeUs();
     auto now = start;
     auto until = now + 1000 * 1000;
-    int diff = 0, cnt = 0;
+    int diff = 0;
 
     while (now < until) {
         // Time should increase..
@@ -113,10 +113,10 @@ TEST(System, envGetAndSet) {
 }
 
 TEST(System, isRemoteSession) {
-    std::string sessionType;
-    bool isRemote = System::Get()->IsRemoteSession(&sessionType);
+    std::string session_type;
+    bool isRemote = System::Get()->IsRemoteSession(&session_type);
     if (isRemote) {
-        LOG(INFO) << "Remote session type [" << sessionType.c_str() << "]";
+        LOG(INFO) << "Remote session type [" << session_type.c_str() << "]";
     } else {
         LOG(INFO) << "Local session type";
     }
@@ -124,8 +124,8 @@ TEST(System, isRemoteSession) {
 
 TEST(System, addLibrarySearchDir) {
     TestSystem testSys("/foo/bar");
-    TestTempDir* testDir = testSys.getTempRoot();
-    ASSERT_TRUE(testDir->makeSubDir("lib"));
+    TestTempDir* testDir = testSys.GetTempRoot();
+    ASSERT_TRUE(testDir->MakeSubDir("lib"));
     testSys.AddLibrarySearchDir("lib");
 }
 

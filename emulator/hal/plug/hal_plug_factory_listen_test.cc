@@ -30,8 +30,8 @@ class HalPlugFactoryListenTest : public ::testing::Test {
     HalPlugFactoryListenTest() = default;
 
     void SetUp() override {
-        mClientLoop = async::testing::TestEventLoop::create();
-        mQemuLoop = async::testing::TestEventLoop::create();
+        mClientLoop = async::testing::TestEventLoop::Create();
+        mQemuLoop = async::testing::TestEventLoop::Create();
         // Set up any necessary objects for the tests.
     }
 
@@ -75,7 +75,7 @@ TEST_F(HalPlugFactoryListenTest, ListenSuccess) {
         return createdPlug;
     };
 
-    vsock::set_fake_listen_fn([&](uint32_t port, vsock::HostPortListener listener) {
+    vsock::SetFakeListenFn([&](uint32_t port, vsock::HostPortListener listener) {
         listener(SocketPtr(mockSocket));
         return true;
     });
@@ -85,12 +85,12 @@ TEST_F(HalPlugFactoryListenTest, ListenSuccess) {
     EXPECT_TRUE(result);
 
     // The factory should have been called on the QEMU loop.
-    mQemuLoop->runOne();
+    mQemuLoop->RunOne();
     EXPECT_TRUE(factoryCalled);
     ASSERT_NE(nullptr, createdPlug);
 
     // The onConnect method should be called on the client loop.
-    mClientLoop->runOne();
+    mClientLoop->RunOne();
     EXPECT_TRUE(createdPlug->onConnectCalled());
 
     // Cleanup..

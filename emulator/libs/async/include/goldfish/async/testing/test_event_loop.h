@@ -36,7 +36,7 @@ class TestEventLoop : public EventLoop {
      * TestEventLoop.
      * @return A unique_ptr to a new TestEventLoop instance.
      */
-    static std::unique_ptr<TestEventLoop> create();
+    static std::unique_ptr<TestEventLoop> Create();
 
     /**
      * @brief Runs all immediately pending tasks until the queue is empty.
@@ -44,26 +44,26 @@ class TestEventLoop : public EventLoop {
      * This method does not advance the clock and only executes tasks posted
      * via post() without a delay.
      */
-    virtual void runAll() = 0;
+    virtual void RunAll() = 0;
 
     /**
      * @brief Runs at most one immediately pending task.
      * @return True if a task was executed, false if the queue was empty.
      */
-    virtual bool runOne() = 0;
+    virtual bool RunOne() = 0;
 
     /**
      * @brief Runs up to a specified number of immediately pending tasks.
      * @param count The maximum number of tasks to run.
      * @return The number of tasks that were actually executed.
      */
-    virtual size_t runMany(size_t count) = 0;
+    virtual size_t RunMany(size_t count) = 0;
 
     /**
      * @brief Number of scheduled tasks
      * @return The number of scheduled tasks.
      */
-    virtual size_t taskCount() const = 0;
+    virtual size_t TaskCount() const = 0;
     /**
      * @brief Advances the loop's internal clock by a specified duration.
      *
@@ -72,6 +72,6 @@ class TestEventLoop : public EventLoop {
      * immediately pending tasks from the separate queue.
      * @param duration The amount of time to advance the clock.
      */
-    virtual void advanceClock(std::chrono::milliseconds duration) = 0;
+    virtual void AdvanceClock(std::chrono::milliseconds duration) = 0;
 };
 }  // namespace goldfish::async::testing

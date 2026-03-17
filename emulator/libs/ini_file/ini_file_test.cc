@@ -39,7 +39,7 @@ class IniFileTest : public ::testing::Test {
   public:
     void SetUp() override {
         mTempDir = absl::make_unique<android::base::TestTempDir>("inifiletest");
-        mIniFilePath = mTempDir->makeSubPath("test.ini").c_str();
+        mIniFilePath = mTempDir->MakeSubPath("test.ini").c_str();
         mIni = absl::make_unique<IniFile>(mIniFilePath);
     }
 

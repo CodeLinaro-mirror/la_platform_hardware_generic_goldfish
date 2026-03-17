@@ -39,13 +39,13 @@ void writeToFile(fs::path path, std::string text) {
 
 ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     fs::path android_home("android_home");
-    tmp->makeSubDir(android_home);
-    tmp->makeSubDir(android_home / "avd");
+    tmp->MakeSubDir(android_home);
+    tmp->MakeSubDir(android_home / "avd");
 
     return {
-        .user_directory = tmp->path(),
-        .avd_directory = tmp->path() / android_home / "avd",
-        .sdk_directory = tmp->path() / android_home,
+        .user_directory = tmp->Path(),
+        .avd_directory = tmp->Path() / android_home / "avd",
+        .sdk_directory = tmp->Path() / android_home,
     };
 }
 
@@ -64,7 +64,7 @@ fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targe
 
 TEST(Avd, api_level) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
     createTestAvd(paths, "android-30");
@@ -75,7 +75,7 @@ TEST(Avd, api_level) {
 
 TEST(Avd, dessert) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
     createTestAvd(paths, "android-30");
@@ -86,7 +86,7 @@ TEST(Avd, dessert) {
 
 TEST(Avd, unknownApiLevel) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
     createTestAvd(paths, "android-1");  // API level 1 doesn't have a dessert name
@@ -98,7 +98,7 @@ TEST(Avd, unknownApiLevel) {
 
 TEST(Avd, invalidTargetFormat) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
     createTestAvd(paths, "invalid-target-format");
@@ -110,11 +110,11 @@ TEST(Avd, invalidTargetFormat) {
 
 TEST(Avd, path_getAvdSystemPath) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     fs::path android_home("android_home");
-    tmp->makeSubDir(android_home / "sysimg");
-    tmp->makeSubDir("nothome");
+    tmp->MakeSubDir(android_home / "sysimg");
+    tmp->MakeSubDir("nothome");
 
     fs::path avd_dir = paths.avd_directory / "q.avd";
     base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
@@ -128,12 +128,12 @@ TEST(Avd, path_getAvdSystemPath) {
 TEST(Avd, path_getAvdSystemImage) {
     absl::SetGlobalVLogLevel(4);
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     fs::path android_home("android_home");
-    tmp->makeSubDir(android_home / "sysimg");
-    tmp->makeSubDir("nothome");
-    tmp->makeSubDir(fs::path("nothome") / "blah");
+    tmp->MakeSubDir(android_home / "sysimg");
+    tmp->MakeSubDir("nothome");
+    tmp->MakeSubDir(fs::path("nothome") / "blah");
 
     // Create an in file for the @q avd.
     fs::path avd_dir = paths.avd_directory / "q.avd";
@@ -145,7 +145,7 @@ TEST(Avd, path_getAvdSystemImage) {
     EXPECT_EQ(1, inis.size());
 
     // No override.
-    auto expectedPath = tmp->path() / android_home / "sysimg" / "system.img";
+    auto expectedPath = tmp->Path() / android_home / "sysimg" / "system.img";
     writeToFile(expectedPath, "some data");
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "q"));
@@ -155,17 +155,18 @@ TEST(Avd, path_getAvdSystemImage) {
     std::remove(expectedPath.string().c_str());
 
     // Override.
-    expectedPath = tmp->path() / "nothome" / "blah" / "system.img";
+    expectedPath = tmp->Path() / "nothome" / "blah" / "system.img";
     writeToFile(expectedPath, "some data");
 
-    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::FromName(paths, "q", /*wipe_data=*/false, tmp->path() / "nothome" / "blah"));
+    ASSERT_OK_AND_ASSIGN(auto avd2, Avd::FromName(paths, "q", /*wipe_data=*/false,
+                                                  tmp->Path() / "nothome" / "blah"));
     EXPECT_THAT(avd2->GetSystemImageFilePath(Avd::ImageType::INITSYSTEM),
                 IsOkAndHolds(expectedPath));
 }
 
 TEST(Avd, wipe_data) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     auto avd_dir = createTestAvd(paths, "android-30");
 
@@ -197,7 +198,7 @@ TEST(Avd, wipe_data) {
 
 TEST(Avd, finalize_saves_config) {
     TestSystem sys("/home", "/");
-    TestTempDir* tmp = sys.getTempRoot();
+    TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     auto avd_dir = createTestAvd(paths, "android-30");
 

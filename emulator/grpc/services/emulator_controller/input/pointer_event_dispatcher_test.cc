@@ -85,7 +85,7 @@ TEST(PenTouchEventTest, EvDevEventsConversion) {
 
 TEST(PenTouchEventTest, SendEvents) {
     // Create a mock display.
-    auto evloop = TestEventLoop::create();
+    auto evloop = TestEventLoop::Create();
     MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
@@ -134,7 +134,7 @@ TEST(PenTouchEventTest, SendEventsWithOldSlots) {
     // Create a mock display, note we are using a nicemock
     // as we will make a series of calls to our mock that we
     // do not care about.
-    auto evloop = TestEventLoop::create();
+    auto evloop = TestEventLoop::Create();
     ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
@@ -271,7 +271,7 @@ TEST(TouchEvDevTest, NoReleaseTwice) {
 
 TEST(MultiTouchEventTest, SendEventsPress) {
     // Create a mock display.
-    auto evloop = TestEventLoop::create();
+    auto evloop = TestEventLoop::Create();
     MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
@@ -311,7 +311,7 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
     // Create a mock display, note we are using a nicemock
     // as we will make a series of calls to our mock that we
     // do not care about.
-    auto evloop = TestEventLoop::create();
+    auto evloop = TestEventLoop::Create();
     ::testing::NiceMock<MockDisplay> display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.
@@ -349,7 +349,7 @@ TEST(MultiTouchEventTest, SendEventsWithOldSlots) {
 
 TEST(MultiTouchEventTest, SendEventsMultipleTouch) {
     // Create a mock display.
-    auto evloop = TestEventLoop::create();
+    auto evloop = TestEventLoop::Create();
     MockDisplay display(evloop.get(), 0, 1024, 768);
 
     // Create a PointerEventDispatcher.

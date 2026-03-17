@@ -17,8 +17,7 @@
 
 #include "goldfish/devices/internal/hal_plug.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 /**
  * @brief A framework-internal helper to access private members of HalPlug.
@@ -34,5 +33,4 @@ class HalPlugTesting {
     }
 };
 
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

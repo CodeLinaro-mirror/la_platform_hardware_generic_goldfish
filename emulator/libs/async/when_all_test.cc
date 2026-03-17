@@ -29,7 +29,7 @@ using namespace goldfish::async;
 using namespace goldfish::async::testing;
 
 TEST(WhenAll, TestEventLoop) {
-    auto loop = TestEventLoop::create();
+    auto loop = TestEventLoop::Create();
 
     std::pair<int, int> result = {};
 
@@ -42,7 +42,7 @@ TEST(WhenAll, TestEventLoop) {
             loop->Post([the_pair]() { the_pair->MutableResults().second = 67; }).IgnoreError();
         }).IgnoreError();
 
-    loop->runAll();
+    loop->RunAll();
 
     EXPECT_EQ(result.first, 42);
     EXPECT_EQ(result.second, 67);

@@ -46,7 +46,7 @@ class ScopedAsyncResource {
                 resource_->Close();
             } else {
                 // We are on a different thread. It's safe to block.
-                loop_->PostAndWait([res = resource_]() { res->Close(); });
+                loop_->PostAndWait([res = resource_]() { res->Close(); }).IgnoreError();
             }
         }
     }
@@ -63,7 +63,9 @@ class ScopedAsyncResource {
                 if (loop_->IsOnLoopThread()) {
                     resource_->Close();
                 } else {
-                    loop_->PostAndWait([res = std::move(resource_)]() { res->Close(); });
+                    loop_->PostAndWait([res = std::move(resource_)]() {
+                             res->Close();
+                         }).IgnoreError();
                 }
             }
             resource_ = std::move(other.resource_);

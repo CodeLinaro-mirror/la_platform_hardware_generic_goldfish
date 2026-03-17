@@ -24,8 +24,8 @@ using goldfish::physics::AmbientEnvironment;
 
 TEST(AmbientEnvironment, DefaultParameters) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
 
     AmbientEnvironment ambientEnvironment;
 
@@ -47,8 +47,8 @@ TEST(AmbientEnvironment, DefaultParameters) {
 
 TEST(AmbientEnvironment, SetMagneticField) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetMagneticField(8.f, 11.f, 20.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(glm::vec3(8.f, 11.f, 20.f), ambientEnvironment.GetMagneticField());
@@ -56,8 +56,8 @@ TEST(AmbientEnvironment, SetMagneticField) {
 
 TEST(AmbientEnvironment, SetGravity) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetGravity(glm::vec3(0.f, 1.f, 2.f), PhysicalInterpolation::kStep);
     EXPECT_EQ(glm::vec3(0.f, 1.f, 2.f), ambientEnvironment.GetGravity());
@@ -65,8 +65,8 @@ TEST(AmbientEnvironment, SetGravity) {
 
 TEST(AmbientEnvironment, SetTemperature) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetTemperature(27.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(27.f, ambientEnvironment.GetTemperature());
@@ -74,8 +74,8 @@ TEST(AmbientEnvironment, SetTemperature) {
 
 TEST(AmbientEnvironment, SetProximity) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetProximity(8.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(8.f, ambientEnvironment.GetProximity());
@@ -83,8 +83,8 @@ TEST(AmbientEnvironment, SetProximity) {
 
 TEST(AmbientEnvironment, SetLight) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetLight(187.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(187.f, ambientEnvironment.GetLight());
@@ -92,8 +92,8 @@ TEST(AmbientEnvironment, SetLight) {
 
 TEST(AmbientEnvironment, SetPressure) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetPressure(823.f, PhysicalInterpolation::kStep);
     EXPECT_EQ(823.f, ambientEnvironment.GetPressure());
@@ -101,8 +101,8 @@ TEST(AmbientEnvironment, SetPressure) {
 
 TEST(AmbientEnvironment, SetHumidity) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     ambientEnvironment.SetHumidity(0.67f, PhysicalInterpolation::kStep);
     EXPECT_EQ(0.67f, ambientEnvironment.GetHumidity());
@@ -110,8 +110,8 @@ TEST(AmbientEnvironment, SetHumidity) {
 
 TEST(AmbientEnvironment, SetRgbcLight) {
     TestSystem mTestSystem("/");
-    mTestSystem.setLiveUnixTime(false);
-    mTestSystem.setUnixTime(1);
+    mTestSystem.SetLiveUnixTime(false);
+    mTestSystem.SetUnixTime(1);
     AmbientEnvironment ambientEnvironment;
     const glm::vec4 kTarget = glm::vec4(100, 200, 300, 400);
     ambientEnvironment.SetRgbcLight(kTarget, PhysicalInterpolation::kStep);

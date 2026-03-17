@@ -29,14 +29,14 @@ using ::testing::HasSubstr;
 
 class ClipboardDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
 
         IClipboardDevice::RegisterDevice(&mClipboardChannel, &registry, mClientLoop.get(),
                                          mQemuLoop.get());
-        device = registry.constructHalDevice<IClipboardDevice>();
+        device = registry.ConstructHalDevice<IClipboardDevice>();
 
-        test_socket = registry.halSocket();
+        test_socket = registry.HalSocket();
         clear();
     }
 

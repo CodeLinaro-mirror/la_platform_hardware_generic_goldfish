@@ -74,8 +74,8 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     // NOTE: This test is expected to pass only *after* the deadlock is fixed
     // by making the `close()` call asynchronous. It serves as a regression test.
     // 1. Setup: Create manual loops and all the mock/adapter components.
-    auto qemu_loop = TestEventLoop::create();
-    auto client_loop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::Create();
+    auto client_loop = TestEventLoop::Create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
@@ -95,11 +95,11 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
 
     //    Step B: The QEMU loop runs. The adapter receives the event and posts
     //    a corresponding task to the client loop.
-    EXPECT_GT(qemu_loop->taskCount(), 0);
-    ASSERT_EQ(client_loop->taskCount(), 0);
-    qemu_loop->runOne();
-    ASSERT_EQ(qemu_loop->taskCount(), 0);
-    ASSERT_GT(client_loop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->TaskCount(), 0);
+    ASSERT_EQ(client_loop->TaskCount(), 0);
+    qemu_loop->RunOne();
+    ASSERT_EQ(qemu_loop->TaskCount(), 0);
+    ASSERT_GT(client_loop->TaskCount(), 0);
 
     //    Step C: The client HAL decides to close the connection from within its
     //    `OnReceive` handler. We set up the mock to trigger this behavior.
@@ -115,7 +115,7 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
 
     //    Step E: Run the client task. This will execute the mock `onReceive`,
     //    which calls `close()`, which calls `postAndWait()` on the qemuLoop->
-    client_loop->runOne();
+    client_loop->RunOne();
 
     // 3. Verification: Check for the deadlock state.
     //    The `postAndWait` has posted a task to the qemuLoop->
@@ -123,15 +123,15 @@ TEST(HalPlugAdapterDeadlockTest, HostInitiatedCloseDuringCallbackDeadlocks) {
     //    the qemuLoop to finish, but it can't, because we control it.
     //    This demonstrates the deadlock: the client is waiting for QEMU, and
     //    QEMU is waiting for the client.
-    EXPECT_GT(qemu_loop->taskCount(), 0)
+    EXPECT_GT(qemu_loop->TaskCount(), 0)
             << "The close() call failed to post a task to the QEMU loop.";
-    ASSERT_EQ(client_loop->taskCount(), 0) << "The client loop should be empty and 'blocked'.";
+    ASSERT_EQ(client_loop->TaskCount(), 0) << "The client loop should be empty and 'blocked'.";
 
     // In a real-world scenario, the test would hang here. Our manual control
     // allows us to inspect the state and prove the deadlock condition exists.
     // To clean up, we manually run the final QEMU task.
-    qemu_loop->runOne();
-    ASSERT_EQ(qemu_loop->taskCount(), 0);
+    qemu_loop->RunOne();
+    ASSERT_EQ(qemu_loop->TaskCount(), 0);
 
     delete mockSocketRaw;
 }
@@ -147,8 +147,8 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     //  3. The test verifies that the teardown logic is executed exactly once,
     //     preventing a double-unplug or use-after-free.
     // 1. Setup
-    auto qemu_loop = TestEventLoop::create();
-    auto client_loop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::Create();
+    auto client_loop = TestEventLoop::Create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
@@ -161,7 +161,7 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     // 2. Orchestration
     //    Step A: Host initiates a close(). This posts a task to the QEMU loop.
     mockHalPlug->getSocket()->Close();
-    EXPECT_GT(qemu_loop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->TaskCount(), 0);
     ;
 
     //    Step B: Before the QEMU loop runs the close() task, a guest-initiated
@@ -173,13 +173,13 @@ TEST(HalPlugAdapterConcurrencyTest, GuestOnUnplugRacesWithHostClose) {
     }));
 
     adapter->OnUnplug();
-    ASSERT_GT(client_loop->taskCount(), 0);
-    client_loop->runOne();  // Run the OnClose() task.
+    ASSERT_GT(client_loop->TaskCount(), 0);
+    client_loop->RunOne();  // Run the OnClose() task.
 
     //    Step C: Now, the original close() task from the host runs.
     //    Because the connection is already closing, it should be a no-op.
     //    gMock will fail the test if unplugImpl() is called a second time.
-    qemu_loop->runOne();
+    qemu_loop->RunOne();
 
     // 3. Verification
     //    The key verification is that unplugImpl was only called once.
@@ -217,8 +217,8 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     //     cleanly torn down exactly once.
 
     // 1. Setup
-    auto qemu_loop = TestEventLoop::create();
-    auto client_loop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::Create();
+    auto client_loop = TestEventLoop::Create();
     ConnectorRegistry registry;
 
     bool factoryCalled = false;
@@ -259,10 +259,10 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
 
     //.   Creation takes place on QEMU loop, so no tasks are created, if we would
     //.   this would simply deadlock.
-    ASSERT_EQ(qemu_loop->taskCount(), 0);
+    ASSERT_EQ(qemu_loop->TaskCount(), 0);
 
     //.   We did post the pending onConnect.
-    ASSERT_GT(client_loop->taskCount(), 0);  // onConnect is now pending.
+    ASSERT_GT(client_loop->TaskCount(), 0);  // onConnect is now pending.
 
     //    Step D: THE RACE. Before the client runs onConnect, the guest
     //    disconnects. We manually trigger onUnplug.
@@ -276,22 +276,22 @@ TEST(ConnectorRegistryConcurrencyTest, UnplugDuringSetupRaceIsHandledSafely) {
     // 1. The extra parameters from our connector ("")
     // 2. The onConnect call, actually became alive
     // 3. The onClose call
-    ASSERT_EQ(client_loop->taskCount(), 3);
-    ASSERT_EQ(qemu_loop->taskCount(), 1);
+    ASSERT_EQ(client_loop->TaskCount(), 3);
+    ASSERT_EQ(qemu_loop->TaskCount(), 1);
 
     //    Step E: Now, let the client loop run. It should process onConnect
     //    first, then onClose.
     EXPECT_CALL(*mockHalPlug, OnConnect()).Times(1);
-    client_loop->runOne();  // parameter delivery
-    client_loop->runOne();  // onConnect runs
-    client_loop->runOne();  // onClose runs
+    client_loop->RunOne();  // parameter delivery
+    client_loop->RunOne();  // onConnect runs
+    client_loop->RunOne();  // onClose runs
 
     //    Step F: Let the qemu loop run to clean up the socket.
-    qemu_loop->runOne();  // unplugImpl runs
+    qemu_loop->RunOne();  // unplugImpl runs
 
     // 3. Verification
-    ASSERT_EQ(client_loop->taskCount(), 0);
-    ASSERT_EQ(qemu_loop->taskCount(), 0);
+    ASSERT_EQ(client_loop->TaskCount(), 0);
+    ASSERT_EQ(qemu_loop->TaskCount(), 0);
     // gMock will verify that all expected calls happened exactly once.
     mockSocketPtr.release();
     delete mockSocketRaw;
@@ -306,8 +306,8 @@ TEST(HalPlugAdapterConcurrencyTest, InFlightDataIsDeliveredAfterHostClose) {
     //  3. We verify that onReceive is still called, followed by onClose.
 
     // 1. Setup
-    auto qemu_loop = TestEventLoop::create();
-    auto client_loop = TestEventLoop::create();
+    auto qemu_loop = TestEventLoop::Create();
+    auto client_loop = TestEventLoop::Create();
 
     auto mockHalPlug = std::make_shared<MockHalPlug>();
     auto mockSocketRaw = new MockSocket();
@@ -320,26 +320,26 @@ TEST(HalPlugAdapterConcurrencyTest, InFlightDataIsDeliveredAfterHostClose) {
     // 2. Orchestration
     //    Step A: QEMU thread sends data, posting an OnReceive task to the client.
     adapter->OnReceive("in-flight data", 14);
-    ASSERT_GT(client_loop->taskCount(), 0);
+    ASSERT_GT(client_loop->TaskCount(), 0);
 
     //    Step B: Client thread initiates a close before processing the data.
     //    This posts the unplugImpl task to the QEMU loop.
     mockHalPlug->getSocket()->Close();
-    EXPECT_GT(qemu_loop->taskCount(), 0);
+    EXPECT_GT(qemu_loop->TaskCount(), 0);
     ;
 
     //    Step C: Client loop runs. It must process the in-flight OnReceive
     //    task first.
     EXPECT_CALL(*mockHalPlug, OnReceive(StrEq("in-flight data"))).Times(1);
-    client_loop->runOne();
+    client_loop->RunOne();
 
     //    Step D: QEMU loop runs the unplug task. This is the end of the line
     //    for a host-initiated close. No onClose event is expected.
     EXPECT_CALL(*mockSocketRaw, UnplugImpl()).WillOnce(Invoke([] { return nullptr; }));
-    qemu_loop->runOne();
+    qemu_loop->RunOne();
 
     // 3. Verification
-    ASSERT_EQ(client_loop->taskCount(), 0);
-    ASSERT_EQ(qemu_loop->taskCount(), 0);
+    ASSERT_EQ(client_loop->TaskCount(), 0);
+    ASSERT_EQ(qemu_loop->TaskCount(), 0);
     delete mockSocketRaw;
 }

@@ -20,8 +20,7 @@
 #include "goldfish/async/event_loop.h"
 #include "goldfish/devices/cable/cable.h"
 
-namespace goldfish {
-namespace devices {
+namespace goldfish::devices {
 
 using cable::IPlug;
 using cable::PlugPtr;
@@ -57,18 +56,18 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
     /**
      * @brief Constructor. Initializes the `ConnectionAwaiter` and starts the retry task.
      *
-     * @param eventLoop The event loop instance for scheduling tasks.
-     * @param createConnection The function to create a connection.
-     * @param onConnected The callback to invoke upon successful connection.
+     * @param event_loop The event loop instance for scheduling tasks.
+     * @param create_connection The function to create a connection.
+     * @param on_connected The callback to invoke upon successful connection.
      * @param interval The retry interval.
      */
-    ConnectionAwaiter(async::EventLoop* eventLoop, CreateConnection createConnection,
-                      ConnectionCallback onConnected, std::chrono::milliseconds interval, Private);
+    ConnectionAwaiter(async::EventLoop* event_loop, CreateConnection create_connection,
+                      ConnectionCallback on_connected, std::chrono::milliseconds interval, Private);
 
     /**
      * @brief Destructor. Stops the connection retry task.
      */
-    ~ConnectionAwaiter();
+    ~ConnectionAwaiter() override;
 
     /**
      * @brief Handles successful connection establishment.
@@ -93,54 +92,53 @@ class ConnectionAwaiter : public IPlug, public std::enable_shared_from_this<Conn
      * @brief Continuously attempts to establish a connection until successful.
      *
      * This method initiates a repeated process of attempting to create a connection
-     * using the provided `createConnection` factory function. It will continue to
+     * using the provided `create_connection` factory function. It will continue to
      * invoke this function at regular intervals specified by `interval` until the
      * connection is successfully established. Once the connection is established,
-     * the `onConnected` callback will be invoked.
+     * the `on_connected` callback will be invoked.
      *
-     * @param eventLoop The event loop instance responsible for scheduling connection retry tasks.
-     * @param createConnection A factory function that attempts to create a connection.
+     * @param event_loop The event loop instance responsible for scheduling connection retry tasks.
+     * @param create_connection A factory function that attempts to create a connection.
      *                         This will be called repeatedly until a connection is made.
-     * @param onConnected A callback function that will be triggered once the connection
+     * @param on_connected A callback function that will be triggered once the connection
      *                    is successfully established.
      * @param interval The time interval between successive connection attempts.
      *
      * @return std::shared_ptr<ConnectionAwaiter> A shared pointer to the `ConnectionAwaiter`
      *                                            object that manages the retry process.
      */
-    static std::shared_ptr<ConnectionAwaiter> retryUntilConnected(
-            async::EventLoop* eventLoop, CreateConnection createConnection,
-            ConnectionCallback onConnected, std::chrono::milliseconds interval);
+    static std::shared_ptr<ConnectionAwaiter> RetryUntilConnected(
+            async::EventLoop* event_loop, CreateConnection create_connection,
+            ConnectionCallback on_connected, std::chrono::milliseconds interval);
 
   private:
     /**
      * @brief Attempts to establish a connection.
      *
-     * This method attempts to create a connection using the `mCreateConnection` function.
+     * This method attempts to create a connection using the `create_connection_` function.
      * It returns true if a connection attempt was made, and false if the connection
      * is already established.
      *
      * @return True if a connection attempt was made, false otherwise.
      */
-    bool attemptConnection();
+    bool AttemptConnection();
 
     /// Flag indicating whether a connection is established.
-    bool mIsConnected{false};
+    bool is_connected_{false};
 
     /// The established socket connection (if any).
-    SocketPtr mSocket{nullptr};
+    SocketPtr socket_{nullptr};
 
     /// Mutex to protect connection-related operations
-    std::mutex mConnectionMutex;
+    std::mutex connection_mutex_;
 
     /// Function to create a connection
-    CreateConnection mCreateConnection;
+    CreateConnection create_connection_;
 
     /// Callback invoked upon successful connection
-    ConnectionCallback mOnConnected;
+    ConnectionCallback on_connected_;
 
     /// Task responsible for retrying connection attempts
-    std::shared_ptr<async::EventLoop::Timer> mConnectionRetryTask;
+    std::shared_ptr<async::EventLoop::Timer> connection_retry_task_;
 };
-}  // namespace devices
-}  // namespace goldfish
+}  // namespace goldfish::devices

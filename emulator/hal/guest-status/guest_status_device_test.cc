@@ -55,14 +55,14 @@ struct MockNotificationSource : public avd_universe::grpc::GrpcNotificationEvent
 
 class GuestStatusDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
 
         IGuestStatusDevice::RegisterDevice(&mGuestStatus, &mNotificationSource, &registry,
                                            {qemu_register_reset, qemu_unregister_reset},
                                            mClientLoop.get(), mQemuLoop.get(), 0);
-        device = registry.constructHalDevice<IGuestStatusDevice>();
-        test_socket = registry.halSocket();
+        device = registry.ConstructHalDevice<IGuestStatusDevice>();
+        test_socket = registry.HalSocket();
         clear();
     }
 
@@ -104,7 +104,7 @@ TEST_F(GuestStatusDeviceTest, registersResetHandler) {
 TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
     TestSystem test("/");
 
-    test.setProcessTimes({
+    test.SetProcessTimes({
         .user_ms = 1,
         .system_ms = 10,
         .wall_clock_ms = 100,
@@ -119,7 +119,7 @@ TEST_F(GuestStatusDeviceTest, receivesBootCompletedEvent) {
 TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
     TestSystem test("/");
 
-    test.setProcessTimes({
+    test.SetProcessTimes({
         .user_ms = 1,
         .system_ms = 10,
         .wall_clock_ms = 100,
@@ -130,7 +130,7 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
     EXPECT_THAT(ToInt64Milliseconds(mGuestStatus.bootcomplete.GetValue() - absl::UnixEpoch()),
                 Eq(100));
 
-    test.setProcessTimes({
+    test.SetProcessTimes({
         .user_ms = 2,
         .system_ms = 20,
         .wall_clock_ms = 200,
@@ -146,7 +146,7 @@ TEST_F(GuestStatusDeviceTest, resetHandlerResetsBootCompleted) {
 TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {
     TestSystem test("/");
 
-    test.setProcessTimes({
+    test.SetProcessTimes({
         .user_ms = 1,
         .system_ms = 10,
         .wall_clock_ms = 1000,
@@ -155,7 +155,7 @@ TEST_F(GuestStatusDeviceTest, sendsNotificationOnBootComplete) {
     // Reset marks the start of boot
     sResetHandler(sOpaque);
 
-    test.setProcessTimes({
+    test.SetProcessTimes({
         .user_ms = 2,
         .system_ms = 20,
         .wall_clock_ms = 5000,

@@ -64,8 +64,8 @@ class TestHalPlug : public HalPlug {
 class HalPlugFactoryTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
         // Set up any necessary objects for the tests.
     }
 
@@ -92,7 +92,7 @@ TEST_F(HalPlugFactoryTest, WrapHalPlug) {
 
     // onConnect should be posted to the client loop.
     EXPECT_FALSE(testPlug->onConnectCalled());
-    mClientLoop->runOne();
+    mClientLoop->RunOne();
     EXPECT_TRUE(testPlug->onConnectCalled());
 
     // Let's simulate the cleanup cycle
@@ -116,7 +116,7 @@ TEST_F(HalPlugFactoryTest, ConnectSuccess) {
     };
 
     bool connectCalled = false;
-    vsock::set_fake_connect_fn([&](uint32_t port, devices::cable::PlugPtr plug) {
+    vsock::SetFakeConnectFn([&](uint32_t port, devices::cable::PlugPtr plug) {
         connectCalled = true;
         return cable::SocketPtr(mockSocketRaw);
     });
@@ -147,7 +147,7 @@ TEST_F(HalPlugFactoryTest, ConnectFailure) {
     };
 
     bool connectCalled = false;
-    vsock::set_fake_connect_fn([&](uint32_t port, devices::cable::PlugPtr plug) {
+    vsock::SetFakeConnectFn([&](uint32_t port, devices::cable::PlugPtr plug) {
         connectCalled = true;
         return nullptr;
     });

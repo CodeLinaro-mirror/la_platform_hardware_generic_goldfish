@@ -29,14 +29,14 @@ using ::testing::HasSubstr;
 
 class FingerprintDeviceTest : public ::testing::Test {
     void SetUp() override {
-        mClientLoop = TestEventLoop::create();
-        mQemuLoop = TestEventLoop::create();
+        mClientLoop = TestEventLoop::Create();
+        mQemuLoop = TestEventLoop::Create();
 
         IFingerprintDevice::RegisterDevice(&mTouchSensor, &registry, mClientLoop.get(),
                                            mQemuLoop.get());
 
-        device = registry.constructHalDevice<IFingerprintDevice>();
-        test_socket = registry.halSocket();
+        device = registry.ConstructHalDevice<IFingerprintDevice>();
+        test_socket = registry.HalSocket();
         clear();
         device->OnConnect();
     }

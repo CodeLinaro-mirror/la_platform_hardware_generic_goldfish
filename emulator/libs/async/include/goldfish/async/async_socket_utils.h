@@ -59,8 +59,10 @@ inline absl::Status sendSynchronously(goldfish::async::AsyncSocket* socket, cons
     auto future = promise_ptr->get_future();
 
     loop->Post([socket, data, size, p = promise_ptr]() {
-        socket->Send(data, size, [p](absl::Status status) { p->set_value(status); });
-    });
+            socket->Send(data, size, [p](absl::Status status) {
+                      p->set_value(status);
+                  }).IgnoreError();
+        }).IgnoreError();
 
     return future.get();
 }

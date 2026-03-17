@@ -194,7 +194,7 @@ class System {
 
     // Checks the system to see if it is running under a remoting session
     // like Nomachine's NX, Chrome Remote Desktop or Windows Terminal Services.
-    // On success, return true and sets |*sessionType| to the detected
+    // On success, return true and sets |*session_type| to the detected
     // session type. Otherwise, just return false.
     virtual bool IsRemoteSession(std::string* session_type) const = 0;
 
