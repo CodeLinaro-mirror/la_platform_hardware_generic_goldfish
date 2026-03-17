@@ -166,7 +166,7 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
 
     VLOG(1) << "Goldfish plugin version: " VERSION << "-" << BUILD_ID;
     // The plugin crash system should never try to upload - that should only be done by the launcher.
-    if (!android::crashreport::CrashSystem::get().initialize(android::crashreport::Consent::NEVER)) {
+    if (!android::crashreport::CrashSystem::get().initialize()) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
 

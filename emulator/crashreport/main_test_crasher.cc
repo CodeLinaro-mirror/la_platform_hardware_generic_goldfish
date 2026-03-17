@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     bool nocrash = absl::GetFlag(FLAGS_nocrash);
     int delay_ms = absl::GetFlag(FLAGS_delay_ms);
 
-    android::crashreport::CrashSystem::get().initialize(android::crashreport::Consent::NEVER);
+    android::crashreport::CrashSystem::get().initialize();
 
     TCRUMB() << "We are just getting started";
     LOG(INFO) << "Ready for " << (nocrash ? "clean exit" : "crash") << " in " << delay_ms << " ms";

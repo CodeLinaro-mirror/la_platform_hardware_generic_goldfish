@@ -558,13 +558,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
-    // TODO(b/483635069): remove consent override before release.
-    crash_consent = android::crashreport::Consent::ALWAYS;
-
-    if (android::crashreport::CrashSystem::get().initialize(crash_consent)) {
-        android::crashreport::CrashSystem::get().uploadEntries();
-    } else {
+    if (!android::crashreport::CrashSystem::get().initialize()) {
         LOG(WARNING) << "Failed to initialize crashreporting.";
     }
 
@@ -572,6 +566,11 @@ int main(int argc, char** argv) {
     // Call crashpad after printing stack trace.
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
+
+    auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
+    // TODO(b/483635069): remove consent override before release.
+    crash_consent = android::crashreport::Consent::ALWAYS;
+    android::crashreport::CrashSystem::get().uploadEntries(crash_consent);
 
     // This is needed for gfxstream to be able to load GL libs.
     // TODO: consider moving this to gfxstream itself via the ANDROID_EMULATOR_LIBRARY_DIR env var.

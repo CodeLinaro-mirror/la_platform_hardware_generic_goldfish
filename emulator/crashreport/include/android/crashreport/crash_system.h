@@ -78,9 +78,9 @@ class CrashSystem {
     */
     // Catch crashes in everything.
     // This promises to not launch any threads...
-    virtual bool initialize(Consent consent) = 0;
+    virtual bool initialize() = 0;
 
-    virtual void uploadEntries() = 0;
+    virtual void uploadEntries(const Consent consent) = 0;
 
     /**
      * @brief Returns the path to the crash report database directory.
