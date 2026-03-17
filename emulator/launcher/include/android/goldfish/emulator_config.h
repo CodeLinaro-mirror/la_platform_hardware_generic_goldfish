@@ -36,19 +36,19 @@ struct ChardevEndpoints {
 
 class EmulatorConfig {
   public:
-    EmulatorConfig(EmulatorPorts ports, ChardevEndpoints chardev_endpoints,
-                   ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd, AndroidOptions opts)
-            : mPorts(std::move(ports))
-            , mChardevEndpoints(std::move(chardev_endpoints))
-            , mResolvedPaths(std::move(resolved_paths))
-            , mAvd(std::move(avd))
-            , mOpts(std::move(opts)) {}
+    EmulatorConfig(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints,
+                   const ResolvedInputPaths &resolved_paths, const Avd &avd, const AndroidOptions &opts)
+            : mPorts(ports)
+            , mChardevEndpoints(chardev_endpoints)
+            , mResolvedPaths(resolved_paths)
+            , mAvd(avd)
+            , mOpts(opts) {}
 
     // The resolved paths to input binaries and data
     const ResolvedInputPaths& paths() const { return mResolvedPaths; }
 
     // The avd description used to configure this emulator
-    const Avd& avd() const { return *mAvd; }
+    const Avd& avd() const { return mAvd; }
 
     // The android options used to configure this emulator
     const AndroidOptions& opts() const { return mOpts; }
@@ -59,12 +59,12 @@ class EmulatorConfig {
     int adb_port() const { return mPorts.adb_port; }
 
   private:
-    const EmulatorPorts mPorts;
-    const ChardevEndpoints mChardevEndpoints;
+    const EmulatorPorts &mPorts;
+    const ChardevEndpoints &mChardevEndpoints;
 
-    const ResolvedInputPaths mResolvedPaths;
-    const std::unique_ptr<Avd> mAvd;
-    const AndroidOptions mOpts;
+    const ResolvedInputPaths &mResolvedPaths;
+    const Avd &mAvd;
+    const AndroidOptions &mOpts;
 };
 
 }  // namespace android::goldfish

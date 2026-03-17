@@ -9,12 +9,15 @@ namespace android::goldfish {
 
 class FakeEmulator {
   public:
-    FakeEmulator(EmulatorPorts ports, AndroidOptions opts) {
-        auto avd = std::make_unique<MockAvd>();
-
-        mMockAvd = avd.get();
-        mEmulatorConfig = std::make_unique<EmulatorConfig>(
-                std::move(ports), ChardevEndpoints(), ResolvedInputPaths{.launcher_directory=fs::path(android::base::Bazel::RunfilesPath("goldfish+/emulator/launcher")).make_preferred()}, std::move(avd), std::move(opts));
+    FakeEmulator(EmulatorPorts ports, AndroidOptions opts)
+            : mPorts(std::move(ports))
+            , mOpts(std::move(opts))
+            , mResolvedPaths{.launcher_directory = fs::path(android::base::Bazel::RunfilesPath(
+                                                                    "goldfish+/emulator/launcher"))
+                                                           .make_preferred()}
+            , mMockAvd(std::make_unique<MockAvd>()) {
+        mEmulatorConfig = std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints,
+                                                           mResolvedPaths, *mMockAvd, mOpts);
     }
 
     explicit FakeEmulator(AndroidOptions opts) : FakeEmulator(EmulatorPorts{}, std::move(opts)) {}
@@ -26,7 +29,13 @@ class FakeEmulator {
     const EmulatorConfig& config() { return *mEmulatorConfig; }
 
   private:
-    MockAvd* mMockAvd{nullptr};
+    EmulatorPorts mPorts;
+    AndroidOptions mOpts;
+    ChardevEndpoints mChardevEndpoints;
+
+    ResolvedInputPaths mResolvedPaths;
+    std::unique_ptr<MockAvd> mMockAvd;
+
     std::unique_ptr<EmulatorConfig> mEmulatorConfig;
 };
 

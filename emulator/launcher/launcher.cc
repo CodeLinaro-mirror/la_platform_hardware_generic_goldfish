@@ -371,8 +371,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
-        Emulator emulator{mPorts, std::move(chardev_endpoints), std::move(mResolvedPaths),
-                          std::move(mAvd), std::move(mOpts)};
+        Emulator emulator{mPorts, chardev_endpoints, mResolvedPaths, *mAvd, mOpts};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
             if (auto s = Launch(*std::move(emulator_config), &emulator_exit); s.ok()) {

@@ -40,11 +40,10 @@ class Emulator : public EmulatorConfig {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(EmulatorPorts ports, ChardevEndpoints chardev_endpoints,
-                      ResolvedInputPaths resolved_paths, std::unique_ptr<Avd> avd,
-                      AndroidOptions opts)
-            : EmulatorConfig(std::move(ports), std::move(chardev_endpoints),
-                             std::move(resolved_paths), std::move(avd), std::move(opts)) {}
+    explicit Emulator(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints,
+                      const ResolvedInputPaths &resolved_paths, const Avd &avd,
+                      const AndroidOptions &opts)
+            : EmulatorConfig(ports, chardev_endpoints, resolved_paths, avd, opts) {}
 
     /**
      * @brief Clears the device's persistent state and prepares it for
