@@ -1,6 +1,31 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "x86_cpuid",
+    srcs = ["x86_cpuid.cc"],
+    hdrs = ["x86_cpuid.h"],
+    deps = ["//emulator/libs/system"],
+)
+
+cc_test(
+    name = "x86_cpuid_test",
+    srcs = ["x86_cpuid_test.cc"],
+    deps = [
+        ":x86_cpuid",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "cpu_brand",
+    srcs = ["cpu_brand.cc"],
+    hdrs = ["include/android/cpu/cpu_brand.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [":x86_cpuid"],
+)
+
+cc_library(
     name = "cpu",
     srcs = [
         "apple_cpu_accelerator.h",
@@ -27,6 +52,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        ":x86_cpuid",
         "//emulator/libs/base",
         "//emulator/libs/system",
         "@abseil-cpp//absl/status:statusor",
@@ -43,16 +69,12 @@ cc_library(
 )
 
 cc_test(
-    name = "cpu_unittests",
-    srcs = [
-        "version_test.cc",
-        "x86_cpuid_test.cc",
-    ],
+    name = "version_test",
+    srcs = ["version_test.cc"],
     linkopts = select({
         "@platforms//os:macos": ["-undefined error"],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:public"],
     deps = [
         ":cpu",
         "//emulator/libs/system:test-headers",

@@ -137,11 +137,7 @@ GlobalState gGlobals = {
 // clang-format on
 
 /* debugging */
-#define DEBUG 0
 #define WHPX_DBG(...) (void)0
-#if DEBUG >= 1
-#define WHPX_DBG(...) dprint(__VA_ARGS__)
-#endif
 
 static bool isOkToTryWHPX() {
     return true;  // featurecontrol::isEnabled(featurecontrol::WindowsHypervisorPlatform);
@@ -838,5 +834,20 @@ Version parseMacOSVersionString(const std::string& str, std::string* status) {
 
     return ver;
 }
+
+#ifdef __x86_64__
+X86Cpuid GetX86Cpuid() {
+    uint32_t cpuid_mfs;
+    android_get_x86_cpuid(1, 0, &cpuid_mfs, nullptr, nullptr, nullptr);
+    return {
+        .cpuid_stepping = cpuid_mfs & 0x0000000f,
+        .cpuid_model = (cpuid_mfs & 0x000000f0) >> 4,
+        .cpuid_family = (cpuid_mfs & 0x00000f00) >> 8,
+        .cpuid_type = (cpuid_mfs & 0x00003000) >> 12,
+        .cpuid_extmodel = (cpuid_mfs & 0x000f0000) >> 16,
+        .cpuid_extfamily = (cpuid_mfs & 0x0ff00000) >> 20,
+    };
+}
+#endif
 
 }  // namespace android

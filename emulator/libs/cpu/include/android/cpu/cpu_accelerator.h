@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-#include "version.h"
+#include "android/cpu/version.h"
 
 namespace android {
 
@@ -164,5 +164,18 @@ std::pair<AndroidCpuInfoFlags, std::string> GetCpuInfo();
 
 // For testing
 base::Version parseMacOSVersionString(const std::string& str, std::string* status);
+
+#ifdef __x86_64__
+struct X86Cpuid {
+    uint32_t cpuid_stepping;
+    uint32_t cpuid_model;
+    uint32_t cpuid_family;
+    uint32_t cpuid_type;
+    uint32_t cpuid_extmodel;
+    uint32_t cpuid_extfamily;
+};
+
+X86Cpuid GetX86Cpuid();
+#endif
 
 }  // namespace android
