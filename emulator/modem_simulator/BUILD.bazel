@@ -10,6 +10,7 @@ license(
     package_name = "cuttlefish",
     copyright_notice = "Copyright 2025 - The Android Open Source Project",
     license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "//emulator:LICENSE",
     package_url = "https://github.com/google/android-cuttlefish",
     visibility = ["//visibility:public"],
 )

@@ -22,6 +22,11 @@ py_binary(
     srcs = ["symbol_zipper.py"],
 )
 
+py_binary(
+    name = "generate_notice",
+    srcs = ["generate_notice.py"],
+)
+
 aemu_naming(
     name = "aemu_version_info",
     build_id_dep = "//emulator:build_id",

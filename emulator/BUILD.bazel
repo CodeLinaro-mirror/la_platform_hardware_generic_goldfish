@@ -8,6 +8,10 @@ load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(
+    "//emulator/tools:notice.bzl",
+    "generate_notice_file",
+)
+load(
     "//emulator/tools:packaging.bzl",
     "breakpad_symbols_pkg",
     "build_id_from_command_line",
@@ -20,6 +24,8 @@ package(
     default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
 )
+
+exports_files(["LICENSE"])
 
 license(
     name = "license",
@@ -159,6 +165,17 @@ all_binaries = [
     ":egl_binaries",
     ":vulkan_binaries",
 ]
+
+generate_notice_file(
+    name = "emulator_notice_markdown",
+    out = "notice.md",
+    deps = all_binaries,
+)
+
+pkg_files(
+    name = "emulator_notice_md",
+    srcs = [":emulator_notice_markdown"],
+)
 
 stripped_binaries(
     name = "goldfish_binaries_stripped",
@@ -367,6 +384,7 @@ pkg_filegroup(
         ":data_virtualscene_Toren1BD",
         ":egl_stripped",
         ":emulator-access",
+        ":emulator_notice_md",
         ":fishtank_binary",
         ":fishtank_dir",
         ":launcher_stripped",
@@ -389,6 +407,7 @@ pkg_filegroup(
         ":data_virtualscene_Toren1BD",
         ":egl",
         ":emulator-access",
+        ":emulator_notice_md",
         ":launcher",
         ":plugins",
         ":qemu",
