@@ -21,27 +21,10 @@
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 
+#include "android/base/system.h"
 #include "google_logs_publishing.pb.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
-
 namespace goldfish::metrics {
-
-namespace {
-
-uint32_t get_pid() {
-#ifdef _WIN32
-    return GetCurrentProcessId();
-#else
-    return getpid();
-#endif
-}
-
-}  // namespace
 
 using namespace std::chrono_literals;
 
@@ -50,7 +33,7 @@ StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
                                                  goldfish::async::EventLoop& main_loop)
         : spool_dir_(spool_dir)
         , session_id_(session_id)
-        , pid_(get_pid())
+        , pid_(android::base::System::GetCurrentProcessPid())
         , max_file_duration_timer_(main_loop.ScheduleRepeating(
                   [this] {
                       absl::MutexLock lock(mutex_);

@@ -14,7 +14,9 @@
 #pragma once
 #include <cstdint>
 #include <filesystem>
+#include <initializer_list>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -85,7 +87,10 @@ class Avd {
     virtual std::string Abi() const = 0;
     virtual std::string BuildSdk() const = 0;
     virtual std::string BuildId() const = 0;
+    virtual std::string BuildFingerprint() const = 0;
+    virtual int64_t BuildTimestamp() const = 0;
     virtual std::string BuildFlavour() const = 0;
+    virtual std::string BuildProductName() const = 0;
 
     // Type of the device this will be extracted for the build.prop
     // file associated with the system image used by this avd.
@@ -282,10 +287,25 @@ class FileBackedAvd : public Avd {
     }
 
     std::string BuildId() const override { return build_ini_.GetString("ro.build.id", "unknown"); }
+    std::string BuildFingerprint() const override {
+        using namespace std::literals;
+        constexpr auto props = std::array{"ro.build.fingerprint"sv, "ro.system.build.fingerprint"sv,
+                                          "ro.build.display.id"sv};
+
+        for (const auto& prop : props) {
+            if (auto v = build_ini_.GetString(prop, ""sv); !v.empty()) {
+                return v;
+            }
+        }
+        return ""s;
+    }
+    int64_t BuildTimestamp() const override { return build_ini_.GetInt64("ro.build.date.utc", 0); }
 
     std::string BuildFlavour() const override {
         return build_ini_.GetString("ro.build.flavor", "unknown");
     }
+
+    std::string BuildProductName() const override;
 
     static absl::StatusOr<std::unique_ptr<FileBackedAvd>> Parse(
             std::string name, const fs::path& config_ini_path, fs::path sdk_path, fs::path avd_path,

@@ -199,6 +199,7 @@ cc_library(
         ":metrics_writer",
         "//emulator/libs/async:async_api",
         "//emulator/libs/file",
+        "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",

@@ -1066,5 +1066,32 @@ CpuTime System::cpuTime() {
     return res;
 }
 
+uint32_t System::GetCurrentProcessPid() {
+#ifdef _WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
+}
+
+bool System::CurrentProcessHasElevatedPrivileges() {
+#ifdef _WIN32
+    HANDLE token;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        return false;
+    }
+    TOKEN_ELEVATION elevation;
+    DWORD size;
+    if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size)) {
+        CloseHandle(token);
+        return false;
+    }
+    CloseHandle(token);
+    return elevation.TokenIsElevated;
+#else
+    return geteuid() == 0;
+#endif
+}
+
 }  // namespace base
 }  // namespace android

@@ -20,7 +20,7 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
-#include <utility>  // For std::move
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -34,13 +34,13 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
-#include "goldfish/file/file.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
 #include "android/goldfish/input_paths.h"
 #include "android/goldfish/memory_config.h"
 #include "android/status/status_macros.h"
 #include "avd_keys.h"
+#include "goldfish/file/file.h"
 #include "host-common/constants.h"
 
 /* technical note on how all of this is supposed to work:
@@ -74,8 +74,6 @@
  * with one of the usual options.
  */
 namespace android::goldfish {
-
-using PropertyList = const std::array<std::string, 3>;
 
 namespace {
 
@@ -159,47 +157,6 @@ int GetApiLevelFromLetter(char letter) {
     return Avd::kUnknownApiLevel;
 }
 
-int GetApiLevel(std::string_view target) {
-    int level = Avd::kUnknownApiLevel;
-
-    if (target.empty()) {
-        // Use your preferred logging method here.
-        return level;
-    }
-
-    std::string_view level_str;
-    if (absl::StartsWith(target, "android-")) {
-        level_str = target.substr(8);
-    } else {
-        std::vector<std::string_view> parts = absl::StrSplit(target, ':');
-        if (parts.size() == 3) {
-            level_str = parts[2];
-        }
-    }
-
-    if (level_str.empty() || !absl::ascii_isdigit(level_str[0])) {
-        if (!level_str.empty() && absl::ascii_isalpha(level_str[0])) {
-            if (level_str.size() == 1) {
-                level = GetApiLevelFromLetter(level_str[0]);
-            } else {
-                level = GetApiLevelFromDessertName(level_str);
-            }
-        } else {
-            // Use your preferred error handling here.
-            return Avd::kUnknownApiLevel;
-        }
-    } else {
-        if (!absl::SimpleAtoi(level_str, &level)) {
-            // Handle the error (e.g., log, return default value)
-            return Avd::kUnknownApiLevel;
-        }
-
-        level = std::max(level, 3);
-    }
-
-    return level;
-}
-
 std::string GetIconForDeviceType(DeviceType flavor) {
     switch (flavor) {
     case DeviceType::kPhone:
@@ -233,7 +190,8 @@ Avd::CpuArchitecture FileBackedAvd::DetectArchitecture() const {
 }
 
 int FileBackedAvd::ApiLevel() const {
-    return GetApiLevel(config_->GetString("target", ""));
+    // TODO Maybe check config_->GetString("target") e.g. android-36.1 against build_ini_ ro.system.build.version.sdk_full.
+    return build_ini_.GetInt("ro.system.build.version.sdk", kUnknownApiLevel);
 }
 
 std::string FileBackedAvd::Dessert() const {
@@ -272,31 +230,35 @@ bool FileBackedAvd::LoadBuildProps() {
     return build_ini_.Read();
 }
 
-DeviceType FileBackedAvd::GetDeviceType() const {
-    const DeviceType res = DeviceType::kUnknown;
-
-    const std::unordered_map<std::string, DeviceType> label_map{
-        {"phone", DeviceType::kPhone},     {"atv", DeviceType::kTv},
-        {"wear", DeviceType::kWear},       {"aw", DeviceType::kWear},
-        {"car", DeviceType::kAndroidAuto}, {"pc", DeviceType::kDesktop}};
-
-    const PropertyList props = {"ro.product.name", "ro.product.system.name", "ro.build.flavor"};
+std::string FileBackedAvd::BuildProductName() const {
+    using namespace std::literals;
+    constexpr auto props =
+            std::array{"ro.product.name"sv, "ro.product.system.name"sv, "ro.build.flavor"sv};
 
     for (const auto& prop : props) {
-        if (!build_ini_.HasKey(prop)) {
-            continue;
-        }
-
-        auto build = build_ini_.GetString(prop, "_unused");
-        for (const auto& [key, val] : label_map) {
-            if (build.find(key) != std::string::npos) {
-                return val;
-            }
+        if (auto build = build_ini_.GetString(prop); !build.empty()) {
+            return build;
         }
     }
+    return {};
+}
 
-    // Likely unknown.
-    return res;
+DeviceType FileBackedAvd::GetDeviceType() const {
+    using namespace std::literals;
+    constexpr auto label_map = std::array{
+        std::pair{"phone"sv, DeviceType::kPhone},     std::pair{"atv"sv, DeviceType::kTv},
+        std::pair{"wear"sv, DeviceType::kWear},       std::pair{"aw"sv, DeviceType::kWear},
+        std::pair{"car"sv, DeviceType::kAndroidAuto}, std::pair{"pc"sv, DeviceType::kDesktop},
+        std::pair{"desktop"sv, DeviceType::kDesktop}, std::pair{"xr"sv, DeviceType::kXr},
+        std::pair{"glasses"sv, DeviceType::kGlasses}};
+
+    auto product_name = BuildProductName();
+    for (const auto& [key, val] : label_map) {
+        if (product_name.contains(key)) {
+            return val;
+        }
+    }
+    return DeviceType::kUnknown;
 }
 
 absl::StatusOr<fs::path> FileBackedAvd::GetSystemImageFilePath(Avd::ImageType img_type) const {
@@ -459,7 +421,8 @@ absl::StatusOr<std::unique_ptr<Avd>> Avd::FromName(
                 continue;
             }
             if (auto s = android::base::file::rm_recursive(path); !s.ok()) {
-                LOG(ERROR) << "Factory reset failed: unable to remove AVD file " << path.string() << " - " << s;
+                LOG(ERROR) << "Factory reset failed: unable to remove AVD file " << path.string()
+                           << " - " << s;
                 return absl::InternalError("AVD wipe data failed");
             }
         }

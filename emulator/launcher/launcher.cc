@@ -39,6 +39,7 @@
 #include "android/status/status_macros.h"
 #include "emulator.h"
 #include "fishtank.h"
+#include "host_info.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -437,12 +438,19 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             if (auto s = Launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
                 mEmulatorProcess = *std::move(s);
                 LOG(INFO) << "Running emulator as pid: " << GetPid(mEmulatorProcess);
+                report_host_info_metrics();
             } else {
                 LOG(FATAL) << "Fatal error whilst launching the emulator: " << s.status();
             }
         } else {
             LOG(FATAL) << "Fatal error whilst launching the emulator: " << emulator_config.status();
         }
+    }
+
+    void report_host_info_metrics() {
+        mReporter->Report([this](android_studio::AndroidStudioEvent& event) {
+            android::goldfish::FillEmulatorHostEvent(event, *mAvd, /*launcher_pid=*/android::base::System::GetCurrentProcessPid(), /*qemu_pid=*/GetPid(mEmulatorProcess), mOpts.metrics_collection, mOpts.fuchsia);
+        });
     }
 
     void shutdown() {
