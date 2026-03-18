@@ -11,10 +11,11 @@
 
 #pragma once
 
+#include <openssl/rsa.h>
+
+#include <cstddef>
 #include <filesystem>
 #include <string>
-
-#include <openssl/rsa.h>
 
 namespace goldfish::adb {
 
@@ -22,23 +23,23 @@ namespace fs = std::filesystem;
 
 namespace internal {
 // Size of an RSA modulus such as an encrypted block or a signature.
-constexpr const int ANDROID_PUBKEY_MODULUS_SIZE = 2048 / 8;
+constexpr const size_t kAndroidPubkeyModulusSize = 2048 / 8;
 // Size of an encoded RSA key.
-constexpr const int ANDROID_PUBKEY_ENCODED_SIZE =
-        (3 * sizeof(uint32_t) + 2 * ANDROID_PUBKEY_MODULUS_SIZE);
+constexpr const size_t kAndroidPubkeyEncodedSize =
+        ((3 * sizeof(uint32_t)) + (2 * kAndroidPubkeyModulusSize));
 
-bool android_pubkey_decode(const uint8_t* key_buffer, size_t size, RSA** key);
-bool android_pubkey_encode(const RSA* key, uint8_t* key_buffer, size_t size);
+bool AndroidPubkeyDecode(const uint8_t* key_buffer, size_t size, RSA** key);
+bool AndroidPubkeyEncode(const RSA* key, uint8_t* key_buffer, size_t size);
 
-bool TestOnly_adb_auth_keygen(const fs::path& file);
+bool TestOnlyAdbAuthKeygen(const fs::path& file);
 } // namespace internal
 
 // Tries to find the "adbkey" file, returning "" if not found
-std::filesystem::path getPrivateAdbKeyPath(const fs::path &android_user_dir);
+std::filesystem::path GetPrivateAdbKeyPath(const fs::path& android_user_dir);
 
 // Creates a public key given the private key.
 // |path| Path to the adb private key.
 // |out| string receiving the public key.
-bool pubkey_from_privkey(const std::filesystem::path& path, std::string* out);
+bool PubkeyFromPrivkey(const std::filesystem::path& path, std::string* out);
 
 }  // namespace goldfish::adb

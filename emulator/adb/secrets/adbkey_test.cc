@@ -28,6 +28,7 @@
 
 namespace goldfish::adb {
 
+namespace {
 // Private key that can be used to answer challenge token above.
 std::string privkey = R"##(-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCxc0jUMYZ5fJSo
@@ -57,45 +58,46 @@ IPkwJ9Kz2z6z4JxfQxfo2sdM8aCrgsXvfFIFZpAWZ13HXzKFNjfdZ3tNlJOuiiEP
 Nw3rvNsjZXrpaIYpIKHL/QJmRM7MO1El4ebV3/qBZl0NU33fguD4P3FmqZmh2BvJ
 Uauxw86jrPSgjbiRB8FyvTo=
 -----END PRIVATE KEY-----)##";
+}  // namespace
 
 class AdbKeyTest : public ::testing::Test {
   public:
     AdbKeyTest() {
-        mTestDir = mTestSystem.GetTempRoot();
-        mTestDir->MakeSubDir(".android");
-        mTestSystem.SetHomeDirectory(mTestDir->Path());
+        test_dir_ = test_system_.GetTempRoot();
+        test_dir_->MakeSubDir(".android");
+        test_system_.SetHomeDirectory(test_dir_->Path());
     }
 
-    ~AdbKeyTest() {}
+    ~AdbKeyTest() override = default;
 
   protected:
-    android::base::TestSystem mTestSystem{"/"};
-    android::base::TestTempDir* mTestDir;
+    android::base::TestSystem test_system_{"/"};
+    android::base::TestTempDir* test_dir_;
 };
 
-TEST_F(AdbKeyTest, key_does_not_exist) {
-    EXPECT_EQ("", getPrivateAdbKeyPath(mTestDir->Path() / ".android"));
+TEST_F(AdbKeyTest, KeyDoesNotExist) {
+    EXPECT_EQ("", GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
 }
 
-TEST_F(AdbKeyTest, find_keys_in_default_path) {
-    mTestDir->MakeSubFile(".android/adbkey");
-    EXPECT_NE("", getPrivateAdbKeyPath(mTestDir->Path() / ".android"));
+TEST_F(AdbKeyTest, FindKeysInDefaultPath) {
+    test_dir_->MakeSubFile(".android/adbkey");
+    EXPECT_NE("", GetPrivateAdbKeyPath(test_dir_->Path() / ".android"));
 }
 
-TEST_F(AdbKeyTest, generate_writes_a_key) {
-    const char* tstKey = "adbsamplekey";
-    auto keyFile = mTestDir->Path() / ".android" / tstKey;
-    EXPECT_FALSE(android::base::file::exists(keyFile));
-    EXPECT_TRUE(internal::TestOnly_adb_auth_keygen(keyFile));
-    EXPECT_TRUE(android::base::file::exists(keyFile));
+TEST_F(AdbKeyTest, GenerateWritesAKey) {
+    const char* tst_key = "adbsamplekey";
+    auto key_file = test_dir_->Path() / ".android" / tst_key;
+    EXPECT_FALSE(android::base::file::exists(key_file));
+    EXPECT_TRUE(internal::TestOnlyAdbAuthKeygen(key_file));
+    EXPECT_TRUE(android::base::file::exists(key_file));
 }
 
-TEST_F(AdbKeyTest, can_create_pub_from_generated_priv) {
-    const char* tstKey = "adbsamplekey2";
+TEST_F(AdbKeyTest, CanCreatePubFromGeneratedPriv) {
+    const char* tst_key = "adbsamplekey2";
     std::string pubkey;
-    auto keyFile = mTestDir->Path() / ".android" / tstKey;
-    EXPECT_TRUE(internal::TestOnly_adb_auth_keygen(keyFile));
-    EXPECT_TRUE(pubkey_from_privkey(keyFile, &pubkey));
+    auto key_file = test_dir_->Path() / ".android" / tst_key;
+    EXPECT_TRUE(internal::TestOnlyAdbAuthKeygen(key_file));
+    EXPECT_TRUE(PubkeyFromPrivkey(key_file, &pubkey));
     EXPECT_NE("", pubkey);
 }
 
@@ -106,7 +108,7 @@ const uint8_t kDigest[] = {
 };
 
 // 2048 RSA test key.
-const uint8_t kKey2048[internal::ANDROID_PUBKEY_ENCODED_SIZE] = {
+const uint8_t kKey2048[internal::kAndroidPubkeyEncodedSize] = {
     0x40, 0x00, 0x00, 0x00, 0x05, 0x75, 0x61, 0xd1, 0x33, 0xf0, 0x2d, 0x12, 0x45, 0xfb, 0xae, 0x07,
     0x02, 0x15, 0x4f, 0x3a, 0x2b, 0xa3, 0xbc, 0x49, 0xbd, 0x14, 0x07, 0xa0, 0xc0, 0x9f, 0x0c, 0x52,
     0x60, 0x77, 0x9f, 0xa2, 0x31, 0xd0, 0xa7, 0xfb, 0x7e, 0xde, 0xfb, 0xc9, 0x05, 0xc0, 0x97, 0xf7,
@@ -143,7 +145,7 @@ const uint8_t kKey2048[internal::ANDROID_PUBKEY_ENCODED_SIZE] = {
 };
 
 // 2048 bit RSA signature.
-const uint8_t kSignature2048[internal::ANDROID_PUBKEY_MODULUS_SIZE] = {
+const uint8_t kSignature2048[internal::kAndroidPubkeyModulusSize] = {
     0x3a, 0x11, 0x84, 0x40, 0xc1, 0x2f, 0x13, 0x8c, 0xde, 0xb0, 0xc3, 0x89, 0x8a, 0x63, 0xb2, 0x50,
     0x93, 0x58, 0xc0, 0x0c, 0xb7, 0x08, 0xe7, 0x6c, 0x52, 0x87, 0x4e, 0x78, 0x89, 0xa3, 0x9a, 0x47,
     0xeb, 0x11, 0x57, 0xbc, 0xb3, 0x97, 0xf8, 0x34, 0xf1, 0xf7, 0xbf, 0x3a, 0xfa, 0x1c, 0x6b, 0xdc,
@@ -165,23 +167,23 @@ const uint8_t kSignature2048[internal::ANDROID_PUBKEY_MODULUS_SIZE] = {
 struct AndroidPubkeyTest : public ::testing::Test {
     void SetUp() override {
         RSA* new_key = nullptr;
-        internal::android_pubkey_decode(kKey2048, sizeof(kKey2048), &new_key);
-        key_.reset(new_key);
+        internal::AndroidPubkeyDecode(kKey2048, sizeof(kKey2048), &new_key);
+        key.reset(new_key);
     }
 
-    std::unique_ptr<RSA, void (*)(RSA*)> key_ = {nullptr, RSA_free};
+    std::unique_ptr<RSA, void (*)(RSA*)> key = {nullptr, RSA_free};
 };
 
 TEST_F(AndroidPubkeyTest, Decode) {
     // Make sure the decoded key successfully verifies a valid signature.
     EXPECT_TRUE(RSA_verify(NID_sha256, kDigest, sizeof(kDigest), kSignature2048,
-                           sizeof(kSignature2048), key_.get()));
+                           sizeof(kSignature2048), key.get()));
 }
 
 TEST_F(AndroidPubkeyTest, Encode) {
-    // uint8_t key_data[ANDROID_PUBKEY_ENCODED_SIZE];
-    uint8_t key_data[internal::ANDROID_PUBKEY_ENCODED_SIZE];
-    ASSERT_TRUE(internal::android_pubkey_encode(key_.get(), key_data, sizeof(key_data)));
+    // uint8_t key_data[kAndroidPubkeyEncodedSize];
+    uint8_t key_data[internal::kAndroidPubkeyEncodedSize];
+    ASSERT_TRUE(internal::AndroidPubkeyEncode(key.get(), key_data, sizeof(key_data)));
     ASSERT_EQ(0, memcmp(kKey2048, key_data, sizeof(kKey2048)));
 }
 
