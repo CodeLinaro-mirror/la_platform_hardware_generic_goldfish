@@ -29,8 +29,8 @@
 #include "emulator/grpc/services/emulator_controller/server/clipboard_service.h"
 #include "emulator/grpc/services/emulator_controller/server/display_service.h"
 #include "emulator/grpc/services/emulator_controller/server/gps_service.h"
-#include "emulator/grpc/services/emulator_controller/server/notification_stream_writer.h"
 #include "emulator/grpc/services/emulator_controller/server/notification_store.h"
+#include "emulator/grpc/services/emulator_controller/server/notification_stream_writer.h"
 #include "emulator/grpc/services/emulator_controller/server/sensor_service.h"
 #include "emulator/grpc/services/emulator_controller/server/status_service.h"
 #include "emulator/grpc/services/emulator_controller/server/vm_service.h"
@@ -52,10 +52,9 @@ using grpc::Status;
 class EmulatorControllerImpl final
         : public EmulatorController::WithCallbackMethod_streamClipboard<
                   EmulatorController::WithCallbackMethod_streamInputEvent<
-                          EmulatorController::WithCallbackMethod_streamClipboard<
-                                  EmulatorController::WithCallbackMethod_injectWheel<
-                                          EmulatorController::WithCallbackMethod_streamNotification<
-                                                  EmulatorController::Service>>>>> {
+                          EmulatorController::WithCallbackMethod_injectWheel<
+                                  EmulatorController::WithCallbackMethod_streamNotification<
+                                          EmulatorController::Service>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
                            IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemu_loop)
