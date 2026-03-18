@@ -23,6 +23,8 @@
 #include "goldfish/avd_universe/grpc/grpc_notification_channel.h"
 #include "goldfish/avd_universe/guest_status/guest_status.h"
 #include "goldfish/sensors/physical_model.h"
+#include "goldfish/metrics/configure_metrics_writer.h"
+#include "goldfish/metrics/uuid.h"
 
 namespace goldfish::devices::multidisplay {
 class MultiDisplayDevice;
@@ -43,6 +45,8 @@ struct AvdProperties {
     std::string build_id;
     std::string build_flavour;
     int32_t quit_after_boot_timeout_seconds{0};
+    ::goldfish::metrics::Uuid metrics_session_id{::goldfish::metrics::Uuid::Zero()};
+    ::goldfish::metrics::MetricsWriterConfig metrics_writer_config;
 
     android::goldfish::HardwareConfig hw_config;
 };

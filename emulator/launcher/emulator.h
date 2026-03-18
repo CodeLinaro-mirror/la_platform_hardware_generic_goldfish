@@ -40,10 +40,10 @@ class Emulator : public EmulatorConfig {
      * @param avd The AVD configuration to use for the emulator.
      * @param opts The android options to use for the emulator.
      */
-    explicit Emulator(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints,
+    explicit Emulator(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints, const MetricsConfig &metrics_config,
                       const ResolvedInputPaths &resolved_paths, const Avd &avd,
                       const AndroidOptions &opts)
-            : EmulatorConfig(ports, chardev_endpoints, resolved_paths, avd, opts) {}
+            : EmulatorConfig(ports, chardev_endpoints, metrics_config, resolved_paths, avd, opts) {}
 
     /**
      * @brief Clears the device's persistent state and prepares it for

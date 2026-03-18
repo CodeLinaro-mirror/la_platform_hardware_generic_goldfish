@@ -81,6 +81,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
+    std::unique_ptr<goldfish::metrics::MetricsReporter> metrics_reporter;
+    std::shared_ptr<goldfish::async::EventLoop::Timer> metrics_ping_timer;
 };
 
 struct AvdInfoDev {
@@ -216,6 +218,18 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
     auto* client_loop = goldfish::async::globalEventLoop();
+
+    if (avd_props.metrics_session_id == ::goldfish::metrics::Uuid::Zero() && avd_props.metrics_writer_config.type != goldfish::metrics::MetricsWriterType::kNone) {
+        error_setg(errp, "metrics_session_id should be non-zero when metrics_writer is set");
+        return;
+    }
+    avd_universe->metrics_reporter = std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
+    ::goldfish::metrics::ConfigureMetricsWriter(*avd_universe->metrics_reporter, avd_props.metrics_writer_config);
+    // PING every 5 minutes.
+    using namespace std::chrono_literals;
+    avd_universe->metrics_ping_timer = client_loop->ScheduleRepeating([metrics_reporter = avd_universe->metrics_reporter.get()] {
+        metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
+    }, 0s, 300s);
 
     gQemuLoop = goldfish::async::QemuEventLoop::Create();
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
@@ -362,6 +376,28 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
     AVD_INFO_DEV(obj)->mutable_props->quit_after_boot_timeout_seconds = value;
 }
 
+void avd_info_set_metrics_session(Object* obj, const char* value, Error** errp) {
+    if (auto s = ::goldfish::metrics::Uuid::FromString(value); !s.ok()) {
+        error_setg(errp, "metrics_session - failed to parse UUID: %s - %s", s.status().ToString().c_str(), value);
+        return;
+    } else {
+        AVD_INFO_DEV(obj)->mutable_props->metrics_session_id = *std::move(s);
+    }
+}
+
+void avd_info_set_metrics_writer(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+    int32_t value;
+    if (!visit_type_int32(v, name, &value, errp)) {
+        return;
+    }
+
+    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.type = static_cast<goldfish::metrics::MetricsWriterType>(value);
+}
+
+void avd_info_set_metrics_file_path(Object* obj, const char* value, Error** errp) {
+    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.file_path = value;
+}
+
 void avd_info_unrealize(DeviceState* dev) {
     VLOG(1) << "avd_info_unrealize";
     gGlobalAvdUniverseInstance = nullptr;
@@ -388,6 +424,10 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
 
     object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr,
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);
+
+    object_class_property_add_str(oc, "metrics_session", nullptr, avd_info_set_metrics_session);
+    object_class_property_add(oc, "metrics_writer", "int", nullptr, avd_info_set_metrics_writer, nullptr, nullptr);
+    object_class_property_add_str(oc, "metrics_file_path", nullptr, avd_info_set_metrics_file_path);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;

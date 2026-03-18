@@ -115,6 +115,7 @@ cc_library(
         ":avd",
         ":input_paths",
         "//emulator/launcher/cmdline",
+        "//emulator/libs/metrics:configure_metrics_writer",
     ],
 )
 

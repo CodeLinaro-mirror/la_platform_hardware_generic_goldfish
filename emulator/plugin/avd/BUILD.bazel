@@ -10,6 +10,7 @@ cc_library(
         "//emulator/libs/avd_universe",
         "//emulator/libs/hardware_config",
         "//emulator/libs/hardware_config:device_type",
+        "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/sensors:physical_model",
     ],
 )

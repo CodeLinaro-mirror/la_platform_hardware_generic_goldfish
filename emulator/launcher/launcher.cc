@@ -110,13 +110,14 @@ bool should_launch_fishtank(const AndroidOptions& opts) {
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
-             std::unique_ptr<Avd> avd, AndroidOptions opts, std::unique_ptr<MetricsReporter> reporter)
+             std::unique_ptr<Avd> avd, AndroidOptions opts, std::unique_ptr<MetricsReporter> reporter, ::goldfish::metrics::MetricsWriterConfig metrics_writer_config)
             : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.GetRawLoop()))
             , mEventLoop(event_loop)
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts))
             , mReporter(std::move(reporter))
+            , mMetricsConfig{.session_id = mReporter->session_id(), .writer_config = std::move(metrics_writer_config)}
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
         mEventLoop
@@ -397,7 +398,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
-        Emulator emulator{mPorts, chardev_endpoints, mResolvedPaths, *mAvd, mOpts};
+        Emulator emulator{mPorts, chardev_endpoints, mMetricsConfig, mResolvedPaths, *mAvd, mOpts};
 
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
             if (auto s = Launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
@@ -447,6 +448,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     AndroidOptions mOpts;
 
     std::unique_ptr<MetricsReporter> mReporter;
+    MetricsConfig mMetricsConfig;
 
     ::goldfish::async::UvSignalHandlers mSignalHandlers;
 
@@ -647,7 +649,7 @@ int main(int argc, char** argv) {
 
     auto event_loop = goldfish::async::LibuvEventLoop::Create();
 
-    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter));
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter), std::move(metrics_writer_config));
 
     if (auto s = event_loop->Run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;

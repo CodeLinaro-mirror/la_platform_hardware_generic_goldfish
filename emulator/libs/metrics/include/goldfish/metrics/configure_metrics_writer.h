@@ -32,7 +32,7 @@ struct MetricsWriterConfig {
     fs::path file_path;
 };
 
-void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfig config) {
+inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfig config) {
     switch (config.type) {
         using enum MetricsWriterType;
     case kConsole:
