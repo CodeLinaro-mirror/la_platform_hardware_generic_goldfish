@@ -150,18 +150,27 @@ class AsyncSocket {
      * If the `err` parameter is not `absl::OkStatus()`, a read error occurred,
      * and the `data` parameter will be an empty view.
      *
-     * @param cb The function to call with incoming data or a read error.
+     * @param on_read The function to call with incoming data or a read error.
      * @warning This method must be called from the socket's event loop thread.
      */
     virtual void SetOnReadCallbackNoFlowControl(OnReadCallback on_read) = 0;
 
+    /**
+     * @brief Signals a flow control event to the socket.
+     *
+     * This method can be used to temporarily pause or resume reading from the
+     * socket.
+     *
+     * @param enable_reading True to resume reading, false to pause.
+     * @note This method is thread-safe.
+     */
     virtual void OnFlowControlEvent(bool enable_reading) = 0;
 
     /**
      * @brief Sets the callback for when the socket is fully closed.
      *
      * The provided callback will be executed on the socket's event loop thread
-     * after a close operation, initiated by `close()` or a fatal error, has
+     * after a close operation, initiated by `Close()` or a fatal error, has
      * completed.
      *
      * @param on_close The function to call upon closure.
@@ -183,7 +192,8 @@ class AsyncSocket {
     /**
      * @brief Asynchronously sends a buffer of data over the socket.
      *
-     * The provided buffer must remain valid until the OnSendCallback is invoked.
+     * The provided data is copied internally, so the caller can safely reuse or
+     * discard the original buffer immediately after this call returns.
      *
      * @param buffer A pointer to the data to be sent.
      * @param buffer_size The number of bytes to send from the buffer.

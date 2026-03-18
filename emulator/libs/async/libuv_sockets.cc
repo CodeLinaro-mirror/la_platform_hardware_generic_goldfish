@@ -157,7 +157,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
 
     // --- I/O Methods ---
     absl::Status Send(const char* buffer, size_t buffer_size, OnSendCallback on_send) override {
-        DCHECK(event_loop_->IsOnLoopThread()) << "buffer_sizelled on loop thread";
+        DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
 
         uv_stream_t* stream = GetUvSocketStream();
         if (!is_connected_ || UvIsClosing(stream)) {
