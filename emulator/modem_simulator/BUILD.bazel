@@ -1,5 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_license//rules:license.bzl", "license")
 
+package(
+    default_applicable_licenses = [":license"],
+)
+
+license(
+    name = "license",
+    package_name = "cuttlefish",
+    copyright_notice = "Copyright 2025 - The Android Open Source Project",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    package_url = "https://github.com/google/android-cuttlefish",
+    visibility = ["//visibility:public"],
+)
+
+# Note: this is mainly taken from
+# https://github.com/google/android-cuttlefish/tree/main/base/cvd/cuttlefish/host/commands/modem_simulator
+# and is following the cuttlefish naming and coding-style guidelines
 cc_library(
     name = "modem_simulator_internal",
     srcs = [
@@ -41,6 +58,7 @@ cc_library(
     ],
     include_prefix = "host/commands/modem_simulator",
     strip_include_prefix = ".",
+    tags = ["no-tidy"],
     visibility = ["//visibility:private"],
     deps = [
         "//emulator/launcher:avd",
@@ -57,6 +75,7 @@ cc_library(
     srcs = ["modem_simulator_service.cc"],
     hdrs = ["include/goldfish/modem_simulator/modem_simulator_service.h"],
     includes = ["include"],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
         ":modem_simulator_internal",
@@ -76,6 +95,7 @@ cc_test(
         "files/iccprofile_for_sim0.xml",
         "files/numeric_operator.xml",
     ],
+    tags = ["no-tidy"],
     visibility = ["//visibility:public"],
     deps = [
         ":modem_simulator_internal",
