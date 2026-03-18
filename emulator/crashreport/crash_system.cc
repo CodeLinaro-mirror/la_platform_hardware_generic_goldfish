@@ -52,7 +52,7 @@ class CrashSystemImpl : public CrashSystem {
 
     bool active() const override { return initialized_; }
 
-    bool initialize(Consent /*consent*/) override {
+    bool initialize() override {
         if (initialized_) {
             LOG(INFO) << "Crash reporter already initialized";
             return false;
@@ -91,7 +91,7 @@ class CrashSystemImpl : public CrashSystem {
         return initialized_;
     }
 
-    void uploadEntries() override {
+    void uploadEntries(const Consent consent) override {
         if (!database_ || !initialized_) {
             LOG(INFO) << "Crash database unavailable, or not initialized, we will not report any "
                          "crashes.";
@@ -103,7 +103,7 @@ class CrashSystemImpl : public CrashSystem {
                   << (initialized_ ? "enabled" : "disabled")
                   << " for process: " << base::Process::Me()->pid();
 
-        const bool are_uploads_enabled = (consent_ == Consent::ALWAYS);
+        const bool are_uploads_enabled = (consent == Consent::ALWAYS);
         if (database_ && are_uploads_enabled) {
             LOG(INFO) << "Crash reports will be automatically uploaded to: " << kCrashUrl;
             database_->GetSettings()->SetUploadsEnabled(are_uploads_enabled);
@@ -117,10 +117,10 @@ class CrashSystemImpl : public CrashSystem {
         database_->GetPendingReports(&pending_reports);
         reports.insert(reports.end(), pending_reports.begin(), pending_reports.end());
 
+        auto status = consent == Consent::ALWAYS ? ReportAction::UPLOAD_REMOVE
+                                                  : ReportAction::REMOVE;
         for (const auto& report : reports) {
             if (!report.uploaded) {
-                auto status = consent_ == Consent::ALWAYS ? ReportAction::UPLOAD_REMOVE
-                                                          : ReportAction::REMOVE;
                 switch (status) {
                 case ReportAction::UPLOAD_REMOVE: {
                     std::thread upload([this, report]() { ProcessReport(report); });
@@ -182,7 +182,6 @@ class CrashSystemImpl : public CrashSystem {
         }
     }
 
-    Consent consent_ = Consent::NEVER;
     std::unique_ptr<crashpad::CrashpadClient> client_;
     std::unique_ptr<CrashReportDatabase> database_;
     fs::path database_path_;
