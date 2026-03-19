@@ -43,11 +43,19 @@ cc_test(
 )
 
 cc_library(
+    name = "studio_stats_wrapper",
+    hdrs = ["include/goldfish/metrics/studio_stats_wrapper.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["@studio_stats//:studio_stats_cc_proto"],
+)
+
+cc_library(
     name = "metrics_writer",
     hdrs = ["include/goldfish/metrics/metrics_writer.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["@studio_stats//:studio_stats_cc_proto"],
+    deps = [":studio_stats_wrapper"],
 )
 
 cc_library(
@@ -58,6 +66,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":metrics_writer",
+        ":studio_stats_wrapper",
         ":uuid",
         "//emulator/libs/system",
         "//emulator/tools:aemu_version",
@@ -65,7 +74,6 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@studio_stats//:studio_stats_cc_proto",
     ],
 )
 

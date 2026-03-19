@@ -24,7 +24,7 @@
 
 #include "goldfish/metrics/metrics_writer.h"
 #include "goldfish/metrics/uuid.h"
-#include "studio_stats.pb.h"
+#include "studio_stats_wrapper.h"
 
 namespace goldfish::metrics {
 

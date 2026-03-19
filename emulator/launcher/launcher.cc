@@ -48,6 +48,8 @@
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
+#include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/configure_metrics_writer.h"
 #include "logging.h"
 #include "netsimd.h"
 
@@ -57,6 +59,7 @@ using android::base::Bazel;
 using android::base::System;
 using android::goldfish::Avd;
 using android::goldfish::Emulator;
+using ::goldfish::metrics::MetricsReporter;
 
 namespace android::goldfish {
 namespace {
@@ -82,15 +85,38 @@ bool should_launch_fishtank(const AndroidOptions& opts) {
     return !opts.no_window;
 }
 
+::goldfish::metrics::MetricsWriterConfig metrics_writer_config(const AndroidOptions& opts) {
+    using enum ::goldfish::metrics::MetricsWriterType;
+    if (opts.no_metrics) {
+        // do nothing
+        LOG(WARNING) << "Metrics disabled by user";
+        return {.type = kNone};
+    } else if (opts.metrics_to_console) {
+        LOG(INFO) << "Metrics will be written to console";
+        return {.type = kConsole};
+    } else if (opts.metrics_collection) {
+        LOG(INFO) << "Metrics will be uploaded directly by the emulator";
+        return {.type = kPlaystore};
+    } else if (opts.metrics_to_file) {
+        LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
+        return {.type = kFile, .file_path = opts.metrics_to_file};
+    } else {
+        // TODO check studio consent...
+        LOG(INFO) << "Metrics will written and sent by Studio";
+        return {.type = kStudio};
+    }
+}
+
 class Launcher : public ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
-             std::unique_ptr<Avd> avd, AndroidOptions opts)
+             std::unique_ptr<Avd> avd, AndroidOptions opts, std::unique_ptr<MetricsReporter> reporter)
             : UvProcessLauncher(static_cast<uv_loop_t*>(event_loop.GetRawLoop()))
             , mEventLoop(event_loop)
             , mResolvedPaths(std::move(resolved_paths))
             , mAvd(std::move(avd))
             , mOpts(std::move(opts))
+            , mReporter(std::move(reporter))
             , mSignalHandlers(event_loop,
                               [this](int signal) { forwarding_signal_handler(signal); }) {
         mEventLoop
@@ -420,6 +446,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     std::unique_ptr<Avd> mAvd;
     AndroidOptions mOpts;
 
+    std::unique_ptr<MetricsReporter> mReporter;
+
     ::goldfish::async::UvSignalHandlers mSignalHandlers;
 
     EmulatorPorts mPorts;
@@ -566,6 +594,10 @@ int main(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
+    auto reporter = std::make_unique<MetricsReporter>();
+    auto metrics_writer_config = android::goldfish::metrics_writer_config(opts);
+    ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config);
+
     auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
     // TODO(b/483635069): remove consent override before release.
     crash_consent = android::crashreport::Consent::ALWAYS;
@@ -615,7 +647,7 @@ int main(int argc, char** argv) {
 
     auto event_loop = goldfish::async::LibuvEventLoop::Create();
 
-    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts);
+    android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter));
 
     if (auto s = event_loop->Run(); !s.ok()) {
         LOG(ERROR) << "Event loop run failed with error: " << s;

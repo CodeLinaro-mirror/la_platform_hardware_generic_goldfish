@@ -15,19 +15,15 @@
 
 #pragma once
 
-#include "studio_stats_wrapper.h"
+// Wraps the studio_stats.pb.h header to prevent compilation errors on Windows.
+// It undefines Windows macros (e.g., WAIT_FAILED, WAIT_TIMEOUT) that conflict
+// types in the generated proto files.
 
-namespace goldfish::metrics {
+#ifdef _WIN32
+#undef ERROR_FILE_NOT_FOUND
+#undef WAIT_FAILED
+#undef WAIT_TIMEOUT
+#undef WINDOWS
+#endif  // _WIN32
 
-struct MetricsEvent {
-    uint64_t time_ms;
-    android_studio::AndroidStudioEvent as_event;
-};
-
-class MetricsWriter {
-  public:
-    virtual ~MetricsWriter() = default;
-    virtual void Write(MetricsEvent event) = 0;
-};
-
-}  // namespace goldfish::metrics
+#include "studio_stats.pb.h"

@@ -439,6 +439,8 @@ cc_binary(
         "//emulator/libs/async:libuv_signal_handlers",
         "//emulator/libs/async:libuv_sockets",
         "//emulator/libs/cpu",
+        "//emulator/libs/metrics",
+        "//emulator/libs/metrics:configure_metrics_writer",
         "//emulator/libs/system",
         "//emulator/libs/system:bazel_info",
         "//emulator/modem_simulator",
