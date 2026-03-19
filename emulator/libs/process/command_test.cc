@@ -135,6 +135,7 @@ TEST(Process, can_read_process_name) {
     auto proc = Command::Create({sleep_exe(), "--sleep", "1s"}).Execute();
     std::this_thread::sleep_for(10ms);
     auto sleep = Process::FromPid(proc->pid());
+    ASSERT_NE(sleep, nullptr);
     auto name = sleep->Exe();
     EXPECT_TRUE(absl::StrContains(name, "sleep_emu"))
             << "Expected sleep_emu in the process name: " << name
@@ -146,12 +147,14 @@ TEST(Process, can_get_exitcode_from_discovered_process) {
     auto proc =
             Command::Create({sleep_exe(), "--sleep", "200ms", "--exit", "2"}).Asdaemon().Execute();
     auto sleep = Process::FromPid(proc->pid());
+    ASSERT_NE(sleep, nullptr);
     EXPECT_EQ(sleep->ExitCode(), 2);
 }
 
 TEST(Process, terminate_someone_else) {
     auto proc = Command::Create({sleep_exe(), "--sleep", "200ms"}).Asdaemon().Execute();
     auto sleep = Process::FromPid(proc->pid());
+    ASSERT_NE(sleep, nullptr);
     sleep->Terminate();
     EXPECT_FALSE(sleep->IsAlive());
 }
@@ -160,10 +163,6 @@ TEST(Command, can_use_test_factory) {
     std::basic_stringbuf<char> std_out;
     std::basic_stringbuf<char> std_err;
 
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     int create_called = 0;
     Command::SetTestProcessFactory([&](CommandArguments args, bool daemon, bool inherit) {
         create_called++;
@@ -185,16 +184,12 @@ TEST(Command, can_read_the_exit_code) {
 
 TEST(Command, properly_escape_params) {
     std::basic_stringbuf<char> std_out;
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     auto proc = Command::Create({sleep_exe()})
                         .Arg("--msg_std_out")
                         .Arg("Hello there")
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    proc->WaitFor(100ms);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "Hello there");
 }
 
@@ -215,7 +210,10 @@ TEST(Command, out_of_scope_process_gets_terminated) {
     }
 
     EXPECT_GT(pid, 0);
-    EXPECT_FALSE(Process::FromPid(pid)->IsAlive());
+    auto dead_proc = Process::FromPid(pid);
+    if (dead_proc) {
+        EXPECT_FALSE(dead_proc->IsAlive());
+    }
 }
 
 TEST(Command, WaitFor_completion_times_out) {
@@ -228,16 +226,11 @@ TEST(Command, WaitFor_completion_times_out) {
 
 TEST(Command, we_can_capture_std_out) {
     std::basic_stringbuf<char> std_out;
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     // Let's capture std out
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .Execute();
-    proc->WaitFor(1s);
-    std::this_thread::sleep_for(10ms);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -246,16 +239,11 @@ TEST(Command, we_can_capture_std_out) {
 
 TEST(Command, we_can_capture_std_err) {
     std::basic_stringbuf<char> std_err;
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    proc->WaitFor(1s);
-    std::this_thread::sleep_for(10ms);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
@@ -332,17 +320,12 @@ TEST(Command, DISABLED_we_do_inherit_handles_if_we_explicitly_say_so) {
 TEST(Command, we_can_capture_both) {
     std::basic_stringbuf<char> std_out;
     std::basic_stringbuf<char> std_err;
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStdoutToUnsafe(&std_out)
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    proc->WaitFor(200ms);
-    std::this_thread::sleep_for(10ms);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Out()->AsString(), "stdout");
@@ -351,16 +334,11 @@ TEST(Command, we_can_capture_both) {
 
 TEST(Command, double_capture_should_not_lock) {
     std::basic_stringbuf<char> std_err;
-#ifdef _WIN32
-    // TODO Fix this.
-    GTEST_SKIP() << "reading stdout and stderr is currently broken on Windows";
-#endif
     // Let's capture std err
     auto proc = Command::Create({sleep_exe(), "--msg_std_out", "stdout", "--msg_std_err", "error"})
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
-    proc->WaitFor(1s);
-    std::this_thread::sleep_for(10ms);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
 
     // We should print out the message.
     EXPECT_EQ(proc->Err()->AsString(), "error");
@@ -432,7 +410,7 @@ TEST(Command, as_string_does_not_hang_on_crash) {
 
     // WaitFor should return once the process crashes and the overseer finishes.
     // If it hangs, the test will timeout.
-    ASSERT_EQ(proc->WaitFor(2s), std::future_status::ready);
+    ASSERT_EQ(proc->WaitFor(500ms), std::future_status::ready);
 
     EXPECT_FALSE(proc->IsAlive());
     EXPECT_EQ(proc->Out()->AsString(), "hello\n");
@@ -451,7 +429,7 @@ TEST(Command, can_capture_output_when_one_pipe_closes_early) {
                         .RedirectStderrToUnsafe(&std_err)
                         .Execute();
 
-    EXPECT_EQ(proc->WaitFor(2s), std::future_status::ready);
+    EXPECT_EQ(proc->WaitFor(500ms), std::future_status::ready);
     EXPECT_EQ(proc->Out()->AsString(), "stdout\n");
     EXPECT_EQ(proc->Err()->AsString(), "stderr\n");
 }
@@ -482,7 +460,6 @@ TEST(Command, detach_stops_overseer_immediately) {
     std::basic_stringbuf<char> std_err;
 
     auto start = std::chrono::steady_clock::now();
-    android::base::Pid pid;
     {
         // Start a crashing process that outputs a lot to stdout, so if the overseer is still
         // running after detach, it should not hang. Without the fix, this test can hang
@@ -497,8 +474,8 @@ TEST(Command, detach_stops_overseer_immediately) {
                             .RedirectStderrToUnsafe(&std_err)
                             .RedirectStdoutToUnsafe(&std_out)
                             .Execute();
+
         // Detach should stop the overseer immediately.
-        pid = proc->pid();
         proc->Detach();
     }
     auto end = std::chrono::steady_clock::now();
