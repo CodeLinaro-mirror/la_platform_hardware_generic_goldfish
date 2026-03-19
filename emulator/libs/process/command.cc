@@ -65,7 +65,7 @@ class ProcessOutputImpl : public ProcessOutput {
 void ObservableProcess::RunOverseer() {
     {
         const absl::MutexLock lk(overseer_mutex_);
-        DVLOG(1) << "Starting overseer to retrieve stderr/stdout of " << Exe();
+        DVLOG(1) << "Starting overseer to retrieve stderr/stdout of PID " << pid();
         auto* out = reinterpret_cast<ProcessOutputImpl*>(std_out_.get())->Buffer();
         auto* err = reinterpret_cast<ProcessOutputImpl*>(std_err_.get())->Buffer();
         DVLOG(1) << "Using out:" << out << ", err:" << err;

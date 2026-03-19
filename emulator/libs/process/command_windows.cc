@@ -36,15 +36,6 @@
 #include "android/process/command.h"
 #include "exec.h"
 
-#define DEBUG 0
-
-#if DEBUG >= 1
-#define DD(fmt, ...) \
-    printf("%d| %s:%d %s| " fmt "\n", GetTickCount(), __FILE__, __LINE__, __func__, ##__VA_ARGS__)
-#else
-#define DD(...) (void)0
-#endif
-
 namespace android::base {
 
 using namespace std::chrono_literals;
@@ -88,6 +79,28 @@ std::string QuoteParameter(const std::string& command_line) {
     return out;
 }
 
+// Human readable string of the last error.
+std::string FormatLastErr() {
+    DWORD error = GetLastError();
+    if (error) {
+        constexpr size_t kMaxStrLen = 512;
+        char msg_buf[kMaxStrLen];
+        DWORD buffer_len = FormatMessageA(
+                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, error,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), msg_buf, kMaxStrLen, nullptr);
+        if (buffer_len) {
+            std::string result(msg_buf, msg_buf + buffer_len);
+            // Remove trailing newlines from FormatMessage
+            while (!result.empty() && (result.back() == '\r' || result.back() == '\n')) {
+                result.pop_back();
+            }
+            return std::to_string(error) + ": " + result;
+        }
+        return std::to_string(error);
+    }
+    return "0: Success";
+}
+
 // Creates a named pipe under /Pipe/android.%ProcessId%.%Counter%
 // For doing overlapped I/O
 BOOL CreateNamedPipe(LPHANDLE read_pipe, LPHANDLE write_pipe, LPSECURITY_ATTRIBUTES pipe_attributes,
@@ -116,6 +129,9 @@ BOOL CreateNamedPipe(LPHANDLE read_pipe, LPHANDLE write_pipe, LPSECURITY_ATTRIBU
                              pipe_attributes));
 
     if (!read_pipe_handle) {
+        LOG(ERROR) << "Unable to establish communication channel with child process (server side) "
+                   << "at " << pipe_name_buffer << ". This might be due to system resource "
+                   << "limits. (Error: " << FormatLastErr() << ")";
         return FALSE;
     }
 
@@ -127,34 +143,17 @@ BOOL CreateNamedPipe(LPHANDLE read_pipe, LPHANDLE write_pipe, LPSECURITY_ATTRIBU
                                                    ));
 
     if (!write_pipe_handle) {
+        LOG(ERROR) << "Unable to establish communication channel with child process (client side) "
+                   << "at " << pipe_name_buffer << ". This might be due to security software "
+                   << "or system limits. (Error: " << FormatLastErr() << ")";
         return FALSE;
     }
-
     *read_pipe = read_pipe_handle.release();
     *write_pipe = write_pipe_handle.release();
     return TRUE;
 }
 
 #define BUFSIZE 4096
-
-#if DEBUG >= 1
-// Human readable string of the last error.
-std::string FormatLastErr() {
-    DWORD error = GetLastError();
-    if (error) {
-        constexpr size_t kMaxStrLen = 512;
-        char msg_buf[kMaxStrLen];
-        DWORD buffer_len = FormatMessageA(
-                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, error,
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), msg_buf, kMaxStrLen, nullptr);
-        if (buffer_len) {
-            std::string result(msg_buf, msg_buf + buffer_len);
-            return result;
-        }
-    }
-    return "";
-}
-#endif
 
 // From https://devblogs.microsoft.com/oldnewthing/20111216-00/?p=8873
 // Calls create process with explicitly inheriting the set of handles
@@ -204,7 +203,8 @@ BOOL CreateProcessWithExplicitHandles(LPCSTR application_name, LPSTR command_lin
         info.StartupInfo.cb = sizeof(info);
         info.lpAttributeList = attribute_list;
 
-        DD("Creating proc.");
+        DVLOG(1) << "Creating process with explicit handles: "
+                 << (command_line ? command_line : "null");
         success = CreateProcessA(application_name, command_line, process_attributes,
                                  thread_attributes, inherit_handles,
                                  creation_flags | EXTENDED_STARTUPINFO_PRESENT, environment,
@@ -219,7 +219,6 @@ struct WindwsPipe {
     HANDLE Event() const { return overlap_event.get(); }
 
     void Close() {
-        DD("Closing pipe.");
         pending_io = false;
         closed = true;
     }
@@ -251,7 +250,9 @@ class WindowsOverseer : public ProcessOverseer {
         stop_event_.reset(CreateEvent(nullptr, TRUE, FALSE, nullptr));
     }
 
-    ~WindowsOverseer() override { DD("~WindowsOverseer"); }
+    ~WindowsOverseer() override {
+        DVLOG(1) << "~WindowsOverseer for process handle " << process_.get();
+    }
 
     bool ChildIsAlive() {
         return process_ && WaitForSingleObject(process_.get(), 0) == WAIT_TIMEOUT;
@@ -265,7 +266,6 @@ class WindowsOverseer : public ProcessOverseer {
         std::vector<WindwsPipe*> event_pipes;
         for (const auto& pipe : pipes_) {
             if (pipe->pending_io && !pipe->closed) {
-                DD("-- Wait for %p", pipe->read.get());
                 events.push_back(pipe->overlap_event.get());
                 event_pipes.push_back(pipe.get());
             }
@@ -275,14 +275,17 @@ class WindowsOverseer : public ProcessOverseer {
 
         events.push_back(stop_event_.get());
 
-        DD("Waiting for %d events", events.size());
         DWORD wait = WaitForMultipleObjects(events.size(),  // number of event objects
                                             events.data(),  // array of event objects
                                             FALSE,          // does not wait for all
                                             INFINITE);      // waits indefinitely
 
         if (wait == WAIT_FAILED || wait == WAIT_OBJECT_0 + events.size() - 1) {
-            DD("Stop event or wait failed. %s", FormatLastErr().c_str());
+            if (wait == WAIT_FAILED) {
+                LOG(ERROR) << "An error occurred while monitoring child process output. "
+                           << "Communication may be interrupted. (Error: " << FormatLastErr()
+                           << ")";
+            }
             return nullptr;
         }
 
@@ -299,13 +302,14 @@ class WindowsOverseer : public ProcessOverseer {
         pipes_[0]->buffer = out;
         pipes_[1]->buffer = err;
 
+        DVLOG(1) << "Starting WindowsOverseer I/O loop.";
+
         // A pipe can be:
         // - pending (we are waiting for a read complete)
         // - closed (no more events will come in)
         while (!stop_) {
             for (const auto& pipe : pipes_) {
                 if (pipe->closed) {
-                    DD("Skipping %p", pipe->read.get());
                     continue;
                 }
 
@@ -313,9 +317,6 @@ class WindowsOverseer : public ProcessOverseer {
                     DWORD bytes_to_read = BUFSIZE * sizeof(char);
                     BOOL success = ReadFile(pipe->read.get(), pipe->ch_read, bytes_to_read, nullptr,
                                             &pipe->overlap);
-
-                    DD("Readfile: (%p), %s, read: %d (%s)", pipe->read.get(),
-                       success ? "success" : "fail", pipe->cb_read, FormatLastErr().c_str());
 
                     // The read might still be pending.
                     if (success) {
@@ -325,10 +326,11 @@ class WindowsOverseer : public ProcessOverseer {
                             pipe->FlushToStreambuf();
                         }
                     } else if (GetLastError() == ERROR_IO_PENDING) {
-                        DD("I/O Pending");
                         pipe->pending_io = TRUE;
                     } else {
                         // Some other unknown error..
+                        DVLOG(1) << "ReadFile failed: " << FormatLastErr()
+                                 << ". Marking pipe as closed.";
                         pipe->Close();
                     }
                 }
@@ -340,12 +342,11 @@ class WindowsOverseer : public ProcessOverseer {
             auto* pipe = WaitForPipeEvents();
 
             if (pipe == nullptr) {
-                DD("No events or stopped!");
+                DVLOG(1) << "Overseer I/O loop terminating (no more events or stopped).";
                 pipes_.clear();
                 return;
             }
 
-            DD("Event for %p", pipe->read.get());
             if (pipe->pending_io) {
                 DWORD byte_count = 0;
                 bool success = GetOverlappedResult(pipe->read.get(),  // handle to pipe
@@ -353,11 +354,10 @@ class WindowsOverseer : public ProcessOverseer {
                                                    &byte_count,       // bytes transferred
                                                    FALSE);            // do not wait
 
-                DD("Overlapped: %s, bytes available: %d, (%d:%s)", success ? "success" : "fail",
-                   byte_count, GetLastError(), success ? "" : FormatLastErr().c_str());
-
                 if (!success && GetLastError() == ERROR_BROKEN_PIPE) {
                     // remove this pipe..
+                    DVLOG(1) << "Pipe " << pipe->read.get()
+                             << " broken (process likely exited). Closing.";
                     pipe->Close();
                 } else if (success) {
                     pipe->cb_read = byte_count;
@@ -366,6 +366,7 @@ class WindowsOverseer : public ProcessOverseer {
             }
         }
 
+        DVLOG(1) << "Overseer I/O loop stopped.";
         // Close and destroy pipe objects.
         pipes_.clear();
     }
@@ -374,6 +375,7 @@ class WindowsOverseer : public ProcessOverseer {
     // should be invoked.
     // no writes to std_out, std_err should happen.
     void Stop() override {
+        DVLOG(1) << "Signaling WindowsOverseer to stop.";
         stop_ = true;
         SetEvent(stop_event_.get());
     };
@@ -409,19 +411,20 @@ class WinProcess : public ObservableProcess {
     std::future_status WaitForKernel(
             const std::chrono::milliseconds timeout_duration) const override {
         if (!process_) {
-            LOG(WARNING) << "Invalid process handle, assuming it is not running.";
             return std::future_status::ready;
         }
 
         auto state = WaitForSingleObject(process_.get(), timeout_duration.count());
         if (state == WAIT_FAILED) {
-            PLOG(ERROR) << "Failed to wait for process due to " << GetLastError();
+            PLOG(ERROR) << "Timed out or encountered an error while waiting for the process "
+                        << "to respond or exit";
         }
         return state == WAIT_TIMEOUT ? std::future_status::timeout : std::future_status::ready;
     }
 
     bool Terminate() override {
         if (!process_) return false;
+        DVLOG(1) << "Terminating process PID: " << pid_;
         TerminateProcess(process_.get(), 1);
         // 100ms to shut down.
         return WaitForSingleObject(process_.get(), 100) != WAIT_TIMEOUT;
@@ -472,6 +475,7 @@ class WinProcess : public ObservableProcess {
             }
             cmdline.push_back(nullptr);
 
+            DVLOG(1) << "Replacing current process with: " << cmdline[0];
             // The exec() functions only return if an error has occurred.
             SafeExecv(cmdline[0], cmdline.data());
             return std::nullopt;
@@ -479,8 +483,7 @@ class WinProcess : public ObservableProcess {
 
         STARTUPINFOA startup_info = {.cb = sizeof(STARTUPINFOA)};
         if (capture_output) {
-            DD("Installing pipes_ for stdout & stderr");
-            // Setup named pipes_ to stderr/stdout..
+            // Setup named pipes to stderr/stdout..
             // https://docs.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output
             SECURITY_ATTRIBUTES security_attributes;
             security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -493,16 +496,20 @@ class WinProcess : public ObservableProcess {
                 HANDLE write_handle;
                 if (!CreateNamedPipe(&read_handle, &write_handle, &security_attributes, 0,
                                      FILE_FLAG_OVERLAPPED, FILE_FLAG_OVERLAPPED)) {
-                    // ("Unable to create pipe: " + std::to_string(i));
+                    LOG(ERROR) << "Unable to prepare output redirection for the new process "
+                               << "(channel " << i
+                               << "). Output might be lost. (Error: " << FormatLastErr() << ")";
                     return std::nullopt;
                 }
                 pipe->read.reset(read_handle);
                 pipe->write.reset(write_handle);
 
-                if (!SetHandleInformation(pipe->read.get(), HANDLE_FLAG_INHERIT, 0))
+                if (!SetHandleInformation(pipe->read.get(), HANDLE_FLAG_INHERIT, 0)) {
+                    LOG(ERROR) << "Unable to share communication handles with the new process. "
+                               << "This prevents the emulator from capturing its output. "
+                               << "(Error: " << FormatLastErr() << ")";
                     return std::nullopt;
-                // "SetHandleInformation failed for pipe: " +
-                //         std::to_string(i));
+                }
 
                 pipe->overlap_event.reset(CreateEvent(nullptr,    // default security attribute
                                                       TRUE,       // manual-reset event
@@ -510,8 +517,11 @@ class WinProcess : public ObservableProcess {
                                                       nullptr));  // unnamed event object
 
                 if (!pipe->overlap_event) {
+                    LOG(ERROR) << "Unable to initialize asynchronous monitoring for process "
+                               << "output. (Error: " << FormatLastErr() << ")";
                     return std::nullopt;
                 }
+
                 pipe->overlap.hEvent = pipe->overlap_event.get();
 
                 pipe->pending_io = FALSE;
@@ -534,7 +544,8 @@ class WinProcess : public ObservableProcess {
         BOOL success;
         PROCESS_INFORMATION proc_info = {0};
         if (inherit_ || pipes_.empty()) {
-            DD("CreateProcessA(%s)", inherit_ ? "Inherit handles" : "Do not inherit");
+            DVLOG(1) << "Launching: " << cmdline << " (Inherit: " << (inherit_ ? "True" : "False")
+                     << ")";
             success = ::CreateProcessA(nullptr,
                                        sz_command_line,  // command line
                                        nullptr,          // process security attributes
@@ -549,27 +560,30 @@ class WinProcess : public ObservableProcess {
             assert(!inherit_);
             // We explicitly inherit our pipes.
             std::vector<HANDLE> handles{pipes_[0]->write.get(), pipes_[1]->write.get()};
-            success =
-                    CreateProcessWithExplicitHandles(nullptr,
-                                                     sz_command_line,  // command line
-                                                     nullptr,  // process security attributes
-                                                     nullptr,  // primary thread security attributes
-                                                     TRUE,  // handles will be explicitly inherited
-                                                     0,     // creation flags
-                                                     nullptr,  // use parent's environment
-                                                     nullptr,  // use parent's current directory
-                                                     &startup_info,  // STARTUPINFO pointer
-                                                     &proc_info, handles.size(), handles.data());
+            DVLOG(1) << "Launching (explicit handles): " << cmdline;
+            success = CreateProcessWithExplicitHandles(
+                    nullptr,
+                    sz_command_line,  // command line
+                    nullptr,          // process security attributes
+                    nullptr,          // primary thread security attributes
+                    TRUE,             // handles will be explicitly inherited
+                    0,                // creation flags
+                    nullptr,          // use parent's environment
+                    nullptr,          // use parent's current directory
+                    &startup_info,    // STARTUPINFO pointer
+                    &proc_info, (DWORD)handles.size(), handles.data());
         }
-        DD("Create process: %d, %s", success, FormatLastErr().c_str());
 
-        // If an error occurs, exit the application.
         if (!success) {
-            DD("Create process failed: %s", FormatLastErr().c_str());
+            LOG(ERROR) << "Failed to start the process: " << cmdline << ". Please check if "
+                       << "the path is correct and you have sufficient permissions. (Error: "
+                       << FormatLastErr() << ")";
             return std::nullopt;
         }
 
-        // Close handles to the  pipes_ no longer needed by the child
+        DVLOG(1) << "Successfully launched process. PID: " << proc_info.dwProcessId;
+
+        // Close handles to the pipes no longer needed by the child
         // process. If they are not explicitly closed, there is no way
         // to recognize that the child process has ended.
         for (const auto& pipe : pipes_) {
@@ -586,6 +600,8 @@ class WinProcess : public ObservableProcess {
         HANDLE dup_handle;
         if (!DuplicateHandle(GetCurrentProcess(), process_.get(), GetCurrentProcess(), &dup_handle,
                              0, FALSE, DUPLICATE_SAME_ACCESS)) {
+            LOG(ERROR) << "Unable to monitor the new process because its internal handle "
+                       << "could not be duplicated. (Error: " << FormatLastErr() << ")";
             return nullptr;
         }
         return std::make_unique<WindowsOverseer>(ScopedFileHandle(dup_handle), std::move(pipes_));
@@ -608,8 +624,9 @@ class WinProcess : public ObservableProcess {
             GetExitCodeProcess(process_.get(), &exit);
         }
 
-        DD("Looped %d times", n);
-        return exit;
+        DVLOG(1) << "Process PID: " << pid_ << " exited with status " << exit
+                 << " (Retrieved after " << n << " poll attempts)";
+        return (ProcessExitCode)exit;
     }
 
   private:
@@ -624,8 +641,9 @@ Command::ProcessFactory Command::s_process_factory = [](const CommandArguments& 
 };
 
 std::unique_ptr<Process> Process::FromPid(Pid pid) {
-    ScopedFileHandle process_handle(OpenProcess(
-            PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
+    ScopedFileHandle process_handle(
+            OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false,
+                        (DWORD)pid));
     if (process_handle) {
         return std::make_unique<WinProcess>(std::move(process_handle));
     }
@@ -637,12 +655,16 @@ std::vector<std::unique_ptr<Process>> Process::FromName(const std::string& name)
 
     ScopedFileHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
     if (!snapshot) {
+        LOG(ERROR) << "Unable to scan the list of running processes to find \"" << name
+                   << "\". (Error: " << FormatLastErr() << ")";
         return processes;
     }
     PROCESSENTRY32 process = {0};
     process.dwSize = sizeof(process);
 
     if (!Process32First(snapshot.get(), &process)) {
+        LOG(ERROR) << "Unable to read process information while searching for \"" << name
+                   << "\". (Error: " << FormatLastErr() << ")";
         return processes;
     }
     do {
