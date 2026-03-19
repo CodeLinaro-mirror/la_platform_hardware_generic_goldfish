@@ -33,6 +33,8 @@ struct MetricsWriterConfig {
     MetricsWriterType type;
     fs::path file_path;
     fs::path studio_spool_dir;
+
+    bool user_upload_consent{false};
 };
 
 inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfig config,

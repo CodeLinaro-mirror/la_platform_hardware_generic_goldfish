@@ -119,7 +119,7 @@ void warnAboutNoMetricsConsentInput() {
         return {.type = kConsole};
     } else if (opts.metrics_collection) {
         LOG(INFO) << "Metrics will be uploaded directly by the emulator";
-        return {.type = kPlaystore};
+        return {.type = kPlaystore, .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
         LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
         return {.type = kFile, .file_path = opts.metrics_to_file};
@@ -129,7 +129,7 @@ void warnAboutNoMetricsConsentInput() {
             using enum ::goldfish::metrics::studio::OptInState;
         case kOptedIn:
             LOG(INFO) << "Metrics will be written to file and uploaded by Studio";
-            return {.type = kStudio, .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(resolved_paths.user_directory)};
+            return {.type = kStudio, .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(resolved_paths.user_directory), .user_upload_consent = true};
         case kOptedOut:
             LOG(INFO) << "Studio user opted out of metrics";
             return {.type = kNone};
@@ -646,9 +646,7 @@ int main(int argc, char** argv) {
     }
     ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config, *event_loop);
 
-    auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
-    // TODO(b/483635069): remove consent override before release.
-    crash_consent = android::crashreport::Consent::ALWAYS;
+    auto crash_consent = metrics_writer_config.user_upload_consent ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
     android::crashreport::CrashSystem::get().uploadEntries(crash_consent);
 
     // This is needed for gfxstream to be able to load GL libs.
