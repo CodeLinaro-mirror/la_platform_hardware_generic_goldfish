@@ -321,6 +321,13 @@ LibuvEventLoopImpl::~LibuvEventLoopImpl() {
             << "All timers should have been cancelled and removed before the "
                "event loop is destroyed.";
 
+    // Last ditch effort to close the wakeup handle if the loop was never shut down.
+    if (uv_async_t* async = TakeOwnershipAsync()) {
+        uv_close(reinterpret_cast<uv_handle_t*>(async), nullptr);
+        // Process the close callback immediately.
+        uv_run(&uv_loop_handle_, UV_RUN_NOWAIT);
+    }
+
     const int res = uv_loop_close(&uv_loop_handle_);
     if (res != 0) {
         LOG(WARNING) << "Failed to close uv_loop: " << uv_strerror(res);
