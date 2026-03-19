@@ -13,6 +13,7 @@ load(
     "build_id_from_command_line",
     "native_symbols_pkg",
     "remapped_pkg_files",
+    "source_properties",
 )
 
 package(
@@ -40,6 +41,17 @@ license_kind(
 build_id_from_command_line(
     name = "build_id",
     build_setting_default = "developer",
+)
+
+source_properties(
+    name = "source_properties",
+    out = "source.properties",
+    aemu_version = "//emulator/tools:aemu_version_info",
+)
+
+pkg_files(
+    name = "source_properties_pkg",
+    srcs = [":source_properties"],
 )
 
 filegroup(
@@ -362,6 +374,7 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":qemu_stripped",
+        ":source_properties_pkg",
         ":vulkan_stripped",
     ] + select({
         "@platforms//os:windows": [":win-dlls"],
@@ -381,6 +394,7 @@ pkg_filegroup(
         ":qemu",
         ":qemu-keymaps",
         ":qemu-roms",
+        ":source_properties_pkg",
         ":vulkan",
     ] + select({
         "@platforms//os:windows": [":win-dlls"],

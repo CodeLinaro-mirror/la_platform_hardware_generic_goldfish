@@ -272,4 +272,5 @@ emulator/share/qemu/multiboot.bin
 emulator/share/qemu/vgabios-cirrus.bin
 emulator/share/qemu/vgabios-stdvga.bin
 emulator/share/qemu/vgabios-virtio.bin
+emulator/source.properties
 emulator/

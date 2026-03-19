@@ -28,9 +28,11 @@ def _aemu_naming_impl(ctx):
 
     # Copy attributes from the rule to the provider
     values["product_name"] = ctx.attr.product_name
+    values["desc"] = ctx.attr.description
     values["version"] = ctx.attr.version
-    values["revision"] = ctx.attr.revision
+    values["revision"] = ctx.attr.version
     values["platform"] = ctx.attr.platform
+    values["stage"] = ctx.attr.stage
 
     # Add some well known variables from the rule context.
     values["target_cpu"] = ctx.var.get("TARGET_CPU")
@@ -51,12 +53,18 @@ aemu_naming = rule(
             default = "Android Emulator",
             doc = "Placeholder for our final product name.",
         ),
-        "revision": attr.string(
-            doc = "Placeholder for our release revision.",
+        "description": attr.string(
+            default = "Android Emulator",
+            doc = "A human-readable description of the package to be displayed in the Android SDK Manager.",
+        ),
+        "stage": attr.string(
+            values = ["internal", "alpha", "beta", "rc", ""],
+            default = "alpha",
+            doc = "The release lifecycle stage. Options: 'alpha', 'beta', 'rc' (Release Candidate), or '' (empty) for a stable GA release.",
         ),
         "version": attr.string(
             default = "99.1.1",
-            doc = "Placeholder for our release version.",
+            doc = "The numeric version identifier in 'major.minor.micro' format (e.g., 1.2.3). This is combined with 'stage' to populate the Pkg.Revision field.",
         ),
         "platform": attr.string(
             doc = "The target operating system of this release",
@@ -428,6 +436,56 @@ remapped_pkg_files = rule(
         ),
         "attributes": attr.string(
             doc = "Override attributes from src. See https://bazelbuild.github.io/rules_pkg/latest.html#pkg_files-attributes.",
+        ),
+    },
+)
+
+def _source_properties_impl(ctx):
+    aemu_version_info = ctx.attr.aemu_version[PackageVariablesInfo]
+    build_id = aemu_version_info.values["build_id"]
+    version = aemu_version_info.values["version"]
+    stage = aemu_version_info.values["stage"]
+    desc = aemu_version_info.values["desc"]
+
+    # Note revision should be following:
+    # r'^\s*([0-9]+)(?:\.([0-9]+)(?:\.([0-9]+))?)?([\s-]*)?(?:(rc|alpha|beta)([0-9]+))?$'
+    if stage == "":
+        # Final release! Woohoo
+        revision = version
+    else:
+        revision = "{version}-{stage}{build_id}".format(version = version, stage = stage, build_id = build_id)
+
+    # Make sure we NEVER release a developer or presubmit build by
+    # forcing the revision regex to fail.
+    if build_id == "developer" or build_id[0] == "P":
+        revision = "{version}-internal-{build_id}".format(version = version, build_id = build_id)
+
+    # See go/adrt for details on the file format
+    content = """Pkg.UserSrc=false
+Pkg.Revision={revision}
+Pkg.Path=emulators
+Pkg.Desc={desc}
+""".format(desc = desc, revision = revision)
+
+    ctx.actions.write(
+        output = ctx.outputs.out,
+        content = content,
+    )
+
+source_properties = rule(
+    implementation = _source_properties_impl,
+    doc = """Generates the source.properties file based on the emulator versioning information.
+    note this will automatically revert to an alpha number in case of presubmits and developer builds
+    to prevent accidental releases
+    """,
+    attrs = {
+        "aemu_version": attr.label(
+            providers = [PackageVariablesInfo],
+            doc = "PackageVariablesInfo provider containing emulator version information",
+        ),
+        "out": attr.output(
+            mandatory = True,
+            doc = "The output file name",
         ),
     },
 )
