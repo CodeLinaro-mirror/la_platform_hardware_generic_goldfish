@@ -24,14 +24,6 @@
 
 #include "goldfish/synchronized_stream_buf.h"
 
-#define DEBUG 0
-
-#if DEBUG >= 1
-#define DD(fmt, ...) printf("%s:%d %F| " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
-#else
-#define DD(...) (void)0
-#endif
-
 namespace android::base {
 
 ProcessExitCode Process::ExitCode() const {
