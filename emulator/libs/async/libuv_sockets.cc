@@ -215,7 +215,7 @@ class LibuvSocket : public AsyncSocket, public std::enable_shared_from_this<Libu
     /**
      * @brief Adopts an existing native socket handle (fd or SOCKET) into this LibuvSocket.
      */
-    virtual absl::Status Open(NativeSocket native_socket) = 0;
+    virtual absl::Status Open(ScopedNativeSocket native_socket) = 0;
 
     template <size_t kMaxAllocs>
     struct ReadBufferAllocator {
@@ -404,16 +404,18 @@ class TcpLibuvSocket : public LibuvSocket {
         return *std::move(ep);
     }
 
-    absl::Status Open(NativeSocket native_socket) override {
+    absl::Status Open(ScopedNativeSocket native_socket) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
         if (is_connected_) {
             return absl::FailedPreconditionError("Socket is already connected");
         }
-        const int res = uv_tcp_open(&socket_stream_, static_cast<uv_os_sock_t>(native_socket));
+        const int res =
+                uv_tcp_open(&socket_stream_, static_cast<uv_os_sock_t>(native_socket.get()));
         if (res != 0) {
             return UvErrToAbslStatus(res);
         }
         is_connected_ = true;
+        native_socket.release();
         return absl::OkStatus();
     }
 
@@ -498,16 +500,17 @@ class UnLibuvSocket : public LibuvSocket {
         return Endpoint(*UnEndpoint::Create(std::move(name)));
     }
 
-    absl::Status Open(NativeSocket native_socket) override {
+    absl::Status Open(ScopedNativeSocket native_socket) override {
         DCHECK(event_loop_->IsOnLoopThread()) << "Must be called on loop thread";
         if (is_connected_) {
             return absl::FailedPreconditionError("Socket is already connected");
         }
-        const int res = uv_pipe_open(&socket_stream_, static_cast<uv_file>(native_socket));
+        const int res = uv_pipe_open(&socket_stream_, static_cast<uv_file>(native_socket.get()));
         if (res != 0) {
             return UvErrToAbslStatus(res);
         }
         is_connected_ = true;
+        native_socket.release();
         return absl::OkStatus();
     }
 
@@ -654,12 +657,11 @@ class LibuvServer : public AsyncSocketServer, public std::enable_shared_from_thi
             if (!self) return;
 
             auto new_client = self->CreateClientSocket(target_loop);
-            auto opened = new_client->Open(fd.get());
+            auto opened = new_client->Open(std::move(fd));
             if (!opened.ok()) {
                 LOG(ERROR) << "Failed to open duplicated socket on target loop: " << opened;
                 return;
             }
-            (void)fd.release();
             self->FinalizeConnection(new_client);
         });
     }
