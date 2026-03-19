@@ -14,6 +14,9 @@
 
 // IWYU pragma: end_keep
 // clang-format off
+#if defined(UNICODE) || defined(_UNICODE)
+#error "This file does not support UNICODE builds. It must be compiled with the ANSI/UTF-8 codepage."
+#endif
 #include <windows.h>
 
 // Process entry
@@ -27,9 +30,9 @@
 #include <streambuf>
 
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 
 #include "android/base/scoped_file_handle.h"
-#include "android/base/win32_unicode_string.h"
 #include "android/process/command.h"
 #include "exec.h"
 
@@ -47,11 +50,6 @@ namespace android::base {
 using namespace std::chrono_literals;
 
 namespace {
-// Converts a std::string (utf-8) -> utf-16
-std::wstring ToWide(const std::string& str) {
-    Win32UnicodeString wstr(str);
-    return {wstr.c_str(), wstr.size()};
-}
 
 std::string QuoteParameter(const std::string& command_line) {
     // Therefore, the function will return the length of str1 if none of the characters of str2 are
@@ -163,11 +161,11 @@ std::string FormatLastErr() {
 // that are in rgHandlesToInherit.
 // Note that you must poass inherit_handles as true and
 // make sure to set the individual handle to inherit.
-BOOL CreateProcessWithExplicitHandles(LPCWSTR application_name, LPWSTR command_line,
+BOOL CreateProcessWithExplicitHandles(LPCSTR application_name, LPSTR command_line,
                                       LPSECURITY_ATTRIBUTES process_attributes,
                                       LPSECURITY_ATTRIBUTES thread_attributes, BOOL inherit_handles,
                                       DWORD creation_flags, LPVOID environment,
-                                      LPCWSTR current_directory, LPSTARTUPINFOW startup_info,
+                                      LPCSTR current_directory, LPSTARTUPINFOA startup_info,
                                       LPPROCESS_INFORMATION process_information,
                                       // here is the new stuff
                                       DWORD count_handles_to_inherit, HANDLE* handles_to_inherit) {
@@ -200,14 +198,14 @@ BOOL CreateProcessWithExplicitHandles(LPCWSTR application_name, LPWSTR command_l
                                             nullptr);
     }
     if (success) {
-        STARTUPINFOEXW info;
+        STARTUPINFOEXA info;
         ZeroMemory(&info, sizeof(info));
         info.StartupInfo = *startup_info;
         info.StartupInfo.cb = sizeof(info);
         info.lpAttributeList = attribute_list;
 
         DD("Creating proc.");
-        success = CreateProcessW(application_name, command_line, process_attributes,
+        success = CreateProcessA(application_name, command_line, process_attributes,
                                  thread_attributes, inherit_handles,
                                  creation_flags | EXTENDED_STARTUPINFO_PRESENT, environment,
                                  current_directory, &info.StartupInfo, process_information);
@@ -437,7 +435,7 @@ class WinProcess : public ObservableProcess {
                 return "";
             }
             if (size == name.size() && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-                name.resize(UNICODE_STRING_MAX_CHARS);
+                name.resize(32767);
                 size = GetModuleFileNameExA(process_.get(), nullptr, name.data(), name.size());
             }
             name.resize(size);
@@ -479,7 +477,7 @@ class WinProcess : public ObservableProcess {
             return std::nullopt;
         }
 
-        STARTUPINFOW startup_info = {.cb = sizeof(STARTUPINFOW)};
+        STARTUPINFOA startup_info = {.cb = sizeof(STARTUPINFOA)};
         if (capture_output) {
             DD("Installing pipes_ for stdout & stderr");
             // Setup named pipes_ to stderr/stdout..
@@ -531,14 +529,13 @@ class WinProcess : public ObservableProcess {
             cmdline += QuoteParameter(param) + " ";
         }
         cmdline.pop_back();
-        std::wstring command_line_w = ToWide(cmdline);
-        auto* sz_command_line = const_cast<LPWSTR>(command_line_w.c_str());
+        auto* sz_command_line = const_cast<LPSTR>(cmdline.c_str());
 
         BOOL success;
         PROCESS_INFORMATION proc_info = {0};
         if (inherit_ || pipes_.empty()) {
-            DD("CreateProcessW(%s)", inherit_ ? "Inherit handles" : "Do not inherit");
-            success = ::CreateProcessW(nullptr,
+            DD("CreateProcessA(%s)", inherit_ ? "Inherit handles" : "Do not inherit");
+            success = ::CreateProcessA(nullptr,
                                        sz_command_line,  // command line
                                        nullptr,          // process security attributes
                                        nullptr,          // primary thread security attributes
@@ -642,21 +639,20 @@ std::vector<std::unique_ptr<Process>> Process::FromName(const std::string& name)
     if (!snapshot) {
         return processes;
     }
-    PROCESSENTRY32W process = {0};
+    PROCESSENTRY32 process = {0};
     process.dwSize = sizeof(process);
 
-    if (!Process32FirstW(snapshot.get(), &process)) {
+    if (!Process32First(snapshot.get(), &process)) {
         return processes;
     }
     do {
-        if (Win32UnicodeString::convertToUtf8(process.szExeFile).find(name) !=
-            std::string::npos) {  // NOLINT(bugprone-signed-char-arg)
+        if (absl::StrContains(process.szExeFile, name)) {
             auto proc = FromPid(static_cast<Pid>(process.th32ProcessID));
             if (proc) {
                 processes.push_back(std::move(proc));
             }
         }
-    } while (Process32NextW(snapshot.get(), &process));
+    } while (Process32Next(snapshot.get(), &process));
 
     return processes;
 }
