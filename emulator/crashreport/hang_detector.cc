@@ -23,8 +23,8 @@
 #include "absl/time/time.h"
 
 #include "android/base/clock.h"
+#include "android/crashreport/debug.h"
 #include "goldfish/async/event_loop.h"
-#include "debug.h"
 
 namespace android::crashreport {
 

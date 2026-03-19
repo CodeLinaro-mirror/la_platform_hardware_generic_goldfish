@@ -22,9 +22,9 @@
 #include "gtest/gtest.h"
 
 #include "android/base/abseil_clock.h"
+#include "android/crashreport/debug.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
-#include "debug.h"
 
 namespace android::crashreport {
 

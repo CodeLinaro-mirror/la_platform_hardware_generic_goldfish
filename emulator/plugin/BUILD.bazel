@@ -23,6 +23,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
         }),
         deps = [
             "//emulator/crashreport:crash_reporter",
+            "//emulator/crashreport:debug",
             "//emulator/libs/logging:color_log_sink",
             "//emulator/plugin/adb-vsock",
             "//emulator/plugin/avd:impl",

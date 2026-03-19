@@ -29,10 +29,9 @@
 //
 #ifdef NDEBUG
 #define ANDROID_IF_DEBUG(x)
-#else   // !NDEBUG
+#else  // !NDEBUG
 #define ANDROID_IF_DEBUG(x) x
 #endif  // !NDEBUG
-
 
 namespace android::base {
 
@@ -47,5 +46,4 @@ bool WaitForDebugger(int64_t timeout_ms = -1);
 // do anything, but most probably will crash.
 void DebugBreak();
 
-} // namespace android::base
-
+}  // namespace android::base
