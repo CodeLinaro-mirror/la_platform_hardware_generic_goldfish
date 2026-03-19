@@ -215,7 +215,7 @@ BOOL CreateProcessWithExplicitHandles(LPCSTR application_name, LPSTR command_lin
     return success;
 }
 
-struct WindwsPipe {
+struct WindowsPipe {
     HANDLE Event() const { return overlap_event.get(); }
 
     void Close() {
@@ -245,7 +245,7 @@ struct WindwsPipe {
 
 class WindowsOverseer : public ProcessOverseer {
   public:
-    WindowsOverseer(ScopedFileHandle process, std::vector<std::unique_ptr<WindwsPipe>> pipes)
+    WindowsOverseer(ScopedFileHandle process, std::vector<std::unique_ptr<WindowsPipe>> pipes)
             : pipes_(std::move(pipes)), process_(std::move(process)) {
         stop_event_.reset(CreateEvent(nullptr, TRUE, FALSE, nullptr));
     }
@@ -261,9 +261,9 @@ class WindowsOverseer : public ProcessOverseer {
     // Waits for a read finished event on any of the active pipes or the stop event.
     // returns the pipe with the event or nullptr if there are no
     // events to wait for
-    WindwsPipe* WaitForPipeEvents() {
+    WindowsPipe* WaitForPipeEvents() {
         std::vector<HANDLE> events;
-        std::vector<WindwsPipe*> event_pipes;
+        std::vector<WindowsPipe*> event_pipes;
         for (const auto& pipe : pipes_) {
             if (pipe->pending_io && !pipe->closed) {
                 events.push_back(pipe->overlap_event.get());
@@ -381,7 +381,7 @@ class WindowsOverseer : public ProcessOverseer {
     };
 
   private:
-    std::vector<std::unique_ptr<WindwsPipe>> pipes_;
+    std::vector<std::unique_ptr<WindowsPipe>> pipes_;
     ScopedFileHandle process_;
     ScopedEventHandle stop_event_;
     bool stop_{false};
@@ -491,7 +491,7 @@ class WinProcess : public ObservableProcess {
             security_attributes.lpSecurityDescriptor = nullptr;
 
             for (int i = 0; i < 2; i++) {
-                auto pipe = std::make_unique<WindwsPipe>();
+                auto pipe = std::make_unique<WindowsPipe>();
                 HANDLE read_handle;
                 HANDLE write_handle;
                 if (!CreateNamedPipe(&read_handle, &write_handle, &security_attributes, 0,
@@ -632,7 +632,7 @@ class WinProcess : public ObservableProcess {
   private:
     ScopedFileHandle process_;
     bool owner_{false};
-    std::vector<std::unique_ptr<WindwsPipe>> pipes_;
+    std::vector<std::unique_ptr<WindowsPipe>> pipes_;
 };
 
 Command::ProcessFactory Command::s_process_factory = [](const CommandArguments& /* args */,
