@@ -19,17 +19,18 @@
 #include "absl/debugging/symbolize.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
-#include "absl/log/log_sink_registry.h"
-#include "absl/log/log_sink.h"
 #include "absl/log/log.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/log/structured.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 
 #include "android/base/color_log_sink.h"
 #include "android/base/system.h"
-#include "android/crashreport/crash_system.h"
 #include "android/crashreport/crash_reporter.h"
+#include "android/crashreport/crash_system.h"
+#include "android/crashreport/debug.h"
 #include "goldfish/adb_device/adb_device.h"
 #include "goldfish/async/testing/global_event_loop.h"
 #include "goldfish/avd_finalize/avd_finalize.h"
@@ -180,6 +181,13 @@ extern "C" void GF_STARTUP_FUNC(int argc, char** argv) {
             "GlobalEventLoop", *client_loop, absl::Seconds(15));
 
     LOG(INFO) << "goldfish plugin initialization completed";
+
+    // Allow waiting for a debugger through a command line argument
+    if (System::Get()->GetEnvironmentVariable("ANDROID_EMU_WAIT_FOR_DEBUGGER") == "1") {
+        LOG(WARNING) << "Waiting for a debugger...";
+        android::base::WaitForDebugger();
+        LOG(WARNING) << "Debugger has attached, resuming";
+    }
 }
 
 extern "C" void GF_SHUTDOWN_FUNC(void) {

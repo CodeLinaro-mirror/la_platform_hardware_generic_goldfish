@@ -318,6 +318,11 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
         ABSL_LOG(INFO) << "Emulator launch command: " << absl::StrJoin(printableArgs, " ");
     }
 
+    if (o.wait_for_debugger) {
+        // This is used to wait for the debugger at qemu process start.
+        System::Get()->SetEnvironmentVariable("ANDROID_EMU_WAIT_FOR_DEBUGGER", "1");
+    }
+
     return ::goldfish::async::LaunchConfig{
         .exe_path = std::move(exe_path),
         .args = std::move(args),

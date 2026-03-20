@@ -20,7 +20,9 @@ CRASHURL_DEFINES = select({
 cc_library(
     name = "debug",
     srcs = ["debug.cc"],
-    hdrs = ["debug.h"],
+    hdrs = ["include/android/crashreport/debug.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
     deps = ["//emulator/libs/base:array_size"],
 )
 
