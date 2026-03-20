@@ -26,6 +26,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/substitute.h"
 
 #include "android/base/bazel_info.h"
 #include "android/base/system.h"
@@ -45,11 +46,11 @@
 #include "goldfish/async/libuv_socket_factory.h"
 #include "goldfish/async/when_all.h"
 #include "goldfish/file/file.h"
+#include "goldfish/metrics/configure_metrics_writer.h"
+#include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
-#include "goldfish/metrics/metrics_reporter.h"
-#include "goldfish/metrics/configure_metrics_writer.h"
 #include "logging.h"
 #include "netsimd.h"
 
@@ -69,17 +70,23 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
+// clang-format off
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
-    std::cout << "              .: .          \n";
-    std::cout << "            .    -            Welcome to goldfish\n";
-    std::cout << "        ==:    .-+       =-   The android emulator\n";
-    std::cout << "     :+            :  #:  .   Version: " VERSION << "-" << BUILD_ID << "\n";
-    std::cout << "    %     @         :@-   -   Platform: " << platform << "\n";
-    std::cout << "   :              *=   - -    Copyright 2024 The Android Open Source Project\n";
-    std::cout << "   :  -<      :+++      - \n";
-    std::cout << "    = _ _.*= .            \n";
+    std::cout << absl::Substitute(
+R"(                           Welcome to goldfish
+       \                   The android emulator
+       (o>   [ALPHA]       Version: $0-$1
+       /                   Platform: $2
+                           Copyright 2026 The Android Open Source Project
+                           ----------------------------------------------
+                           DISCLAIMER: This is an unstable alpha release.
+                           Features are under active development and may
+                           break, crash, or not work as expected.
+)",
+            VERSION, BUILD_ID, platform);
 }
+// clang-format on
 
 bool should_launch_fishtank(const AndroidOptions& opts) {
     return !opts.no_window;
