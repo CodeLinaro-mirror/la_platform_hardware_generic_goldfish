@@ -141,7 +141,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     avd_info::AvdUniverse& avdUniverse = goldfish::avd_info::GetAvd();
     auto service = ::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avdUniverse,
-            IMultiDisplay::Instance(), goldfish::avd_info::getQemuEventLoop());
+            IMultiDisplay::Instance());
 
     // TODO config->addr is set but not used anywhere
     auto builder = EmulatorControllerService::Builder()

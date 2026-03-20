@@ -16,6 +16,7 @@
 
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/async/event_loop.h"
 #include "goldfish/avd_universe/battery/battery_state.h"
 #include "goldfish/avd_universe/clipboard/clipboard_data.h"
 #include "goldfish/avd_universe/fingerprint/fingerprint_sensor.h"
@@ -64,6 +65,8 @@ struct AvdProperties {
  * the `avd_info_realize` and `avd_info_unrealize` events.
  */
 struct AvdUniverse {
+    virtual ~AvdUniverse() = default;
+
     const AvdProperties& Props() const { return *props_; }
 
     avd_universe::battery::ObservableBattery& GetBattery() { return battery_; }
@@ -77,6 +80,8 @@ struct AvdUniverse {
     avd_universe::guest_status::GuestStatus& GetGuestStatus() { return guest_status_; }
     avd_universe::gps::ObservableLocation& GetLocation() { return location_; }
     sensors::PhysicalModel& GetSensorsPhysicalModel() { return sensors_physical_model_; }
+
+    virtual async::EventLoop& GetQemuEventLoop() = 0;
 
     void SetActiveMultiDisplayDevice(
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);

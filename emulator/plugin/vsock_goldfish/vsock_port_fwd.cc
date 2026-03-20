@@ -190,15 +190,15 @@ class HostToGuestConnection : public goldfish::devices::HalPlug,
 class VSockProxyImpl : public VSockProxy {
   public:
     VSockProxyImpl(const Endpoint& hostEndpoint, VSockFwdDev* device,
-                   const ObservableTimestamp& bootcompleteTime)
+        goldfish::avd_info::AvdUniverse &universe)
             : mHostEndpoint(hostEndpoint)
             , mDevice(device)
-            , mQemuLoop(goldfish::avd_info::getQemuEventLoop())
+            , mQemuLoop(universe.GetQemuEventLoop())
             , mClientLoop(goldfish::async::globalEventLoop())
-            , mBootcompleteTime(bootcompleteTime) {
+            , mBootcompleteTime(universe.GetGuestStatus().bootcomplete) {
         using namespace std::chrono_literals;
         mConnectionAwaiter = ConnectionAwaiter::RetryUntilConnected(
-                mQemuLoop,
+                &mQemuLoop,
                 [&](auto plug) {
                     if (isBootCompleted()) {
                         return goldfish::vsock::Connect(mDevice->guest_port, plug);
@@ -227,7 +227,7 @@ class VSockProxyImpl : public VSockProxy {
                 [this](std::shared_ptr<goldfish::async::AsyncSocket> hostSocket) {
                     auto hostToGuest = HostToGuestConnection::create(std::move(hostSocket));
                     mQemuLoop
-                            ->Post([this, hostToGuest = std::move(hostToGuest)] {
+                            .Post([this, hostToGuest = std::move(hostToGuest)] {
                                 incomingConnectionOnQemuThread(std::move(hostToGuest));
                             })
                             .IgnoreError();
@@ -269,7 +269,7 @@ class VSockProxyImpl : public VSockProxy {
         VLOG(1) << "Received an incoming connection socket connection!";
         auto adapter = HalPlugFactory::Connect(
                 mDevice->guest_port, [hostToGuest = std::move(hostToGuest)] { return hostToGuest; },
-                mClientLoop, mQemuLoop, std::move(onFlowControlEvent),
+                mClientLoop, &mQemuLoop, std::move(onFlowControlEvent),
                 mDevice->data_sniffer_factory);
         VLOG(1) << "Adapter registered: " << adapter;
         return true;
@@ -280,7 +280,7 @@ class VSockProxyImpl : public VSockProxy {
     /// The vsock device definition
     const Endpoint mHostEndpoint;
     VSockFwdDev* mDevice;
-    EventLoop* mQemuLoop;    // The main QEMU event loop
+    EventLoop& mQemuLoop;    // The main QEMU event loop
     EventLoop* mClientLoop;  // Client-side event loop for sockets
     const ObservableTimestamp& mBootcompleteTime;
     LibuvAsyncSocketFactory mSocketFactory;
@@ -320,8 +320,7 @@ static void vsock_fwd_realize(DeviceState* dev, Error** errp) {
     }
 
     vsock_fwd_device->forwarder =
-            new VSockProxyImpl(*preferred, vsock_fwd_device,
-                               goldfish::avd_info::GetAvd().GetGuestStatus().bootcomplete);
+            new VSockProxyImpl(*preferred, vsock_fwd_device, goldfish::avd_info::GetAvd());
     VLOG(VLOG_DBG) << "Realizing vsock forwarder: (address:host <-> guest) " << ToString(*preferred)
                    << "<->" << vsock_fwd_device->guest_port;
 }
