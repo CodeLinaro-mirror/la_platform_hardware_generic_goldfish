@@ -28,9 +28,9 @@
 #include <string.h>
 
 #include "allocate.h"
-#include "uuid.h"
 #include "contents.h"
 #include "ext4_utils.h"
+#include "uuid.h"
 #include "wipe.h"
 #ifndef _MSC_VER
 #include <libgen.h>
@@ -188,8 +188,8 @@ static u32 build_directory_structure(const char* full_path, const char* dir_path
         dentries[i].filename = strdup(namelist[i]->d_name);
         if (dentries[i].filename == NULL) critical_error_errno("strdup");
 
-        asprintf(&dentries[i].path, "%s%s", dir_path, namelist[i]->d_name);
-        asprintf(&dentries[i].full_path, "%s%s", full_path, namelist[i]->d_name);
+        (void)asprintf(&dentries[i].path, "%s%s", dir_path, namelist[i]->d_name);
+        (void)asprintf(&dentries[i].full_path, "%s%s", full_path, namelist[i]->d_name);
 
         free(namelist[i]);
 
@@ -244,7 +244,7 @@ static u32 build_directory_structure(const char* full_path, const char* dir_path
         } else if (S_ISLNK(_stat.st_mode)) {
             dentries[i].file_type = EXT4_FT_SYMLINK;
             dentries[i].link = calloc(info.block_size, 1);
-            readlink(dentries[i].full_path, dentries[i].link, info.block_size - 1);
+            (void)readlink(dentries[i].full_path, dentries[i].link, info.block_size - 1);
         }
 #endif
         else {
@@ -265,7 +265,7 @@ static u32 build_directory_structure(const char* full_path, const char* dir_path
         dentries = tmp;
 
         dentries[0].filename = strdup("lost+found");
-        asprintf(&dentries[0].path, "%slost+found", dir_path);
+        (void)asprintf(&dentries[0].path, "%slost+found", dir_path);
         dentries[0].full_path = NULL;
         dentries[0].size = 0;
         dentries[0].mode = S_IRWXU;

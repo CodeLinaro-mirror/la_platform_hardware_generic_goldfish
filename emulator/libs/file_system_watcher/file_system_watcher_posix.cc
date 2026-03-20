@@ -25,8 +25,8 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/notification.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/file_system_watcher.h"
+#include "goldfish/file/file.h"
 
 #define DEBUG 0
 
@@ -68,7 +68,7 @@ class FileSystemWatcherPosix : public FileSystemWatcher {
         if (running_.compare_exchange_strong(expected, false)) {
             DD("Closing watchers");
             if (pipe_[1] != -1) {
-                write(pipe_[1], "x", 1);
+                (void)write(pipe_[1], "x", 1);
             }
             watcher_thread_.join();
         }
