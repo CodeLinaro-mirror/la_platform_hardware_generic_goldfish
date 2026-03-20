@@ -26,7 +26,7 @@
 namespace android::goldfish {
 
 namespace {
-void AppendMetricsConfigString(std::string *s, const MetricsConfig &config) {
+void AppendMetricsConfigString(std::string* s, const MetricsConfig& config) {
     absl::StrAppend(s, ",metrics_session=", config.session_id);
     absl::StrAppend(s, ",metrics_writer=", static_cast<uint32_t>(config.writer_config.type));
     switch (config.writer_config.type) {
@@ -40,9 +40,12 @@ void AppendMetricsConfigString(std::string *s, const MetricsConfig &config) {
     case kPlaystore:
         // TODO
         break;
+    case kNone:
+    case kConsole:
+        break;
     }
 }
-} // namespace
+}  // namespace
 
 absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     std::vector<std::pair<std::string, std::string>> params{

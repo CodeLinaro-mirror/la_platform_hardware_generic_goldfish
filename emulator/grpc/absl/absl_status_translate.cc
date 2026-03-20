@@ -68,7 +68,13 @@ grpc::Status AbslStatusToGrpcStatus(const absl::Status& absl_status) {
     case absl::StatusCode::kUnauthenticated:
         grpc_code = grpc::StatusCode::UNAUTHENTICATED;
         break;
-        // Add more mappings as needed...
+    case absl::StatusCode::kOk:
+        grpc_code = grpc::StatusCode::OK;
+        break;
+    case absl::StatusCode::kUnknown:
+    default:
+        grpc_code = grpc::StatusCode::UNKNOWN;
+        break;
     }
 
     return {grpc_code, std::string(absl_status.message())};

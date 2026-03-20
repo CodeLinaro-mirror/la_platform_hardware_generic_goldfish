@@ -75,6 +75,10 @@ class ImageRotator {
         }
 
         switch (rotation) {
+        case ImageRotation::kRotation0: {
+            std::memcpy(dst, src, static_cast<size_t>(width) * height * channels);
+            break;
+        }
         case ImageRotation::kRotation90: {
             // Source (x, y) -> Dest (y, width - 1 - x)
             for (int y = 0; y < height; ++y) {
