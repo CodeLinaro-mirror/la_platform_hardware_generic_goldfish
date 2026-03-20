@@ -33,8 +33,7 @@
 
 namespace goldfish::gvk {
 
-struct DeviceDispatch;
-
+class DeviceDispatch;
 class InstanceDispatch {
   public:
     using Ptr = std::shared_ptr<const InstanceDispatch>;

@@ -21,7 +21,7 @@
 
 namespace goldfish::gvk {
 
-struct DeviceDispatch;
+class DeviceDispatch;
 
 struct DeviceResourceDeleter {
     struct Empty {};

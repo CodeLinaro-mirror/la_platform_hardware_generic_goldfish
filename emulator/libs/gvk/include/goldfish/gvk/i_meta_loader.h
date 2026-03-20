@@ -22,7 +22,7 @@
 
 namespace goldfish::gvk {
 
-struct InstanceDispatch;
+class InstanceDispatch;
 
 class IMetaLoader {
   public:
