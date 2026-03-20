@@ -194,7 +194,7 @@ TEST_F(IntrusivePtrTest, MoveAssignmentSelf) {
     Ptr p1(new RefCounter());
     auto* raw = p1.get();
 
-    p1 = std::move(p1);
+    p1 = std::move(*&p1);
 
     EXPECT_EQ(raw, p1.get());
     EXPECT_EQ(1, raw->getRefCount());
