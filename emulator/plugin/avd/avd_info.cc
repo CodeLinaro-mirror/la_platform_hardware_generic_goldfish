@@ -30,7 +30,6 @@
 #include "android/goldfish/device_type.h"
 #include "android/goldfish/hardware_config.h"
 #include "android/goldfish/ini_file.h"
-#include "emulator/plugin/avd/VCpuEventLoop.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
@@ -49,6 +48,7 @@
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/vsock/clear.h"
 #include "host-common/constants.h"
+#include "VCpuEventLoop.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -77,12 +77,16 @@ namespace {
 
 struct AvdExtendedUniverse : public AvdUniverse {
     AvdExtendedUniverse(std::unique_ptr<AvdProperties> props) : AvdUniverse(std::move(props)) {}
+    async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
 
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
     std::unique_ptr<goldfish::metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<goldfish::async::EventLoop::Timer> metrics_ping_timer;
+
+    std::unique_ptr<async::EventLoop> qemu_event_loop;
+    std::vector<VCpuEventLoop> qemu_cpu_loops;
 };
 
 struct AvdInfoDev {
@@ -98,8 +102,6 @@ struct AvdInfoDev {
 #define AVD_INFO_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(AvdInfoDev, obj, TYPE_AVD)
 
 AvdExtendedUniverse* gGlobalAvdUniverseInstance;  // do not read directly, use `GetAvd` instead
-std::unique_ptr<async::EventLoop> gQemuLoop;
-std::vector<VCpuEventLoop> gQemuCpuLoops;
 
 AvdExtendedUniverse& getAvdImpl() {
     CHECK(gGlobalAvdUniverseInstance)
@@ -132,15 +134,6 @@ AvdUniverse::GetActiveMultiDisplayDevice() {
 
 AvdUniverse& GetAvd() {
     return getAvdImpl();
-}
-
-::goldfish::async::EventLoop* getQemuEventLoop() {
-    if (!gQemuLoop) {
-        LOG(FATAL) << "The QemuEventLoop instance is not yet available. "
-                      "This is a QEMU configuration issue which must be fixed in the launcher.";
-    }
-
-    return gQemuLoop.get();
 }
 
 void UniverseBuildComplete() {
@@ -227,12 +220,13 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
     }, 0s, 300s);
 
-    gQemuLoop = goldfish::async::QemuEventLoop::Create();
+    avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
+    auto &qemu_loop = avd_universe.qemu_event_loop;
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
-            "QemuEventLoop", *gQemuLoop, absl::Seconds(15));
+            "QemuEventLoop", *qemu_loop, absl::Seconds(15));
 
-    gQemuCpuLoops = createVCpuEventLoops();
-    for (auto& loop : gQemuCpuLoops) {
+    avd_universe.qemu_cpu_loops = createVCpuEventLoops();
+    for (auto& loop : avd_universe.qemu_cpu_loops) {
         android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
                 absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
     }
@@ -243,23 +237,23 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
 
     DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
-                                                avd_props.hw_config, client_loop, gQemuLoop.get());
+                                                avd_props.hw_config, client_loop, qemu_loop.get());
     DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe.GetClipboardChannel(),
-                                                      registry, client_loop, gQemuLoop.get());
+                                                      registry, client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
             &avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(), registry,
-            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, gQemuLoop.get(),
+            {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),
             avd_props.quit_after_boot_timeout_seconds);
     DEVS::fingerprint::IFingerprintDevice::RegisterDevice(&avd_universe.GetFingerprintSensor(),
-                                                          registry, client_loop, gQemuLoop.get());
+                                                          registry, client_loop, qemu_loop.get());
     DEVS::gps::IGpsDevice::RegisterDevice(&avd_universe.GetLocation(), registry, client_loop,
-                                          gQemuLoop.get());
+                                          qemu_loop.get());
 
     auto multi_display_device =
             std::make_shared<DEVS::multidisplay::MultiDisplayDevice>(client_loop);
     avd_universe.SetActiveMultiDisplayDevice(multi_display_device);
     DEVS::multidisplay::MultiDisplayDevice::RegisterDevice(multi_display_device, registry,
-                                                           client_loop, gQemuLoop.get());
+                                                           client_loop, qemu_loop.get());
 
     std::string emulatedCameraProp;
     DEVS::camera::RegisterDevice(registry, &emulatedCameraProp, avd_props.hw_config,
@@ -276,17 +270,17 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         LOG(FATAL) << "Failed to parse boot property strings: " << props.status();
     } else {
         DEVS::boot::IBootPropertiesDevice::RegisterDevice(registry, *std::move(props), client_loop,
-                                                          gQemuLoop.get());
+                                                          qemu_loop.get());
     }
 
     DEVS::unix_pipe::IUnixPipe::RegisterDevice(&avd_universe.test_tools_connector_registry,
-                                               client_loop, gQemuLoop.get());
+                                               client_loop, qemu_loop.get());
 
-    ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, gQemuLoop.get());
+    ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, qemu_loop.get());
 
     // Initialize the battery to a default state and register it.
     avd_universe.battery_subscription = DEVS::battery::RegisterBattery(&avd_universe.GetBattery(), avd_props.hw_config.hw_battery,
-                                   gQemuLoop.get());
+                                   qemu_loop.get());
 
     // Make avd universe visible to other modules.
     gGlobalAvdUniverseInstance = avd_info->universe;
@@ -439,8 +433,8 @@ void avd_info_instance_init(Object* obj) {
 void avd_info_instance_finalize(Object* obj) {
     VLOG(1) << "avd_info_instance_finalize";
     AvdInfoDev* avd_info = AVD_INFO_DEV(obj);
-    if (gQemuLoop) {
-        auto f = gQemuLoop->Shutdown();
+    if (avd_info->universe->qemu_event_loop) {
+        auto f = avd_info->universe->qemu_event_loop->Shutdown();
         // In the current Qemu implementation, we are already running on the Qemu main thread and so
         // shutdown will have run serially.
         if (f.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
@@ -448,7 +442,7 @@ void avd_info_instance_finalize(Object* obj) {
         }
         auto s = f.get();
         LOG_IF(FATAL, !s.ok()) << "Qemu loop shutdown failed: " << s;
-        gQemuLoop.reset();
+        avd_info->universe->qemu_event_loop.reset();
     }
     goldfish::vsock::clear();
     delete avd_info->universe;

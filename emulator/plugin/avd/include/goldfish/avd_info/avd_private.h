@@ -11,12 +11,8 @@
 
 #pragma once
 
-#include "goldfish/async/event_loop.h"
-
 namespace goldfish::avd_info {
 
 void UniverseBuildComplete();
-
-::goldfish::async::EventLoop* getQemuEventLoop();
 
 }  // namespace goldfish::avd_info

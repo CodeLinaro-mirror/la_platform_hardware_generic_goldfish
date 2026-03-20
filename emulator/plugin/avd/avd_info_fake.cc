@@ -25,6 +25,9 @@ AvdUniverse::AvdUniverse(std::unique_ptr<AvdProperties> props)
 // Minimal implementation of AvdUniverse for unit tests.
 struct FakeAvdUniverse : public AvdUniverse {
     FakeAvdUniverse() : AvdUniverse(std::make_unique<AvdProperties>()) {}
+    async::EventLoop& GetQemuEventLoop() override {
+        LOG(FATAL) << "GetQemuEventLoop not implemented";
+    }
 };
 
 AvdUniverse& GetAvd() {

@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "android/goldfish/vm_interface.h"
-#include "goldfish/async/event_loop.h"
 #include "goldfish/avd_info/avd_info.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 
@@ -34,7 +33,7 @@ namespace control {
 std::shared_ptr<grpc::Service> getEmulatorController(
         android::goldfish::VmOperations* vmInterface, QemuConsole* keyboardConsole,
         ::goldfish::avd_info::AvdUniverse* avdUniverse,
-        ::goldfish::display::IMultiDisplay* multiDisplay, ::goldfish::async::EventLoop* qemu_loop);
+        ::goldfish::display::IMultiDisplay* multiDisplay);
 
 }  // namespace control
 }  // namespace emulation

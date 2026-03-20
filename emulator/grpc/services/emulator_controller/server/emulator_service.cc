@@ -35,7 +35,6 @@
 #include "emulator/grpc/services/emulator_controller/server/status_service.h"
 #include "emulator/grpc/services/emulator_controller/server/vm_service.h"
 #include "emulator_controller.grpc.pb.h"
-#include "goldfish/async/event_loop.h"
 
 namespace android {
 namespace emulation {
@@ -57,11 +56,11 @@ class EmulatorControllerImpl final
                                           EmulatorController::Service>>>> {
   public:
     EmulatorControllerImpl(VmOperations* vm, QemuConsole* keyboardConsole, AvdUniverse* avdUniverse,
-                           IMultiDisplay* multidisplay, ::goldfish::async::EventLoop* qemu_loop)
+                           IMultiDisplay* multidisplay)
             : mVmService(vm)
             , mGrpcNotificationChannel(avdUniverse->GetGrpcNotificationChannel())
             , mNotificationStore(&mGrpcNotificationChannel)
-            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, qemu_loop))
+            , mKeyEventSender(keyboard::createKeyEventSender(keyboardConsole, &avdUniverse->GetQemuEventLoop()))
             , mStatusService(avdUniverse->GetGuestStatus(), avdUniverse->Props().avd_api,
                              avdUniverse->Props().hw_config)
             , mBatteryService(avdUniverse->GetBattery())
@@ -232,10 +231,8 @@ class EmulatorControllerImpl final
 
 std::shared_ptr<grpc::Service> getEmulatorController(VmOperations* vm, QemuConsole* keyboardConsole,
                                                      AvdUniverse* avdUniverse,
-                                                     IMultiDisplay* multidisplay,
-                                                     ::goldfish::async::EventLoop* qemu_loop) {
-    return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, avdUniverse, multidisplay,
-                                                    qemu_loop);
+                                                     IMultiDisplay* multidisplay) {
+    return std::make_shared<EmulatorControllerImpl>(vm, keyboardConsole, avdUniverse, multidisplay);
 }
 
 }  // namespace control
