@@ -33,6 +33,7 @@ using EvDevEvents = std::vector<EvDevEvent>;
  * coordinates, identifier, pressure, and other touch-related properties.
  */
 struct Touch {
+    virtual ~Touch() = default;
     uint32_t x;            ///< The x-coordinate of the touch.
     uint32_t y;            ///< The y-coordinate of the touch.
     uint32_t identifier;   ///< A unique identifier for the touch.
