@@ -16,7 +16,7 @@ class FakeEmulator {
                                                                     "goldfish+/emulator/launcher"))
                                                            .make_preferred()}
             , mMockAvd(std::make_unique<MockAvd>()) {
-        mEmulatorConfig = std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints,
+        mEmulatorConfig = std::make_unique<EmulatorConfig>(mPorts, mChardevEndpoints, mMetricsConfig,
                                                            mResolvedPaths, *mMockAvd, mOpts);
     }
 
@@ -32,6 +32,7 @@ class FakeEmulator {
     EmulatorPorts mPorts;
     AndroidOptions mOpts;
     ChardevEndpoints mChardevEndpoints;
+    MetricsConfig mMetricsConfig;
 
     ResolvedInputPaths mResolvedPaths;
     std::unique_ptr<MockAvd> mMockAvd;

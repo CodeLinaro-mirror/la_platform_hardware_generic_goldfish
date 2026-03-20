@@ -21,7 +21,28 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 
+#include "goldfish/metrics/configure_metrics_writer.h"
+
 namespace android::goldfish {
+
+namespace {
+void AppendMetricsConfigString(std::string *s, const MetricsConfig &config) {
+    absl::StrAppend(s, ",metrics_session=", config.session_id);
+    absl::StrAppend(s, ",metrics_writer=", static_cast<uint32_t>(config.writer_config.type));
+    switch (config.writer_config.type) {
+        using enum ::goldfish::metrics::MetricsWriterType;
+    case kFile:
+        absl::StrAppend(s, ",metrics_file_path=", config.writer_config.file_path.string());
+        break;
+    case kStudio:
+        // TODO
+        break;
+    case kPlaystore:
+        // TODO
+        break;
+    }
+}
+} // namespace
 
 absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
     std::vector<std::pair<std::string, std::string>> params{
@@ -50,6 +71,9 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
                     "Failed to parse -quit-after-boot parameter as int: ", quit_after_boot));
         }
     }
+
+    AppendMetricsConfigString(&mAvdParams, emulator.metrics_config());
+
     return absl::OkStatus();
 }
 

@@ -14,12 +14,12 @@
 
 #pragma once
 
-#include <memory>
 #include <string>
 
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/input_paths.h"
+#include "goldfish/metrics/configure_metrics_writer.h"
 
 namespace android::goldfish {
 
@@ -34,12 +34,18 @@ struct ChardevEndpoints {
     int modem_simulator_host_id = 0;
 };
 
+struct MetricsConfig {
+    std::string session_id;
+    ::goldfish::metrics::MetricsWriterConfig writer_config;
+};
+
 class EmulatorConfig {
   public:
-    EmulatorConfig(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints,
+    EmulatorConfig(const EmulatorPorts &ports, const ChardevEndpoints &chardev_endpoints, const MetricsConfig &metrics_config,
                    const ResolvedInputPaths &resolved_paths, const Avd &avd, const AndroidOptions &opts)
             : mPorts(ports)
             , mChardevEndpoints(chardev_endpoints)
+            , mMetricsConfig(metrics_config)
             , mResolvedPaths(resolved_paths)
             , mAvd(avd)
             , mOpts(opts) {}
@@ -55,12 +61,15 @@ class EmulatorConfig {
 
     const ChardevEndpoints& chardev_endpoints() const { return mChardevEndpoints; }
 
+    const MetricsConfig& metrics_config() const { return mMetricsConfig; }
+
     int serial_number() const { return mPorts.serial_number; }
     int adb_port() const { return mPorts.adb_port; }
 
   private:
     const EmulatorPorts &mPorts;
     const ChardevEndpoints &mChardevEndpoints;
+    const MetricsConfig &mMetricsConfig;
 
     const ResolvedInputPaths &mResolvedPaths;
     const Avd &mAvd;
