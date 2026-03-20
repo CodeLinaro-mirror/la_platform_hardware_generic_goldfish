@@ -138,7 +138,7 @@ TEST(UniqueHandle, move_assign_self) {
     UniqueHandleOfInt a(42);
     EXPECT_EQ(a.get(), 42);
 
-    a = std::move(a);
+    a = std::move(*&a);
     EXPECT_EQ(a.get(), 42);
 }
 
