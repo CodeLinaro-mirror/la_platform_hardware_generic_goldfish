@@ -150,7 +150,7 @@ TEST_F(IntrusivePtrTest, CopyAssignmentSelf) {
     Ptr p1(new RefCounter());
     auto* raw = p1.get();
 
-    p1 = p1;
+    p1 = *&p1;
 
     EXPECT_EQ(1, raw->getRefCount());
     EXPECT_EQ(1, RefCounter::getLiveInstances());
