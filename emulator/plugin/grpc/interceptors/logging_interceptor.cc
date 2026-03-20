@@ -70,7 +70,7 @@ void PrintLog(const InvocationRecord& loginfo) {
 }  // namespace
 
 LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction reporter)
-        : reporter_(std::move(reporter)), server_info_(info) {
+        : reporter_(std::move(reporter)) {
     if (info) {
         loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {
@@ -93,7 +93,7 @@ LoggingInterceptor::LoggingInterceptor(ServerRpcInfo* info, ReportingFunction re
 }
 
 LoggingInterceptor::LoggingInterceptor(ClientRpcInfo* info, ReportingFunction reporter)
-        : reporter_(std::move(reporter)), client_info_(info) {
+        : reporter_(std::move(reporter)) {
     if (info) {
         loginfo_.method = std::string(info->method()).substr(0, kMaxStringLen);
         switch (info->type()) {

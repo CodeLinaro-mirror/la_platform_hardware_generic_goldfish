@@ -71,7 +71,6 @@ class VirtualDisplay : public IDisplay {
     EventLoop* qemu_loop_;
     ::VirtIOInputHID* vhid_;
     int last_bmask_ ABSL_GUARDED_BY(send_lock_) = 0;
-    struct touch_slot touch_slots_[INPUT_EVENT_SLOTS_MAX];
     absl::Mutex send_lock_;
 };
 
