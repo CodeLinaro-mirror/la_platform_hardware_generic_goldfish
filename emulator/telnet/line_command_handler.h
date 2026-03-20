@@ -47,6 +47,11 @@ class LineCommandHandler {
     virtual ~LineCommandHandler() = default;
 
     /**
+     * @brief Factory method to create a new Context instance for a client connection.
+     */
+    virtual std::unique_ptr<Context> CreateContext() const { return std::make_unique<Context>(); };
+
+    /**
      * @brief Processes a single command line and returns a protocol-aware result.
      *
      * The Registry uses the returned `absl::Status` to drive the Telnet state machine
