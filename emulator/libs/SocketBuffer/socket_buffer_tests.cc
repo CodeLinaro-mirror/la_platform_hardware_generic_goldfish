@@ -129,7 +129,7 @@ TEST(SocketBuffer, release_large_buffer) {
 
     while (buffer.Size()) {
         EXPECT_EQ(buffer.Capacity(), capacity);
-        buffer.Consume(1);
+        (void)buffer.Consume(1);
     }
 
     EXPECT_EQ(buffer.Peek().second, 0);
@@ -141,7 +141,7 @@ TEST(SocketBuffer, snapshot) {
 
     {
         SocketBuffer buffer;
-        buffer.Append("test", 4);
+        (void)buffer.Append("test", 4);
         buffer.SaveToSnapshot(archive);
     }
 
