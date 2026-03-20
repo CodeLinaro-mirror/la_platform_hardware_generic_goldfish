@@ -646,7 +646,7 @@ u32 reserve_inodes(int bg, u32 num) {
 
 /* Returns the first free inode number
    TODO: Inodes should be allocated in the block group of the data? */
-u32 allocate_inode() {
+u32 allocate_inode(void) {
     unsigned int bg;
     u32 inode;
 
