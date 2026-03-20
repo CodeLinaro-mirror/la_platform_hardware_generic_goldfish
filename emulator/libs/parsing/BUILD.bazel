@@ -43,3 +43,33 @@ cc_test(
         "//emulator/libs/test:googletest_main",
     ],
 )
+
+cc_library(
+    name = "utf8_iterator",
+    srcs = [
+        "utf8_iterator.cc",
+    ],
+    hdrs = [
+        "include/goldfish/parsing/utf8_iterator.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "@utf8proc",
+    ],
+)
+
+cc_test(
+    name = "utf8_iterator_unittests",
+    size = "small",
+    srcs = [
+        "utf8_iterator_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":utf8_iterator",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
