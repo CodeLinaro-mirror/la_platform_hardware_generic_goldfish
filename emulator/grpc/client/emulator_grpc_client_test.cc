@@ -68,12 +68,14 @@ class EmulatorGrpcClientTest : public ::testing::Test {
     }
 
     void StartServer() {
-        server_address = "localhost:50051";
+        server_address = "localhost:0";
         grpc::ServerBuilder builder;
-        builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+        int selected_port = 0;
+        builder.AddListeningPort(server_address, grpc::InsecureServerCredentials(), &selected_port);
         builder.RegisterService(&service);
         server = builder.BuildAndStart();
         ASSERT_NE(server, nullptr);
+        server_address = "localhost:" + std::to_string(selected_port);
     }
 
     // RAII helper for creating and cleaning up a temporary discovery file.
