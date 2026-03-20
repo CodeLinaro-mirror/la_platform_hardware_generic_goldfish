@@ -16,6 +16,7 @@
 
 #define PLATFORM "@PLATFORM@"
 #define PRODUCT_NAME "@PRODUCT_NAME@"
+// Note that VERSION == REVISION
 #define VERSION "@VERSION@"
 #define REVISION "@REVISION@"
 #define TARGET_CPU "@TARGET_CPU@"
