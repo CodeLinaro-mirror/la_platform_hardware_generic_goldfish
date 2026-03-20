@@ -1,4 +1,4 @@
 """Enable warnings for every package"""
 repo(
-    features = ["warnings"],
+    features = ["warnings", "warnings_as_errors"],
 )
