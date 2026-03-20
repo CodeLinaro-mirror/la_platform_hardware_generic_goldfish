@@ -91,9 +91,7 @@ grpc::Status BasicTokenAuth::Process(const InputMetadata& auth_metadata,
 StaticTokenAuth::StaticTokenAuth(const std::string& token, std::string iss, AllowList* list)
         : BasicTokenAuth(kDefaultHeader, list)
         , static_token_(kDefaultBearer + token)
-        , issuer_(std::move(iss)) {
-    LOG(WARNING) << "*** Basic token auth should only be used by android-studio ***";
-};
+        , issuer_(std::move(iss)) {};
 
 bool StaticTokenAuth::CanHandleToken(std::string_view token) {
     return token == static_token_;
