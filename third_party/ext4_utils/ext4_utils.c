@@ -24,9 +24,9 @@
 #include <sys/types.h>
 
 #include "allocate.h"
-#include "uuid.h"
 #include "extent.h"
 #include "indirect.h"
+#include "uuid.h"
 
 #if defined(USE_MINGW) || defined(_MSC_VER)
 #include <winsock2.h>
@@ -270,7 +270,6 @@ void ext4_parse_sb_info(struct ext4_super_block* sb) {
 
 void ext4_create_resize_inode() {
     struct block_allocation* reserve_inode_alloc = create_allocation();
-    u32 reserve_inode_len = 0;
     unsigned int i;
 
     struct ext4_inode* inode = get_inode(EXT4_RESIZE_INO);
@@ -285,7 +284,6 @@ void ext4_create_resize_inode() {
             u32 reserved_block_start = group_start_block + 1 + aux_info.bg_desc_blocks;
             u32 reserved_block_len = info.bg_desc_reserve_blocks;
             append_region(reserve_inode_alloc, reserved_block_start, reserved_block_len, i);
-            reserve_inode_len += reserved_block_len;
         }
     }
 
