@@ -24,15 +24,11 @@
 #include "grpcpp/impl/codegen/service_type.h"
 #include "grpcpp/security/server_credentials.h"
 
+#include "goldfish/async/event_loop.h"
+
 #ifdef _MSC_VER
 #include "msvc-posix.h"
 #endif
-
-namespace goldfish {
-namespace async {
-class EventLoop;
-}  // namespace async
-}  // namespace goldfish
 
 namespace android {
 namespace emulation {
