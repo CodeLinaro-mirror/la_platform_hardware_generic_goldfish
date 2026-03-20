@@ -4,12 +4,14 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
+#include "absl/synchronization/blocking_counter.h"
 #include "absl/synchronization/notification.h"
 
 #include "goldfish/async/async_socket.h"
@@ -34,7 +36,7 @@ class LoopHandoffTest : public ::testing::Test {
     void SetUp() override {
         server_loop_ = LibuvEventLoop::Create();
         factory_ = std::make_unique<LibuvAsyncSocketFactory>();
-        server_thread_ = std::thread([this] { (void)server_loop_->Run(); });
+        server_thread_ = std::thread([this] { server_loop_->Run().IgnoreError(); });
 
         // Wait for loop to start.
         while (server_loop_->GetState() != LooperStatusEvent::State::kRunning) {
@@ -43,7 +45,7 @@ class LoopHandoffTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        (void)server_loop_->ShutdownAndWait(100ms);
+        server_loop_->ShutdownAndWait(100ms).IgnoreError();
         if (server_thread_.joinable()) {
             server_thread_.join();
         }
@@ -56,6 +58,7 @@ class LoopHandoffTest : public ::testing::Test {
 
 TEST_F(LoopHandoffTest, HandoffToDedicatedThread) {
     absl::Notification connected_on_target;
+    absl::Notification client_closed;
     std::atomic<std::thread::id> target_thread_id;
     std::shared_ptr<AsyncSocket> server_side_client;
     std::vector<std::unique_ptr<ThreadedEventLoop>> target_loops;
@@ -73,6 +76,10 @@ TEST_F(LoopHandoffTest, HandoffToDedicatedThread) {
         VLOG(1) << "HandoffToDedicatedThread: on_connect triggered for socket=" << socket.get();
         target_thread_id = std::this_thread::get_id();
         socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        socket->SetOnCloseCallback([&] {
+            VLOG(1) << "Client socket closed on target loop";
+            client_closed.Notify();
+        });
         server_side_client = std::move(socket);
         connected_on_target.Notify();
         return true;
@@ -98,13 +105,15 @@ TEST_F(LoopHandoffTest, HandoffToDedicatedThread) {
                                      })
                                      .value());
 
-    (void)server_loop_->Post([&] {
-        client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
-            EXPECT_THAT(err, IsOk());
-            s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-        });
-        (void)client->Connect();
-    });
+    server_loop_
+            ->Post([&] {
+                client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
+                    EXPECT_THAT(err, IsOk());
+                    s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                });
+                client->Connect().IgnoreError();
+            })
+            .IgnoreError();
 
     // 4. Verify that the server's OnConnect ran on a different thread.
     connected_on_target.WaitForNotification();
@@ -114,13 +123,18 @@ TEST_F(LoopHandoffTest, HandoffToDedicatedThread) {
     // Clean up.
     if (server_side_client) {
         auto loop = server_side_client->GetLoop();
-        (void)loop->Post([s = server_side_client] { s->Close(); });
+        loop->Post([s = server_side_client] { s->Close(); }).IgnoreError();
     }
+
+    // Make sure we don't have a dangling client on our event loop.
+    client_closed.WaitForNotification();
 }
 
 TEST_F(LoopHandoffTest, FallbackToServerLoop) {
     absl::Notification connected_on_target;
+    absl::Notification client_closed;
     std::atomic<std::thread::id> target_thread_id;
+    std::shared_ptr<AsyncSocket> server_side_client;
 
     // LoopProvider explicitly returns nullptr.
     AsyncSocketServer::LoopProvider loop_provider = [&](const network::Endpoint&) {
@@ -131,6 +145,8 @@ TEST_F(LoopHandoffTest, FallbackToServerLoop) {
         VLOG(1) << "FallbackToServerLoop: on_connect triggered for socket=" << socket.get();
         target_thread_id = std::this_thread::get_id();
         socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        socket->SetOnCloseCallback([&] { client_closed.Notify(); });
+        server_side_client = std::move(socket);
         connected_on_target.Notify();
         return true;
     };
@@ -153,17 +169,25 @@ TEST_F(LoopHandoffTest, FallbackToServerLoop) {
                                      })
                                      .value());
 
-    (void)server_loop_->Post([&] {
-        client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
-            EXPECT_THAT(err, IsOk());
-            s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-        });
-        (void)client->Connect();
-    });
+    server_loop_
+            ->Post([&] {
+                client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
+                    EXPECT_THAT(err, IsOk());
+                    s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                });
+                client->Connect().IgnoreError();
+            })
+            .IgnoreError();
 
     connected_on_target.WaitForNotification();
     // Verify it ran on the server's loop thread.
     EXPECT_EQ(target_thread_id.load(), server_thread_.get_id());
+
+    if (server_side_client) {
+        auto loop = server_side_client->GetLoop();
+        loop->Post([s = server_side_client] { s->Close(); }).IgnoreError();
+    }
+    client_closed.WaitForNotification();
 }
 
 TEST_F(LoopHandoffTest, NoDataLossDuringHandoff) {
@@ -186,8 +210,10 @@ TEST_F(LoopHandoffTest, NoDataLossDuringHandoff) {
 
     // 2. Server's ConnectCallback.
     std::shared_ptr<AsyncSocket> server_side_client;
+    absl::Notification client_closed;
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
         VLOG(1) << "Server ConnectCallback triggered on target loop";
+        socket->SetOnCloseCallback([&] { client_closed.Notify(); });
         socket->SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status status) {
             VLOG(1) << "Server received data: " << data.size() << " bytes";
             EXPECT_THAT(status, IsOk());
@@ -221,32 +247,38 @@ TEST_F(LoopHandoffTest, NoDataLossDuringHandoff) {
                                      .value());
 
     absl::Notification client_connected;
-    (void)server_loop_->Post([&] {
-        client->SetOnConnectedCallback([&](AsyncSocket& s, absl::Status err) {
-            EXPECT_THAT(err, IsOk());
-            s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-            client_connected.Notify();
-        });
-        (void)client->Connect();
-    });
+    server_loop_
+            ->Post([&] {
+                client->SetOnConnectedCallback([&](AsyncSocket& s, absl::Status err) {
+                    EXPECT_THAT(err, IsOk());
+                    s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                    client_connected.Notify();
+                });
+                client->Connect().IgnoreError();
+            })
+            .IgnoreError();
 
     ASSERT_TRUE(client_connected.WaitForNotificationWithTimeout(absl::Seconds(5)));
 
     // Send preamble data immediately. This data arrives while the server is
     // potentially in the process of handoff.
-    (void)server_loop_->Post([&] {
-        VLOG(1) << "Client sending preamble";
-        (void)client->Send(preamble.data(), preamble.size());
-    });
+    server_loop_
+            ->Post([&] {
+                VLOG(1) << "Client sending preamble";
+                client->Send(preamble.data(), preamble.size()).IgnoreError();
+            })
+            .IgnoreError();
 
     // 4. Wait for server to enter LoopProvider.
     ASSERT_TRUE(handoff_started.WaitForNotificationWithTimeout(absl::Seconds(5)));
 
     // 5. Send more data while handoff is in progress.
-    (void)server_loop_->Post([&] {
-        VLOG(1) << "Client sending mid-handoff data";
-        (void)client->Send(mid_handoff_data.data(), mid_handoff_data.size());
-    });
+    server_loop_
+            ->Post([&] {
+                VLOG(1) << "Client sending mid-handoff data";
+                client->Send(mid_handoff_data.data(), mid_handoff_data.size()).IgnoreError();
+            })
+            .IgnoreError();
 
     // 6. Verify all data is received on the target loop.
     ASSERT_TRUE(data_received_on_target.WaitForNotificationWithTimeout(absl::Seconds(5)));
@@ -255,8 +287,9 @@ TEST_F(LoopHandoffTest, NoDataLossDuringHandoff) {
     // Clean up.
     if (server_side_client) {
         auto loop = server_side_client->GetLoop();
-        (void)loop->Post([s = server_side_client] { s->Close(); });
+        loop->Post([s = server_side_client] { s->Close(); }).IgnoreError();
     }
+    client_closed.WaitForNotification();
 }
 
 TEST_F(LoopHandoffTest, DataTransferAfterHandoff) {
@@ -272,13 +305,15 @@ TEST_F(LoopHandoffTest, DataTransferAfterHandoff) {
     };
 
     std::shared_ptr<AsyncSocket> server_side_client;
+    absl::Notification client_closed;
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        socket->SetOnCloseCallback([&] { client_closed.Notify(); });
         socket->SetOnReadCallbackNoFlowControl(
                 [&, s = socket](std::string_view data, absl::Status) {
                     if (data == ping) {
                         server_read_thread_id = std::this_thread::get_id();
                         received_ping.Notify();
-                        (void)s->Send(pong.data(), pong.size());
+                        s->Send(pong.data(), pong.size()).IgnoreError();
                     }
                 });
         server_side_client = std::move(socket);
@@ -303,18 +338,20 @@ TEST_F(LoopHandoffTest, DataTransferAfterHandoff) {
                                      })
                                      .value());
 
-    (void)server_loop_->Post([&] {
-        client->SetOnConnectedCallback([&](AsyncSocket& s, absl::Status err) {
-            EXPECT_THAT(err, IsOk());
-            s.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status) {
-                if (data == pong) {
-                    received_pong.Notify();
-                }
-            });
-            (void)s.Send(ping.data(), ping.size());
-        });
-        (void)client->Connect();
-    });
+    server_loop_
+            ->Post([&] {
+                client->SetOnConnectedCallback([&](AsyncSocket& s, absl::Status err) {
+                    EXPECT_THAT(err, IsOk());
+                    s.SetOnReadCallbackNoFlowControl([&](std::string_view data, absl::Status) {
+                        if (data == pong) {
+                            received_pong.Notify();
+                        }
+                    });
+                    s.Send(ping.data(), ping.size()).IgnoreError();
+                });
+                client->Connect().IgnoreError();
+            })
+            .IgnoreError();
 
     received_ping.WaitForNotification();
     received_pong.WaitForNotification();
@@ -324,8 +361,9 @@ TEST_F(LoopHandoffTest, DataTransferAfterHandoff) {
 
     if (server_side_client) {
         auto loop = server_side_client->GetLoop();
-        (void)loop->Post([s = server_side_client] { s->Close(); });
+        loop->Post([s = server_side_client] { s->Close(); }).IgnoreError();
     }
+    client_closed.WaitForNotification();
 }
 
 TEST_F(LoopHandoffTest, HandoffToSharedPool) {
@@ -342,11 +380,13 @@ TEST_F(LoopHandoffTest, HandoffToSharedPool) {
 
     std::atomic<int> connections_count{0};
     absl::Notification all_connected;
+    absl::BlockingCounter client_closed(kPoolSize * 2);
     std::vector<std::shared_ptr<AsyncSocket>> server_side_clients;
     std::mutex clients_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
         VLOG(1) << "HandoffToSharedPool: on_connect triggered for socket=" << socket.get();
+        socket->SetOnCloseCallback([&] { client_closed.DecrementCount(); });
         socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
         {
             std::lock_guard<std::mutex> lock(clients_mutex);
@@ -379,13 +419,15 @@ TEST_F(LoopHandoffTest, HandoffToSharedPool) {
                                      .value());
 
         auto& client = clients.back();
-        (void)server_loop_->Post([&] {
-            client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
-                EXPECT_THAT(err, IsOk());
-                s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-            });
-            (void)client->Connect();
-        });
+        server_loop_
+                ->Post([&] {
+                    client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
+                        EXPECT_THAT(err, IsOk());
+                        s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                    });
+                    client->Connect().IgnoreError();
+                })
+                .IgnoreError();
     }
 
     all_connected.WaitForNotification();
@@ -400,17 +442,24 @@ TEST_F(LoopHandoffTest, HandoffToSharedPool) {
 
     for (auto& s : server_side_clients) {
         auto loop = s->GetLoop();
-        (void)loop->Post([s] { s->Close(); });
+        loop->Post([s] { s->Close(); }).IgnoreError();
     }
+    client_closed.Wait();
+
+    server_loop_->PostAndWait([&] { return server->Close(); }).IgnoreError();
 }
 
 TEST_F(LoopHandoffTest, LegacyCreateServerMethod) {
     absl::Notification connected;
+    absl::Notification client_closed;
     std::atomic<std::thread::id> target_thread_id;
+    std::shared_ptr<AsyncSocket> server_side_client;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
         target_thread_id = std::this_thread::get_id();
         socket->SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+        socket->SetOnCloseCallback([&] { client_closed.Notify(); });
+        server_side_client = std::move(socket);
         connected.Notify();
         return true;
     };
@@ -434,17 +483,25 @@ TEST_F(LoopHandoffTest, LegacyCreateServerMethod) {
                                      })
                                      .value());
 
-    (void)server_loop_->Post([&] {
-        client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
-            EXPECT_THAT(err, IsOk());
-            s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
-        });
-        (void)client->Connect();
-    });
+    server_loop_
+            ->Post([&] {
+                client->SetOnConnectedCallback([](AsyncSocket& s, absl::Status err) {
+                    EXPECT_THAT(err, IsOk());
+                    s.SetOnReadCallbackNoFlowControl([](std::string_view, absl::Status) {});
+                });
+                client->Connect().IgnoreError();
+            })
+            .IgnoreError();
 
     connected.WaitForNotification();
     // Verify it ran on the server's loop thread.
     EXPECT_EQ(target_thread_id.load(), server_thread_.get_id());
+
+    if (server_side_client) {
+        auto loop = server_side_client->GetLoop();
+        loop->Post([s = server_side_client] { s->Close(); }).IgnoreError();
+    }
+    client_closed.WaitForNotification();
 }
 
 }  // namespace
