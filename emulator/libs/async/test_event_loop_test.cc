@@ -27,7 +27,7 @@ using namespace std::chrono_literals;
 TEST(TestEventLoop, PostSingleTask) {
     auto loop = TestEventLoop::Create();
     bool executed = false;
-    loop->Post([&]() { executed = true; });
+    loop->Post([&]() { executed = true; }).IgnoreError();
     ASSERT_FALSE(executed);
     loop->RunAll();
     ASSERT_TRUE(executed);
@@ -36,9 +36,9 @@ TEST(TestEventLoop, PostSingleTask) {
 TEST(TestEventLoop, PostMultipleTasks) {
     auto loop = TestEventLoop::Create();
     int count = 0;
-    loop->Post([&]() { count++; });
-    loop->Post([&]() { count++; });
-    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; }).IgnoreError();
+    loop->Post([&]() { count++; }).IgnoreError();
+    loop->Post([&]() { count++; }).IgnoreError();
     ASSERT_EQ(0, count);
     loop->RunAll();
     ASSERT_EQ(3, count);
@@ -98,9 +98,9 @@ TEST(TestEventLoop, PostAndWait) {
 TEST(TestEventLoop, PostAndWaitVoid) {
     auto loop = TestEventLoop::Create();
     bool executed = false;
-    auto future = std::async(std::launch::async,
-                             [&]() { loop->PostAndWait([&]() { executed = true; }); });
-
+    auto future = std::async(std::launch::async, [&]() {
+        loop->PostAndWait([&]() { executed = true; }).IgnoreError();
+    });
     while (future.wait_for(100ms) == std::future_status::timeout) {
         loop->RunAll();
     }
@@ -134,10 +134,10 @@ TEST(TestEventLoop, TimerHandleDestructionCancels) {
 TEST(TestEventLoop, ShutdownClearsPendingTasks) {
     auto loop = TestEventLoop::Create();
     bool executed = false;
-    loop->Post([&]() { executed = true; });
-    loop->Post([&]() { executed = true; }, 100ms);
+    loop->Post([&]() { executed = true; }).IgnoreError();
+    loop->Post([&]() { executed = true; }, 100ms).IgnoreError();
 
-    loop->ShutdownAndWait();
+    loop->ShutdownAndWait().IgnoreError();
     loop->RunAll();
     loop->AdvanceClock(100ms);
 
@@ -182,8 +182,8 @@ TEST(TestEventLoop, RecurringTaskDoesNotCrashOnSubsequentExecutions) {
 TEST(TestEventLoop, RunOne) {
     auto loop = TestEventLoop::Create();
     int count = 0;
-    loop->Post([&]() { count++; });
-    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; }).IgnoreError();
+    loop->Post([&]() { count++; }).IgnoreError();
     ASSERT_TRUE(loop->RunOne());
     ASSERT_EQ(1, count);
     ASSERT_TRUE(loop->RunOne());
@@ -193,9 +193,9 @@ TEST(TestEventLoop, RunOne) {
 TEST(TestEventLoop, RunMany) {
     auto loop = TestEventLoop::Create();
     int count = 0;
-    loop->Post([&]() { count++; });
-    loop->Post([&]() { count++; });
-    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; }).IgnoreError();
+    loop->Post([&]() { count++; }).IgnoreError();
+    loop->Post([&]() { count++; }).IgnoreError();
     ASSERT_TRUE(loop->RunMany(3));
     ASSERT_EQ(3, count);
 }
@@ -203,7 +203,7 @@ TEST(TestEventLoop, RunMany) {
 TEST(TestEventLoop, RunManyTimeout) {
     auto loop = TestEventLoop::Create();
     int count = 0;
-    loop->Post([&]() { count++; });
+    loop->Post([&]() { count++; }).IgnoreError();
     ASSERT_EQ(loop->RunMany(2), 1);
     ASSERT_EQ(1, count);
 }

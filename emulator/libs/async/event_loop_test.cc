@@ -19,10 +19,10 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 
-#include "test/fake_qemu_callbacks.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/threaded_event_loop.h"
+#include "test/fake_qemu_callbacks.h"
 
 using namespace std::chrono_literals;
 
@@ -161,14 +161,14 @@ TEST_P(EventLoopTest, DISABLED_PostAndWaitFromLoopThreadFails) {
         auto status_future = status_promise.get_future();
         runInThread();
         (void)loop->Post([this, &status_promise]() {
-            EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }),
+            EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }).IgnoreError(),
                          "postAndWait cannot be called from the event loop.");
             status_promise.set_value();
         });
         runUntil(status_future);
     } else {  // qemu
         // For qemu, the main test thread is the loop thread.
-        EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }),
+        EXPECT_DEATH(this->loop->PostAndWait([]() { return false; }).IgnoreError(),
                      "postAndWait cannot be called from the event loop.");
     }
 }

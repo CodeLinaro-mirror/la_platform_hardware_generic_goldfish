@@ -122,7 +122,7 @@ BENCHMARK_F(SocketBenchmark, WriteThroughput)(benchmark::State& state) {
     connected_notification.WaitForNotification();
 
     for (const auto& _ : state) {
-        sendSynchronously(client.get(), buffer.data(), buffer.size());
+        sendSynchronously(client.get(), buffer.data(), buffer.size()).IgnoreError();
     }
 
     state.SetBytesProcessed(state.iterations() * buffer_size);

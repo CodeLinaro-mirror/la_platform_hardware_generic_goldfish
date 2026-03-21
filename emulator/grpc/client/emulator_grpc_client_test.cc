@@ -310,7 +310,7 @@ TEST_F(CallbackClientTest, EventSource_FiresCorrectStates) {
 
     auto future = client->ConnectAsync(absl::Seconds(1));
     ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
-    future.get();
+    EXPECT_TRUE(future.get().ok());
 
     ASSERT_EQ(received_states.size(), 2);
     EXPECT_EQ(received_states[0], ConnectionState::kConnecting);

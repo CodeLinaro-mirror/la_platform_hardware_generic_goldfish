@@ -40,10 +40,12 @@ PlugPtr HalPlugFactory::WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactor
     // 4. Post the onConnect notification to the client thread.
     VLOG(1) << "Scheduling on connect for real_hal_plug: " << *real_hal_plug
             << ", client_loop: " << client_loop;
-    client_loop->Post([real_hal_plug]() {
-        VLOG(1) << "Delivering OnConnect to real_hal_plug: " << real_hal_plug;
-        real_hal_plug->OnConnect();
-    });
+    client_loop
+            ->Post([real_hal_plug]() {
+                VLOG(1) << "Delivering OnConnect to real_hal_plug: " << real_hal_plug;
+                real_hal_plug->OnConnect();
+            })
+            .IgnoreError();
 
     return std::make_shared<HalPlugToIPlugAdapter>(client_loop, std::move(real_hal_plug));
 }

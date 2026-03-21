@@ -36,7 +36,8 @@ class UvSignalHandlers {
             , mSignalHandlerHup(uv_loop, SIGHUP, this, signal_handler)
             , mSignalHandlerInt(uv_loop, SIGINT, this, signal_handler)
             , mSignalHandlerQuit(uv_loop, SIGQUIT, this, signal_handler)
-            , mSignalHandlerTerm(uv_loop, SIGTERM, this, signal_handler) {}
+            , mSignalHandlerTerm(uv_loop, SIGTERM, this, signal_handler) {
+    }
 
     ~UvSignalHandlers() { close(); }
 
@@ -48,13 +49,14 @@ class UvSignalHandlers {
                 << "event loop is not running but signal handlers are being closed";
         mUvLoop.PostAndWait([this] {
 #ifdef _WIN32
-            mSignalHandlerBreak.close();
+                   mSignalHandlerBreak.close();
 #endif
-            mSignalHandlerHup.close();
-            mSignalHandlerInt.close();
-            mSignalHandlerQuit.close();
-            mSignalHandlerTerm.close();
-        });
+                   mSignalHandlerHup.close();
+                   mSignalHandlerInt.close();
+                   mSignalHandlerQuit.close();
+                   mSignalHandlerTerm.close();
+               })
+                .IgnoreError();
 
 #ifdef _WIN32
         mSignalHandlerBreak.waitForClosed();
