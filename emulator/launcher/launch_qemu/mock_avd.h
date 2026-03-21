@@ -27,30 +27,30 @@ namespace fs = std::filesystem;
 
 class MockAvd : public Avd {
   public:
-    MOCK_METHOD(std::string, Details, (bool verbose), (const override));
-    MOCK_METHOD(std::string, Name, (), (const override));
-    MOCK_METHOD(DeviceType, GetDeviceType, (), (const override));
-    MOCK_METHOD(fs::path, GetContentPath, (), (const override));
-    MOCK_METHOD(const SystemImagePaths&, GetSystemImagePaths, (), (const override));
-    MOCK_METHOD(CpuArchitecture, DetectArchitecture, (), (const override));
+    MOCK_METHOD(std::string, Details, (bool verbose), (const, override));
+    MOCK_METHOD(std::string, Name, (), (const, override));
+    MOCK_METHOD(DeviceType, GetDeviceType, (), (const, override));
+    MOCK_METHOD(fs::path, GetContentPath, (), (const, override));
+    MOCK_METHOD(const SystemImagePaths&, GetSystemImagePaths, (), (const, override));
+    MOCK_METHOD(CpuArchitecture, DetectArchitecture, (), (const, override));
 
-    MOCK_METHOD(const HardwareConfig&, Hw, (), (const override));
-    MOCK_METHOD(bool, Playstore, (), (const override));
-    MOCK_METHOD(int, ApiLevel, (), (const override));
-    MOCK_METHOD(std::string, Dessert, (), (const override));
-    MOCK_METHOD(std::string, ApiDescription, (), (const override));
-    MOCK_METHOD(std::string, DisplayName, (), (const override));
-    MOCK_METHOD(std::string, SkinName, (), (const override));
-    MOCK_METHOD(std::string, Id, (), (const override));
-    MOCK_METHOD(std::string, Abi, (), (const override));
-    MOCK_METHOD(std::string, BuildSdk, (), (const override));
-    MOCK_METHOD(std::string, BuildId, (), (const override));
-    MOCK_METHOD(std::string, BuildFingerprint, (), (const override));
-    MOCK_METHOD(int64_t, BuildTimestamp, (), (const override));
-    MOCK_METHOD(std::string, BuildFlavour, (), (const override));
-    MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (), (const override));
+    MOCK_METHOD(const HardwareConfig&, Hw, (), (const, override));
+    MOCK_METHOD(bool, Playstore, (), (const, override));
+    MOCK_METHOD(int, ApiLevel, (), (const, override));
+    MOCK_METHOD(std::string, Dessert, (), (const, override));
+    MOCK_METHOD(std::string, ApiDescription, (), (const, override));
+    MOCK_METHOD(std::string, DisplayName, (), (const, override));
+    MOCK_METHOD(std::string, SkinName, (), (const, override));
+    MOCK_METHOD(std::string, Id, (), (const, override));
+    MOCK_METHOD(std::string, Abi, (), (const, override));
+    MOCK_METHOD(std::string, BuildSdk, (), (const, override));
+    MOCK_METHOD(std::string, BuildId, (), (const, override));
+    MOCK_METHOD(std::string, BuildFingerprint, (), (const, override));
+    MOCK_METHOD(int64_t, BuildTimestamp, (), (const, override));
+    MOCK_METHOD(std::string, BuildFlavour, (), (const, override));
+    MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (), (const, override));
     MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
-    MOCK_METHOD(std::string, BuildProductName, (), (const override));
+    MOCK_METHOD(std::string, BuildProductName, (), (const, override));
 };
 
 }  // namespace android::goldfish
