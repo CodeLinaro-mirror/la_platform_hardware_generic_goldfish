@@ -49,6 +49,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "legacy_console_bridge",
+    srcs = ["legacy_console_bridge.cc"],
+    hdrs = ["legacy_console_bridge.h"],
+    deps = [
+        ":command_registry",
+        ":line_command_handler",
+        "//emulator/grpc/client:emulator_grpc_client",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
+    ],
+)
+
 cc_test(
     name = "telnet_auth_test",
     srcs = ["telnet_auth_test.cc"],
@@ -76,6 +92,7 @@ clang_tidy_test(
         ":telnet_auth",
         ":line_command_handler",
         ":command_registry",
+        ":legacy_console_bridge",
     ],
     tidy_config_file = "//:clang_tidy_config",
 )
