@@ -199,11 +199,13 @@ cc_library(
         ":metrics_writer",
         "//emulator/libs/async:async_api",
         "//emulator/libs/file",
+        "//emulator/libs/process",
         "//emulator/libs/system",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
         "@protobuf",
+        "@re2",
         "@studio_stats//:google_logs_publishing_cc_proto",
     ],
 )

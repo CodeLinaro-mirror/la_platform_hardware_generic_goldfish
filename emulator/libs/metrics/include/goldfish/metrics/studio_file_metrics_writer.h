@@ -17,6 +17,7 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -34,6 +35,8 @@ class StudioFileMetricsWriter : public MetricsWriter {
     ~StudioFileMetricsWriter() override;
 
     void Write(MetricsEvent event) override;
+
+    static std::vector<std::string> FinalizeAbandonedSessionFiles(const fs::path& spool_dir);
 
   private:
     void OpenNextFile();

@@ -643,6 +643,7 @@ int main(int argc, char** argv) {
 
     auto reporter = std::make_unique<MetricsReporter>();
     auto metrics_writer_config = android::goldfish::get_metrics_writer_config(opts, *resolved_paths);
+    std::vector<std::string> crashed_metrics_sessions;
     if (metrics_writer_config.type == goldfish::metrics::MetricsWriterType::kStudio) {
         if (!::android::base::file::exists(metrics_writer_config.studio_spool_dir)) {
             if (auto s = ::android::base::file::mkdir_recursive(metrics_writer_config.studio_spool_dir, 0755); !s.ok()) {
@@ -653,8 +654,16 @@ int main(int argc, char** argv) {
             LOG(ERROR) << "Metrics spool path is not a directory, reporting will be disabled: " << metrics_writer_config.studio_spool_dir;
             metrics_writer_config.type = goldfish::metrics::MetricsWriterType::kNone;
         }
+        crashed_metrics_sessions = ::goldfish::metrics::StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(metrics_writer_config.studio_spool_dir);
     }
     ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config, *event_loop);
+    for (const auto &session_id : crashed_metrics_sessions) {
+        LOG(WARNING) << "Reporting crashed metrics session: " << session_id;
+        reporter->Report([&session_id] (android_studio::AndroidStudioEvent& event) {
+            event.set_studio_session_id(session_id);
+            event.mutable_emulator_details()->set_crashes(1);
+        });
+    }
 
     auto crash_consent = metrics_writer_config.user_upload_consent ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
     android::crashreport::CrashSystem::get().uploadEntries(crash_consent);

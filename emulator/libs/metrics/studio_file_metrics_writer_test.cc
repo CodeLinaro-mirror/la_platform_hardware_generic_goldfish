@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "android/base/system.h"
 #include "android/base/testing/TestTempDir.h"
 #include "goldfish/async/testing/test_event_loop.h"
 #include "google_logs_publishing.pb.h"
@@ -196,6 +197,162 @@ TEST_F(StudioFileMetricsWriterTest, DestructorFinalizesFile) {
         if (entry.path().extension() == ".trk") found_trk = true;
     }
     EXPECT_TRUE(found_trk);
+}
+
+TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFiles) {
+    // 1. Create a "dead" abandoned file (no lock file)
+    fs::path dead_file = temp_path() / "emulator-metrics2-dead-session-1234-0.open";
+    {
+        std::ofstream fs(dead_file);
+    }
+
+    // 2. Create a "live" abandoned file (with a live lock file)
+    // We must use a PID that is actually running to test the "live" status.
+    int current_pid = android::base::System::GetCurrentProcessPid();
+    fs::path live_file =
+            temp_path() / absl::StrFormat("emulator-metrics2-live-session-%d-0.open", current_pid);
+    {
+        std::ofstream fs(live_file);
+    }
+    fs::path live_lock =
+            temp_path() /
+            absl::StrFormat("emulator-metrics2-live-session-%d-0.open.lock", current_pid);
+    {
+        std::ofstream fs(live_lock);
+    }
+
+    auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
+
+    EXPECT_EQ(abandoned.size(), 1);
+    EXPECT_EQ(abandoned[0], "dead-session");
+
+    // dead-session should be .trk now
+    EXPECT_FALSE(fs::exists(dead_file));
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-dead-session-1234-0.trk"));
+
+    // live-session should still be .open
+    EXPECT_TRUE(fs::exists(live_file));
+    EXPECT_FALSE(fs::exists(
+            temp_path() / absl::StrFormat("emulator-metrics2-live-session-%d-0.trk", current_pid)));
+}
+
+TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithDeadPid) {
+    // 1. Create a file with a PID that is likely not running (e.g., a very large PID)
+    // and a lock file that is "live" (recent).
+    // The new implementation should see that the PID is dead and finalize anyway.
+    uint32_t dead_pid = 999999;
+    fs::path dead_pid_file =
+            temp_path() / absl::StrFormat("emulator-metrics2-dead-pid-session-%d-0.open", dead_pid);
+    {
+        std::ofstream fs(dead_pid_file);
+    }
+    fs::path dead_pid_lock =
+            temp_path() /
+            absl::StrFormat("emulator-metrics2-dead-pid-session-%d-0.open.lock", dead_pid);
+    {
+        std::ofstream fs(dead_pid_lock);
+    }
+
+    auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
+
+    EXPECT_EQ(abandoned.size(), 1);
+    EXPECT_EQ(abandoned[0], "dead-pid-session");
+
+    EXPECT_FALSE(fs::exists(dead_pid_file));
+    EXPECT_TRUE(
+            fs::exists(temp_path() /
+                       absl::StrFormat("emulator-metrics2-dead-pid-session-%d-0.trk", dead_pid)));
+    EXPECT_FALSE(fs::exists(dead_pid_lock));
+}
+
+TEST_F(StudioFileMetricsWriterTest, FinalizeAbandonedFilesWithExpiredLock) {
+    // Create a file with an expired lock file.
+    fs::path expired_file = temp_path() / "emulator-metrics2-expired-session-1234-0.open";
+    {
+        std::ofstream fs(expired_file);
+    }
+    fs::path expired_lock = temp_path() / "emulator-metrics2-expired-session-1234-0.open.lock";
+    {
+        std::ofstream fs(expired_lock);
+    }
+
+    // Manually set lock file time to the past (at least 61 seconds ago).
+    auto old_time = std::filesystem::file_time_type::clock::now() - std::chrono::seconds(70);
+    std::filesystem::last_write_time(expired_lock, old_time);
+
+    auto abandoned = StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(temp_path());
+
+    EXPECT_EQ(abandoned.size(), 1);
+    EXPECT_EQ(abandoned[0], "expired-session");
+    EXPECT_TRUE(fs::exists(temp_path() / "emulator-metrics2-expired-session-1234-0.trk"));
+    EXPECT_FALSE(fs::exists(expired_lock));
+}
+
+TEST_F(StudioFileMetricsWriterTest, FilenameFormatAndCounter) {
+    std::string sessionId = "format-test";
+    auto main_loop = TestEventLoop::Create();
+    StudioFileMetricsWriter writer(temp_path(), sessionId, *main_loop);
+
+    auto write_event = [&](int i) {
+        android_studio::AndroidStudioEvent event;
+        event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_PING);
+        writer.Write({.time_ms = static_cast<uint64_t>(i), .as_event = std::move(event)});
+    };
+
+    write_event(0);
+    uint32_t pid = android::base::System::GetCurrentProcessPid();
+
+    auto check_file = [&](int counter, std::string_view ext) {
+        std::string expected =
+                absl::StrFormat("emulator-metrics2-%s-%d-%d%s", sessionId, pid, counter, ext);
+        EXPECT_TRUE(fs::exists(temp_path() / expected)) << "Missing file: " << expected;
+    };
+
+    check_file(0, ".open");
+    check_file(0, ".open.lock");
+
+    // Force rotation by record count (1000).
+    for (int i = 1; i < 1000; ++i) {
+        write_event(i);
+    }
+    // Now file 0 should be .trk and file 1 should be .open
+    check_file(0, ".trk");
+    EXPECT_FALSE(fs::exists(temp_path() / (absl::StrFormat("emulator-metrics2-%s-%d-0.open.lock",
+                                                           sessionId, pid))));
+
+    write_event(1000);
+    check_file(1, ".open");
+    check_file(1, ".open.lock");
+}
+
+TEST_F(StudioFileMetricsWriterTest, LockFileManagement) {
+    std::string sessionId = "lock-test";
+    auto main_loop = TestEventLoop::Create();
+    int pid = android::base::System::GetCurrentProcessPid();
+    fs::path lock_path =
+            temp_path() / absl::StrFormat("emulator-metrics2-%s-%d-0.open.lock", sessionId, pid);
+
+    {
+        StudioFileMetricsWriter writer(temp_path(), sessionId, *main_loop);
+        android_studio::AndroidStudioEvent event;
+        event.set_kind(android_studio::AndroidStudioEvent::EMULATOR_PING);
+        writer.Write({.time_ms = 100, .as_event = std::move(event)});
+
+        // 1. Check creation
+        EXPECT_TRUE(fs::exists(lock_path));
+        auto initial_time = android::base::file::last_write_time(lock_path).value();
+
+        // 2. Check refresh
+        // The timer runs every 10s. Advance enough time for at least one trigger.
+        main_loop->AdvanceClock(std::chrono::seconds(11));
+        main_loop->RunAll();
+
+        auto refreshed_time = android::base::file::last_write_time(lock_path).value();
+        EXPECT_GT(refreshed_time, initial_time);
+    }
+
+    // 3. Check deletion on finalization (destructor)
+    EXPECT_FALSE(fs::exists(lock_path));
 }
 
 }  // namespace goldfish::metrics

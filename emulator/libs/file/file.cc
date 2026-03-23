@@ -14,6 +14,7 @@
 
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -25,6 +26,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 
 #include "android/base/eintr_wrapper.h"
 #include "android/status/status_macros.h"
@@ -135,8 +137,22 @@ absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept {
             absl::StrCat("Failed to get size of: ", path.string(), " - ", ec.message()));
 }
 
+absl::StatusOr<absl::Time> last_write_time(const fs::path& path) noexcept {
+    std::error_code ec;
+    if (std::filesystem::file_time_type ftime = std::filesystem::last_write_time(path, ec); !ec) {
+        // TODO (whollins): use c++20 clock_cast when our version of clang supports it:
+        // auto system_time = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
+        auto system_time = std::chrono::system_clock::time_point(
+                std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                        ftime.time_since_epoch()));
+        return absl::FromChrono(system_time);
+    }
+    return absl::InternalError(
+            absl::StrCat("Failed to get last_wire_time of: ", path.string(), " - ", ec.message()));
+}
+
 namespace {
-template<typename it_type>
+template <typename it_type>
 std::vector<fs::path> scan_dir_impl(const fs::path& dirPath, bool fullPath) noexcept {
     std::error_code ec;
 
@@ -153,7 +169,7 @@ std::vector<fs::path> scan_dir_impl(const fs::path& dirPath, bool fullPath) noex
 
     return x;
 }
-} // namespace
+}  // namespace
 
 std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath) noexcept {
     return scan_dir_impl<std::filesystem::directory_iterator>(dirPath, fullPath);

@@ -22,11 +22,54 @@
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 
 #include "android/base/system.h"
+#include "android/process/process.h"
 #include "google_logs_publishing.pb.h"
+#include "re2/re2.h"
 
 namespace goldfish::metrics {
 
 using namespace std::chrono_literals;
+
+namespace {
+// Note "emulator-metrics2-" to operate independently of qemu2 files.
+constexpr std::string_view kFileNameFormat = "emulator-metrics2-%s-%d-%d.open";
+constexpr re2::LazyRE2 kOpenFileRegex = {R"(emulator-metrics2-(.*)-(\d+)-\d+.open)"};
+
+constexpr std::string_view kFinalExtension = "trk";
+constexpr std::string_view kLockSuffix = ".lock";
+
+constexpr absl::Duration kLockDuration = absl::Seconds(60);
+
+fs::path LockPath(fs::path file_path) {
+    file_path += kLockSuffix;
+    return file_path;
+}
+
+void RefreshLockFile(const fs::path& file_path) {
+    if (auto s = android::base::file::touch(LockPath(file_path)); !s.ok()) {
+        LOG(ERROR) << "Failed to create metrics lock file: " << s;
+    }
+}
+
+void ClearLockFile(const fs::path& file_path) {
+    if (auto s = android::base::file::rm(LockPath(file_path)); !s.ok()) {
+        LOG(ERROR) << "Failed to remove metrics lock file: " << s;
+    }
+}
+
+bool IsLockFileLive(const fs::path& file_path) {
+    auto lock_path = LockPath(file_path);
+    if (!android::base::file::exists(lock_path)) {
+        return false;
+    }
+    auto last_write_time = android::base::file::last_write_time(lock_path);
+    if (!last_write_time.ok()) {
+        return false;
+    }
+    return (*last_write_time + kLockDuration) > absl::Now();
+}
+
+}  // namespace
 
 StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
                                                  const std::string& session_id,
@@ -40,6 +83,8 @@ StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
                       // Check if we should close the current file every 10s.
                       if (absl::Now() > current_file_latest_close_time_) {
                           FinalizeCurrentFile();
+                      } else {
+                          RefreshLockFile(open_file_path_);
                       }
                   },
                   10s, 10s)) {}
@@ -90,8 +135,9 @@ void StudioFileMetricsWriter::Write(MetricsEvent event) {
 
 void StudioFileMetricsWriter::OpenNextFile() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     CHECK(!current_file_.is_open());
-    open_file_path_ = spool_dir_ / absl::StrFormat("emulator-metrics-%s-%d-%d.open", session_id_,
-                                                   pid_, file_counter_++);
+    open_file_path_ =
+            spool_dir_ / absl::StrFormat(kFileNameFormat, session_id_, pid_, file_counter_++);
+    RefreshLockFile(open_file_path_);
     current_file_.clear();
     current_file_.open(open_file_path_, std::ios::binary | std::ios::app);
     if (!current_file_) {
@@ -107,6 +153,21 @@ void StudioFileMetricsWriter::OpenNextFile() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex
     }
 }
 
+namespace {
+
+bool FinalizeFile(const fs::path& path) {
+    fs::path new_path = path;
+    new_path.replace_extension(kFinalExtension);
+    if (auto s = android::base::file::mv_file(path, new_path); !s.ok()) {
+        LOG(ERROR) << "Failed to finalize metrics file " << path << ": " << s;
+        return false;
+    }
+    ClearLockFile(path);
+    return true;
+}
+
+}  // namespace
+
 void StudioFileMetricsWriter::FinalizeCurrentFile() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     if (open_file_path_.empty()) {
         CHECK(!current_file_.is_open());
@@ -118,16 +179,33 @@ void StudioFileMetricsWriter::FinalizeCurrentFile() ABSL_EXCLUSIVE_LOCKS_REQUIRE
     if (!current_file_) {
         LOG(ERROR) << "Error occurred while closing metrics file: " << open_file_path_;
     }
-
-    // Replace the .open extension with .trk, which will be detected by Studio.
-    fs::path new_path = open_file_path_;
-    new_path.replace_extension("trk");
-    if (auto s = android::base::file::mv_file(open_file_path_, new_path); !s.ok()) {
-        LOG(ERROR) << "Failed to finalize metrics file: " << s;
-    }
+    FinalizeFile(open_file_path_);
     open_file_path_.clear();
     current_file_record_count_ = 0;
     current_file_latest_close_time_ = absl::InfiniteFuture();
+}
+
+// static
+std::vector<std::string> StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(
+        const fs::path& spool_dir) {
+    std::vector<std::string> abandoned_sessions;
+    for (const auto& path : android::base::file::scan_dir(spool_dir, /*fullPath=*/true)) {
+        std::string_view session_id;
+        uint32_t pid;
+        if (!RE2::FullMatch(path.filename().string(), *kOpenFileRegex, &session_id, &pid)) {
+            continue;
+        }
+        if (auto proc = android::base::Process::FromPid(pid); proc && proc->IsAlive()) {
+            // Only check the lock file if the process actually exists.
+            if (IsLockFileLive(path)) {
+                continue;
+            }
+        }
+        if (FinalizeFile(path)) {
+            abandoned_sessions.emplace_back(session_id);
+        }
+    }
+    return abandoned_sessions;
 }
 
 }  // namespace goldfish::metrics

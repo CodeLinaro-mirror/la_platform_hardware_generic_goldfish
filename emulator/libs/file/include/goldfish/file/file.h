@@ -18,6 +18,7 @@
 #include <filesystem>
 
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 
 #include "goldfish/file/storage_capacity.h"
 
@@ -40,6 +41,7 @@ bool can_write(const fs::path& path) noexcept;
 bool can_exec(const fs::path& path) noexcept;
 
 absl::StatusOr<StorageCapacity> file_size(const fs::path& path) noexcept;
+absl::StatusOr<absl::Time> last_write_time(const fs::path& path) noexcept;
 
 std::vector<fs::path> scan_dir(const fs::path& dirPath, bool fullPath = false) noexcept;
 std::vector<fs::path> scan_dir_recursive(const fs::path& dirPath) noexcept;
