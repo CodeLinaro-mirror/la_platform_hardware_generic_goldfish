@@ -59,12 +59,14 @@ void MarshallingHalSocket::Send(std::string data) {
 
     VLOG(2) << "Sheduling send for " << data.size() << " bytes";
     // Post the send operation to the QEMU loop asynchronously.
-    qemu_loop_->Post([this, data = std::move(data), self = shared_from_this()]() {
-        const absl::MutexLock lock(&socket_mutex_);
-        VLOG(2) << "Sending " << data.size() << " bytes";
-        // Bytes go either to the *real* or NullSocket..
-        socket_->SendAsync(data.data(), data.size());
-    });
+    qemu_loop_
+            ->Post([this, data = std::move(data), self = shared_from_this()]() {
+                const absl::MutexLock lock(&socket_mutex_);
+                VLOG(2) << "Sending " << data.size() << " bytes";
+                // Bytes go either to the *real* or NullSocket..
+                socket_->SendAsync(data.data(), data.size());
+            })
+            .IgnoreError();
 }
 
 void MarshallingHalSocket::AbslStringifyImpl(absl::FormatSink& s) const {
@@ -85,29 +87,31 @@ void MarshallingHalSocket::Close() {
         // Post the unplug operation to the QEMU loop asynchronously.
         // This avoids deadlocking if close() is called from a client
         // callback that was initiated by the QEMU loop.
-        qemu_loop_->Post([this, self = shared_from_this()]() {
-            VLOG(1) << "Calling onplug on socket";
-            cable::SocketPtr socket_to_unplug;
-            {
-                // Safely take ownership of the real socket pointer
-                // under the lock. This coordinates with the release()
-                // method, which may be called by onUnplug on this same
-                // QEMU thread.
-                const absl::MutexLock lock(&socket_mutex_);
-                socket_to_unplug = std::move(socket_);
+        qemu_loop_
+                ->Post([this, self = shared_from_this()]() {
+                    VLOG(1) << "Calling onplug on socket";
+                    cable::SocketPtr socket_to_unplug;
+                    {
+                        // Safely take ownership of the real socket pointer
+                        // under the lock. This coordinates with the release()
+                        // method, which may be called by onUnplug on this same
+                        // QEMU thread.
+                        const absl::MutexLock lock(&socket_mutex_);
+                        socket_to_unplug = std::move(socket_);
 
-                VLOG(1) << "Installing null socket, welcome to the void.";
-                socket_ = cable::SocketPtr(&g_null_socket);
-            }
+                        VLOG(1) << "Installing null socket, welcome to the void.";
+                        socket_ = cable::SocketPtr(&g_null_socket);
+                    }
 
-            // Unplug the real socket outside the lock.
-            // Don't unplug if it was already the null socket (e.g., if
-            // release() was called first).
-            if (socket_to_unplug && socket_to_unplug.get() != &g_null_socket) {
-                VLOG(1) << "Unplugging the real socket.";
-                cable::ISocket::Unplug(std::move(socket_to_unplug));
-            }
-        });
+                    // Unplug the real socket outside the lock.
+                    // Don't unplug if it was already the null socket (e.g., if
+                    // release() was called first).
+                    if (socket_to_unplug && socket_to_unplug.get() != &g_null_socket) {
+                        VLOG(1) << "Unplugging the real socket.";
+                        cable::ISocket::Unplug(std::move(socket_to_unplug));
+                    }
+                })
+                .IgnoreError();
     } else {
         VLOG(1) << "Socket already closed";
     }

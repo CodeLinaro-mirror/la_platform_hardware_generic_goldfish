@@ -35,7 +35,7 @@ class ScreenRecordingServiceImplTest : public ::testing::Test {
         loop = LibuvEventLoop::Create();
         fake_display = std::make_unique<FakeMultiDisplay>(loop.get());
         // Create default display 0
-        fake_display->CreateDisplay(0, 1080, 2400, 440, 0);
+        fake_display->CreateDisplay(0, 1080, 2400, 440, 0).IgnoreError();
         service = std::make_unique<ScreenRecordingServiceImpl>(fake_display.get());
 
         // Setup platform-independent temp path

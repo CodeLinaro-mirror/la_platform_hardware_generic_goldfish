@@ -49,7 +49,7 @@ TEST(SocketBuffer, append_empty_zero) {
 
 TEST(SocketBuffer, consume_empty_zero) {
     SocketBuffer buffer;
-    buffer.Consume(0);  // does not crash
+    (void)buffer.Consume(0);  // does not crash
     EXPECT_EQ(buffer.Size(), 0);
     EXPECT_EQ(buffer.Peek().second, 0);
     EXPECT_EQ(buffer.Capacity(), 0);

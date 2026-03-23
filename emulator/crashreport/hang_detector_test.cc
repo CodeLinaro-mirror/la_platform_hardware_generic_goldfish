@@ -79,7 +79,7 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Add a hanging task
     absl::Notification hang;
-    event_loop->Post([&hang] { hang.WaitForNotification(); });
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
     ASSERT_TRUE(wait_for_hang());
 
     // Unblock the loop so that it actually terminates!
@@ -87,7 +87,7 @@ TEST_F(HangDetectorTest, BlockedLoopTriggersHang) {
 
     // Wait for loop to shutdown as the hang task is referencing the hang notification which gets
     // destroyed before the loop.
-    event_loop->ShutdownAndWait();
+    event_loop->ShutdownAndWait().IgnoreError();
 }
 
 TEST_F(HangDetectorTest, LoopDisappearsBeforeHangNoCrash) {
@@ -114,7 +114,7 @@ TEST_F(HangDetectorTest, LoopDisappearsAfterHangNoCrash) {
 
     // Add a hanging task
     absl::Notification hang;
-    event_loop->Post([&hang] { hang.WaitForNotification(); });
+    event_loop->Post([&hang] { hang.WaitForNotification(); }).IgnoreError();
 
     ASSERT_TRUE(wait_for_hang());
 

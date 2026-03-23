@@ -291,8 +291,8 @@ TEST_F(ConnectorRegistryTest, RegisterHalDevice) {
     EXPECT_TRUE(closed_future.get());
 
     // Cleanly exit loops before we destroy sockets etc.
-    mClientLoop->ShutdownAndWait(100ms);
-    mQemuLoop->ShutdownAndWait(100ms);
+    mClientLoop->ShutdownAndWait(100ms).IgnoreError();
+    mQemuLoop->ShutdownAndWait(100ms).IgnoreError();
 }
 
 TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
@@ -330,8 +330,8 @@ TEST_F(ConnectorRegistryTest, RegisterHalQemuDevice) {
     EXPECT_TRUE(closed_future.get());
 
     // Cleanly exit loops before we destroy sockets etc.
-    mClientLoop->ShutdownAndWait(100ms);
-    mQemuLoop->ShutdownAndWait(100ms);
+    mClientLoop->ShutdownAndWait(100ms).IgnoreError();
+    mQemuLoop->ShutdownAndWait(100ms).IgnoreError();
 }
 
 }  // namespace devices

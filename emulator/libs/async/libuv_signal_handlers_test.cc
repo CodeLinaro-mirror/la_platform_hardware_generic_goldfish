@@ -41,7 +41,7 @@ TEST(UvSignalHandlers, AddBeforeLoopStarted) {
         }
     });
 
-    std::thread t([&uv_loop] { uv_loop->Run(); });
+    std::thread t([&uv_loop] { uv_loop->Run().IgnoreError(); });
     {
         absl::Notification loop_running;
         ASSERT_THAT(uv_loop->PostAndWait([&loop_running] { loop_running.Notify(); }),
