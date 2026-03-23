@@ -16,7 +16,9 @@
 
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <optional>
 #include <regex>
 #include <string>
 #include <unordered_map>
@@ -228,6 +230,49 @@ bool FileBackedAvd::LoadBuildProps() {
     }
     build_ini_.SetBackingFile(*buildprop);
     return build_ini_.Read();
+}
+
+absl::StatusOr<std::optional<int>> FileBackedAvd::GetLastRunQemuVersion() const {
+    auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
+    if (!base::file::exists(qemu_version_path)) {
+        // File does not exist, not an error
+        return std::nullopt;
+    }
+
+    std::ifstream ifs(qemu_version_path);
+    if (!ifs.is_open()) {
+        return absl::PermissionDeniedError(
+                absl::StrCat("Could not open file for reading: ", qemu_version_path.string()));
+    }
+
+    std::string file_content;
+    ifs >> file_content;
+
+    int value = 0;
+    if (file_content.empty() || !absl::SimpleAtoi(file_content, &value)) {
+        // File is empty, or invalid
+        return absl::InvalidArgumentError(
+                absl::StrCat("File content '", file_content, "' is not a valid integer."));
+    }
+
+    return value;
+}
+
+absl::Status FileBackedAvd::SetLastRunQemuVersion(int version) {
+    auto qemu_version_path = GetContentPath() / AVD_QEMU_VERSION_FILENAME;
+    std::ofstream ofs(qemu_version_path, std::ios::out | std::ios::trunc);
+    if (!ofs.is_open()) {
+        return absl::InternalError(
+                absl::StrCat("Failed to open file for writing: ", qemu_version_path.string()));
+    }
+
+    ofs << version;
+    if (!ofs.good()) {
+        return absl::InternalError(
+                absl::StrCat("Failed to write into file: ", qemu_version_path.string()));
+    }
+
+    return absl::OkStatus();
 }
 
 std::string FileBackedAvd::BuildProductName() const {

@@ -72,6 +72,8 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
+static const int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
+
 // clang-format off
 static void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
@@ -697,6 +699,34 @@ int main(int argc, char** argv) {
     if (!avd.ok()) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
+    }
+
+    bool set_qemu_version = true;
+    auto last_run_qemu_version = (*avd)->GetLastRunQemuVersion();
+    if (!last_run_qemu_version.ok()) {
+        LOG(ERROR) << "Error reading last used QEMU version for AVD " << name << " due to "
+                   << last_run_qemu_version.status().message();
+    } else if (std::optional<int> version = last_run_qemu_version.value()) {
+        if (version.value() != android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION) {
+            LOG(ERROR) << "AVD " << name
+                       << "is not compatible with this emulator. Last run QEMU version: "
+                       << version.value()
+                       << ", compatible QEMU version: " << android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION
+                       << ". Use -wipe-data option to reset the AVD data and use this emulator.";
+            return 1;
+        } else {
+            VLOG(1) << "AVD last run QEMU version is compatible.";
+            set_qemu_version = false;
+        }
+    }
+
+    if (set_qemu_version) {
+        LOG(INFO) << "Setting AVD last run compatible QEMU version to "
+                  << android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION;
+        auto s = (*avd)->SetLastRunQemuVersion(android::goldfish::EMULATOR_COMPATIBLE_QEMU_VERSION);
+        if (!s.ok()) {
+            LOG(ERROR) << "Could not save last run QEMU version, error: " << s;
+        }
     }
 
     android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter), std::move(metrics_writer_config));

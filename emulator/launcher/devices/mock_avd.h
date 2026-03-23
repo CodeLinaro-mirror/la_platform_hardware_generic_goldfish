@@ -31,8 +31,6 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, Name, (), (const override));
     MOCK_METHOD(DeviceType, GetDeviceType, (), (const override));
     MOCK_METHOD(fs::path, GetContentPath, (), (const override));
-    MOCK_METHOD(absl::StatusOr<fs::path>, getImageFilePath, (Avd::ImageType img_type),
-                (const override));
     MOCK_METHOD(absl::StatusOr<fs::path>, GetSystemImageFilePath, (Avd::ImageType img_type),
                 (const override));
     MOCK_METHOD(bool, hasEncryptionKey, (), (const override));
@@ -57,6 +55,9 @@ class MockAvd : public Avd {
     MOCK_METHOD(std::string, BuildFingerprint, (), (const override));
     MOCK_METHOD(int64_t, BuildTimestamp, (), (const override));
     MOCK_METHOD(std::string, BuildFlavour, (), (const override));
+    MOCK_METHOD(absl::StatusOr<std::optional<int>>, GetLastRunQemuVersion, (),
+                (const override));
+    MOCK_METHOD(absl::Status, SetLastRunQemuVersion, (int version), (override));
     MOCK_METHOD(std::string, BuildProductName, (), (const override));
 };
 

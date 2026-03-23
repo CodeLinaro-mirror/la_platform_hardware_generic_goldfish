@@ -243,6 +243,20 @@ class Avd {
             bool wipe_data = false, const fs::path& sysdir_override = {},
             fs::path writable_content_override = {});
 
+    /**
+     * @brief Returns the qemu version of the emulator that ran this AVD.
+     * @return An absl::StatusOr<std::optional<int>> object. On success,
+     *         contains the version value for the last run. It'll be nullopt
+     *.        if the AVD has not been run before or if it's data is wiped.
+     */
+    virtual absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const = 0;
+
+    /**
+     * @brief Sets the qemu version of the emulator that ran this AVD.
+     * @return absl::Status indicating success or failure.
+     */
+    virtual absl::Status SetLastRunQemuVersion(int version) = 0;
+
     static constexpr int kUnknownApiLevel = 1000;
 
   protected:
@@ -304,6 +318,9 @@ class FileBackedAvd : public Avd {
     std::string BuildFlavour() const override {
         return build_ini_.GetString("ro.build.flavor", "unknown");
     }
+
+    absl::StatusOr<std::optional<int>> GetLastRunQemuVersion() const override;
+    absl::Status SetLastRunQemuVersion(int version) override;
 
     std::string BuildProductName() const override;
 

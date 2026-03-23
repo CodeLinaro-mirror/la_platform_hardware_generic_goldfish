@@ -60,3 +60,9 @@
  */
 #define CRASH_AVD_HARDWARE_INFO "avd_info.txt"
 #define CRASH_AVD_INI "avd_ini_path"
+
+/* The file used to save emulator qemu version used to
+ * run the AVD. Avoids using incompatible emulators
+ * on the same AVD without wiping their data.
+ */
+#define AVD_QEMU_VERSION_FILENAME "qemu-version.txt"
