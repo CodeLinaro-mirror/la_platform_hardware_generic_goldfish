@@ -45,6 +45,33 @@ cc_test(
 )
 
 cc_library(
+    name = "hexbin",
+    srcs = [
+        "hexbin.cc",
+    ],
+    hdrs = [
+        "include/goldfish/parsing/hexbin.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+cc_test(
+    name = "hexbin_unittests",
+    size = "small",
+    srcs = [
+        "hexbin_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hexbin",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
     name = "utf8_iterator",
     srcs = [
         "utf8_iterator.cc",
