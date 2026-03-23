@@ -105,3 +105,31 @@ cc_test(
         "//emulator/libs/test:googletest_main",
     ],
 )
+
+cc_library(
+    name = "i_modem_simulator_client",
+    hdrs = [
+        "include/goldfish/modem_simulator/i_modem_simulator_client.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [],
+)
+
+cc_library(
+    name = "modem_simulator_client",
+    srcs = ["modem_simulator_client.cc"],
+    hdrs = [
+        "include/goldfish/modem_simulator/modem_simulator_client.h",
+    ],
+    includes = ["include"],
+    tags = ["no-tidy"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":i_modem_simulator_client",
+        "//emulator/libs/gsm:sms",
+        "//emulator/libs/parsing:hexbin",
+        "//emulator/libs/sockets",
+    ],
+)

@@ -1,0 +1,67 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "alphabet",
+    srcs = [
+        "alphabet.cc",
+    ],
+    hdrs = [
+        "include/goldfish/gsm/alphabet.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/parsing:utf8_iterator",
+    ],
+)
+
+cc_test(
+    name = "alphabet_unittests",
+    size = "small",
+    srcs = [
+        "alphabet_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":alphabet",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "sms",
+    srcs = [
+        "sms.cc",
+    ],
+    hdrs = [
+        "include/goldfish/gsm/sms.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":alphabet",
+        "//emulator/libs/parsing:utf8_iterator",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "sms_unittests",
+    size = "small",
+    srcs = [
+        "sms_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sms",
+        "//emulator/libs/parsing:hexbin",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
