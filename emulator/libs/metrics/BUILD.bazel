@@ -128,3 +128,39 @@ cc_test(
         "@abseil-cpp//absl/log:globals",
     ],
 )
+
+cc_library(
+    name = "cpu_usage",
+    hdrs = ["include/goldfish/metrics/cpu_usage.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/system",
+    ],
+)
+
+cc_library(
+    name = "perf_stat_reporter",
+    srcs = ["perf_stat_reporter.cc"],
+    hdrs = ["include/goldfish/metrics/perf_stat_reporter.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cpu_usage",
+        ":text_metrics_writer",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/system",
+    ],
+)
+
+cc_test(
+    name = "perf_stat_reporter_test",
+    srcs = ["perf_stat_reporter_test.cc"],
+    deps = [
+        ":perf_stat_reporter",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)

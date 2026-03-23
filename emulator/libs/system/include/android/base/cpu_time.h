@@ -24,6 +24,19 @@ struct CpuTime {
     uint64_t wall_time_us = 0;
     uint64_t user_time_us = 0;
     uint64_t system_time_us = 0;
+
+    float Usage() const {
+        if (!wall_time_us) return 0.0f;
+        return static_cast<float>(user_time_us + system_time_us) / static_cast<float>(wall_time_us);
+    }
+
+    CpuTime operator-(const CpuTime& other) {
+        CpuTime res(*this);
+        res.wall_time_us -= other.wall_time_us;
+        res.user_time_us -= other.user_time_us;
+        res.system_time_us -= other.system_time_us;
+        return res;
+    }
 };
 
 } // namespace android::base

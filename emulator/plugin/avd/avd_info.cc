@@ -22,7 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 
-#include "goldfish/file/file.h"
+#include "VCpuEventLoop.h"
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
 #include "android/base/qemu_clock.h"
 #include "android/base/system.h"
@@ -46,9 +46,11 @@
 #include "goldfish/devices/multidisplay/multidisplay_device.h"
 #include "goldfish/devices/unix_pipe/unix_pipe.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
+#include "goldfish/file/file.h"
+#include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/perf_stat_reporter.h"
 #include "goldfish/vsock/clear.h"
 #include "host-common/constants.h"
-#include "VCpuEventLoop.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
@@ -77,6 +79,15 @@ namespace {
 
 struct AvdExtendedUniverse : public AvdUniverse {
     AvdExtendedUniverse(std::unique_ptr<AvdProperties> props) : AvdUniverse(std::move(props)) {}
+    ~AvdExtendedUniverse() override {
+        if (metrics_ping_timer) {
+            metrics_ping_timer->Cancel();
+        }
+        if (perf_stat_reporter_task) {
+            perf_stat_reporter_task->Cancel();
+        }
+    }
+
     async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
 
     ConnectorRegistry connector_registry;
@@ -87,6 +98,8 @@ struct AvdExtendedUniverse : public AvdUniverse {
 
     std::unique_ptr<async::EventLoop> qemu_event_loop;
     std::vector<VCpuEventLoop> qemu_cpu_loops;
+    std::unique_ptr<goldfish::metrics::PerfStatReporter> perf_stat_reporter;
+    std::shared_ptr<goldfish::async::EventLoop::Timer> perf_stat_reporter_task;
 };
 
 struct AvdInfoDev {
@@ -161,7 +174,7 @@ std::vector<VCpuEventLoop> createVCpuEventLoops() {
     return loops;
 }
 
-absl::Status ValidateAvdProps(AvdProperties &avd_props) {
+absl::Status ValidateAvdProps(AvdProperties& avd_props) {
     if (avd_props.serial_number <= 0) {
         return absl::InvalidArgumentError(absl::StrFormat(
                 "serial_number is unspecified (it must be > 0): %d", avd_props.serial_number));
@@ -172,8 +185,10 @@ absl::Status ValidateAvdProps(AvdProperties &avd_props) {
                 "adb_port is unspecified (it must be > 0): %d", avd_props.adb_port));
     }
 
-    if (avd_props.metrics_session_id == ::goldfish::metrics::Uuid::Zero() && avd_props.metrics_writer_config.type != goldfish::metrics::MetricsWriterType::kNone) {
-        return absl::InvalidArgumentError("metrics_session_id should be non-zero when metrics_writer is set");
+    if (avd_props.metrics_session_id == ::goldfish::metrics::Uuid::Zero() &&
+        avd_props.metrics_writer_config.type != goldfish::metrics::MetricsWriterType::kNone) {
+        return absl::InvalidArgumentError(
+                "metrics_session_id should be non-zero when metrics_writer is set");
     }
 
     fs::path hw_path = avd_props.avd_content_path / CORE_HARDWARE_INI;
@@ -203,33 +218,55 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
         return;
     }
 
-    avd_info->universe = new AvdExtendedUniverse(std::unique_ptr<AvdProperties>(std::exchange(avd_info->mutable_props, nullptr)));
+    avd_info->universe = new AvdExtendedUniverse(
+            std::unique_ptr<AvdProperties>(std::exchange(avd_info->mutable_props, nullptr)));
 
-    auto &avd_universe = *avd_info->universe;
+    auto& avd_universe = *avd_info->universe;
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
 
     auto* client_loop = goldfish::async::globalEventLoop();
 
-    avd_universe.metrics_reporter = std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
-    ::goldfish::metrics::ConfigureMetricsWriter(*avd_universe.metrics_reporter, avd_props.metrics_writer_config);
+    avd_universe.metrics_reporter =
+            std::make_unique<::goldfish::metrics::MetricsReporter>(avd_props.metrics_session_id);
+    ::goldfish::metrics::ConfigureMetricsWriter(*avd_universe.metrics_reporter,
+                                                avd_props.metrics_writer_config);
     // PING every 5 minutes.
     using namespace std::chrono_literals;
-    avd_universe.metrics_ping_timer = client_loop->ScheduleRepeating([metrics_reporter = avd_universe.metrics_reporter.get()] {
-        metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
-    }, 0s, 300s);
+    avd_universe.metrics_ping_timer = client_loop->ScheduleRepeating(
+            [metrics_reporter = avd_universe.metrics_reporter.get()] {
+                metrics_reporter->Report([](android_studio::AndroidStudioEvent& event) {});
+            },
+            0s, 300s);
 
     avd_universe.qemu_event_loop = goldfish::async::QemuEventLoop::Create();
-    auto &qemu_loop = avd_universe.qemu_event_loop;
+    auto& qemu_loop = avd_universe.qemu_event_loop;
     android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
             "QemuEventLoop", *qemu_loop, absl::Seconds(15));
 
     avd_universe.qemu_cpu_loops = createVCpuEventLoops();
+    std::vector<goldfish::async::EventLoop*> vcpu_loop_ptrs;
+    vcpu_loop_ptrs.reserve(avd_universe.qemu_cpu_loops.size());
     for (auto& loop : avd_universe.qemu_cpu_loops) {
         android::crashreport::CrashReporter::GetCrashingHangDetector().AddWatchedLooper(
                 absl::StrCat("QemuCpuLoop:", loop.getCpuIndex()), loop, absl::Seconds(15));
+        vcpu_loop_ptrs.push_back(&loop);
     }
+    avd_universe.perf_stat_reporter = std::make_unique<goldfish::metrics::PerfStatReporter>(
+            client_loop, vcpu_loop_ptrs, avd_props.hw_config, avd_props.dump_perf_stat_path);
+    // One-shot task to send perf metrics report after 60s.
+    avd_universe.perf_stat_reporter_task = client_loop->ScheduleDelayed(
+            [&avd_universe] {
+                avd_universe.metrics_reporter->Report(
+                        [&avd_universe](android_studio::AndroidStudioEvent& event) {
+                            VLOG(1) << "Reporting perf stat metric";
+                            event.set_kind(
+                                    android_studio::AndroidStudioEvent::EMULATOR_PERFORMANCE_STATS);
+                            avd_universe.perf_stat_reporter->FillEvent(event);
+                        });
+            },
+            /*initial_delay=*/60s);
 
     auto* registry = &avd_universe.connector_registry;
 
@@ -369,24 +406,37 @@ void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* n
 
 void avd_info_set_metrics_session(Object* obj, const char* value, Error** errp) {
     if (auto s = ::goldfish::metrics::Uuid::FromString(value); !s.ok()) {
-        error_setg(errp, "metrics_session - failed to parse UUID: %s - %s", s.status().ToString().c_str(), value);
+        error_setg(errp, "metrics_session - failed to parse UUID: %s - %s",
+                   s.status().ToString().c_str(), value);
         return;
     } else {
         AVD_INFO_DEV(obj)->mutable_props->metrics_session_id = *std::move(s);
     }
 }
 
-void avd_info_set_metrics_writer(Object* obj, Visitor* v, const char* name, void* opaque, Error** errp) {
+void avd_info_set_metrics_writer(Object* obj, Visitor* v, const char* name, void* opaque,
+                                 Error** errp) {
     int32_t value;
     if (!visit_type_int32(v, name, &value, errp)) {
         return;
     }
 
-    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.type = static_cast<goldfish::metrics::MetricsWriterType>(value);
+    AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.type =
+            static_cast<goldfish::metrics::MetricsWriterType>(value);
 }
 
 void avd_info_set_metrics_file_path(Object* obj, const char* value, Error** errp) {
     AVD_INFO_DEV(obj)->mutable_props->metrics_writer_config.file_path = value;
+}
+
+void avd_info_set_dump_perf_stat_path(Object* obj, const char* value, Error** errp) {
+    fs::path path(value);
+    if (!android::base::file::is_dir(path.parent_path())) {
+        error_setg(errp, "dump_perf_stat_path parent is not a valid directory: %s", value);
+        return;
+    }
+
+    AVD_INFO_DEV(obj)->mutable_props->dump_perf_stat_path = path;
 }
 
 void avd_info_unrealize(DeviceState* dev) {
@@ -417,8 +467,11 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);
 
     object_class_property_add_str(oc, "metrics_session", nullptr, avd_info_set_metrics_session);
-    object_class_property_add(oc, "metrics_writer", "int", nullptr, avd_info_set_metrics_writer, nullptr, nullptr);
+    object_class_property_add(oc, "metrics_writer", "int", nullptr, avd_info_set_metrics_writer,
+                              nullptr, nullptr);
     object_class_property_add_str(oc, "metrics_file_path", nullptr, avd_info_set_metrics_file_path);
+    object_class_property_add_str(oc, "dump_perf_stat_path", nullptr,
+                                  avd_info_set_dump_perf_stat_path);
 
     DeviceClass* dc = DEVICE_CLASS(oc);
     dc->realize = avd_info_realize;
