@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "android/goldfish/hardware_config.h"
@@ -28,6 +29,14 @@ namespace goldfish::sensors {
 class FoldableModel {
   public:
     using ObservablePosture = eventing::ObservableValue<FoldablePostures, eventing::ObservableValueTriggerAlways>;
+
+    struct ResizableConfig {
+        std::string name;
+        uint32_t id;
+        uint32_t width;
+        uint32_t height;
+        uint32_t dpi;
+    };
 
     explicit FoldableModel(const android::goldfish::HardwareConfig& hw);
 
@@ -50,17 +59,30 @@ class FoldableModel {
 
     bool IsFolded() const;
 
-    static bool GetFoldedArea(int* x, int* y, int* w, int* h);
+    bool GetFoldedArea(int* x, int* y, int* w, int* h) const;
+
+    const std::vector<ResizableConfig>& GetResizableConfigs() const { return resizable_configs_; }
+
+    static std::vector<ResizableConfig> ParseResizableConfigs(const std::string& config_str);
 
     ObservablePosture& GetPostureListener() { return posture_listener_; }
 
   private:
     void InitFoldableRoll(const android::goldfish::HardwareConfig& hw);
     void InitFoldableHinge(const android::goldfish::HardwareConfig& hw);
+    void InitResizableConfigs(const android::goldfish::HardwareConfig& hw);
 
     FoldableState state_;
     std::vector<AnglesToPosture> angles_to_postures_;
+
     ObservablePosture posture_listener_;
+
+    std::vector<ResizableConfig> resizable_configs_;
+
+    int folded_x_ = 0;
+    int folded_y_ = 0;
+    int folded_w_ = 0;
+    int folded_h_ = 0;
 };
 
 }  // namespace goldfish::sensors

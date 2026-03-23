@@ -11,7 +11,7 @@
 
 #include "goldfish/sensors/physical_model.h"
 
-#include <assert.h>
+#include <cassert>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/vec3.hpp>
@@ -47,22 +47,22 @@ class PhysicalModelTest : public ::testing::Test {
 TEST_F(PhysicalModelTest, DefaultInertialSensorValues) {
     model->SetCurrentTime(1000000000L);
     size_t measurement_id;
-    vec3 accelerometer = model->getAccelerometer(&measurement_id);
+    vec3 accelerometer = model->GetAccelerometer(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 9.81f, 0.f}), accelerometer, 0.001f);
 
-    vec3 gyro = model->getGyroscope(&measurement_id);
+    vec3 gyro = model->GetGyroscope(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 0.f, 0.f}), gyro, 0.001f);
 }
 
 TEST_F(PhysicalModelTest, ConstantMeasurementId) {
     model->SetCurrentTime(1000000000L);
     size_t measurement_id0;
-    model->getAccelerometer(&measurement_id0);
+    model->GetAccelerometer(&measurement_id0);
 
     model->SetCurrentTime(2000000000L);
 
     size_t measurement_id1;
-    model->getAccelerometer(&measurement_id1);
+    model->GetAccelerometer(&measurement_id1);
 
     EXPECT_EQ(measurement_id0, measurement_id1);
 }
@@ -70,7 +70,7 @@ TEST_F(PhysicalModelTest, ConstantMeasurementId) {
 TEST_F(PhysicalModelTest, NewMeasurementId) {
     model->SetCurrentTime(1000000000L);
     size_t measurement_id0;
-    model->getAccelerometer(&measurement_id0);
+    model->GetAccelerometer(&measurement_id0);
 
     model->SetCurrentTime(2000000000L);
 
@@ -78,39 +78,39 @@ TEST_F(PhysicalModelTest, NewMeasurementId) {
     targetPosition.x = 2.0f;
     targetPosition.y = 3.0f;
     targetPosition.z = 4.0f;
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
 
     size_t measurement_id1;
-    model->getAccelerometer(&measurement_id1);
+    model->GetAccelerometer(&measurement_id1);
 
     EXPECT_NE(measurement_id0, measurement_id1);
 }
 
 TEST_F(PhysicalModelTest, SetTargetPosition) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
     vec3 targetPosition;
     targetPosition.x = 2.0f;
     targetPosition.y = 3.0f;
     targetPosition.z = 4.0f;
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kStep);
 
     model->SetCurrentTime(500000000L);
 
-    vec3 currentPosition = model->getParameterPosition(ParameterValueType::kCurrent);
+    vec3 currentPosition = model->GetParameterPosition(ParameterValueType::kCurrent);
 
     EXPECT_VEC3_NEAR(targetPosition, currentPosition, 0.0001f);
 }
 
 TEST_F(PhysicalModelTest, SetTargetRotation) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
     vec3 targetRotation;
     targetRotation.x = 45.0f;
     targetRotation.y = 10.0f;
     targetRotation.z = 4.0f;
-    model->setTargetRotation(targetRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(targetRotation, PhysicalInterpolation::kStep);
 
     model->SetCurrentTime(500000000L);
-    vec3 currentRotation = model->getParameterRotation(ParameterValueType::kCurrent);
+    vec3 currentRotation = model->GetParameterRotation(ParameterValueType::kCurrent);
 
     EXPECT_VEC3_NEAR(targetRotation, currentRotation, 0.0001f);
 }
@@ -136,13 +136,12 @@ TEST_F(PhysicalModelTest, GravityAcceleration) {
         targetRotation.y = testCase.target_rotation.y;
         targetRotation.z = testCase.target_rotation.z;
 
-        model->setTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
+        model->SetTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
 
         model->SetCurrentTime(2000000000L);
-        ;
 
         size_t measurement_id;
-        vec3 accelerometer = model->getAccelerometer(&measurement_id);
+        vec3 accelerometer = model->GetAccelerometer(&measurement_id);
 
         EXPECT_VEC3_NEAR(testCase.expected_acceleration, accelerometer, 0.01f);
     }
@@ -156,15 +155,15 @@ TEST_F(PhysicalModelTest, GravityOnlyAcceleration) {
     targetPosition.y = 3.0f;
     targetPosition.z = 4.0f;
     // at 1 second we move the target to (2, 3, 4)
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
 
     model->SetCurrentTime(2000000000L);
     // at 2 seconds the target is still at (2, 3, 4);
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kStep);
 
     size_t measurement_id;
     // the acceleration is expected to be close to zero at this point.
-    vec3 currentAcceleration = model->getAccelerometer(&measurement_id);
+    vec3 currentAcceleration = model->GetAccelerometer(&measurement_id);
     EXPECT_VEC3_NEAR(kDefaultAccelerometer, currentAcceleration, 0.01f);
 }
 
@@ -175,19 +174,19 @@ TEST_F(PhysicalModelTest, NonInstantaneousRotation) {
     startRotation.x = 0.f;
     startRotation.y = 0.f;
     startRotation.z = 0.f;
-    model->setTargetRotation(startRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(startRotation, PhysicalInterpolation::kStep);
 
     model->SetCurrentTime(1000000000L);
     vec3 newRotation;
     newRotation.x = -0.5f;
     newRotation.y = 0.0f;
     newRotation.z = 0.0f;
-    model->setTargetRotation(newRotation, PhysicalInterpolation::kSmooth);
+    model->SetTargetRotation(newRotation, PhysicalInterpolation::kSmooth);
 
     model->SetCurrentTime(1000000000L + SecondsToNs(kMinStateChangeTimeSeconds / 2.f));
 
     size_t measurement_id;
-    vec3 currentGyro = model->getGyroscope(&measurement_id);
+    vec3 currentGyro = model->GetGyroscope(&measurement_id);
     EXPECT_LE(currentGyro.x, -0.01f);
     EXPECT_NEAR(currentGyro.y, 0.0, 0.000001f);
     EXPECT_NEAR(currentGyro.z, 0.0, 0.000001f);
@@ -200,17 +199,17 @@ TEST_F(PhysicalModelTest, InstantaneousRotation) {
     startRotation.x = 0.f;
     startRotation.y = 0.f;
     startRotation.z = 0.f;
-    model->setTargetRotation(startRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(startRotation, PhysicalInterpolation::kStep);
 
     model->SetCurrentTime(1000000000L);
     vec3 newRotation;
     newRotation.x = 180.0f;
     newRotation.y = 0.0f;
     newRotation.z = 0.0f;
-    model->setTargetRotation(newRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(newRotation, PhysicalInterpolation::kStep);
 
     size_t measurement_id;
-    vec3 currentGyro = model->getGyroscope(&measurement_id);
+    vec3 currentGyro = model->GetGyroscope(&measurement_id);
     EXPECT_VEC3_NEAR((vec3{0.f, 0.f, 0.f}), currentGyro, 0.000001f);
 }
 
@@ -218,16 +217,16 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
     model->SetCurrentTime(0L);
 
     size_t initial_measurement_id;
-    model->getAccelerometer(&initial_measurement_id);
+    model->GetAccelerometer(&initial_measurement_id);
 
     vec3 overrideValue;
     overrideValue.x = 1.f;
     overrideValue.y = 2.f;
     overrideValue.z = 3.f;
-    model->overrideAccelerometer(overrideValue);
+    model->OverrideAccelerometer(overrideValue);
 
     size_t override_measurement_id;
-    vec3 sensorOverriddenValue = model->getAccelerometer(&override_measurement_id);
+    vec3 sensorOverriddenValue = model->GetAccelerometer(&override_measurement_id);
     EXPECT_VEC3_NEAR(overrideValue, sensorOverriddenValue, 0.000001f);
 
     EXPECT_NE(initial_measurement_id, override_measurement_id);
@@ -236,10 +235,10 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
     targetPosition.x = 0.f;
     targetPosition.y = 0.f;
     targetPosition.z = 0.f;
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kStep);
 
     size_t physical_measurement_id;
-    vec3 sensorPhysicalValue = model->getAccelerometer(&physical_measurement_id);
+    vec3 sensorPhysicalValue = model->GetAccelerometer(&physical_measurement_id);
     EXPECT_VEC3_NEAR(kDefaultAccelerometer, sensorPhysicalValue, 0.000001f);
 
     EXPECT_NE(physical_measurement_id, override_measurement_id);
@@ -247,14 +246,14 @@ TEST_F(PhysicalModelTest, OverrideAccelerometer) {
 }
 
 TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
-    model->setTargetRotation(initialRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(initialRotation, PhysicalInterpolation::kStep);
 
     const vec3 initialPosition{2.0f, 3.0f, 4.0f};
-    model->setTargetPosition(initialPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(initialPosition, PhysicalInterpolation::kStep);
 
     const glm::quat quaternionRotation = glm::toQuat(
             glm::eulerAngleXYZ(glm::radians(initialRotation.x), glm::radians(initialRotation.y),
@@ -288,7 +287,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 
     model->SetCurrentTime(time);
     EXPECT_FALSE(physicalStateChanging);
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
     EXPECT_TRUE(targetStateChanged);
     EXPECT_TRUE(physicalStateChanging);
     targetStateChanged = false;
@@ -309,7 +308,7 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->SetCurrentTime(time);
         size_t measurementId;
-        const vec3 measuredAcceleration = model->getAccelerometer(&measurementId);
+        const vec3 measuredAcceleration = model->GetAccelerometer(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
         prevMeasurementId = measurementId;
         const glm::vec3 acceleration(measuredAcceleration.x, measuredAcceleration.y,
@@ -327,11 +326,11 @@ TEST_F(PhysicalModelTest, SetRotatedIMUResults) {
 }
 
 TEST_F(PhysicalModelTest, SetRotationIMUResults) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
 
     vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
-    model->setTargetRotation(initialRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(initialRotation, PhysicalInterpolation::kStep);
 
     uint64_t time = 0UL;
     const uint64_t stepNs = 5000UL;
@@ -358,7 +357,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
                 }
             });
 
-    model->setTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
+    model->SetTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
     EXPECT_TRUE(targetStateChanged);
     EXPECT_TRUE(physicalStateChanging);
     targetStateChanged = false;
@@ -373,7 +372,7 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->SetCurrentTime(time);
         size_t measurementId;
-        const vec3 measuredGyroscope = model->getGyroscope(&measurementId);
+        const vec3 measuredGyroscope = model->GetGyroscope(&measurementId);
         ASSERT_NE(prevMeasurementId, measurementId);
         prevMeasurementId = measurementId;
         const glm::vec3 deviceSpaceRotationalVelocity(measuredGyroscope.x, measuredGyroscope.y,
@@ -400,14 +399,14 @@ TEST_F(PhysicalModelTest, SetRotationIMUResults) {
 }
 
 TEST_F(PhysicalModelTest, MoveWhileRotating) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
-    model->setTargetRotation(initialRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(initialRotation, PhysicalInterpolation::kStep);
 
     const vec3 initialPosition{2.0f, 3.0f, 4.0f};
-    model->setTargetPosition(initialPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(initialPosition, PhysicalInterpolation::kStep);
 
     uint64_t time = 0UL;
     const uint64_t stepNs = 5000UL;
@@ -435,8 +434,8 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
                 }
             });
 
-    model->setTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
-    model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
+    model->SetTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
+    model->SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
     EXPECT_TRUE(targetStateChanged);
     EXPECT_TRUE(physicalStateChanging);
     targetStateChanged = false;
@@ -456,7 +455,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
         ASSERT_LT(time, maxConvergenceTimeNs) << "Physical state did not stabilize";
         model->SetCurrentTime(time);
         size_t gyroMeasurementId;
-        const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
+        const vec3 measuredGyroscope = model->GetGyroscope(&gyroMeasurementId);
         ASSERT_NE(prevGyroMeasurementId, gyroMeasurementId);
         prevGyroMeasurementId = gyroMeasurementId;
         const glm::vec3 deviceSpaceRotationalVelocity(measuredGyroscope.x, measuredGyroscope.y,
@@ -469,7 +468,7 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
         rotation = glm::quat_cast(deltaRotationMatrix) * rotation;
 
         size_t accelMeasurementId;
-        const vec3 measuredAcceleration = model->getAccelerometer(&accelMeasurementId);
+        const vec3 measuredAcceleration = model->GetAccelerometer(&accelMeasurementId);
         EXPECT_NE(prevAccelMeasurementId, accelMeasurementId);
         prevAccelMeasurementId = accelMeasurementId;
         const glm::vec3 acceleration(measuredAcceleration.x, measuredAcceleration.y,
@@ -497,14 +496,14 @@ TEST_F(PhysicalModelTest, MoveWhileRotating) {
 }
 
 TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
-    model->SetCurrentTime(0UL);
+    model->SetCurrentTime(0L);
 
     const vec3 initialRotation{45.0f, 10.0f, 4.0f};
 
-    model->setTargetRotation(initialRotation, PhysicalInterpolation::kStep);
+    model->SetTargetRotation(initialRotation, PhysicalInterpolation::kStep);
 
     const vec3 initialPosition{2.0f, 3.0f, 4.0f};
-    model->setTargetPosition(initialPosition, PhysicalInterpolation::kStep);
+    model->SetTargetPosition(initialPosition, PhysicalInterpolation::kStep);
 
     vec3 intermediateVelocity{1.0f, 1.0f, 1.0f};
 
@@ -536,8 +535,8 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
                 }
             });
 
-    model->setTargetRotation(intermediateRotation, PhysicalInterpolation::kSmooth);
-    model->setTargetVelocity(intermediateVelocity, PhysicalInterpolation::kSmooth);
+    model->SetTargetRotation(intermediateRotation, PhysicalInterpolation::kSmooth);
+    model->SetTargetVelocity(intermediateVelocity, PhysicalInterpolation::kSmooth);
     EXPECT_TRUE(targetStateChanged);
     EXPECT_TRUE(physicalStateChanging);
     targetStateChanged = false;
@@ -561,14 +560,14 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
             stepsRemainingAfterStable--;
         }
         if (time < 500000000 && time + stepNs >= 500000000) {
-            model->setTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
-            model->setTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
+            model->SetTargetRotation(targetRotation, PhysicalInterpolation::kSmooth);
+            model->SetTargetPosition(targetPosition, PhysicalInterpolation::kSmooth);
             EXPECT_TRUE(targetStateChanged);
             targetStateChanged = false;
         }
         model->SetCurrentTime(time);
         size_t gyroMeasurementId;
-        const vec3 measuredGyroscope = model->getGyroscope(&gyroMeasurementId);
+        const vec3 measuredGyroscope = model->GetGyroscope(&gyroMeasurementId);
         if (physicalStateChanging) {
             ASSERT_NE(prevGyroMeasurementId, gyroMeasurementId);
         }
@@ -583,7 +582,7 @@ TEST_F(PhysicalModelTest, SetVelocityAndPositionWhileRotating) {
         rotation = glm::quat_cast(deltaRotationMatrix) * rotation;
 
         size_t accelMeasurementId;
-        const vec3 measuredAcceleration = model->getAccelerometer(&accelMeasurementId);
+        const vec3 measuredAcceleration = model->GetAccelerometer(&accelMeasurementId);
         if (physicalStateChanging) {
             ASSERT_NE(prevAccelMeasurementId, accelMeasurementId);
         }

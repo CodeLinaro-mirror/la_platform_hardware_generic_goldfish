@@ -14,6 +14,7 @@
 #pragma once
 
 #include <atomic>
+#include <variant>
 #include <vector>
 
 #include "goldfish/async/event_loop.h"
@@ -99,6 +100,16 @@ class IMultiDisplay : public LoopBoundCallbackSource<DisplayEvent> {
      * @return Raw IDisplay* pointer if the display with the given ID is found, nullptr otherwise.
      */
     virtual absl::StatusOr<DisplayPtr> GetDisplay(DisplayId display_id) const = 0;
+
+    /**
+     * @brief Gets an active IDisplay object, potentially redirecting from display 0 to 1
+     *        if the device is a foldable and display 0 is inactive.
+     *
+     * @param display_id The unique identifier of the display to retrieve.
+     * @param has_hinge True if the hardware supports a hinge (foldable).
+     * @return absl::StatusOr<SharedDisplay> containing the display if found and active.
+     */
+    absl::StatusOr<SharedDisplay> GetActiveDisplay(DisplayId display_id, bool has_hinge) const;
 
     /**
      * @brief Erases an IDisplay object from the managed collection and destroys it.

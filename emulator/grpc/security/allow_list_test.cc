@@ -142,6 +142,7 @@ TEST(AllowListTest, can_parse_default_list) {
         "/android.emulation.control.EmulatorController/getClipboard",
         "/android.emulation.control.EmulatorController/"
         "getDisplayConfigurations",
+        "/android.emulation.control.EmulatorController/getDisplayMode",
         "/android.emulation.control.EmulatorController/getPhysicalModel",
         "/android.emulation.control.EmulatorController/getScreenshot",
         "/android.emulation.control.EmulatorController/getStatus",

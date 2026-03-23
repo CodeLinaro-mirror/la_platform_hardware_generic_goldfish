@@ -17,21 +17,27 @@
 #include <assert.h>
 #include <stddef.h>
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 #include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 
-#include "android/status/status_macros.h"
-#include "goldfish/file/file.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "android/status/status_macros.h"
 #include "emulator/launcher/bootconfig.h"
 #include "goldfish/adb/adbkey.h"
+#include "goldfish/file/file.h"
+#include "goldfish/sensors/foldable_model.h"
 
 namespace android::goldfish {
 namespace {
@@ -276,6 +282,20 @@ std::vector<std::pair<std::string, std::string>> getUserspaceBootProperties(
 
     if (hw.hw_lcd_circular) {
         params.push_back({emulatorCircularProp, "1"});
+    }
+
+    auto resizable_configs =
+            ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+    if (!resizable_configs.empty()) {
+        std::vector<std::string> display_configs;
+        for (const auto& rc : resizable_configs) {
+            display_configs.push_back(
+                    absl::StrFormat("%d:%d:%d:%d:%d", rc.id, rc.width, rc.height, rc.dpi, rc.dpi));
+        }
+        if (!display_configs.empty()) {
+            std::string value = absl::StrJoin(display_configs, ";");
+            params.push_back({qemuDisplayConfigs0, value});
+        }
     }
 
     return params;

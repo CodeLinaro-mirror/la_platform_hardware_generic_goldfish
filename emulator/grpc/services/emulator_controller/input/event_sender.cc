@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 
 #include "android/status/status_macros.h"
+#include "goldfish/avd_info/avd_info.h"
 
 namespace android::emulation::control {
 
@@ -24,15 +25,8 @@ namespace {
 template <class T>
 absl::StatusOr<std::shared_ptr<IDisplay>> TryLockDisplay(IMultiDisplay& multidisplay,
                                                          const T& event) {
-    auto screen = multidisplay.GetDisplay(event.display());
-    if (!screen.ok()) {
-        return absl::InvalidArgumentError(absl::StrFormat("Invalid display: %d", event.display()));
-    }
-    auto display = screen->lock();
-    if (!display) {
-        return absl::InvalidArgumentError(absl::StrFormat("Invalid display: %d", event.display()));
-    }
-    return display;
+    const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+    return multidisplay.GetActiveDisplay(event.display(), hw.hw_sensor_hinge);
 }
 
 }  // namespace
@@ -45,7 +39,6 @@ absl::Status InputEventSender::Send(const AndroidEvent& event) const {
 
 absl::Status InputEventSender::Send(const MouseEvent& event) const {
     ASSIGN_OR_RETURN(auto display, TryLockDisplay(*multi_display_, event));
-
     display->SendMouseEvent(event.x(), event.y(), event.buttons());
     return absl::OkStatus();
 }

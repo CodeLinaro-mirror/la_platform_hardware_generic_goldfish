@@ -159,6 +159,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":device",
+        "//emulator/libs/sensors:physical_model",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],
@@ -203,6 +204,7 @@ cc_library(
         ":disk_drive",
         "//emulator/adb/secrets",
         "//emulator/launcher:bootconfig",
+        "//emulator/libs/sensors:physical_model",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ],

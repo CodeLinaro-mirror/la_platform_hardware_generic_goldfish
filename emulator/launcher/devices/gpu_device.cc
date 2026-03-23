@@ -19,9 +19,11 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
+#include "goldfish/sensors/foldable_model.h"
 
 namespace android::goldfish {
 
@@ -64,8 +66,15 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", renderer_features));
-    params.push_back(absl::StrCat("xres=", hw.hw_lcd_width));
-    params.push_back(absl::StrCat("yres=", hw.hw_lcd_height));
+    auto resizable_configs =
+            ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
+    if (!resizable_configs.empty()) {
+        params.push_back(absl::StrCat("xres=", resizable_configs[0].width));
+        params.push_back(absl::StrCat("yres=", resizable_configs[0].height));
+    } else {
+        params.push_back(absl::StrCat("xres=", hw.hw_lcd_width));
+        params.push_back(absl::StrCat("yres=", hw.hw_lcd_height));
+    }
 
     return {"-device", absl::StrJoin(params, ",")};
 }

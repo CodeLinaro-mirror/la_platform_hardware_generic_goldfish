@@ -49,7 +49,7 @@ static void android_display_init(struct DisplayState* ds, struct DisplayOptions*
         dcl->con = con;
         dcl->ops = &k_dcl_ops;
 
-        grpc_dpy_gfx_update_ui_info(con);
+        grpc_dpy_gfx_update_ui_info(con, 0, 0);
 
         register_displaychangelistener(dcl);
     }

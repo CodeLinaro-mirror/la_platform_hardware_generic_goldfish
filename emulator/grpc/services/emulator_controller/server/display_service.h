@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/synchronization/mutex.h"
 
 #include "emulator_controller.grpc.pb.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
@@ -50,6 +51,11 @@ class DisplayServiceImpl : public EmulatorController::Service {
                                     DisplayConfigurations* reply) override;
     Status setDisplayConfigurations(ServerContext* context, const DisplayConfigurations* request,
                                     DisplayConfigurations* reply) override;
+
+    Status getDisplayMode(ServerContext* context, const Empty* request,
+                          DisplayMode* reply) override;
+    Status setDisplayMode(ServerContext* context, const DisplayMode* request,
+                          Empty* reply) override;
 
     static Posture::PostureValue ToProtoPosture(::goldfish::sensors::FoldablePostures posture);
 
@@ -85,15 +91,15 @@ class DisplayServiceImpl : public EmulatorController::Service {
     Status getScreenshot(ServerContext* context, const ImageFormat* request, Image* reply,
                          MemoryAllocator& allocator);
 
-    Status getActiveDisplay(uint32_t displayId,
-                            std::shared_ptr<::goldfish::display::IDisplay>& display);
-
     void fireDisplayConfigurationsChanged();
 
     ::goldfish::display::IMultiDisplay& mMultiDisplay;
     ::goldfish::sensors::PhysicalModel& mPhysicalModel;
 
     ::goldfish::sensors::FoldableModel::ObservablePosture::ScopedCallbackHandle mPostureSubscription;
+    DisplayModeValue mCurrentDisplayMode{PHONE};
+    mutable absl::Mutex mIsClosedMutex;
+    bool mIsClosed ABSL_GUARDED_BY(mIsClosedMutex){false};
 };
 
 }  // namespace control

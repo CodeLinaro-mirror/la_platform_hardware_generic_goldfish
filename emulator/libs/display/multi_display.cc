@@ -22,6 +22,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 
@@ -54,6 +55,31 @@ using QemuDisplayMap = std::unordered_map<unsigned, SharedDisplayImpl>;
 using SharedVirtualDisplayImpl = std::shared_ptr<VirtualDisplay>;
 using WeakVirtualDisplayImpl = std::weak_ptr<VirtualDisplay>;
 using VirtualDisplayMap = std::unordered_map<unsigned, SharedVirtualDisplayImpl>;
+
+absl::StatusOr<SharedDisplay> IMultiDisplay::GetActiveDisplay(DisplayId display_id,
+                                                              bool has_hinge) const {
+    auto screen = GetDisplay(display_id);
+    if (!screen.ok()) {
+        return screen.status();
+    }
+    auto display = screen->lock();
+    if (!display) {
+        return absl::UnavailableError("Display is no longer active.");
+    }
+
+    if (!display->Active() && display_id == 0 && has_hinge) {
+        screen = GetDisplay(1);
+        if (screen.ok()) {
+            display = screen->lock();
+        }
+    }
+
+    if (!display) {
+        return absl::UnavailableError("Display is no longer active.");
+    }
+
+    return display;
+}
 
 class MultiDisplayImpl : public IMultiDisplay {
   public:
@@ -208,14 +234,16 @@ extern "C" void grpc_dpy_gfx_update(struct DisplayChangeListener* dcl, int x, in
         auto dims = display->GetDimensions();
 
         if (std::cmp_not_equal(w, dims.width) || std::cmp_not_equal(h, dims.height)) {
-            return;
+            if (index) {
+                return;
+            }
         }
 
         display->UpdateSurface(x, y, w, h);
     }
 }
 
-extern "C" void grpc_dpy_gfz_refresh(DisplayChangeListener* dcl) {
+extern "C" void grpc_dpy_gfx_refresh(DisplayChangeListener* dcl) {
     // TODO(jansene): Qemu uses this to synchronize the clipboard.
 }
 
@@ -252,7 +280,9 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
             auto dims = display->GetDimensions();
             if (std::cmp_not_equal(surface_width(new_surface), dims.width) ||
                 std::cmp_not_equal(surface_height(new_surface), dims.height)) {
-                return;
+                if (index) {
+                    return;
+                }
             }
             display->SetOwnedSurface(nullptr);
         }
@@ -260,17 +290,25 @@ extern "C" void grpc_dpy_gfx_switch(struct DisplayChangeListener* dcl,
     }
 }
 
-extern "C" void grpc_dpy_gfx_update_ui_info(QemuConsole* con) {
+extern "C" void grpc_dpy_gfx_update_ui_info(QemuConsole* con, int w, int h) {
+    QemuUIInfo info = {
+        .width = static_cast<uint32_t>(w),
+        .height = static_cast<uint32_t>(h),
+    };
+
     auto index = qemu_console_get_index(con);
-    if (index == 1) {
-        const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-        if (hw.hw_sensor_hinge) {
-            QemuUIInfo info = {
-                .width = static_cast<uint32_t>(hw.hw_displayRegion_0_1_width),
-                .height = static_cast<uint32_t>(hw.hw_displayRegion_0_1_height),
-            };
-            dpy_set_ui_info(con, &info, false);
+    if (w == 0 || h == 0) {
+        if (index == 1) {
+            const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
+            if (hw.hw_sensor_hinge) {
+                info.width = static_cast<uint32_t>(hw.hw_displayRegion_0_1_width);
+                info.height = static_cast<uint32_t>(hw.hw_displayRegion_0_1_height);
+            }
         }
+    }
+
+    if (info.width != 0 && info.height != 0) {
+        dpy_set_ui_info(con, &info, false);
     }
 }
 

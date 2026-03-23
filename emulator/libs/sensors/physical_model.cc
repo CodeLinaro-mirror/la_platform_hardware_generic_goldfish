@@ -16,6 +16,11 @@
 
 #include "goldfish/sensors/physical_model.h"
 
+#include <array>
+#include <cassert>
+#include <cmath>
+#include <vector>
+
 #include "absl/log/log.h"
 
 #include "android/goldfish/hardware_config.h"
@@ -31,33 +36,33 @@ using goldfish::physics::InertialState;
 
 namespace goldfish::sensors {
 namespace {
-void getValues(const vec3& value, float* out, const size_t count) {
+void GetValues(const vec3& value, float* out, const size_t count) {
     if (count > 0) out[0] = value.x;
     if (count > 1) out[1] = value.y;
     if (count > 2) out[2] = value.z;
 }
 
-void getValues(const vec4& value, float* out, const size_t count) {
+void GetValues(const vec4& value, float* out, const size_t count) {
     if (count > 0) out[0] = value.x;
     if (count > 1) out[1] = value.y;
     if (count > 2) out[2] = value.z;
     if (count > 3) out[3] = value.w;
 }
 
-void getValues(const float value, float* out, const size_t count) {
+void GetValues(const float value, float* out, const size_t count) {
     if (count > 0) out[0] = value;
 }
 
-vec3 getvec3Value(const float* val, const size_t count) {
+vec3 Getvec3Value(const float* val, const size_t count) {
     return vec3{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0};
 }
 
-vec4 getvec4Value(const float* val, const size_t count) {
+vec4 Getvec4Value(const float* val, const size_t count) {
     return vec4{count > 0 ? val[0] : 0, count > 1 ? val[1] : 0, count > 2 ? val[2] : 0,
                 count > 3 ? val[3] : 0};
 }
 
-float getfloatValue(const float* val, const size_t count) {
+float GetfloatValue(const float* val, const size_t count) {
     return count > 0 ? val[0] : 0;
 }
 }  // namespace
@@ -74,7 +79,12 @@ bool PhysicalModel::FoldableIsFolded() const {
 
 bool PhysicalModel::GetFoldedArea(int* x, int* y, int* w, int* h) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return FoldableModel::GetFoldedArea(x, y, w, h);
+    return foldable_model_.GetFoldedArea(x, y, w, h);
+}
+
+const std::vector<FoldableModel::ResizableConfig>& PhysicalModel::GetResizableConfigs() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return foldable_model_.GetResizableConfigs();
 }
 
 PhysicalModel::PhysicalModel(const android::goldfish::HardwareConfig& hw) : foldable_model_(hw) {}
@@ -118,7 +128,7 @@ void PhysicalModel::GetPhysicalParameterValue(const PhysicalParameter parameter,
                                               const ParameterValueType parameter_value_type) const {
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W)                   \
     case PhysicalParameter::X:                                        \
-        getValues(getParameter##Z(parameter_value_type), out, count); \
+        GetValues(GetParameter##Z(parameter_value_type), out, count); \
         return;
 
     switch (parameter) {
@@ -158,7 +168,7 @@ size_t PhysicalModel::GetSensorDataImpl(const AndroidSensor sensor_id, float* ou
                                         const size_t count) const {
 #define GOLDFISH_SENSOR_DEF(X, Y, Z, V, W)              \
     case AndroidSensor::X:                              \
-        getValues(get##Z(&measurement_id), out, count); \
+        GetValues(Get##Z(&measurement_id), out, count); \
         return measurement_id;
 
     size_t measurement_id = 0;
@@ -177,7 +187,7 @@ void PhysicalModel::SetSensorValueImpl(AndroidSensor sensor_id, const float* val
                                        const size_t count) {
 #define GOLDFISH_SENSOR_DEF(X, Y, Z, V, W)      \
     case AndroidSensor::X:                      \
-        override##Z(get##V##Value(val, count)); \
+        Override##Z(Get##V##Value(val, count)); \
         return;
 
     switch (sensor_id) {
@@ -196,7 +206,7 @@ void PhysicalModel::SetPhysicalParameterValue(const PhysicalParameter parameter,
                                               const PhysicalInterpolation interpolation_mode) {
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(X, Y, Z, W)                  \
     case PhysicalParameter::X:                                       \
-        setTarget##Z(get##W##Value(val, count), interpolation_mode); \
+        SetTarget##Z(Get##W##Value(val, count), interpolation_mode); \
         return;
 
     switch (parameter) {
@@ -239,7 +249,7 @@ void PhysicalModel::SetGravity(float x, float y, float z) {
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalPosition(vec3 position, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -248,7 +258,7 @@ void PhysicalModel::setTargetInternalPosition(vec3 position, PhysicalInterpolati
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalVelocity(vec3 velocity, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalVelocity(vec3 velocity, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -257,7 +267,7 @@ void PhysicalModel::setTargetInternalVelocity(vec3 velocity, PhysicalInterpolati
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalAmbientMotion(float bounds, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalAmbientMotion(float bounds, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -266,7 +276,7 @@ void PhysicalModel::setTargetInternalAmbientMotion(float bounds, PhysicalInterpo
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalRotation(vec3 rotation, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRotation(vec3 rotation, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -275,7 +285,7 @@ void PhysicalModel::setTargetInternalRotation(vec3 rotation, PhysicalInterpolati
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalMagneticField(vec3 field, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalMagneticField(vec3 field, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -284,7 +294,7 @@ void PhysicalModel::setTargetInternalMagneticField(vec3 field, PhysicalInterpola
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalTemperature(float celsius, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalTemperature(float celsius, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -293,7 +303,7 @@ void PhysicalModel::setTargetInternalTemperature(float celsius, PhysicalInterpol
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalProximity(float centimeters, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalProximity(float centimeters, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -302,7 +312,7 @@ void PhysicalModel::setTargetInternalProximity(float centimeters, PhysicalInterp
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalLight(float lux, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalLight(float lux, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -311,7 +321,7 @@ void PhysicalModel::setTargetInternalLight(float lux, PhysicalInterpolation mode
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalPressure(float h_pa, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalPressure(float h_pa, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -320,7 +330,7 @@ void PhysicalModel::setTargetInternalPressure(float h_pa, PhysicalInterpolation 
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalHumidity(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalHumidity(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -329,7 +339,7 @@ void PhysicalModel::setTargetInternalHumidity(float percentage, PhysicalInterpol
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalHingeAngle0(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -338,7 +348,7 @@ void PhysicalModel::setTargetInternalHingeAngle0(float degrees, PhysicalInterpol
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalHingeAngle1(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -347,7 +357,7 @@ void PhysicalModel::setTargetInternalHingeAngle1(float degrees, PhysicalInterpol
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalHingeAngle2(float degrees, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -356,7 +366,7 @@ void PhysicalModel::setTargetInternalHingeAngle2(float degrees, PhysicalInterpol
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalPosture(float posture, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalPosture(float posture, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -365,7 +375,7 @@ void PhysicalModel::setTargetInternalPosture(float posture, PhysicalInterpolatio
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRollable0(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -374,7 +384,7 @@ void PhysicalModel::setTargetInternalRollable0(float percentage, PhysicalInterpo
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalRollable1(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRollable1(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -383,7 +393,7 @@ void PhysicalModel::setTargetInternalRollable1(float percentage, PhysicalInterpo
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalRollable2(float percentage, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRollable2(float percentage, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -392,7 +402,7 @@ void PhysicalModel::setTargetInternalRollable2(float percentage, PhysicalInterpo
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalHeartRate(float bpm, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalHeartRate(float bpm, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -401,7 +411,7 @@ void PhysicalModel::setTargetInternalHeartRate(float bpm, PhysicalInterpolation 
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalRgbcLight(vec4 light, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalRgbcLight(vec4 light, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -410,7 +420,7 @@ void PhysicalModel::setTargetInternalRgbcLight(vec4 light, PhysicalInterpolation
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalWristTilt(float value, PhysicalInterpolation mode) {
+void PhysicalModel::SetTargetInternalWristTilt(float value, PhysicalInterpolation mode) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -419,7 +429,7 @@ void PhysicalModel::setTargetInternalWristTilt(float value, PhysicalInterpolatio
     TargetStateChanged();
 }
 
-void PhysicalModel::setTargetInternalAccelerometerUncalibrated(vec3, PhysicalInterpolation) {
+void PhysicalModel::SetTargetInternalAccelerometerUncalibrated(vec3, PhysicalInterpolation) {
     PhysicalStateChanging();
     {
         const std::lock_guard<std::recursive_mutex> lock(mutex_);
@@ -428,108 +438,108 @@ void PhysicalModel::setTargetInternalAccelerometerUncalibrated(vec3, PhysicalInt
     TargetStateChanged();
 }
 
-vec3 PhysicalModel::getParameterAccelerometerUncalibrated(ParameterValueType) const {
+vec3 PhysicalModel::GetParameterAccelerometerUncalibrated(ParameterValueType) const {
     return inertial_model_.GetAcceleration();
 }
 
-vec3 PhysicalModel::getParameterPosition(ParameterValueType parameter_value_type) const {
+vec3 PhysicalModel::GetParameterPosition(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return inertial_model_.GetPosition(parameter_value_type);
 }
 
-vec3 PhysicalModel::getParameterVelocity(ParameterValueType parameter_value_type) const {
+vec3 PhysicalModel::GetParameterVelocity(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return inertial_model_.GetVelocity(parameter_value_type);
 }
 
-float PhysicalModel::getParameterAmbientMotion(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterAmbientMotion(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return inertial_model_.GetAmbientMotion(parameter_value_type);
 }
 
-vec3 PhysicalModel::getParameterRotation(ParameterValueType parameter_value_type) const {
+vec3 PhysicalModel::GetParameterRotation(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const glm::vec3 rotation_radians =
             ToEulerAnglesXyz(inertial_model_.GetRotation(parameter_value_type));
     return glm::degrees(rotation_radians);
 }
 
-vec3 PhysicalModel::getParameterMagneticField(ParameterValueType parameter_value_type) const {
+vec3 PhysicalModel::GetParameterMagneticField(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetMagneticField(parameter_value_type);
 }
 
-float PhysicalModel::getParameterTemperature(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterTemperature(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetTemperature(parameter_value_type);
 }
 
-float PhysicalModel::getParameterProximity(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterProximity(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetProximity(parameter_value_type);
 }
 
-float PhysicalModel::getParameterLight(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterLight(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetLight(parameter_value_type);
 }
 
-float PhysicalModel::getParameterPressure(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterPressure(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetPressure(parameter_value_type);
 }
 
-float PhysicalModel::getParameterHumidity(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterHumidity(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetHumidity(parameter_value_type);
 }
 
-float PhysicalModel::getParameterHingeAngle0(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterHingeAngle0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetHingeAngle(0, parameter_value_type);
 }
 
-float PhysicalModel::getParameterHingeAngle1(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterHingeAngle1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetHingeAngle(1, parameter_value_type);
 }
 
-float PhysicalModel::getParameterHingeAngle2(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterHingeAngle2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetHingeAngle(2, parameter_value_type);
 }
 
-float PhysicalModel::getParameterPosture(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterPosture(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetPosture(parameter_value_type);
 }
 
-float PhysicalModel::getParameterRollable0(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterRollable0(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetRollable(0, parameter_value_type);
 }
 
-float PhysicalModel::getParameterRollable1(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterRollable1(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetRollable(1, parameter_value_type);
 }
 
-float PhysicalModel::getParameterRollable2(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterRollable2(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return foldable_model_.GetRollable(2, parameter_value_type);
 }
 
-float PhysicalModel::getParameterHeartRate(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterHeartRate(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return body_model_.GetHeartRate(parameter_value_type);
 }
 
-vec4 PhysicalModel::getParameterRgbcLight(ParameterValueType parameter_value_type) const {
+vec4 PhysicalModel::GetParameterRgbcLight(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return ambient_environment_.GetRgbcLight(parameter_value_type);
 }
 
-float PhysicalModel::getParameterWristTilt(ParameterValueType parameter_value_type) const {
+float PhysicalModel::GetParameterWristTilt(ParameterValueType parameter_value_type) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return inertial_model_.GetWristTilt(parameter_value_type);
 }
@@ -551,11 +561,11 @@ T PhysicalModel::GetSensorValue(const AndroidSensor sensor, const T* override_me
     return physical_getter();
 }
 
-#define GET_FUNCTION_NAME(x) get##x
-#define OVERRIDE_FUNCTION_NAME(x) override##x
+#define GET_FUNCTION_NAME(x) Get##x
+#define OVERRIDE_FUNCTION_NAME(x) Override##x
 #define OVERRIDE_NAME(x) m##x##Override
 #define SENSOR_NAME(x) AndroidSensor::x
-#define PHYSICAL_NAME(x) getPhysical##x
+#define PHYSICAL_NAME(x) GetPhysical##x
 
 // Implement sensor overrides.
 #define GOLDFISH_SENSOR_DEF(x, y, z, v, w)                              \
@@ -583,7 +593,7 @@ GOLDFISH_SENSORS_LIST
 #undef OVERRIDE_FUNCTION_NAME
 #undef GET_FUNCTION_NAME
 
-vec3 PhysicalModel::getPhysicalAccelerometer() const {
+vec3 PhysicalModel::GetPhysicalAccelerometer() const {
     // Implementation Note:
     // Gravity and magnetic vectors as observed by the device.
     // Note how we're applying the *inverse* of the transformation
@@ -593,54 +603,54 @@ vec3 PhysicalModel::getPhysicalAccelerometer() const {
            (inertial_model_.GetAcceleration() - ambient_environment_.GetGravity());
 }
 
-vec3 PhysicalModel::getPhysicalAccelerometerUncalibrated() const {
+vec3 PhysicalModel::GetPhysicalAccelerometerUncalibrated() const {
     // Same values for the calibrated and uncalibrated accelerometer
     // Bias will be added to the values on the guest side.
-    return getPhysicalAccelerometer();
+    return GetPhysicalAccelerometer();
 }
 
-vec3 PhysicalModel::getPhysicalGyroscope() const {
+vec3 PhysicalModel::GetPhysicalGyroscope() const {
     return glm::conjugate(inertial_model_.GetRotation()) * inertial_model_.GetRotationalVelocity();
 }
 
-vec3 PhysicalModel::getPhysicalMagnetometer() const {
+vec3 PhysicalModel::GetPhysicalMagnetometer() const {
     return glm::conjugate(inertial_model_.GetRotation()) * ambient_environment_.GetMagneticField();
 }
 
 /* (x, y, z) == (azimuth, pitch, roll) */
-vec3 PhysicalModel::getPhysicalOrientation() const {
+vec3 PhysicalModel::GetPhysicalOrientation() const {
     return ToEulerAnglesXyz(inertial_model_.GetRotation());
 }
 
-float PhysicalModel::getPhysicalTemperature() const {
+float PhysicalModel::GetPhysicalTemperature() const {
     return ambient_environment_.GetTemperature();
 }
 
-float PhysicalModel::getPhysicalProximity() const {
+float PhysicalModel::GetPhysicalProximity() const {
     return ambient_environment_.GetProximity();
 }
 
-float PhysicalModel::getPhysicalLight() const {
+float PhysicalModel::GetPhysicalLight() const {
     return ambient_environment_.GetLight();
 }
 
-float PhysicalModel::getPhysicalPressure() const {
+float PhysicalModel::GetPhysicalPressure() const {
     return ambient_environment_.GetPressure();
 }
 
-float PhysicalModel::getPhysicalHumidity() const {
+float PhysicalModel::GetPhysicalHumidity() const {
     return ambient_environment_.GetHumidity();
 }
 
-vec3 PhysicalModel::getPhysicalMagnetometerUncalibrated() const {
+vec3 PhysicalModel::GetPhysicalMagnetometerUncalibrated() const {
     return glm::conjugate(inertial_model_.GetRotation()) * ambient_environment_.GetMagneticField();
 }
 
-vec3 PhysicalModel::getPhysicalGyroscopeUncalibrated() const {
+vec3 PhysicalModel::GetPhysicalGyroscopeUncalibrated() const {
     return glm::conjugate(inertial_model_.GetRotation()) * inertial_model_.GetRotationalVelocity();
 }
 
-vec4 PhysicalModel::getPhysicalRgbcLight() const {
+vec4 PhysicalModel::GetPhysicalRgbcLight() const {
     return ambient_environment_.GetRgbcLight();
 }
 
@@ -650,11 +660,11 @@ void PhysicalModel::GetTransform(float* out_translation_x, float* out_translatio
                                  int64_t* out_timestamp) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    const vec3 position = getParameterPosition(ParameterValueType::kCurrent);
+    const vec3 position = GetParameterPosition(ParameterValueType::kCurrent);
     *out_translation_x = position.x;
     *out_translation_y = position.y;
     *out_translation_z = position.z;
-    const vec3 rotation = getParameterRotation(ParameterValueType::kCurrent);
+    const vec3 rotation = GetParameterRotation(ParameterValueType::kCurrent);
     *out_rotation_x = rotation.x;
     *out_rotation_y = rotation.y;
     *out_rotation_z = rotation.z;
@@ -665,7 +675,7 @@ Rotation PhysicalModel::GetDeviceRotation() const {
     using physics::SkinRotation;
 
     size_t measurement_id;
-    const vec3 device_accelerometer = getAccelerometer(&measurement_id);
+    const vec3 device_accelerometer = GetAccelerometer(&measurement_id);
     const glm::vec3 normalized_accelerometer = glm::normalize(device_accelerometer);
 
     static const std::array<std::pair<glm::vec3, SkinRotation>, 4> kDirections{
@@ -690,28 +700,28 @@ Rotation PhysicalModel::GetDeviceRotation() const {
     };
 }
 
-float PhysicalModel::getPhysicalHingeAngle0() const {
+float PhysicalModel::GetPhysicalHingeAngle0() const {
     return foldable_model_.GetHingeAngle(0);
 }
 
-float PhysicalModel::getPhysicalHingeAngle1() const {
+float PhysicalModel::GetPhysicalHingeAngle1() const {
     return foldable_model_.GetHingeAngle(1);
 }
 
-float PhysicalModel::getPhysicalHingeAngle2() const {
+float PhysicalModel::GetPhysicalHingeAngle2() const {
     return foldable_model_.GetHingeAngle(2);
 }
 
-float PhysicalModel::getPhysicalHeartRate() const {
+float PhysicalModel::GetPhysicalHeartRate() const {
     return body_model_.GetHeartRate();
 }
 
-float PhysicalModel::getPhysicalWristTilt() const {
+float PhysicalModel::GetPhysicalWristTilt() const {
     return inertial_model_.GetWristTilt();
 }
 
-#define SET_TARGET_FUNCTION_NAME(x) setTarget##x
-#define SET_TARGET_INTERNAL_FUNCTION_NAME(x) setTargetInternal##x
+#define SET_TARGET_FUNCTION_NAME(x) SetTarget##x
+#define SET_TARGET_INTERNAL_FUNCTION_NAME(x) SetTargetInternal##x
 #define PHYSICAL_PARAMETER_ENUM(x) PHYSICAL_PARAMETER_##x
 #define GOLDFISH_PHYSICAL_PARAMETER_DEF(x, y, z, w)                                        \
     void PhysicalModel::SET_TARGET_FUNCTION_NAME(z)(w value, PhysicalInterpolation mode) { \
