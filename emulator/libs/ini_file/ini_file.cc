@@ -24,18 +24,15 @@
 #include <utility>
 
 #include "absl/log/log.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/numbers.h"
 
-#include "goldfish/file/file.h"
 #include "android/base/system.h"
+#include "goldfish/file/file.h"
 
 namespace android::goldfish {
 
 namespace fs = std::filesystem;
-
-using std::ifstream;
-using std::ios_base;
-using std::string;
-using std::to_string;
 
 IniFile::IniFile(const char* data, int size) {
     ReadFromMemory(std::string_view(data, size));
@@ -79,7 +76,7 @@ CIterator Eat(CIterator citer, CIterator cend, Pred pred) {
 }  // namespace
 
 void IniFile::ParseStream(std::istream* in, bool keep_comments) {
-    string line;
+    std::string line;
     int lineno = 0;
     // This is the line number we'd print at if the IniFile were immediately
     // written back. Unlike |line|, this will not be incremented for invalid
@@ -89,7 +86,7 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
         ++lineno;
         ++output_lineno;
 
-        const string& cline = line;
+        const std::string& cline = line;
         auto citer = std::begin(cline);
         auto cend = std::end(cline);
         citer = Eat(citer, cend, IsSpaceChar);
@@ -120,7 +117,7 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
         }
         ++citer;
         citer = Eat(citer, cend, IsKeyChar);
-        auto key = string(key_start_iter, citer);
+        auto key = std::string(key_start_iter, citer);
 
         // Gobble the = sign.
         citer = Eat(citer, cend, IsSpaceChar);
@@ -136,7 +133,7 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
         citer = Eat(citer, cend, IsSpaceChar);
         const auto value_start_iter = citer;
         citer = Eat(citer, cend, IsValueChar);
-        auto value = string(value_start_iter, citer);
+        auto value = std::string(value_start_iter, citer);
         // Remove trailing space.
         auto trailing_space_iter = Eat(value.rbegin(), value.rend(), IsSpaceChar);
         value.erase(trailing_space_iter.base(), value.end());
@@ -150,19 +147,12 @@ void IniFile::ParseStream(std::istream* in, bool keep_comments) {
             continue;
         }
 
-        // Everything parsed.
-        auto insert_res = data_.emplace(std::move(key), std::string());
-        insert_res.first->second = std::move(value);
-        if (insert_res.second) {
-            order_list_.push_back(&*insert_res.first);
-        }
+        UpdateData(std::move(key), std::move(value));
     }
 }
 
 bool IniFile::Read(bool keep_comments) {
-    dirty_ = false;
     data_.clear();
-    order_list_.clear();
     comments_.clear();
 
     if (backing_file_path_.empty()) {
@@ -170,7 +160,7 @@ bool IniFile::Read(bool keep_comments) {
         return false;
     }
 
-    ifstream in_file(backing_file_path_, ios_base::in | ios_base::ate);
+    std::ifstream in_file(backing_file_path_, std::ios_base::in | std::ios_base::ate);
     if (!in_file) {
         VLOG(1) << "Failed to process .ini file " << backing_file_path_ << " for reading.";
         return false;
@@ -178,11 +168,11 @@ bool IniFile::Read(bool keep_comments) {
 
     // avoid reading a very large file that was passed by mistake
     // this threshold is quite liberal.
-    static const auto kMaxIniFileSize = ifstream::pos_type(655360);
-    static const auto kInvalidPos = ifstream::pos_type(-1);
-    const ifstream::pos_type end_pos = in_file.tellg();
-    in_file.seekg(0, ios_base::beg);
-    const ifstream::pos_type beg_pos = in_file.tellg();
+    static const auto kMaxIniFileSize = std::ifstream::pos_type(655360);
+    static const auto kInvalidPos = std::ifstream::pos_type(-1);
+    const std::ifstream::pos_type end_pos = in_file.tellg();
+    in_file.seekg(0, std::ios_base::beg);
+    const std::ifstream::pos_type beg_pos = in_file.tellg();
     if (beg_pos == kInvalidPos || end_pos == kInvalidPos || end_pos - beg_pos > kMaxIniFileSize) {
         LOG(WARNING) << ".ini File " << backing_file_path_ << " too large (" << (end_pos - beg_pos)
                      << " bytes)";
@@ -190,13 +180,12 @@ bool IniFile::Read(bool keep_comments) {
     }
 
     ParseStream(&in_file, keep_comments);
+    dirty_ = false;
     return true;
 }
 
 bool IniFile::ReadFromMemory(std::string_view data) {
-    dirty_ = false;
     data_.clear();
-    order_list_.clear();
     comments_.clear();
 
     // Create a streambuf that's able to do a single pass over an array only.
@@ -215,6 +204,7 @@ bool IniFile::ReadFromMemory(std::string_view data) {
     }
 
     ParseStream(&in, true);
+    dirty_ = false;
     return true;
 }
 
@@ -228,7 +218,7 @@ bool IniFile::WriteCommonImpl(bool discard_empty, const fs::path& file_path) {
 
     int lineno = 0;
     auto comment_iter = std::begin(comments_);
-    for (const auto& pair : order_list_) {
+    for (const auto& [key, value] : data_) {
         ++lineno;
 
         // Write comments
@@ -237,11 +227,9 @@ bool IniFile::WriteCommonImpl(bool discard_empty, const fs::path& file_path) {
             out_file << comment_iter->second << "\n";
         }
 
-        const string& value = pair->second;
         if (discard_empty && value.empty()) {
             continue;
         }
-        const string& key = pair->first;
         out_file << key << " = " << value << '\n';
     }
 
@@ -315,7 +303,7 @@ int IniFile::Size() const {
 }
 
 bool IniFile::HasKey(std::string_view key) const {
-    return data_.find(std::string(key)) != std::end(data_);
+    return data_.contains(key);
 }
 
 std::string IniFile::MakeValidKey(std::string_view str) {
@@ -333,7 +321,7 @@ std::string IniFile::MakeValidKey(std::string_view str) {
     return res.str();
 }
 
-string IniFile::MakeValidValue(std::string_view str) {
+std::string IniFile::MakeValidValue(std::string_view str) {
     std::ostringstream res;
     for (const auto& ch : str) {
         if (ch == '%') res << ch;
@@ -354,12 +342,12 @@ namespace {
 // "%FOO" => "%FOO" (Not terminated)
 // "%%HI%%" => "%HI%" (Escaped)
 // Note that: %%%USER%%% is parsed as %(USER)% and not %(USER%)%
-string EnvSubst(const std::string_view fix) {
+std::string EnvSubst(const std::string_view fix) {
     const size_t len = fix.size();
 
-    string res;
-    string var;
-    string* curr = &res;
+    std::string res;
+    std::string var;
+    std::string* curr = &res;
     for (unsigned int i = 0; i < len; i++) {
         const char ch = fix[i];
 
@@ -371,7 +359,7 @@ string EnvSubst(const std::string_view fix) {
 
         // Let's see if we are closing
         if (curr == &var) {
-            const string env = base::System::Get()->EnvGet(var);
+            const std::string env = base::System::Get()->EnvGet(var);
             if (env.empty()) {
                 LOG(WARNING) << "Environment variable " << var << " is not set";
             }
@@ -404,25 +392,12 @@ string EnvSubst(const std::string_view fix) {
     return res;
 }
 
-#if defined(_WIN32)
-#include <string.h>
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
-#endif
-
 bool IsBoolTrue(std::string_view value) {
-    const char* cstr = value.data();
-    const size_t size = value.size();
-
-    return strncasecmp("yes", cstr, size) == 0 || strncasecmp("true", cstr, size) == 0 ||
-           strncasecmp("1", cstr, size) == 0;
+    return value == "yes" || value == "true" || value == "1";
 }
 
 bool IsBoolFalse(std::string_view value) {
-    const char* cstr = value.data();
-    const size_t size = value.size();
-    return strncasecmp("no", cstr, size) == 0 || strncasecmp("false", cstr, size) == 0 ||
-           strncasecmp("0", cstr, size) == 0;
+    return value == "no" || value == "false" || value == "0";
 }
 
 // If not nullptr, |*out_malformed| is set to true if |value_str| is malformed.
@@ -469,65 +444,65 @@ IniFile::DiskSize ParseDiskSize(std::string_view value_str, IniFile::DiskSize de
 
 }  // namespace
 
-string IniFile::GetString(const string& key, std::string_view default_value) const {
-    auto citer = data_.find(key);
-    return EnvSubst((citer == std::end(data_)) ? default_value : std::string_view(citer->second));
+std::string IniFile::GetString(std::string_view key) const {
+    if (auto i = data_.find(key); i != data_.end()) {
+        return EnvSubst(i->second);
+    }
+    return {};
 }
 
-int IniFile::GetInt(const string& key, int default_value) const {
-    if (data_.find(key) == std::end(data_)) {
+std::string IniFile::GetString(std::string_view key, std::string_view default_value) const {
+    auto citer = data_.find(key);
+    // TODO(whollins): Nothing currently uses EnvSubst, maybe remove?
+    return EnvSubst(citer == data_.end() ? default_value : citer->second);
+}
+
+int IniFile::GetInt(std::string_view key, int default_value) const {
+    auto value = GetString(key);
+    if (value.empty()) {
         return default_value;
     }
 
-    auto value = GetString(key, "");
-    char* end;
-    errno = 0;
-    const int result = static_cast<int>(strtol(value.c_str(), &end, 10));
-    if (errno || *end != 0) {
+    int res;
+    if (!absl::SimpleAtoi(value, &res)) {
         VLOG(1) << "Malformed int value " << value << " for key " << key;
         return default_value;
     }
-    return result;
+    return res;
 }
 
-int64_t IniFile::GetInt64(const string& key, int64_t default_value) const {
-    if (data_.find(key) == std::end(data_)) {
+int64_t IniFile::GetInt64(std::string_view key, int64_t default_value) const {
+    auto value = GetString(key);
+    if (value.empty()) {
         return default_value;
     }
-
-    auto value = GetString(key, "");
-    char* end;
-    errno = 0;
-    const int64_t result = strtoll(value.c_str(), &end, 10);
-    if (errno || *end != 0) {
+    int64_t res;
+    if (!absl::SimpleAtoi(value, &res)) {
         VLOG(1) << "Malformed int64 value " << value << " for key " << key;
         return default_value;
     }
-    return result;
+    return res;
 }
 
-double IniFile::GetDouble(const string& key, double default_value) const {
-    if (data_.find(key) == std::end(data_)) {
+double IniFile::GetDouble(std::string_view key, double default_value) const {
+    auto value = GetString(key);
+    if (value.empty()) {
         return default_value;
     }
-
-    auto value = GetString(key, "");
-    char* end;
-    errno = 0;
-    const double result = strtod(value.c_str(), &end);
-    if (errno || *end != 0) {
+    double res;
+    if (!absl::SimpleAtod(value, &res)) {
         VLOG(1) << "Malformed double value " << value << " for key " << key;
         return default_value;
     }
-    return result;
+    return res;
 }
 
-bool IniFile::GetBool(const string& key, bool default_value) const {
-    if (data_.find(key) == std::end(data_)) {
+bool IniFile::GetBool(std::string_view key, bool default_value) const {
+    std::string value = GetString(key);
+    if (value.empty()) {
         return default_value;
     }
-
-    const string& value = GetString(key, "");
+    absl::AsciiStrToLower(&value);
     if (IsBoolTrue(value)) {
         return true;
     }
@@ -538,59 +513,55 @@ bool IniFile::GetBool(const string& key, bool default_value) const {
     return default_value;
 }
 
-bool IniFile::GetBool(const string& key, std::string_view default_value) const {
+bool IniFile::GetBool(std::string_view key, std::string_view default_value) const {
     return GetBool(key, IsBoolTrue(default_value));
 }
-IniFile::DiskSize IniFile::GetDiskSize(const string& key, IniFile::DiskSize default_value) const {
-    if (!HasKey(key)) {
+IniFile::DiskSize IniFile::GetDiskSize(std::string_view key,
+                                       IniFile::DiskSize default_value) const {
+    auto value = GetString(key);
+    if (value.empty()) {
         return default_value;
     }
     bool malformed = false;
-    auto value = GetString(key, "");
     const IniFile::DiskSize result = ParseDiskSize(value, default_value, &malformed);
 
     LOG_IF(INFO, malformed) << "Malformed DiskSize value " << value << " for key " << key;
     return result;
 }
 
-IniFile::DiskSize IniFile::GetDiskSize(const string& key, std::string_view default_value) const {
+IniFile::DiskSize IniFile::GetDiskSize(std::string_view key, std::string_view default_value) const {
     return GetDiskSize(key, ParseDiskSize(default_value, 0, nullptr));
 }
 
-void IniFile::UpdateData(const string& key, string&& value) {
+void IniFile::UpdateData(std::string key, std::string value) {
     dirty_ = true;
-    // note: may not move here, as it's currently unspecified if failed
-    //  insertion moves from |value| or not. Move it separately instead.
-    auto result = data_.emplace(key, std::string());
-    result.first->second = std::move(value);
-    if (result.second) {
-        // New element was created.
-        order_list_.push_back(&*result.first);
+    if (auto [i, inserted] = data_.try_emplace(std::move(key), std::move(value)); !inserted) {
+        i->second = std::move(value);
     }
 }
 
-void IniFile::SetString(const string& key, std::string_view value) {
-    UpdateData(key, std::string(value));
+void IniFile::SetString(std::string key, std::string value) {
+    UpdateData(std::move(key), std::move(value));
 }
 
-void IniFile::SetInt(const string& key, int value) {
-    UpdateData(key, to_string(value));
+void IniFile::SetInt(std::string key, int value) {
+    UpdateData(std::move(key), std::to_string(value));
 }
 
-void IniFile::SetInt64(const string& key, int64_t value) {
+void IniFile::SetInt64(std::string key, int64_t value) {
     // long long is at least 64 bit in C++0x.
-    UpdateData(key, to_string(static_cast<long long>(value)));
+    UpdateData(std::move(key), std::to_string(static_cast<long long>(value)));
 }
 
-void IniFile::SetDouble(const string& key, double value) {
-    UpdateData(key, to_string(value));
+void IniFile::SetDouble(std::string key, double value) {
+    UpdateData(std::move(key), std::to_string(value));
 }
 
-void IniFile::SetBool(const string& key, bool value) {
-    UpdateData(key, value ? "true" : "false");
+void IniFile::SetBool(std::string key, bool value) {
+    UpdateData(std::move(key), value ? "true" : "false");
 }
 
-void IniFile::SetDiskSize(const string& key, DiskSize value) {
+void IniFile::SetDiskSize(std::string key, DiskSize value) {
     static const DiskSize kKilo = 1024;
     static const DiskSize kMega = 1024 * kKilo;
     static const DiskSize kGiga = 1024 * kMega;
@@ -607,11 +578,11 @@ void IniFile::SetDiskSize(const string& key, DiskSize value) {
         suffix = 'k';
     }
 
-    auto value_str = to_string(value);
+    auto value_str = std::to_string(value);
     if (suffix) {
         value_str += suffix;
     }
-    UpdateData(key, std::move(value_str));
+    UpdateData(std::move(key), std::move(value_str));
 }
 
 }  // namespace android::goldfish

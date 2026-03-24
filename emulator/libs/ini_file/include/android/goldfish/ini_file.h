@@ -13,15 +13,14 @@
 // limitations under the License.
 #pragma once
 
-#include <inttypes.h>
-
-#include <filesystem>
-#include <iosfwd>
+#include <cstdint>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <utility>
 #include <vector>
+
+#include "absl/container/linked_hash_map.h"
+
+#include "goldfish/file/file.h"
 
 namespace android::goldfish {
 
@@ -31,28 +30,17 @@ class IniFile {
     const IniFile& operator=(const IniFile&) = delete;
 
     using DiskSize = uint64_t;
-    using MapType = std::unordered_map<std::string, std::string>;
-    using ElementOrderList = std::vector<const MapType::value_type*>;
 
-    // A custom iterator to return the keys in original order.
-    class ConstIterator : public ElementOrderList::const_iterator {
-      public:
-        using value_type = std::string;
-
-        explicit ConstIterator(ElementOrderList::const_iterator key_iterator)
-                : ElementOrderList::const_iterator(key_iterator) {}
-
-        const value_type& operator*() const {
-            return ElementOrderList::const_iterator::operator*()->first;
-        }
-        const value_type* operator->() const { return &**this; }
-    };
+    // linked_hash_map tracks insertion order so that iteration order matches.
+    // This allows us to preserve the order of entries when we update the file
+    // on disk.
+    using MapType = absl::linked_hash_map<std::string, std::string>;
 
     // Note that the constructor _does not_ read data from the backing file.
     // Call |Read| to read the data.
     // When created without a backing file, all |read|/|write*| operations will
     // fail unless |setBackingFile| is called to point to a valid file path.
-    explicit IniFile(std::filesystem::path backing_file_path = {})
+    explicit IniFile(fs::path backing_file_path = {})
             : backing_file_path_(std::move(backing_file_path)) {}
 
     // This constructor reads the data from memory at |data| of |size| bytes.
@@ -60,8 +48,8 @@ class IniFile {
 
     // Set a new backing file. This does not read data from the file. Call
     // |read| to refresh data from the new backing file.
-    void SetBackingFile(std::filesystem::path file_path);
-    const std::filesystem::path& GetBackingFile() const { return backing_file_path_; }
+    void SetBackingFile(fs::path file_path);
+    const fs::path& GetBackingFile() const { return backing_file_path_; }
 
     // Reads data into IniFile from the backing file, overwriting any
     // existing data.
@@ -107,33 +95,34 @@ class IniFile {
     //   file in human friendly form, and used directly.
     // - The disadvantage is that behaviour is undefined if we fail to parse the
     //   default value.
-    std::string GetString(const std::string& key, std::string_view default_value) const;
-    int GetInt(const std::string& key, int default_value) const;
-    int64_t GetInt64(const std::string& key, int64_t default_value) const;
-    double GetDouble(const std::string& key, double default_value) const;
+    std::string GetString(std::string_view key) const;
+    std::string GetString(std::string_view key, std::string_view default_value) const;
+    int GetInt(std::string_view key, int default_value) const;
+    int64_t GetInt64(std::string_view key, int64_t default_value) const;
+    double GetDouble(std::string_view key, double default_value) const;
     // The serialized format for a bool acceepts the following values:
     //     True: "1", "yes", "YES".
     //     False: "0", "no", "NO".
-    bool GetBool(const std::string& key, bool default_value) const;
-    bool GetBool(const std::string& key, std::string_view default_value_str) const;
-    bool GetBool(const std::string& key, const char* default_value) const {
+    bool GetBool(std::string_view key, bool default_value) const;
+    bool GetBool(std::string_view key, std::string_view default_value_str) const;
+    bool GetBool(std::string_view key, const char* default_value) const {
         return GetBool(key, std::string_view(default_value));
     }
     // Parses a string as disk size. The serialized format is [0-9]+[kKmMgG].
     // The
     // suffixes correspond to KiB, MiB and GiB multipliers.
     // Note: We consider 1K = 1024, not 1000.
-    DiskSize GetDiskSize(const std::string& key, DiskSize default_value) const;
-    DiskSize GetDiskSize(const std::string& key, std::string_view default_value) const;
+    DiskSize GetDiskSize(std::string_view key, DiskSize default_value) const;
+    DiskSize GetDiskSize(std::string_view key, std::string_view default_value) const;
 
     // ///////////////////// Value Setters
     // //////////////////////////////////////
-    void SetString(const std::string& key, std::string_view value);
-    void SetInt(const std::string& key, int value);
-    void SetInt64(const std::string& key, int64_t value);
-    void SetDouble(const std::string& key, double value);
-    void SetBool(const std::string& key, bool value);
-    void SetDiskSize(const std::string& key, DiskSize value);
+    void SetString(std::string key, std::string value);
+    void SetInt(std::string key, int value);
+    void SetInt64(std::string key, int64_t value);
+    void SetDouble(std::string key, double value);
+    void SetBool(std::string key, bool value);
+    void SetDiskSize(std::string key, DiskSize value);
 
     // //////////////////// Iterators
     // ///////////////////////////////////////////
@@ -146,23 +135,23 @@ class IniFile {
     //      first added.
     //  Only const_iterator is provided. Use |set*| functions to modify the
     //  IniFile.
-    ConstIterator begin() const { return ConstIterator(std::begin(order_list_)); }  // NOLINT
-    ConstIterator end() const { return ConstIterator(std::end(order_list_)); }      // NOLINT
+    MapType::const_iterator begin() const { return std::begin(data_); }
+    MapType::const_iterator end() const { return std::end(data_); }
 
     template <class T>
-    T Get(const std::string& property, const T& def) {
+    T Get(std::string_view key, const T& def) {
         if constexpr (std::is_same_v<T, std::string>) {
-            return GetString(property, def);
+            return GetString(key, def);
         } else if constexpr (std::is_same_v<T, int>) {
-            return GetInt(property, def);
+            return GetInt(key, def);
         } else if constexpr (std::is_same_v<T, int64_t>) {
-            return GetInt64(property, def);
+            return GetInt64(key, def);
         } else if constexpr (std::is_same_v<T, double>) {
-            return GetDouble(property, def);
+            return GetDouble(key, def);
         } else if constexpr (std::is_same_v<T, bool>) {
-            return GetBool(property, def);
+            return GetBool(key, def);
         } else if constexpr (std::is_same_v<T, DiskSize>) {
-            return GetDiskSize(property, def);
+            return GetDiskSize(key, def);
         } else {
             static_assert(
                     "Unsupported type for Avd::get. Supported types are: "
@@ -171,18 +160,15 @@ class IniFile {
         }
     }
 
-  protected:
-    void ParseStream(std::istream* in_file, bool keep_comments);
-    void UpdateData(const std::string& key, std::string&& value);
-    bool WriteCommon(bool discard_empty);
-
   private:
-    bool WriteCommonImpl(bool discard_empty, const std::filesystem::path& file_path);
+    void ParseStream(std::istream* in_file, bool keep_comments);
+    void UpdateData(std::string key, std::string value);
+    bool WriteCommon(bool discard_empty);
+    bool WriteCommonImpl(bool discard_empty, const fs::path& file_path);
 
     MapType data_;
-    ElementOrderList order_list_;
     std::vector<std::pair<int, std::string>> comments_;
-    std::filesystem::path backing_file_path_;
+    fs::path backing_file_path_;
     bool dirty_ = true;
 };
 

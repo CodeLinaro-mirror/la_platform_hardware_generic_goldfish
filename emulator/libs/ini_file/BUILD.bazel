@@ -7,7 +7,12 @@ cc_library(
     hdrs = ["include/android/goldfish/ini_file.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//emulator/libs/system"],
+    deps = [
+        "//emulator/libs/file",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/container:linked_hash_map",
+        "@abseil-cpp//absl/strings",
+    ],
 )
 
 cc_test(

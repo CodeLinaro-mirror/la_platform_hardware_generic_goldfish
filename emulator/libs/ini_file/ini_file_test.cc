@@ -443,6 +443,7 @@ TEST_F(IniFileTest, writeIfChanged) {
     // Now let's change the data.
     mIni->SetString("random", "yippeeee");
     verifyFileUpdated(true);
+    verifyFileUpdated(false);
 
     mIni->Read();
     // No changes, so write shouldn't do anything.
@@ -471,7 +472,7 @@ TEST_F(IniFileTest, iterator) {
     vector<string> keys = {"firstKey", "secondKey"};
     ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->Size()));
     size_t i = 0;
-    for (const auto& key : cIni) {
+    for (const auto& [key, value] : cIni) {
         EXPECT_EQ(keys[i], key);
         ++i;
     }
@@ -514,7 +515,7 @@ TEST_F(IniFileTest, diskFileOrder) {
     vector<string> keys = {"lets", "fourth", "first", "extraKey"};
     ASSERT_EQ(keys.size(), static_cast<size_t>(mIni->Size()));
     size_t i = 0;
-    for (const auto& key : *mIni) {
+    for (const auto& [key, value] : *mIni) {
         EXPECT_EQ(keys[i], key);
         ++i;
     }
@@ -552,7 +553,7 @@ key3=false
     EXPECT_EQ(1011, ini.GetInt64("key2", 1));
     EXPECT_FALSE(ini.GetBool("key3", true));
 
-    IniFile ini2(data, sizeof(data)-1);
+    IniFile ini2(data, sizeof(data) - 1);
     ASSERT_EQ(3, ini2.Size());
 }
 
