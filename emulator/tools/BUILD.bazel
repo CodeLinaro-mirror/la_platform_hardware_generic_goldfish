@@ -30,6 +30,7 @@ py_binary(
 aemu_naming(
     name = "aemu_version_info",
     build_id_dep = "//emulator:build_id",
+    description = "Android Emulator (preview)",
     platform = select({
         "@platforms//os:windows": "windows",
         "@platforms//os:macos": "darwin_aarch64",
@@ -41,6 +42,7 @@ aemu_naming(
         ":dbg": "emulator-debug",
         ":opt": "emulator",
     }),
+    stage = "alpha",
     version = "0.0.1",
 )
 
