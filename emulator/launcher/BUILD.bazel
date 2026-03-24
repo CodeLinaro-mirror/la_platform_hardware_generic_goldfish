@@ -367,8 +367,14 @@ collect_plugins(
         "@platforms//os:macos": {
             "@qemu//:qemu-system-x86_64_signed": "qemu-system-x86_64",
             "@qemu//:qemu-system-aarch64_signed": "qemu-system-aarch64",
+            "@goldfish_prebuilts_common//netsim:netsim_darwin_aarch64": "netsimd",
         },
-        "//conditions:default": {},
+        "@platforms//os:windows": {
+            "@goldfish_prebuilts_common//netsim:netsim_windows_x86_64": "netsimd.exe",
+        },
+        "//conditions:default": {
+            "@goldfish_prebuilts_common//netsim:netsim_linux_x86_64": "netsimd",
+        },
     }),
 )
 
