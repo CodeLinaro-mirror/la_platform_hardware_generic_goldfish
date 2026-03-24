@@ -100,7 +100,9 @@ cc_library(
     deps = [
         ":metrics_reporter",
         ":metrics_writer",
+        ":studio_file_metrics_writer",
         ":text_metrics_writer",
+        "//emulator/libs/async:async_api",
         "//emulator/libs/file",
     ],
 )
@@ -160,6 +162,57 @@ cc_test(
         ":perf_stat_reporter",
         "//emulator/libs/async:async_testing",
         "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "studio_config",
+    srcs = ["studio_config.cc"],
+    hdrs = ["include/goldfish/metrics/studio_config.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/file",
+        "@nlohmann_json//:singleheader-json",
+    ],
+)
+
+cc_test(
+    name = "studio_config_test",
+    srcs = ["studio_config_test.cc"],
+    deps = [
+        ":studio_config",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "studio_file_metrics_writer",
+    srcs = ["studio_file_metrics_writer.cc"],
+    hdrs = ["include/goldfish/metrics/studio_file_metrics_writer.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_writer",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/file",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@protobuf",
+        "@studio_stats//:google_logs_publishing_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "studio_file_metrics_writer_test",
+    srcs = ["studio_file_metrics_writer_test.cc"],
+    deps = [
+        ":studio_file_metrics_writer",
+        "//emulator/libs/async:async_testing",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
     ],

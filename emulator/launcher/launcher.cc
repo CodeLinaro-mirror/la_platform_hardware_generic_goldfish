@@ -48,6 +48,7 @@
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/configure_metrics_writer.h"
 #include "goldfish/metrics/metrics_reporter.h"
+#include "goldfish/metrics/studio_config.h"
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
@@ -92,7 +93,22 @@ bool should_launch_fishtank(const AndroidOptions& opts) {
     return !opts.no_window;
 }
 
-::goldfish::metrics::MetricsWriterConfig metrics_writer_config(const AndroidOptions& opts) {
+void warnAboutNoMetricsConsentInput() {
+    printf("##############################################################################\n");
+    printf("##                        WARNING - ACTION REQUIRED                         ##\n");
+    printf("##  Consider using the '-metrics-collection' flag to help improve the       ##\n");
+    printf("##  emulator by sending anonymized usage data. Or use the '-no-metrics'     ##\n");
+    printf("##  flag to bypass this warning and turn off the metrics collection.        ##\n");
+    printf("##  In a future release this warning will turn into a one-time blocking     ##\n");
+    printf("##  prompt to ask for explicit user input regarding metrics collection.     ##\n");
+    printf("##                                                                          ##\n");
+    printf("##  Please see '-help-metrics-collection' for more details. You can use     ##\n");
+    printf("##  '-metrics-to-file' or '-metrics-to-console' flags to see what type of   ##\n");
+    printf("##  data is being collected by emulator as part of usage statistics.        ##\n");
+    printf("##############################################################################\n");
+}
+
+::goldfish::metrics::MetricsWriterConfig get_metrics_writer_config(const AndroidOptions& opts, const ResolvedInputPaths &resolved_paths) {
     using enum ::goldfish::metrics::MetricsWriterType;
     if (opts.no_metrics) {
         // do nothing
@@ -103,14 +119,24 @@ bool should_launch_fishtank(const AndroidOptions& opts) {
         return {.type = kConsole};
     } else if (opts.metrics_collection) {
         LOG(INFO) << "Metrics will be uploaded directly by the emulator";
-        return {.type = kPlaystore};
+        return {.type = kPlaystore, .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
         LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
         return {.type = kFile, .file_path = opts.metrics_to_file};
     } else {
-        // TODO check studio consent...
-        LOG(INFO) << "Metrics will written and sent by Studio";
-        return {.type = kStudio};
+        // No CLI overrides, use studio settings.
+        switch (::goldfish::metrics::studio::GetUserMetricsOptIn(resolved_paths.user_directory)) {
+            using enum ::goldfish::metrics::studio::OptInState;
+        case kOptedIn:
+            LOG(INFO) << "Metrics will be written to file and uploaded by Studio";
+            return {.type = kStudio, .studio_spool_dir = ::goldfish::metrics::studio::GetSpoolDirectory(resolved_paths.user_directory), .user_upload_consent = true};
+        case kOptedOut:
+            LOG(INFO) << "Studio user opted out of metrics";
+            return {.type = kNone};
+        case kUnknown:
+            warnAboutNoMetricsConsentInput();
+            return {.type = kNone};
+        }
     }
 }
 
@@ -603,13 +629,24 @@ int main(int argc, char** argv) {
     options.call_previous_handler = true;
     absl::InstallFailureSignalHandler(options);
 
-    auto reporter = std::make_unique<MetricsReporter>();
-    auto metrics_writer_config = android::goldfish::metrics_writer_config(opts);
-    ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config);
+    auto event_loop = goldfish::async::LibuvEventLoop::Create();
 
-    auto crash_consent = opts.metrics_collection ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
-    // TODO(b/483635069): remove consent override before release.
-    crash_consent = android::crashreport::Consent::ALWAYS;
+    auto reporter = std::make_unique<MetricsReporter>();
+    auto metrics_writer_config = android::goldfish::get_metrics_writer_config(opts, *resolved_paths);
+    if (metrics_writer_config.type == goldfish::metrics::MetricsWriterType::kStudio) {
+        if (!::android::base::file::exists(metrics_writer_config.studio_spool_dir)) {
+            if (auto s = ::android::base::file::mkdir_recursive(metrics_writer_config.studio_spool_dir, 0755); !s.ok()) {
+                LOG(ERROR) << "Failed to create metrics spool directory, reporting will be disabled: " << metrics_writer_config.studio_spool_dir << " - " << s;
+                metrics_writer_config.type = goldfish::metrics::MetricsWriterType::kNone;
+            }
+        } else if (!::android::base::file::is_dir(metrics_writer_config.studio_spool_dir)) {
+            LOG(ERROR) << "Metrics spool path is not a directory, reporting will be disabled: " << metrics_writer_config.studio_spool_dir;
+            metrics_writer_config.type = goldfish::metrics::MetricsWriterType::kNone;
+        }
+    }
+    ::goldfish::metrics::ConfigureMetricsWriter(*reporter, metrics_writer_config, *event_loop);
+
+    auto crash_consent = metrics_writer_config.user_upload_consent ? android::crashreport::Consent::ALWAYS : android::crashreport::Consent::NEVER;
     android::crashreport::CrashSystem::get().uploadEntries(crash_consent);
 
     // This is needed for gfxstream to be able to load GL libs.
@@ -653,8 +690,6 @@ int main(int argc, char** argv) {
         LOG(ERROR) << "Failed to load " << name << " due to " << avd.status().message();
         return 1;
     }
-
-    auto event_loop = goldfish::async::LibuvEventLoop::Create();
 
     android::goldfish::Launcher l(*event_loop, *std::move(resolved_paths), *std::move(avd), opts, std::move(reporter), std::move(metrics_writer_config));
 

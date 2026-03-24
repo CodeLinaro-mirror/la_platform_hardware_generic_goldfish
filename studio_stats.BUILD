@@ -11,3 +11,14 @@ cc_proto_library(
     visibility = ["//visibility:public"],
     deps = [":studio_stats_proto"],
 )
+
+proto_library(
+    name = "google_logs_publishing_proto",
+    srcs = ["google_logs_publishing.proto"],
+)
+
+cc_proto_library(
+    name = "google_logs_publishing_cc_proto",
+    visibility = ["//visibility:public"],
+    deps = [":google_logs_publishing_proto"],
+)
