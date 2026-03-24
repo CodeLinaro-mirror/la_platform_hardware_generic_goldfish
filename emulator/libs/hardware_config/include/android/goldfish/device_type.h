@@ -24,6 +24,8 @@ enum class DeviceType : uint8_t {
     kWear = 2,
     kAndroidAuto = 3,
     kDesktop = 4,
+    kXr = 5,
+    kGlasses = 6,
     kUnknown = 255,
 };
 
