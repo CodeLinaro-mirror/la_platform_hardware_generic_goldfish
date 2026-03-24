@@ -12,6 +12,12 @@
 #include <cstring>
 #include <streambuf>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+
+#define MINI_CHROMIUM_BASE_LOGGING_H_
+#define MINI_CHROMIUM_BASE_CHECK_H_
+
 #include "client/annotation.h"
 
 namespace android::crashreport {
