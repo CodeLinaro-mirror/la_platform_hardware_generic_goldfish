@@ -1,0 +1,268 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "linux_aarch64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+config_setting(
+    name = "linux_arm",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm",
+    ],
+)
+
+config_setting(
+    name = "linux_x86_32",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_32",
+    ],
+)
+
+config_setting(
+    name = "macos_x86_64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "windows_x86_64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "windows_arm64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+config_setting(
+    name = "ios_arm64",
+    constraint_values = [
+        "@platforms//os:ios",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+# Need to override prefix_symbols.h for Windows since the precompiled files contain
+# `ring_core_0_17_2_`
+genrule(
+    name = "windows_prefix_symbols",
+    srcs = ["ring_core_generated/prefix_symbols.h"],
+    outs = ["windows_includes/ring_core_generated/prefix_symbols.h"],
+    cmd = "sed 's/ring_core_android_platform_/ring_core_0_17_2_/g' $< > $@",
+)
+
+cc_library(
+    name = "libring-core",
+    srcs = [
+        "crypto/cpu_intel.c",
+        "crypto/crypto.c",
+        "crypto/curve25519/curve25519.c",
+        "crypto/fipsmodule/aes/aes_nohw.c",
+        "crypto/fipsmodule/bn/montgomery.c",
+        "crypto/fipsmodule/bn/montgomery_inv.c",
+        "crypto/fipsmodule/ec/ecp_nistz.c",
+        "crypto/fipsmodule/ec/gfp_p256.c",
+        "crypto/fipsmodule/ec/gfp_p384.c",
+        "crypto/fipsmodule/ec/p256.c",
+        "crypto/fipsmodule/ec/p256-nistz.c",
+        "crypto/limbs/limbs.c",
+        "crypto/mem.c",
+        "crypto/poly1305/poly1305.c",
+        "crypto/poly1305/poly1305_vec.c",
+    ] + select({
+        ":linux_x86_64": [
+            "crypto/curve25519/curve25519_64_adx.c",
+            "pregenerated/aesni-gcm-x86_64-elf.S",
+            "pregenerated/aesni-x86_64-elf.S",
+            "pregenerated/chacha-x86_64-elf.S",
+            "pregenerated/chacha20_poly1305_x86_64-elf.S",
+            "pregenerated/ghash-x86_64-elf.S",
+            "pregenerated/p256-x86_64-asm-elf.S",
+            "pregenerated/sha256-x86_64-elf.S",
+            "pregenerated/sha512-x86_64-elf.S",
+            "pregenerated/vpaes-x86_64-elf.S",
+            "pregenerated/x86_64-mont-elf.S",
+            "pregenerated/x86_64-mont5-elf.S",
+            "third_party/fiat/asm/fiat_curve25519_adx_mul.S",
+            "third_party/fiat/asm/fiat_curve25519_adx_square.S",
+        ],
+        ":linux_aarch64": [
+            "pregenerated/aesv8-armx-linux64.S",
+            "pregenerated/armv8-mont-linux64.S",
+            "pregenerated/chacha-armv8-linux64.S",
+            "pregenerated/chacha20_poly1305_armv8-linux64.S",
+            "pregenerated/ghash-neon-armv8-linux64.S",
+            "pregenerated/ghashv8-armx-linux64.S",
+            "pregenerated/p256-armv8-asm-linux64.S",
+            "pregenerated/sha256-armv8-linux64.S",
+            "pregenerated/sha512-armv8-linux64.S",
+            "pregenerated/vpaes-armv8-linux64.S",
+        ],
+        ":linux_arm": [
+            "crypto/curve25519/asm/x25519-asm-arm.S",
+            "crypto/poly1305/poly1305_arm.c",
+            "crypto/poly1305/poly1305_arm_asm.S",
+            "pregenerated/aesv8-armx-linux32.S",
+            "pregenerated/armv4-mont-linux32.S",
+            "pregenerated/bsaes-armv7-linux32.S",
+            "pregenerated/chacha-armv4-linux32.S",
+            "pregenerated/ghash-armv4-linux32.S",
+            "pregenerated/ghashv8-armx-linux32.S",
+            "pregenerated/sha256-armv4-linux32.S",
+            "pregenerated/sha512-armv4-linux32.S",
+            "pregenerated/vpaes-armv7-linux32.S",
+        ],
+        ":linux_x86_32": [
+            "pregenerated/aesni-x86-elf.S",
+            "pregenerated/chacha-x86-elf.S",
+            "pregenerated/ghash-x86-elf.S",
+            "pregenerated/vpaes-x86-elf.S",
+            "pregenerated/x86-mont-elf.S",
+        ],
+        ":macos_x86_64": [
+            "pregenerated/aesni-gcm-x86_64-macosx.S",
+            "pregenerated/aesni-x86_64-macosx.S",
+            "pregenerated/chacha-x86_64-macosx.S",
+            "pregenerated/chacha20_poly1305_x86_64-macosx.S",
+            "pregenerated/ghash-x86_64-macosx.S",
+            "pregenerated/p256-x86_64-asm-macosx.S",
+            "pregenerated/sha256-x86_64-macosx.S",
+            "pregenerated/sha512-x86_64-macosx.S",
+            "pregenerated/vpaes-x86_64-macosx.S",
+            "pregenerated/x86_64-mont-macosx.S",
+            "pregenerated/x86_64-mont5-macosx.S",
+            "third_party/fiat/asm/fiat_curve25519_adx_mul.S",
+            "third_party/fiat/asm/fiat_curve25519_adx_square.S",
+        ],
+        ":windows_x86_64": [
+            "pregenerated/aesni-gcm-x86_64-nasm.o",
+            "pregenerated/aesni-x86_64-nasm.o",
+            "pregenerated/chacha-x86_64-nasm.o",
+            "pregenerated/chacha20_poly1305_x86_64-nasm.o",
+            "pregenerated/ghash-x86_64-nasm.o",
+            "pregenerated/p256-x86_64-asm-nasm.o",
+            "pregenerated/sha256-x86_64-nasm.o",
+            "pregenerated/sha512-x86_64-nasm.o",
+            "pregenerated/vpaes-x86_64-nasm.o",
+            "pregenerated/x86_64-mont-nasm.o",
+            "pregenerated/x86_64-mont5-nasm.o",
+        ],
+        ":windows_arm64": [
+            "pregenerated/aesv8-armx-win64.S",
+            "pregenerated/armv8-mont-win64.S",
+            "pregenerated/chacha-armv8-win64.S",
+            "pregenerated/chacha20_poly1305_armv8-win64.S",
+            "pregenerated/ghash-neon-armv8-win64.S",
+            "pregenerated/ghashv8-armx-win64.S",
+            "pregenerated/p256-armv8-asm-win64.S",
+            "pregenerated/sha256-armv8-win64.S",
+            "pregenerated/sha512-armv8-win64.S",
+            "pregenerated/vpaes-armv8-win64.S",
+        ],
+        ":ios_arm64": [
+            "pregenerated/aesv8-armx-ios64.S",
+            "pregenerated/armv8-mont-ios64.S",
+            "pregenerated/chacha-armv8-ios64.S",
+            "pregenerated/chacha20_poly1305_armv8-ios64.S",
+            "pregenerated/ghash-neon-armv8-ios64.S",
+            "pregenerated/ghashv8-armx-ios64.S",
+            "pregenerated/p256-armv8-asm-ios64.S",
+            "pregenerated/sha256-armv8-ios64.S",
+            "pregenerated/sha512-armv8-ios64.S",
+            "pregenerated/vpaes-armv8-ios64.S",
+        ],
+        "//conditions:default": [],
+    }),
+    hdrs = glob([
+        "include/**/*.h",
+        "crypto/**/*.h",
+        "crypto/**/*.inl",
+        "third_party/fiat/**/*.h",
+    ]) + select({
+        ":windows_x86_64": [":windows_prefix_symbols"],
+        "//conditions:default": glob(["ring_core_generated/**/*.h"]),
+    }),
+    copts = [
+        "-O3",
+        "-fPIC",
+        "-fdata-sections",
+        "-ffunction-sections",
+        "-fno-omit-frame-pointer",
+        "-fno-strict-aliasing",
+        "-fstack-protector",
+        "-fvisibility=hidden",
+        "-DNDEBUG",
+    ] + select({
+        ":windows_x86_64": ["/FI$(location :windows_prefix_symbols)"],
+        "//conditions:default": [],
+    }),
+    data = select({
+        ":windows_x86_64": [":windows_prefix_symbols"],
+        "//conditions:default": [],
+    }),
+    includes = select({
+        ":windows_x86_64": ["windows_includes"],
+        "//conditions:default": [],
+    }) + [
+        ".",
+        "include",
+    ],
+)
+
+rust_library(
+    name = "ring",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = glob(["src/**/*.der"]),
+    crate_features = [
+        "alloc",
+        "default",
+        "dev_urandom_fallback",
+        "std",
+    ],
+    crate_name = "ring",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    rustc_env = select({
+        ":windows_x86_64": {
+            "RING_CORE_PREFIX": "ring_core_0_17_2_",
+        },
+        "//conditions:default": {
+            "RING_CORE_PREFIX": "ring_core_android_platform_",
+        },
+    }),
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    deps = [
+        ":libring-core",
+        "@getrandom_v0_2",
+        "@libc",
+        "@spin",
+        "@untrusted",
+    ],
+)

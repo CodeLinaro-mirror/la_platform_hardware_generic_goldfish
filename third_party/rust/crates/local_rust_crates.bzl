@@ -49,6 +49,7 @@ def _lrc_impl(module_ctx):
 
     # 2. Custom Path Crates
     _CUSTOM_PATH_CRATES = [
+        struct(name = "getrandom_v0_2", path = "external/rust/android-crates-io-pinned/crates/getrandom"),
         struct(name = "pica", path = "third_party/rust/crates/pica"),
         struct(name = "protobuf-rust", path = "{}/protobuf".format(_ANDROID_CRATES_IO)),
         struct(name = "rustutils", path = "system/librustutils/rustutils"),
@@ -192,6 +193,7 @@ def _lrc_impl(module_ctx):
         "regex",
         "regex-automata",
         "regex-syntax",
+        "ring",
         "rustix",
         "ryu",
         "scopeguard",
@@ -204,6 +206,7 @@ def _lrc_impl(module_ctx):
         "slab",
         "smallvec",
         "socket2",
+        "spin",
         "strsim",
         "syn",
         "termcolor",
@@ -227,6 +230,7 @@ def _lrc_impl(module_ctx):
         "ucd-trie",
         "unicode-ident",
         "unicode-width",
+        "untrusted",
         "utf-8",
         "which",
         "windows_aarch64_gnullvm",
