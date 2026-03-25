@@ -237,6 +237,26 @@ pkg_files(
     }),
 )
 
+pkg_files(
+    name = "security",
+    srcs = select({
+        "@platforms//os:macos": ["@qemu//:google/build/darwin-entitlements.plist"],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    # Where it should be in the final package
+    prefix = "_codesign",
+    renames = select({
+        "@platforms//os:macos": {
+            "@qemu//:google/build/darwin-entitlements.plist": "entitlements.xml",
+        },
+        "//conditions:default": {
+        },
+    }),
+)
+
 remapped_pkg_files(
     name = "qemu_stripped",
     src = ":qemu",
@@ -427,7 +447,10 @@ pkg_filegroup(
 
 pkg_zip(
     name = "release",
-    srcs = ["emulator-dir"],
+    srcs = [
+        "emulator-dir",
+        ":security",
+    ],
     package_file_name = "sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],
@@ -435,7 +458,10 @@ pkg_zip(
 
 pkg_zip(
     name = "release_unstripped",
-    srcs = ["emulator-dir-unstripped"],
+    srcs = [
+        "emulator-dir-unstripped",
+        ":security",
+    ],
     package_file_name = "UNSTRIPPED-sdk-repo-{platform}-{product_name}-{build_id}.zip",
     package_variables = "//emulator/tools:aemu_version_info",
     tags = ["manual"],

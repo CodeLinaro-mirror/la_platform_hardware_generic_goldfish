@@ -1,3 +1,5 @@
+_codesign/
+_codesign/entitlements.xml
 emulator/
 emulator/bin/
 emulator/bin/crashpad_handler
