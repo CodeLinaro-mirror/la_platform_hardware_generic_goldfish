@@ -200,9 +200,9 @@ class FileSystemWatcherFS : public FileSystemWatcher {
 
         // Wait for the thread to move out of the starting state.
         if (!mu_.AwaitWithTimeout(absl::Condition(this, &FileSystemWatcherFS::IsNotStarting),
-                                  absl::Milliseconds(500))) {
-            LOG(WARNING) << "Timed out waiting for FileSystemWatcher to start for " << path_
-                         << ". You might not receive file change notifications for this directory.";
+                                  absl::Seconds(5))) {
+            LOG(FATAL) << "Timed out waiting for FileSystemWatcher to start for " << path_
+                       << ". You might not receive file change notifications for this directory.";
         }
 
         return state_ == State::kRunning;
