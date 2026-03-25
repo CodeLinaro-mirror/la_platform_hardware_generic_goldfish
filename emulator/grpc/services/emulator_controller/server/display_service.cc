@@ -453,6 +453,7 @@ Status DisplayServiceImpl::getScreenshot(ServerContext* context, const ImageForm
     auto outFormat = reply->mutable_format();
     outFormat->set_width(newWidth);
     outFormat->set_height(newHeight);
+    outFormat->set_format(request->format());
     outFormat->set_display(display->Id());
     *outFormat->mutable_rotation() = toProtobufRotation(deviceRotation);
 

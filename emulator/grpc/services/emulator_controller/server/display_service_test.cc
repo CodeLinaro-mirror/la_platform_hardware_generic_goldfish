@@ -131,6 +131,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGBA8888) {
     // Check the format
     EXPECT_EQ(reply.format().width(), 100);
     EXPECT_EQ(reply.format().height(), 50);
+    EXPECT_EQ(reply.format().format(), ImageFormat::RGBA8888);
     EXPECT_EQ(reply.format().display(), 1);
 
     // Check if the screenshot has the correct data (at least one pixel)
@@ -151,6 +152,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGB888) {
     // Check the format
     EXPECT_EQ(reply.format().width(), 100);
     EXPECT_EQ(reply.format().height(), 50);
+    EXPECT_EQ(reply.format().format(), ImageFormat::RGB888);
     EXPECT_EQ(reply.format().display(), 1);
 
     // Check if the screenshot has the correct data (at least one pixel)
@@ -516,6 +518,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
 
     EXPECT_GE(image.seq(), seq);
     EXPECT_GE(image.timestampus(), timestampus);
+    EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
     EXPECT_EQ(image.format().rotation().rotation(), Rotation::PORTRAIT);
 
     seq = image.seq();
@@ -534,6 +537,7 @@ TEST_F(DisplayServiceTest, StreamScreenshotRotationProducesAFrame) {
 
     EXPECT_GE(image.seq(), seq);
     EXPECT_GE(image.timestampus(), timestampus);
+    EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
     EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
 }
 
@@ -579,15 +583,19 @@ TEST_F(DisplayServiceTest, StreamScreenshotHasCorrectRotation) {
 
         switch (rotation) {
         case Rotation::PORTRAIT:
+            EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
             EXPECT_EQ(image.format().rotation().rotation(), Rotation::PORTRAIT);
             break;
         case Rotation::LANDSCAPE:
+            EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
             EXPECT_EQ(image.format().rotation().rotation(), Rotation::LANDSCAPE);
             break;
         case Rotation::REVERSE_PORTRAIT:
+            EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
             EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_PORTRAIT);
             break;
         case Rotation::REVERSE_LANDSCAPE:
+            EXPECT_EQ(image.format().format(), ImageFormat::RGBA8888);
             EXPECT_EQ(image.format().rotation().rotation(), Rotation::REVERSE_LANDSCAPE);
             break;
         default:
@@ -618,6 +626,7 @@ TEST_F(DisplayServiceTest, GetScreenshotRGBA8888Mmap) {
     // Check the format
     EXPECT_EQ(reply.format().width(), 100);
     EXPECT_EQ(reply.format().height(), 50);
+    EXPECT_EQ(reply.format().format(), ImageFormat::RGBA8888);
     EXPECT_EQ(reply.format().display(), 1);
 
     // Image should be empty
@@ -704,6 +713,7 @@ TEST_F(DisplayServiceTest, GetScreenshotPNG) {
 
     EXPECT_EQ(reply.format().width(), 100);
     EXPECT_EQ(reply.format().height(), 50);
+    EXPECT_EQ(reply.format().format(), ImageFormat::PNG);
     // PNG data should start with 89 50 4E 47
     const std::string& data = reply.image();
     ASSERT_GE(data.size(), 4);
@@ -711,6 +721,22 @@ TEST_F(DisplayServiceTest, GetScreenshotPNG) {
     EXPECT_EQ(static_cast<uint8_t>(data[1]), 'P');
     EXPECT_EQ(static_cast<uint8_t>(data[2]), 'N');
     EXPECT_EQ(static_cast<uint8_t>(data[3]), 'G');
+}
+
+TEST_F(DisplayServiceTest, GetScreenshotResponseHasCorrectFormat) {
+    ImageFormat_ImgFormat formats[] = {ImageFormat::RGBA8888, ImageFormat::RGB888,
+                                       ImageFormat::PNG};
+
+    for (auto format : formats) {
+        ImageFormat request;
+        Image reply;
+        request.set_display(1);
+        request.set_format(format);
+
+        auto context = getContextWithTimeout();
+        ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
+        EXPECT_EQ(reply.format().format(), format) << "Failed for format " << format;
+    }
 }
 
 TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
@@ -730,6 +756,7 @@ TEST_F(DisplayServiceTest, GetScreenshotPNGMmap) {
     auto context = getContextWithTimeout();
     ASSERT_GRPC_STATUS(mStub->getScreenshot(context.get(), request, &reply));
 
+    EXPECT_EQ(reply.format().format(), ImageFormat::PNG);
     EXPECT_TRUE(reply.image().empty());
 
     const uint8_t* pngData = reinterpret_cast<const uint8_t*>(*mem);
