@@ -228,6 +228,10 @@ class System {
     // in the current thread.
     static CpuTime cpuTime();  // NOLINT
 
+    static uint32_t GetCurrentProcessPid();
+
+    static bool CurrentProcessHasElevatedPrivileges();
+
     // Static version that sets or queries host environment variables
     // regardless of being TestSystem.
     static void SetEnvironmentVariable(std::string_view varname, std::string_view varvalue);

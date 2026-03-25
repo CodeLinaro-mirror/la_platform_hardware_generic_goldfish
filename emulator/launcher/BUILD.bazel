@@ -107,6 +107,22 @@ cc_test(
 )
 
 cc_library(
+    name = "host_info",
+    srcs = ["host_info.cc"],
+    hdrs = ["host_info.h"],
+    deps = [
+        ":avd",
+        "//emulator/libs/cpu",
+        "//emulator/libs/file",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@studio_stats//:studio_stats_cc_proto",
+    ],
+)
+
+cc_library(
     name = "emulator_config",
     hdrs = ["include/android/goldfish/emulator_config.h"],
     includes = ["include"],
@@ -435,6 +451,7 @@ cc_binary(
     deps = [
         ":emulator",
         ":fishtank_launcher",
+        ":host_info",
         ":input_paths",
         ":logging",
         ":netsimd",

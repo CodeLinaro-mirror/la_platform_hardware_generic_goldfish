@@ -41,6 +41,7 @@ ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     fs::path android_home("android_home");
     tmp->MakeSubDir(android_home);
     tmp->MakeSubDir(android_home / "avd");
+    tmp->MakeSubDir(android_home / "sysimg");
 
     return {
         .user_directory = tmp->Path(),
@@ -49,7 +50,7 @@ ResolvedInputPaths setupPaths(TestTempDir* tmp) {
     };
 }
 
-fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString) {
+fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targetString, int api_level) {
     fs::path avd_dir = paths.avd_directory / "test_avd.avd";
     base::file::mkdir_recursive(avd_dir, 0755).IgnoreError();
 
@@ -57,7 +58,8 @@ fs::path createTestAvd(const ResolvedInputPaths& paths, const std::string& targe
     writeToFile(paths.avd_directory / "test_avd.ini", absl::StrCat("path=", avd_dir.string()));
 
     // Set the 'target' property in the config.ini file
-    writeToFile(avd_dir / "config.ini", "target=" + targetString);
+    writeToFile(avd_dir / "config.ini", absl::StrCat("target=", targetString, "\nimage.sysdir.1=sysimg"));
+    writeToFile(paths.sdk_directory / "sysimg" / "build.prop", absl::StrCat("ro.system.build.version.sdk=", api_level));
 
     return avd_dir;
 }
@@ -67,7 +69,7 @@ TEST(Avd, api_level) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
-    createTestAvd(paths, "android-30");
+    createTestAvd(paths, "android-30", 30);
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
     EXPECT_EQ(avd->ApiLevel(), 30);
@@ -78,7 +80,7 @@ TEST(Avd, dessert) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
-    createTestAvd(paths, "android-30");
+    createTestAvd(paths, "android-30", 30);
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
     EXPECT_EQ(avd->Dessert(), "R");
@@ -89,10 +91,10 @@ TEST(Avd, unknownApiLevel) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
-    createTestAvd(paths, "android-1");  // API level 1 doesn't have a dessert name
+    createTestAvd(paths, "android-1", 1);  // API level 1 doesn't have a dessert name
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
-    EXPECT_EQ(avd->ApiLevel(), 3);  // Should default to API level 3
+    EXPECT_EQ(avd->ApiLevel(), 1);
     EXPECT_EQ(avd->Dessert(), "");  // No dessert name for API level 1
 }
 
@@ -101,7 +103,9 @@ TEST(Avd, invalidTargetFormat) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
 
-    createTestAvd(paths, "invalid-target-format");
+    createTestAvd(paths, "invalid-target-format", 30);
+    // overwrite build.prop
+    writeToFile(paths.sdk_directory / "sysimg" / "build.prop", absl::StrCat("ro.system.build.version.sdk=foo"));
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
     EXPECT_EQ(avd->ApiLevel(), Avd::kUnknownApiLevel);  // Should return the unknown API level
@@ -113,7 +117,6 @@ TEST(Avd, path_getAvdSystemPath) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     fs::path android_home("android_home");
-    tmp->MakeSubDir(android_home / "sysimg");
     tmp->MakeSubDir("nothome");
 
     fs::path avd_dir = paths.avd_directory / "q.avd";
@@ -131,7 +134,6 @@ TEST(Avd, path_getAvdSystemImage) {
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
     fs::path android_home("android_home");
-    tmp->MakeSubDir(android_home / "sysimg");
     tmp->MakeSubDir("nothome");
     tmp->MakeSubDir(fs::path("nothome") / "blah");
 
@@ -168,7 +170,7 @@ TEST(Avd, wipe_data) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
-    auto avd_dir = createTestAvd(paths, "android-30");
+    auto avd_dir = createTestAvd(paths, "android-30", 30);
 
     auto some_file = avd_dir / "some-file";
     auto some_subdir = avd_dir / "some-subdir";
@@ -200,7 +202,7 @@ TEST(Avd, finalize_saves_config) {
     TestSystem sys("/home", "/");
     TestTempDir* tmp = sys.GetTempRoot();
     auto paths = setupPaths(tmp);
-    auto avd_dir = createTestAvd(paths, "android-30");
+    auto avd_dir = createTestAvd(paths, "android-30", 30);
 
     ASSERT_OK_AND_ASSIGN(auto avd, Avd::FromName(paths, "test_avd"));
 
