@@ -42,6 +42,7 @@
 #include "goldfish/avd_info/avd_private.h"
 #include "goldfish/display/QemuMultidisplay/multi_display.h"
 #include "goldfish/file/file.h"
+#include "goldfish/modem_simulator/modem_simulator_client.h"
 #include "goldfish/tools/aemu_version.h"
 
 // clang-format off
@@ -66,6 +67,7 @@ using ::android::goldfish::VmOperations;
 using ::goldfish::async::EventLoop;
 using ::goldfish::async::QemuEventLoop;
 using ::goldfish::display::IMultiDisplay;
+using ::goldfish::modem_simulator::ModemSimulatorClient;
 
 namespace goldfish::grpc {
 
@@ -171,7 +173,7 @@ void grpc_realize(DeviceState* dev, Error** errp) {
     if (config->modem_simulator_port > 0) {
         auto modemService =
                 std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>(
-                        config->modem_simulator_port);
+                        std::make_unique<ModemSimulatorClient>(config->modem_simulator_port));
         builder.withService(modemService);
     } else {
         LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";

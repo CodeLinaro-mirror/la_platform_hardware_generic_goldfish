@@ -32,6 +32,7 @@ cc_library(
         "//emulator/libs/async:qemu_event_loop",
         "//emulator/libs/display",
         "//emulator/libs/hardware_config",
+        "//emulator/modem_simulator:modem_simulator_client",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/status",

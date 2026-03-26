@@ -13,78 +13,181 @@
 // limitations under the License.
 #include "android/emulation/control/incubating/modem_service.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "android/sockets/socket_utils.h"
+#include "goldfish/modem_simulator/i_modem_simulator_client.h"
 
 namespace android {
 namespace emulation {
 namespace control {
 namespace incubating {
 
-TEST(ModemServiceTest, ConnectToSimulatorSendsRegistration) {
-    int server_fd = android::base::socketTcp4LoopbackServer(0);
-    ASSERT_GE(server_fd, 0);
+using ::testing::_;
+using ::testing::Return;
 
-    int port = android::base::socketGetPort(server_fd);
-    ASSERT_GT(port, 0);
+class MockModemSimulatorClient : public goldfish::modem_simulator::IModemSimulatorClient {
+  public:
+    MOCK_METHOD(absl::StatusOr<CellInfo>, SetCellInfo, (const CellInfo&), (override));
+    MOCK_METHOD(absl::StatusOr<CellInfo>, GetCellInfo, (), (override));
+    MOCK_METHOD(absl::StatusOr<Call>, CreateCall, (const Call&), (override));
+    MOCK_METHOD(absl::StatusOr<Call>, UpdateCall, (const Call&), (override));
+    MOCK_METHOD(absl::Status, DeleteCall, (const Call&), (override));
+    MOCK_METHOD(absl::StatusOr<std::vector<Call>>, ListCalls, (), (override));
+    MOCK_METHOD(absl::Status, ReceiveSmsUtf8, (std::string_view, std::string_view), (override));
+    MOCK_METHOD(absl::Status, ReceiveSmsEncoded, (std::vector<uint8_t>), (override));
+    MOCK_METHOD(absl::Status, UpdateClock, (), (override));
+};
 
-    ModemServiceImpl service(port);
-    auto client_fd = service.ConnectToSimulator();
-    ASSERT_TRUE(client_fd.valid());
-    int client_fd_raw = client_fd.get();
-    ASSERT_GE(client_fd_raw, 0);
+class ModemServiceTest : public ::testing::Test {
+  protected:
+    void SetUp() override {
+        auto mock_client = std::make_unique<MockModemSimulatorClient>();
+        client_ = mock_client.get();
+        service_ = std::make_unique<ModemServiceImpl>(std::move(mock_client));
+    }
 
-    int conn_fd = android::base::socketAcceptAny(server_fd);
-    ASSERT_GE(conn_fd, 0);
+    MockModemSimulatorClient* client_;
+    std::unique_ptr<ModemServiceImpl> service_;
+};
 
-    char buf[5] = {0};
-    ssize_t read_bytes = android::base::socketRecv(conn_fd, buf, 4);
-    EXPECT_EQ(read_bytes, 4);
-    EXPECT_STREQ(buf, "REM0");
-
-    android::base::socketClose(conn_fd);
-    android::base::socketClose(server_fd);
-}
-
-TEST(ModemServiceTest, ConstructorChecksInvalidPort) {
-    EXPECT_DEATH(ModemServiceImpl(0), "Invalid modem simulator port: 0");
-    EXPECT_DEATH(ModemServiceImpl(-1), "Invalid modem simulator port: -1");
-}
-
-TEST(ModemServiceTest, MethodsReturnUnimplemented) {
-    ModemServiceImpl service(1234);
+TEST_F(ModemServiceTest, SetCellInfo) {
     ::grpc::ServerContext context;
+    CellInfo request;
+    CellInfo response;
 
-    auto checkUnimplemented = [](const ::grpc::Status& status) {
-        EXPECT_EQ(status.error_code(), ::grpc::StatusCode::UNIMPLEMENTED);
-        EXPECT_EQ(status.error_message(), "Not implemented yet");
-    };
+    goldfish::modem_simulator::IModemSimulatorClient::CellInfo mock_response;
+    mock_response.standard = goldfish::modem_simulator::IModemSimulatorClient::CellStandard::LTE;
 
-    CellInfo cellInfoRequest;
-    CellInfo cellInfoResponse;
-    checkUnimplemented(service.setCellInfo(&context, &cellInfoRequest, &cellInfoResponse));
+    EXPECT_CALL(*client_, SetCellInfo(_)).WillOnce(Return(mock_response));
 
-    ::google::protobuf::Empty emptyRequest;
-    checkUnimplemented(service.getCellInfo(&context, &emptyRequest, &cellInfoResponse));
+    auto status = service_->setCellInfo(&context, &request, &response);
 
-    Call callRequest;
-    Call callResponse;
-    checkUnimplemented(service.createCall(&context, &callRequest, &callResponse));
-    checkUnimplemented(service.updateCall(&context, &callRequest, &callResponse));
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ(response.cell_standard(), CellInfo::CELL_STANDARD_LTE);
+}
 
-    ::google::protobuf::Empty emptyResponse;
-    checkUnimplemented(service.deleteCall(&context, &callRequest, &emptyResponse));
+TEST_F(ModemServiceTest, GetCellInfo) {
+    ::grpc::ServerContext context;
+    ::google::protobuf::Empty request;
+    CellInfo response;
 
-    ActiveCalls activeCallsResponse;
-    checkUnimplemented(service.listCalls(&context, &emptyRequest, &activeCallsResponse));
+    goldfish::modem_simulator::IModemSimulatorClient::CellInfo mock_response;
+    mock_response.standard = goldfish::modem_simulator::IModemSimulatorClient::CellStandard::GSM;
 
-    SmsMessage smsRequest;
-    checkUnimplemented(service.receiveSms(&context, &smsRequest, &emptyResponse));
+    EXPECT_CALL(*client_, GetCellInfo()).WillOnce(Return(mock_response));
 
-    checkUnimplemented(service.updateClock(&context, &emptyRequest, &emptyResponse));
+    auto status = service_->getCellInfo(&context, &request, &response);
 
-    checkUnimplemented(service.receivePhoneEvents(&context, &emptyRequest, nullptr));
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ(response.cell_standard(), CellInfo::CELL_STANDARD_GSM);
+}
+
+TEST_F(ModemServiceTest, CreateCall) {
+    ::grpc::ServerContext context;
+    Call request;
+    request.set_number("12345");
+    Call response;
+
+    goldfish::modem_simulator::IModemSimulatorClient::Call mock_response;
+    mock_response.number = "12345";
+    mock_response.state = goldfish::modem_simulator::IModemSimulatorClient::CallState::ACTIVE;
+
+    EXPECT_CALL(*client_, CreateCall(_)).WillOnce(Return(mock_response));
+
+    auto status = service_->createCall(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ(response.number(), "12345");
+    EXPECT_EQ(response.state(), Call::CALL_STATE_ACTIVE);
+}
+
+TEST_F(ModemServiceTest, UpdateCall) {
+    ::grpc::ServerContext context;
+    Call request;
+    Call response;
+
+    goldfish::modem_simulator::IModemSimulatorClient::Call mock_response;
+    mock_response.number = "54321";
+
+    EXPECT_CALL(*client_, UpdateCall(_)).WillOnce(Return(mock_response));
+
+    auto status = service_->updateCall(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+    EXPECT_EQ(response.number(), "54321");
+}
+
+TEST_F(ModemServiceTest, DeleteCall) {
+    ::grpc::ServerContext context;
+    Call request;
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, DeleteCall(_)).WillOnce(Return(absl::OkStatus()));
+
+    auto status = service_->deleteCall(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+}
+
+TEST_F(ModemServiceTest, ListCalls) {
+    ::grpc::ServerContext context;
+    ::google::protobuf::Empty request;
+    ActiveCalls response;
+
+    std::vector<goldfish::modem_simulator::IModemSimulatorClient::Call> mock_calls(2);
+    mock_calls[0].number = "111";
+    mock_calls[1].number = "222";
+
+    EXPECT_CALL(*client_, ListCalls()).WillOnce(Return(mock_calls));
+
+    auto status = service_->listCalls(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+    ASSERT_EQ(response.calls_size(), 2);
+    EXPECT_EQ(response.calls(0).number(), "111");
+    EXPECT_EQ(response.calls(1).number(), "222");
+}
+
+TEST_F(ModemServiceTest, ReceiveSmsUtf8) {
+    ::grpc::ServerContext context;
+    SmsMessage request;
+    request.set_number("123");
+    request.set_text("hello");
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, ReceiveSmsUtf8("123", "hello")).WillOnce(Return(absl::OkStatus()));
+
+    auto status = service_->receiveSms(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+}
+
+TEST_F(ModemServiceTest, ReceiveSmsEncoded) {
+    ::grpc::ServerContext context;
+    SmsMessage request;
+    request.set_number("123");
+    request.set_encodedmessage("0123");  // 2 bytes
+    ::google::protobuf::Empty response;
+
+    std::vector<uint8_t> expected_bytes = {0x01, 0x23};
+    EXPECT_CALL(*client_, ReceiveSmsEncoded(expected_bytes)).WillOnce(Return(absl::OkStatus()));
+
+    auto status = service_->receiveSms(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
+}
+
+TEST_F(ModemServiceTest, UpdateClock) {
+    ::grpc::ServerContext context;
+    ::google::protobuf::Empty request;
+    ::google::protobuf::Empty response;
+
+    EXPECT_CALL(*client_, UpdateClock()).WillOnce(Return(absl::OkStatus()));
+
+    auto status = service_->updateClock(&context, &request, &response);
+
+    EXPECT_TRUE(status.ok());
 }
 
 }  // namespace incubating
