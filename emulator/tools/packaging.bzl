@@ -463,9 +463,9 @@ def _source_properties_impl(ctx):
     # See go/adrt for details on the file format
     content = """Pkg.UserSrc=false
 Pkg.Revision={revision}
-Pkg.Path=emulators
+Pkg.Path=emulators;{build_id}
 Pkg.Desc={desc}
-""".format(desc = desc, revision = revision)
+""".format(desc = desc, revision = revision, build_id = build_id)
 
     ctx.actions.write(
         output = ctx.outputs.out,
