@@ -113,6 +113,7 @@ cc_library(
     deps = [
         ":avd",
         "//emulator/libs/cpu",
+        "//emulator/libs/cpu:cpu_brand",
         "//emulator/libs/file",
         "//emulator/libs/hardware_config",
         "//emulator/libs/system",

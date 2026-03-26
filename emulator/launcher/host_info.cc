@@ -4,6 +4,7 @@
 
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
+#include "android/cpu/cpu_brand.h"
 #include "android/goldfish/avd.h"
 #include "android/goldfish/hardware_config.h"
 #include "goldfish/file/file.h"
@@ -189,36 +190,28 @@ void FillHost(android_studio::EmulatorHost& host) {
                                                                   : "OTHER");
 
 #if defined(__x86_64__)
-    // TODO(whollins): Update cpu libs to make this available.
-    /*uint32_t cpuid_mfs = android::GetX86Cpuid();
-    uint32_t cpuid_stepping = cpuid_mfs & 0x0000000f;
-    uint32_t cpuid_model = (cpuid_mfs & 0x000000f0) >> 4;
-    uint32_t cpuid_family = (cpuid_mfs & 0x00000f00) >> 8;
-    uint32_t cpuid_type = (cpuid_mfs & 0x00003000) >> 12;
-    uint32_t cpuid_extmodel = (cpuid_mfs & 0x000f0000) >> 16;
-    uint32_t cpuid_extfamily = (cpuid_mfs & 0x0ff00000) >> 20;
-    host.set_cpuid_stepping(cpuid_stepping);
-    host.set_cpuid_model(cpuid_model);
-    host.set_cpuid_family(cpuid_family);
-    host.set_cpuid_type(cpuid_type);
-    host.set_cpuid_extmodel(cpuid_extmodel);
-    host.set_cpuid_extfamily(cpuid_extfamily);*/
+    auto x86_cpuid = android::GetX86Cpuid();
+    host.set_cpuid_stepping(x86_cpuid.cpuid_stepping);
+    host.set_cpuid_model(x86_cpuid.cpuid_model);
+    host.set_cpuid_family(x86_cpuid.cpuid_family);
+    host.set_cpuid_type(x86_cpuid.cpuid_type);
+    host.set_cpuid_extmodel(x86_cpuid.cpuid_extmodel);
+    host.set_cpuid_extfamily(x86_cpuid.cpuid_extfamily);
 
     host.set_cpu_architecture("x86_64");
 #elif defined(__aarch64__) || defined(_M_ARM64)
     host.set_cpu_architecture("arm64");
 #endif
 
-    // TODO(whollins): Update cpu libs to make this available.
-
     // x86_64 CPU brand name returned by CPUID can at most have 48 bytes
     // including the NULL terminator. But I don't see a definition on the
     // ARM64 side. To get it safer, use a larger buffer to hold the name.
     // So far, I have not seen a CPU whose name is 100 bytes long.
-    /*char cpuBrandName[100];
-    if (!android::getCpuBrandName(cpuBrandName)) {
+    // TODO(b/496311138): Update the implementations to check that the buffer is big enough.
+    char cpuBrandName[100];
+    if (!android::cpu::GetCpuBrandName(cpuBrandName)) {
         host.set_cpu_brandname(cpuBrandName);
-    }*/
+    }
 }
 
 void FillFeatureFlagState(android_studio::EmulatorFeatureFlagState& feature_flag_state) {
