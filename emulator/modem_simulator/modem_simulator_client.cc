@@ -15,6 +15,7 @@
 
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
 #include "android/sockets/scoped_socket.h"
@@ -54,6 +55,118 @@ absl::StatusOr<ScopedSocket> ConnectToSimulator(const int serverPort) {
     return fd;
 }
 
+absl::Status SetSignalStrength(ScopedSocket& socket,
+                               const IModemSimulatorClient::SignalStrength ss) {
+    unsigned value;
+    switch (ss) {
+    default:
+    case IModemSimulatorClient::SignalStrength::NONE_OR_UNKNOWN:
+        value = 0;
+        break;
+
+    case IModemSimulatorClient::SignalStrength::POOR:
+        value = 1;
+        break;
+
+    case IModemSimulatorClient::SignalStrength::MODERATE:
+        value = 2;
+        break;
+
+    case IModemSimulatorClient::SignalStrength::GOOD:
+        value = 3;
+        break;
+
+    case IModemSimulatorClient::SignalStrength::GREAT:
+        value = 4;
+        break;
+    }
+
+    using namespace std::literals::string_view_literals;
+    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, value, "\r"sv);
+
+    if (!socketSendAll(socket.get(), req.data(), req.size())) {
+        return absl::InternalError("Failed to send AT command");
+    }
+
+    return absl::OkStatus();
+}
+
+absl::Status SetCellStandard(ScopedSocket& socket, const IModemSimulatorClient::CellStandard cs) {
+    unsigned tech;  // see network_service.h
+    switch (cs) {
+    default:
+    case IModemSimulatorClient::CellStandard::UNKNOWN:
+    case IModemSimulatorClient::CellStandard::GSM:
+    case IModemSimulatorClient::CellStandard::HSCSD:
+    case IModemSimulatorClient::CellStandard::GPRS:
+    case IModemSimulatorClient::CellStandard::EDGE:
+        tech = 1U << 0;  // GSM
+        break;
+
+    case IModemSimulatorClient::CellStandard::UMTS:
+    case IModemSimulatorClient::CellStandard::HSDPA:
+        tech = 1U << 1;  // WCDMA
+        break;
+
+    case IModemSimulatorClient::CellStandard::LTE:
+        tech = 1U << 5;  // LTE
+        break;
+
+    case IModemSimulatorClient::CellStandard::FULL:
+    case IModemSimulatorClient::CellStandard::NR_5G:
+        tech = 1U << 6;  // 5G
+        break;
+    }
+
+    using namespace std::literals::string_view_literals;
+    const std::string req = absl::StrCat("AT+REMOTECTEC: "sv, tech, "\r"sv);
+
+    if (!socketSendAll(socket.get(), req.data(), req.size())) {
+        return absl::InternalError("Failed to send AT command");
+    }
+
+    return absl::OkStatus();
+}
+
+absl::Status SetVoiceStatus(ScopedSocket& socket, const IModemSimulatorClient::CellStatus cs) {
+    unsigned value;  // see network_service.h
+    switch (cs) {
+    default:
+    case IModemSimulatorClient::CellStatus::UNKNOWN:
+        value = 0;
+        break;
+
+    case IModemSimulatorClient::CellStatus::HOME:
+        value = 1;
+        break;
+
+    case IModemSimulatorClient::CellStatus::ROAMING:
+        value = 2;
+        break;
+
+    case IModemSimulatorClient::CellStatus::SEARCHING:
+        value = 3;
+        break;
+
+    case IModemSimulatorClient::CellStatus::DENINED:
+        value = 4;
+        break;
+
+    case IModemSimulatorClient::CellStatus::UNREGISTERED:
+        value = 5;
+        break;
+    }
+
+    using namespace std::literals::string_view_literals;
+    const std::string req = absl::StrCat("AT+REMOTEREG: "sv, value, "\r"sv);
+
+    if (!socketSendAll(socket.get(), req.data(), req.size())) {
+        return absl::InternalError("Failed to send AT command");
+    }
+
+    return absl::OkStatus();
+}
+
 absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) {
     const absl::StatusOr<ScopedSocket> socket = ConnectToSimulator(serverPort);
     if (!socket.ok()) {
@@ -76,8 +189,25 @@ absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) 
 
 ModemSimulatorClient::ModemSimulatorClient(int serverPort) : serverPort_(serverPort) {}
 
-absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo&) {
-    return absl::UnimplementedError("`SetCellInfo` is not yet implemented.");
+absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
+    absl::StatusOr<ScopedSocket> socket = ConnectToSimulator(serverPort_);
+    if (!socket.ok()) {
+        return socket.status();
+    }
+
+    if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
+        return status;
+    }
+
+    if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
+        return status;
+    }
+
+    if (const auto status = SetSignalStrength(*socket, ci.signalStrength); !status.ok()) {
+        return status;
+    }
+
+    return ci;
 }
 
 absl::StatusOr<CellInfo> ModemSimulatorClient::GetCellInfo() {

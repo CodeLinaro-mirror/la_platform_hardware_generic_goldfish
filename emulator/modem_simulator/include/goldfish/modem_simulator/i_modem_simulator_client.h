@@ -94,13 +94,13 @@ struct IModemSimulatorClient {
     };
 
     struct CellInfo {
-        CellIdentity identity;
+        CellIdentity identity;  // unsupported by UI
         CellStandard standard = CellStandard::UNKNOWN;
         CellStatus voiceStatus = CellStatus::UNKNOWN;
-        CellStatus dataStatus = CellStatus::UNKNOWN;
+        CellStatus dataStatus = CellStatus::UNKNOWN;  // unsupported by modem
         SignalStrength signalStrength = SignalStrength::NONE_OR_UNKNOWN;
-        MeterStatus meterStatus = MeterStatus::UNKNOWN;
-        SimStatus simStatus = SimStatus::UNKNOWN;
+        MeterStatus meterStatus = MeterStatus::UNKNOWN;  // unsupported by modem
+        SimStatus simStatus = SimStatus::UNKNOWN;        // unsupported by modem
     };
 
     struct Call {
