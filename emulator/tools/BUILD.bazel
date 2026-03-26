@@ -30,7 +30,7 @@ py_binary(
 aemu_naming(
     name = "aemu_version_info",
     build_id_dep = "//emulator:build_id",
-    description = "Android Emulator (preview)",
+    description = "Android Emulator (Preview)",
     platform = select({
         "@platforms//os:windows": "windows",
         "@platforms//os:macos": "darwin_aarch64",
