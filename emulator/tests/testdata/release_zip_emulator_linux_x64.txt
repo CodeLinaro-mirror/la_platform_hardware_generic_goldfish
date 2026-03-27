@@ -33,7 +33,6 @@ emulator/fishtank/lib64/libandroid-emu-tracing.so
 emulator/fishtank/lib64/libc++.so
 emulator/fishtank/lib64/libc++.so.1
 emulator/fishtank/lib64/libemugl_common.so
-emulator/fishtank/lib64/libgfxstream_backend.so
 emulator/fishtank/lib64/libglib2_linux-x86_64.so
 emulator/fishtank/lib64/libprotobuf.so
 emulator/fishtank/lib64/libprotobuf.so.28.4.0

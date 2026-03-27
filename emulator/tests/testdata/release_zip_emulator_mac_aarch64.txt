@@ -32,7 +32,6 @@ emulator/fishtank/lib64/libandroid-emu-metrics.dylib
 emulator/fishtank/lib64/libandroid-emu-protos.dylib
 emulator/fishtank/lib64/libandroid-emu-tracing.dylib
 emulator/fishtank/lib64/libemugl_common.dylib
-emulator/fishtank/lib64/libgfxstream_backend.dylib
 emulator/fishtank/lib64/libglib2_darwin-aarch64.dylib
 emulator/fishtank/lib64/libprotobuf.28.4.0.dylib
 emulator/fishtank/lib64/libprotobuf.dylib
