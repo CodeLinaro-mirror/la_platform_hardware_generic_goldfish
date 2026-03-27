@@ -651,6 +651,12 @@ Status DisplayServiceImpl::setDisplayMode(ServerContext* context, const DisplayM
                     absl::Milliseconds(100))) {
             }
         }
+    } else {
+        const auto posture = mPhysicalModel.GetFoldableState().current_posture;
+
+        Notification event;
+        event.mutable_posture()->set_value(ToProtoPosture(posture));
+        ::goldfish::avd_info::GetAvd().GetGrpcNotificationChannel().FireEvent(event);
     }
 
     auto screen = mMultiDisplay.GetDisplay(0);
