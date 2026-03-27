@@ -1,0 +1,17 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "spin",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "mutex",
+        "once",
+        "spin_mutex",
+        "std",
+    ],
+    crate_name = "spin",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+)
