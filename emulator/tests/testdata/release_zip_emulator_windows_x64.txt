@@ -186,7 +186,6 @@ emulator/fishtank/libandroid-emu-metrics.dll
 emulator/fishtank/libandroid-emu-protos.dll
 emulator/fishtank/libandroid-emu-tracing.dll
 emulator/fishtank/libemugl_common.dll
-emulator/fishtank/libgfxstream_backend.dll
 emulator/fishtank/libglib2_windows_msvc-x86_64.dll
 emulator/fishtank/liblibprotobuf.dll
 emulator/fishtank/libshadertranslator.dll
