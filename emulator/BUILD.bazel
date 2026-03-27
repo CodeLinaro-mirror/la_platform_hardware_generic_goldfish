@@ -512,6 +512,7 @@ test_suite(
         "@boringssl//:urandom_test",
         "@crashpad//:crashpad_tests",
         "@ffmpeg//:tests",
+        "@libsrtp2//:test_srtp",
         "@libyuv//:libyuv_unittest",
     ],
 )
