@@ -54,7 +54,7 @@ struct IModemSimulatorClient {
         HOME = 1,
         ROAMING = 2,
         SEARCHING = 3,
-        DENINED = 4,
+        DENIED = 4,
         UNREGISTERED = 5,
     };
 

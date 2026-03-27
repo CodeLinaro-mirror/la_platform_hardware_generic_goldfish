@@ -148,7 +148,7 @@ absl::Status SetVoiceStatus(ScopedSocket& socket, const IModemSimulatorClient::C
         value = 3;
         break;
 
-    case IModemSimulatorClient::CellStatus::DENINED:
+    case IModemSimulatorClient::CellStatus::DENIED:
         value = 4;
         break;
 

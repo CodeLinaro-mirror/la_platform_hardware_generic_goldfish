@@ -91,7 +91,7 @@ client_type::CellStatus ToClient(const CellInfo::CellStatus status) {
     case CellInfo::CELL_STATUS_SEARCHING:
         return client_type::CellStatus::SEARCHING;
     case CellInfo::CELL_STATUS_DENIED:
-        return client_type::CellStatus::DENINED;
+        return client_type::CellStatus::DENIED;
     case CellInfo::CELL_STATUS_UNREGISTERED:
         return client_type::CellStatus::UNREGISTERED;
     default:
@@ -109,7 +109,7 @@ CellInfo::CellStatus ToProto(const client_type::CellStatus status) {
         return CellInfo::CELL_STATUS_ROAMING;
     case client_type::CellStatus::SEARCHING:
         return CellInfo::CELL_STATUS_SEARCHING;
-    case client_type::CellStatus::DENINED:
+    case client_type::CellStatus::DENIED:
         return CellInfo::CELL_STATUS_DENIED;
     case client_type::CellStatus::UNREGISTERED:
         return CellInfo::CELL_STATUS_UNREGISTERED;
