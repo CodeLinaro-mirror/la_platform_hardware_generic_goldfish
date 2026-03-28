@@ -19,6 +19,7 @@
 
 #include "android/base/system.h"
 #include "goldfish/tools/aemu_version.h"
+#include "qemu-version.h"
 
 namespace goldfish::metrics {
 
@@ -59,7 +60,7 @@ void MetricsReporter::SetBaseFields(android_studio::AndroidStudioEvent& event) {
     product.set_product(android_studio::ProductDetails::EMULATOR);
     product.set_version(VERSION);
     product.set_build(EMULATOR_FULL_VERSION_STRING);
-    details.set_core_version("TODO QEMU version");
+    details.set_core_version(QEMU_FULL_VERSION);
 
     const auto times = android::base::System::Get()->GetProcessTimes();
     details.set_system_time(times.system_ms);
