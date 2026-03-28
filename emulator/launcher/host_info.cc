@@ -284,7 +284,12 @@ void FillEmulatorHostEvent(android_studio::AndroidStudioEvent& event, const Avd&
     auto& product = *event.mutable_product_details();
     // TODO set product channel
     product.set_channel(android_studio::ProductDetails::UNKNOWN_LIFE_CYCLE_CHANNEL);
+
+    #ifdef __aarch64__
+    product.set_os_architecture(android_studio::ProductDetails::ARM);
+    #else
     product.set_os_architecture(android_studio::ProductDetails::X86_64);
+    #endif
 
     FillHost(*event.mutable_emulator_host());
     FillDetails(*event.mutable_emulator_details(), avd, launcher_pid, qemu_pid,
