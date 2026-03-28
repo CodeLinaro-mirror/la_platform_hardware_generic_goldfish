@@ -430,6 +430,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             uv_process_kill(p, SIGTERM);
         }
 
+        // Send a final ping with the crash status.
+        l.mReporter->Report([exit_status, term_signal](android_studio::AndroidStudioEvent& event) {
+            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0 ? 0 : 1);
+        });
+
         l.shutdown();
     }
 
