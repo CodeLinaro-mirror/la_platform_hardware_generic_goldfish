@@ -12,7 +12,7 @@ ANDROID_HOME = "{% if env.ANDROID_HOME %}{{ env.ANDROID_HOME }}{% else %}$BAZEL_
 env_shell_expand = true
 
 [shell_alias]
-bzl = "echo 'cd $BAZEL_ROOT && bazel $@' | sh -s"
+bzl = "echo 'cd $BAZEL_ROOT && bazel $@' | sh -s --"
 
 [tasks.build]
 description = "Builds the emulator release"
