@@ -275,8 +275,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     DEVS::sensor::ISensorDevice::RegisterDevice(&avd_universe.GetSensorsPhysicalModel(), registry,
                                                 avd_props.avd_type, avd_props.avd_api,
                                                 avd_props.hw_config, client_loop, qemu_loop.get());
-    DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe.GetClipboardChannel(),
-                                                      registry, client_loop, qemu_loop.get());
+    DEVS::clipboard::IClipboardDevice::RegisterDevice(&avd_universe.GetClipboardChannel(), registry,
+                                                      client_loop, qemu_loop.get());
     DEVS::guest_status::IGuestStatusDevice::RegisterDevice(
             &avd_universe.GetGuestStatus(), &avd_universe.GetGrpcNotificationChannel(), registry,
             {qemu_register_reset, BqlSafeUnregisterEmulatorReset}, client_loop, qemu_loop.get(),
@@ -299,7 +299,7 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     using namespace std::string_literals;
     if (auto props = devices::boot::IBootPropertiesDevice::MakeProperties({
             {"qemu.sf.fake_camera"s, emulatedCameraProp},
-            {"qemu.sf.lcd_density"s, "420"s},
+            {"qemu.sf.lcd_density"s, absl::StrCat(avd_props.hw_config.hw_lcd_density)},
             // This is the same value that is passed to the virtio-wifi module.
             {"net.wifi_mac_prefix"s, absl::StrCat(avd_props.serial_number)},
         });
@@ -316,8 +316,8 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     ::goldfish::display::qemu_multidisplay::ConfigureMultiDisplay(client_loop, qemu_loop.get());
 
     // Initialize the battery to a default state and register it.
-    avd_universe.battery_subscription = DEVS::battery::RegisterBattery(&avd_universe.GetBattery(), avd_props.hw_config.hw_battery,
-                                   qemu_loop.get());
+    avd_universe.battery_subscription = DEVS::battery::RegisterBattery(
+            &avd_universe.GetBattery(), avd_props.hw_config.hw_battery, qemu_loop.get());
 
     // Make avd universe visible to other modules.
     gGlobalAvdUniverseInstance = avd_info->universe;
