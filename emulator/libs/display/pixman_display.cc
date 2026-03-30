@@ -281,7 +281,7 @@ absl::StatusOr<FrameInfo> PixmanDisplay::GetPixels(PixelFormat format, int new_w
                 .height = static_cast<uint32_t>(pixman_image_get_height(src_img))};
 
         if (kNoScaling) {
-            if (format == PixelFormat::kPng) {
+            if (format == PixelFormat::kPng || format == PixelFormat::kRgba8888) {
                 auto width = pixman_image_get_width(src_img);
                 auto height = pixman_image_get_height(src_img);
                 auto* src_bits = pixman_image_get_data(src_img);
