@@ -352,13 +352,19 @@ pkg_files(
     prefix = "share/qemu",
 )
 
-# We have to exclude the fishtank binary as it has to be marked executable in a separate inclusion.
+# We have to exclude the fishtank and QtWebEngineProcess binaries as they have to be marked executable in a separate inclusion.
 filter_directory(
     name = "fishtank_filtered_dir",
     src = "//emulator/launcher:fishtank_unzip",
     excludes = select({
-        "@platforms//os:windows": ["fishtank/fishtank.exe"],
-        "//conditions:default": ["fishtank/fishtank"],
+        "@platforms//os:windows": [
+            "fishtank/fishtank.exe",
+            "fishtank/lib64/qt/bin/QtWebEngineProcess.exe",
+        ],
+        "//conditions:default": [
+            "fishtank/fishtank",
+            "fishtank/lib64/qt/libexec/QtWebEngineProcess",
+        ],
     }),
     outdir_name = "fishtank",
     strip_prefix = "fishtank",
@@ -400,6 +406,40 @@ pkg_files(
     }),
 )
 
+# We have to copy the QtWebEngineProcess binary first as the pkg_zip implementation doesn't like a symlink.
+make_directory_path(
+    name = "qtwebengine_binary_path",
+    directory = "//emulator/launcher:fishtank_unzip",
+    path = select({
+        "@platforms//os:windows": "fishtank/lib64/qt/bin/QtWebEngineProcess.exe",
+        "//conditions:default": "fishtank/lib64/qt/libexec/QtWebEngineProcess",
+    }),
+)
+
+copy_file(
+    name = "qtwebengine_binary_copy",
+    src = ":qtwebengine_binary_path",
+    out = "qtwebengine_binary_copy_file",
+)
+
+pkg_files(
+    name = "qtwebengine_binary",
+    srcs = [":qtwebengine_binary_copy"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = select({
+        "@platforms//os:windows": "fishtank/lib64/qt/bin",
+        "//conditions:default": "fishtank/lib64/qt/libexec",
+    }),
+    renames = select({
+        "@platforms//os:windows": {
+            ":qtwebengine_binary_copy": "QtWebEngineProcess.exe",
+        },
+        "//conditions:default": {
+            ":qtwebengine_binary_copy": "QtWebEngineProcess",
+        },
+    }),
+)
+
 pkg_filegroup(
     name = "emulator-dir",
     srcs = [
@@ -415,6 +455,7 @@ pkg_filegroup(
         ":qemu-keymaps",
         ":qemu-roms",
         ":qemu_stripped",
+        ":qtwebengine_binary",
         ":source_properties_pkg",
         ":vulkan_stripped",
     ] + select({
