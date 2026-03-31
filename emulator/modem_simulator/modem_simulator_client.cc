@@ -186,12 +186,16 @@ absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
         return socket.status();
     }
 
-    if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
-        return status;
+    if (ci.standard != CellStandard::UNKNOWN) {
+        if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
+            return status;
+        }
     }
 
-    if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
-        return status;
+    if (ci.voiceStatus != CellStatus::UNKNOWN) {
+        if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
+            return status;
+        }
     }
 
     if (const auto status = SetSignalStrength(*socket, ci.signalStrength); !status.ok()) {
