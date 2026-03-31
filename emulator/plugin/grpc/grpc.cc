@@ -24,17 +24,24 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
+#include "android/control/interceptor/idle_interceptor.h"
+#include "android/control/interceptor/logging_interceptor.h"
+#include "android/emulation/control/allow_list.h"
+#include "android/emulation/control/basic_token_auth.h"
 #include "android/emulation/control/emulator_controller.h"
 #include "android/emulation/control/incubating/modem_service.h"
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
+#include "android/emulation/control/jwt_token_auth.h"
 #include "android/emulation/control/service_forwarder_impl.h"
 #include "android/emulation/control/ui_controller_forwarder.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/process/process.h"
+#include "android/sockets/scoped_socket.h"
+#include "android/sockets/socket_utils.h"
+#include "android/status/status_macros.h"
 #include "emulator/plugin/grpc/grpc_display.h"
 #include "emulator_advertisement.h"
-#include "goldfish/async/android/emulation/control/grpc_services.h"
 #include "goldfish/async/event_loop.h"
 #include "goldfish/async/qemu_event_loop.h"
 #include "goldfish/async/testing/global_event_loop.h"
@@ -60,7 +67,7 @@ extern "C" {
 
 namespace fs = std::filesystem;
 namespace file = ::android::base::file;
-using ::android::emulation::control::EmulatorControllerService;
+using namespace ::android::emulation::control;
 using ::android::goldfish::EmulatorAdvertisement;
 using ::android::goldfish::EmulatorProperties;
 using ::android::goldfish::VmOperations;
@@ -74,11 +81,11 @@ namespace goldfish::grpc {
 namespace {
 
 struct GrpcConfig {
-    std::string addr;
-    fs::path tls_cer;
-    fs::path tls_key;
-    fs::path tls_ca;
-    fs::path allowlist;
+    std::string addr{"127.0.0.1"};
+    fs::path tls_key_path;
+    fs::path tls_cert_path;
+    fs::path tls_ca_path;
+    fs::path allow_list_path;
     fs::path discovery_path;
     fs::path launcher_dir;
     bool enable_logging{false};
@@ -88,7 +95,9 @@ struct GrpcConfig {
     int port{0};
     int modem_simulator_port{0};
 
-    std::unique_ptr<EmulatorControllerService> grpc_service;
+    std::unique_ptr<AllowList> allow_list;
+    std::vector<std::shared_ptr<::grpc::Service>> grpc_services;
+    std::unique_ptr<::grpc::Server> grpc_server;
     std::unique_ptr<EmulatorAdvertisement> advertiser;
 };
 
@@ -102,8 +111,94 @@ struct GrpcDev {
 #define GRPC_DEV(obj) OBJECT_CHECK(GrpcDev, (obj), TYPE_GRPC)
 #define GRPC_DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(GrpcDev, obj, TYPE_GRPC)
 
-// Generates a secure base64 encoded token of
-// |cnt| bytes.
+std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniverse& avd_universe,
+                                                             int modem_simulator_port) {
+    std::vector<std::shared_ptr<::grpc::Service>> services;
+
+    services.emplace_back(::android::emulation::control::getEmulatorController(
+            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avd_universe,
+            IMultiDisplay::Instance()));
+    auto service_forwarder =
+            std::make_shared<::android::emulation::forwarding::ServiceForwarderImpl>();
+    services.emplace_back(service_forwarder);
+    services.emplace_back(std::make_shared<::android::emulation::forwarding::UiControllerForwarder>(
+            service_forwarder));
+    services.emplace_back(
+            std::make_shared<::android::emulation::control::incubating::ScreenRecordingServiceImpl>(
+                    IMultiDisplay::Instance()));
+    services.emplace_back(std::make_shared<
+                          ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
+            avd_universe.GetSensorsPhysicalModel()));
+
+    if (modem_simulator_port > 0) {
+        services.emplace_back(
+                std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>(
+                        std::make_unique<ModemSimulatorClient>(modem_simulator_port)));
+    } else {
+        LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    }
+
+    return services;
+}
+
+std::vector<std::unique_ptr<::grpc::experimental::ServerInterceptorFactoryInterface>>
+CreateInterceptors(bool enable_logging, int idle_timeout) {
+    std::vector<std::unique_ptr<::grpc::experimental::ServerInterceptorFactoryInterface>> creators;
+    if (enable_logging) {
+        creators.emplace_back(
+                std::make_unique<android::control::interceptor::StdOutLoggingInterceptorFactory>());
+    }
+
+    if (idle_timeout > 0) {
+        LOG(INFO) << "Terminating emulator if no activity after " << idle_timeout << " seconds.";
+        creators.emplace_back(
+                std::make_unique<android::control::interceptor::IdleInterceptorFactory>(
+                        std::chrono::seconds(idle_timeout), goldfish::async::globalEventLoop()));
+    }
+    return creators;
+}
+
+bool IsLocalAddress(const std::string& addr) {
+    return addr == "[::1]" || addr == "127.0.0.1" || addr == "localhost";
+}
+
+struct PortRes {
+    int port = -1;
+    bool ipv6 = false;
+};
+
+PortRes ValidatePort(int port) {
+    PortRes res;
+    android::base::ScopedSocket s0(android::base::socketTcp4LoopbackServer(port));
+    if (s0.valid()) {
+        res.port = android::base::socketGetPort(s0.get());
+    } else {
+        // Try ipv6 port
+        s0 = android::base::socketTcp6LoopbackServer(port);
+        if (s0.valid()) {
+            res.port = android::base::socketGetPort(s0.get());
+            res.ipv6 = true;
+        }
+    }
+    return res;
+}
+
+std::unique_ptr<AllowList> loadAllowlist(const fs::path& path) {
+    auto emulator_access = std::ifstream(path);
+
+    if (!emulator_access.good()) {
+        LOG(WARNING) << "Cannot find access file " << path << ", blocking all access.";
+        return std::make_unique<DisableAccess>();
+    }
+
+    LOG(INFO) << "Using security allow list from: " << path;
+    auto list = AllowList::FromStream(emulator_access);
+    list->SetSource(path.string());
+
+    return list;
+}
+
+// Generates a secure base64 encoded token of |cnt| bytes.
 std::string generateToken(int cnt) {
     absl::BitGen gen;
     std::string buf(cnt, 0);  // Initialize a string of cnt bytes with 0s
@@ -115,6 +210,129 @@ std::string generateToken(int cnt) {
     std::string encoded;
     absl::WebSafeBase64Escape(buf, &encoded);
     return encoded;
+}
+
+struct CredConf {
+    std::string tls_key;
+    std::string tls_cert;
+    std::string tls_ca;
+
+    // TODO(whollins): update libs/grpc_security to take this as const.
+    AllowList* allow_list;
+
+    std::string auth_token;
+    fs::path jwk_file;
+
+    bool is_tls() const { return !tls_key.empty() && !tls_cert.empty(); }
+    bool has_auth() const { return !auth_token.empty() || !jwk_file.empty(); }
+};
+
+absl::StatusOr<CredConf> GetCredConf(const GrpcConfig& config) {
+    CredConf cred_conf;
+    if (!config.tls_key_path.empty()) {
+        ASSIGN_OR_RETURN(cred_conf.tls_key,
+                         android::base::file::read_whole_file(config.tls_key_path, /*binary=*/false));
+    }
+    if (!config.tls_cert_path.empty()) {
+        ASSIGN_OR_RETURN(cred_conf.tls_cert,
+                         android::base::file::read_whole_file(config.tls_cert_path, /*binary=*/false));
+    }
+    if (!config.tls_ca_path.empty()) {
+        ASSIGN_OR_RETURN(cred_conf.tls_ca,
+                         android::base::file::read_whole_file(config.tls_ca_path, /*binary=*/false));
+    }
+
+    cred_conf.allow_list = config.allow_list.get();
+
+    if (config.use_token) {
+        constexpr int of64Bytes = 64;
+        cred_conf.auth_token = generateToken(of64Bytes);
+    }
+
+    fs::path jwk_dir = config.discovery_path /
+                       std::to_string(::android::base::Process::Me()->pid()) / "jwks" /
+                       generateToken(16);
+    if (auto s = file::mkdir_recursive(jwk_dir, 0700); !s.ok()) {
+        return absl::UnavailableError(
+                absl::StrCat("Failed to create jwk directory ", jwk_dir.string(), " error: ", s));
+    }
+    cred_conf.jwk_file = jwk_dir / "active.jwk";
+
+    return cred_conf;
+}
+
+std::shared_ptr<::grpc::ServerCredentials> CreateCredentials(const CredConf& cred_conf,
+                                                             bool local_host) {
+    std::shared_ptr<::grpc::ServerCredentials> creds;
+    if (cred_conf.is_tls()) {
+        ::grpc::SslServerCredentialsOptions::PemKeyCertPair keycert(cred_conf.tls_key,
+                                                                    cred_conf.tls_cert);
+        ::grpc::SslServerCredentialsOptions ssl_opts;
+        ssl_opts.pem_key_cert_pairs.push_back(keycert);
+
+        // Register the certificate authority if one exists.
+        if (!cred_conf.tls_ca.empty()) {
+            ssl_opts.pem_root_certs = cred_conf.tls_ca;
+            ssl_opts.client_certificate_request =
+                    GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY;
+        }
+        creds = ::grpc::SslServerCredentials(ssl_opts);
+    } else if (local_host) {
+        creds = ::grpc::experimental::LocalServerCredentials(LOCAL_TCP);
+    } else {
+        creds = ::grpc::InsecureServerCredentials();
+    }
+
+    if (cred_conf.has_auth()) {
+        auto anyauth = std::vector<std::unique_ptr<BasicTokenAuth>>();
+        if (!cred_conf.auth_token.empty()) {
+            anyauth.emplace_back(std::make_unique<StaticTokenAuth>(
+                    cred_conf.auth_token, "android-studio", cred_conf.allow_list));
+        }
+        if (!cred_conf.jwk_file.empty()) {
+            anyauth.emplace_back(std::make_unique<JwtTokenAuth>(
+                    cred_conf.jwk_file.parent_path(), cred_conf.jwk_file, cred_conf.allow_list));
+        }
+        creds->SetAuthMetadataProcessor(
+                std::make_shared<AnyTokenAuth>(std::move(anyauth), cred_conf.allow_list));
+    } else {
+        LOG(WARNING) << "*** No gRPC protection active ***";
+    }
+    return creds;
+}
+
+EmulatorProperties CreateProps(const GrpcConfig* config, const avd_info::AvdProperties& avdprops,
+                               const CredConf& cred_conf) {
+    EmulatorProperties props{
+        {"port.serial", std::to_string(avdprops.serial_number)},
+        {"emulator.build", BUILD_ID},
+        {"emulator.version", VERSION},
+        {"port.adb", std::to_string(avdprops.adb_port)},
+        {"avd.name", avdprops.avd_name},
+        {"avd.id", avdprops.avd_id},
+        {"avd.dir", avdprops.avd_content_path.string()},
+        {"launcher.dir", config->launcher_dir.string()},
+        {"cmdline", absl::StrJoin({"\"qemu-system-x86_64\"", "\"@dummy\"",
+                                   (config->enable_embedded ? "\"-qt-hide-window\"" : ""),
+                                   (config->use_token ? "\"-grpc-use-token\"" : "")},
+                                  " ")},
+        {"grpc.port", std::to_string(config->port)},
+        {"grpc.allowlist", config->allow_list_path.string()},
+        {"grpc.jwks", cred_conf.jwk_file.parent_path().string()},
+        {"grpc.jwk_active", cred_conf.jwk_file.string()},
+    };
+
+    if (!config->tls_cert_path.empty()) {
+        props["grpc.server_cert"] = config->tls_cert_path.string();
+    }
+    if (!config->tls_ca_path.empty()) {
+        props["grpc.ca_root"] = config->tls_ca_path.string();
+    }
+    if (!cred_conf.auth_token.empty()) {
+        props["grpc.token"] = cred_conf.auth_token;
+    }
+
+    return props;
 }
 
 void grpc_realize(DeviceState* dev, Error** errp) {
@@ -140,104 +358,52 @@ void grpc_realize(DeviceState* dev, Error** errp) {
         }
     }
 
-    avd_info::AvdUniverse& avdUniverse = goldfish::avd_info::GetAvd();
-    auto service = ::android::emulation::control::getEmulatorController(
-            VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avdUniverse,
-            IMultiDisplay::Instance());
-
-    // TODO config->addr is set but not used anywhere
-    auto builder = EmulatorControllerService::Builder()
-                           .withLogging(config->enable_logging)
-                           .withCertAndKey(config->tls_cer, config->tls_key, config->tls_ca)
-                           .withAllowList(config->allowlist)
-                           .withPortRange(config->port, config->port + 1)
-                           .withService(service);
-
-    auto serviceForwarder =
-            std::make_shared<::android::emulation::forwarding::ServiceForwarderImpl>();
-    auto uiControllerForwarder =
-            std::make_shared<::android::emulation::forwarding::UiControllerForwarder>(
-                    serviceForwarder);
-    auto screenRecorder =
-            std::make_shared<::android::emulation::control::incubating::ScreenRecordingServiceImpl>(
-                    IMultiDisplay::Instance());
-    auto sensorServiceIncubating = std::make_shared<
-            ::android::emulation::control::incubating::SensorServiceIncubatingImpl>(
-            avdUniverse.GetSensorsPhysicalModel());
-
-    builder.withService(serviceForwarder)
-            .withService(uiControllerForwarder)
-            .withService(screenRecorder)
-            .withService(sensorServiceIncubating);
-
-    if (config->modem_simulator_port > 0) {
-        auto modemService =
-                std::make_shared<::android::emulation::control::incubating::ModemServiceImpl>(
-                        std::make_unique<ModemSimulatorClient>(config->modem_simulator_port));
-        builder.withService(modemService);
-    } else {
-        LOG(WARNING) << "No valid modem_simulator_port. Not enabling gRPC ModemService.";
+    if (!config->allow_list_path.empty()) {
+        config->allow_list = loadAllowlist(config->allow_list_path);
     }
-
-    if (config->idle_timeout > 0) {
-        LOG(INFO) << "Terminating emulator if no activity after " << config->idle_timeout
-                  << " seconds.";
-        auto eventLoop = goldfish::async::globalEventLoop();
-        builder.withIdleTimeout(std::chrono::seconds(config->idle_timeout), eventLoop);
-    }
-
-    const auto& avdprops = avdUniverse.Props();
-    EmulatorProperties props{
-        {"port.serial", std::to_string(avdprops.serial_number)},
-        {"emulator.build", BUILD_ID},
-        {"emulator.version", VERSION},
-        {"port.adb", std::to_string(avdprops.adb_port)},
-        {"avd.name", avdprops.avd_name},
-        {"avd.id", avdprops.avd_id},
-        {"avd.dir", avdprops.avd_content_path.string()},
-        {"launcher.dir", config->launcher_dir.string()},
-        // TODO(jansene):
-        {"cmdline", absl::StrCat("\"qemu-system-x86_64\" ", "\"@dummy\" ",
-                                 (config->enable_embedded ? "\"-qt-hide-window\" " : ""),
-                                 "\"-grpc-use-token\"")}};
-
-    if (config->use_token) {
-        const int of64Bytes = 64;
-        auto token = generateToken(of64Bytes);
-        builder.withAuthToken(token);
-        props["grpc.token"] = token;
-    }
-
-    fs::path jwkDir = config->discovery_path /
-                      std::to_string(::android::base::Process::Me()->pid()) / "jwks" /
-                      generateToken(16);
-    if (auto s = file::mkdir_recursive(jwkDir, 0700); !s.ok()) {
-        LOG(ERROR) << "Failed to create jwk directory " << jwkDir << " error: " << s;
-        error_setg(errp, "failed to create jwk directory");
+    auto cred_conf = GetCredConf(*config);
+    if (!cred_conf.ok()) {
+        LOG(ERROR) << "failed to load grpc credentials config: " << cred_conf.status();
+        error_setg(errp, "failed to load grpc credentials config");
         return;
     }
 
-    fs::path jwkLoadedFile = jwkDir / "active.jwk";
-    props["grpc.jwks"] = jwkDir.string();
-    props["grpc.jwk_active"] = jwkLoadedFile.string();
-    builder.withJwtAuthDiscoveryDir(jwkDir, jwkLoadedFile);
+    PortRes port_res = ValidatePort(config->port);
+    config->port = port_res.port;
+    bool is_local_address = IsLocalAddress(config->addr);
+    if (!is_local_address && cred_conf->has_auth() && !cred_conf->is_tls()) {
+        is_local_address = true;
+        LOG(WARNING) << "Token/JWT auth requested without tls, restricting access to localhost.";
+    }
+    if (is_local_address) {
+        // Translate loopback Ipv4/Ipv6 preference ourselves. gRPC resolver can
+        // do it slightly differently than us, leading to unexpected results.
+        config->addr = port_res.ipv6 ? "[::1]" : "127.0.0.1";
+    }
 
-    config->grpc_service = builder.build();
-    if (!config->grpc_service) {
-        error_setg(errp, "failed to initialise grpc service");
+    auto credentials = CreateCredentials(*cred_conf, is_local_address);
+
+    avd_info::AvdUniverse& avd_universe = goldfish::avd_info::GetAvd();
+    config->grpc_services = CreateServices(avd_universe, config->modem_simulator_port);
+    auto interceptors = CreateInterceptors(config->enable_logging, config->idle_timeout);
+
+    ::grpc::ServerBuilder builder;
+    std::string server_address = absl::StrCat(config->addr, ":", config->port);
+    builder.AddListeningPort(server_address, std::move(credentials));
+
+    for (const auto& service : config->grpc_services) {
+        builder.RegisterService(service.get());
+    }
+    builder.experimental().SetInterceptorCreators(std::move(interceptors));
+    config->grpc_server = builder.BuildAndStart();
+    if (!config->grpc_server) {
+        error_setg(errp, "failed to initialise grpc server");
         return;
     }
 
-    props["grpc.port"] = std::to_string(config->grpc_service->port());
-    props["grpc.allowlist"] = builder.allowlist().string();
-    if (!config->tls_cer.empty()) {
-        props["grpc.server_cert"] = config->tls_cer.string();
-    }
-    if (!config->tls_ca.empty()) {
-        props["grpc.ca_root"] = config->tls_ca.string();
-    }
-
-    config->advertiser = std::make_unique<EmulatorAdvertisement>(props, config->discovery_path);
+    auto props = CreateProps(config, avd_universe.Props(), *cred_conf);
+    config->advertiser =
+            std::make_unique<EmulatorAdvertisement>(std::move(props), config->discovery_path);
     config->advertiser->garbageCollect();
     config->advertiser->write();
 }
@@ -248,32 +414,33 @@ void grpc_unrealize(DeviceState* dev) {
     auto* config = grpc_device->config;
     config->advertiser->remove();
 
-    if (config->grpc_service) {
+    if (config->grpc_server) {
         // Explicitly cleanup resources. We do not want to do this at
         // program exit as we may be holding on to loopers, which threads
         // have likely been destroyed at that point.
-        config->grpc_service->stop();
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(500);
+        config->grpc_server->Shutdown(deadline);
     }
 }
 
 void grpc_set_tls_cer(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config->tls_cer = value;
+    grpc_device->config->tls_cert_path = value;
 }
 
 void grpc_set_tls_key(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config->tls_key = value;
+    grpc_device->config->tls_key_path = value;
 }
 
 void grpc_set_tls_ca(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config->tls_ca = value;
+    grpc_device->config->tls_ca_path = value;
 }
 
 void grpc_set_allowlist(Object* obj, const char* value, Error** errp) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
-    grpc_device->config->allowlist = value;
+    grpc_device->config->allow_list_path = value;
 }
 
 void grpc_set_addr(Object* obj, const char* value, Error** errp) {
@@ -346,13 +513,13 @@ void grpc_set_enable_embedded(Object* obj, bool v, Error** errp) {
     grpc_device->config->enable_embedded = v;
 }
 
-static void grpc_instance_init(Object* obj) {
+void grpc_instance_init(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     grpc_device->config = new GrpcConfig{};
     add_deletable_object(obj);
 }
 
-static void grpc_instance_finalize(Object* obj) {
+void grpc_instance_finalize(Object* obj) {
     GrpcDev* grpc_device = GRPC_DEV(obj);
     delete grpc_device->config;
 }

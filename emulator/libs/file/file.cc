@@ -307,6 +307,19 @@ absl::Status touch(const fs::path& path) noexcept {
     return absl::DataLossError(absl::StrCat("Unable to create file: ", path.string()));
 }
 
+absl::StatusOr<std::string> read_whole_file(const fs::path& path, bool binary) noexcept {
+    std::ifstream ifs(path, binary ? std::ios::binary : 0);
+    if (ifs.fail()) {
+        return absl::UnavailableError(absl::StrCat("failed to open file: ", path.string()));
+    }
+    std::string data{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
+    if (ifs.fail()) {
+        return absl::UnavailableError(absl::StrCat("failed while reading from file: ", path.string()));
+    }
+
+    return data;
+}
+
 absl::Status copy_if_missing(const fs::path& dst, const fs::path& src) {
     if (fs::exists(dst)) {
         return absl::OkStatus();

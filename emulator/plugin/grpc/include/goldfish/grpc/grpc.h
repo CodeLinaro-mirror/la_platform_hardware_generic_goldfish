@@ -16,6 +16,6 @@
 
 namespace goldfish::grpc {
 
-void grpc_register_types(void);
+void grpc_register_types();
 
 }  // namespace goldfish::grpc

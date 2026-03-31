@@ -9,7 +9,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "google/protobuf/android/control/interceptor/logging_interceptor.h"
+#include "android/control/interceptor/logging_interceptor.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

@@ -13,7 +13,7 @@ cc_library(
     hdrs = [
         "include/android/control/interceptor/breadcrumb_interceptor.h",
         "include/android/control/interceptor/idle_interceptor.h",
-        "include/google/protobuf/android/control/interceptor/logging_interceptor.h",
+        "include/android/control/interceptor/logging_interceptor.h",
     ],
     includes = ["include"],
     visibility = ["//visibility:public"],

@@ -23,7 +23,7 @@
 
 namespace android::control::interceptor {
 
-using goldfish::async::EventLoop;
+using ::goldfish::async::EventLoop;
 using grpc::experimental::Interceptor;
 using grpc::experimental::InterceptorBatchMethods;
 using grpc::experimental::ServerInterceptorFactoryInterface;

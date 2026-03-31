@@ -64,6 +64,8 @@ absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept;
 
 absl::Status touch(const fs::path& path) noexcept;
 
+absl::StatusOr<std::string> read_whole_file(const fs::path& path, bool binary) noexcept;
+
 absl::Status copy_if_missing(const std::filesystem::path& dst,
                              const std::filesystem::path& src);
 
