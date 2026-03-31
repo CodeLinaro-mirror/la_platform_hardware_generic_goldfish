@@ -14,6 +14,14 @@
  */
 #pragma once
 
+#include <memory>
+#include <string>
+#include <thread>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/mutex.h"
+
+#include "common/libs/fs/shared_fd.h"
 #include "goldfish/modem_simulator/i_modem_simulator_client.h"
 
 namespace goldfish::modem_simulator {
@@ -31,7 +39,38 @@ struct ModemSimulatorClient : public IModemSimulatorClient {
     absl::Status ReceiveSmsEncoded(std::vector<uint8_t> binary) override;
     absl::Status UpdateClock() override;
 
+    enum class ModemCallState : uint8_t {
+        ACTIVE = 0,
+        HELD = 1,
+        DIALING = 2,
+        ALERTING = 3,
+        INCOMING = 4,
+        WAITING = 5,
+        HANGUP = 6,
+    };
+
   private:
+    struct ModemCall {
+        ModemCall(cuttlefish::SharedFD);
+        ~ModemCall();
+
+        void UpdateState(ModemCallState);
+        ModemCallState GetState() const;
+
+      private:
+        static constexpr size_t kMaxRequestSize = 2;
+
+        bool ProcessCallData(const cuttlefish::SharedFD& socket, std::string& requestBuf);
+        bool ProcessRequest(std::string request);
+
+        ModemCallState state_ ABSL_GUARDED_BY(mtx_) = ModemCallState::ACTIVE;
+        cuttlefish::SharedFD cancelator_;
+        std::thread socketThread_;
+        mutable absl::Mutex mtx_;
+    };
+
+    absl::flat_hash_map<std::string, std::unique_ptr<ModemCall>> calls_ ABSL_GUARDED_BY(mtx_);
+    absl::Mutex mtx_;
     const int serverPort_;
 };
 

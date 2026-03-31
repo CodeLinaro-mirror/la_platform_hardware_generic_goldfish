@@ -15,6 +15,7 @@
 
 #include "goldfish/modem_simulator/modem_simulator_client.h"
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
@@ -105,6 +106,48 @@ unsigned ToInt(const IModemSimulatorClient::CellStatus cs) {
     return 0;
 }
 
+ModemSimulatorClient::ModemCallState ToModemCallState(const IModemSimulatorClient::CallState cs) {
+    switch (cs) {
+    case IModemSimulatorClient::CallState::UNSPECIFIED:
+        return ModemSimulatorClient::ModemCallState::HANGUP;
+    case IModemSimulatorClient::CallState::ACTIVE:
+        return ModemSimulatorClient::ModemCallState::ACTIVE;
+    case IModemSimulatorClient::CallState::HELD:
+        return ModemSimulatorClient::ModemCallState::HELD;
+    case IModemSimulatorClient::CallState::DIALING:
+        return ModemSimulatorClient::ModemCallState::DIALING;
+    case IModemSimulatorClient::CallState::ALERTING:
+        return ModemSimulatorClient::ModemCallState::ALERTING;
+    case IModemSimulatorClient::CallState::INCOMING:
+        return ModemSimulatorClient::ModemCallState::INCOMING;
+    case IModemSimulatorClient::CallState::WAITING:
+        return ModemSimulatorClient::ModemCallState::WAITING;
+    }
+
+    return ModemSimulatorClient::ModemCallState::HANGUP;
+}
+
+IModemSimulatorClient::CallState ToCallState(const ModemSimulatorClient::ModemCallState mcs) {
+    switch (mcs) {
+    case ModemSimulatorClient::ModemCallState::ACTIVE:
+        return IModemSimulatorClient::CallState::ACTIVE;
+    case ModemSimulatorClient::ModemCallState::HELD:
+        return IModemSimulatorClient::CallState::HELD;
+    case ModemSimulatorClient::ModemCallState::DIALING:
+        return IModemSimulatorClient::CallState::DIALING;
+    case ModemSimulatorClient::ModemCallState::ALERTING:
+        return IModemSimulatorClient::CallState::ALERTING;
+    case ModemSimulatorClient::ModemCallState::INCOMING:
+        return IModemSimulatorClient::CallState::INCOMING;
+    case ModemSimulatorClient::ModemCallState::WAITING:
+        return IModemSimulatorClient::CallState::WAITING;
+    case ModemSimulatorClient::ModemCallState::HANGUP:
+        return IModemSimulatorClient::CallState::UNSPECIFIED;
+    }
+
+    return IModemSimulatorClient::CallState::UNSPECIFIED;
+}
+
 absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
     if (WriteAll(socket, req) != req.size()) {
         using namespace std::literals::string_view_literals;
@@ -170,7 +213,113 @@ absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) 
     return absl::OkStatus();
 }
 
+absl::StatusOr<SharedFD> SendCallRequest(const int serverPort,
+                                         const ModemSimulatorClient::ModemCallState mcs,
+                                         const std::string_view number) {
+    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort);
+    if (!socket.ok()) {
+        return socket;
+    }
+
+    using namespace std::literals::string_view_literals;
+    const std::string req = absl::StrCat("AT+REMOTECALL="sv, static_cast<unsigned>(mcs),
+                                         ",0,0,\""sv, number, "\",129\r"sv);
+
+    absl::Status status = SendModemRequest(*socket, req);
+    if (!status.ok()) {
+        return status;
+    }
+
+    return socket;
+}
+
 }  // namespace
+
+ModemSimulatorClient::ModemCall::ModemCall(SharedFD modemConn) {
+    SharedFD cancelListener;
+    CHECK(SharedFD::Pipe(&cancelListener, &cancelator_));
+
+    socketThread_ = std::thread(
+            [this, modemConn = std::move(modemConn), cancelListener = std::move(cancelListener)]() {
+                std::string requestBuf;
+
+                while (true) {
+                    cuttlefish::SharedFDSet readSet;
+                    readSet.Set(modemConn);
+                    readSet.Set(cancelListener);
+
+                    const int nfds = cuttlefish::Select(&readSet, nullptr, nullptr, nullptr);
+                    if (nfds < 0) {
+                        break;
+                    } else if (nfds == 0) {
+                        continue;
+                    }
+
+                    if (readSet.IsSet(modemConn)) {
+                        if (!ProcessCallData(modemConn, requestBuf)) {
+                            break;
+                        }
+                    } else if (readSet.IsSet(cancelListener)) {
+                        break;
+                    }
+                }
+
+                const absl::MutexLock lock(mtx_);
+                state_ = ModemCallState::HANGUP;
+            });
+}
+
+ModemSimulatorClient::ModemCall::~ModemCall() {
+    cancelator_->Write("q", 1);
+    socketThread_.join();
+}
+
+bool ModemSimulatorClient::ModemCall::ProcessCallData(const cuttlefish::SharedFD& socket,
+                                                      std::string& requestBuf) {
+    char buf[16];
+    const ssize_t nBytes = socket->Read(buf, sizeof(buf));
+    if (nBytes < 0) {
+        return false;
+    }
+
+    for (unsigned i = 0; i < unsigned(nBytes); ++i) {
+        const char c = buf[i];
+
+        if (c == '\r') {
+            return ProcessRequest(std::move(requestBuf));
+        } else if (requestBuf.size() > kMaxRequestSize) {
+            return false;
+        } else {
+            requestBuf.push_back(c);
+        }
+    }
+
+    return true;
+}
+
+bool ModemSimulatorClient::ModemCall::ProcessRequest(std::string request) {
+    using namespace std::literals::string_view_literals;
+    if ((request == "OK"sv) || (request == "KO"sv)) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+void ModemSimulatorClient::ModemCall::UpdateState(const ModemCallState mcs) {
+    const absl::MutexLock lock(mtx_);
+    if (state_ != ModemCallState::HANGUP) {
+        state_ = mcs;
+        if (mcs == ModemCallState::HANGUP) {
+            cancelator_->Write("q", 1);
+        }
+    }
+}
+
+ModemSimulatorClient::ModemCallState ModemSimulatorClient::ModemCall::GetState() const {
+    const absl::MutexLock lock(mtx_);
+    return state_;
+}
 
 ModemSimulatorClient::ModemSimulatorClient(int serverPort) : serverPort_(serverPort) {}
 
@@ -203,20 +352,74 @@ absl::StatusOr<CellInfo> ModemSimulatorClient::GetCellInfo() {
     return absl::UnimplementedError("`GetCellInfo` is not yet implemented.");
 }
 
-absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call&) {
-    return absl::UnimplementedError("`CreateCall` is not yet implemented.");
+absl::StatusOr<Call> ModemSimulatorClient::CreateCall(const Call& call) {
+    auto activeCall = SendCallRequest(serverPort_, ModemCallState::INCOMING, call.number);
+    if (!activeCall.ok()) {
+        return activeCall.status();
+    }
+
+    const absl::MutexLock lock(mtx_);
+    const auto [where, inserted] = calls_.insert({call.number, {}});
+    if (!inserted) {
+        return absl::InternalError(
+                absl::StrCat("A call with '", call.number, "' is already in progress."));
+    }
+
+    where->second = std::make_unique<ModemCall>(*std::move(activeCall));
+
+    Call result = call;
+    result.state = IModemSimulatorClient::CallState::ACTIVE;
+    return result;
 }
 
-absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call&) {
-    return absl::UnimplementedError("`UpdateCall` is not yet implemented.");
+absl::StatusOr<Call> ModemSimulatorClient::UpdateCall(const Call& call) {
+    if (call.state == CallState::UNSPECIFIED) {
+        return absl::InvalidArgumentError("CallState::UNSPECIFIED");
+    }
+
+    const ModemCallState mcs = ToModemCallState(call.state);
+    auto activeCall = SendCallRequest(serverPort_, mcs, call.number);
+    if (!activeCall.ok()) {
+        return activeCall.status();
+    }
+
+    const absl::MutexLock lock(mtx_);
+    const auto i = calls_.find(call.number);
+    if (i == calls_.end()) {
+        return absl::InternalError(absl::StrCat("The '", call.number, "' is not found."));
+    }
+
+    i->second->UpdateState(mcs);
+    return absl::OkStatus();
 }
 
-absl::Status ModemSimulatorClient::DeleteCall(const Call&) {
-    return absl::UnimplementedError("`DeleteCall` is not yet implemented.");
+absl::Status ModemSimulatorClient::DeleteCall(const Call& call) {
+    SendCallRequest(serverPort_, ModemCallState::HANGUP, call.number).IgnoreError();
+
+    if (calls_.erase(call.number) > 0) {
+        return absl::OkStatus();
+    } else {
+        return absl::InvalidArgumentError(absl::StrCat("The '", call.number, "' is not found."));
+    }
 }
 
 absl::StatusOr<std::vector<Call>> ModemSimulatorClient::ListCalls() {
-    return absl::UnimplementedError("`ListCalls` is not yet implemented.");
+    std::vector<Call> result;
+
+    absl::MutexLock lock(mtx_);
+    result.reserve(calls_.size());
+
+    for (const auto& kv : calls_) {
+        Call call = {
+            .number = kv.first,
+            .direction = CallDirection::INBOUND,
+            .state = ToCallState(kv.second->GetState()),
+        };
+
+        result.push_back(std::move(call));
+    }
+
+    return result;
 }
 
 absl::Status ModemSimulatorClient::ReceiveSmsUtf8(const std::string_view sender,
