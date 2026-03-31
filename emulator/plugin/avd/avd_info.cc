@@ -89,6 +89,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     }
 
     async::EventLoop& GetQemuEventLoop() override { return *qemu_event_loop; }
+    goldfish::metrics::MetricsReporter& GetMetricsReporter() override { return *metrics_reporter; }
 
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;

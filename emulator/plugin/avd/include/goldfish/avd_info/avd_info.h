@@ -83,6 +83,7 @@ struct AvdUniverse {
     sensors::PhysicalModel& GetSensorsPhysicalModel() { return sensors_physical_model_; }
 
     virtual async::EventLoop& GetQemuEventLoop() = 0;
+    virtual metrics::MetricsReporter& GetMetricsReporter() = 0;
 
     void SetActiveMultiDisplayDevice(
             std::shared_ptr<devices::multidisplay::MultiDisplayDevice> device);
