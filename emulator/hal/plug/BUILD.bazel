@@ -70,9 +70,9 @@ cc_library(
     ],
     includes = ["test"],
     visibility = [
-        "//emulator/grpc/services/emulator_controller/server:__subpackages__",
         "//emulator/hal:__subpackages__",
         "//emulator/hal/connector:__subpackages__",
+        "//emulator/plugin/grpc/services:__subpackages__",
     ],
     deps = [
         "//emulator/hal/connector:cable",

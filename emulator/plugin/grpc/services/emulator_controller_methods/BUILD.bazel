@@ -1,0 +1,70 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "emulator_controller_methods",
+    srcs = [
+        "battery_service.cc",
+        "clipboard_service.cc",
+        "display_service.cc",
+        "gps_service.cc",
+        "sensor_service.cc",
+        "status_service.cc",
+        "vm_service.cc",
+    ],
+    hdrs = [
+        "battery_service.h",
+        "clipboard_service.h",
+        "display_service.h",
+        "gps_service.h",
+        "notification_store.h",
+        "notification_stream_writer.h",
+        "sensor_service.h",
+        "status_service.h",
+        "vm_service.h",
+    ],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/fps_calculator",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/shared_memory",
+        "//emulator/libs/sockets",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/grpc/input",
+        "//emulator/plugin/grpc/keyboard",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+    ],
+)
+
+cc_test(
+    name = "emulator_controller_methods_test",
+    srcs = [
+        "display_service_test.cc",
+        "notification_store_test.cc",
+        "qemu_stubs.c",
+        "sensor_service_test.cc",
+        "test/GrpcServiceTest.h",
+        "vm_service_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":emulator_controller_methods",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/display:test-display",
+        "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/process",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/grpc/keyboard:test_qemu_input_stub",
+        "//emulator/plugin/vminterface:test_vminterface",
+        "//emulator/plugin/vminterface:vminterface-test",
+    ],
+)

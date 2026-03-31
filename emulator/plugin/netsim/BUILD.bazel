@@ -10,7 +10,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/grpc/client:emulator_grpc_client",
+        "//emulator/libs/grpc_client",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
@@ -24,7 +24,7 @@ cc_library(
     hdrs = ["netsim_transport.h"],
     deps = [
         ":netsim_connection",
-        "//emulator/grpc/client:emulator_grpc_client",
+        "//emulator/libs/grpc_client",
         "//emulator/plugin/avd:impl",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/log",

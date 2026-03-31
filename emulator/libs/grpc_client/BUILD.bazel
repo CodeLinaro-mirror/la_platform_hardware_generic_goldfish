@@ -1,0 +1,54 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "grpc_client",
+    srcs = [
+        "emulator_grpc_client.cc",
+        "grpc_channel_factory.cc",
+        "grpc_connection_monitor.cc",
+        "grpc_connection_monitor.h",
+    ],
+    hdrs = [
+        "include/android/emulation/control/emulator_grpc_client.h",
+        "include/android/emulation/control/grpc_channel_factory.h",
+    ],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/eventing",
+        "//emulator/libs/grpc_security",
+        "//emulator/libs/ini_file",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/client:grpc_endpoint_description_cc_proto",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "emulator_grpc_client_test",
+    srcs = ["emulator_grpc_client_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":grpc_client",
+        "//emulator/libs/sockets",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":grpc_client",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

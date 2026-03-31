@@ -2,56 +2,36 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "clipboard",
-    hdrs = [
-        "include/goldfish/avd_universe/clipboard/clipboard_data.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/clipboard/clipboard_data.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//emulator/libs/eventing",
-    ],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/eventing"],
 )
 
 cc_library(
     name = "fingerprint",
-    hdrs = [
-        "include/goldfish/avd_universe/fingerprint/fingerprint_sensor.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/fingerprint/fingerprint_sensor.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//emulator/libs/eventing",
-    ],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/eventing"],
 )
 
 cc_library(
     name = "grpc_notification",
-    hdrs = [
-        "include/goldfish/avd_universe/grpc/grpc_notification_channel.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/grpc/grpc_notification_channel.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
-        "//emulator/grpc/services/emulator_controller:emulator_controller_cc_grpc",
         "//emulator/libs/eventing",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
     ],
 )
 
 cc_library(
     name = "guest_status",
-    hdrs = [
-        "include/goldfish/avd_universe/guest_status/guest_status.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/guest_status/guest_status.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/eventing",
         "@abseil-cpp//absl/time",
@@ -60,27 +40,17 @@ cc_library(
 
 cc_library(
     name = "location",
-    hdrs = [
-        "include/goldfish/avd_universe/gps/location.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/gps/location.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
-    deps = [
-        "//emulator/libs/eventing",
-    ],
+    visibility = ["//visibility:public"],
+    deps = ["//emulator/libs/eventing"],
 )
 
 cc_library(
     name = "battery",
-    hdrs = [
-        "include/goldfish/avd_universe/battery/battery_state.h",
-    ],
+    hdrs = ["include/goldfish/avd_universe/battery/battery_state.h"],
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/eventing",
         "@abseil-cpp//absl/strings:str_format",
@@ -90,9 +60,7 @@ cc_library(
 cc_library(
     name = "avd_universe",
     includes = ["include"],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":battery",
         ":clipboard",

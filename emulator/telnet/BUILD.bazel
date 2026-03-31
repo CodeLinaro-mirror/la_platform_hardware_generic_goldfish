@@ -74,7 +74,7 @@ cc_library(
     deps = [
         ":command_registry",
         ":line_command_handler",
-        "//emulator/grpc/client:emulator_grpc_client",
+        "//emulator/libs/grpc_client",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

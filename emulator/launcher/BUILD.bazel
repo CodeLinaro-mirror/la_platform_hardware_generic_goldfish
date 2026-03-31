@@ -262,9 +262,9 @@ cc_library(
     hdrs = ["netsimd.h"],
     deps = [
         ":input_paths",
-        "//emulator/grpc/client:emulator_grpc_client",
         "//emulator/launcher/cmdline",
         "//emulator/libs/async:launch_config",
+        "//emulator/libs/grpc_client",
         "//emulator/libs/ini_file",
         "//emulator/libs/network",
         "@abseil-cpp//absl/status:statusor",
@@ -410,9 +410,9 @@ collect_plugins(
 collect_plugins(
     name = "unsecure-emulator-access",
     output_dir = "lib",
-    plugins = ["//emulator/grpc/security:unsecure-emulator-access"],
+    plugins = ["//emulator/libs/grpc_security:unsecure-emulator-access"],
     renames = {
-        "//emulator/grpc/security:unsecure-emulator-access": "emulator_access.json",
+        "//emulator/libs/grpc_security:unsecure-emulator-access": "emulator_access.json",
     },
     # Visibility needed by unit tests.
     visibility = [":__subpackages__"],

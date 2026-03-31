@@ -10,11 +10,11 @@ cc_library(
     visibility = ["//emulator/plugin/grpc:__subpackages__"],
     deps = [
         "//emulator/adb/secrets",
-        "//emulator/grpc/client:grpc_endpoint_description_cc_proto",
-        "//emulator/grpc/interceptors",
-        "//emulator/grpc/security",
-        "//emulator/grpc/services/emulator_controller/server:emulator-service",
         "//emulator/libs/async:async_api",
+        "//emulator/libs/grpc_security",
         "//emulator/libs/sockets",
+        "//emulator/plugin/grpc/interceptors",
+        "//emulator/plugin/grpc/services:emulator_controller",
+        "@aemu//protos/client:grpc_endpoint_description_cc_proto",
     ],
 )

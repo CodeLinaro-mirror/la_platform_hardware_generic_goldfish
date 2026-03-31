@@ -1,0 +1,54 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "keyconversion",
+    srcs = [
+        "dom_key.h",
+        "dom_key_data.inc",
+        "key_conversion.cc",
+        "keycode_converter_data.inc",
+    ],
+    hdrs = ["include/android/emulation/control/keyboard/key_conversion.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "keyboard",
+    srcs = ["key_event_sender.cc"],
+    hdrs = ["include/android/emulation/control/keyboard/key_event_sender.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":keyconversion",
+        "//emulator/libs/async:async_api",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+        "@qemu//:qemu-headers",
+    ],
+)
+
+cc_library(
+    name = "test_qemu_input_stub",
+    testonly = True,
+    srcs = ["qemu_input_stub.c"],
+    visibility = ["//visibility:public"],
+    deps = ["@qemu//:qemu-headers"],
+)
+
+cc_test(
+    name = "keyboard_unittests",
+    srcs = ["key_converter_test.cc"],
+    deps = [
+        ":keyconversion",
+        ":test_qemu_input_stub",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+    ],
+)

@@ -24,12 +24,12 @@
 #include "absl/random/random.h"
 #include "absl/strings/escaping.h"
 
-#include "android/emulation/control/emulator_service.h"
+#include "android/emulation/control/emulator_controller.h"
 #include "android/emulation/control/incubating/modem_service.h"
 #include "android/emulation/control/incubating/screen_recording_impl.h"
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
-#include "android/emulation/forwarding/service_forwarder_impl.h"
-#include "android/emulation/forwarding/ui_controller_forwarder.h"
+#include "android/emulation/control/service_forwarder_impl.h"
+#include "android/emulation/control/ui_controller_forwarder.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/process/process.h"
 #include "emulator/plugin/grpc/grpc_display.h"
@@ -425,7 +425,7 @@ const TypeInfo grpc_type_info = {
 
 }  // namespace
 
-void grpc_register_types(void) {
+void grpc_register_types() {
     type_register_static(&grpc_type_info);
 }
 

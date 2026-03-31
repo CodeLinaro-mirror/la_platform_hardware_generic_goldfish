@@ -1,0 +1,179 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "emulator_controller",
+    srcs = ["emulator_controller.cc"],
+    hdrs = ["include/android/emulation/control/emulator_controller.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/fps_calculator",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/shared_memory",
+        "//emulator/libs/sockets",
+        "//emulator/plugin/avd:info",
+        "//emulator/plugin/grpc/input",
+        "//emulator/plugin/grpc/keyboard",
+        "//emulator/plugin/grpc/services/emulator_controller_methods",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_grpc",
+    ],
+)
+
+cc_library(
+    name = "modem_service",
+    srcs = ["modem_service.cc"],
+    hdrs = ["include/android/emulation/control/incubating/modem_service.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/parsing:hexbin",
+        "//emulator/libs/shared_memory",
+        "//emulator/libs/sockets",
+        "//emulator/modem_simulator:i_modem_simulator_client",
+        "//emulator/plugin/avd:info",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/incubating/modem:modem_service_cc_grpc",
+    ],
+)
+
+cc_test(
+    name = "modem_service_test",
+    srcs = ["modem_service_test.cc"],
+    deps = [
+        ":modem_service",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "sensor_service_incubating",
+    srcs = ["sensor_service_incubating.cc"],
+    hdrs = ["include/android/emulation/control/incubating/sensor_service_incubating.h"],
+    includes = ["include"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/grpc_utils:absl_translate",
+        "//emulator/libs/grpc_utils:async",
+        "//emulator/libs/grpc_utils:event-stream",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/shared_memory",
+        "//emulator/libs/sockets",
+        "//emulator/plugin/avd:info",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@aemu//protos/services/incubating/sensor:sensor_service_cc_grpc",
+    ],
+)
+
+cc_test(
+    name = "sensor_service_incubating_test",
+    srcs = ["sensor_service_incubating_test.cc"],
+    deps = [
+        ":sensor_service_incubating",
+        "//emulator/libs/hardware_config:fake_hardware_config",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "service_forwarder",
+    srcs = ["service_forwarder_impl.cc"],
+    hdrs = ["include/android/emulation/control/service_forwarder_impl.h"],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "service_forwarder_impl_test",
+    srcs = ["service_forwarder_impl_test.cc"],
+    deps = [
+        ":service_forwarder",
+        "//emulator/libs/test:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "ui_controller_forwarder",
+    srcs = ["ui_controller_forwarder.cc"],
+    hdrs = ["include/android/emulation/control/ui_controller_forwarder.h"],
+    includes = ["include"],
+    deps = [
+        ":service_forwarder",
+        "//emulator/libs/grpc_client",
+        "@abseil-cpp//absl/log",
+        "@aemu//protos/services/emulator-controller:emulator_controller_cc_proto",
+        "@aemu//protos/services/forwarder:service_forwarder_cc_grpc",
+        "@aemu//protos/services/ui-controller:ui_controller_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "ui_controller_forwarder_test",
+    srcs = ["ui_controller_forwarder_test.cc"],
+    deps = [
+        ":service_forwarder",
+        ":ui_controller_forwarder",
+        "//emulator/libs/test:googletest_main",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "screen_recorder",
+    srcs = ["screen_recording_impl.cc"],
+    hdrs = ["include/android/emulation/control/incubating/screen_recording_impl.h"],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
+        "@goldfish//emulator/libs/display:video_recorder",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "screen_recording_impl_test",
+    srcs = ["screen_recording_impl_test.cc"],
+    deps = [
+        ":screen_recorder",
+        "@goldfish//emulator/libs/async:libuv_event_loop",
+        "@goldfish//emulator/libs/display:test-display",
+        "@goldfish//emulator/libs/test:googletest_main",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        "service_forwarder_impl_test",
+        "service_forwarder",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

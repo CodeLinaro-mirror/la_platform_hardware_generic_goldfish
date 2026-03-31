@@ -1,0 +1,70 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "absl_translate",
+    srcs = ["absl_status_translate.cc"],
+    hdrs = ["include/android/emulation/control/absl_status_translate.h"],
+    includes = ["include"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "absl_translate_test",
+    srcs = ["absl_status_translate_test.cc"],
+    deps = [
+        ":absl_translate",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "async",
+    hdrs = [
+        "include/android/emulation/control/enum_translate.h",
+        "include/android/emulation/control/generic_callback_functions.h",
+        "include/android/emulation/control/library.h",
+        "include/android/emulation/control/simple_async_grpc.h",
+        "include/android/emulation/control/sync_to_async_adapter.h",
+    ],
+    includes = ["include"],
+    deps = ["@grpc//:grpc++"],
+)
+
+cc_test(
+    name = "async_test",
+    srcs = ["async_test.cc"],
+    deps = [
+        ":async",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "event-stream",
+    hdrs = ["include/android/emulation/control/grpc_event_stream_support.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":async",
+        "//emulator/libs/eventing",
+        "@grpc//:grpc++",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        "translate",
+        "translate_test",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

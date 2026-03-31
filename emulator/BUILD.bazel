@@ -307,7 +307,7 @@ remapped_pkg_files(
 
 pkg_files(
     name = "emulator-access",
-    srcs = ["//emulator/grpc/security:emulator-access"],
+    srcs = ["//emulator/libs/grpc_security:emulator-access"],
     prefix = "lib",
 )
 
