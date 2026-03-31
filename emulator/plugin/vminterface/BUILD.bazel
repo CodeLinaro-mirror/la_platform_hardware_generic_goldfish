@@ -6,7 +6,6 @@ cc_library(
         "vm_lock.cc",
         "vm_lock.h",
     ],
-    includes = ["src"],
     deps = [
         "@abseil-cpp//absl/synchronization",
         "@qemu//:qemu-headers",
@@ -15,18 +14,20 @@ cc_library(
 
 cc_library(
     name = "machine_info",
-    srcs = ["qemu_machine_info.c"],
-    hdrs = ["src/vm/qemu_machine_info.h"],
-    includes = ["src"],
+    srcs = [
+        "qemu_machine_info.c",
+        "qemu_machine_info.h",
+    ],
     visibility = ["//visibility:public"],
     deps = ["@qemu//:qemu-headers"],
 )
 
 cc_library(
     name = "fake_machine_info",
-    srcs = ["fake_machine_info.c"],
-    hdrs = ["src/vm/qemu_machine_info.h"],
-    includes = ["src"],
+    srcs = [
+        "fake_machine_info.c",
+        "qemu_machine_info.h",
+    ],
     visibility = ["//visibility:public"],
 )
 

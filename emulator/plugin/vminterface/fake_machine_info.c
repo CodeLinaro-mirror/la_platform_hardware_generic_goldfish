@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "vm/qemu_machine_info.h"
+#include "qemu_machine_info.h"
 
 const char* cpu_type_cwrap() {
     return "unknown";
