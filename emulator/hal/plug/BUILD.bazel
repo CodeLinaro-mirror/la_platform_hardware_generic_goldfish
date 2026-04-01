@@ -31,6 +31,7 @@ cc_library(
         ":hal_plug_to_i_plug_adapter",
         ":marshalling_hal_socket",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
@@ -56,6 +57,7 @@ cc_library(
         ":marshalling_hal_socket",
         "//emulator/hal/connector:cable",
         "//emulator/libs/async:async_api",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
