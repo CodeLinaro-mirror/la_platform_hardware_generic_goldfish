@@ -18,14 +18,14 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 
-#include "android/sockets/scoped_socket.h"
-#include "android/sockets/socket_utils.h"
+#include "common/libs/fs/shared_buf.h"
+#include "common/libs/fs/shared_select.h"
 #include "goldfish/gsm/sms.h"
 #include "goldfish/parsing/hexbin.h"
 
 namespace goldfish::modem_simulator {
-using ::android::base::ScopedSocket;
-using ::android::base::socketSendAll;
+using cuttlefish::SharedFD;
+using cuttlefish::WriteAll;
 
 using ::goldfish::gsm::SmsPdu;
 using ::goldfish::gsm::SmsPdusFromBinary;
@@ -105,61 +105,54 @@ unsigned ToInt(const IModemSimulatorClient::CellStatus cs) {
     return 0;
 }
 
-absl::StatusOr<ScopedSocket> ConnectToSimulator(const int serverPort) {
-    ScopedSocket fd(android::base::socketTcp4LoopbackClient(serverPort));
-    if (!fd.valid()) {
-        fd.reset(android::base::socketTcp6LoopbackClient(serverPort));
+absl::Status SendModemRequest(SharedFD& socket, const std::string_view req) {
+    if (WriteAll(socket, req) != req.size()) {
+        using namespace std::literals::string_view_literals;
+        return absl::InternalError(
+                absl::StrCat("Failed to send `"sv, req, "` to the modem simulator"sv));
+    } else {
+        return absl::OkStatus();
     }
+}
 
-    if (!fd.valid()) {
+absl::StatusOr<SharedFD> ConnectToSimulator(const int serverPort) {
+    SharedFD socket = SharedFD::SocketLocalClient(serverPort);
+    if (!socket) {
         return absl::UnavailableError(absl::StrCat("Failed to connect to modem simulator on port ",
                                                    serverPort, " (tried IPv4 and IPv6)"));
     }
 
+    using namespace std::literals::string_view_literals;
+
     // Send the "REM0" registration sequence to attach as a remote client
-    if (!socketSendAll(fd.get(), "REM0", 4)) {
-        return absl::InternalError("Failed to send `REM0` handshake to modem simulator");
+    absl::Status status = SendModemRequest(socket, "REM0"sv);
+    if (!status.ok()) {
+        return status;
     }
 
-    return fd;
+    return socket;
 }
 
-absl::Status SetSignalStrength(ScopedSocket& socket,
-                               const IModemSimulatorClient::SignalStrength ss) {
+absl::Status SetSignalStrength(SharedFD& socket, const IModemSimulatorClient::SignalStrength ss) {
     using namespace std::literals::string_view_literals;
     const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToInt(ss), "\r"sv);
-
-    if (!socketSendAll(socket.get(), req.data(), req.size())) {
-        return absl::InternalError("Failed to send AT command");
-    }
-
-    return absl::OkStatus();
+    return SendModemRequest(socket, req);
 }
 
-absl::Status SetCellStandard(ScopedSocket& socket, const IModemSimulatorClient::CellStandard cs) {
+absl::Status SetCellStandard(SharedFD& socket, const IModemSimulatorClient::CellStandard cs) {
     using namespace std::literals::string_view_literals;
     const std::string req = absl::StrCat("AT+REMOTECTEC: "sv, ToInt(cs), "\r"sv);
-
-    if (!socketSendAll(socket.get(), req.data(), req.size())) {
-        return absl::InternalError("Failed to send AT command");
-    }
-
-    return absl::OkStatus();
+    return SendModemRequest(socket, req);
 }
 
-absl::Status SetVoiceStatus(ScopedSocket& socket, const IModemSimulatorClient::CellStatus cs) {
+absl::Status SetVoiceStatus(SharedFD& socket, const IModemSimulatorClient::CellStatus cs) {
     using namespace std::literals::string_view_literals;
     const std::string req = absl::StrCat("AT+REMOTEREG: "sv, ToInt(cs), "\r"sv);
-
-    if (!socketSendAll(socket.get(), req.data(), req.size())) {
-        return absl::InternalError("Failed to send AT command");
-    }
-
-    return absl::OkStatus();
+    return SendModemRequest(socket, req);
 }
 
 absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) {
-    const absl::StatusOr<ScopedSocket> socket = ConnectToSimulator(serverPort);
+    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort);
     if (!socket.ok()) {
         return socket.status();
     }
@@ -168,8 +161,9 @@ absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) 
         using namespace std::literals::string_view_literals;
         const std::string req = absl::StrCat("AT+REMOTESMS="sv, BinToHex(pdu.data), "\r"sv);
 
-        if (!socketSendAll(socket->get(), req.data(), req.size())) {
-            return absl::InternalError("Failed to send AT command");
+        absl::Status status = SendModemRequest(*socket, req);
+        if (!status.ok()) {
+            return status;
         }
     }
 
@@ -181,17 +175,21 @@ absl::Status SendSmsPdus(const int serverPort, const std::vector<SmsPdu>& pdus) 
 ModemSimulatorClient::ModemSimulatorClient(int serverPort) : serverPort_(serverPort) {}
 
 absl::StatusOr<CellInfo> ModemSimulatorClient::SetCellInfo(const CellInfo& ci) {
-    absl::StatusOr<ScopedSocket> socket = ConnectToSimulator(serverPort_);
+    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort_);
     if (!socket.ok()) {
         return socket.status();
     }
 
-    if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
-        return status;
+    if (ci.standard != CellStandard::UNKNOWN) {
+        if (const auto status = SetCellStandard(*socket, ci.standard); !status.ok()) {
+            return status;
+        }
     }
 
-    if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
-        return status;
+    if (ci.voiceStatus != CellStatus::UNKNOWN) {
+        if (const auto status = SetVoiceStatus(*socket, ci.voiceStatus); !status.ok()) {
+            return status;
+        }
     }
 
     if (const auto status = SetSignalStrength(*socket, ci.signalStrength); !status.ok()) {
@@ -241,19 +239,13 @@ absl::Status ModemSimulatorClient::ReceiveSmsEncoded(std::vector<uint8_t> binary
 }
 
 absl::Status ModemSimulatorClient::UpdateClock() {
-    const absl::StatusOr<ScopedSocket> socket = ConnectToSimulator(serverPort_);
+    absl::StatusOr<SharedFD> socket = ConnectToSimulator(serverPort_);
     if (!socket.ok()) {
         return socket.status();
     }
 
     using namespace std::literals::string_view_literals;
-    const std::string_view kCommand = "AT+REMOTETIMEUPDATE: \r"sv;
-
-    if (!android::base::socketSendAll(socket->get(), kCommand.data(), kCommand.size())) {
-        return absl::InternalError("Failed to send AT command");
-    }
-
-    return absl::OkStatus();
+    return SendModemRequest(*socket, "AT+REMOTETIMEUPDATE: \r"sv);
 }
 
 }  // namespace goldfish::modem_simulator
