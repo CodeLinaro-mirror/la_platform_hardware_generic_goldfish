@@ -36,6 +36,75 @@ using Call = IModemSimulatorClient::Call;
 using CellInfo = IModemSimulatorClient::CellInfo;
 
 namespace {
+unsigned ToInt(const IModemSimulatorClient::SignalStrength ss) {
+    switch (ss) {
+    case IModemSimulatorClient::SignalStrength::NONE_OR_UNKNOWN:
+        return 0;
+
+    case IModemSimulatorClient::SignalStrength::POOR:
+        return 1;
+
+    case IModemSimulatorClient::SignalStrength::MODERATE:
+        return 2;
+
+    case IModemSimulatorClient::SignalStrength::GOOD:
+        return 3;
+
+    case IModemSimulatorClient::SignalStrength::GREAT:
+        return 4;
+    }
+
+    return 0;
+}
+
+unsigned ToInt(const IModemSimulatorClient::CellStandard cs) {
+    switch (cs) {  // see network_service.h
+    case IModemSimulatorClient::CellStandard::UNKNOWN:
+    case IModemSimulatorClient::CellStandard::GSM:
+    case IModemSimulatorClient::CellStandard::HSCSD:
+    case IModemSimulatorClient::CellStandard::GPRS:
+    case IModemSimulatorClient::CellStandard::EDGE:
+        return 1U << 0;  // GSM
+
+    case IModemSimulatorClient::CellStandard::UMTS:
+    case IModemSimulatorClient::CellStandard::HSDPA:
+        return 1U << 1;  // WCDMA
+
+    case IModemSimulatorClient::CellStandard::LTE:
+        return 1U << 5;  // LTE
+
+    case IModemSimulatorClient::CellStandard::FULL:
+    case IModemSimulatorClient::CellStandard::NR_5G:
+        return 1U << 6;  // 5G
+    }
+
+    return 1U << 0;  // GSM
+}
+
+unsigned ToInt(const IModemSimulatorClient::CellStatus cs) {
+    switch (cs) {
+    case IModemSimulatorClient::CellStatus::UNKNOWN:
+        return 0;
+
+    case IModemSimulatorClient::CellStatus::HOME:
+        return 1;
+
+    case IModemSimulatorClient::CellStatus::ROAMING:
+        return 2;
+
+    case IModemSimulatorClient::CellStatus::SEARCHING:
+        return 3;
+
+    case IModemSimulatorClient::CellStatus::DENIED:
+        return 4;
+
+    case IModemSimulatorClient::CellStatus::UNREGISTERED:
+        return 5;
+    }
+
+    return 0;
+}
+
 absl::StatusOr<ScopedSocket> ConnectToSimulator(const int serverPort) {
     ScopedSocket fd(android::base::socketTcp4LoopbackClient(serverPort));
     if (!fd.valid()) {
@@ -57,32 +126,8 @@ absl::StatusOr<ScopedSocket> ConnectToSimulator(const int serverPort) {
 
 absl::Status SetSignalStrength(ScopedSocket& socket,
                                const IModemSimulatorClient::SignalStrength ss) {
-    unsigned value;
-    switch (ss) {
-    default:
-    case IModemSimulatorClient::SignalStrength::NONE_OR_UNKNOWN:
-        value = 0;
-        break;
-
-    case IModemSimulatorClient::SignalStrength::POOR:
-        value = 1;
-        break;
-
-    case IModemSimulatorClient::SignalStrength::MODERATE:
-        value = 2;
-        break;
-
-    case IModemSimulatorClient::SignalStrength::GOOD:
-        value = 3;
-        break;
-
-    case IModemSimulatorClient::SignalStrength::GREAT:
-        value = 4;
-        break;
-    }
-
     using namespace std::literals::string_view_literals;
-    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, value, "\r"sv);
+    const std::string req = absl::StrCat("AT+REMOTESIGNAL: "sv, ToInt(ss), "\r"sv);
 
     if (!socketSendAll(socket.get(), req.data(), req.size())) {
         return absl::InternalError("Failed to send AT command");
@@ -92,34 +137,8 @@ absl::Status SetSignalStrength(ScopedSocket& socket,
 }
 
 absl::Status SetCellStandard(ScopedSocket& socket, const IModemSimulatorClient::CellStandard cs) {
-    unsigned tech;  // see network_service.h
-    switch (cs) {
-    default:
-    case IModemSimulatorClient::CellStandard::UNKNOWN:
-    case IModemSimulatorClient::CellStandard::GSM:
-    case IModemSimulatorClient::CellStandard::HSCSD:
-    case IModemSimulatorClient::CellStandard::GPRS:
-    case IModemSimulatorClient::CellStandard::EDGE:
-        tech = 1U << 0;  // GSM
-        break;
-
-    case IModemSimulatorClient::CellStandard::UMTS:
-    case IModemSimulatorClient::CellStandard::HSDPA:
-        tech = 1U << 1;  // WCDMA
-        break;
-
-    case IModemSimulatorClient::CellStandard::LTE:
-        tech = 1U << 5;  // LTE
-        break;
-
-    case IModemSimulatorClient::CellStandard::FULL:
-    case IModemSimulatorClient::CellStandard::NR_5G:
-        tech = 1U << 6;  // 5G
-        break;
-    }
-
     using namespace std::literals::string_view_literals;
-    const std::string req = absl::StrCat("AT+REMOTECTEC: "sv, tech, "\r"sv);
+    const std::string req = absl::StrCat("AT+REMOTECTEC: "sv, ToInt(cs), "\r"sv);
 
     if (!socketSendAll(socket.get(), req.data(), req.size())) {
         return absl::InternalError("Failed to send AT command");
@@ -129,36 +148,8 @@ absl::Status SetCellStandard(ScopedSocket& socket, const IModemSimulatorClient::
 }
 
 absl::Status SetVoiceStatus(ScopedSocket& socket, const IModemSimulatorClient::CellStatus cs) {
-    unsigned value;  // see network_service.h
-    switch (cs) {
-    default:
-    case IModemSimulatorClient::CellStatus::UNKNOWN:
-        value = 0;
-        break;
-
-    case IModemSimulatorClient::CellStatus::HOME:
-        value = 1;
-        break;
-
-    case IModemSimulatorClient::CellStatus::ROAMING:
-        value = 2;
-        break;
-
-    case IModemSimulatorClient::CellStatus::SEARCHING:
-        value = 3;
-        break;
-
-    case IModemSimulatorClient::CellStatus::DENIED:
-        value = 4;
-        break;
-
-    case IModemSimulatorClient::CellStatus::UNREGISTERED:
-        value = 5;
-        break;
-    }
-
     using namespace std::literals::string_view_literals;
-    const std::string req = absl::StrCat("AT+REMOTEREG: "sv, value, "\r"sv);
+    const std::string req = absl::StrCat("AT+REMOTEREG: "sv, ToInt(cs), "\r"sv);
 
     if (!socketSendAll(socket.get(), req.data(), req.size())) {
         return absl::InternalError("Failed to send AT command");
