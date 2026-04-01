@@ -44,7 +44,7 @@ PlugPtr HalPlugFactory::WrapHalPlug(SocketPtr qemu_socket, const HalDeviceFactor
             << ", client_loop: " << client_loop;
     client_loop
             ->Post([real_hal_plug]() {
-                VLOG(1) << "Delivering OnConnect to real_hal_plug: " << real_hal_plug;
+                VLOG(1) << "Delivering OnConnect to real_hal_plug: " << *real_hal_plug;
                 real_hal_plug->OnConnect();
             })
             .IgnoreError();
