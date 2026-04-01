@@ -29,11 +29,14 @@ struct NullSocket : public cable::ISocket {
     void SendAsync(const void* /*data*/, size_t size) override {
         VLOG(2) << "Sending " << size << " bytes to /dev/null";
     };
-    cable::PlugPtr SwitchPlug(cable::PlugPtr /*new_plug*/) override { return {}; }
-    cable::PlugPtr UnplugImpl() override {
-        VLOG(1) << "Unplugging the NullSocket";
-        return {};
+
+    cable::PlugPtr SwitchPlug(cable::PlugPtr new_plug) override {
+        LOG(FATAL) << "NullSocket::SwitchPlug should not be called";
+        return new_plug;
     }
+
+    cable::PlugPtr UnplugImpl() override { return {}; }
+
     void AbslStringifyImpl(absl::FormatSink& s) const override { absl::Format(&s, "[NullSocket]"); }
 };
 
@@ -72,6 +75,8 @@ void MarshallingHalSocket::Send(std::string data) {
 }
 
 void MarshallingHalSocket::AbslStringifyImpl(absl::FormatSink& s) const {
+    socket_mutex_.AssertHeld();
+    CHECK(socket_) << "socket_ is nullptr";
     absl::Format(&s, "[MarshallingHalSocket %s, %v]", is_closed_ ? "closed" : "open", *socket_);
 }
 
@@ -91,7 +96,7 @@ void MarshallingHalSocket::Close() {
         // callback that was initiated by the QEMU loop.
         qemu_loop_
                 ->Post([this, self = shared_from_this()]() {
-                    VLOG(1) << "Calling onplug on socket";
+                    VLOG(1) << "Calling onplug on socket: " << *this;
                     cable::SocketPtr socket_to_unplug;
                     {
                         // Safely take ownership of the real socket pointer
@@ -99,16 +104,17 @@ void MarshallingHalSocket::Close() {
                         // method, which may be called by onUnplug on this same
                         // QEMU thread.
                         const absl::MutexLock lock(&socket_mutex_);
-                        socket_to_unplug = std::move(socket_);
 
-                        VLOG(1) << "Installing null socket, welcome to the void.";
-                        socket_ = cable::SocketPtr(&g_null_socket);
+                        // Don't unplug if it was already the null socket (e.g., if
+                        // release() was called first).
+                        if (socket_.get() != &g_null_socket) {
+                            socket_to_unplug = std::move(socket_);
+                            socket_ = cable::SocketPtr(&g_null_socket);
+                        }
                     }
 
                     // Unplug the real socket outside the lock.
-                    // Don't unplug if it was already the null socket (e.g., if
-                    // release() was called first).
-                    if (socket_to_unplug && socket_to_unplug.get() != &g_null_socket) {
+                    if (socket_to_unplug) {
                         VLOG(1) << "Unplugging the real socket.";
                         cable::ISocket::Unplug(std::move(socket_to_unplug));
                     }
