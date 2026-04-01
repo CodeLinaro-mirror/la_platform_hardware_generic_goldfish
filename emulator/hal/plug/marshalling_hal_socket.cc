@@ -15,6 +15,7 @@
  */
 #include "goldfish/devices/marshalling_hal_socket.h"
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 
@@ -41,6 +42,7 @@ NullSocket g_null_socket;
 
 MarshallingHalSocket::MarshallingHalSocket(cable::SocketPtr socket, async::EventLoop* qemu_loop)
         : socket_(std::move(socket)), qemu_loop_(qemu_loop) {
+    CHECK(socket_) << "socket_ is nullptr";
     VLOG(1) << "MarshallingHalSocket: " << socket_ << " created";
 }
 

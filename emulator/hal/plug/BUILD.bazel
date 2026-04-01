@@ -44,6 +44,7 @@ cc_library(
         ":hal_plug",
         "//emulator/hal/connector:cable",
         "//emulator/libs/async:async_api",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
