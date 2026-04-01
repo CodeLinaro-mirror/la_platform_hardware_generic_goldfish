@@ -82,7 +82,7 @@ class HalPlugToIPlugAdapter : public cable::IPlug {
 
   private:
     async::EventLoop* client_loop_;
-    std::shared_ptr<HalPlug> hal_plug_;
+    const std::shared_ptr<HalPlug> hal_plug_;
 };
 
 }  // namespace goldfish::devices
