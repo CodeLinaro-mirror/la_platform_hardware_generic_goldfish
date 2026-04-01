@@ -130,6 +130,6 @@ cc_library(
         ":i_modem_simulator_client",
         "//emulator/libs/gsm:sms",
         "//emulator/libs/parsing:hexbin",
-        "//emulator/libs/sockets",
+        "//emulator/modem_simulator/deps",
     ],
 )
