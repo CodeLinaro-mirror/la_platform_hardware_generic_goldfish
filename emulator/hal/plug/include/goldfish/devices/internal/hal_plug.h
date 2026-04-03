@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/no_destructor.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 
@@ -160,8 +161,9 @@ class HalPlug {
   HalPlug() {
     // Start with a safe, non-functional socket. This prevents crashes if
     // the user incorrectly calls socket() before onConnect().
-    static auto null_socket = std::make_shared<internal::NullHalSocket>();
-    socket_ = null_socket;
+    static const absl::NoDestructor<std::shared_ptr<HalSocket>> null_socket(
+            std::make_shared<internal::NullHalSocket>());
+    socket_ = *null_socket;
   }
 
   virtual ~HalPlug() = default;
