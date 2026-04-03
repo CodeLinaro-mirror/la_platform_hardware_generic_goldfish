@@ -28,6 +28,9 @@ struct FakeAvdUniverse : public AvdUniverse {
     async::EventLoop& GetQemuEventLoop() override {
         LOG(FATAL) << "GetQemuEventLoop not implemented";
     }
+    metrics::MetricsReporter& GetMetricsReporter() override {
+        LOG(FATAL) << "GetMetricsReporter not implemented";
+    }
 };
 
 AvdUniverse& GetAvd() {

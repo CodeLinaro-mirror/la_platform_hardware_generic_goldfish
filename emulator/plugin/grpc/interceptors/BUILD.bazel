@@ -4,30 +4,105 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "interceptors",
-    srcs = [
-        "breadcrumb_interceptor.cc",
-        "idle_interceptor.cc",
-        "logging_interceptor.cc",
-    ],
-    hdrs = [
-        "include/android/control/interceptor/breadcrumb_interceptor.h",
-        "include/android/control/interceptor/idle_interceptor.h",
-        "include/android/control/interceptor/logging_interceptor.h",
-    ],
+    name = "logging_interceptor",
+    srcs = ["logging_interceptor.cc"],
+    hdrs = ["include/android/control/interceptor/logging_interceptor.h"],
     includes = ["include"],
-    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/system:clock",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+        "@protobuf",
+    ],
+)
+
+cc_library(
+    name = "breadcrumb_interceptor",
+    srcs = ["breadcrumb_interceptor.cc"],
+    hdrs = ["include/android/control/interceptor/breadcrumb_interceptor.h"],
+    includes = ["include"],
     deps = [
         "//emulator/crashreport:breadcrumb",
+        "//emulator/libs/proto_data_store",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/time",
+        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
+        "@goldfish//emulator/crashreport:crash_reporter",
+        "@grpc//:grpc++",
+        "@zlib",
+    ],
+)
+
+cc_library(
+    name = "idle_interceptor",
+    srcs = ["idle_interceptor.cc"],
+    hdrs = ["include/android/control/interceptor/idle_interceptor.h"],
+    includes = ["include"],
+    deps = [
         "//emulator/libs/async:async_api",
         "//emulator/libs/process",
         "//emulator/libs/system:clock",
         "@abseil-cpp//absl/time",
-        "@aemu//protos/services/diagnostic:grpc_diagnostic_cc_proto",
-        "@goldfish//emulator/crashreport:crash_reporter",
-        "@goldfish//emulator/libs/proto_data_store",
         "@grpc//:grpc++",
+    ],
+)
+
+# collection of all interceptors for convenience
+cc_library(
+    name = "interceptors",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":breadcrumb_interceptor",
+        ":idle_interceptor",
+        ":logging_interceptor",
+        ":metrics_interceptor",
+    ],
+)
+
+cc_library(
+    name = "percentiles",
+    srcs = ["percentiles.cc"],
+    hdrs = ["include/android/control/interceptor/percentiles.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["@abseil-cpp//absl/log:check"],
+)
+
+cc_test(
+    name = "percentiles_test",
+    srcs = ["percentiles_test.cc"],
+    deps = [
+        ":percentiles",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "metrics_interceptor",
+    srcs = ["metrics_interceptor.cc"],
+    hdrs = ["include/android/control/interceptor/metrics_interceptor.h"],
+    includes = ["include"],
+    deps = [
+        ":logging_interceptor",
+        ":percentiles",
+        "//emulator/libs/metrics",
+        "//emulator/plugin/avd:info",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/synchronization",
         "@zlib",
+    ],
+)
+
+cc_test(
+    name = "metrics_interceptor_test",
+    srcs = ["metrics_interceptor_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":metrics_interceptor",
+        "//emulator/libs/test:googletest_main",
+        "@googletest//:gtest",
     ],
 )
 
