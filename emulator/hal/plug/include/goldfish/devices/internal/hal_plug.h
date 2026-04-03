@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 
 namespace goldfish::devices {
@@ -217,7 +218,10 @@ protected:
    * calls. At all other times, it will return a safe, non-functional
    * "null" socket.
    */
-  std::shared_ptr<HalSocket> Socket() const { return socket_; }
+  std::shared_ptr<HalSocket> Socket() const {
+      CHECK(socket_) << "socket_ is nullptr";
+      return socket_;
+  }
 
   /**
    * @brief Provides a string representation for logging and debugging.
@@ -238,7 +242,10 @@ protected:
   friend class HalPlugTesting;
   friend void AbslStringify(absl::FormatSink& s, const HalPlug& plug);
 
-  void EstablishConnection(std::shared_ptr<HalSocket> socket) { socket_ = std::move(socket); }
+  void EstablishConnection(std::shared_ptr<HalSocket> socket) {
+      CHECK(socket) << "socket is nullptr";
+      socket_ = std::move(socket);
+  }
   std::shared_ptr<HalSocket> socket_;
 };
 
