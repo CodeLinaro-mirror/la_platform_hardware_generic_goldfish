@@ -15,12 +15,14 @@
 #include "goldfish/avd_info/avd_info.h"
 
 #include <chrono>
+#include <fstream>
 #include <memory>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 
 #include "VCpuEventLoop.h"
 #include "android/base/goldfish/devices/sensor/sensor_device.h"
@@ -93,6 +95,7 @@ struct AvdExtendedUniverse : public AvdUniverse {
     ConnectorRegistry connector_registry;
     ConnectorRegistry test_tools_connector_registry;
     avd_universe::battery::ObservableBattery::ScopedCallbackHandle battery_subscription;
+    avd_universe::guest_status::ObservableTimestamp::ScopedCallbackHandle bootcomplete_subscription;
     std::unique_ptr<goldfish::metrics::MetricsReporter> metrics_reporter;
     std::shared_ptr<goldfish::async::EventLoop::Timer> metrics_ping_timer;
 
@@ -225,6 +228,26 @@ void avd_info_realize(DeviceState* dev, Error** errp) {
     const AvdProperties& avd_props = avd_universe.Props();
 
     LOG(INFO) << "Loaded avd directory: " << avd_props.avd_content_path;
+
+    if (!avd_props.snapshot_name.empty()) {
+        auto bootstatus_ini = avd_props.avd_content_path / "snapshots" / avd_props.snapshot_name /
+                              "bootstatus.ini";
+        if (std::filesystem::exists(bootstatus_ini)) {
+            avd_universe.GetGuestStatus().bootcomplete.SetValue(absl::Now());
+        }
+
+        avd_universe.bootcomplete_subscription = android::base::eventing::MakeScopedCallback(
+                avd_universe.GetGuestStatus().bootcomplete, [bootstatus_ini](absl::Time time) {
+                    if (time != absl::UnixEpoch()) {
+                        std::error_code ec;
+                        std::filesystem::create_directories(bootstatus_ini.parent_path(), ec);
+                        std::ofstream ofs(bootstatus_ini);
+                        if (ofs) {
+                            ofs << "bootcomplete=1\n";
+                        }
+                    }
+                });
+    }
 
     auto* client_loop = goldfish::async::globalEventLoop();
 
@@ -394,6 +417,10 @@ void avd_info_set_build_flavour(Object* obj, const char* value, Error** errp) {
     AVD_INFO_DEV(obj)->mutable_props->build_flavour = value;
 }
 
+void avd_info_set_snapshot_name(Object* obj, const char* value, Error** errp) {
+    AVD_INFO_DEV(obj)->mutable_props->snapshot_name = value;
+}
+
 void avd_info_set_quit_after_boot_timeout(Object* obj, Visitor* v, const char* name, void* opaque,
                                           Error** errp) {
     int32_t value;
@@ -466,6 +493,7 @@ void avd_info_class_init(ObjectClass* oc, void* data) {
     object_class_property_add_str(oc, "build_sdk", nullptr, avd_info_set_build_sdk);
     object_class_property_add_str(oc, "build_id", nullptr, avd_info_set_build_id);
     object_class_property_add_str(oc, "build_flavour", nullptr, avd_info_set_build_flavour);
+    object_class_property_add_str(oc, "snapshot_name", nullptr, avd_info_set_snapshot_name);
 
     object_class_property_add(oc, "quit_after_boot_timeout", "int", nullptr,
                               avd_info_set_quit_after_boot_timeout, nullptr, nullptr);

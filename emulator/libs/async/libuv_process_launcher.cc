@@ -93,11 +93,16 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     }
     args.push_back(nullptr);
 
+    unsigned int flags = 0;
+    if (config.daemon || config.new_process_group) {
+        flags |= UV_PROCESS_DETACHED;
+    }
+
     const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
         .exit_cb = exit_cb,  .file = exe.c_str(),
-        .args = args.data(), .flags = config.daemon ? UV_PROCESS_DETACHED : 0U,
+        .args = args.data(), .flags = flags,
         .stdio_count = 3,    .stdio = stdio,
     };
 

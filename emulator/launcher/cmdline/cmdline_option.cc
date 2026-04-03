@@ -142,6 +142,14 @@ int android_parse_options(int* pargc, char*** pargv, AndroidOptions* opt) {
 
                     if (oo->var_type != OPTION_IS_FLAG) {
                         /* parameter/list option */
+                        if (!strcmp(oo->name, "snapshot") &&
+                            (nargs == 0 || aread[0][0] == '-' || aread[0][0] == '@')) {
+                            ((char**)field)[0] = strdup("default_boot");
+                            LOG(WARNING) << "-snapshot is not followed by a parameter, "
+                                            "defaulting to 'default_boot'";
+                            break;
+                        }
+
                         if (nargs == 0) {
                             LOG(ERROR) << "-" << arg << " must be followed by parameter (see -help-"
                                        << arg << ")";

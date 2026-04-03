@@ -50,6 +50,15 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
         }
     }
 
+    if (opts.skiavk) {
+        renderer_features.append(";VulkanVirtualQueue:enabled");
+    }
+
+    if (opts.snapshot) {
+        renderer_features.append(";VulkanSnapshots:enabled");
+        renderer_features.append(";VulkanBatchedDescriptorSetUpdate:disabled");
+    }
+
     std::string gfxstream_backends = "gfxstream-vulkan=on";
     if (needs_gles) {
         gfxstream_backends.append(",x-gfxstream-gles=on");
@@ -66,6 +75,10 @@ std::vector<std::string> GpuDevice::getQemuParameters(const EmulatorConfig& emul
     params.push_back(gfxstream_backends);
     params.push_back("x-gfxstream-composer=on");
     params.push_back(absl::StrCat("renderer_features=", renderer_features));
+    if (opts.snapshot) {
+        auto snapshot_directory = emulator.avd().GetContentPath() / "snapshots" / "renderer" / "";
+        params.push_back(absl::StrCat("snapshot_directory=", snapshot_directory.string()));
+    }
     auto resizable_configs =
             ::goldfish::sensors::FoldableModel::ParseResizableConfigs(hw.hw_resizable_configs);
     if (!resizable_configs.empty()) {

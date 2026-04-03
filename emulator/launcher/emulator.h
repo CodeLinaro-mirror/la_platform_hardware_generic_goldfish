@@ -116,8 +116,10 @@ class Emulator : public EmulatorConfig {
         mDevices.push_back(std::move(newDevice));
     }
 
-  private:
+    private:
     absl::Status addDevices();
+
+    bool snapshotExists(const std::string& name) const;
 
     // Constructs the qemu command line.
     std::string qemu_exe_path() const;
