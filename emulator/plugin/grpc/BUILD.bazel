@@ -35,6 +35,7 @@ cc_library(
         "//emulator/plugin/grpc/services:screen_recorder",
         "//emulator/plugin/grpc/services:sensor_service_incubating",
         "//emulator/plugin/grpc/services:service_forwarder",
+        "//emulator/plugin/grpc/services:snapshot_service",
         "//emulator/plugin/grpc/services:ui_controller_forwarder",
         "//emulator/tools:aemu_version",
         "@abseil-cpp//absl/status",

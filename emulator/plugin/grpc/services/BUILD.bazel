@@ -115,6 +115,17 @@ cc_test(
 )
 
 cc_library(
+    name = "snapshot_service",
+    srcs = ["snapshot_service_impl.cc"],
+    hdrs = ["include/android/emulation/control/snapshot_service_impl.h"],
+    includes = ["include"],
+    deps = [
+        "@aemu//protos/services/snapshot:snapshot_service_cc_grpc",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "ui_controller_forwarder",
     srcs = ["ui_controller_forwarder.cc"],
     hdrs = ["include/android/emulation/control/ui_controller_forwarder.h"],

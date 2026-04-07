@@ -35,6 +35,7 @@
 #include "android/emulation/control/incubating/sensor_service_incubating.h"
 #include "android/emulation/control/jwt_token_auth.h"
 #include "android/emulation/control/service_forwarder_impl.h"
+#include "android/emulation/control/snapshot_service_impl.h"
 #include "android/emulation/control/ui_controller_forwarder.h"
 #include "android/goldfish/vm_interface.h"
 #include "android/process/process.h"
@@ -119,6 +120,7 @@ std::vector<std::shared_ptr<::grpc::Service>> CreateServices(avd_info::AvdUniver
     services.emplace_back(::android::emulation::control::getEmulatorController(
             VmOperations::qemuVmOperations(), qemu_console_lookup_by_index(0), &avd_universe,
             IMultiDisplay::Instance()));
+    services.emplace_back(std::make_shared<SnapshotServiceImpl>());
     auto service_forwarder =
             std::make_shared<::android::emulation::forwarding::ServiceForwarderImpl>();
     services.emplace_back(service_forwarder);
