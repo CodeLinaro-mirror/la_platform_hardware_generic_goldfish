@@ -75,9 +75,7 @@ void MarshallingHalSocket::Send(std::string data) {
 }
 
 void MarshallingHalSocket::AbslStringifyImpl(absl::FormatSink& s) const {
-    socket_mutex_.AssertHeld();
-    CHECK(socket_) << "socket_ is nullptr";
-    absl::Format(&s, "[MarshallingHalSocket %s, %v]", is_closed_ ? "closed" : "open", *socket_);
+    absl::Format(&s, "[MarshallingHalSocket %s]", is_closed_ ? "closed" : "open");
 }
 
 cable::SocketPtr MarshallingHalSocket::Release() {
