@@ -13,7 +13,10 @@
 // limitations under the License.
 #pragma once
 
+#include "absl/functional/function_ref.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 
 namespace android {
 namespace goldfish {
@@ -295,6 +298,20 @@ class VmOperations {
      * @param reason The reason for the shutdown request.
      */
     virtual void systemShutdownRequest(QemuShutdownCause reason) = 0;
+
+    struct SnapshotEntry {
+        std::string id;
+        std::string name;
+        absl::Time timestamp;
+    };
+
+    using SnapshotEntrySink = absl::FunctionRef<void(SnapshotEntry)>;
+
+    virtual absl::Status SaveSnapshot(const char* name, bool overwrite) = 0;
+    virtual absl::Status LoadSnapshot(const char* idOrName, bool andResume) = 0;
+    virtual void LoadSnapshotResume(EmuRunState) = 0;
+    virtual absl::Status DeleteSnapshot(const char* idOrName) = 0;
+    virtual absl::Status ListSnapshots(SnapshotEntrySink) = 0;
 
     static VmOperations* qemuVmOperations();
 };

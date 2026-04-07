@@ -54,6 +54,11 @@ class MockVmOperations : public VmOperations {
     MOCK_METHOD(GoldfishVmConfiguration, getConfiguration, (), (override));
     MOCK_METHOD(EmuRunState, getRunState, (), (override));
     MOCK_METHOD(void, systemShutdownRequest, (QemuShutdownCause reason), (override));
+    MOCK_METHOD(absl::Status, SaveSnapshot, (const char* name, bool overwrite), (override));
+    MOCK_METHOD(absl::Status, LoadSnapshot, (const char* idOrName, bool andRun), (override));
+    MOCK_METHOD(void, LoadSnapshotResume, (EmuRunState), (override));
+    MOCK_METHOD(absl::Status, DeleteSnapshot, (const char* idOrName), (override));
+    MOCK_METHOD(absl::Status, ListSnapshots, (SnapshotEntrySink), (override));
 };
 
 struct VmServiceTest : public ::testing::Test {

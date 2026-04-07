@@ -13,13 +13,18 @@
 // limitations under the License.
 #include <array>
 
+#include "absl/strings/str_cat.h"
+
 #include "android/goldfish/vm_interface.h"
 
 // clang-format off
 // IWYU pragma: begin_keep
 extern "C" {
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "system/runstate.h"
+#include "migration/snapshot.h"
+#include "block/snapshot.h"
 }
 // IWYU pragma: end_keep
 // clang-format on
@@ -32,6 +37,14 @@ extern "C" {
 
 namespace android {
 namespace goldfish {
+namespace {
+absl::Status ToStatus(const absl::StatusCode code, Error** errp) {
+    absl::Status status = absl::Status(code, ::error_get_pretty(*errp));
+    ::error_free(*errp);
+    *errp = nullptr;
+    return status;
+}
+}  // namespace
 
 static_assert((int)QemuShutdownCause::Max == (int)SHUTDOWN_CAUSE__MAX);
 
@@ -162,6 +175,72 @@ class QemuVmOperations : public VmOperations {
      */
     void systemShutdownRequest(QemuShutdownCause reason) override {
         qemu_system_shutdown_request((ShutdownCause)reason);
+    }
+
+    absl::Status SaveSnapshot(const char* name, const bool overwrite) override {
+        ::Error* errp = nullptr;
+        if (!::save_snapshot(name, overwrite, /*vmstate=*/nullptr, /*has_devices=*/false,
+                             /*devices=*/nullptr, &errp)) {
+            return ToStatus(absl::StatusCode::kInternal, &errp);
+        }
+
+        return absl::OkStatus();
+    }
+
+    absl::Status LoadSnapshot(const char* idOrName, const bool andResume) override {
+        ::Error* errp = nullptr;
+        if (!::load_snapshot(idOrName, /*vmstate=*/nullptr, /*has_devices=*/false,
+                             /*devices=*/nullptr, &errp)) {
+            return ToStatus(absl::StatusCode::kInternal, &errp);
+        }
+
+        if (andResume) {
+            ::load_snapshot_resume(::RUN_STATE_RUNNING);
+        }
+
+        return absl::OkStatus();
+    }
+
+    void LoadSnapshotResume(const EmuRunState ers) override {
+        ::load_snapshot_resume(static_cast<::RunState>(ers));
+    }
+
+    absl::Status DeleteSnapshot(const char* idOrName) override {
+        ::Error* errp = nullptr;
+        if (!::delete_snapshot(idOrName, /*has_devices=*/false, /*devices=*/nullptr, &errp)) {
+            return ToStatus(absl::StatusCode::kInternal, &errp);
+        }
+
+        return absl::OkStatus();
+    }
+
+    absl::Status ListSnapshots(const SnapshotEntrySink sink) override {
+        ::Error* errp = nullptr;
+        ::BlockDriverState* bs = ::bdrv_all_find_vmstate_bs(
+                /*vmstate_bs=*/nullptr, /*has_devices=*/false, /*devices=*/nullptr, &errp);
+        if (!bs) {
+            return ToStatus(absl::StatusCode::kInternal, &errp);
+        }
+
+        ::QEMUSnapshotInfo* qsi = nullptr;
+        const int qsiSize = ::bdrv_snapshot_list(bs, &qsi);
+        if (qsiSize < 0) {
+            return absl::InternalError(absl::StrCat("bdrv_snapshot_list failed with ", qsiSize));
+        }
+
+        for (int i = 0; i < qsiSize; ++i) {
+            SnapshotEntry se = {
+                .id = qsi[i].id_str,
+                .name = qsi[i].name,
+                .timestamp = absl::FromUnixSeconds(qsi[i].date_sec) +
+                             absl::Nanoseconds(qsi[i].date_nsec),
+            };
+
+            sink(std::move(se));
+        }
+
+        ::g_free(qsi);
+        return absl::OkStatus();
     }
 };
 
