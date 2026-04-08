@@ -23,7 +23,10 @@ __BEGIN_DECLS
 // IWYU pragma: begin_keep
 // Include the QEMU headers for RunState and ShutdownCause
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "system/runstate.h"
+#include "migration/snapshot.h"
+#include "block/snapshot.h"
 // IWYU pragma: end_keep
 // clang-format on
 

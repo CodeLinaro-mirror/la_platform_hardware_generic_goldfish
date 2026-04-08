@@ -20,6 +20,11 @@ static RunState runstate_get_value = RUN_STATE_DEBUG;
 static ShutdownCause mock_shutdown_cause = SHUTDOWN_CAUSE_NONE;
 static bool mock_iothread_locked = false;
 
+const char* error_get_pretty(const Error* err) {
+    return "error_get_pretty";
+}
+void error_free(Error* err) {}
+
 // Getter and setter for RunState
 RunState runstate_get() {
     return runstate_get_value;
@@ -83,4 +88,34 @@ void bql_lock_impl(const char* file, int line) {
 
 void bql_unlock(void) {
     mock_iothread_locked_set(false);
+}
+
+bool save_snapshot(const char* name, bool overwrite, const char* vmstate, bool has_devices,
+                   strList* devices, Error** errp) {
+    *errp = NULL;
+    return false;
+}
+
+bool load_snapshot(const char* name, const char* vmstate, bool has_devices, strList* devices,
+                   Error** errp) {
+    *errp = NULL;
+    return false;
+}
+
+void load_snapshot_resume(RunState state) {}
+
+bool delete_snapshot(const char* name, bool has_devices, strList* devices, Error** errp) {
+    *errp = NULL;
+    return false;
+}
+
+BlockDriverState* bdrv_all_find_vmstate_bs(const char* vmstate_bs, bool has_devices,
+                                           strList* devices, Error** errp) {
+    *errp = NULL;
+    return NULL;
+}
+
+int bdrv_snapshot_list(BlockDriverState* bs, QEMUSnapshotInfo** psn_info) {
+    *psn_info = NULL;
+    return -1;
 }
