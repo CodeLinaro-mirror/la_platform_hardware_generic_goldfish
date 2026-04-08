@@ -46,7 +46,7 @@ inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfi
         break;
     case kFile:
         reporter.SetWriter(std::make_unique<::goldfish::metrics::StreamOwnerTextMetricsWriter>(
-                std::make_unique<std::ofstream>(config.file_path)));
+                std::make_unique<std::ofstream>(config.file_path, std::ios::app)));
         break;
     case kStudio:
         reporter.SetWriter(std::make_unique<::goldfish::metrics::StudioFileMetricsWriter>(
