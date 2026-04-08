@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <sstream>
 #include <string_view>
 #include <vector>
 
@@ -30,6 +31,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
+#include "android/process/command.h"
 #include "android/status/status_macros.h"
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
@@ -205,11 +207,37 @@ absl::Status Emulator::addDevices() {
         });
     }
 
+    const bool snapshot_save_needed = o.snapshot && o.snapshot[0] != '\0' && !o.no_snapshot_save;
+    const bool qmp_needed = snapshot_save_needed && qmp_port() != 0;
+    if (qmp_needed) {
+        addDevice<ParameterList>(std::initializer_list<std::string>{
+            "-qmp",
+            absl::StrFormat("tcp:127.0.0.1:%d,server,nowait", qmp_port()),
+        });
+    }
+
+    if (o.snapshot && o.snapshot[0] != '\0') {
+        if (o.no_snapshot_load) {
+            LOG(INFO) << "Snapshot loading disabled by -no-snapshot-load, performing cold boot.";
+        } else if (snapshotExists(o.snapshot)) {
+            LOG(INFO) << "Snapshot '" << o.snapshot << "' found, loading...";
+            addDevice<ParameterList>(std::initializer_list<std::string>{"-loadvm", o.snapshot});
+        } else {
+            LOG(INFO) << "Snapshot '" << o.snapshot << "' not found, performing cold boot.";
+        }
+    }
+
     if (o.qemu) {
         addDevice<ParameterList>(absl::StrSplit(o.qemu, ' '));
     }
 
     return absl::OkStatus();
+}
+
+bool Emulator::snapshotExists(const std::string& name) const {
+    const auto& a = avd();
+    fs::path bootstatus_ini = a.GetContentPath() / "snapshots" / name / "bootstatus.ini";
+    return fs::exists(bootstatus_ini);
 }
 
 void Emulator::clear() {
@@ -327,6 +355,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
         .exe_path = std::move(exe_path),
         .args = std::move(args),
         .daemon = false,
+        .new_process_group = true,
         .keep_stdio = true,
     };
 }

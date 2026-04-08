@@ -430,9 +430,27 @@ collect_plugins(
     plugins = [":advanced_features_ini"],
 )
 
+cc_library(
+    name = "snapshot_util",
+    srcs = ["snapshot_util.cc"],
+    hdrs = ["snapshot_util.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":avd",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:libuv_sockets",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
 cc_binary(
     name = "launcher",
-    srcs = ["launcher.cc"],
+    srcs = [
+        "launcher.cc",
+    ],
     data = [
         ":advanced_features",
         ":binaries",
@@ -456,6 +474,7 @@ cc_binary(
         ":input_paths",
         ":logging",
         ":netsimd",
+        ":snapshot_util",
         "//emulator/adb/secrets",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
@@ -476,7 +495,11 @@ cc_binary(
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@nlohmann_json//:singleheader-json",
         "@qemu//:qemu-headers",
     ],

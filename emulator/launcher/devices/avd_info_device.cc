@@ -67,6 +67,10 @@ absl::Status AvdInfoDevice::initialize(const EmulatorConfig& emulator) {
         params.emplace_back("dump_perf_stat_path", perf_stat_path.string());
     }
 
+    if (char* snapshot = emulator.opts().snapshot) {
+        params.emplace_back("snapshot_name", snapshot);
+    }
+
     mAvdParams = absl::StrJoin(params, ",", [](std::string* s, const auto& pair) {
         absl::StrAppend(s, pair.first, "=", pair.second);
     });

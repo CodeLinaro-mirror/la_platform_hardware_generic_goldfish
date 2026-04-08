@@ -129,6 +129,7 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
         .args = args,
         //.environment = {},
         .daemon = true,
+        .new_process_group = false,
         .keep_stdio = opts.netsim_stdout != 0,
     };
 }

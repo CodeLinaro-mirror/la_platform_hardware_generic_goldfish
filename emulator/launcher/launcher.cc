@@ -39,7 +39,6 @@
 #include "android/status/status_macros.h"
 #include "emulator.h"
 #include "fishtank.h"
-#include "host_info.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -53,8 +52,10 @@
 #include "goldfish/modem_simulator/modem_simulator_service.h"
 #include "goldfish/network/endpoint.h"
 #include "goldfish/tools/aemu_version.h"
+#include "host_info.h"
 #include "logging.h"
 #include "netsimd.h"
+#include "snapshot_util.h"
 
 namespace fs = std::filesystem;
 
@@ -239,6 +240,20 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         return absl::UnavailableError("No available emulator serial console port (5554-5584)");
     }
 
+    absl::Status hunt_for_qmp_port(::goldfish::async::EventLoop& event_loop,
+                                   ::goldfish::async::LibuvAsyncSocketFactory& factory) {
+        constexpr int kStartingPort = 15455;
+        for (int port = kStartingPort; port < kStartingPort + 100; ++port) {
+            if (auto sock = open_tcp_server_port(event_loop, factory, port); sock.ok()) {
+                mPorts.qmp_port = port;
+                mQmpPortReservation = *std::move(sock);
+                LOG(INFO) << "QMP service will listen on port: " << port;
+                return absl::OkStatus();
+            }
+        }
+        return absl::UnavailableError("No available emulator QMP port");
+    }
+
     absl::Status setup_emulator_ports(const AndroidOptions& opts,
                                       ::goldfish::async::EventLoop& event_loop) {
         auto factory = std::make_unique<::goldfish::async::LibuvAsyncSocketFactory>();
@@ -273,6 +288,11 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         } else {
             RETURN_IF_ERROR(hunt_for_free_port(event_loop, *factory));
         }
+
+        if (opts.snapshot && !opts.no_snapshot_save) {
+            RETURN_IF_ERROR(hunt_for_qmp_port(event_loop, *factory));
+        }
+
         if (mPorts.adb_port < 5555 || mPorts.adb_port > 5585) {
             LOG(WARNING)
                     << "ADB port specified is out of range [5555,5585], adb may not work properly: "
@@ -287,9 +307,16 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     }
 
     void forwarding_signal_handler(int signum) {
-        LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
         if (auto* p = mEmulatorProcess.get()) {
-            uv_process_kill(p, signum);
+            if (mOpts.snapshot && (signum == SIGINT || signum == SIGTERM)) {
+                LOG(INFO) << "Not forwarding signal " << signum
+                          << " to emulator, triggering snapshot save and quit instead.";
+                save_snapshot_and_quit();
+                return;
+            } else {
+                LOG(INFO) << "Signal received, forwarding to emulator: " << signum;
+                uv_process_kill(p, signum);
+            }
         } else {
             // If there is no emulator process yet then we want to shutdown directly.
             shutdown();
@@ -441,6 +468,12 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
     void launch_emulator(ChardevEndpoints chardev_endpoints) {
         Emulator emulator{mPorts, chardev_endpoints, mMetricsConfig, mResolvedPaths, *mAvd, mOpts};
 
+        // Release reservations just before launch so QEMU can bind to the ports.
+        if (mQmpPortReservation) {
+            mQmpPortReservation->Close();
+            mQmpPortReservation.reset();
+        }
+
         if (auto emulator_config = emulator.launch_config(); emulator_config.ok()) {
             if (auto s = Launch(*std::move(emulator_config), &emulator_exit); s.ok()) {
                 mEmulatorProcess = *std::move(s);
@@ -460,10 +493,39 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
         });
     }
 
+    void save_snapshot_and_quit() {
+        auto kill_emulator = [this]() {
+            if (auto* p = mEmulatorProcess.get()) {
+                uv_process_kill(p, SIGTERM);
+            } else {
+                shutdown();
+            }
+        };
+
+        if (!mOpts.snapshot || mOpts.no_snapshot_save || mPorts.qmp_port == 0) {
+            if (mOpts.no_snapshot_save) {
+                LOG(INFO) << "Snapshot saving disabled by -no-snapshot-save, quitting "
+                             "emulator directly";
+            } else {
+                LOG(INFO) << "No snapshot or QMP port configured, quitting emulator directly";
+            }
+            kill_emulator();
+            return;
+        }
+
+        SnapshotUtil::save_snapshot_and_quit(mEventLoop, mPorts.qmp_port, mOpts.snapshot,
+                                             mAvd.get(), kill_emulator);
+    }
+
     void shutdown() {
         if (mSerialPortReservation) {
             mSerialPortReservation->Close();
             mSerialPortReservation.reset();
+        }
+
+        if (mQmpPortReservation) {
+            mQmpPortReservation->Close();
+            mQmpPortReservation.reset();
         }
 
         if (mFindNetsimd) {
@@ -502,6 +564,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
     EmulatorPorts mPorts;
     std::shared_ptr<::goldfish::async::AsyncSocketServer> mSerialPortReservation;
+    std::shared_ptr<::goldfish::async::AsyncSocketServer> mQmpPortReservation;
 
     // Keep a handle open from the launcher to keep netsimd alive.
     // This should avoid any races between discovery and qemu device connection.

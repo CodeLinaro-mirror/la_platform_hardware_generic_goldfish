@@ -197,12 +197,22 @@ Status DisplayServiceImpl::streamScreenshot(ServerContext* context, const ImageF
     bool lastFrameWasEmpty = reply.format().width() == 0;
     int frame = 0;
 
+    ::goldfish::display::SharedDisplay display;
     const auto& hw = ::goldfish::avd_info::GetAvd().Props().hw_config;
-    auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
-    if (!res.ok()) {
-        return AbslStatusToGrpcStatus(res.status());
+    while (!context->IsCancelled()) {
+        auto res = mMultiDisplay.GetActiveDisplay(request->display(), hw.hw_sensor_hinge);
+        if (res.ok()) {
+            display = *res;
+            break;
+        }
+        VLOG(1) << "streamScreenshot: Waiting for active display " << request->display() << ": " << res.status();
+        absl::SleepFor(absl::Milliseconds(100));
     }
-    auto display = *res;
+
+    if (context->IsCancelled()) {
+        LOG(INFO) << "streamScreenshot: request cancelled while waiting for display";
+        return Status::CANCELLED;
+    }
 
     auto allocator = createAllocator(*request, *display);
     if (!allocator.ok()) {
