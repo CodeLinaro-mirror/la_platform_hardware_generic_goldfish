@@ -112,6 +112,22 @@ void warnAboutNoMetricsConsentInput() {
     printf("##############################################################################\n");
 }
 
+std::string EmulatorMetricsUserId(const fs::path &user_directory) {
+    auto path = user_directory / "userid";
+    if (android::base::file::exists(path)) {
+        auto id = android::base::file::read_whole_file(path, /*binary=*/false);
+        if (id.ok() && !id->empty()) {
+            return *id;
+        } else {
+            LOG(ERROR) << "failed to read emulator metrics user id, re-generating...";
+        }
+    }
+    auto uuid = ::goldfish::metrics::Uuid::Generate().ToString();
+    std::ofstream f(path);
+    f << uuid;
+    return uuid;
+}
+
 ::goldfish::metrics::MetricsWriterConfig get_metrics_writer_config(const AndroidOptions& opts, const ResolvedInputPaths &resolved_paths) {
     using enum ::goldfish::metrics::MetricsWriterType;
     if (opts.no_metrics) {
@@ -123,7 +139,13 @@ void warnAboutNoMetricsConsentInput() {
         return {.type = kConsole};
     } else if (opts.metrics_collection) {
         LOG(INFO) << "Metrics will be uploaded directly by the emulator";
-        return {.type = kPlaystore, .user_upload_consent = true};
+        auto user_id = ::goldfish::metrics::studio::GetMetricsUserId(resolved_paths.user_directory);
+        if (user_id.empty()) {
+            // create our own one if there's no studio config
+            user_id = EmulatorMetricsUserId(resolved_paths.user_directory);
+        }
+        // TODO(476380758): Switch from staging to prod clearcut after verification.
+        return {.type = kPlaystore, .playstore_url="https://play.googleapis.com/staging/log?format=raw", .user_id = user_id, .user_upload_consent = true};
     } else if (opts.metrics_to_file) {
         LOG(INFO) << "Metrics will be written to: " << opts.metrics_to_file;
         return {.type = kFile, .file_path = opts.metrics_to_file};

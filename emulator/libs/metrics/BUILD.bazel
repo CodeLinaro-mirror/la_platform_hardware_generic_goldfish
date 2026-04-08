@@ -1,5 +1,12 @@
 load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+# This is needed when compiling google_logs_response_cc_proto on Windows.
+# Unfortunately cxxopts = ["-Wno-invalid-offsetof"] can't be used on cc_proto_library
+# and this is better than disabling that warning in the toolchain.
+package(features = ["-warnings_as_errors"])
 
 clang_tidy_test(
     name = "tidy",
@@ -101,6 +108,7 @@ cc_library(
     deps = [
         ":metrics_reporter",
         ":metrics_writer",
+        ":playstore_metrics_writer",
         ":studio_file_metrics_writer",
         ":text_metrics_writer",
         "//emulator/libs/async:async_api",
@@ -219,5 +227,68 @@ cc_test(
         "//emulator/libs/async:async_testing",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "gzip_ostream",
+    srcs = ["gzip_ostream.cc"],
+    hdrs = ["gzip_ostream.h"],
+    deps = ["@zlib"],
+)
+
+cc_test(
+    name = "gzip_ostream_test",
+    srcs = ["gzip_ostream_test.cc"],
+    deps = [
+        ":gzip_ostream",
+        "//emulator/libs/test:googletest_main",
+        "@zlib",
+    ],
+)
+
+proto_library(
+    name = "google_logs_response_proto",
+    srcs = ["google_logs_response.proto"],
+    strip_import_prefix = "",
+)
+
+cc_proto_library(
+    name = "google_logs_response_cc_proto",
+    deps = [":google_logs_response_proto"],
+)
+
+cc_library(
+    name = "playstore_metrics_writer",
+    srcs = ["playstore_metrics_writer.cc"],
+    hdrs = ["include/goldfish/metrics/playstore_metrics_writer.h"],
+    implementation_deps = ["@curl"],
+    includes = ["include"],
+    # static is necessary for curl to link properly.
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":google_logs_response_cc_proto",
+        ":gzip_ostream",
+        ":metrics_writer",
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/system",
+        "//emulator/tools:aemu_version",
+        "@abseil-cpp//absl/log",
+        "@studio_stats//:google_logs_publishing_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "playstore_metrics_writer_test",
+    srcs = ["playstore_metrics_writer_test.cc"],
+    deps = [
+        ":playstore_metrics_writer",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/strings:str_format",
+        "@studio_stats//:google_logs_publishing_cc_proto",
+        "@zlib",
     ],
 )

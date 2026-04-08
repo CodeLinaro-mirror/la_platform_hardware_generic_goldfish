@@ -24,16 +24,14 @@ namespace goldfish::metrics::studio {
 
 using json = nlohmann::json;
 
-fs::path GetSettingsFilePath(const fs::path& user_directory) {
+namespace {
+
+fs::path GetAnalyticsSettingsPath(const fs::path& user_directory) {
     return user_directory / "analytics.settings";
 }
 
-fs::path GetSpoolDirectory(const fs::path& user_directory) {
-    return user_directory / "metrics" / "spool";
-}
-
-OptInState GetUserMetricsOptIn(const fs::path& user_directory) {
-    fs::path settings_path = GetSettingsFilePath(user_directory);
+absl::StatusOr<json> ParseAnalyticsSettingsJson(const fs::path& user_directory) {
+    fs::path settings_path = GetAnalyticsSettingsPath(user_directory);
     std::ifstream is(settings_path);
     if (!is.is_open()) {
         return OptInState::kUnknown;
@@ -44,24 +42,55 @@ OptInState GetUserMetricsOptIn(const fs::path& user_directory) {
     if (j.is_discarded()) {
         return OptInState::kUnknown;
     }
+    return j;
+}
 
-    if (j.contains("hasOptedIn")) {
-        const auto& val = j["hasOptedIn"];
-        bool opted_in = false;
-        if (val.is_boolean()) {
-            opted_in = val.get<bool>();
-        } else if (val.is_number()) {
-            opted_in = val.get<int>() != 0;
-        } else if (val.is_string()) {
-            std::string s = val.get<std::string>();
-            opted_in = (s == "true" || s == "1");
-        } else {
-            return OptInState::kUnknown;
-        }
-        return opted_in ? OptInState::kOptedIn : OptInState::kOptedOut;
+} // namespace
+
+OptInState GetUserMetricsOptIn(const fs::path& user_directory) {
+    auto json = ParseAnalyticsSettingsJson(user_directory);
+    if (!json.ok()) {
+        return OptInState::kUnknown;
     }
 
-    return OptInState::kUnknown;
+    if (!json->contains("hasOptedIn")) {
+        return OptInState::kUnknown;
+    }
+
+    const auto& val = (*json)["hasOptedIn"];
+    bool opted_in = false;
+    if (val.is_boolean()) {
+        opted_in = val.get<bool>();
+    } else if (val.is_number()) {
+        opted_in = val.get<int>() != 0;
+    } else if (val.is_string()) {
+        std::string s = val.get<std::string>();
+        opted_in = (s == "true" || s == "1");
+    } else {
+        return OptInState::kUnknown;
+    }
+    return opted_in ? OptInState::kOptedIn : OptInState::kOptedOut;
+}
+
+std::string GetMetricsUserId(const fs::path& user_directory) {
+    auto json = ParseAnalyticsSettingsJson(user_directory);
+    if (!json.ok()) {
+        return {};
+    }
+
+    if (!json->contains("userId")) {
+        return {};
+    }
+
+    const auto& val = (*json)["userId"];
+    if (!val.is_string()) {
+        return {};
+    }
+    return val.get<std::string>();
+}
+
+fs::path GetSpoolDirectory(const fs::path& user_directory) {
+    return user_directory / "metrics" / "spool";
 }
 
 }  // namespace goldfish::metrics::studio

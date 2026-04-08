@@ -38,7 +38,8 @@ void AppendMetricsConfigString(std::string* s, const MetricsConfig& config) {
         absl::StrAppend(s, ",metrics_spool_dir=", config.writer_config.studio_spool_dir.string());
         break;
     case kPlaystore:
-        // TODO
+        absl::StrAppend(s, ",metrics_playstore_url=", config.writer_config.playstore_url);
+        absl::StrAppend(s, ",metrics_user_id=", config.writer_config.user_id);
         break;
     case kNone:
     case kConsole:

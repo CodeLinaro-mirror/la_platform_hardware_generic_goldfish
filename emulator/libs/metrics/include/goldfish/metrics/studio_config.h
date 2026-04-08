@@ -20,11 +20,6 @@
 namespace goldfish::metrics::studio {
 
 /**
- * Returns the path to the Android Studio metrics settings file.
- */
-fs::path GetSettingsFilePath(const fs::path& user_directory);
-
-/**
  * Returns the path to the directory where metrics data is spooled.
  */
 fs::path GetSpoolDirectory(const fs::path& user_directory);
@@ -39,5 +34,7 @@ enum class OptInState {
 };
 
 OptInState GetUserMetricsOptIn(const fs::path& user_directory);
+
+std::string GetMetricsUserId(const fs::path& user_directory);
 
 }  // namespace goldfish::metrics::studio

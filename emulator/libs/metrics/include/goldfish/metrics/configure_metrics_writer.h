@@ -22,6 +22,7 @@
 #include "goldfish/file/file.h"
 #include "goldfish/metrics/metrics_reporter.h"
 #include "goldfish/metrics/metrics_writer.h"
+#include "goldfish/metrics/playstore_metrics_writer.h"
 #include "goldfish/metrics/studio_file_metrics_writer.h"
 #include "goldfish/metrics/text_metrics_writer.h"
 
@@ -33,6 +34,8 @@ struct MetricsWriterConfig {
     MetricsWriterType type;
     fs::path file_path;
     fs::path studio_spool_dir;
+    std::string playstore_url;
+    std::string user_id;
 
     bool user_upload_consent{false};
 };
@@ -53,7 +56,8 @@ inline void ConfigureMetricsWriter(MetricsReporter& reporter, MetricsWriterConfi
                 config.studio_spool_dir, reporter.session_id(), event_loop));
         break;
     case kPlaystore:
-        // TODO
+        reporter.SetWriter(std::make_unique<::goldfish::metrics::PlaystoreMetricsWriter>(
+                config.playstore_url, config.user_id, event_loop));
         break;
     case kNone:
     default:

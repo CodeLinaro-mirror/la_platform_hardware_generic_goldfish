@@ -34,7 +34,7 @@ class StudioConfigTest : public ::testing::Test {
     void TearDown() override { mTempDir.reset(); }
 
     void writeSettingsFile(const std::string& content) {
-        std::ofstream os(GetSettingsFilePath(temp_path()));
+        std::ofstream os(temp_path() / "analytics.settings");
         os << content;
     }
 
@@ -42,11 +42,6 @@ class StudioConfigTest : public ::testing::Test {
 
     std::unique_ptr<TestTempDir> mTempDir;
 };
-
-TEST_F(StudioConfigTest, GetSettingsFilePath) {
-    fs::path expected = temp_path() / "analytics.settings";
-    EXPECT_EQ(GetSettingsFilePath(temp_path()), expected);
-}
 
 TEST_F(StudioConfigTest, GetSpoolDirectory) {
     fs::path expected = temp_path() / "metrics" / "spool";
@@ -103,6 +98,35 @@ TEST_F(StudioConfigTest, GetUserMetricsOptIn_OptedOut_String) {
 TEST_F(StudioConfigTest, GetUserMetricsOptIn_MissingKey) {
     writeSettingsFile(R"({"userId": "some-uuid"})");
     EXPECT_EQ(GetUserMetricsOptIn(temp_path()), OptInState::kUnknown);
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_NoFile) {
+    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_EmptyFile) {
+    writeSettingsFile("");
+    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_InvalidJson) {
+    writeSettingsFile("{ invalid json }");
+    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_Valid) {
+    writeSettingsFile(R"({"userId": "test-user-id"})");
+    EXPECT_EQ(GetMetricsUserId(temp_path()), "test-user-id");
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_Missing) {
+    writeSettingsFile(R"({"hasOptedIn": true})");
+    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
+}
+
+TEST_F(StudioConfigTest, GetMetricsUserId_NotAString) {
+    writeSettingsFile(R"({"userId": 12345})");
+    EXPECT_TRUE(GetMetricsUserId(temp_path()).empty());
 }
 
 }  // namespace goldfish::metrics::studio
