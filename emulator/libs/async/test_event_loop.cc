@@ -205,7 +205,8 @@ void TestEventLoopImpl::Reschedule(std::shared_ptr<TestTimer> timer,
 }
 
 void TestEventLoopImpl::RunAll() {
-    RunMany(std::numeric_limits<size_t>::max());
+    while (RunMany(std::numeric_limits<size_t>::max())) {
+    }
 }
 
 bool TestEventLoopImpl::RunOne() {

@@ -63,6 +63,11 @@ class SensorDeviceTest : public ::testing::Test {
         device_->OnConnect();
     }
 
+    void TearDown() override {
+        registry_.Close();
+        client_loop_->RunAll();
+    }
+
   public:
     void Receive(std::string_view msg) {
         (void)client_loop_->Post([&, this] { device_->OnReceive(qemud::EncodeQemudPacket(msg)); });

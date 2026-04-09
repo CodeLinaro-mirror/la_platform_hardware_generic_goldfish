@@ -41,6 +41,11 @@ class GpsDeviceTest : public ::testing::Test {
         test_socket = registry.HalSocket();
     }
 
+    void TearDown() override {
+        registry.Close();
+        mClientLoop->RunAll();
+    }
+
   public:
     void clear() { test_socket->storage.clear(); }
 

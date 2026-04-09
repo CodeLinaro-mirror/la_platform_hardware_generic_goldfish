@@ -240,7 +240,9 @@ class SensorDevice : public ISensorDevice {
         // Make sure we don't get destroyed while a timer is active.
         // By posting with a self reference we guarantee that we remain alive
         // until the timer has completed been cleaned up (b/443556478)
-        loop_->Post([this] { self_.reset(); }).IgnoreError();
+        if (self_) {
+            loop_->Post([this] { self_.reset(); }).IgnoreError();
+        }
     }
 
     void OnConnect() override {

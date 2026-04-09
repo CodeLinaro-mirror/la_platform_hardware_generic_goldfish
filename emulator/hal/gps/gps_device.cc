@@ -125,7 +125,9 @@ class GpsDevice : public IGpsDevice {
         if (one_second_timer_) {
             one_second_timer_->Cancel();
         }
-        loop_->Post([this] { self_.reset(); }).IgnoreError();
+        if (self_) {
+            loop_->Post([this] { self_.reset(); }).IgnoreError();
+        }
     }
 
     void OnReceive(std::string_view data) override {

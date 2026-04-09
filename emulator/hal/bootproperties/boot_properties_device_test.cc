@@ -122,6 +122,11 @@ class BootPropertiesDeviceTest : public ::testing::Test {
         registerWithProps(props);
     }
 
+    void TearDown() override {
+        registry.Close();
+        mClientLoop->RunAll();
+    }
+
   public:
     void registerWithProps(IBootPropertiesDevice::Properties props) {
         IBootPropertiesDevice::RegisterDevice(&registry, props, mClientLoop.get(), mQemuLoop.get());

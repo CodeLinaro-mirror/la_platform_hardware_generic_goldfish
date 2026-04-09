@@ -40,6 +40,11 @@ class ClipboardDeviceTest : public ::testing::Test {
         clear();
     }
 
+    void TearDown() override {
+        registry.Close();
+        mClientLoop->RunAll();
+    }
+
   public:
     void sendGuestToHost(std::string_view msg) {
         uint32_t size = msg.size();

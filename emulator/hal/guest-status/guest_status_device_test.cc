@@ -66,6 +66,11 @@ class GuestStatusDeviceTest : public ::testing::Test {
         clear();
     }
 
+    void TearDown() override {
+        registry.Close();
+        mClientLoop->RunAll();
+    }
+
   public:
     void receive(const std::string_view msg) {
         char sizeBuf[sizeof(uint32_t)];

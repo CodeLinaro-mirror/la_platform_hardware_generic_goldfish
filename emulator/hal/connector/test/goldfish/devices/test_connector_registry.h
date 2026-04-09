@@ -14,6 +14,9 @@
 #include <memory>
 #include <string>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+
 #include "emulator/hal/plug/test/hal_plug_testing_friend.h"
 #include "goldfish/devices/cable/cable.h"
 #include "goldfish/devices/connector.h"
@@ -102,7 +105,15 @@ struct TestHalSocket : public HalSocket {
 class TestConnectorRegistry : public ConnectorRegistry {
   public:
     TestConnectorRegistry() = default;
-    ~TestConnectorRegistry() override = default;
+
+    ~TestConnectorRegistry() { CHECK(!hal_plug_); }
+
+    void Close() {
+        if (hal_plug_) {
+            hal_plug_->OnClose();
+            hal_plug_.reset();
+        }
+    }
 
     bool RegisterQemuDevice(std::string_view /*name*/, DeviceFactory /*factory*/) override {
         return true;

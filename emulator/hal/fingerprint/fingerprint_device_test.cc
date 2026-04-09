@@ -41,6 +41,11 @@ class FingerprintDeviceTest : public ::testing::Test {
         device->OnConnect();
     }
 
+    void TearDown() override {
+        registry.Close();
+        mClientLoop->RunAll();
+    }
+
   public:
     void clear() { test_socket->storage.clear(); }
 
