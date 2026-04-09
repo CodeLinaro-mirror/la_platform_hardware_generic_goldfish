@@ -307,13 +307,17 @@ TEST_F(LoopHandoffTest, DataTransferAfterHandoff) {
     std::shared_ptr<AsyncSocket> server_side_client;
     absl::Notification client_closed;
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        const std::weak_ptr<AsyncSocket> weak_socket(socket);
+
         socket->SetOnCloseCallback([&] { client_closed.Notify(); });
         socket->SetOnReadCallbackNoFlowControl(
-                [&, s = socket](std::string_view data, absl::Status) {
-                    if (data == ping) {
-                        server_read_thread_id = std::this_thread::get_id();
-                        received_ping.Notify();
-                        s->Send(pong.data(), pong.size()).IgnoreError();
+                [&, s = weak_socket](std::string_view data, absl::Status) {
+                    if (const auto ss = s.lock()) {
+                        if (data == ping) {
+                            server_read_thread_id = std::this_thread::get_id();
+                            received_ping.Notify();
+                            ss->Send(pong.data(), pong.size()).IgnoreError();
+                        }
                     }
                 });
         server_side_client = std::move(socket);

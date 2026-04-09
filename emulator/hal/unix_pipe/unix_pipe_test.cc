@@ -109,9 +109,13 @@ TEST_F(UnixPipeTest, echo_over_host_side) {
     std::mutex clients_mutex;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        const std::weak_ptr<AsyncSocket> weak_socket(socket);
+
         socket->SetOnReadCallbackNoFlowControl(
-                [socket](std::string_view data, absl::Status /*err*/) {
-                    ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
+                [weak_socket](std::string_view data, absl::Status /*err*/) {
+                    if (const auto socket = weak_socket.lock()) {
+                        ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
+                    }
                 });
 
         std::lock_guard<std::mutex> lock(clients_mutex);
@@ -175,13 +179,17 @@ TEST_F(UnixPipeTest, close_on_host) {
     int server_replies = 3;
 
     auto on_connect = [&](std::shared_ptr<AsyncSocket> socket) -> bool {
+        const std::weak_ptr<AsyncSocket> weak_socket(socket);
+
         socket->SetOnReadCallbackNoFlowControl(
-                [socket, &server_replies](std::string_view data, absl::Status /*err*/) {
-                    if (server_replies > 0) {
-                        --server_replies;
-                        ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
-                    } else {
-                        socket->Close();
+                [weak_socket, &server_replies](std::string_view data, absl::Status /*err*/) {
+                    if (const auto socket = weak_socket.lock()) {
+                        if (server_replies > 0) {
+                            --server_replies;
+                            ASSERT_THAT(socket->Send(data.data(), data.size()), IsOk());
+                        } else {
+                            socket->Close();
+                        }
                     }
                 });
 
