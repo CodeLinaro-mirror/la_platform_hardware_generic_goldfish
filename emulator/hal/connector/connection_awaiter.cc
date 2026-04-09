@@ -28,7 +28,6 @@ using cable::SocketPtr;
 namespace async = goldfish::async;
 
 ConnectionAwaiter::~ConnectionAwaiter() {
-    const std::lock_guard<std::mutex> lock(connection_mutex_);
     if (connection_retry_task_) {
         VLOG(1) << "Cancelling task";
         connection_retry_task_->Cancel();
