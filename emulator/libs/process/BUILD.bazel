@@ -32,6 +32,7 @@ cc_library(
             "//emulator/libs/windows:scoped_file_handle",
             # For unicode.
             "//emulator/libs/windows:win32_utils",
+            "@aemu//windows:compat-hdrs",
         ],
         "//conditions:default": [],
     }) + [
