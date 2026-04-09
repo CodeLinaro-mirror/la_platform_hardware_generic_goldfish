@@ -104,13 +104,11 @@ class TestConnectorRegistry : public ConnectorRegistry {
     TestConnectorRegistry() = default;
     ~TestConnectorRegistry() override = default;
 
-    bool RegisterQemuDevice(std::string_view /*name*/, DeviceFactory factory) override {
-        factory_ = std::move(factory);
+    bool RegisterQemuDevice(std::string_view /*name*/, DeviceFactory /*factory*/) override {
         return true;
     }
 
-    bool RegisterDevice(std::string_view /*name*/, DeviceFactory factory) override {
-        factory_ = std::move(factory);
+    bool RegisterDevice(std::string_view /*name*/, DeviceFactory /*factory*/) override {
         return true;
     }
 
@@ -134,14 +132,9 @@ class TestConnectorRegistry : public ConnectorRegistry {
     }
 
     TestHalSocket* HalSocket() { return hal_socket_.get(); }
-    PlugPtr GetPlug() { return plug_; }
 
   private:
-    DeviceFactory factory_;
     HalDeviceFactory hal_factory_;
-
-    PlugPtr plug_;
-
     std::shared_ptr<TestHalSocket> hal_socket_;
     std::shared_ptr<HalPlug> hal_plug_;
 };
