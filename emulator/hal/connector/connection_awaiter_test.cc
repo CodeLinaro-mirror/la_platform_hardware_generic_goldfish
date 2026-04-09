@@ -51,7 +51,11 @@ class TestSocket : public ISocket {
         return newPlug;
     }
 
-    PlugPtr UnplugImpl() override { return {}; }
+    PlugPtr UnplugImpl() override {
+        PlugPtr p = std::move(this->plug);
+        delete this;
+        return p;
+    }
 
     void fakeConnected() { plug->OnConnect(); }
 
