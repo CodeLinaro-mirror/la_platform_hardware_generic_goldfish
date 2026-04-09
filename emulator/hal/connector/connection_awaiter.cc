@@ -18,6 +18,8 @@
 #include <memory>
 #include <mutex>
 
+#include "absl/log/check.h"
+
 #include "goldfish/devices/cable/cable.h"
 
 namespace goldfish::devices {
@@ -32,6 +34,8 @@ ConnectionAwaiter::~ConnectionAwaiter() {
         VLOG(1) << "Cancelling task";
         connection_retry_task_->Cancel();
     }
+
+    CHECK(!socket_);
 }
 
 void ConnectionAwaiter::OnConnect() {
@@ -46,8 +50,9 @@ void ConnectionAwaiter::OnConnect() {
         connection_retry_task_->Cancel();
         connection_retry_task_.reset();
     }
+    CHECK(socket_);
     on_connected_(std::move(socket_));
-    socket_ = nullptr;
+    CHECK(!socket_);
 }
 
 bool ConnectionAwaiter::OnReceive(const void* /*data*/, size_t /*size*/) {
