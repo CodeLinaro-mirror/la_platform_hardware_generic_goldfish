@@ -1,0 +1,50 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "gps",
+    srcs = [
+        "gps_device.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/gps/gps_device.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/avd_universe:location",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "//emulator/plugin/hal/connector:qemud",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "gps_unittests",
+    srcs = [
+        "gps_device_test.cc",
+    ],
+    includes = ["test"],
+    linkopts = select({
+        "@platforms//os:macos": ["-undefined error"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":gps",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":gps",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

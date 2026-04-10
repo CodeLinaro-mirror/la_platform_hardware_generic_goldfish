@@ -1,0 +1,39 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "unix_pipe",
+    srcs = ["unix_pipe.cc"],
+    hdrs = ["include/goldfish/devices/unix_pipe/unix_pipe.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/async:libuv_sockets",
+        "//emulator/libs/network",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "//emulator/plugin/hal/plug:hal_plug",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "unix_pipe_unittests",
+    srcs = ["unix_pipe_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":unix_pipe",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+        "@abseil-cpp//absl/status:status_matchers",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":unix_pipe",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

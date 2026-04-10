@@ -1,0 +1,103 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "gralloc_details",
+    hdrs = [
+        "include/goldfish/devices/camera/gralloc_details.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/imaging",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "image_provider_api",
+    hdrs = [
+        "include/android/camera/camera_image_provider_api.h",
+        "include/goldfish/devices/camera/image_provider_cpp_adapter.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/imaging",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "camera",
+    srcs = [
+        "camera_device.cc",
+        "camera_device_base.cc",
+        "camera_device_enumerator.cc",
+        "camera_image_provider_info_cpp.cc",
+        "camera_image_provider_registry.cc",
+        "camera_image_source.cc",
+        "camera_protocol_base.cc",
+        "get_guest_emulated_camera_property.cc",
+        "include/goldfish/devices/camera/camera_device.h",
+        "include/goldfish/devices/camera/camera_device_base.h",
+        "include/goldfish/devices/camera/camera_device_enumerator.h",
+        "include/goldfish/devices/camera/camera_image_provider_info_cpp.h",
+        "include/goldfish/devices/camera/camera_image_provider_registry.h",
+        "include/goldfish/devices/camera/camera_image_source.h",
+        "include/goldfish/devices/camera/camera_protocol_base.h",
+        "include/goldfish/devices/camera/get_guest_emulated_camera_property.h",
+        "include/goldfish/devices/camera/query_parser.h",
+        "query_parser.cc",
+        "register_device.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/camera/register_device.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":gralloc_details",
+        ":image_provider_api",
+        "//emulator/libs/hardware_config",
+        "//emulator/libs/parsing",
+        "//emulator/plugin/hal/camera/image_providers/imagefile",
+        "//emulator/plugin/hal/camera/image_providers/videofile",
+        "//emulator/plugin/hal/camera/image_providers/virtualscene",
+        "//emulator/plugin/hal/camera/image_providers/webcam",
+        "//emulator/plugin/hal/connector:PingTopic",
+        "//emulator/plugin/hal/connector:cable",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "@abseil-cpp//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "camera_impl_unittests",
+    srcs = [
+        "camera_device_enumerator_test.cc",
+        "camera_device_test.cc",
+        "camera_image_provider_registry_test.cc",
+        "camera_image_source_test.cc",
+        "camera_protocol_base_test.cc",
+        "get_guest_emulated_camera_property_test.cc",
+        "query_parser_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":camera",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "test_camera",
+    hdrs = [
+        "test/FakeCameraDevice.h",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":camera",
+    ],
+)

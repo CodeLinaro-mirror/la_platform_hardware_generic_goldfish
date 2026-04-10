@@ -1,0 +1,12 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = [
+    "//emulator/plugin/avd:__subpackages__",
+    "//emulator/plugin/hal:__subpackages__",
+])
+
+cc_library(
+    name = "emulator_reset",
+    hdrs = ["include/goldfish/devices/emulator_reset.h"],
+    strip_include_prefix = "include",
+)

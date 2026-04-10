@@ -1,0 +1,43 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "guest-status",
+    srcs = ["guest_status_device.cc"],
+    hdrs = ["include/goldfish/devices/guest_status/guest_status_device.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/libs/async:async_api",
+        "//emulator/libs/eventing",
+        "//emulator/libs/system",
+        "//emulator/plugin/avd_universe:grpc_notification",
+        "//emulator/plugin/avd_universe:guest_status",
+        "//emulator/plugin/hal/common:emulator_reset",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "//emulator/plugin/hal/connector:qemud",
+        "//emulator/plugin/vminterface",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "guest-status_unittests",
+    srcs = ["guest_status_device_test.cc"],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":guest-status",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+        "//emulator/plugin/vminterface:vminterface-test",
+        "@grpc//:grpc++",
+    ],
+)

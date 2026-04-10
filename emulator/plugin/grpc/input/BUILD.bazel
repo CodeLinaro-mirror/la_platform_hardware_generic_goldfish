@@ -19,7 +19,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/libs/display",
+        "//emulator/plugin/display",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -38,11 +38,11 @@ cc_test(
     deps = [
         ":input",
         "//emulator/libs/async:async_testing",
-        "//emulator/libs/display:test-display",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/system:test-headers",
         "//emulator/libs/test:googletest_main",
         "//emulator/plugin/avd:info-fake",
+        "//emulator/plugin/display:test-display",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@bazel_tools//tools/cpp/runfiles",

@@ -10,7 +10,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//emulator/libs/async:async_api",
-        "//emulator/libs/avd_universe:battery",
+        "//emulator/plugin/avd_universe:battery",
     ],
 )
 
@@ -24,8 +24,8 @@ cc_library(
     deps = [
         ":headers",
         "//emulator/libs/async:async_api",
-        "//emulator/libs/avd_universe:battery",
         "//emulator/libs/eventing",
+        "//emulator/plugin/avd_universe:battery",
         "@qemu//:qemu-headers",
     ],
     alwayslink = True,

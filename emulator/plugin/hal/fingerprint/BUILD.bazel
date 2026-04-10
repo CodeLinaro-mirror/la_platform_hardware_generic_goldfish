@@ -1,0 +1,47 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "fingerprint",
+    srcs = [
+        "fingerprint_device.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/fingerprint/fingerprint_device.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/avd_universe:fingerprint",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "//emulator/plugin/hal/connector:qemud",
+        "//emulator/plugin/hal/plug:hal_plug",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "fingerprint_unittests",
+    srcs = [
+        "fingerprint_device_test.cc",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":fingerprint",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":fingerprint",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

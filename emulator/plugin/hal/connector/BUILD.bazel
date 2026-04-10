@@ -1,0 +1,209 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "cable",
+    srcs = [
+        "cable.cc",
+        "logging.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/cable/cable.h",
+        "include/goldfish/devices/cable/error_plug.h",
+        "include/goldfish/devices/cable/saveload.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/archive",
+        "@abseil-cpp//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "PingTopic",
+    hdrs = [
+        "include/goldfish/devices/ping_topic.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//emulator/libs/broadcasting",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "connector_registry",
+    hdrs = [
+        "include/goldfish/devices/connector_registry.h",
+        "include/goldfish/devices/device_entry.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":PingTopic",
+        ":cable",
+        "//emulator/libs/async:async_api",
+        "//emulator/plugin/hal/plug:hal_plug",
+    ],
+)
+
+cc_library(
+    name = "qemud",
+    srcs = [
+        "qemud.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/qemud/qemud.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":cable",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "devices",
+    srcs = [
+        "connector.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/connector.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":connector_registry",
+        ":qemud",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "connection_awaiter",
+    srcs = [
+        "connection_awaiter.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/connection_awaiter.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":cable",
+        "//emulator/libs/async:async_api",
+    ],
+)
+
+cc_library(
+    name = "connector_registry_impl",
+    srcs = [
+        "connector_registry_impl.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/connector_registry_impl.h",
+    ],
+    includes = ["include"],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":connector_registry",
+        ":devices",
+        "//emulator/libs/async:async_api",
+        "//emulator/plugin/hal/plug:hal_plug_factory",
+        "//emulator/plugin/hal/plug:hal_plug_to_i_plug_adapter",
+        "//emulator/plugin/hal/plug:marshalling_hal_socket",
+        "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "connector_registry_tests",
+    size = "small",
+    srcs = [
+        "connector_registry_test.cc",
+        "connector_registry_threading_test.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":connector_registry_impl",
+        "//emulator/libs/async:libuv_event_loop",
+        "//emulator/libs/async:threaded_event_loop",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/plug:fake_vsock",
+    ],
+)
+
+cc_test(
+    name = "devices_unittests",
+    size = "small",
+    srcs = [
+        "connection_awaiter_test.cc",
+        "connector_tests.cc",
+        "datasniffer_tests.cc",
+        "qemud_tests.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":connection_awaiter",
+        ":devices",
+        "//emulator/libs/archive:DequeArchive",
+        "//emulator/libs/async:async_testing",
+        "//emulator/libs/sockets",
+        "//emulator/libs/test:googletest_main",
+    ],
+)
+
+cc_library(
+    name = "test-helpers",
+    testonly = True,
+    hdrs = [
+        "test/goldfish/devices/test_connector_registry.h",
+    ],
+    includes = [
+        "include",
+        "test",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":cable",
+        ":connection_awaiter",
+        ":connector_registry_impl",
+        ":devices",
+        "//emulator/libs/async:async_testing",
+    ],
+    alwayslink = True,
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":cable",
+        ":connector_registry",
+        ":connector_registry_impl",
+        ":devices",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

@@ -164,7 +164,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/synchronization",
         "@aemu//protos/services/incubating/recording:screen_recording_service_cc_grpc",
-        "@goldfish//emulator/libs/display:video_recorder",
+        "@goldfish//emulator/plugin/display:video_recorder",
         "@grpc//:grpc++",
     ],
 )
@@ -175,8 +175,8 @@ cc_test(
     deps = [
         ":screen_recorder",
         "@goldfish//emulator/libs/async:libuv_event_loop",
-        "@goldfish//emulator/libs/display:test-display",
         "@goldfish//emulator/libs/test:googletest_main",
+        "@goldfish//emulator/plugin/display:test-display",
     ],
 )
 

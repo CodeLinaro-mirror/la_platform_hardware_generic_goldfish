@@ -7,8 +7,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "//emulator/adb/host",
-        "//emulator/adb/logger",
+        "//emulator/plugin/adb-vsock/host",
+        "//emulator/plugin/adb-vsock/logger",
         "//emulator/plugin/avd:impl",
         "//emulator/plugin/vsock_goldfish:goldfish_vsock_hdrs",
     ],

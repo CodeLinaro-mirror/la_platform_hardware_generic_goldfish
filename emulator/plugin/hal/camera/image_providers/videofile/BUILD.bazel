@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "videofile",
+    srcs = [
+        "videofile.cc",
+    ],
+    hdrs = [
+        "include/android/camera/image_providers/videofile.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/hal/camera:image_provider_api",
+        "@abseil-cpp//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "videofile_unittests",
+    srcs = [
+        "todo.cc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":videofile",
+        "//emulator/libs/test:googletest_main",
+    ],
+)

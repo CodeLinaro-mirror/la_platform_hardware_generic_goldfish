@@ -1,0 +1,45 @@
+load("@goldfish_build//rules:clang_tidy.bzl", "clang_tidy_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "clipboard",
+    srcs = [
+        "clipboard_device.cc",
+    ],
+    hdrs = [
+        "include/goldfish/devices/clipboard/clipboard_device.h",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/plugin/avd_universe:clipboard",
+        "//emulator/plugin/hal/connector:connector_registry",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "clipboard_unittests",
+    srcs = [
+        "clipboard_device_test.cc",
+    ],
+    includes = ["test"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":clipboard",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "//emulator/plugin/hal/connector:test-helpers",
+        "//emulator/plugin/hal/plug:fake_vsock",
+    ],
+)
+
+clang_tidy_test(
+    name = "tidy",
+    targets = [
+        ":clipboard",
+    ],
+    tidy_config_file = "//:clang_tidy_config",
+)

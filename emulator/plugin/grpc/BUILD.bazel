@@ -24,11 +24,11 @@ cc_library(
     deps = [
         ":emulator_advertisement",
         "//emulator/libs/async:qemu_event_loop",
-        "//emulator/libs/display",
         "//emulator/libs/grpc_utils:event-stream",
         "//emulator/libs/hardware_config",
         "//emulator/modem_simulator:modem_simulator_client",
         "//emulator/plugin/avd:impl",
+        "//emulator/plugin/display",
         "//emulator/plugin/grpc/interceptors",
         "//emulator/plugin/grpc/services:emulator_controller",
         "//emulator/plugin/grpc/services:modem_service",
