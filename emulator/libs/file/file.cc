@@ -287,12 +287,15 @@ absl::Status cp_recursive(const fs::path& from, const fs::path& to, bool overwri
     return absl::OkStatus();
 }
 
-absl::Status mv_file(const fs::path& from, const fs::path& to) noexcept {
+absl::Status mv_file(const fs::path& from, const fs::path& to, bool fallback_to_copy_rm) noexcept {
     std::error_code ec;
     if (fs::rename(from, to, ec); !ec) {
         return absl::OkStatus();
     }
-    // fs::rename can fail if files are on different disks
+    if (!fallback_to_copy_rm) {
+        return absl::InternalError(absl::StrCat("Failed to atomically rename file: ", from.string(), "->", to.string(), " - ", ec.message()));
+    }
+    // fs::rename can fail if files are on different disks so fallback to copy then rm.
     VLOG(1) << "fs::rename failed for " << from.string() << " -> " << to.string()
               << " - reverting to slower copy-then-delete: " << ec.message();
     RETURN_IF_ERROR(cp_file(from, to));
