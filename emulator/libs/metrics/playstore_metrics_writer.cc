@@ -101,6 +101,10 @@ size_t curl_write_callback(char* contents, size_t size, size_t nmemb, void* user
     return total;
 }
 
+struct CurlDeleter {
+    void operator()(CURL* curl) const { ::curl_easy_cleanup(curl); }
+};
+
 absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequest req) {
     VLOG(1) << "Making Clearcut POST: " << url << " - " << req.ShortDebugString();
     auto serialized = serialize_and_gzip(req);
@@ -108,7 +112,7 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
         return serialized.status();
     }
 
-    CURL* curl = curl_easy_init();
+    const std::unique_ptr<CURL, CurlDeleter> curl(curl_easy_init());
     if (!curl) {
         return absl::InternalError("failed to initialize curl");
     }
@@ -118,29 +122,28 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
     headers = curl_slist_append(headers, "Content-Type: application/x-gzip");
 
     std::string resp;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, serialized->data());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)serialized->size());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, serialized->data());
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, (long)serialized->size());
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &resp);
+    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_MAXREDIRS, 10L);
     if (VLOG_IS_ON(1)) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, true);
+        curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, true);
     }
 
-    CURLcode res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl.get());
 
     curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
 
     if (res != CURLE_OK) {
         return absl::InternalError(
                 absl::StrCat("curl_easy_perform() failed: ", curl_easy_strerror(res)));
     } else {
         long http_response = 0;
-        res = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_response);
+        res = curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_response);
         if (res != CURLE_OK) {
             return absl::InternalError(
                     absl::StrCat("curl_easy_getinfo() failed: ", curl_easy_strerror(res)));
