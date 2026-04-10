@@ -43,6 +43,20 @@ objc_library(
 )
 
 cc_library(
+    name = "fd_util",
+    srcs = ["fd_util.cc"],
+    hdrs = ["include/android/base/fd_util.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@platforms//os:windows": [
+            "@aemu//windows:compat",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "system",
     srcs = ["system.cc"],
     hdrs = [
@@ -124,6 +138,16 @@ cc_library(
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
         "@bazel_tools//tools/cpp/runfiles",
+    ],
+)
+
+cc_test(
+    name = "fd_util_test",
+    srcs = ["fd_util_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":fd_util",
+        "//emulator/libs/test:googletest_main",
     ],
 )
 
