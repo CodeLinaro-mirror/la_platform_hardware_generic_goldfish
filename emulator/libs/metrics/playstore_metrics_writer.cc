@@ -105,6 +105,22 @@ struct CurlDeleter {
     void operator()(CURL* curl) const { ::curl_easy_cleanup(curl); }
 };
 
+struct CurlSlistDeleter {
+    void operator()(curl_slist* slist) const { ::curl_slist_free_all(slist); }
+};
+
+using CurlSlistPtr = std::unique_ptr<curl_slist, CurlSlistDeleter>;
+
+absl::Status CurlSlistAppend(CurlSlistPtr& slist, const char* string) {
+    if (struct curl_slist* new_slist = ::curl_slist_append(slist.get(), string)) {
+        slist.release();  // it was consumed by curl_slist_append
+        slist.reset(new_slist);
+        return absl::OkStatus();
+    } else {
+        return absl::InternalError(absl::StrCat("curl_slist_append failed for '", string, "'"));
+    }
+}
+
 absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequest req) {
     VLOG(1) << "Making Clearcut POST: " << url << " - " << req.ShortDebugString();
     auto serialized = serialize_and_gzip(req);
@@ -117,15 +133,19 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
         return absl::InternalError("failed to initialize curl");
     }
 
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Encoding: gzip");
-    headers = curl_slist_append(headers, "Content-Type: application/x-gzip");
+    CurlSlistPtr headers;
+    if (auto s = CurlSlistAppend(headers, "Content-Encoding: gzip"); !s.ok()) {
+        return s;
+    }
+    if (auto s = CurlSlistAppend(headers, "Content-Type: application/x-gzip"); !s.ok()) {
+        return s;
+    }
 
     std::string resp;
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, serialized->data());
     curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, (long)serialized->size());
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &resp);
     curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
@@ -135,8 +155,6 @@ absl::StatusOr<absl::Duration> send_to_playstore(const std::string& url, LogRequ
     }
 
     CURLcode res = curl_easy_perform(curl.get());
-
-    curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
         return absl::InternalError(
