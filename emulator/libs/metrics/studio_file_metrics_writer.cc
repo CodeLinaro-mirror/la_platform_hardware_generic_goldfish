@@ -190,9 +190,10 @@ std::vector<std::string> StudioFileMetricsWriter::FinalizeAbandonedSessionFiles(
         const fs::path& spool_dir) {
     std::vector<std::string> abandoned_sessions;
     for (const auto& path : android::base::file::scan_dir(spool_dir, /*fullPath=*/true)) {
+        const std::string path_as_string = path.filename().string();
         std::string_view session_id;
         uint32_t pid;
-        if (!RE2::FullMatch(path.filename().string(), *kOpenFileRegex, &session_id, &pid)) {
+        if (!RE2::FullMatch(path_as_string, *kOpenFileRegex, &session_id, &pid)) {
             continue;
         }
         if (auto proc = android::base::Process::FromPid(pid); proc && proc->IsAlive()) {
