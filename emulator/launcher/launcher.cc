@@ -73,10 +73,14 @@ using WhenAllChardevEndpoints = std::shared_ptr<WhenAll<ChardevEndpoints>>;
 
 using ::goldfish::modem_simulator::ModemSimulatorService;
 
-static const int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
+constexpr int EMULATOR_COMPATIBLE_QEMU_VERSION = 10;
+
+constexpr int kMetricsCrashesNone = 0;
+constexpr int kMetricsCrashesAbandoned = 1;
+constexpr int kMetricsCrashesUncleanExit = 2;
 
 // clang-format off
-static void show_banner() {
+void show_banner() {
     constexpr std::string_view platform = PLATFORM " (" TARGET_CPU "), " COMPILATION_MODE;
     std::cout << absl::Substitute(
 R"(                           Welcome to goldfish
@@ -481,7 +485,7 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
 
         // Send a final ping with the crash status.
         l.mReporter->Report([exit_status, term_signal](android_studio::AndroidStudioEvent& event) {
-            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0 ? 0 : 1);
+            event.mutable_emulator_details()->set_crashes(exit_status == 0 && term_signal == 0 ? kMetricsCrashesNone : kMetricsCrashesUncleanExit);
         });
 
         l.shutdown();
@@ -751,7 +755,7 @@ int main(int argc, char** argv) {
         LOG(WARNING) << "Reporting crashed metrics session: " << session_id;
         reporter->Report([&session_id] (android_studio::AndroidStudioEvent& event) {
             event.set_studio_session_id(session_id);
-            event.mutable_emulator_details()->set_crashes(1);
+            event.mutable_emulator_details()->set_crashes(::android::goldfish::kMetricsCrashesAbandoned);
         });
     }
 
