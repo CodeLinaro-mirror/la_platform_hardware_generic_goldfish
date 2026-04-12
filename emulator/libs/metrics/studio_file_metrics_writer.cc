@@ -46,12 +46,18 @@ fs::path LockPath(fs::path file_path) {
 }
 
 void RefreshLockFile(const fs::path& file_path) {
+    if (file_path.empty()) {
+        return;
+    }
     if (auto s = android::base::file::touch(LockPath(file_path)); !s.ok()) {
         LOG(ERROR) << "Failed to create metrics lock file: " << s;
     }
 }
 
 void ClearLockFile(const fs::path& file_path) {
+    if (file_path.empty()) {
+        return;
+    }
     if (auto s = android::base::file::rm(LockPath(file_path)); !s.ok()) {
         LOG(ERROR) << "Failed to remove metrics lock file: " << s;
     }
@@ -80,6 +86,9 @@ StudioFileMetricsWriter::StudioFileMetricsWriter(const fs::path& spool_dir,
         , max_file_duration_timer_(main_loop.ScheduleRepeating(
                   [this] {
                       absl::MutexLock lock(mutex_);
+                      if (open_file_path_.empty()) {
+                          return;
+                      }
                       // Check if we should close the current file every 10s.
                       if (absl::Now() > current_file_latest_close_time_) {
                           FinalizeCurrentFile();
