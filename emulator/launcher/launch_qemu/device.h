@@ -20,7 +20,7 @@
 
 #include "absl/status/status.h"
 
-#include "android/goldfish/emulator_config.h"
+#include "emulator_config.h"
 
 namespace android::goldfish {
 

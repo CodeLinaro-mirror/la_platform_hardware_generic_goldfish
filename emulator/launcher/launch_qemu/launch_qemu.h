@@ -23,8 +23,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 
-#include "android/goldfish/emulator_config.h"
-#include "devices/device.h"
+#include "emulator_config.h"
+#include "device.h"
 #include "goldfish/async/launch_config.h"
 
 namespace android::goldfish {

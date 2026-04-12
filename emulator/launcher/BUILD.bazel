@@ -124,19 +124,6 @@ cc_library(
 )
 
 cc_library(
-    name = "emulator_config",
-    hdrs = ["include/android/goldfish/emulator_config.h"],
-    includes = ["include"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":avd",
-        ":input_paths",
-        "//emulator/launcher/cmdline",
-        "//emulator/libs/metrics:configure_metrics_writer",
-    ],
-)
-
-cc_library(
     name = "logging",
     srcs = ["logging.cc"],
     hdrs = ["logging.h"],
@@ -182,71 +169,8 @@ cc_test(
 )
 
 cc_library(
-    name = "configure_drives",
-    srcs = ["configure_drives.cc"],
-    hdrs = ["configure_drives.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//emulator/launcher/devices:device",
-        "//emulator/launcher/devices:disk_drive",
-        "//emulator/launcher/devices:user_data_drive",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "configure_drives_test",
-    srcs = ["configure_drives_test.cc"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":configure_drives",
-        "//emulator/launcher/devices:mock_avd",
-        "//emulator/libs/system:test-headers",
-        "//emulator/libs/test:googletest_main",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/strings",
-    ],
-)
-
-cc_library(
-    name = "emulator",
-    srcs = ["emulator.cc"],
-    hdrs = ["emulator.h"],
-    # Qemu roms needed for unittests - Emulator check that it is available.
-    data = ["@qemu//:qemu-roms"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":avd",
-        ":configure_drives",
-        ":emulator_config",
-        ":input_paths",
-        "//emulator/launcher/cmdline",
-        "//emulator/launcher/devices:adb_device",
-        "//emulator/launcher/devices:audio_device",
-        "//emulator/launcher/devices:avd_info_device",
-        "//emulator/launcher/devices:cpu_device",
-        "//emulator/launcher/devices:display_device",
-        "//emulator/launcher/devices:gpu_device",
-        "//emulator/launcher/devices:grpc_device",
-        "//emulator/launcher/devices:initrd_device",
-        "//emulator/launcher/devices:kernel_device",
-        "//emulator/launcher/devices:machine",
-        "//emulator/launcher/devices:memory_device",
-        "//emulator/launcher/devices:network_device",
-        "//emulator/launcher/devices:parameter_list",
-        "//emulator/launcher/devices:wifi_device",
-        "//emulator/libs/async:launch_config",
-        "//emulator/libs/system",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
-)
-
-cc_library(
-    name = "fishtank_launcher",
-    hdrs = ["fishtank.h"],
+    name = "launch_fishtank",
+    hdrs = ["launch_fishtank.h"],
     deps = [
         ":input_paths",
         "//emulator/launcher/cmdline",
@@ -257,9 +181,9 @@ cc_library(
 )
 
 cc_library(
-    name = "netsimd",
-    srcs = ["netsimd.cc"],
-    hdrs = ["netsimd.h"],
+    name = "launch_netsimd",
+    srcs = ["launch_netsimd.cc"],
+    hdrs = ["launch_netsimd.h"],
     deps = [
         ":input_paths",
         "//emulator/launcher/cmdline",
@@ -448,9 +372,7 @@ cc_library(
 
 cc_binary(
     name = "launcher",
-    srcs = [
-        "launcher.cc",
-    ],
+    srcs = ["launcher.cc"],
     data = [
         ":advanced_features",
         ":binaries",
@@ -468,16 +390,16 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [
-        ":emulator",
-        ":fishtank_launcher",
         ":host_info",
         ":input_paths",
+        ":launch_fishtank",
+        ":launch_netsimd",
         ":logging",
-        ":netsimd",
         ":snapshot_util",
         "//emulator/adb/secrets",
         "//emulator/crashreport:crash_system",
         "//emulator/launcher/cmdline",
+        "//emulator/launcher/launch_qemu",
         "//emulator/libs/async:libuv_event_loop",
         "//emulator/libs/async:libuv_process_launcher",
         "//emulator/libs/async:libuv_signal_handlers",

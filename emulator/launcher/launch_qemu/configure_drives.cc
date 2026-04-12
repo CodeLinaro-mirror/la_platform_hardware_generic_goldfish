@@ -21,7 +21,7 @@
 #include "absl/strings/str_cat.h"
 
 #include "android/status/status_macros.h"
-#include "devices/user_data_drive.h"
+#include "user_data_drive.h"
 
 namespace android::goldfish::internal {
 

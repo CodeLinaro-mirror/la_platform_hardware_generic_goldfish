@@ -20,19 +20,18 @@
 #include "absl/status/status.h"
 
 #include "device.h"
-#include "android/goldfish/emulator_config.h"
 
 namespace android::goldfish {
 
-class AvdInfoDevice : public Device {
+class AdbDevice : public Device {
   public:
-    AvdInfoDevice() : Device("avd_info") {}
+    AdbDevice() : Device("adb") {}
 
     absl::Status initialize(const EmulatorConfig& emulator) override;
     std::vector<std::string> getQemuParameters(const EmulatorConfig& emulator) const override;
 
   private:
-    std::string mAvdParams;
+    uint16_t mPort{};
 };
 
 }  // namespace android::goldfish

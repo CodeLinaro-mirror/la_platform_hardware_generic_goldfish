@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "netsimd.h"
+#include "launch_netsimd.h"
 
 #include <filesystem>
 

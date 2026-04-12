@@ -21,7 +21,7 @@
 #include "goldfish/file/file.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/avd.h"
-#include "devices/disk_drive.h"
+#include "disk_drive.h"
 
 namespace android::goldfish {
 

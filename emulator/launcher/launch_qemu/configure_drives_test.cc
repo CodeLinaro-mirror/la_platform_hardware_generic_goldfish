@@ -9,8 +9,8 @@
 #include "goldfish/file/file.h"
 #include "android/base/system.h"
 #include "android/goldfish/hardware_config.h"
-#include "devices/disk_drive.h"
-#include "devices/mock_avd.h"
+#include "disk_drive.h"
+#include "mock_avd.h"
 
 namespace android::goldfish {
 

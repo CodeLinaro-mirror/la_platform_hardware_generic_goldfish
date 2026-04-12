@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "emulator.h"
+#include "launch_qemu.h"
 
 #include <algorithm>
 #include <cctype>
@@ -36,20 +36,20 @@
 #include "android/base/system.h"
 #include "android/goldfish/avd.h"
 #include "configure_drives.h"
-#include "devices/adb_device.h"
-#include "devices/audio_device.h"
-#include "devices/avd_info_device.h"
-#include "devices/cpu_device.h"
-#include "devices/display_device.h"
-#include "devices/gpu_device.h"
-#include "devices/grpc_device.h"
-#include "devices/initrd_device.h"
-#include "devices/kernel_device.h"
-#include "devices/machine.h"
-#include "devices/memory_device.h"
-#include "devices/network_device.h"
-#include "devices/parameter_list.h"
-#include "devices/wifi_device.h"
+#include "adb_device.h"
+#include "audio_device.h"
+#include "avd_info_device.h"
+#include "cpu_device.h"
+#include "display_device.h"
+#include "gpu_device.h"
+#include "grpc_device.h"
+#include "initrd_device.h"
+#include "kernel_device.h"
+#include "machine.h"
+#include "memory_device.h"
+#include "network_device.h"
+#include "parameter_list.h"
+#include "wifi_device.h"
 
 namespace android::goldfish {
 

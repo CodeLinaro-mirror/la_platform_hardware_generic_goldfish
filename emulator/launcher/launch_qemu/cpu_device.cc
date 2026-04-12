@@ -26,7 +26,6 @@
 #include "android/base/system.h"
 #include "android/cpu/cpu_accelerator.h"
 #include "android/goldfish/avd.h"
-#include "android/goldfish/emulator_config.h"
 #include "android/goldfish/hardware_config.h"
 
 namespace android::goldfish {

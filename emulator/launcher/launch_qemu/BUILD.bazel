@@ -1,11 +1,23 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 cc_library(
+    name = "emulator_config",
+    hdrs = ["emulator_config.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//emulator/launcher:avd",
+        "//emulator/launcher:input_paths",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/metrics:configure_metrics_writer",
+    ],
+)
+
+cc_library(
     name = "device",
     hdrs = ["device.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-    deps = ["//emulator/launcher:emulator_config"],
+    deps = [":emulator_config"],
 )
 
 cc_library(
@@ -23,7 +35,10 @@ cc_library(
     hdrs = ["fake_emulator.h"],
     include_prefix = "android/goldfish/devices/",
     visibility = ["//visibility:public"],
-    deps = [":mock_avd"],
+    deps = [
+        ":emulator_config",
+        ":mock_avd",
+    ],
 )
 
 cc_library(
@@ -403,5 +418,68 @@ cc_test(
         "//emulator/libs/test:googletest_main",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "configure_drives",
+    srcs = ["configure_drives.cc"],
+    hdrs = ["configure_drives.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":device",
+        ":disk_drive",
+        ":user_data_drive",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "configure_drives_test",
+    srcs = ["configure_drives_test.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":configure_drives",
+        ":mock_avd",
+        "//emulator/libs/system:test-headers",
+        "//emulator/libs/test:googletest_main",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "launch_qemu",
+    srcs = ["launch_qemu.cc"],
+    hdrs = ["launch_qemu.h"],
+    # Qemu roms needed for unittests - Emulator check that it is available.
+    data = ["@qemu//:qemu-roms"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":adb_device",
+        ":audio_device",
+        ":avd_info_device",
+        ":configure_drives",
+        ":cpu_device",
+        ":display_device",
+        ":emulator_config",
+        ":gpu_device",
+        ":grpc_device",
+        ":initrd_device",
+        ":kernel_device",
+        ":machine",
+        ":memory_device",
+        ":network_device",
+        ":parameter_list",
+        ":wifi_device",
+        "//emulator/launcher:avd",
+        "//emulator/launcher:input_paths",
+        "//emulator/launcher/cmdline",
+        "//emulator/libs/async:launch_config",
+        "//emulator/libs/system",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )

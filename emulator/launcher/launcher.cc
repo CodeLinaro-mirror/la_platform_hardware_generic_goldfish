@@ -33,12 +33,11 @@
 #include "android/cmdline_option.h"
 #include "android/crashreport/crash_system.h"
 #include "android/goldfish/avd.h"
-#include "android/goldfish/emulator_config.h"
 #include "android/goldfish/input_paths.h"
 #include "android/main_help.h"
 #include "android/status/status_macros.h"
-#include "emulator.h"
-#include "fishtank.h"
+#include "launch_qemu/launch_qemu.h"
+#include "launch_fishtank.h"
 #include "goldfish/async/async_socket_server.h"
 #include "goldfish/async/libuv_event_loop.h"
 #include "goldfish/async/libuv_process_launcher.h"
@@ -54,7 +53,7 @@
 #include "goldfish/tools/aemu_version.h"
 #include "host_info.h"
 #include "logging.h"
-#include "netsimd.h"
+#include "launch_netsimd.h"
 #include "snapshot_util.h"
 
 namespace fs = std::filesystem;

@@ -2,7 +2,7 @@
 
 #include "android/base/bazel_info.h"
 #include "android/cmdline_definitions.h"
-#include "android/goldfish/emulator_config.h"
+#include "emulator_config.h"
 #include "mock_avd.h"
 
 namespace android::goldfish {
