@@ -273,6 +273,7 @@ cc_library(
     deps = [
         ":launch_config",
         ":uv_to_absl",
+        "//emulator/libs/system:fd_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status:statusor",
         "@libuv",

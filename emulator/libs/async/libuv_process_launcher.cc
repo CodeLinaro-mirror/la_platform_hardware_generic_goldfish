@@ -24,6 +24,7 @@
 
 #include "absl/log/log.h"
 
+#include "android/base/fd_util.h"
 #include "goldfish/async/launch_config.h"
 #include "goldfish/async/uv_to_absl.h"
 
@@ -71,6 +72,9 @@ class ScopedDisableExceptionPorts {
 
 absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         const LaunchConfig& config, uv_exit_cb exit_cb) {
+    // Try not to pass any FDs to children.
+    // Note that this can race with other threads creating FDs (without CLOEXEC).
+    android::base::SetAllFdsCloexec();
     uv_stdio_container_t stdio[3]{};
     if (config.keep_stdio) {
         stdio[0].flags = UV_IGNORE;  // The default.
