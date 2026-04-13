@@ -170,7 +170,7 @@ std::string EmulatorMetricsUserId(const fs::path &user_directory) {
     }
 }
 
-class Launcher : public ::goldfish::async::UvProcessLauncher {
+class Launcher : ::goldfish::async::UvProcessLauncher {
   public:
     Launcher(::goldfish::async::LibuvEventLoop& event_loop, ResolvedInputPaths resolved_paths,
              std::unique_ptr<Avd> avd, AndroidOptions opts, std::unique_ptr<MetricsReporter> reporter, ::goldfish::metrics::MetricsWriterConfig metrics_writer_config)
@@ -390,6 +390,8 @@ class Launcher : public ::goldfish::async::UvProcessLauncher {
             if (auto s = Launch(*std::move(netsim_config), &netsimd_exit); s.ok()) {
                 mNetsimdProcess = *std::move(s);
                 VLOG(1) << "Running netsimd as pid: " << GetPid(mNetsimdProcess);
+                // Allow launcher to exit without waiting for netsimd process to be cleaned up.
+                ForgetUvProcess(mNetsimdProcess);
 
                 mFindNetsimd = mEventLoop.ScheduleRepeating(
                         [this, chardevs] {

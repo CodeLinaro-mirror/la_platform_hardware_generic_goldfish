@@ -354,9 +354,8 @@ absl::StatusOr<::goldfish::async::LaunchConfig> Emulator::launch_config() {
     return ::goldfish::async::LaunchConfig{
         .exe_path = std::move(exe_path),
         .args = std::move(args),
-        .daemon = false,
         .new_process_group = true,
-        .keep_stdio = true,
+        .stdio_mode = ::goldfish::async::LaunchConfig::StdioMode::kInherit,
     };
 }
 

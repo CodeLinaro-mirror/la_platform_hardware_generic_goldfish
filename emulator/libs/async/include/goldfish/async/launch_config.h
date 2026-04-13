@@ -35,7 +35,18 @@ struct LaunchConfig {
     // In libuv, this translates to the UV_PROCESS_DETACHED flag.
     bool new_process_group = false;
 
-    bool keep_stdio;
+    // Note that kInherit doesn't work on Windows with new_process_group=true.
+    // kPipe defaults to std::cout and std::cerr.
+    enum class StdioMode {
+        kNone, // stdio redirected to /dev/null.
+        kInherit, // Inherit stdio from the parent.
+        kPipe, // Pipe stdout+stderr back to the parent and write to ostream.
+    };
+    StdioMode stdio_mode = StdioMode::kNone;
+
+    bool redirect_stderr_to_stdout = false;
+    std::filesystem::path pipe_stdout_path;
+    std::filesystem::path pipe_stderr_path;
 };
 
 }  // namespace goldfish::async

@@ -15,6 +15,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "absl/status/statusor.h"
 
@@ -27,11 +28,13 @@ class UvProcessLauncher {
   private:
     struct ProcessHandleDeleter {
         void operator()(uv_process_t* handle) const {
-            uv_close(reinterpret_cast<uv_handle_t*>(handle), [] (uv_handle_t* handle) {
-                delete handle;
-            });
+            uv_close(reinterpret_cast<uv_handle_t*>(handle),
+                     [](uv_handle_t* handle) { delete handle; });
         }
     };
+
+  public:
+    class UvPipe;
 
   protected:
     using ProcessHandle = std::unique_ptr<uv_process_t, ProcessHandleDeleter>;
@@ -42,12 +45,22 @@ class UvProcessLauncher {
 
     static int GetPid(const ProcessHandle& handle) { return handle->pid; }
 
-    explicit UvProcessLauncher(uv_loop_t* uv_loop) : uv_loop_(uv_loop) {}
+    explicit UvProcessLauncher(uv_loop_t* uv_loop);
+    ~UvProcessLauncher();
 
     absl::StatusOr<ProcessHandle> Launch(const LaunchConfig& config, uv_exit_cb exit_cb);
 
+    // This prevents the parent loop from waiting for this process at shutdown.
+    // Use on detached processes that should be able to keep running after the launcher
+    // exits.
+    static void ForgetUvProcess(const ProcessHandle& handle);
+
   private:
+    friend class UvPipe;
+    void RemovePipedOutput(UvPipe* pipe);
+
     uv_loop_t* uv_loop_;
+    std::vector<std::unique_ptr<UvPipe>> pipes_;
 };
 
 }  // namespace goldfish::async

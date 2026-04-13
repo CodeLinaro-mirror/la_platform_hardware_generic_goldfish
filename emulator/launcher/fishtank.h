@@ -24,8 +24,8 @@
 namespace goldfish::launcher::fishtank {
 
 absl::StatusOr<::goldfish::async::LaunchConfig> launch_config(
-        const std::filesystem::path& fishtank_binary, const std::string& avd_name, int serial_number,
-        const AndroidOptions& opts) {
+        const std::filesystem::path& fishtank_binary, const std::string& avd_name,
+        int serial_number, const AndroidOptions& opts) {
     std::vector<std::string> args;
     args.push_back(absl::StrCat("@", avd_name));
     args.push_back("-fishtank");
@@ -40,9 +40,10 @@ absl::StatusOr<::goldfish::async::LaunchConfig> launch_config(
         .exe_path = fishtank_binary,
         .args = args,
         //.environment = {},
-        .daemon = true,
-        .new_process_group = false,
-        .keep_stdio = opts.fishtank_stdout != 0,
+        .new_process_group = true,
+        .stdio_mode = opts.fishtank_stdout ? ::goldfish::async::LaunchConfig::StdioMode::kInherit
+                                           : ::goldfish::async::LaunchConfig::StdioMode::kNone,
+        .redirect_stderr_to_stdout = true,
     };
 }
 
