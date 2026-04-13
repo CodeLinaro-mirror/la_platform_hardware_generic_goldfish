@@ -1,6 +1,10 @@
 [env]
 # The root of our bazel workspace
 BAZEL_ROOT = "{{ config_root }}"
+
+# Generates sed filters to map Bazel external repository paths back to the source tree.
+BZL_SED_FILTERS = "{{ exec(command='python3 build/bazel/utils/gen_path_filters.py') }}"
+
 ANDROID_HOME = "{% if env.ANDROID_HOME %}{{ env.ANDROID_HOME }}{% else %}$BAZEL_ROOT/prebuilts/android/android-sdk/{% if os() == 'linux' %}linux{% elif os() == 'macos' %}macosx{% else %}windows{% endif %}{% endif %}"
 '_'.path = [
   "$BAZEL_ROOT/prebuilts/bazel/{% if os() == 'linux' %}linux-x86_64{% elif os() == 'macos' %}darwin-x86_64{% else %}windows-x86_64{% endif %}",
@@ -12,7 +16,9 @@ ANDROID_HOME = "{% if env.ANDROID_HOME %}{{ env.ANDROID_HOME }}{% else %}$BAZEL_
 env_shell_expand = true
 
 [shell_alias]
-bzl = "echo 'cd $BAZEL_ROOT && bazel $@' | sh -s --"
+# Run bazel and filter the output to make paths clickable in VS Code.
+# Maps paths like 'external/goldfish+/' to 'hardware/generic/goldfish/'.
+bzl = "$BAZEL_ROOT/build/bazel/utils/bzl_wrapper.sh"
 
 [tasks.build]
 description = "Builds the emulator release"
