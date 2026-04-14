@@ -20,9 +20,9 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 
-#include "android/status/status_macros.h"
 #include "android/cmdline_option.h"
 #include "android/goldfish/ini_file.h"
+#include "android/status/status_macros.h"
 #include "goldfish/async/launch_config.h"
 #include "goldfish/network/dns_resolver.h"
 
@@ -128,9 +128,10 @@ absl::StatusOr<::goldfish::async::LaunchConfig> netsimd_launch_config(
         .exe_path = netsim_binary,
         .args = args,
         //.environment = {},
-        .daemon = true,
-        .new_process_group = false,
-        .keep_stdio = opts.netsim_stdout != 0,
+        .new_process_group = true,
+        .stdio_mode = opts.netsim_stdout ? ::goldfish::async::LaunchConfig::StdioMode::kInherit
+                                         : ::goldfish::async::LaunchConfig::StdioMode::kNone,
+        .redirect_stderr_to_stdout = true,
     };
 }
 

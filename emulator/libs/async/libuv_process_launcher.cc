@@ -14,8 +14,12 @@
 
 #include "goldfish/async/libuv_process_launcher.h"
 
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <vector>
+
+#include "uv.h"
 
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -70,23 +74,124 @@ class ScopedDisableExceptionPorts {
 }  // namespace
 #endif
 
+class UvProcessLauncher::UvPipe {
+  public:
+    UvPipe(UvProcessLauncher* l, std::ostream& std_os, const std::filesystem::path& path)
+            : launcher_(l), read_buffer_(65535), output_(path.empty() ? std_os : output_file_) {
+        if (const int err = uv_pipe_init(l->uv_loop_, &pipe_, /*ipc=*/0)) {
+            LOG(DFATAL) << "uv_pipe_init failed with: " << uv_strerror(err);
+        }
+        pipe_.data = this;
+
+        if (!path.empty()) {
+            output_file_.open(path, std::ios::binary | std::ios::app);
+        }
+    }
+
+    ~UvPipe() {
+        output_file_.close();
+        uv_close(reinterpret_cast<uv_handle_t*>(&pipe_), [](uv_handle_t* handle) {
+            // Nothing to do.
+        });
+    }
+
+    bool StartReading() {
+        if (const int err =
+                    uv_read_start(reinterpret_cast<uv_stream_t*>(&pipe_), OnAlloc, OnRead)) {
+            LOG(DFATAL) << "uv_read_start failed with: " << uv_strerror(err);
+            return false;
+        }
+        return true;
+    }
+
+    uv_pipe_t& GetPipe() { return pipe_; }
+
+    static std::unique_ptr<UvPipe> Create(UvProcessLauncher* launcher, std::ostream& std_os,
+                                          const std::filesystem::path& path) {
+        return std::make_unique<UvPipe>(launcher, std_os, path);
+    }
+
+  private:
+    static void OnAlloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+        auto* uv_pipe = static_cast<UvPipe*>(handle->data);
+        buf->base = uv_pipe->read_buffer_.data();
+        buf->len = uv_pipe->read_buffer_.size();
+    }
+
+    static void OnRead(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
+        auto* uv_pipe = static_cast<UvPipe*>(stream->data);
+        if (nread > 0) {
+            uv_pipe->output_.write(buf->base, nread);
+        } else if (nread < 0) {
+            VLOG(1) << "UvPipe reading finished";
+            uv_pipe->launcher_->RemovePipedOutput(uv_pipe);
+        }
+    }
+
+    UvProcessLauncher* launcher_;
+    std::vector<char> read_buffer_;
+
+    std::ofstream output_file_;
+    std::ostream& output_;
+
+    uv_pipe_t pipe_;
+};
+
+UvProcessLauncher::UvProcessLauncher(uv_loop_t* uv_loop) : uv_loop_(uv_loop) {}
+UvProcessLauncher::~UvProcessLauncher() {}
+
+void UvProcessLauncher::RemovePipedOutput(UvPipe* pipe) {
+    std::erase_if(pipes_, [pipe](const auto& p) { return p.get() == pipe; });
+}
+
 absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         const LaunchConfig& config, uv_exit_cb exit_cb) {
     // Try not to pass any FDs to children.
     // Note that this can race with other threads creating FDs (without CLOEXEC).
     android::base::SetAllFdsCloexec();
+
+    std::vector<std::unique_ptr<UvPipe>> new_pipes;
+
+    LaunchConfig::StdioMode stdio_mode = config.stdio_mode;
+#ifdef _WIN32
+    // On Windows, processes in a new process group can't inherit access to the terminal as they are
+    // detached.
+    if (config.new_process_group && stdio_mode == LaunchConfig::StdioMode::kInherit) {
+        stdio_mode = LaunchConfig::StdioMode::kPipe;
+    }
+#endif
+
     uv_stdio_container_t stdio[3]{};
-    if (config.keep_stdio) {
+    // By default (UV_IGNORE), stdio will be connected to /dev/null.
+    switch (stdio_mode) {
+        using enum LaunchConfig::StdioMode;
+    case kInherit: {
         stdio[0].flags = UV_IGNORE;  // The default.
         stdio[1].flags = UV_INHERIT_FD;
         stdio[1].data.fd = 1;
         stdio[2].flags = UV_INHERIT_FD;
-        stdio[2].data.fd = config.daemon ? 1 : 2;  // Send daemon stderr debugging to stdout too.
+        stdio[2].data.fd = config.redirect_stderr_to_stdout ? 1 : 2;
+    } break;
+    case kPipe: {
+        new_pipes.push_back(UvPipe::Create(this, std::cout, config.pipe_stdout_path));
+        stdio[1].flags = static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        stdio[1].data.stream = reinterpret_cast<uv_stream_t*>(&new_pipes.back()->GetPipe());
+
+        new_pipes.push_back(
+                UvPipe::Create(this, config.redirect_stderr_to_stdout ? std::cout : std::cerr,
+                               config.redirect_stderr_to_stdout ? config.pipe_stdout_path
+                                                                : config.pipe_stderr_path));
+        stdio[2].flags = static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        stdio[2].data.stream = reinterpret_cast<uv_stream_t*>(&new_pipes.back()->GetPipe());
+    } break;
+    case kNone:
+    default:
+        break;
     }
 
     const std::string exe = config.exe_path.string();
 
-    VLOG(1) << "Launching " << exe << ": " << config.daemon;
+    VLOG(1) << "Launching " << exe;
     // Flush the streams to try to reduce interleaved logs from the different processes.
     std::cout << std::flush;
     std::cerr << std::flush;
@@ -105,9 +210,8 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
     const uv_process_options_t options{
         // const char* cwd;
         // TODO char** env;
-        .exit_cb = exit_cb,  .file = exe.c_str(),
-        .args = args.data(), .flags = flags,
-        .stdio_count = 3,    .stdio = stdio,
+        .exit_cb = exit_cb, .file = exe.c_str(), .args = args.data(),
+        .flags = flags,     .stdio_count = 3,    .stdio = stdio,
     };
 
     auto handle = ProcessHandle(new uv_process_t{});
@@ -124,12 +228,20 @@ absl::StatusOr<UvProcessLauncher::ProcessHandle> UvProcessLauncher::Launch(
         return goldfish::async::UvErrToAbslStatus(res);
     }
 
-    if (config.daemon) {
-        // Let launcher exit and leave daemon processes running.
-        uv_unref(reinterpret_cast<uv_handle_t*>(handle.get()));
+    // Start reading from new pipes and move them to member vector.
+    for (auto& pipe : new_pipes) {
+        if (pipe->StartReading()) {
+            pipes_.push_back(std::move(pipe));
+        }
     }
 
     return handle;
+}
+
+// static
+void UvProcessLauncher::ForgetUvProcess(const ProcessHandle& handle) {
+    // Let launcher exit and leave daemon processes running.
+    uv_unref(reinterpret_cast<uv_handle_t*>(handle.get()));
 }
 
 }  // namespace goldfish::async
