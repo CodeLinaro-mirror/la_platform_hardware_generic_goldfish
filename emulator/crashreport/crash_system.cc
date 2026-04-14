@@ -21,10 +21,11 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 
-#include "android/process/process.h"
 #include "android/base/system.h"
 #include "android/crashreport/crash_uploader.h"
+#include "android/process/process.h"
 #include "base/files/file_path.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
@@ -75,9 +76,13 @@ class CrashSystemImpl : public CrashSystem {
 
         VLOG(1) << "Starting crashpad-handler: " << handler_path;
         auto file_path = ::base::FilePath(database_path_.native());
+        std::vector<std::string> args = {"--no-rate-limit"};
+#ifdef __APPLE__
+        args.emplace_back(absl::StrCat("--monitor-pid=", System::Get()->GetCurrentProcessPid()));
+#endif
         const bool active = client_->StartHandler(::base::FilePath(handler_path.native()),
                                                   file_path, metrics_path, kCrashUrl, annotations,
-                                                  {"--no-rate-limit"}, true, false);
+                                                  std::move(args), true, false);
 
         VLOG(1) << "Status of handler: " << (active ? "active" : "inactive");
         database_ = CrashReportDatabase::Initialize(file_path);
