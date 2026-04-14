@@ -159,27 +159,58 @@ class FileSystemWatcherTest : public ::testing::Test {
         android::base::file::rm(mTempDir / name).IgnoreError();
     }
 
-    void createFile(const std::string& name) {
+    bool createFile(const std::string& name) {
         std::ofstream ofs(mTempDir / name);
         ofs << "content";
         ofs.close();
+        return ofs.good();
     }
 
-    void appendFile(const std::string& name) {
+    bool appendFile(const std::string& name) {
         std::ofstream ofs;
         ofs.open(mTempDir / name, std::ios_base::app);
         ofs << "\nextra content";
         ofs.close();
+        return ofs.good();
     }
 
-    void modifyFile(const std::string& name) {
+    bool modifyFile(const std::string& name) {
         auto path = mTempDir / name;
+        std::error_code ec;
         auto now = std::filesystem::file_time_type::clock::now();
-        std::filesystem::last_write_time(path, now);
+        std::filesystem::last_write_time(path, now, ec);
+        return !ec;
     }
 
-    void deleteFile(const std::string& name) {
-        android::base::file::rm(mTempDir / name).IgnoreError();
+    bool deleteFile(const std::string& name) {
+        auto result = android::base::file::rm(mTempDir / name);
+        return result.ok();
+    }
+
+    bool waitForCanary(std::shared_ptr<TestEventHandler> handler) {
+        // 1. Create the canary file.
+        if (!createFile("__canary__")) return false;
+
+        auto deadline = absl::Now() + absl::Seconds(5);
+        while (absl::Now() < deadline) {
+            // 2. Wait a short time (e.g., 100ms) to see if the event was captured.
+            bool event_found = WaitForEvent(
+                    handler,
+                    [](const WatchResult& change) {
+                        return change.path.find("__canary__") != std::string::npos;
+                    },
+                    absl::Milliseconds(100));
+
+            if (event_found) {
+                return true;  // The watcher is live!
+            }
+
+            // 3. If not found, modify the file to trigger a new event.
+            // This forces FSEvents to generate a new event if it is now active.
+            modifyFile("__canary__");
+        }
+
+        return false;  // Timed out after 5 seconds
     }
 
     template <typename Predicate>
@@ -210,8 +241,9 @@ TEST_F(FileSystemWatcherTest, DetectsFileCreation) {
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
 
-    createFile("test_file1.txt");
+    ASSERT_TRUE(createFile("test_file1.txt"));
 
     bool event_found = WaitForEvent(
             handler,
@@ -236,15 +268,16 @@ TEST_F(FileSystemWatcherTest, DetectsFileDeletion) {
     auto expected_path = mTempDir / "test_file2.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    createFile("test_file2.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
 
+    ASSERT_TRUE(createFile("test_file2.txt"));
     WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
     handler->reset();
 
-    deleteFile("test_file2.txt");
+    ASSERT_TRUE(deleteFile("test_file2.txt"));
 
     bool event_found = WaitForEvent(
             handler,
@@ -260,12 +293,16 @@ TEST_F(FileSystemWatcherTest, DetectsFileLastModifiedTimestampModification) {
     auto expected_path = mTempDir / "test_file3.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    createFile("test_file3.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
 
-    modifyFile("test_file3.txt");
+    ASSERT_TRUE(createFile("test_file3.txt"));
+    WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
+    handler->reset();
+
+    ASSERT_TRUE(modifyFile("test_file3.txt"));
 
     bool event_found = WaitForEvent(
             handler,
@@ -281,15 +318,16 @@ TEST_F(FileSystemWatcherTest, DetectsFileSizeModification) {
     auto expected_path = mTempDir / "test_file4.txt";
     auto handler = std::make_shared<TestEventHandler>(expected_path);
 
-    createFile("test_file4.txt");
     mWatcher = FileSystemWatcher::GetFileSystemWatcher(
             mTempDir, [handler](auto type, auto path) { (*handler)(type, path); });
     ASSERT_TRUE(mWatcher->Start());
+    ASSERT_TRUE(waitForCanary(handler));
 
+    ASSERT_TRUE(createFile("test_file4.txt"));
     WaitForEvent(handler, [](const auto&) { return true; }, absl::Seconds(5));
     handler->reset();
 
-    appendFile("test_file4.txt");
+    ASSERT_TRUE(appendFile("test_file4.txt"));
 
     bool event_found = WaitForEvent(
             handler,
@@ -312,7 +350,7 @@ TEST_F(FileSystemWatcherTest, StopPreventsFurtherEvents) {
     // Clear any spurious events from setting up the test environment.
     handler->reset();
 
-    createFile("test_file4.txt");
+    ASSERT_TRUE(createFile("test_file4.txt"));
 
     auto changes = handler->waitForChange(absl::Seconds(1));
     EXPECT_THAT(changes, IsEmpty());
