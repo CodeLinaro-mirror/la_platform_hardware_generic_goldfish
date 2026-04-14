@@ -33,12 +33,16 @@ enum class Breadcrumb : std::uint8_t {
  * @brief A Breadcrumb tracker.
  *
  * Provides access to a stream on which you can leave behind breadcrumbs
- * that will end up in the crash report.  Every tag will get at most 8kb
- * on which they can leave behind a trail of things they have done.
+ * that will end up in the crash report. These breadcrumbs are stored in
+ * circular buffers, meaning older entries are overwritten when the buffer
+ * limit is reached.
  *
- * The crumbs will end up in the annotations as the enum name as
- * defined in "android/utils/debug.h", or as annotations with the
- * 'thread-id'.
+ * Each breadcrumb type or thread-specific breadcrumb has a dedicated 8KB
+ * buffer in the crash report annotations.
+ *
+ * The crumbs will appear as annotations where the key is the stringified
+ * enum name (e.g., "kInit", "kGrpc", "kEvents") or the OS thread ID
+ * (truncated to 7 digits) for thread-specific crumbs.
  */
 class BreadcrumbTracker {
   public:
@@ -77,16 +81,16 @@ class BreadcrumbTracker {
 /**
  * @brief Macro to leave a breadcrumb for a specific type.
  *
- * @param x The breadcrumb type.
+ * @param x The breadcrumb type member (e.g., kInit, kGrpc, kEvents).
  *
  * Example usage:
  * @code
- * CRUMB(grpc) << "foo";
+ * CRUMB(kGrpc) << "Starting request to " << url;
  * // ...
- * CRUMB(grpc) << "bar";
+ * CRUMB(kGrpc) << "Request completed with status " << status;
  * // .. CRASH ..
  * // Your annotation should contain something like this:
- * // 'grpc' : foobar
+ * // 'kGrpc' : Starting request to ... Request completed with status ...
  * @endcode
  */
 #define CRUMB(x) \
@@ -95,16 +99,17 @@ class BreadcrumbTracker {
 /**
  * @brief Macro to leave a breadcrumb for the current thread.
  *
- * The breadcrumb will be bucketized by thread-id.
+ * The breadcrumb will be stored in an annotation named after the current
+ * thread ID (truncated to 7 digits).
  *
  * Example usage:
  * @code
- * TCRUMB() << "foo";
+ * TCRUMB() << "Entering critical section";
  * // ...
- * TCRUMB() << "bar";
+ * TCRUMB() << "Exiting critical section";
  * // .. CRASH ..
  * // Your annotation should contain something like this:
- * // 'thread-id' : foobar
+ * // '1234567' : Entering critical section Exiting critical section
  * @endcode
  */
 #define TCRUMB() (android::crashreport::BreadcrumbTracker::Stream())

@@ -9,6 +9,7 @@
 | :--- | :--- | :--- | :--- |
 | `crashhandler_init` | `:init` | `.../crash_initializer.h` | C-entry point to initialize the system at startup. |
 | `CrashReporter` | `:crash_reporter` | `.../crash_reporter.h` | Singleton for adding annotations or triggering a crash. |
+| `BreadcrumbTracker` | `:breadcrumb` | `.../breadcrumb.h` | Tracker for leaving "breadcrumbs" in circular buffers within crash reports. |
 | `HangDetector` | `:hang_detector` | `.../hang_detector.h` | Service to monitor event loops for hangs. |
 | `upload_crashes` | `:init` | `.../crash_system.h` | Starts the background upload of pending reports. |
 
